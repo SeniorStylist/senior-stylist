@@ -72,6 +72,8 @@ export function LogClient({
   const [bookings, setBookings] = useState(initialBookings)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [loading, setLoading] = useState(false)
+  // Increments on each successful fetch to re-trigger the enter animation
+  const [contentKey, setContentKey] = useState(0)
 
   // Status updates
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -115,6 +117,7 @@ export function LogClient({
         const m: Record<string, string> = {}
         json.data.logEntries.forEach((e: LogEntryData) => { m[e.stylistId] = e.notes ?? '' })
         setNotes(m)
+        setContentKey((k) => k + 1)
       }
     } finally {
       setLoading(false)
@@ -290,12 +293,17 @@ export function LogClient({
           </svg>
         </button>
         <div className="flex-1 text-center">
-          <h1
-            className="text-xl font-bold text-stone-900"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
-          >
-            {formatLogDate(date)}
-          </h1>
+          <div className="flex items-center justify-center gap-2">
+            <h1
+              className="text-xl font-bold text-stone-900"
+              style={{ fontFamily: "'DM Serif Display', serif" }}
+            >
+              {formatLogDate(date)}
+            </h1>
+            {loading && (
+              <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin shrink-0" />
+            )}
+          </div>
           <p className="text-xs text-stone-400 mt-0.5">
             {new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
               weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
@@ -312,6 +320,17 @@ export function LogClient({
           </svg>
         </button>
       </div>
+
+      {/* Body — dims while loading, fades+slides in after each fetch */}
+      <div
+        key={contentKey}
+        className={cn(contentKey > 0 && 'log-enter')}
+        style={{
+          opacity: loading ? 0.5 : 1,
+          pointerEvents: loading ? 'none' : 'auto',
+          transition: 'opacity 150ms ease',
+        }}
+      >
 
       {/* Summary bar */}
       {activeBookings.length > 0 && (
@@ -667,6 +686,8 @@ export function LogClient({
           </div>
         )
       })}
+
+      </div>{/* end body wrapper */}
 
       {/* Add walk-in FAB */}
       {!showWalkIn && (

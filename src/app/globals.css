@@ -18,6 +18,15 @@ body {
   font-family: 'DM Sans', sans-serif;
 }
 
+/* Log page date-change animation */
+@keyframes log-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.log-enter {
+  animation: log-fade-up 200ms ease-out both;
+}
+
 /* FullCalendar overrides */
 .fc {
   font-family: 'DM Sans', sans-serif;
