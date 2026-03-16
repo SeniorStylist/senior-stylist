@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #F7F6F2;
+  --color-sidebar: #0D2B2E;
+  --color-primary: #0D7377;
+  --color-primary-light: #14D9C4;
+  --color-card: #FFFFFF;
+  --color-border: #E7E5E4;
+  --color-text: #1C1917;
+  --color-text-secondary: #57534E;
+  --color-text-muted: #78716C;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* FullCalendar overrides */
+.fc {
+  font-family: 'DM Sans', sans-serif;
+  height: 100%;
+}
+
+.fc .fc-toolbar-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.25rem;
+  color: var(--color-text);
+}
+
+.fc .fc-button {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  border-radius: 0.5rem !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.8rem !important;
+  padding: 0.375rem 0.75rem !important;
+}
+
+.fc .fc-button:hover {
+  background-color: #0a5f63 !important;
+  border-color: #0a5f63 !important;
+}
+
+.fc .fc-button-active,
+.fc .fc-button:active {
+  background-color: #084c50 !important;
+  border-color: #084c50 !important;
+}
+
+.fc .fc-event {
+  border-radius: 0.375rem !important;
+  border: none !important;
+  padding: 2px 4px !important;
+  font-size: 0.75rem !important;
+  cursor: pointer !important;
+}
+
+.fc .fc-timegrid-slot {
+  height: 2rem !important;
+}
+
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-decoration: none !important;
+}
+
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-timegrid-slot-label-cushion {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.fc .fc-highlight {
+  background: rgba(13, 115, 119, 0.1) !important;
+}
+
+.fc .fc-now-indicator-line {
+  border-color: #ef4444 !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d0;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
+}

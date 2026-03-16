@@ -1,0 +1,72 @@
+import { createClient } from '@/lib/supabase/server'
+import { db } from '@/db'
+import { residents, facilityUsers } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { z } from 'zod'
+import { NextRequest } from 'next/server'
+
+const createSchema = z.object({
+  name: z.string().min(1),
+  roomNumber: z.string().optional(),
+  phone: z.string().optional(),
+})
+
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const facilityUser = await db.query.facilityUsers.findFirst({
+      where: (t, { eq }) => eq(t.userId, user.id),
+    })
+    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    const { facilityId } = facilityUser
+
+    const data = await db.query.residents.findMany({
+      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+      orderBy: (t, { asc }) => [asc(t.name)],
+    })
+
+    return Response.json({ data })
+  } catch (err) {
+    console.error('GET /api/residents error:', err)
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const facilityUser = await db.query.facilityUsers.findFirst({
+      where: (t, { eq }) => eq(t.userId, user.id),
+    })
+    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    const { facilityId } = facilityUser
+
+    const body = await request.json()
+    const parsed = createSchema.safeParse(body)
+    if (!parsed.success) {
+      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    const { name, roomNumber, phone } = parsed.data
+
+    const [created] = await db
+      .insert(residents)
+      .values({ facilityId, name, roomNumber: roomNumber ?? null, phone: phone ?? null })
+      .returning()
+
+    return Response.json({ data: created }, { status: 201 })
+  } catch (err) {
+    console.error('POST /api/residents error:', err)
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

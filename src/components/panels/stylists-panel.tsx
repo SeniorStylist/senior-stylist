@@ -1,0 +1,165 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Avatar } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import type { Stylist } from '@/types'
+
+const PRESET_COLORS = [
+  '#0D7377',
+  '#7C3AED',
+  '#DC2626',
+  '#D97706',
+  '#059669',
+  '#2563EB',
+  '#DB2777',
+  '#92400E',
+]
+
+interface StylistsPanelProps {
+  stylists: Stylist[]
+  onStylistAdded: (stylist: Stylist) => void
+}
+
+export function StylistsPanel({ stylists, onStylistAdded }: StylistsPanelProps) {
+  const router = useRouter()
+  const [showAdd, setShowAdd] = useState(false)
+  const [name, setName] = useState('')
+  const [color, setColor] = useState(PRESET_COLORS[0])
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleAdd = async () => {
+    if (!name.trim()) {
+      setError('Name is required')
+      return
+    }
+    setAdding(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/stylists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), color }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        onStylistAdded(json.data)
+        setName('')
+        setColor(PRESET_COLORS[0])
+        setShowAdd(false)
+      } else {
+        setError(json.error ?? 'Failed to add stylist')
+      }
+    } catch {
+      setError('Network error')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const resetAdd = () => {
+    setShowAdd(false)
+    setError(null)
+    setName('')
+    setColor(PRESET_COLORS[0])
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="p-3 border-b border-stone-100">
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowAdd((v) => !v)}
+            className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+            title="Add stylist"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+
+        {showAdd && (
+          <div className="mt-2 bg-stone-50 rounded-xl border border-stone-200 p-3 space-y-3">
+            <p className="text-xs font-semibold text-stone-600">New Stylist</p>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              placeholder="Full name *"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+            />
+            {/* Color picker */}
+            <div>
+              <p className="text-xs text-stone-400 mb-2">Calendar color</p>
+              <div className="flex gap-2 flex-wrap">
+                {PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={cn(
+                      'w-7 h-7 rounded-full transition-all duration-150',
+                      color === c
+                        ? 'ring-2 ring-offset-2 ring-stone-400 scale-110'
+                        : 'hover:scale-105'
+                    )}
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={resetAdd} disabled={adding}>
+                Cancel
+              </Button>
+              <Button size="sm" loading={adding} onClick={handleAdd}>
+                Add
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Stylist list */}
+      <div className="flex-1 overflow-y-auto">
+        {stylists.length === 0 ? (
+          <div className="flex items-center justify-center h-28">
+            <p className="text-sm text-stone-400">No stylists yet</p>
+          </div>
+        ) : (
+          stylists.map((stylist) => (
+            <button
+              key={stylist.id}
+              onClick={() => router.push(`/stylists/${stylist.id}`)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
+            >
+              <Avatar name={stylist.name} color={stylist.color} size="sm" />
+              <span className="flex-1 text-sm font-medium text-stone-900 truncate">
+                {stylist.name}
+              </span>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-stone-300 shrink-0"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}

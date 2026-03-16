@@ -1,0 +1,96 @@
+export type UserRole = 'stylist' | 'facility_admin' | 'super_admin'
+export type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+export type FacilityUserRole = 'stylist' | 'admin'
+
+export interface Profile {
+  id: string
+  email: string | null
+  fullName: string | null
+  avatarUrl: string | null
+  role: UserRole
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface Facility {
+  id: string
+  name: string
+  address: string | null
+  phone: string | null
+  calendarId: string | null
+  timezone: string
+  active: boolean
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface Resident {
+  id: string
+  facilityId: string
+  name: string
+  roomNumber: string | null
+  phone: string | null
+  notes: string | null
+  active: boolean
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface Stylist {
+  id: string
+  facilityId: string
+  name: string
+  color: string
+  active: boolean
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface Service {
+  id: string
+  facilityId: string
+  name: string
+  description: string | null
+  priceCents: number
+  durationMinutes: number
+  color: string | null
+  active: boolean
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface Booking {
+  id: string
+  facilityId: string
+  residentId: string
+  stylistId: string
+  serviceId: string
+  startTime: Date
+  endTime: Date
+  priceCents: number | null
+  durationMinutes: number | null
+  notes: string | null
+  status: BookingStatus
+  googleEventId: string | null
+  syncError: string | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface BookingWithRelations extends Booking {
+  resident: Resident
+  stylist: Stylist
+  service: Service
+}
+
+export interface LogEntry {
+  id: string
+  facilityId: string
+  stylistId: string
+  date: string
+  notes: string | null
+  finalized: boolean
+  finalizedAt: Date | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
