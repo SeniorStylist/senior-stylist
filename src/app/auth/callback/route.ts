@@ -10,9 +10,12 @@ export async function GET(request: NextRequest) {
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // Use NEXT_PUBLIC_APP_URL when set (production), otherwise fall back to
-  // request.nextUrl.origin. Never use new URL(request.url).origin — on Vercel
-  // the raw request.url host is the internal Node server (localhost:3000).
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin
-  return NextResponse.redirect(`${base}/dashboard`)
+  // Clone request.nextUrl (Next.js enriches this with the correct public host
+  // via X-Forwarded-Host) and change only the pathname. Never build a redirect
+  // URL from strings — process.env or new URL(request.url) can both resolve to
+  // localhost:3000 on Vercel's internal Node runtime.
+  const redirectUrl = request.nextUrl.clone()
+  redirectUrl.pathname = '/dashboard'
+  redirectUrl.search = ''
+  return NextResponse.redirect(redirectUrl)
 }
