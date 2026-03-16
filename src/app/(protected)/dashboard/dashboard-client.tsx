@@ -77,6 +77,30 @@ export function DashboardClient({
   // Ref for programmatic calendar view changes
   const changeViewRef = useRef<((view: CalendarViewType) => void) | null>(null)
 
+  // Export
+  const [exportMonth, setExportMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [exporting, setExporting] = useState(false)
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch(`/api/export/billing?month=${exportMonth}`)
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `billing-${exportMonth}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const fetchBookings = useCallback(async (start: Date, end: Date) => {
     setLoadingBookings(true)
     try {
@@ -166,6 +190,29 @@ export function DashboardClient({
           >
             {facility.name}
           </h1>
+          <div className="flex items-center gap-2">
+            {/* Export billing */}
+            <div className="hidden md:flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
+              <input
+                type="month"
+                value={exportMonth}
+                onChange={(e) => setExportMonth(e.target.value)}
+                className="text-xs text-stone-600 px-2 py-1.5 rounded-lg bg-transparent focus:outline-none"
+              />
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 text-stone-600 hover:bg-stone-100 disabled:opacity-50"
+                title="Export billing CSV"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {exporting ? 'Exporting…' : 'Export'}
+              </button>
+            </div>
           <div className="flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
             {(['timeGridDay', 'timeGridWeek', 'dayGridMonth'] as const).map((view) => (
               <button
@@ -181,6 +228,7 @@ export function DashboardClient({
                 {view === 'timeGridDay' ? 'Day' : view === 'timeGridWeek' ? 'Week' : 'Month'}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
