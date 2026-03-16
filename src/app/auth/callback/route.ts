@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
 
   if (code) {
@@ -10,5 +10,9 @@ export async function GET(request: NextRequest) {
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`)
+  // Use NEXT_PUBLIC_APP_URL when set (production), otherwise fall back to
+  // request.nextUrl.origin. Never use new URL(request.url).origin — on Vercel
+  // the raw request.url host is the internal Node server (localhost:3000).
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin
+  return NextResponse.redirect(`${base}/dashboard`)
 }
