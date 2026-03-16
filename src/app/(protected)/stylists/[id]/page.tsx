@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, stylists, facilityUsers } from '@/db/schema'
+import { bookings, stylists } from '@/db/schema'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, gte, lte, ne } from 'drizzle-orm'
 import { StylistDetailClient } from './stylist-detail-client'
 
@@ -18,9 +19,7 @@ export default async function StylistDetailPage({
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const facilityUser = await db.query.facilityUsers.findFirst({
-    where: (t, { eq }) => eq(t.userId, user.id),
-  })
+  const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
 
   const stylist = await db.query.stylists.findFirst({

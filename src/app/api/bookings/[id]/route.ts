@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services } from '@/db/schema'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, lt, gt, or, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -32,9 +33,7 @@ export async function GET(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: (t, { eq }) => eq(t.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
@@ -69,9 +68,7 @@ export async function PUT(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: (t, { eq }) => eq(t.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
@@ -257,9 +254,7 @@ export async function DELETE(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: (t, { eq }) => eq(t.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 

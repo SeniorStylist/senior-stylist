@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, facilities, residents, stylists, services } from '@/db/schema'
+import { facilities, residents, stylists, services } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
 
@@ -14,9 +15,7 @@ export default async function DashboardPage() {
   if (!user) redirect('/login')
 
   try {
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: eq(facilityUsers.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
 
     if (!facilityUser) {
       return (

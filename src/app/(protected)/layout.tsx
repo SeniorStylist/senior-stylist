@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilityUsers, facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
+import { MobileNav } from '@/components/layout/mobile-nav'
 
 export default async function ProtectedLayout({
   children,
@@ -17,26 +19,39 @@ export default async function ProtectedLayout({
 
   if (!user) redirect('/login')
 
-  // Get facility name for sidebar
+  // Load all facilities this user belongs to
   let facilityName: string | undefined
+  let allFacilities: { id: string; name: string; role: string }[] = []
+
   try {
-    const facilityUser = await db.query.facilityUsers.findFirst({
+    const userFacilities = await db.query.facilityUsers.findMany({
       where: eq(facilityUsers.userId, user.id),
+      with: { facility: true },
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
     })
-    if (facilityUser) {
-      const facility = await db.query.facilities.findFirst({
-        where: eq(facilities.id, facilityUser.facilityId),
-      })
-      facilityName = facility?.name
-    }
+
+    allFacilities = userFacilities.map((fu) => ({
+      id: fu.facilityId,
+      name: fu.facility.name,
+      role: fu.role,
+    }))
+
+    // Determine active facility from cookie or first
+    const cookieStore = await cookies()
+    const selectedId = cookieStore.get('selected_facility_id')?.value
+    const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
+    facilityName = active?.name
   } catch {
     // DB might not be set up yet — that's OK
   }
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
-      <Sidebar user={user} facilityName={facilityName} />
-      <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+      <div className="hidden md:flex">
+        <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} />
+      </div>
+      <main className="flex-1 min-w-0 overflow-auto pb-16 md:pb-0">{children}</main>
+      <MobileNav />
     </div>
   )
 }

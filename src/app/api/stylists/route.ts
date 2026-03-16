@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylists } from '@/db/schema'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -18,9 +19,7 @@ export async function GET() {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: (t, { eq }) => eq(t.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
@@ -44,9 +43,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: (t, { eq }) => eq(t.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 

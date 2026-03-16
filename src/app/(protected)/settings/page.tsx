@@ -1,10 +1,39 @@
-export default function SettingsPage() {
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { db } from '@/db'
+import { facilityUsers } from '@/db/schema'
+import { eq } from 'drizzle-orm'
+import { getUserFacility } from '@/lib/get-facility-id'
+import { SettingsClient } from './settings-client'
+
+export default async function SettingsPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const facilityUser = await getUserFacility(user.id)
+  if (!facilityUser) redirect('/dashboard')
+
+  const [facility, connectedUsers] = await Promise.all([
+    db.query.facilities.findFirst({
+      where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
+    }),
+    db.query.facilityUsers.findMany({
+      where: eq(facilityUsers.facilityId, facilityUser.facilityId),
+      with: { profile: true },
+    }),
+  ])
+
+  if (!facility) redirect('/dashboard')
+
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-stone-900 mb-2" style={{ fontFamily: "'DM Serif Display', serif" }}>
-        Settings
-      </h1>
-      <p className="text-stone-500 text-sm">Coming in Phase 7.</p>
-    </div>
+    <SettingsClient
+      facility={JSON.parse(JSON.stringify(facility))}
+      connectedUsers={JSON.parse(JSON.stringify(connectedUsers))}
+      currentUserId={user.id}
+      isAdmin={facilityUser.role === 'admin'}
+    />
   )
 }

@@ -59,7 +59,9 @@ export function DashboardClient({
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelTab>('residents')
-  const [calendarView, setCalendarView] = useState<CalendarViewType>('timeGridWeek')
+  const [calendarView, setCalendarView] = useState<CalendarViewType>(
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'timeGridDay' : 'timeGridWeek'
+  )
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -155,11 +157,11 @@ export function DashboardClient({
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* ── Calendar column ── */}
-      <div className="flex-1 flex flex-col min-w-0 p-4 gap-3">
+      <div className="flex-1 flex flex-col min-w-0 p-3 md:p-4 gap-3">
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
           <h1
-            className="text-lg font-bold text-stone-900"
+            className="text-base md:text-lg font-bold text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             {facility.name}
@@ -195,8 +197,8 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* ── Right panel ── */}
-      <div className="w-[300px] shrink-0 flex flex-col h-screen p-4 pl-0 gap-3">
+      {/* ── Right panel — hidden on mobile ── */}
+      <div className="hidden md:flex w-[300px] shrink-0 flex-col h-screen p-4 pl-0 gap-3">
         {/* Tabs */}
         <div className="bg-white rounded-xl border border-stone-200 p-1 flex gap-1 shrink-0">
           {(['residents', 'services', 'stylists'] as const).map((tab) => (

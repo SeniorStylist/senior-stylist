@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -79,31 +80,54 @@ const navItems = [
   },
 ]
 
+interface FacilityOption {
+  id: string
+  name: string
+  role: string
+}
+
 interface SidebarProps {
   user: User
   facilityName?: string
+  allFacilities?: FacilityOption[]
 }
 
-export function Sidebar({ user, facilityName }: SidebarProps) {
+export function Sidebar({ user, facilityName, allFacilities = [] }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [switching, setSwitching] = useState(false)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
+  const handleSelectFacility = async (facilityId: string) => {
+    setSwitching(true)
+    setSwitcherOpen(false)
+    await fetch('/api/facilities/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facilityId }),
+    })
+    router.refresh()
+    setSwitching(false)
+  }
+
   const userInitials = user.user_metadata?.full_name
     ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
     : user.email?.slice(0, 2).toUpperCase() ?? '??'
+
+  const showSwitcher = allFacilities.length > 1
 
   return (
     <aside
       className="w-[220px] shrink-0 flex flex-col h-screen sticky top-0"
       style={{ backgroundColor: 'var(--color-sidebar)' }}
     >
-      {/* Logo */}
+      {/* Logo / Facility name */}
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(20, 217, 196, 0.2)' }}>
@@ -112,17 +136,75 @@ export function Sidebar({ user, facilityName }: SidebarProps) {
               <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#14D9C4"/>
             </svg>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="text-white text-sm font-bold leading-tight" style={{ fontFamily: "'DM Serif Display', serif" }}>
               Senior Stylist
             </div>
-            {facilityName && (
-              <div className="text-xs leading-tight mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            {facilityName && !showSwitcher && (
+              <div className="text-xs leading-tight mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
                 {facilityName}
               </div>
             )}
           </div>
         </div>
+
+        {/* Facility switcher */}
+        {showSwitcher && (
+          <div className="relative mt-3">
+            <button
+              onClick={() => setSwitcherOpen((o) => !o)}
+              disabled={switching}
+              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}
+            >
+              <span className="truncate">{facilityName ?? 'Select facility'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+            {switcherOpen && (
+              <div
+                className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg overflow-hidden z-50"
+                style={{ backgroundColor: 'var(--color-sidebar)', border: '1px solid rgba(255,255,255,0.12)' }}
+              >
+                {allFacilities.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => handleSelectFacility(f.id)}
+                    className="w-full text-left px-3 py-2 text-xs transition-colors"
+                    style={{ color: f.name === facilityName ? '#14D9C4' : 'rgba(255,255,255,0.7)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    {f.name}
+                  </button>
+                ))}
+                <div className="border-t border-white/10 px-3 py-2">
+                  <Link
+                    href="/settings?tab=new-facility"
+                    onClick={() => setSwitcherOpen(false)}
+                    className="text-xs"
+                    style={{ color: '#14D9C4' }}
+                  >
+                    + Add facility
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {!showSwitcher && allFacilities.length <= 1 && (
+          <div className="mt-3">
+            <Link
+              href="/settings?tab=new-facility"
+              className="text-xs"
+              style={{ color: 'rgba(20,217,196,0.6)' }}
+            >
+              + Add facility
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Nav */}
