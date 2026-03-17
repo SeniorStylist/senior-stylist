@@ -36,6 +36,8 @@ export interface BookingWithRelations {
   durationMinutes: number | null
   notes: string | null
   status: string
+  paymentStatus: string
+  cancellationReason: string | null
   googleEventId: string | null
   syncError: string | null
   resident: Resident

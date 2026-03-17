@@ -117,10 +117,23 @@ export const bookings = pgTable('bookings', {
   durationMinutes: integer('duration_minutes'),
   notes: text('notes'),
   status: text('status').default('scheduled').notNull(),
+  paymentStatus: text('payment_status').default('unpaid').notNull(),
+  cancellationReason: text('cancellation_reason'),
   googleEventId: text('google_event_id').unique(),
   syncError: text('sync_error'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export const invites = pgTable('invites', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  email: text('email').notNull(),
+  invitedBy: uuid('invited_by').references(() => profiles.id).notNull(),
+  token: text('token').notNull().unique(),
+  used: boolean('used').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
 })
 
 export const logEntries = pgTable(
@@ -186,6 +199,18 @@ export const facilitiesRelations = relations(facilities, ({ many }) => ({
   services: many(services),
   bookings: many(bookings),
   logEntries: many(logEntries),
+  invites: many(invites),
+}))
+
+export const invitesRelations = relations(invites, ({ one }) => ({
+  facility: one(facilities, {
+    fields: [invites.facilityId],
+    references: [facilities.id],
+  }),
+  invitedByProfile: one(profiles, {
+    fields: [invites.invitedBy],
+    references: [profiles.id],
+  }),
 }))
 
 export const facilityUsersRelations = relations(facilityUsers, ({ one }) => ({

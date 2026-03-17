@@ -17,6 +17,8 @@ interface HistoryBooking {
   endTime: string
   priceCents: number | null
   status: string
+  paymentStatus: string
+  cancellationReason: string | null
   notes: string | null
   stylist: Stylist
   service: Service
@@ -294,6 +296,12 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     <p className="text-xs text-stone-500 truncate">
                       {booking.stylist.name} · {formatTime(booking.startTime)}
                     </p>
+                    {booking.notes && (
+                      <p className="text-xs text-stone-400 mt-0.5 italic truncate">{booking.notes}</p>
+                    )}
+                    {booking.status === 'cancelled' && booking.cancellationReason && (
+                      <p className="text-xs text-stone-400 mt-0.5 italic truncate">Reason: {booking.cancellationReason}</p>
+                    )}
                   </div>
                   <div className="shrink-0 text-right space-y-1">
                     <p className="text-sm font-semibold text-stone-700">
@@ -304,6 +312,25 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     >
                       {STATUS_LABELS[booking.status] ?? booking.status}
                     </span>
+                    {booking.status === 'completed' && (
+                      <div>
+                        <span
+                          className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
+                            booking.paymentStatus === 'paid'
+                              ? 'bg-green-50 text-green-700'
+                              : booking.paymentStatus === 'waived'
+                              ? 'bg-stone-100 text-stone-500'
+                              : 'bg-stone-50 text-stone-400'
+                          }`}
+                        >
+                          {booking.paymentStatus === 'paid'
+                            ? 'Paid'
+                            : booking.paymentStatus === 'waived'
+                            ? 'Waived'
+                            : 'Unpaid'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

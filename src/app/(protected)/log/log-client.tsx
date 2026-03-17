@@ -15,6 +15,8 @@ interface LogBooking {
   startTime: string
   endTime: string
   status: string
+  paymentStatus: string
+  cancellationReason: string | null
   priceCents: number | null
   notes: string | null
   resident: Resident
@@ -157,6 +159,32 @@ export function LogClient({
 
   const getLogEntry = (stylistId: string) =>
     logEntries.find((e) => e.stylistId === stylistId) ?? null
+
+  // Update payment status
+  const updatePaymentStatus = async (bookingId: string, currentPaymentStatus: string) => {
+    const next =
+      currentPaymentStatus === 'unpaid'
+        ? 'paid'
+        : currentPaymentStatus === 'paid'
+        ? 'waived'
+        : 'unpaid'
+    setUpdatingId(bookingId)
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentStatus: next }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setBookings(bookings.map((b) =>
+          b.id === bookingId ? { ...b, paymentStatus: json.data.paymentStatus } : b
+        ))
+      }
+    } finally {
+      setUpdatingId(null)
+    }
+  }
 
   // Update booking status
   const updateStatus = async (bookingId: string, status: string) => {
@@ -648,50 +676,78 @@ export function LogClient({
                           {formatTime(booking.startTime)} · {booking.service.name} ·{' '}
                           {formatCents(booking.priceCents ?? booking.service.priceCents)}
                         </p>
-                        {booking.notes && booking.notes !== 'Walk-in' && (
-                          <p className="text-xs text-stone-400 mt-0.5 italic">{booking.notes}</p>
-                        )}
                         {booking.notes === 'Walk-in' && (
                           <span className="inline-block mt-0.5 text-xs font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">
                             Walk-in
                           </span>
                         )}
+                        {booking.notes && booking.notes !== 'Walk-in' && (
+                          <p className="text-xs text-stone-400 mt-0.5 italic">{booking.notes}</p>
+                        )}
+                        {isCancelled && booking.cancellationReason && (
+                          <p className="text-xs text-stone-400 mt-0.5 italic">Reason: {booking.cancellationReason}</p>
+                        )}
                       </div>
 
                       {/* Actions */}
-                      {!isFinalized && !isCancelled && (
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          {isCompleted || isNoShow ? (
-                            <button
-                              onClick={() => updateStatus(booking.id, 'scheduled')}
-                              disabled={isUpdating}
-                              className="text-xs text-stone-400 hover:text-stone-600 font-medium px-3 min-h-[44px] rounded-xl hover:bg-stone-100 transition-colors disabled:opacity-40"
-                            >
-                              Undo
-                            </button>
-                          ) : (
-                            <>
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {/* Payment status badge/toggle */}
+                        {!isCancelled && (
+                          <button
+                            onClick={() => !isFinalized && updatePaymentStatus(booking.id, booking.paymentStatus ?? 'unpaid')}
+                            disabled={isUpdating || isFinalized}
+                            title={isFinalized ? `Payment: ${booking.paymentStatus ?? 'unpaid'}` : 'Toggle payment status'}
+                            className={cn(
+                              'text-xs font-semibold px-2 py-1 rounded-lg transition-colors disabled:cursor-default',
+                              booking.paymentStatus === 'paid'
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : booking.paymentStatus === 'waived'
+                                ? 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                                : 'bg-stone-50 text-stone-400 hover:bg-stone-100',
+                              isFinalized && 'opacity-70'
+                            )}
+                          >
+                            {booking.paymentStatus === 'paid'
+                              ? '$'
+                              : booking.paymentStatus === 'waived'
+                              ? 'Waived'
+                              : '$'}
+                          </button>
+                        )}
+                        {!isFinalized && !isCancelled && (
+                          <>
+                            {isCompleted || isNoShow ? (
                               <button
-                                onClick={() => updateStatus(booking.id, 'completed')}
+                                onClick={() => updateStatus(booking.id, 'scheduled')}
                                 disabled={isUpdating}
-                                className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-green-200"
+                                className="text-xs text-stone-400 hover:text-stone-600 font-medium px-3 min-h-[44px] rounded-xl hover:bg-stone-100 transition-colors disabled:opacity-40"
                               >
-                                Done
+                                Undo
                               </button>
-                              <button
-                                onClick={() => updateStatus(booking.id, 'no_show')}
-                                disabled={isUpdating}
-                                className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-orange-200"
-                              >
-                                No-show
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {isCancelled && (
-                        <span className="shrink-0 text-xs text-stone-400 font-medium">Cancelled</span>
-                      )}
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => updateStatus(booking.id, 'completed')}
+                                  disabled={isUpdating}
+                                  className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-green-200"
+                                >
+                                  Done
+                                </button>
+                                <button
+                                  onClick={() => updateStatus(booking.id, 'no_show')}
+                                  disabled={isUpdating}
+                                  className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-orange-200"
+                                >
+                                  No-show
+                                </button>
+                              </>
+                            )}
+                          </>
+                        )}
+                        {isCancelled && (
+                          <span className="text-xs text-stone-400 font-medium">Cancelled</span>
+                        )}
+                      </div>
                     </div>
                   )
                 })}

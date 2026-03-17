@@ -55,6 +55,8 @@ export function BookingModal({
   const [error, setError] = useState<string | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelReasonOther, setCancelReasonOther] = useState('')
 
   const residentInputRef = useRef<HTMLInputElement>(null)
 
@@ -89,6 +91,8 @@ export function BookingModal({
     }
     setError(null)
     setConfirmCancel(false)
+    setCancelReason('')
+    setCancelReasonOther('')
     setResidentDropdownOpen(false)
   }, [open, mode, booking, defaultStart]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -160,10 +164,23 @@ export function BookingModal({
       return
     }
 
+    const effectiveReason =
+      cancelReason === 'Other'
+        ? cancelReasonOther.trim() || undefined
+        : cancelReason || undefined
+
     setCancelling(true)
     try {
-      const res = await fetch(`/api/bookings/${booking!.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/bookings/${booking!.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancellationReason: effectiveReason,
+        }),
+      })
       if (res.ok) {
+        const json = await res.json()
         onBookingDeleted(booking!.id)
         toast('Appointment cancelled', 'info')
         onClose()
@@ -316,7 +333,7 @@ export function BookingModal({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          placeholder="Optional notes..."
+          placeholder="Allergies, preferences, special requests..."
           disabled={submitting}
           className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all duration-150 resize-none disabled:opacity-60"
         />
@@ -324,61 +341,97 @@ export function BookingModal({
     </div>
   )
 
+  const cancelReasonSelect = (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+        Reason (optional)
+      </label>
+      <select
+        value={cancelReason}
+        onChange={(e) => setCancelReason(e.target.value)}
+        className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+      >
+        <option value="">Select a reason</option>
+        <option value="No show">No show</option>
+        <option value="Resident request">Resident request</option>
+        <option value="Stylist unavailable">Stylist unavailable</option>
+        <option value="Facility closed">Facility closed</option>
+        <option value="Other">Other</option>
+      </select>
+      {cancelReason === 'Other' && (
+        <input
+          type="text"
+          value={cancelReasonOther}
+          onChange={(e) => setCancelReasonOther(e.target.value)}
+          placeholder="Describe the reason..."
+          className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+        />
+      )}
+    </div>
+  )
+
   // Action buttons — rendered outside scroll area on mobile, sticky on desktop
   const formFooter = (
-    <div className="bg-white px-6 pb-4 pt-4 flex items-center justify-between gap-3 border-t border-stone-100">
-      {/* Left side — cancel booking (edit mode only) */}
-      <div className="flex items-center gap-2">
-        {mode === 'edit' && !confirmCancel && (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setConfirmCancel(true)}
-            disabled={submitting || cancelling}
-          >
-            Cancel appointment
-          </Button>
-        )}
-        {mode === 'edit' && confirmCancel && (
-          <>
-            <span className="text-xs font-medium text-red-600">Are you sure?</span>
+    <div className="bg-white px-6 pb-4 pt-4 flex flex-col gap-3 border-t border-stone-100">
+      {mode === 'edit' && confirmCancel && (
+        <div className="space-y-2">
+          {cancelReasonSelect}
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        {/* Left side — cancel booking (edit mode only) */}
+        <div className="flex items-center gap-2">
+          {mode === 'edit' && !confirmCancel && (
             <Button
               variant="danger"
               size="sm"
-              loading={cancelling}
-              onClick={handleCancelBooking}
-              disabled={submitting}
+              onClick={() => setConfirmCancel(true)}
+              disabled={submitting || cancelling}
             >
-              Yes, cancel
+              Cancel appointment
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirmCancel(false)}
-              disabled={cancelling}
-            >
-              No
-            </Button>
-          </>
-        )}
-      </div>
+          )}
+          {mode === 'edit' && confirmCancel && (
+            <>
+              <span className="text-xs font-medium text-red-600">Are you sure?</span>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={cancelling}
+                onClick={handleCancelBooking}
+                disabled={submitting}
+              >
+                Yes, cancel
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setConfirmCancel(false); setCancelReason(''); setCancelReasonOther('') }}
+                disabled={cancelling}
+              >
+                No
+              </Button>
+            </>
+          )}
+        </div>
 
-      {/* Right side — close + save */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="secondary"
-          onClick={onClose}
-          disabled={submitting || cancelling}
-        >
-          Close
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          loading={submitting}
-          disabled={cancelling}
-        >
-          {mode === 'create' ? 'Book appointment' : 'Save changes'}
-        </Button>
+        {/* Right side — close + save */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            disabled={submitting || cancelling}
+          >
+            Close
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            loading={submitting}
+            disabled={cancelling}
+          >
+            {mode === 'create' ? 'Book appointment' : 'Save changes'}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -394,28 +447,33 @@ export function BookingModal({
   return (
     <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg">
       {formFields}
-      <div className="sticky bottom-0 bg-white px-6 pb-6 flex items-center justify-between gap-3 border-t border-stone-100 pt-4">
-        {/* Left side */}
-        <div className="flex items-center gap-2">
-          {mode === 'edit' && !confirmCancel && (
-            <Button variant="danger" size="sm" onClick={() => setConfirmCancel(true)} disabled={submitting || cancelling}>
-              Cancel appointment
+      <div className="sticky bottom-0 bg-white px-6 pb-6 border-t border-stone-100 pt-4 space-y-3">
+        {mode === 'edit' && confirmCancel && (
+          <div>{cancelReasonSelect}</div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          {/* Left side */}
+          <div className="flex items-center gap-2">
+            {mode === 'edit' && !confirmCancel && (
+              <Button variant="danger" size="sm" onClick={() => setConfirmCancel(true)} disabled={submitting || cancelling}>
+                Cancel appointment
+              </Button>
+            )}
+            {mode === 'edit' && confirmCancel && (
+              <>
+                <span className="text-xs font-medium text-red-600">Are you sure?</span>
+                <Button variant="danger" size="sm" loading={cancelling} onClick={handleCancelBooking} disabled={submitting}>Yes, cancel</Button>
+                <Button variant="ghost" size="sm" onClick={() => { setConfirmCancel(false); setCancelReason(''); setCancelReasonOther('') }} disabled={cancelling}>No</Button>
+              </>
+            )}
+          </div>
+          {/* Right side */}
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
+            <Button onClick={handleSubmit} loading={submitting} disabled={cancelling}>
+              {mode === 'create' ? 'Book appointment' : 'Save changes'}
             </Button>
-          )}
-          {mode === 'edit' && confirmCancel && (
-            <>
-              <span className="text-xs font-medium text-red-600">Are you sure?</span>
-              <Button variant="danger" size="sm" loading={cancelling} onClick={handleCancelBooking} disabled={submitting}>Yes, cancel</Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(false)} disabled={cancelling}>No</Button>
-            </>
-          )}
-        </div>
-        {/* Right side */}
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={cancelling}>
-            {mode === 'create' ? 'Book appointment' : 'Save changes'}
-          </Button>
+          </div>
         </div>
       </div>
     </Modal>

@@ -34,7 +34,16 @@ const TIMEZONES = [
   'Pacific/Honolulu',
 ]
 
-type Tab = 'general' | 'integrations' | 'team' | 'new-facility'
+type Tab = 'general' | 'integrations' | 'team' | 'invites' | 'new-facility'
+
+interface InviteData {
+  id: string
+  email: string
+  used: boolean
+  createdAt: string | null
+  expiresAt: string
+  token: string
+}
 
 export function SettingsClient({
   facility,
@@ -111,6 +120,72 @@ export function SettingsClient({
     }
   }
 
+  // Invites
+  const [invitesList, setInvitesList] = useState<InviteData[]>([])
+  const [invitesLoaded, setInvitesLoaded] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [sendingInvite, setSendingInvite] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [inviteSuccess, setInviteSuccess] = useState('')
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+  const [copiedToken, setCopiedToken] = useState<string | null>(null)
+
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://senior-stylist.vercel.app'
+
+  const loadInvites = async () => {
+    if (!isAdmin) return
+    const res = await fetch('/api/invites')
+    if (res.ok) {
+      const j = await res.json()
+      setInvitesList(j.data ?? [])
+    }
+    setInvitesLoaded(true)
+  }
+
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim()) { setInviteError('Email is required'); return }
+    setSendingInvite(true)
+    setInviteError('')
+    setInviteSuccess('')
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      })
+      const j = await res.json()
+      if (!res.ok) {
+        setInviteError(j.error ?? 'Failed to send invite')
+        return
+      }
+      setInviteEmail('')
+      setInviteSuccess('Invite sent!')
+      setTimeout(() => setInviteSuccess(''), 3000)
+      setInvitesList((prev) => [j.data, ...prev])
+    } finally {
+      setSendingInvite(false)
+    }
+  }
+
+  const handleRevokeInvite = async (id: string) => {
+    setRevokingId(id)
+    try {
+      const res = await fetch(`/api/invites/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setInvitesList((prev) => prev.filter((i) => i.id !== id))
+      }
+    } finally {
+      setRevokingId(null)
+    }
+  }
+
+  const copyInviteLink = (token: string) => {
+    const link = `${appUrl}/invite/accept?token=${token}`
+    navigator.clipboard.writeText(link)
+    setCopiedToken(token)
+    setTimeout(() => setCopiedToken(null), 2000)
+  }
+
   // New facility form
   const [newName, setNewName] = useState('')
   const [newAddress, setNewAddress] = useState('')
@@ -152,10 +227,11 @@ export function SettingsClient({
     }
   }
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: 'general', label: 'General' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'team', label: 'Team' },
+    { id: 'invites', label: 'Invites', adminOnly: true },
     { id: 'new-facility', label: '+ New Facility' },
   ]
 
@@ -171,10 +247,13 @@ export function SettingsClient({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-stone-200">
-        {tabs.map((tab) => (
+        {tabs.filter((t) => !t.adminOnly || isAdmin).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id)
+              if (tab.id === 'invites' && !invitesLoaded) loadInvites()
+            }}
             className={cn(
               'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
               activeTab === tab.id
@@ -348,6 +427,101 @@ export function SettingsClient({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Invites ── */}
+      {activeTab === 'invites' && isAdmin && (
+        <div className="space-y-5">
+          <p className="text-xs text-stone-400">
+            Invite users to join <span className="font-semibold text-stone-600">{facility.name}</span>. Links expire after 7 days.
+          </p>
+
+          {/* Send invite form */}
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendInvite()}
+              placeholder="colleague@example.com"
+              className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+            />
+            <button
+              onClick={handleSendInvite}
+              disabled={sendingInvite || !inviteEmail.trim()}
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
+              style={{ backgroundColor: '#0D7377' }}
+            >
+              {sendingInvite ? 'Sending…' : 'Send Invite'}
+            </button>
+          </div>
+          {inviteError && <p className="text-xs text-red-600">{inviteError}</p>}
+          {inviteSuccess && <p className="text-xs text-green-600">{inviteSuccess}</p>}
+
+          {/* Pending invites */}
+          {invitesList.filter((i) => !i.used).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Pending</p>
+              <div className="rounded-2xl border border-stone-100 overflow-hidden">
+                {invitesList.filter((i) => !i.used).map((invite, idx) => (
+                  <div
+                    key={invite.id}
+                    className={cn('flex items-center gap-3 px-4 py-3', idx > 0 && 'border-t border-stone-100')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-stone-800 truncate">{invite.email}</p>
+                      <p className="text-xs text-stone-400">
+                        Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                        {' · '}
+                        Expires {new Date(invite.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => copyInviteLink(invite.token)}
+                      className="text-xs text-stone-400 hover:text-stone-600 font-medium px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors"
+                    >
+                      {copiedToken === invite.token ? 'Copied!' : 'Copy link'}
+                    </button>
+                    <button
+                      onClick={() => handleRevokeInvite(invite.id)}
+                      disabled={revokingId === invite.id}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+                    >
+                      {revokingId === invite.id ? 'Revoking…' : 'Revoke'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Accepted invites */}
+          {invitesList.filter((i) => i.used).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Accepted</p>
+              <div className="rounded-2xl border border-stone-100 overflow-hidden">
+                {invitesList.filter((i) => i.used).map((invite, idx) => (
+                  <div
+                    key={invite.id}
+                    className={cn('flex items-center gap-3 px-4 py-3', idx > 0 && 'border-t border-stone-100')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-stone-800 truncate">{invite.email}</p>
+                      <p className="text-xs text-stone-400">
+                        Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                      </p>
+                    </div>
+                    <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Accepted</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {invitesLoaded && invitesList.length === 0 && (
+            <p className="text-sm text-stone-400 text-center py-6">No invites sent yet.</p>
+          )}
         </div>
       )}
 

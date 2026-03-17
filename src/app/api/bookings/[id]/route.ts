@@ -18,6 +18,8 @@ const updateSchema = z.object({
   startTime: z.string().datetime().optional(),
   notes: z.string().optional(),
   status: z.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
+  paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional(),
+  cancellationReason: z.string().optional(),
 })
 
 export async function GET(
@@ -179,6 +181,8 @@ export async function PUT(
     if (durationMinutes !== undefined) setPayload.durationMinutes = durationMinutes
     if (updates.notes !== undefined) setPayload.notes = updates.notes
     if (updates.status !== undefined) setPayload.status = updates.status
+    if (updates.paymentStatus !== undefined) setPayload.paymentStatus = updates.paymentStatus
+    if (updates.cancellationReason !== undefined) setPayload.cancellationReason = updates.cancellationReason
 
     const [updated] = await db
       .update(bookings)
