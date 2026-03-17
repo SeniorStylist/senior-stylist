@@ -16,6 +16,7 @@ export default async function ServicesPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
 
+  try {
   const servicesList = await db.query.services.findMany({
     where: and(
       eq(services.facilityId, facilityUser.facilityId),
@@ -27,4 +28,15 @@ export default async function ServicesPage() {
   return (
     <ServicesPageClient services={JSON.parse(JSON.stringify(servicesList))} />
   )
+  } catch (err) {
+    console.error('[ServicesPage] DB error:', err)
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg mt-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">Failed to load services. Please refresh to try again.</p>
+        </div>
+      </div>
+    )
+  }
 }

@@ -17,6 +17,7 @@ export default async function StylistsPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
 
+  try {
   const stylistsList = await db.query.stylists.findMany({
     where: and(
       eq(stylists.facilityId, facilityUser.facilityId),
@@ -77,4 +78,15 @@ export default async function StylistsPage() {
       )}
     </div>
   )
+  } catch (err) {
+    console.error('[StylistsPage] DB error:', err)
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg mt-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">Failed to load stylists. Please refresh to try again.</p>
+        </div>
+      </div>
+    )
+  }
 }

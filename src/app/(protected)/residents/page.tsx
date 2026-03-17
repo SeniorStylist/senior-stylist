@@ -16,6 +16,7 @@ export default async function ResidentsPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
 
+  try {
   const [residentsList, bookingsList] = await Promise.all([
     db.query.residents.findMany({
       where: and(
@@ -69,4 +70,15 @@ export default async function ResidentsPage() {
       residents={JSON.parse(JSON.stringify(residentsWithStats))}
     />
   )
+  } catch (err) {
+    console.error('[ResidentsPage] DB error:', err)
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg mt-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">Failed to load residents. Please refresh to try again.</p>
+        </div>
+      </div>
+    )
+  }
 }

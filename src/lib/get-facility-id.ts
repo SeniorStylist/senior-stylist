@@ -10,20 +10,25 @@ import { and, eq } from 'drizzle-orm'
  * cookie references a facility the user doesn't belong to.
  */
 export async function getUserFacility(userId: string) {
-  const cookieStore = await cookies()
-  const selected = cookieStore.get('selected_facility_id')?.value
+  try {
+    const cookieStore = await cookies()
+    const selected = cookieStore.get('selected_facility_id')?.value
 
-  if (selected) {
-    const fu = await db.query.facilityUsers.findFirst({
-      where: and(
-        eq(facilityUsers.userId, userId),
-        eq(facilityUsers.facilityId, selected)
-      ),
+    if (selected) {
+      const fu = await db.query.facilityUsers.findFirst({
+        where: and(
+          eq(facilityUsers.userId, userId),
+          eq(facilityUsers.facilityId, selected)
+        ),
+      })
+      if (fu) return fu
+    }
+
+    return await db.query.facilityUsers.findFirst({
+      where: eq(facilityUsers.userId, userId),
     })
-    if (fu) return fu
+  } catch (err) {
+    console.error('[getUserFacility] DB error:', err)
+    return null
   }
-
-  return db.query.facilityUsers.findFirst({
-    where: eq(facilityUsers.userId, userId),
-  })
 }

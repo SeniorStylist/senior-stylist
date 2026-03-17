@@ -17,6 +17,7 @@ export default async function LogPage() {
   if (!facilityUser) redirect('/dashboard')
   const { facilityId } = facilityUser
 
+  try {
   const today = new Date().toISOString().split('T')[0]
   const dayStart = new Date(today + 'T00:00:00.000Z')
   const dayEnd = new Date(today + 'T23:59:59.999Z')
@@ -67,4 +68,15 @@ export default async function LogPage() {
       services={JSON.parse(JSON.stringify(servicesList))}
     />
   )
+  } catch (err) {
+    console.error('[LogPage] DB error:', err)
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg mt-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">Failed to load the log. Please refresh to try again.</p>
+        </div>
+      </div>
+    )
+  }
 }

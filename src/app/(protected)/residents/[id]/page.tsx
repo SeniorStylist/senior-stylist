@@ -22,6 +22,7 @@ export default async function ResidentDetailPage({
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
 
+  try {
   const resident = await db.query.residents.findFirst({
     where: and(
       eq(residents.id, id),
@@ -84,4 +85,15 @@ export default async function ResidentDetailPage({
       stats={stats}
     />
   )
+  } catch (err) {
+    console.error('[ResidentDetailPage] DB error:', err)
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg mt-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">Failed to load resident details. Please refresh to try again.</p>
+        </div>
+      </div>
+    )
+  }
 }

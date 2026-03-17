@@ -16,6 +16,7 @@ export default async function SettingsPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
 
+  try {
   const [facility, connectedUsers] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
@@ -36,4 +37,15 @@ export default async function SettingsPage() {
       isAdmin={facilityUser.role === 'admin'}
     />
   )
+  } catch (err) {
+    console.error('[SettingsPage] DB error:', err)
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg mt-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Something went wrong</p>
+          <p className="text-xs text-red-600">Failed to load settings. Please refresh to try again.</p>
+        </div>
+      </div>
+    )
+  }
 }
