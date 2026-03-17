@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
 import type { Service } from '@/types'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { useToast } from '@/components/ui/toast'
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
 
@@ -12,6 +14,7 @@ interface ServicesPageClientProps {
 }
 
 export function ServicesPageClient({ services: initialServices }: ServicesPageClientProps) {
+  const { toast } = useToast()
   const [services, setServices] = useState(initialServices)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -57,6 +60,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
       if (res.ok) {
         setServices(services.map((s) => (s.id === serviceId ? json.data : s)))
         setEditingId(null)
+        toast('Changes saved', 'success')
       }
     } finally {
       setSaving(false)
@@ -87,6 +91,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
         setAddPrice('')
         setAddDuration('30')
         setShowAdd(false)
+        toast('Service saved', 'success')
       } else {
         setAddError(json.error ?? 'Failed to add service')
       }
@@ -115,6 +120,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
   }
 
   return (
+    <ErrorBoundary>
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -193,8 +199,24 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
 
       {/* Table */}
       {services.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
-          <p className="text-stone-400 text-sm">No services yet</p>
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm py-16 text-center">
+          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="1.8">
+              <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-stone-700">No services yet</p>
+          <p className="text-xs text-stone-400 mt-1 mb-4">Add your first service to start booking appointments.</p>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add Service
+          </button>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
@@ -327,5 +349,6 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
         </div>
       )}
     </div>
+    </ErrorBoundary>
   )
 }

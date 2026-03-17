@@ -6,6 +6,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { formatCents, formatDate, formatTime } from '@/lib/utils'
 import type { Resident, Stylist, Service } from '@/types'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { useToast } from '@/components/ui/toast'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -49,6 +51,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function ResidentDetailClient({ resident: initialResident, bookings, stats }: ResidentDetailClientProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [resident, setResident] = useState(initialResident)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(initialResident.name)
@@ -80,6 +83,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       if (res.ok) {
         setResident(json.data)
         setEditing(false)
+        toast('Changes saved', 'success')
         router.refresh()
       } else {
         setSaveError(json.error ?? 'Failed to save')
@@ -114,6 +118,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   }
 
   return (
+    <ErrorBoundary>
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
@@ -260,8 +265,17 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           </div>
 
           {bookings.length === 0 ? (
-            <div className="flex items-center justify-center h-40">
-              <p className="text-sm text-stone-400">No appointments yet</p>
+            <div className="flex flex-col items-center justify-center h-48 gap-2">
+              <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-stone-600">No appointments yet</p>
+              <p className="text-xs text-stone-400">Appointments for this resident will appear here.</p>
             </div>
           ) : (
             <div className="divide-y divide-stone-50">
@@ -298,6 +312,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }
 

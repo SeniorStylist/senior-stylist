@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { cn, formatCents } from '@/lib/utils'
 import type { Resident, Service, Stylist } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
+import { useToast } from '@/components/ui/toast'
 
 export interface QuickBookFABHandle {
   openWithSlot: (slot: { date: string; time: string }) => void
@@ -43,6 +44,7 @@ function QuickBookFAB({
 }: QuickBookFABProps, ref) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(1)
+  const { toast } = useToast()
 
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null)
   const [selectedService, setSelectedService] = useState<Service | null>(null)
@@ -134,6 +136,7 @@ function QuickBookFAB({
       handleClose()
       setBounce(true)
       setTimeout(() => setBounce(false), 700)
+      toast('Appointment booked!', 'success')
       onBookingCreated(json.data)
     } catch {
       setError('Network error. Please try again.')

@@ -7,6 +7,8 @@ import { cn, formatCents, formatTime } from '@/lib/utils'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { useToast } from '@/components/ui/toast'
 
 interface LogBooking {
   id: string
@@ -104,6 +106,7 @@ export function LogClient({
   const [wiAdding, setWiAdding] = useState(false)
   const [wiError, setWiError] = useState<string | null>(null)
 
+  const { toast } = useToast()
   const today = new Date().toISOString().split('T')[0]
   const isToday = date === today
 
@@ -200,6 +203,7 @@ export function LogClient({
           return [...filtered, json.data]
         })
         setConfirmFinalizeId(null)
+        toast('Day finalized', 'success')
       }
     } finally {
       setFinalizingId(null)
@@ -294,6 +298,7 @@ export function LogClient({
         setWiResidentId('')
         setWiServiceId(services[0]?.id ?? '')
         setWiTime(roundToNearest30(new Date()))
+        toast('Appointment booked!', 'success')
       } else {
         setWiError(json.error?.message ?? json.error ?? 'Failed to add walk-in')
       }
@@ -310,6 +315,7 @@ export function LogClient({
   const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.priceCents ?? b.service.priceCents), 0)
 
   return (
+    <ErrorBoundary>
     <div
       className="p-4 md:p-6 max-w-3xl mx-auto"
       {...pullHandlers}
@@ -758,5 +764,6 @@ export function LogClient({
         </button>
       )}
     </div>
+    </ErrorBoundary>
   )
 }

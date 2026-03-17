@@ -6,6 +6,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
 import type { Stylist, Service, Resident } from '@/types'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { useToast } from '@/components/ui/toast'
 
 const PRESET_COLORS = [
   '#0D7377',
@@ -45,6 +47,7 @@ export function StylistDetailClient({
   stats,
 }: StylistDetailClientProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [stylist, setStylist] = useState(initialStylist)
   const [name, setName] = useState(initialStylist.name)
   const [color, setColor] = useState(initialStylist.color)
@@ -69,6 +72,7 @@ export function StylistDetailClient({
         setStylist(json.data)
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
+        toast('Changes saved', 'success')
         router.refresh()
       } else {
         setError(json.error ?? 'Failed to save')
@@ -81,6 +85,7 @@ export function StylistDetailClient({
   }
 
   return (
+    <ErrorBoundary>
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
@@ -183,8 +188,17 @@ export function StylistDetailClient({
           </div>
 
           {upcomingBookings.length === 0 ? (
-            <div className="flex items-center justify-center h-40">
-              <p className="text-sm text-stone-400">No upcoming appointments</p>
+            <div className="flex flex-col items-center justify-center h-48 gap-2">
+              <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-stone-600">No upcoming appointments</p>
+              <p className="text-xs text-stone-400">Schedule will appear here for the next 14 days.</p>
             </div>
           ) : (
             <div className="divide-y divide-stone-50">
@@ -224,5 +238,6 @@ export function StylistDetailClient({
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

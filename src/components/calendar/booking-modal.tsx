@@ -9,6 +9,7 @@ import { formatCents } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Resident, Stylist, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
+import { useToast } from '@/components/ui/toast'
 
 interface BookingModalProps {
   open: boolean
@@ -58,6 +59,7 @@ export function BookingModal({
   const residentInputRef = useRef<HTMLInputElement>(null)
 
   const isMobile = useIsMobile()
+  const { toast } = useToast()
   const selectedService = services.find((s) => s.id === selectedServiceId)
 
   const filteredResidents = residents.filter(
@@ -143,6 +145,7 @@ export function BookingModal({
       }
 
       onBookingChange(json.data)
+      toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success')
       onClose()
     } catch {
       setError('Network error. Please try again.')
@@ -162,6 +165,7 @@ export function BookingModal({
       const res = await fetch(`/api/bookings/${booking!.id}`, { method: 'DELETE' })
       if (res.ok) {
         onBookingDeleted(booking!.id)
+        toast('Appointment cancelled', 'info')
         onClose()
       } else {
         const json = await res.json()

@@ -12,6 +12,8 @@ import { StylistsPanel } from '@/components/panels/stylists-panel'
 import { cn, formatCents } from '@/lib/utils'
 import type { Resident, Stylist, Service, Facility } from '@/types'
 import { Spinner } from '@/components/ui'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { useToast } from '@/components/ui/toast'
 
 const CalendarView = dynamic(() => import('@/components/calendar/calendar-view'), {
   ssr: false,
@@ -78,6 +80,7 @@ export function DashboardClient({
   const [localServices, setLocalServices] = useState<Service[]>(initialServices)
 
   const isMobile = useIsMobile()
+  const { toast } = useToast()
 
   // Ref for programmatic calendar view changes
   const changeViewRef = useRef<((view: CalendarViewType) => void) | null>(null)
@@ -117,6 +120,7 @@ export function DashboardClient({
       a.download = `billing-${exportMonth}.csv`
       a.click()
       URL.revokeObjectURL(url)
+      toast('Export ready', 'success')
     } finally {
       setExporting(false)
     }
@@ -211,6 +215,7 @@ export function DashboardClient({
   const [calendarFlash, setCalendarFlash] = useState(false)
 
   return (
+    <ErrorBoundary>
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* ── Calendar column ── */}
       <div className="flex-1 flex flex-col min-w-0 p-3 md:p-4 gap-3">
@@ -387,5 +392,6 @@ export function DashboardClient({
         onBookingDeleted={handleBookingDeleted}
       />
     </div>
+    </ErrorBoundary>
   )
 }

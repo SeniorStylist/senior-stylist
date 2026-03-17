@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
+import { Resend } from 'resend'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -180,6 +181,61 @@ export async function POST(request: NextRequest) {
         service: true,
       },
     })
+
+    // Send confirmation email — fire-and-forget
+    try {
+      const resendApiKey = process.env.RESEND_API_KEY
+      const fromEmail = process.env.RESEND_FROM_EMAIL
+      if (resendApiKey && fromEmail && user.email) {
+        const resend = new Resend(resendApiKey)
+        const dateStr = startTime.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
+        const timeStr = startTime.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+        const priceStr = service.priceCents
+          ? `$${(service.priceCents / 100).toFixed(2)}`
+          : 'N/A'
+
+        await resend.emails.send({
+          from: fromEmail,
+          to: user.email,
+          subject: `Appointment booked — ${resident.name}`,
+          html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#0D7377;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Appointment Booked</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Resident</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${resident.name}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Service</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${service.name}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Date</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${dateStr}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Time</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${timeStr}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Stylist</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${stylist.name}</td></tr>
+        <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Price</td><td style="padding:10px 0;color:#0D7377;font-size:14px;font-weight:700;">${priceStr}</td></tr>
+      </table>
+      <p style="margin:24px 0 0;font-size:12px;color:#A8A29E;">Manage appointments at <a href="https://senior-stylist.vercel.app" style="color:#0D7377;text-decoration:none;">senior-stylist.vercel.app</a></p>
+    </div>
+  </div>
+</body>
+</html>
+          `.trim(),
+        })
+      }
+    } catch (emailErr) {
+      console.error('Confirmation email failed (non-fatal):', emailErr)
+    }
 
     return Response.json({ data }, { status: 201 })
   } catch (err) {

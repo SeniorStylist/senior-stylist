@@ -9,6 +9,8 @@ import { SkeletonResidentRow } from '@/components/ui/skeleton'
 import { formatCents, formatDate } from '@/lib/utils'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident } from '@/types'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { useToast } from '@/components/ui/toast'
 
 interface ResidentWithStats extends Resident {
   lastVisit: string | null
@@ -22,6 +24,7 @@ interface ResidentsPageClientProps {
 
 export function ResidentsPageClient({ residents: initialResidents }: ResidentsPageClientProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [residents, setResidents] = useState(initialResidents)
   const [search, setSearch] = useState('')
 
@@ -62,6 +65,7 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
         setRoomNumber('')
         setPhone('')
         setShowAdd(false)
+        toast('Resident added', 'success')
       } else {
         setAddError(json.error ?? 'Failed to add resident')
       }
@@ -73,6 +77,7 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
   }
 
   return (
+    <ErrorBoundary>
     <div className="p-6 max-w-4xl mx-auto" {...pullHandlers}>
       {/* Pull-to-refresh indicator */}
       {(pullProgress > 0 || pullRefreshing) && (
@@ -183,10 +188,33 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
           {[1, 2, 3, 4, 5].map((i) => <SkeletonResidentRow key={i} />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
-          <p className="text-stone-400 text-sm">
-            {search ? 'No matches found' : 'No residents yet'}
-          </p>
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm py-16 text-center">
+          {search ? (
+            <p className="text-sm text-stone-400">No matches found</p>
+          ) : (
+            <>
+              <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="1.8">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                  <path d="M16 3.13a4 4 0 010 7.75" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-stone-700">No residents yet</p>
+              <p className="text-xs text-stone-400 mt-1 mb-4">Add your first resident to get started.</p>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add Resident
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
@@ -229,5 +257,6 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
         </div>
       )}
     </div>
+    </ErrorBoundary>
   )
 }

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { SkeletonStatCard, Skeleton } from '@/components/ui/skeleton'
 
 interface ServiceStat {
   name: string
@@ -103,6 +105,7 @@ export function ReportsClient() {
   }))
 
   return (
+    <ErrorBoundary>
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -124,8 +127,15 @@ export function ReportsClient() {
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center py-24">
-          <Spinner className="text-[#0D7377]" />
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+            <Skeleton className="h-4 w-36 rounded mb-4" />
+            <Skeleton className="h-[220px] w-full rounded-xl" />
+          </div>
         </div>
       )}
 
@@ -299,8 +309,17 @@ export function ReportsClient() {
             </div>
 
             {sortedBookings.length === 0 ? (
-              <div className="px-5 py-14 text-center">
-                <p className="text-sm text-stone-400">No appointments this month</p>
+              <div className="px-5 py-16 text-center">
+                <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-stone-600">No bookings this month</p>
+                <p className="text-xs text-stone-400 mt-1">Appointments will appear here once booked.</p>
               </div>
             ) : (
               <div className="divide-y divide-stone-50">
@@ -342,5 +361,6 @@ export function ReportsClient() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   )
 }

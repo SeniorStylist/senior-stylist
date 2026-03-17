@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import type { Resident } from '@/types'
+import { useToast } from '@/components/ui/toast'
 
 interface ResidentsPanelProps {
   residents: Resident[]
@@ -13,6 +14,7 @@ interface ResidentsPanelProps {
 
 export function ResidentsPanel({ residents, onResidentAdded }: ResidentsPanelProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -57,6 +59,7 @@ export function ResidentsPanel({ residents, onResidentAdded }: ResidentsPanelPro
       setRoomNumber('')
       setPhone('')
       setShowAdd(false)
+      toast('Resident added', 'success')
     } catch {
       setError('Network error')
     } finally {

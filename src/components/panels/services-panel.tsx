@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { formatCents, dollarsToCents } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { Service } from '@/types'
+import { useToast } from '@/components/ui/toast'
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
 
@@ -14,6 +15,7 @@ interface ServicesPanelProps {
 }
 
 export function ServicesPanel({ services, onServiceAdded, onServiceUpdated }: ServicesPanelProps) {
+  const { toast } = useToast()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPrice, setEditPrice] = useState('')
   const [editDuration, setEditDuration] = useState('')
@@ -49,6 +51,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated }: Se
       if (res.ok) {
         onServiceUpdated(json.data)
         setEditingId(null)
+        toast('Changes saved', 'success')
       }
     } finally {
       setSaving(false)
@@ -79,6 +82,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated }: Se
         setAddPrice('')
         setAddDuration('30')
         setShowAdd(false)
+        toast('Service saved', 'success')
       } else {
         setAddError(json.error ?? 'Failed to add service')
       }

@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { MobileNav } from '@/components/layout/mobile-nav'
+import { ToastProvider } from '@/components/ui/toast'
 
 export default async function ProtectedLayout({
   children,
@@ -53,7 +54,9 @@ export default async function ProtectedLayout({
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} />
       </div>
-      <main className="flex-1 min-w-0 overflow-auto pb-16 md:pb-0">{children}</main>
+      <main className="flex-1 min-w-0 overflow-auto pb-16 md:pb-0">
+          <ToastProvider>{children}</ToastProvider>
+        </main>
       <MobileNav />
     </div>
   )
