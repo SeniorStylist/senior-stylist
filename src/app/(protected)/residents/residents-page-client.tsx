@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { SkeletonResidentRow } from '@/components/ui/skeleton'
 import { formatCents, formatDate } from '@/lib/utils'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident } from '@/types'
 
 interface ResidentWithStats extends Resident {
@@ -22,6 +24,10 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
   const router = useRouter()
   const [residents, setResidents] = useState(initialResidents)
   const [search, setSearch] = useState('')
+
+  const { refreshing: pullRefreshing, pullProgress, handlers: pullHandlers } = usePullToRefresh(
+    () => router.refresh()
+  )
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
   const [roomNumber, setRoomNumber] = useState('')
@@ -67,7 +73,23 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto" {...pullHandlers}>
+      {/* Pull-to-refresh indicator */}
+      {(pullProgress > 0 || pullRefreshing) && (
+        <div
+          className="flex items-center justify-center mb-3 transition-all"
+          style={{ height: pullRefreshing ? 36 : Math.min(pullProgress / 64, 1) * 36 }}
+        >
+          <svg
+            className={pullRefreshing ? 'animate-spin' : ''}
+            style={{ transform: pullRefreshing ? undefined : `rotate(${Math.min(pullProgress / 64, 1) * 360}deg)` }}
+            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2.5"
+          >
+            <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+          </svg>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -156,7 +178,11 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
       </div>
 
       {/* List */}
-      {filtered.length === 0 ? (
+      {pullRefreshing ? (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          {[1, 2, 3, 4, 5].map((i) => <SkeletonResidentRow key={i} />)}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
           <p className="text-stone-400 text-sm">
             {search ? 'No matches found' : 'No residents yet'}

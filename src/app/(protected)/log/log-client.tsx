@@ -4,6 +4,8 @@ import { useState, useRef } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
+import { SkeletonBookingCard } from '@/components/ui/skeleton'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
 
 interface LogBooking {
@@ -103,6 +105,10 @@ export function LogClient({
 
   const today = new Date().toISOString().split('T')[0]
   const isToday = date === today
+
+  const { refreshing: pullRefreshing, handlers: pullHandlers } = usePullToRefresh(
+    () => navigateDate(date)
+  )
 
   // Navigate dates
   const navigateDate = async (newDate: string) => {
@@ -280,13 +286,16 @@ export function LogClient({
   const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.priceCents ?? b.service.priceCents), 0)
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto">
+    <div
+      className="p-4 md:p-6 max-w-3xl mx-auto"
+      {...pullHandlers}
+    >
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigateDate(addDays(date, -1))}
           disabled={loading}
-          className="p-2 hover:bg-stone-100 rounded-xl transition-colors text-stone-400 hover:text-stone-700 disabled:opacity-40"
+          className="p-3 hover:bg-stone-100 rounded-xl transition-colors text-stone-400 hover:text-stone-700 disabled:opacity-40 min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
@@ -313,7 +322,7 @@ export function LogClient({
         <button
           onClick={() => navigateDate(addDays(date, 1))}
           disabled={loading}
-          className="p-2 hover:bg-stone-100 rounded-xl transition-colors text-stone-400 hover:text-stone-700 disabled:opacity-40"
+          className="p-3 hover:bg-stone-100 rounded-xl transition-colors text-stone-400 hover:text-stone-700 disabled:opacity-40 min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="9 18 15 12 9 6" />
@@ -321,7 +330,21 @@ export function LogClient({
         </button>
       </div>
 
-      {/* Body — dims while loading, fades+slides in after each fetch */}
+      {/* Pull-to-refresh indicator */}
+      {pullRefreshing && (
+        <div className="flex justify-center pb-3">
+          <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+        </div>
+      )}
+
+      {/* Body — skeleton on first load, dims on subsequent fetches */}
+      {loading && contentKey === 0 ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <SkeletonBookingCard key={i} />
+          ))}
+        </div>
+      ) : (
       <div
         key={contentKey}
         className={cn(contentKey > 0 && 'log-enter')}
@@ -612,7 +635,7 @@ export function LogClient({
                             <button
                               onClick={() => updateStatus(booking.id, 'scheduled')}
                               disabled={isUpdating}
-                              className="text-xs text-stone-400 hover:text-stone-600 font-medium px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors disabled:opacity-40"
+                              className="text-xs text-stone-400 hover:text-stone-600 font-medium px-3 min-h-[44px] rounded-xl hover:bg-stone-100 transition-colors disabled:opacity-40"
                             >
                               Undo
                             </button>
@@ -621,14 +644,14 @@ export function LogClient({
                               <button
                                 onClick={() => updateStatus(booking.id, 'completed')}
                                 disabled={isUpdating}
-                                className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 border border-green-200"
+                                className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-green-200"
                               >
                                 Done
                               </button>
                               <button
                                 onClick={() => updateStatus(booking.id, 'no_show')}
                                 disabled={isUpdating}
-                                className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40 border border-orange-200"
+                                className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-orange-200"
                               >
                                 No-show
                               </button>
@@ -687,7 +710,8 @@ export function LogClient({
         )
       })}
 
-      </div>{/* end body wrapper */}
+      </div>
+      )}{/* end body wrapper */}
 
       {/* Add walk-in FAB */}
       {!showWalkIn && (

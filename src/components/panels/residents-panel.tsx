@@ -86,7 +86,7 @@ export function ResidentsPanel({ residents, onResidentAdded }: ResidentsPanelPro
           />
           <button
             onClick={() => setShowAdd((v) => !v)}
-            className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+            className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
             title="Add resident"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -149,7 +149,7 @@ export function ResidentsPanel({ residents, onResidentAdded }: ResidentsPanelPro
             <button
               key={resident.id}
               onClick={() => router.push(`/residents/${resident.id}`)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0 ${
+              className={`w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-stone-50 active:bg-stone-100 transition-colors border-b border-stone-50 last:border-0 ${
                 newlyAddedId === resident.id ? 'bg-teal-50' : ''
               }`}
             >

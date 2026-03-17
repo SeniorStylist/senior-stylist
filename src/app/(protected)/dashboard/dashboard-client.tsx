@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { BookingModal } from '@/components/calendar/booking-modal'
+import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
 import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
@@ -343,6 +344,14 @@ export function DashboardClient({
           </div>
         </div>
       </div>
+
+      {/* Quick Book FAB — mobile only */}
+      <QuickBookFAB
+        residents={residents}
+        services={localServices}
+        stylists={stylists}
+        onBookingCreated={handleBookingChange}
+      />
 
       {/* Booking Modal */}
       <BookingModal

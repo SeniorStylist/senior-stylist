@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Modal } from '@/components/ui/modal'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { formatCents } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Resident, Stylist, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
 
@@ -55,6 +57,7 @@ export function BookingModal({
 
   const residentInputRef = useRef<HTMLInputElement>(null)
 
+  const isMobile = useIsMobile()
   const selectedService = services.find((s) => s.id === selectedServiceId)
 
   const filteredResidents = residents.filter(
@@ -171,13 +174,10 @@ export function BookingModal({
     }
   }
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={mode === 'create' ? 'New Appointment' : 'Edit Appointment'}
-      className="max-w-lg"
-    >
+  const formTitle = mode === 'create' ? 'New Appointment' : 'Edit Appointment'
+
+  const formBody = (
+    <>
       <div className="px-6 py-4 space-y-4">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-700">
@@ -376,6 +376,20 @@ export function BookingModal({
           </Button>
         </div>
       </div>
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <BottomSheet isOpen={open} onClose={onClose} title={formTitle}>
+        {formBody}
+      </BottomSheet>
+    )
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg">
+      {formBody}
     </Modal>
   )
 }
