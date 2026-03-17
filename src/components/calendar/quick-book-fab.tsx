@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Avatar } from '@/components/ui/avatar'
 import { cn, formatCents } from '@/lib/utils'
 import type { Resident, Service, Stylist } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
+
+export interface QuickBookFABHandle {
+  openWithSlot: (slot: { date: string; time: string }) => void
+}
 
 interface QuickBookFABProps {
   residents: Resident[]
@@ -30,12 +34,13 @@ const TIME_SLOTS = (() => {
   return slots
 })()
 
-export function QuickBookFAB({
+export const QuickBookFAB = forwardRef<QuickBookFABHandle, QuickBookFABProps>(
+function QuickBookFAB({
   residents,
   services,
   stylists,
   onBookingCreated,
-}: QuickBookFABProps) {
+}: QuickBookFABProps, ref) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(1)
 
@@ -50,6 +55,20 @@ export function QuickBookFAB({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bounce, setBounce] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    openWithSlot: ({ date, time }) => {
+      setStep(1)
+      setSelectedResident(null)
+      setSelectedService(null)
+      setSelectedStylist(stylists.length === 1 ? stylists[0] : null)
+      setSelectedDate(date)
+      setSelectedTime(time)
+      setSearch('')
+      setError(null)
+      setOpen(true)
+    },
+  }))
 
   const reset = () => {
     setStep(1)
@@ -369,4 +388,4 @@ export function QuickBookFAB({
       </BottomSheet>
     </>
   )
-}
+})

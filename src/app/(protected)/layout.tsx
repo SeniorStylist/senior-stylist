@@ -30,19 +30,22 @@ export default async function ProtectedLayout({
       orderBy: (t, { asc }) => [asc(t.createdAt)],
     })
 
-    allFacilities = userFacilities.map((fu) => ({
-      id: fu.facilityId,
-      name: fu.facility.name,
-      role: fu.role,
-    }))
+    allFacilities = userFacilities
+      .filter((fu) => fu.facility != null)
+      .map((fu) => ({
+        id: fu.facilityId,
+        name: fu.facility!.name,
+        role: fu.role,
+      }))
 
     // Determine active facility from cookie or first
     const cookieStore = await cookies()
     const selectedId = cookieStore.get('selected_facility_id')?.value
     const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
     facilityName = active?.name
-  } catch {
+  } catch (err) {
     // DB might not be set up yet — that's OK
+    console.error('[layout] Failed to load facility data:', err)
   }
 
   return (

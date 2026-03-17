@@ -161,10 +161,14 @@ export async function POST(request: NextRequest) {
       }
     } catch (gcalErr) {
       const errorMessage = gcalErr instanceof Error ? gcalErr.message : String(gcalErr)
-      await db
-        .update(bookings)
-        .set({ syncError: errorMessage, updatedAt: new Date() })
-        .where(eq(bookings.id, booking.id))
+      try {
+        await db
+          .update(bookings)
+          .set({ syncError: errorMessage, updatedAt: new Date() })
+          .where(eq(bookings.id, booking.id))
+      } catch {
+        // ignore — booking was created, just couldn't record sync error
+      }
     }
 
     // Fetch final booking with relations

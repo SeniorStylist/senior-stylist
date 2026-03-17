@@ -91,6 +91,9 @@ export default function CalendarView({
           fcRef.current?.getApi().unselect()
           onSelectSlot(arg.start, arg.end)
         }}
+        dateClick={(arg) => {
+          onSelectSlot(arg.date, new Date(arg.date.getTime() + 30 * 60 * 1000))
+        }}
         eventClick={(arg) => {
           onEventClick(arg.event.id)
         }}

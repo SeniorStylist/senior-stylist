@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { BookingModal } from '@/components/calendar/booking-modal'
 import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
+import type { QuickBookFABHandle } from '@/components/calendar/quick-book-fab'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
@@ -75,8 +77,13 @@ export function DashboardClient({
   const [stylists, setStylists] = useState<Stylist[]>(initialStylists)
   const [localServices, setLocalServices] = useState<Service[]>(initialServices)
 
+  const isMobile = useIsMobile()
+
   // Ref for programmatic calendar view changes
   const changeViewRef = useRef<((view: CalendarViewType) => void) | null>(null)
+
+  // Ref for QuickBook FAB imperative control
+  const fabRef = useRef<QuickBookFABHandle>(null)
 
   // Period stats (week + month)
   const [periodStats, setPeriodStats] = useState<{
@@ -131,6 +138,13 @@ export function DashboardClient({
   }, [])
 
   const openCreateModal = (start: Date, end: Date) => {
+    if (isMobile && fabRef.current) {
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      const date = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`
+      const time = `${pad(start.getHours())}:${pad(start.getMinutes())}`
+      fabRef.current.openWithSlot({ date, time })
+      return
+    }
     setEditBookingId(null)
     setModalStart(start)
     setModalEnd(end)
@@ -347,6 +361,7 @@ export function DashboardClient({
 
       {/* Quick Book FAB — mobile only */}
       <QuickBookFAB
+        ref={fabRef}
         residents={residents}
         services={localServices}
         stylists={stylists}
