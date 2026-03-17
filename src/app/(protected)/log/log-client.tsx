@@ -80,9 +80,10 @@ export function LogClient({
   // Status updates
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  // Finalize
+  // Finalize / Unfinalize
   const [confirmFinalizeId, setConfirmFinalizeId] = useState<string | null>(null)
   const [finalizingId, setFinalizingId] = useState<string | null>(null)
+  const [unfinalizingId, setUnfinalizingId] = useState<string | null>(null)
 
   // Log notes (per stylist, keyed by stylistId)
   const [notes, setNotes] = useState<Record<string, string>>(() => {
@@ -202,6 +203,29 @@ export function LogClient({
       }
     } finally {
       setFinalizingId(null)
+    }
+  }
+
+  // Unfinalize log entry
+  const handleUnfinalize = async (stylistId: string) => {
+    const existing = getLogEntry(stylistId)
+    if (!existing) return
+    setUnfinalizingId(stylistId)
+    try {
+      const res = await fetch(`/api/log/${existing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ finalized: false }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setLogEntries((prev) => {
+          const filtered = prev.filter((e) => e.stylistId !== stylistId)
+          return [...filtered, json.data]
+        })
+      }
+    } finally {
+      setUnfinalizingId(null)
     }
   }
 
@@ -697,13 +721,20 @@ export function LogClient({
                 <p className="text-sm text-stone-700">{logEntry.notes}</p>
               </div>
             )}
-            {isFinalized && logEntry?.finalizedAt && (
-              <div className="px-4 py-2 border-t border-green-100 bg-green-50/30">
+            {isFinalized && (
+              <div className="px-4 py-2 border-t border-green-100 bg-green-50/30 flex items-center justify-between">
                 <p className="text-xs text-green-600">
-                  Finalized {new Date(logEntry.finalizedAt).toLocaleTimeString('en-US', {
-                    hour: 'numeric', minute: '2-digit', hour12: true
-                  })}
+                  {logEntry?.finalizedAt
+                    ? `Finalized ${new Date(logEntry.finalizedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                    : 'Finalized'}
                 </p>
+                <button
+                  onClick={() => handleUnfinalize(stylist.id)}
+                  disabled={unfinalizingId === stylist.id}
+                  className="text-xs text-stone-400 hover:text-stone-600 font-medium hover:underline disabled:opacity-40 transition-colors"
+                >
+                  {unfinalizingId === stylist.id ? 'Undoing…' : 'Unfinalize'}
+                </button>
               </div>
             )}
           </div>

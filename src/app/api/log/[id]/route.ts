@@ -39,17 +39,15 @@ export async function PUT(
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    if (existing.finalized && parsed.data.finalized === false) {
-      return Response.json({ error: 'Cannot unfinalize a log entry' }, { status: 400 })
-    }
-
     const [updated] = await db
       .update(logEntries)
       .set({
         notes: parsed.data.notes ?? existing.notes,
         finalized: parsed.data.finalized ?? existing.finalized,
         finalizedAt:
-          parsed.data.finalized && !existing.finalized
+          parsed.data.finalized === false
+            ? null
+            : parsed.data.finalized && !existing.finalized
             ? new Date()
             : existing.finalizedAt,
         updatedAt: new Date(),
