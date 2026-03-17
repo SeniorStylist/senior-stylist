@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { BookingModal } from '@/components/calendar/booking-modal'
 import { ResidentsPanel } from '@/components/panels/residents-panel'
@@ -76,6 +76,19 @@ export function DashboardClient({
 
   // Ref for programmatic calendar view changes
   const changeViewRef = useRef<((view: CalendarViewType) => void) | null>(null)
+
+  // Period stats (week + month)
+  const [periodStats, setPeriodStats] = useState<{
+    thisWeek: { revenueCents: number }
+    thisMonth: { revenueCents: number }
+  } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then((r) => r.json())
+      .then((json) => { if (json.data) setPeriodStats(json.data) })
+      .catch(console.error)
+  }, [])
 
   // Export
   const [exportMonth, setExportMonth] = useState(() => {
@@ -291,21 +304,42 @@ export function DashboardClient({
             )}
           </div>
 
-          {/* Today's stats footer */}
-          <div className="shrink-0 border-t border-stone-100 px-4 py-3 bg-stone-50 rounded-b-2xl">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">
-              Today
-            </p>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xl font-bold text-stone-900">{todayBookings.length}</p>
-                <p className="text-xs text-stone-400">appointments</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-bold text-[#0D7377]">{formatCents(todayRevenue)}</p>
-                <p className="text-xs text-stone-400">revenue</p>
+          {/* Stats footer */}
+          <div className="shrink-0 border-t border-stone-100 px-4 py-3 bg-stone-50 rounded-b-2xl space-y-2.5">
+            {/* Today */}
+            <div>
+              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">
+                Today
+              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xl font-bold text-stone-900">{todayBookings.length}</p>
+                  <p className="text-xs text-stone-400">appointments</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-[#0D7377]">{formatCents(todayRevenue)}</p>
+                  <p className="text-xs text-stone-400">revenue</p>
+                </div>
               </div>
             </div>
+
+            {/* Week + Month */}
+            {periodStats && (
+              <div className="border-t border-stone-100 pt-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-stone-400">This week</p>
+                  <p className="text-xs font-semibold text-stone-700">
+                    {formatCents(periodStats.thisWeek.revenueCents)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-stone-400">This month</p>
+                  <p className="text-xs font-semibold text-stone-700">
+                    {formatCents(periodStats.thisMonth.revenueCents)}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

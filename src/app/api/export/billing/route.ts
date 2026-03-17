@@ -7,7 +7,6 @@ import { NextRequest } from 'next/server'
 
 function escapeCsv(value: string | number | null | undefined): string {
   const s = String(value ?? '')
-  // Wrap in quotes if it contains a comma, quote, or newline
   if (s.includes(',') || s.includes('"') || s.includes('\n')) {
     return `"${s.replace(/"/g, '""')}"`
   }
@@ -48,7 +47,11 @@ export async function GET(request: NextRequest) {
     const start = new Date(Date.UTC(year, month, 1))
     const end = new Date(Date.UTC(year, month + 1, 1))
 
-    const monthLabel = start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    const start_label = start.toLocaleString('en-US', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    })
 
     const rows = await db.query.bookings.findMany({
       where: and(
@@ -63,38 +66,84 @@ export async function GET(request: NextRequest) {
         stylist: true,
         service: true,
       },
-      orderBy: (t, { asc }) => [asc(t.startTime)],
+      orderBy: (t, { asc }) => [asc(t.stylistId), asc(t.startTime)],
     })
 
-    // Build CSV
-    const lines: string[] = [
-      row('Date', 'Resident', 'Room', 'Service', 'Stylist', 'Price', 'Status'),
-    ]
-
+    // Group by stylist
+    const stylistGroups = new Map<string, typeof rows>()
     for (const b of rows) {
-      const date = new Date(b.startTime).toLocaleDateString('en-US', {
-        month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC',
-      })
-      const price = b.priceCents != null
-        ? (b.priceCents / 100).toFixed(2)
-        : (b.service.priceCents / 100).toFixed(2)
-
-      lines.push(row(
-        date,
-        b.resident.name,
-        b.resident.roomNumber ?? '',
-        b.service.name,
-        b.stylist.name,
-        price,
-        b.status,
-      ))
+      const existing = stylistGroups.get(b.stylist.id)
+      if (existing) {
+        existing.push(b)
+      } else {
+        stylistGroups.set(b.stylist.id, [b])
+      }
     }
 
-    // Total row
-    const total = rows.reduce((sum, b) =>
-      sum + (b.priceCents ?? b.service.priceCents), 0)
-    lines.push('')
-    lines.push(row('', '', '', '', 'TOTAL', (total / 100).toFixed(2), ''))
+    // Sort groups by stylist name
+    const sortedGroups = Array.from(stylistGroups.entries()).sort(([, a], [, b]) =>
+      a[0].stylist.name.localeCompare(b[0].stylist.name)
+    )
+
+    const lines: string[] = [
+      `Billing Report — ${start_label}`,
+      '',
+      row(
+        'Booking ID',
+        'Date',
+        'Resident',
+        'Room',
+        'Service',
+        'Stylist',
+        'Price',
+        'Status',
+        'Notes'
+      ),
+    ]
+
+    let grandTotal = 0
+
+    for (const [, groupRows] of sortedGroups) {
+      const stylistName = groupRows[0].stylist.name
+
+      for (const b of groupRows) {
+        const date = new Date(b.startTime).toLocaleDateString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+          timeZone: 'UTC',
+        })
+        const price = b.priceCents != null ? b.priceCents / 100 : b.service.priceCents / 100
+        const bookingId = b.id.replace(/-/g, '').slice(0, 8).toUpperCase()
+
+        lines.push(
+          row(
+            bookingId,
+            date,
+            b.resident.name,
+            b.resident.roomNumber ?? '',
+            b.service.name,
+            b.stylist.name,
+            price.toFixed(2),
+            b.status,
+            b.notes ?? ''
+          )
+        )
+      }
+
+      const subtotal = groupRows.reduce(
+        (sum, b) => sum + (b.priceCents ?? b.service.priceCents),
+        0
+      )
+      grandTotal += subtotal
+
+      lines.push(
+        row('', '', '', '', '', `${stylistName} SUBTOTAL`, (subtotal / 100).toFixed(2), '', '')
+      )
+      lines.push('')
+    }
+
+    lines.push(row('', '', '', '', '', 'GRAND TOTAL', (grandTotal / 100).toFixed(2), '', ''))
 
     const csv = lines.join('\r\n')
     const filename = `billing-${year}-${String(month + 1).padStart(2, '0')}.csv`
