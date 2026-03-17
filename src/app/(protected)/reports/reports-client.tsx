@@ -1,20 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
-
-// Lazy-load recharts to avoid SSR issues
-const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), { ssr: false })
-const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false })
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false })
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false })
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false })
-const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
-  ssr: false,
-})
-const Cell = dynamic(() => import('recharts').then((m) => m.Cell), { ssr: false })
 
 interface ServiceStat {
   name: string
