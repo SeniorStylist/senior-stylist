@@ -54,9 +54,9 @@ export default async function ProtectedLayout({
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} />
       </div>
-      <main className="flex-1 min-w-0 overflow-auto pb-16 md:pb-0">
-          <ToastProvider>{children}</ToastProvider>
-        </main>
+      <main className="main-content flex-1 min-w-0 overflow-auto">
+        <ToastProvider>{children}</ToastProvider>
+      </main>
       <MobileNav />
     </div>
   )

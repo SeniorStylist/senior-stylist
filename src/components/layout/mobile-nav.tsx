@@ -79,7 +79,7 @@ export function MobileNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex border-t border-stone-200 bg-white"
+      className="mobile-nav fixed bottom-0 left-0 right-0 z-50 flex border-t border-stone-200 bg-white md:hidden"
       style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
     >
       {navItems.map((item) => {

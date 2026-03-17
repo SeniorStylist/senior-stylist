@@ -7,14 +7,13 @@ interface BottomSheetProps {
   onClose: () => void
   title?: string
   children: ReactNode
-  /** Rendered outside the scroll area, always visible above the home indicator */
+  /** Rendered outside the scroll area — always visible above the home indicator */
   footer?: ReactNode
 }
 
 const DISMISS_THRESHOLD = 80
 
 export function BottomSheet({ isOpen, onClose, title, children, footer }: BottomSheetProps) {
-  // Keep DOM mounted for 300ms after close so the slide-out animation plays
   const [rendered, setRendered] = useState(false)
   const [dragY, setDragY] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -32,14 +31,12 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
     }
   }, [isOpen])
 
-  // Scroll lock
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
-  // Escape key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (isOpen) document.addEventListener('keydown', handler)
@@ -72,33 +69,57 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
   if (!rendered) return null
 
   return (
-    <>
+    // Full-screen overlay — flex column pushes sheet to bottom
+    <div
+      className="bottom-sheet-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+      }}
+    >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40"
         style={{
-          backgroundColor: 'rgba(0,0,0,0.45)',
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.45)',
           backdropFilter: 'blur(2px)',
           opacity: isOpen ? 1 : 0,
           transition: 'opacity 300ms ease',
-          pointerEvents: isOpen ? 'auto' : 'none',
         }}
         onClick={onClose}
       />
 
       {/* Sheet */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        className="bottom-sheet"
         style={{
-          maxHeight: '90dvh',
+          position: 'relative',
+          background: 'white',
+          borderRadius: '20px 20px 0 0',
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.10)',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '92dvh',
+          paddingBottom: 'env(safe-area-inset-bottom)',
           transform: isOpen ? `translateY(${dragY}px)` : 'translateY(100%)',
           transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1)',
           willChange: 'transform',
         }}
       >
-        {/* Drag handle — full-width touch zone, always visible */}
+        {/* Drag handle — never scrolls */}
         <div
-          className="flex items-center justify-center pt-3 pb-2 shrink-0 cursor-grab active:cursor-grabbing select-none touch-none"
+          style={{
+            flexShrink: 0,
+            padding: '12px 16px 0',
+            cursor: 'grab',
+            userSelect: 'none',
+            touchAction: 'none',
+          }}
           onTouchStart={(e) => beginDrag(e.touches[0].clientY)}
           onTouchMove={(e) => moveDrag(e.touches[0].clientY)}
           onTouchEnd={(e) => endDrag(e.changedTouches[0].clientY)}
@@ -107,16 +128,37 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           onMouseUp={(e) => endDrag(e.clientY)}
           onMouseLeave={(e) => dragging && endDrag(e.clientY)}
         >
-          <div className="w-9 h-1 bg-stone-300 rounded-full" />
+          <div style={{ width: 36, height: 4, background: '#e7e5e4', borderRadius: 2, margin: '0 auto' }} />
         </div>
 
-        {/* Header — always visible */}
+        {/* Header — never scrolls */}
         {title && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 shrink-0">
-            <h2 className="text-base font-semibold text-stone-900">{title}</h2>
+          <div
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 20px',
+              borderBottom: '1px solid #f5f5f4',
+            }}
+          >
+            <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1c1917', margin: 0 }}>{title}</h2>
             <button
               onClick={onClose}
-              className="w-11 h-11 flex items-center justify-center -mr-2 text-stone-400 hover:text-stone-700 transition-colors rounded-full"
+              style={{
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#a8a29e',
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                borderRadius: '50%',
+                flexShrink: 0,
+              }}
               aria-label="Close"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -126,22 +168,26 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           </div>
         )}
 
-        {/* Content — scrollable, sits between header and footer */}
+        {/* Scrollable content — the ONLY part that scrolls */}
         <div
-          className="flex-1 overflow-y-auto overscroll-contain min-h-0"
-          style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            minHeight: 0,
+          } as React.CSSProperties}
         >
           {children}
         </div>
 
-        {/* Footer — always visible above home indicator, never scrolls away */}
-        <div
-          className="shrink-0"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          {footer}
-        </div>
+        {/* Footer — never scrolls, always visible above home indicator */}
+        {footer != null && (
+          <div style={{ flexShrink: 0 }}>
+            {footer}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   )
 }

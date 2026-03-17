@@ -19,6 +19,29 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
+/* Main content — account for mobile nav + safe area at bottom */
+.main-content {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .main-content {
+    padding-bottom: 0;
+  }
+}
+
+/* Landscape phone — hide nav, expand sheet */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mobile-nav { display: none !important; }
+  .main-content { padding-bottom: 0 !important; }
+  .bottom-sheet { max-height: 98dvh !important; }
+  .bottom-sheet-overlay { align-items: center !important; }
+}
+
+/* iPad and wider — hide mobile nav (sidebar takes over) */
+@media (min-width: 1024px) {
+  .mobile-nav { display: none !important; }
+}
+
 /* Skeleton shimmer */
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
