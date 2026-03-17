@@ -80,7 +80,7 @@ export function MobileNav() {
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex border-t border-stone-200 bg-white"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
     >
       {navItems.map((item) => {
         const isActive =

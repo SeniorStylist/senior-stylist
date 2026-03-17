@@ -16,6 +16,7 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   font-family: 'DM Sans', sans-serif;
+  padding-top: env(safe-area-inset-top);
 }
 
 /* Skeleton shimmer */

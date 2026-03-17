@@ -7,11 +7,13 @@ interface BottomSheetProps {
   onClose: () => void
   title?: string
   children: ReactNode
+  /** Rendered outside the scroll area, always visible above the home indicator */
+  footer?: ReactNode
 }
 
 const DISMISS_THRESHOLD = 80
 
-export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, title, children, footer }: BottomSheetProps) {
   // Keep DOM mounted for 300ms after close so the slide-out animation plays
   const [rendered, setRendered] = useState(false)
   const [dragY, setDragY] = useState(0)
@@ -92,10 +94,9 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
           transform: isOpen ? `translateY(${dragY}px)` : 'translateY(100%)',
           transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1)',
           willChange: 'transform',
-          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {/* Drag handle — full-width touch zone */}
+        {/* Drag handle — full-width touch zone, always visible */}
         <div
           className="flex items-center justify-center pt-3 pb-2 shrink-0 cursor-grab active:cursor-grabbing select-none touch-none"
           onTouchStart={(e) => beginDrag(e.touches[0].clientY)}
@@ -109,7 +110,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
           <div className="w-9 h-1 bg-stone-300 rounded-full" />
         </div>
 
-        {/* Header */}
+        {/* Header — always visible */}
         {title && (
           <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 shrink-0">
             <h2 className="text-base font-semibold text-stone-900">{title}</h2>
@@ -125,9 +126,20 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
           </div>
         )}
 
-        {/* Content — scrollable */}
-        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+        {/* Content — scrollable, sits between header and footer */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain min-h-0"
+          style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+        >
           {children}
+        </div>
+
+        {/* Footer — always visible above home indicator, never scrolls away */}
+        <div
+          className="shrink-0"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          {footer}
         </div>
       </div>
     </>
