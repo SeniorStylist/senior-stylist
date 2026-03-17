@@ -359,15 +359,13 @@ function QuickBookFAB({
               </div>
             </div>
 
-            {/* Error */}
-            {error && (
-              <div className="mx-5 mt-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            {/* Confirm button */}
-            <div className="px-5 pt-4">
+            {/* Sticky confirm area */}
+            <div className="sticky bottom-0 bg-white px-5 pt-3 pb-6 space-y-1">
+              {error && (
+                <div className="mb-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !selectedTime || (stylists.length > 1 && !selectedStylist)}
@@ -375,14 +373,13 @@ function QuickBookFAB({
               >
                 {submitting ? 'Booking…' : 'Book appointment'}
               </button>
+              <button
+                onClick={() => setStep(2)}
+                className="w-full py-3 text-sm text-stone-400 hover:text-stone-600 transition-colors"
+              >
+                ← Back
+              </button>
             </div>
-
-            <button
-              onClick={() => setStep(2)}
-              className="w-full py-3.5 text-sm text-stone-400 hover:text-stone-600 transition-colors"
-            >
-              ← Back
-            </button>
           </div>
         )}
       </BottomSheet>

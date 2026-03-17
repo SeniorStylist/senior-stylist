@@ -66,7 +66,7 @@ export default function CalendarView({
       <FullCalendar
         ref={fcRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-        initialView="timeGridWeek"
+        initialView={currentView}
         selectMirror={false}
         unselectAuto={true}
         selectable={true}

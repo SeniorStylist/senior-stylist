@@ -175,6 +175,8 @@ export function DashboardClient({
       }
       return [...prev, updated]
     })
+    setCalendarFlash(true)
+    setTimeout(() => setCalendarFlash(false), 750)
   }
 
   const handleBookingDeleted = (bookingId: string) => {
@@ -205,6 +207,8 @@ export function DashboardClient({
   const editBooking = editBookingId
     ? (bookings.find((b) => b.id === editBookingId) ?? null)
     : null
+
+  const [calendarFlash, setCalendarFlash] = useState(false)
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
@@ -247,7 +251,7 @@ export function DashboardClient({
                 key={view}
                 onClick={() => switchView(view)}
                 className={cn(
-                  'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150',
+                  'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-95',
                   calendarView === view
                     ? 'bg-[#0D7377] text-white'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -261,7 +265,7 @@ export function DashboardClient({
         </div>
 
         {/* Calendar card */}
-        <div className="flex-1 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden min-h-0">
+        <div className={cn('flex-1 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden min-h-0', calendarFlash && 'calendar-booking-flash')}>
           <CalendarView
             bookings={bookings}
             currentView={calendarView}
@@ -282,7 +286,7 @@ export function DashboardClient({
               key={tab}
               onClick={() => setActivePanel(tab)}
               className={cn(
-                'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 capitalize',
+                'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 capitalize active:scale-95',
                 activePanel === tab
                   ? 'bg-[#0D7377] text-white'
                   : 'text-stone-600 hover:bg-stone-100'

@@ -320,8 +320,8 @@ export function BookingModal({
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-6 pb-6 flex items-center justify-between gap-3 border-t border-stone-100 pt-4">
+      {/* Footer — sticky so buttons stay visible when sheet scrolls */}
+      <div className="sticky bottom-0 bg-white px-6 pb-6 flex items-center justify-between gap-3 border-t border-stone-100 pt-4">
         {/* Left side — cancel booking (edit mode only) */}
         <div className="flex items-center gap-2">
           {mode === 'edit' && !confirmCancel && (

@@ -88,10 +88,11 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
       <div
         className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl flex flex-col"
         style={{
-          maxHeight: '92dvh',
+          maxHeight: '90dvh',
           transform: isOpen ? `translateY(${dragY}px)` : 'translateY(100%)',
-          transition: dragging ? 'none' : 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
+          transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1)',
           willChange: 'transform',
+          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
         {/* Drag handle — full-width touch zone */}
