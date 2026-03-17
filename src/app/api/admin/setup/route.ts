@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, facilityUsers, services, residents, stylists, profiles } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 export async function POST() {
   try {
@@ -14,13 +14,18 @@ export async function POST() {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user already has a facility
+    // Check if user already has a facility — if so, return success (idempotent)
     const existing = await db.query.facilityUsers.findFirst({
       where: eq(facilityUsers.userId, user.id),
     })
 
     if (existing) {
-      return Response.json({ error: 'Already set up' }, { status: 400 })
+      return Response.json({
+        data: {
+          facilityId: existing.facilityId,
+          message: 'Already set up',
+        },
+      })
     }
 
     // Upsert profile
@@ -59,7 +64,7 @@ export async function POST() {
       role: 'admin',
     })
 
-    // Seed services
+    // Seed services (onConflictDoNothing in case of partial rerun)
     await db.insert(services).values([
       {
         facilityId: facility.id,
@@ -96,23 +101,23 @@ export async function POST() {
         durationMinutes: 30,
         color: '#059669',
       },
-    ])
+    ]).onConflictDoNothing()
 
-    // Seed residents
+    // Seed residents (onConflictDoNothing — unique constraint on name+facilityId)
     await db.insert(residents).values([
       { facilityId: facility.id, name: 'Mary Collins', roomNumber: '12' },
       { facilityId: facility.id, name: 'Robert Hill', roomNumber: '7' },
       { facilityId: facility.id, name: 'Evelyn Diaz', roomNumber: '24' },
       { facilityId: facility.id, name: 'Dorothy Pierce', roomNumber: '31' },
       { facilityId: facility.id, name: 'Harold Bennett', roomNumber: '9' },
-    ])
+    ]).onConflictDoNothing()
 
     // Seed stylist
     await db.insert(stylists).values({
       facilityId: facility.id,
       name: 'Maria Garcia',
       color: '#0D7377',
-    })
+    }).onConflictDoNothing()
 
     return Response.json({
       data: {
@@ -121,9 +126,12 @@ export async function POST() {
       },
     })
   } catch (err) {
-    console.error('Setup error:', err)
+    const message = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error('[setup] Setup failed:', message)
+    if (stack) console.error('[setup] Stack:', stack)
     return Response.json(
-      { error: 'Setup failed', details: String(err) },
+      { error: 'Setup failed', details: message },
       { status: 500 }
     )
   }
