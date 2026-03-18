@@ -50,7 +50,7 @@ export async function POST() {
         email: user.email ?? null,
         fullName: user.user_metadata?.full_name ?? null,
         avatarUrl: user.user_metadata?.avatar_url ?? null,
-        role: 'facility_admin',
+        role: 'admin',
       })
       .onConflictDoUpdate({
         target: profiles.id,
