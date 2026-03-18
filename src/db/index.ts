@@ -2,8 +2,18 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from './schema'
 
-const connectionString = process.env.DATABASE_URL!
+// Singleton client — reused across requests in the same serverless instance
+const globalForDb = globalThis as unknown as { _pgClient?: ReturnType<typeof postgres> }
 
-// Disable prefetch as it is not supported for "Transaction" pool mode
-const client = postgres(connectionString, { prepare: false })
+if (!globalForDb._pgClient) {
+  globalForDb._pgClient = postgres(process.env.DATABASE_URL!, {
+    max: 3,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    // Required when using Supabase's pgbouncer pooler in transaction mode
+    prepare: false,
+  })
+}
+
+const client = globalForDb._pgClient
 export const db = drizzle(client, { schema })
