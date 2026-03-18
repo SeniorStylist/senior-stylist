@@ -69,12 +69,46 @@ export default async function StylistDetailPage({
   const monthBookings = allTimeBookings.filter(
     (b) => new Date(b.startTime) >= startOfMonth
   )
+  // Get this month's bookings with service names for commission breakdown
+  const allBookingsWithService = await db.query.bookings.findMany({
+    where: and(
+      eq(bookings.facilityId, facilityUser.facilityId),
+      eq(bookings.stylistId, id),
+      ne(bookings.status, 'cancelled'),
+      gte(bookings.startTime, startOfMonth)
+    ),
+    with: { service: true },
+  })
+
+  const completedMonthBookings = allBookingsWithService.filter((b) => b.status === 'completed')
+  const monthRevenue = completedMonthBookings.reduce((sum, b) => sum + (b.priceCents ?? 0), 0)
+
+  const serviceBreakdownMap = new Map<string, { serviceName: string; count: number; revenueCents: number }>()
+  for (const b of completedMonthBookings) {
+    const existing = serviceBreakdownMap.get(b.serviceId)
+    const price = b.priceCents ?? 0
+    if (existing) {
+      existing.count++
+      existing.revenueCents += price
+    } else {
+      serviceBreakdownMap.set(b.serviceId, { serviceName: b.service.name, count: 1, revenueCents: price })
+    }
+  }
+
+  const serviceBreakdown = Array.from(serviceBreakdownMap.values())
+    .map((row) => ({
+      ...row,
+      commissionCents: Math.round(row.revenueCents * stylist.commissionPercent / 100),
+    }))
+    .sort((a, b) => b.revenueCents - a.revenueCents)
 
   const stats = {
     thisWeek: weekBookings.length,
     thisMonth: monthBookings.length,
     totalRevenue: allTimeBookings.reduce((sum, b) => sum + (b.priceCents ?? 0), 0),
     totalBookings: allTimeBookings.length,
+    monthRevenue,
+    serviceBreakdown,
   }
 
   return (

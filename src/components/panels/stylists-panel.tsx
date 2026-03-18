@@ -142,9 +142,14 @@ export function StylistsPanel({ stylists, onStylistAdded }: StylistsPanelProps) 
               className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-stone-50 active:bg-stone-100 transition-colors border-b border-stone-50 last:border-0"
             >
               <Avatar name={stylist.name} color={stylist.color} size="sm" />
-              <span className="flex-1 text-sm font-medium text-stone-900 truncate">
-                {stylist.name}
-              </span>
+              <div className="flex-1 min-w-0">
+                <span className="block text-sm font-medium text-stone-900 truncate">
+                  {stylist.name}
+                </span>
+                {stylist.commissionPercent > 0 && (
+                  <span className="text-xs text-stone-400">{stylist.commissionPercent}% commission</span>
+                )}
+              </div>
               <svg
                 width="13"
                 height="13"

@@ -19,6 +19,13 @@ interface StylistStat {
   revenueCents: number
 }
 
+interface CommissionRow {
+  name: string
+  revenueCents: number
+  commissionPercent: number
+  commissionCents: number
+}
+
 interface DayStat {
   date: string
   count: number
@@ -41,6 +48,7 @@ interface ReportData {
   byStylist: StylistStat[]
   busiestDays: DayStat[]
   bookings: BookingRow[]
+  commissions: CommissionRow[]
 }
 
 type SortKey = 'date' | 'price'
@@ -266,6 +274,32 @@ export function ReportsClient() {
               )}
             </div>
           </div>
+
+          {/* Commissions */}
+          {data.commissions.some((c) => c.commissionPercent > 0) && (
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-stone-100">
+                <p className="text-sm font-semibold text-stone-700">Commissions</p>
+                <p className="text-xs text-stone-400">Based on completed appointments this month</p>
+              </div>
+              <div className="divide-y divide-stone-50">
+                {data.commissions.filter((c) => c.commissionPercent > 0).map((c) => (
+                  <div key={c.name} className="grid grid-cols-12 gap-2 items-center px-5 py-3 hover:bg-stone-50 transition-colors">
+                    <div className="col-span-4 text-sm font-medium text-stone-800">{c.name}</div>
+                    <div className="col-span-3 text-sm text-stone-500">{formatCents(c.revenueCents)} revenue</div>
+                    <div className="col-span-2 text-sm text-stone-500">{c.commissionPercent}%</div>
+                    <div className="col-span-3 text-sm font-bold text-[#0D7377]">{formatCents(c.commissionCents)}</div>
+                  </div>
+                ))}
+                <div className="grid grid-cols-12 gap-2 items-center px-5 py-3 bg-stone-50">
+                  <div className="col-span-9 text-sm font-semibold text-stone-600">Total commissions</div>
+                  <div className="col-span-3 text-sm font-bold text-[#0D7377]">
+                    {formatCents(data.commissions.reduce((sum, c) => sum + c.commissionCents, 0))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Full booking table */}
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">

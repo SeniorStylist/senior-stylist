@@ -31,6 +31,7 @@ export interface Resident {
   roomNumber: string | null
   phone: string | null
   notes: string | null
+  portalToken: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -41,6 +42,7 @@ export interface Stylist {
   facilityId: string
   name: string
   color: string
+  commissionPercent: number
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

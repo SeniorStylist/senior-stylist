@@ -9,6 +9,7 @@ import { NextRequest } from 'next/server'
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().optional(),
+  commissionPercent: z.number().int().min(0).max(100).optional(),
   active: z.boolean().optional(),
 })
 

@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
+import crypto from 'crypto'
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -55,10 +56,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, roomNumber, phone } = parsed.data
+    const portalToken = crypto.randomBytes(8).toString('hex')
 
     const [created] = await db
       .insert(residents)
-      .values({ facilityId, name, roomNumber: roomNumber ?? null, phone: phone ?? null })
+      .values({ facilityId, name, roomNumber: roomNumber ?? null, phone: phone ?? null, portalToken })
       .returning()
 
     return Response.json({ data: created }, { status: 201 })

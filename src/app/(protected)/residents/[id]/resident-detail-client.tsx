@@ -65,6 +65,19 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const portalUrl = typeof window !== 'undefined' && resident.portalToken
+    ? `${window.location.origin}/portal/${resident.portalToken}`
+    : null
+
+  const copyPortalLink = () => {
+    if (!portalUrl) return
+    navigator.clipboard.writeText(portalUrl).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    })
+  }
 
   const handleSave = async () => {
     if (!name.trim()) { setSaveError('Name is required'); return }
@@ -239,6 +252,34 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
               </div>
             )}
           </div>
+
+          {/* Portal link */}
+          {resident.portalToken && (
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Portal Link</p>
+              <p className="text-xs text-stone-400 mb-3">Share with resident or family</p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={copyPortalLink}
+                  className="flex-1"
+                >
+                  {linkCopied ? 'Copied!' : 'Copy Link'}
+                </Button>
+                {portalUrl && (
+                  <a
+                    href={portalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors"
+                  >
+                    Open Portal
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Delete */}
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">

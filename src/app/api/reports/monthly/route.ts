@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings } from '@/db/schema'
+import { bookings, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { and, eq, gte, lt, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -72,21 +72,35 @@ export async function GET(request: NextRequest) {
       (a, b) => b.revenueCents - a.revenueCents
     )
 
-    // Revenue by stylist
-    const stylistMap = new Map<string, { name: string; count: number; revenueCents: number }>()
+    // Revenue by stylist (with commission)
+    const allStylists = await db.query.stylists.findMany({
+      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)),
+    })
+    const stylistCommissionMap = new Map(allStylists.map((s) => [s.id, s.commissionPercent]))
+
+    const stylistMap = new Map<string, { name: string; count: number; revenueCents: number; commissionPercent: number }>()
     for (const b of rows) {
       const existing = stylistMap.get(b.stylist.id)
       const price = b.priceCents ?? b.service.priceCents
+      const cp = stylistCommissionMap.get(b.stylist.id) ?? 0
       if (existing) {
         existing.count++
         existing.revenueCents += price
       } else {
-        stylistMap.set(b.stylist.id, { name: b.stylist.name, count: 1, revenueCents: price })
+        stylistMap.set(b.stylist.id, { name: b.stylist.name, count: 1, revenueCents: price, commissionPercent: cp })
       }
     }
     const byStylist = Array.from(stylistMap.values()).sort(
       (a, b) => b.revenueCents - a.revenueCents
     )
+
+    // Commission summary
+    const commissions = byStylist.map((s) => ({
+      name: s.name,
+      revenueCents: s.revenueCents,
+      commissionPercent: s.commissionPercent,
+      commissionCents: Math.round(s.revenueCents * s.commissionPercent / 100),
+    }))
 
     // Busiest days (top 5)
     const dayMap = new Map<string, number>()
@@ -118,6 +132,7 @@ export async function GET(request: NextRequest) {
         byStylist,
         busiestDays,
         bookings: bookingList,
+        commissions,
       },
     })
   } catch (err) {

@@ -30,6 +30,13 @@ interface UpcomingBooking {
   service: Service
 }
 
+interface ServiceBreakdown {
+  serviceName: string
+  count: number
+  revenueCents: number
+  commissionCents: number
+}
+
 interface StylistDetailClientProps {
   stylist: Stylist
   upcomingBookings: UpcomingBooking[]
@@ -38,6 +45,8 @@ interface StylistDetailClientProps {
     thisMonth: number
     totalRevenue: number
     totalBookings: number
+    monthRevenue: number
+    serviceBreakdown: ServiceBreakdown[]
   }
 }
 
@@ -51,11 +60,14 @@ export function StylistDetailClient({
   const [stylist, setStylist] = useState(initialStylist)
   const [name, setName] = useState(initialStylist.name)
   const [color, setColor] = useState(initialStylist.color)
+  const [commissionPercent, setCommissionPercent] = useState(initialStylist.commissionPercent)
+  const [editingCommission, setEditingCommission] = useState(false)
+  const [commissionInput, setCommissionInput] = useState(String(initialStylist.commissionPercent))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const isDirty = name !== stylist.name || color !== stylist.color
+  const isDirty = name !== stylist.name || color !== stylist.color || commissionPercent !== stylist.commissionPercent
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
@@ -65,7 +77,7 @@ export function StylistDetailClient({
       const res = await fetch(`/api/stylists/${stylist.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), color }),
+        body: JSON.stringify({ name: name.trim(), color, commissionPercent }),
       })
       const json = await res.json()
       if (res.ok) {
@@ -126,6 +138,47 @@ export function StylistDetailClient({
         ))}
       </div>
 
+      {/* Commission earnings this month */}
+      {stylist.commissionPercent > 0 && (
+        <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-teal-900">Commission This Month</p>
+            <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-semibold">
+              {stylist.commissionPercent}%
+            </span>
+          </div>
+          <div className="flex items-end gap-4 mb-3">
+            <div>
+              <p className="text-xs text-teal-600 mb-0.5">Revenue</p>
+              <p className="text-2xl font-bold text-teal-800">{formatCents(stats.monthRevenue)}</p>
+            </div>
+            <div className="mb-1 text-teal-400">×</div>
+            <div>
+              <p className="text-xs text-teal-600 mb-0.5">Rate</p>
+              <p className="text-2xl font-bold text-teal-800">{stylist.commissionPercent}%</p>
+            </div>
+            <div className="mb-1 text-teal-400">=</div>
+            <div>
+              <p className="text-xs text-teal-600 mb-0.5">Commission</p>
+              <p className="text-2xl font-bold text-[#0D7377]">
+                {formatCents(Math.round(stats.monthRevenue * stylist.commissionPercent / 100))}
+              </p>
+            </div>
+          </div>
+          {stats.serviceBreakdown.length > 0 && (
+            <div className="border-t border-teal-200 pt-3 space-y-1.5">
+              <p className="text-xs font-semibold text-teal-700 mb-2">By service</p>
+              {stats.serviceBreakdown.map((row) => (
+                <div key={row.serviceName} className="flex items-center justify-between text-xs">
+                  <span className="text-teal-700">{row.serviceName} ({row.count})</span>
+                  <span className="font-semibold text-teal-800">{formatCents(row.commissionCents)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-5 gap-5">
         {/* Info card */}
         <div className="col-span-2 bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
@@ -143,6 +196,58 @@ export function StylistDetailClient({
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
               />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
+                Commission %
+              </label>
+              {editingCommission ? (
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={commissionInput}
+                    onChange={(e) => setCommissionInput(e.target.value)}
+                    className="w-20 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                    autoFocus
+                  />
+                  <span className="text-sm text-stone-400">%</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = Math.max(0, Math.min(100, parseInt(commissionInput) || 0))
+                      setCommissionPercent(val)
+                      setCommissionInput(String(val))
+                      setEditingCommission(false)
+                    }}
+                    className="text-xs text-teal-700 font-semibold hover:text-teal-800"
+                  >
+                    Set
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setCommissionInput(String(commissionPercent)); setEditingCommission(false) }}
+                    className="text-xs text-stone-400 hover:text-stone-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingCommission(true)}
+                  className="flex items-center gap-2 group"
+                >
+                  <span className="text-sm font-semibold text-stone-900">
+                    {commissionPercent}%
+                  </span>
+                  <span className="text-xs text-stone-400 group-hover:text-[#0D7377] transition-colors">
+                    (click to edit)
+                  </span>
+                </button>
+              )}
             </div>
 
             <div>
