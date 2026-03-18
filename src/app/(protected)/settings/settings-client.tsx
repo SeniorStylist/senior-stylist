@@ -65,6 +65,7 @@ export function SettingsClient({
   const [address, setAddress] = useState(facility.address ?? '')
   const [phone, setPhone] = useState(facility.phone ?? '')
   const [timezone, setTimezone] = useState(facility.timezone)
+  const [paymentType, setPaymentType] = useState(facility.paymentType ?? 'facility')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -73,7 +74,8 @@ export function SettingsClient({
     name !== facility.name ||
     address !== (facility.address ?? '') ||
     phone !== (facility.phone ?? '') ||
-    timezone !== facility.timezone
+    timezone !== facility.timezone ||
+    paymentType !== (facility.paymentType ?? 'facility')
 
   const handleSaveGeneral = async () => {
     setSaving(true)
@@ -82,7 +84,7 @@ export function SettingsClient({
       const res = await fetch('/api/facility', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, address: address || undefined, phone: phone || undefined, timezone }),
+        body: JSON.stringify({ name, address: address || undefined, phone: phone || undefined, timezone, paymentType }),
       })
       if (!res.ok) {
         const j = await res.json()
@@ -318,6 +320,21 @@ export function SettingsClient({
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Payment Type</label>
+            <select
+              value={paymentType}
+              onChange={(e) => setPaymentType(e.target.value)}
+              disabled={!isAdmin}
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+            >
+              <option value="facility">Facility Pays (facility covers all services)</option>
+              <option value="ip">Individual Pay (residents pay at time of service)</option>
+              <option value="rfms">RFMS (charged to resident account)</option>
+              <option value="hybrid">Hybrid (IP + RFMS mixed)</option>
             </select>
           </div>
 

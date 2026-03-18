@@ -19,6 +19,7 @@ export interface Facility {
   phone: string | null
   calendarId: string | null
   timezone: string
+  paymentType: string
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

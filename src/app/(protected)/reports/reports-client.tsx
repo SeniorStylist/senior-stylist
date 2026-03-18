@@ -7,6 +7,8 @@ import { Spinner } from '@/components/ui'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { SkeletonStatCard, Skeleton } from '@/components/ui/skeleton'
 
+type ReportTab = 'analytics' | 'invoice'
+
 interface ServiceStat {
   name: string
   count: number
@@ -51,6 +53,22 @@ interface ReportData {
   commissions: CommissionRow[]
 }
 
+interface InvoiceBookingRow {
+  id: string
+  startTime: string
+  residentId: string
+  residentName: string
+  residentRoom: string | null
+  service: string
+  stylist: string
+  priceCents: number
+  paymentStatus: string
+}
+
+interface InvoiceData {
+  bookings: InvoiceBookingRow[]
+}
+
 type SortKey = 'date' | 'price'
 type SortDir = 'asc' | 'desc'
 
@@ -63,7 +81,13 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-stone-100 text-stone-500',
 }
 
-export function ReportsClient() {
+interface ReportsClientProps {
+  paymentType: string
+  facilityId: string
+}
+
+export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
+  const [activeTab, setActiveTab] = useState<ReportTab>('analytics')
   const [month, setMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -73,6 +97,12 @@ export function ReportsClient() {
   const [error, setError] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  // Invoice tab state
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null)
+  const [invoiceLoading, setInvoiceLoading] = useState(false)
+  const [markingPaid, setMarkingPaid] = useState(false)
+  const showInvoiceTab = paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid'
 
   useEffect(() => {
     setLoading(true)
@@ -86,6 +116,35 @@ export function ReportsClient() {
       .catch(() => setError(true))
       .finally(() => setLoading(false))
   }, [month])
+
+  useEffect(() => {
+    if (activeTab !== 'invoice' || !showInvoiceTab) return
+    setInvoiceLoading(true)
+    fetch(`/api/reports/invoice?month=${month}`)
+      .then((r) => r.json())
+      .then((json) => { if (json.data) setInvoiceData(json.data) })
+      .catch(console.error)
+      .finally(() => setInvoiceLoading(false))
+  }, [activeTab, month, showInvoiceTab])
+
+  const handleMarkAllPaid = async () => {
+    setMarkingPaid(true)
+    try {
+      const res = await fetch('/api/reports/mark-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month }),
+      })
+      if (res.ok) {
+        // Refresh invoice data
+        const res2 = await fetch(`/api/reports/invoice?month=${month}`)
+        const json = await res2.json()
+        if (json.data) setInvoiceData(json.data)
+      }
+    } finally {
+      setMarkingPaid(false)
+    }
+  }
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -116,7 +175,7 @@ export function ReportsClient() {
     <ErrorBoundary>
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1
             className="text-2xl font-bold text-stone-900"
@@ -134,7 +193,35 @@ export function ReportsClient() {
         />
       </div>
 
-      {loading && (
+      {/* Tabs */}
+      {showInvoiceTab && (
+        <div className="flex gap-1 mb-6 border-b border-stone-200">
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+              activeTab === 'analytics'
+                ? 'border-[#0D7377] text-[#0D7377]'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
+            )}
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('invoice')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+              activeTab === 'invoice'
+                ? 'border-[#0D7377] text-[#0D7377]'
+                : 'border-transparent text-stone-500 hover:text-stone-700'
+            )}
+          >
+            Invoice
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'analytics' && loading && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <SkeletonStatCard />
@@ -147,13 +234,13 @@ export function ReportsClient() {
         </div>
       )}
 
-      {!loading && error && (
+      {activeTab === 'analytics' && !loading && error && (
         <div className="text-center py-24">
           <p className="text-stone-400 text-sm">Failed to load report data.</p>
         </div>
       )}
 
-      {!loading && data && (
+      {activeTab === 'analytics' && !loading && data && (
         <div className="space-y-5">
           {/* Top stats */}
           <div className="grid grid-cols-2 gap-4">
@@ -392,6 +479,99 @@ export function ReportsClient() {
               </div>
             )}
           </div>
+        </div>
+      )}
+      {/* Invoice tab */}
+      {activeTab === 'invoice' && showInvoiceTab && (
+        <div className="space-y-5">
+          {/* Actions */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-stone-500">
+              Unpaid completed appointments grouped by resident
+            </p>
+            <div className="flex gap-3">
+              <a
+                href={`/invoice/${facilityId}?month=${month}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-[#0D7377] text-[#0D7377] hover:bg-teal-50 transition-all"
+              >
+                Generate Invoice
+              </a>
+              <button
+                onClick={handleMarkAllPaid}
+                disabled={markingPaid}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
+                style={{ backgroundColor: '#0D7377' }}
+              >
+                {markingPaid ? 'Marking…' : 'Mark All Paid'}
+              </button>
+            </div>
+          </div>
+
+          {invoiceLoading && (
+            <div className="flex items-center justify-center py-16">
+              <Spinner className="text-[#0D7377]" />
+            </div>
+          )}
+
+          {!invoiceLoading && invoiceData && (() => {
+            const unpaid = invoiceData.bookings.filter((b) => b.paymentStatus === 'unpaid')
+            const byResident: Record<string, { name: string; room: string | null; rows: InvoiceBookingRow[] }> = {}
+            for (const b of unpaid) {
+              if (!byResident[b.residentId]) {
+                byResident[b.residentId] = { name: b.residentName, room: b.residentRoom, rows: [] }
+              }
+              byResident[b.residentId].rows.push(b)
+            }
+            const groups = Object.values(byResident)
+            const grandTotal = unpaid.reduce((sum, b) => sum + b.priceCents, 0)
+
+            if (groups.length === 0) {
+              return (
+                <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 py-16 text-center">
+                  <p className="text-sm font-semibold text-stone-600">No unpaid appointments</p>
+                  <p className="text-xs text-stone-400 mt-1">All completed appointments have been marked as paid.</p>
+                </div>
+              )
+            }
+
+            return (
+              <div className="space-y-4">
+                {groups.map((group) => {
+                  const subtotal = group.rows.reduce((sum, b) => sum + b.priceCents, 0)
+                  return (
+                    <div key={group.name} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+                      <div className="px-5 py-3 bg-stone-50 border-b border-stone-100 flex items-center gap-2">
+                        <p className="text-sm font-bold text-stone-800">{group.name}</p>
+                        {group.room && <span className="text-xs text-stone-400">Room {group.room}</span>}
+                      </div>
+                      <div className="divide-y divide-stone-50">
+                        {group.rows.map((b) => (
+                          <div key={b.id} className="grid grid-cols-12 gap-2 items-center px-5 py-3">
+                            <div className="col-span-2 text-xs text-stone-500">
+                              {new Date(b.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                            </div>
+                            <div className="col-span-4 text-sm text-stone-800">{b.service}</div>
+                            <div className="col-span-3 text-sm text-stone-500">{b.stylist}</div>
+                            <div className="col-span-3 text-right text-sm font-semibold text-stone-700">{formatCents(b.priceCents)}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-5 py-2.5 bg-stone-50 border-t border-stone-100 flex justify-between">
+                        <span className="text-xs font-semibold text-stone-500">Subtotal</span>
+                        <span className="text-sm font-bold text-stone-800">{formatCents(subtotal)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 py-4 flex justify-between items-center">
+                  <span className="text-sm font-semibold text-stone-600">Grand Total</span>
+                  <span className="text-2xl font-bold text-[#0D7377]">{formatCents(grandTotal)}</span>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

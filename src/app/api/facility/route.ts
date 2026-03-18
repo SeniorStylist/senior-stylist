@@ -12,6 +12,7 @@ const updateSchema = z.object({
   phone: z.string().optional(),
   calendarId: z.string().optional(),
   timezone: z.string().optional(),
+  paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
 })
 
 export async function GET() {

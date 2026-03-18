@@ -23,6 +23,7 @@ export default async function ProtectedLayout({
   // Load all facilities this user belongs to
   let facilityName: string | undefined
   let allFacilities: { id: string; name: string; role: string }[] = []
+  let activeRole: string = 'admin'
 
   try {
     const userFacilities = await db.query.facilityUsers.findMany({
@@ -44,6 +45,7 @@ export default async function ProtectedLayout({
     const selectedId = cookieStore.get('selected_facility_id')?.value
     const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
     facilityName = active?.name
+    activeRole = active?.role ?? 'admin'
   } catch (err) {
     // DB might not be set up yet — that's OK
     console.error('[layout] Failed to load facility data:', err)
@@ -52,7 +54,7 @@ export default async function ProtectedLayout({
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} />
+        <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} role={activeRole} />
       </div>
       <main className="main-content flex-1 min-w-0 overflow-auto">
         <ToastProvider>{children}</ToastProvider>

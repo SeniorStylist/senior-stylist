@@ -54,6 +54,7 @@ interface DashboardClientProps {
   initialResidents: Resident[]
   initialStylists: Stylist[]
   initialServices: Service[]
+  isAdmin?: boolean
 }
 
 export function DashboardClient({
@@ -62,6 +63,7 @@ export function DashboardClient({
   initialResidents,
   initialStylists,
   initialServices,
+  isAdmin = true,
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -311,6 +313,7 @@ export function DashboardClient({
               <ResidentsPanel
                 residents={residents}
                 onResidentAdded={(r) => setResidents((prev) => [r, ...prev])}
+                isAdmin={isAdmin}
               />
             )}
             {activePanel === 'services' && (
@@ -320,12 +323,14 @@ export function DashboardClient({
                 onServiceUpdated={(s) =>
                   setLocalServices((prev) => prev.map((x) => (x.id === s.id ? s : x)))
                 }
+                isAdmin={isAdmin}
               />
             )}
             {activePanel === 'stylists' && (
               <StylistsPanel
                 stylists={stylists}
                 onStylistAdded={(s) => setStylists((prev) => [...prev, s])}
+                isAdmin={isAdmin}
               />
             )}
           </div>

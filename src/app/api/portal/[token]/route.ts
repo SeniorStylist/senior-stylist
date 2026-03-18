@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { residents, bookings } from '@/db/schema'
+import { residents, bookings, facilities } from '@/db/schema'
 import { eq, gte, lt, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -19,6 +19,10 @@ export async function GET(
     }
 
     const now = new Date()
+
+    const facility = await db.query.facilities.findFirst({
+      where: eq(facilities.id, resident.facilityId),
+    })
 
     const [upcomingBookings, pastBookings] = await Promise.all([
       db.query.bookings.findMany({
@@ -48,6 +52,7 @@ export async function GET(
           roomNumber: resident.roomNumber,
           facilityId: resident.facilityId,
         },
+        facilityPaymentType: facility?.paymentType ?? 'facility',
         upcomingBookings: JSON.parse(JSON.stringify(upcomingBookings)),
         pastBookings: JSON.parse(JSON.stringify(pastBookings)),
       },

@@ -21,9 +21,10 @@ const PRESET_COLORS = [
 interface StylistsPanelProps {
   stylists: Stylist[]
   onStylistAdded: (stylist: Stylist) => void
+  isAdmin?: boolean
 }
 
-export function StylistsPanel({ stylists, onStylistAdded }: StylistsPanelProps) {
+export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: StylistsPanelProps) {
   const router = useRouter()
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -71,18 +72,20 @@ export function StylistsPanel({ stylists, onStylistAdded }: StylistsPanelProps) 
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-3 border-b border-stone-100">
-        <div className="flex justify-end">
-          <button
-            onClick={() => setShowAdd((v) => !v)}
-            className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
-            title="Add stylist"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowAdd((v) => !v)}
+              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+              title="Add stylist"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {showAdd && (
           <div className="mt-2 bg-stone-50 rounded-xl border border-stone-200 p-3 space-y-3">

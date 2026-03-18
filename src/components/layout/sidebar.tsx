@@ -7,10 +7,13 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
-const navItems = [
+type NavRole = 'admin' | 'stylist' | 'viewer'
+
+const navItems: { href: string; label: string; icon: React.ReactNode; roles: NavRole[] }[] = [
   {
     href: '/dashboard',
     label: 'Calendar',
+    roles: ['admin', 'stylist', 'viewer'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -23,6 +26,7 @@ const navItems = [
   {
     href: '/residents',
     label: 'Residents',
+    roles: ['admin', 'stylist', 'viewer'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
@@ -35,6 +39,7 @@ const navItems = [
   {
     href: '/stylists',
     label: 'Stylists',
+    roles: ['admin'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
@@ -44,6 +49,7 @@ const navItems = [
   {
     href: '/services',
     label: 'Services',
+    roles: ['admin'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="8" y1="6" x2="21" y2="6"/>
@@ -58,6 +64,7 @@ const navItems = [
   {
     href: '/log',
     label: 'Daily Log',
+    roles: ['admin', 'stylist'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -71,6 +78,7 @@ const navItems = [
   {
     href: '/reports',
     label: 'Reports',
+    roles: ['admin'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="18" y1="20" x2="18" y2="10"/>
@@ -82,6 +90,7 @@ const navItems = [
   {
     href: '/settings',
     label: 'Settings',
+    roles: ['admin'],
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="12" cy="12" r="3"/>
@@ -101,9 +110,10 @@ interface SidebarProps {
   user: User
   facilityName?: string
   allFacilities?: FacilityOption[]
+  role?: string
 }
 
-export function Sidebar({ user, facilityName, allFacilities = [] }: SidebarProps) {
+export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin' }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -220,30 +230,38 @@ export function Sidebar({ user, facilityName, allFacilities = [] }: SidebarProps
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-                isActive
-                  ? 'bg-white/15 text-white'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white/90'
-              )}
-            >
-              <span className={cn(isActive ? 'text-[#14D9C4]' : 'text-white/50')}>
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          )
-        })}
+        {navItems
+          .filter((item) => item.roles.includes(role as NavRole))
+          .map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                  isActive
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/60 hover:bg-white/10 hover:text-white/90'
+                )}
+              >
+                <span className={cn(isActive ? 'text-[#14D9C4]' : 'text-white/50')}>
+                  {item.icon}
+                </span>
+                {item.label}
+              </Link>
+            )
+          })}
       </nav>
 
       {/* User */}
       <div className="px-3 py-4 border-t border-white/10">
+        {role === 'viewer' && (
+          <div className="mx-3 mb-2 px-2 py-1 rounded-lg text-center text-[10px] font-semibold tracking-wide"
+            style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+            View Only
+          </div>
+        )}
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"

@@ -10,9 +10,10 @@ import { useToast } from '@/components/ui/toast'
 interface ResidentsPanelProps {
   residents: Resident[]
   onResidentAdded: (resident: Resident) => void
+  isAdmin?: boolean
 }
 
-export function ResidentsPanel({ residents, onResidentAdded }: ResidentsPanelProps) {
+export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: ResidentsPanelProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [search, setSearch] = useState('')
@@ -87,16 +88,18 @@ export function ResidentsPanel({ residents, onResidentAdded }: ResidentsPanelPro
             placeholder="Search..."
             className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
           />
-          <button
-            onClick={() => setShowAdd((v) => !v)}
-            className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
-            title="Add resident"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdd((v) => !v)}
+              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+              title="Add resident"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {showAdd && (

@@ -32,12 +32,14 @@ interface PortalData {
     name: string
     roomNumber: string | null
     facilityId: string
+    paymentType?: string
   }
   upcomingBookings: BookingData[]
   pastBookings: BookingData[]
+  facilityPaymentType?: string
 }
 
-type BookingStep = 'service' | 'details' | 'confirm' | 'success'
+type BookingStep = 'service' | 'details' | 'confirm' | 'success' | 'payment'
 
 interface PortalClientProps {
   token: string
@@ -124,6 +126,10 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [bookError, setBookError] = useState<string | null>(null)
+  const [takenSlots, setTakenSlots] = useState<string[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [lastBookingId, setLastBookingId] = useState<string | null>(null)
+  const [checkingOut, setCheckingOut] = useState(false)
 
   const loadPortalData = () => {
     setLoading(true)
@@ -135,19 +141,37 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
       .finally(() => setLoading(false))
   }
 
+  const facilityPaymentType = data?.facilityPaymentType ?? 'facility'
+
   useEffect(() => {
     loadPortalData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
+
+  const fetchTakenSlots = async (date: string) => {
+    setLoadingSlots(true)
+    try {
+      const res = await fetch(`/api/portal/${token}/available-times?date=${date}`)
+      const json = await res.json()
+      if (json.takenSlots) setTakenSlots(json.takenSlots)
+      else setTakenSlots([])
+    } catch {
+      setTakenSlots([])
+    } finally {
+      setLoadingSlots(false)
+    }
+  }
 
   const startBooking = async () => {
     setBooking(true)
     setBookingStep('service')
     setSelectedService(null)
     setSelectedStylist(null)
-    setSelectedDate(todayStr())
+    const today = todayStr()
+    setSelectedDate(today)
     setSelectedTime(null)
     setBookError(null)
+    setTakenSlots([])
 
     const [svcRes, stlRes] = await Promise.all([
       fetch(`/api/portal/${token}/services`),
@@ -159,6 +183,9 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
       setStylists(stlJson.data)
       if (stlJson.data.length === 1) setSelectedStylist(stlJson.data[0])
     }
+
+    // Pre-fetch taken slots for today
+    fetchTakenSlots(today)
   }
 
   const handleBook = async () => {
@@ -176,7 +203,14 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
         }),
       })
       if (res.ok) {
-        setBookingStep('success')
+        const json = await res.json()
+        setLastBookingId(json.data?.id ?? null)
+        const paymentType = data?.facilityPaymentType
+        if (paymentType === 'ip' || paymentType === 'hybrid') {
+          setBookingStep('payment')
+        } else {
+          setBookingStep('success')
+        }
         loadPortalData()
       } else {
         const json = await res.json()
@@ -186,6 +220,28 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
       setBookError('Network error. Please try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleCheckout = async () => {
+    if (!lastBookingId || !selectedService) return
+    setCheckingOut(true)
+    try {
+      const res = await fetch(`/api/portal/${token}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: lastBookingId, serviceId: selectedService.id }),
+      })
+      const json = await res.json()
+      if (json.url) {
+        window.location.href = json.url
+      } else {
+        setBookingStep('success')
+      }
+    } catch {
+      setBookingStep('success')
+    } finally {
+      setCheckingOut(false)
     }
   }
 
@@ -245,9 +301,10 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
               {bookingStep === 'service' && 'Choose a Service'}
               {bookingStep === 'details' && 'Pick Date & Time'}
               {bookingStep === 'confirm' && 'Confirm Booking'}
+              {bookingStep === 'payment' && 'Complete Payment'}
               {bookingStep === 'success' && 'Booking Confirmed!'}
             </p>
-            {bookingStep !== 'success' && (
+            {bookingStep !== 'success' && bookingStep !== 'payment' && (
               <button
                 onClick={() => setBooking(false)}
                 className="text-xs text-stone-400 hover:text-stone-600"
@@ -325,7 +382,11 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
                     type="date"
                     value={selectedDate}
                     min={todayStr()}
-                    onChange={(e) => { setSelectedDate(e.target.value); setSelectedTime(null) }}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value)
+                      setSelectedTime(null)
+                      if (e.target.value) fetchTakenSlots(e.target.value)
+                    }}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
                   />
                 </div>
@@ -333,21 +394,34 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
                 {/* Time slots */}
                 {selectedDate && (
                   <div>
-                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Time</p>
+                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
+                      Time {loadingSlots && <span className="text-stone-300 font-normal">(loading…)</span>}
+                    </p>
                     <div className="grid grid-cols-4 gap-2">
-                      {timeSlots.map((slot) => (
-                        <button
-                          key={slot}
-                          onClick={() => setSelectedTime(slot)}
-                          className={`py-2 rounded-xl text-xs font-medium transition-all ${
-                            selectedTime === slot
-                              ? 'bg-[#0D7377] text-white'
-                              : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
-                          }`}
-                        >
-                          {formatSlotLabel(slot)}
-                        </button>
-                      ))}
+                      {timeSlots.map((slot) => {
+                        const slotDate = new Date(slot)
+                        const h = String(slotDate.getHours()).padStart(2, '0')
+                        const m = String(slotDate.getMinutes()).padStart(2, '0')
+                        const hhmm = `${h}:${m}`
+                        const isTaken = takenSlots.includes(hhmm)
+                        return (
+                          <button
+                            key={slot}
+                            onClick={() => { if (!isTaken) setSelectedTime(slot) }}
+                            disabled={isTaken}
+                            className={`py-2 rounded-xl text-xs font-medium transition-all flex flex-col items-center ${
+                              isTaken
+                                ? 'bg-stone-100 text-stone-300 cursor-not-allowed'
+                                : selectedTime === slot
+                                  ? 'bg-[#0D7377] text-white'
+                                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
+                            }`}
+                          >
+                            {formatSlotLabel(slot)}
+                            {isTaken && <span className="text-[9px] leading-none mt-0.5">Booked</span>}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -428,7 +502,41 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
               </div>
             )}
 
-            {/* Step 4: Success */}
+            {/* Step 4: Payment (IP/hybrid mode) */}
+            {bookingStep === 'payment' && selectedService && (
+              <div className="text-center py-4 space-y-4">
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
+                  style={{ backgroundColor: '#0D7377' }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <p className="text-base font-bold text-stone-900">Appointment Booked!</p>
+                <p className="text-sm text-stone-500">
+                  Your appointment has been scheduled. Complete payment below.
+                </p>
+                <button
+                  onClick={handleCheckout}
+                  disabled={checkingOut}
+                  className="w-full py-3 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#0D7377' }}
+                >
+                  {checkingOut ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : `Pay Now — ${formatCents(selectedService.priceCents)}`}
+                </button>
+                <button
+                  onClick={() => setBookingStep('success')}
+                  className="text-xs text-stone-400 hover:text-stone-600"
+                >
+                  Pay later
+                </button>
+              </div>
+            )}
+
+            {/* Step 5: Success */}
             {bookingStep === 'success' && (
               <div className="text-center py-4 space-y-3">
                 <div

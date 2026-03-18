@@ -67,6 +67,7 @@ export default async function DashboardPage() {
         initialResidents={JSON.parse(JSON.stringify(residentsList))}
         initialStylists={JSON.parse(JSON.stringify(stylistsList))}
         initialServices={JSON.parse(JSON.stringify(servicesList))}
+        isAdmin={facilityUser.role === 'admin'}
       />
     )
   } catch (err) {

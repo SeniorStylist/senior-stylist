@@ -28,6 +28,7 @@ export const facilities = pgTable('facilities', {
   phone: text('phone'),
   calendarId: text('calendar_id'),
   timezone: text('timezone').default('America/New_York').notNull(),
+  paymentType: text('payment_type').default('facility').notNull(),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
