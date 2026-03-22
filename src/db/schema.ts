@@ -17,6 +17,7 @@ export const profiles = pgTable('profiles', {
   fullName: text('full_name'),
   avatarUrl: text('avatar_url'),
   role: text('role').default('stylist').notNull(),
+  stylistId: uuid('stylist_id').references(() => stylists.id),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -132,6 +133,7 @@ export const invites = pgTable('invites', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
   email: text('email').notNull(),
+  inviteRole: text('invite_role').default('stylist').notNull(),
   invitedBy: uuid('invited_by').references(() => profiles.id).notNull(),
   token: text('token').notNull().unique(),
   used: boolean('used').default(false).notNull(),

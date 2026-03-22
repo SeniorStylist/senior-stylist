@@ -37,7 +37,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/unauthorized') ||
-    pathname.startsWith('/invite/accept')
+    pathname.startsWith('/invite/accept') ||
+    pathname.startsWith('/portal') ||
+    pathname.startsWith('/invoice')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
@@ -47,29 +49,38 @@ export async function middleware(request: NextRequest) {
 
   // If authenticated, check facility access (skip public routes)
   if (user && !isPublic) {
-    // Check if user has a facilityUser record
-    const { data: facilityUser } = await supabase
-      .from('facility_users')
-      .select('facility_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single()
+    const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const isSuperAdmin = superAdminEmail && user.email === superAdminEmail
 
-    if (!facilityUser) {
-      // Check if user has a pending valid invite
-      const { data: invite } = await supabase
-        .from('invites')
-        .select('id')
-        .eq('email', user.email ?? '')
-        .eq('used', false)
-        .gt('expires_at', new Date().toISOString())
+    if (!isSuperAdmin) {
+      // Check if user has a facilityUser record
+      const { data: facilityUser } = await supabase
+        .from('facility_users')
+        .select('facility_id')
+        .eq('user_id', user.id)
         .limit(1)
         .single()
 
-      if (!invite) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/unauthorized'
-        return NextResponse.redirect(url)
+      if (!facilityUser) {
+        // Check if user has a pending valid invite
+        let hasInvite = false
+        const { data: invite } = await supabase
+          .from('invites')
+          .select('id')
+          .eq('email', user.email ?? '')
+          .eq('used', false)
+          .gt('expires_at', new Date().toISOString())
+          .limit(1)
+
+        if (invite && invite.length > 0) {
+          hasInvite = true
+        }
+
+        if (!hasInvite) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/unauthorized'
+          return NextResponse.redirect(url)
+        }
       }
     }
   }
