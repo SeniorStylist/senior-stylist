@@ -19,20 +19,39 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer()
     const { text } = await extractText(new Uint8Array(buffer), { mergePages: true })
 
+    console.log('PDF raw text:', text.substring(0, 500))
+
     // Parse lines looking for service name + price patterns
-    // Lines that end without a number (category headers) are skipped
     const rows: Array<{ name: string; priceCents: number; durationMinutes: number }> = []
-    const linePattern = /^(.+?)\s+\$?(\d+(?:\.\d{1,2})?)\s*$/
+
+    // Matches: "Service Name  $25" or "Service Name 25.00" or "Service Name 15 ea." or "Service Name 22*"
+    const linePattern = /^(.+?)\s+\$?(\d+(?:\.\d{1,2})?)\s*(?:ea\.?|\*)?\s*$/
+
     const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean)
 
-    for (const line of lines) {
+    // Skip the first 2 lines (usually facility name / document title)
+    const dataLines = lines.slice(2)
+
+    for (const line of dataLines) {
+      // Skip header/boilerplate lines
+      if (/\bPrice\b/i.test(line)) continue
+      if (/Subject to Change/i.test(line)) continue
+      if (/Copyright/i.test(line)) continue
+      // Skip lines that are all-caps (section headers like "COLOR", "NAILS")
+      if (line === line.toUpperCase() && /[A-Z]/.test(line)) continue
+
       const match = line.match(linePattern)
-      if (match) {
-        const name = match[1].replace(/[.\-_]+$/, '').trim()
-        const price = parseFloat(match[2])
-        if (name.length > 0 && price > 0 && price < 1000) {
-          rows.push({ name, priceCents: Math.round(price * 100), durationMinutes: 30 })
-        }
+      if (!match) continue
+
+      const name = match[1].replace(/[.\-_]+$/, '').trim()
+      const price = parseFloat(match[2])
+
+      // Skip names that are too short or look like headers
+      if (name.length < 3) continue
+      if (/^Service\b/i.test(name)) continue
+
+      if (price > 0 && price < 1000) {
+        rows.push({ name, priceCents: Math.round(price * 100), durationMinutes: 30 })
       }
     }
 
