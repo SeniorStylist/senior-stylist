@@ -1,0 +1,432 @@
+# Senior Stylist — Design System
+
+Extracted from the codebase. These are the actual patterns in use — not aspirational.
+
+---
+
+## 1. Design Tokens
+
+All tokens are CSS custom properties declared in `src/app/globals.css`.
+
+### Colors
+
+| Token | Value | Usage |
+|---|---|---|
+| `--color-bg` | `#F7F6F2` | Page background (warm off-white) |
+| `--color-sidebar` | `#0D2B2E` | Sidebar background (dark teal) |
+| `--color-primary` | `#0D7377` | Buttons, active states, focus rings |
+| `--color-primary-light` | `#14D9C4` | Active nav icon color |
+| `--color-card` | `#FFFFFF` | Card backgrounds |
+| `--color-border` | `#E7E5E4` | Default borders |
+| `--color-text` | `#1C1917` | Primary text |
+| `--color-text-secondary` | `#57534E` | Secondary text |
+| `--color-text-muted` | `#78716C` | Muted/placeholder text |
+
+Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The design tokens above map to Tailwind equivalents for consistency.
+
+Hover state for primary: `#0a5f63` (hardcoded inline, no token).
+
+### Service Color Palette
+
+Services get assigned colors from this 12-color palette (cycled by category):
+
+```ts
+const PALETTE = [
+  '#0D7377', '#7C3AED', '#DC2626', '#DB2777',
+  '#D97706', '#059669', '#2563EB', '#0891B2',
+  '#9333EA', '#EA580C', '#16A34A', '#0284C7'
+]
+```
+
+Colors are stored in the `services.color` DB column and rendered as small `w-2.5 h-2.5 rounded-full` swatches on the services list.
+
+---
+
+## 2. Typography
+
+### Fonts
+
+| Font | Usage | How applied |
+|---|---|---|
+| DM Serif Display | Page headings (`h1`) | Inline style: `style={{ fontFamily: "'DM Serif Display', serif" }}` |
+| DM Sans | All body text, UI labels | Default (loaded via layout.tsx) |
+
+### Heading Pattern
+
+All page-level headings follow this exact pattern:
+
+```tsx
+<h1
+  className="text-2xl font-bold text-stone-900"
+  style={{ fontFamily: "'DM Serif Display', serif" }}
+>
+  Page Title
+</h1>
+<p className="text-sm text-stone-500 mt-0.5">
+  Subtitle or count
+</p>
+```
+
+### Text Scale
+
+| Class | Usage |
+|---|---|
+| `text-2xl font-bold text-stone-900` | Page headings |
+| `text-base md:text-lg font-bold text-stone-900` | Dashboard header |
+| `text-sm font-semibold text-stone-700` | Section labels, form labels |
+| `text-sm font-medium text-stone-900` | Primary cell content (names) |
+| `text-sm font-semibold text-stone-700` | Monetary values |
+| `text-sm text-stone-500` | Secondary cell content |
+| `text-xs font-semibold text-stone-500 uppercase tracking-wide` | Table column headers |
+| `text-xs text-stone-400` | Subtitles, helper text |
+| `text-xs text-red-600` | Inline form errors |
+
+---
+
+## 3. Components
+
+### Button (`src/components/ui/button.tsx`)
+
+Base: `inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 disabled:opacity-60`
+
+| Variant | Classes |
+|---|---|
+| `primary` (default) | `bg-[#0D7377] text-white hover:bg-[#0a5f63]` |
+| `secondary` | `bg-stone-100 text-stone-700 hover:bg-stone-200` |
+| `ghost` | `bg-transparent text-stone-600 hover:bg-stone-100` |
+| `danger` | `bg-red-50 text-red-700 border border-red-200 hover:bg-red-100` |
+
+| Size | Classes |
+|---|---|
+| `sm` | `text-xs px-3 py-1.5` |
+| `md` (default) | `text-sm px-4 py-2.5` |
+| `lg` | `text-sm px-5 py-3` |
+
+The `loading` prop replaces content with a spinner and disables the button.
+
+Icon-only add buttons use a fixed `w-9 h-9` square with `shrink-0`:
+```tsx
+<button className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all">
+```
+
+### Card (`src/components/ui/card.tsx`)
+
+```tsx
+// Static
+<div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+
+// Clickable
+<div className="bg-white rounded-2xl border border-stone-100 shadow-sm hover:border-stone-200 hover:shadow-md transition-all duration-150 cursor-pointer">
+```
+
+Padding is added inside by the consumer, not by the card component itself.
+
+### Modal (`src/components/ui/modal.tsx`)
+
+Desktop only. Structure:
+- Overlay: `position: fixed, inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)'`
+- Panel: `bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full mx-4`
+- Enter animation: `animate-in fade-in slide-in-from-bottom-3 duration-200`
+- Escape key closes; body `overflow: hidden` while open
+
+### Bottom Sheet (`src/components/ui/bottom-sheet.tsx`)
+
+Mobile only. All layout uses **inline styles** (no Tailwind). Key properties:
+
+```ts
+// Container
+position: 'fixed', inset: 0, zIndex: 50
+backgroundColor: 'rgba(0,0,0,0.4)'
+
+// Panel
+maxHeight: '92dvh'
+borderRadius: '20px 20px 0 0'
+paddingBottom: 'env(safe-area-inset-bottom)'
+
+// Entry animation
+transform: 'translateY(0)'
+transition: 'transform cubic-bezier(0.34, 1.56, 0.64, 1) 380ms'  // spring
+
+// Drag-to-dismiss threshold: 80px
+```
+
+Footer/save buttons must be **outside** the scroll area with `flexShrink: 0`. The scrollable body uses `WebkitOverflowScrolling: 'touch'` and `overscrollBehavior: 'contain'`.
+
+### Badge (`src/components/ui/badge.tsx`)
+
+Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
+
+| Variant | Background / Text |
+|---|---|
+| `default` | `bg-stone-100 text-stone-600` |
+| `success` | `bg-teal-50 text-teal-700` |
+| `warning` | `bg-amber-50 text-amber-700` |
+| `danger` | `bg-red-50 text-red-700` |
+| `info` | `bg-blue-50 text-blue-700` |
+
+`StatusBadge` maps booking statuses (`confirmed`, `completed`, `cancelled`, `no_show`, `pending`) to badge variants automatically.
+
+### Avatar (`src/components/ui/avatar.tsx`)
+
+Initials-only (no image upload). Renders up to 2 initials from the name.
+
+```tsx
+// With service color
+<Avatar name="Jane Doe" color="#0D7377" />
+// Renders: bg rgba(#0D7377, 12%) with text color #0D7377
+
+// Without color
+<Avatar name="Jane Doe" />
+// Renders: bg-teal-50 text-teal-700
+```
+
+| Size | Classes |
+|---|---|
+| `sm` | `w-7 h-7 text-[10px]` |
+| `md` (default) | `w-9 h-9 text-xs` |
+| `lg` | `w-11 h-11 text-sm` |
+
+---
+
+## 4. Layout & Navigation
+
+### Page Structure
+
+```
+┌─────────────────────────────────────────┐
+│  Sidebar (220px, desktop only)          │
+│  ┌───────────────────────────────────┐  │
+│  │  Main content (.main-content)     │  │
+│  │  p-6 max-w-4xl mx-auto           │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+On mobile the sidebar is replaced by a bottom navigation bar. `.main-content` includes `paddingBottom: 'calc(env(safe-area-inset-bottom) + 72px)'` to clear the mobile nav.
+
+### Sidebar (`src/components/layout/sidebar.tsx`)
+
+- Width: `w-[220px]`
+- Background: `var(--color-sidebar)` → `#0D2B2E`
+- Active nav item: `bg-white/15 text-white` + icon `text-[#14D9C4]`
+- Inactive nav item: `text-white/60 hover:bg-white/10 hover:text-white`
+- Facility switcher uses inline styles
+- Viewer role gets a "View Only" badge in the nav
+
+### Dashboard Layout
+
+The dashboard (`dashboard-client.tsx`) uses a split layout:
+
+```
+flex h-screen overflow-hidden
+├── Calendar column (flex-1, p-3 md:p-4)
+│   ├── Header (title + view switcher)
+│   └── Calendar card (flex-1, rounded-2xl)
+└── Right panel (w-[300px], hidden on mobile)
+    ├── Tabs (Residents / Services / Stylists)
+    ├── Panel content (flex-1, overflow-hidden)
+    └── Stats footer (border-t, bg-stone-50)
+```
+
+View switcher buttons use the active pattern `bg-[#0D7377] text-white` vs `text-stone-600 hover:bg-stone-100`.
+
+---
+
+## 5. Forms & Inputs
+
+All inputs use the same base pattern. Background transitions from `stone-50` to `white` on focus.
+
+### Text Input
+
+```tsx
+<input className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all" />
+```
+
+### Search Input
+
+Adds `shadow-sm` and uses white background by default:
+
+```tsx
+<input className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm placeholder:text-stone-400 focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all shadow-sm" />
+```
+
+### Select
+
+```tsx
+<select className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] transition-all" />
+```
+
+### Price Input
+
+Uses a `$` prefix character absolutely positioned inside a relative wrapper:
+
+```tsx
+<div className="flex-1 relative">
+  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+  <input type="number" step="0.01" className="... pl-7 ..." />
+</div>
+```
+
+### Inline Form Panels
+
+Add/edit forms appear inline (not in modals) as `bg-white rounded-2xl border border-stone-100 shadow-sm p-4 mb-4 space-y-3` cards with a `text-sm font-semibold text-stone-700` label at the top.
+
+---
+
+## 6. Data Tables & Lists
+
+All data tables share the same structure using CSS Grid `grid-cols-12`.
+
+### Container
+
+```tsx
+<div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+```
+
+### Header Row
+
+```tsx
+<div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
+  <div className="col-span-N text-xs font-semibold text-stone-500 uppercase tracking-wide">Column</div>
+</div>
+```
+
+### Data Row
+
+```tsx
+<div className="grid grid-cols-12 gap-4 items-center px-5 py-3.5 border-b border-stone-50 last:border-0">
+```
+
+Clickable rows use `<button>` with `hover:bg-stone-50 transition-colors` and a `text-stone-300` chevron at the end.
+
+### Row Hover Actions
+
+Edit/archive icons appear only on `onMouseEnter` via a `hoverId` state — not shown by default. The confirm-archive pattern:
+1. First click: shows "Archive? Yes / No" inline
+2. Second click on "Yes": executes the action
+3. Mouse leave cancels the confirm state
+
+### Inline Edit Row
+
+Active edit row gets `bg-teal-50/60` background and a `border-l-2 border-[#0D7377]` left accent:
+
+```tsx
+<div className="px-5 py-3 bg-teal-50/60 border-l-2 border-[#0D7377]">
+```
+
+### Service Color Swatch
+
+```tsx
+<div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: service.color ?? '#0D7377' }} />
+```
+
+### Category Header Rows (Import Preview)
+
+Interleaved non-interactive category headers in grouped lists:
+
+```tsx
+<div className="grid grid-cols-12 gap-2 px-4 py-1.5 bg-stone-50 border-b border-stone-100 items-center">
+  <div className="col-span-12 flex items-center gap-2">
+    <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+    <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{name}</span>
+  </div>
+</div>
+```
+
+---
+
+## 7. Patterns
+
+### Empty States
+
+Consistent pattern across all list pages:
+
+```tsx
+<div className="bg-white rounded-2xl border border-stone-100 shadow-sm py-16 text-center">
+  <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
+    <svg ... stroke="#A8A29E" strokeWidth="1.8"> {/* contextual icon */} </svg>
+  </div>
+  <p className="text-sm font-semibold text-stone-700">No X yet</p>
+  <p className="text-xs text-stone-400 mt-1 mb-4">Helper text.</p>
+  <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all">
+    Add X
+  </button>
+</div>
+```
+
+Icon stroke color is always `#A8A29E` (stone-400 equivalent) for empty state icons.
+
+### Loading / Skeleton
+
+Skeleton components (e.g. `SkeletonResidentRow`) use the `shimmer` animation from globals.css. The pull-to-refresh indicator uses a spinning refresh SVG with `stroke="#0D7377"`.
+
+### Toast Notifications
+
+```tsx
+const { toast } = useToast()
+toast('Changes saved', 'success')
+toast('Error message', 'error')
+```
+
+### Destructive Confirmation
+
+Never use `window.confirm()`. Always use inline two-step confirm:
+1. First action click: set `confirmXId = id`
+2. Render "X? Yes / No" buttons inline in the row
+3. Mouse leave resets `confirmXId`
+4. "Yes" click: execute + clear state
+
+### Role-Gated UI
+
+Admin-only features are hidden via `isAdmin` prop:
+```tsx
+{isAdmin && <div>Admin-only content</div>}
+```
+Stylist role shows calendar + log only. No conditional rendering based on `role === 'viewer'` — viewer gets the same read UI; all mutation actions simply fail the server-side role check.
+
+### Animations
+
+| Name | Trigger | Duration |
+|---|---|---|
+| `active:scale-95` | Any interactive button | 150ms |
+| `animate-in fade-in slide-in-from-bottom-3` | Modal entry | 200ms |
+| Bottom sheet spring | Sheet open/close | `cubic-bezier(0.34, 1.56, 0.64, 1) 380ms` |
+| `fab-bounce` | Quick Book FAB on mount | CSS keyframe |
+| `calendar-booking-flash` | Calendar on booking save | 750ms flash via state |
+| `log-fade-up` | Activity log entries | CSS keyframe |
+
+### Data Conventions
+
+- **Prices**: always `integer` cents in DB (`price_cents`). Display via `formatCents(cents)` from `src/lib/utils.ts`. Never store floats.
+- **Soft delete**: `active = false` — never hard delete anything.
+- **Facility scope**: every DB query is scoped to `facilityId` via `getUserFacility()`.
+- **Duration**: `duration_minutes` integer, default 30. UI options: 15, 30, 45, 60, 75, 90, 120.
+- **Dates**: stored as ISO strings; formatted via `formatDate()` from `src/lib/utils.ts`.
+
+### Database Schema Reference
+
+**`facilities`**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK, gen_random_uuid() |
+| `name` | text | required |
+| `address` | text | optional |
+| `phone` | text | optional |
+| `calendar_id` | text | Google Calendar ID |
+| `timezone` | text | default 'America/New_York' |
+| `payment_type` | text | default 'facility' |
+| `active` | boolean | soft delete flag |
+
+**`services`**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK |
+| `facility_id` | uuid | FK, required — all queries scoped here |
+| `name` | text | required |
+| `description` | text | optional |
+| `price_cents` | integer | required, no floats |
+| `duration_minutes` | integer | default 30 |
+| `color` | text | hex color, optional |
+| `active` | boolean | soft delete flag |
