@@ -13,6 +13,7 @@ interface ParsedService {
   priceCents: number
   durationMinutes: number
   color: string
+  category: string
   include: boolean
   error?: string
 }
@@ -105,14 +106,15 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
   })
   const json = await res.json()
   if (!res.ok) throw new Error(json.error ?? 'Failed to parse PDF')
-  const rows: Array<{ name: string; priceCents: number; durationMinutes: number }> = json.data
+  const rows: Array<{ name: string; priceCents: number; durationMinutes: number; category: string; color: string }> = json.data
   if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
   return rows.map((r, i) => ({
     id: i,
     name: r.name,
     priceCents: r.priceCents,
     durationMinutes: r.durationMinutes,
-    color: COLORS[i % COLORS.length],
+    category: r.category,
+    color: r.color,
     include: true,
   }))
 }
@@ -148,6 +150,7 @@ async function parseSpreadsheet(file: File): Promise<ParsedService[]> {
       priceCents,
       durationMinutes: DURATION_OPTIONS.includes(durationMinutes) ? durationMinutes : 30,
       color: COLORS[i % COLORS.length],
+      category: '',
       include: !hasError,
       error: hasError ? 'Missing name' : (priceCents === 0 ? 'Price is $0' : undefined),
     }
@@ -472,89 +475,114 @@ export function ImportClient() {
 
             {/* Rows */}
             <div className="divide-y divide-stone-50 max-h-[420px] overflow-y-auto">
-              {rows.map((row) => (
-                <div
-                  key={row.id}
-                  className={cn(
-                    'grid grid-cols-12 gap-2 px-4 py-2.5 items-center text-sm transition-colors',
-                    !row.include && 'opacity-40',
-                    row.error === 'Missing name' && 'bg-red-50/50',
-                    row.error === 'Price is $0' && 'bg-orange-50/40'
-                  )}
-                >
-                  <div className="col-span-1">
-                    <input
-                      type="checkbox"
-                      checked={row.include}
-                      disabled={row.error === 'Missing name'}
-                      onChange={() => toggleRow(row.id)}
-                      className="rounded accent-[#0D7377] w-3.5 h-3.5"
-                    />
-                  </div>
-                  <div className="col-span-4">
-                    <input
-                      value={row.name}
-                      onChange={(e) => updateName(row.id, e.target.value)}
-                      placeholder="Service name"
+              {(() => {
+                type DisplayItem =
+                  | { type: 'category'; name: string; color: string }
+                  | { type: 'row'; row: ParsedService }
+                const displayItems: DisplayItem[] = []
+                let lastCategory = ''
+                for (const row of rows) {
+                  if (row.category && row.category !== lastCategory) {
+                    displayItems.push({ type: 'category', name: row.category, color: row.color })
+                    lastCategory = row.category
+                  }
+                  displayItems.push({ type: 'row', row })
+                }
+                return displayItems.map((item, idx) => {
+                  if (item.type === 'category') {
+                    return (
+                      <div key={`cat-${idx}`} className="flex items-center gap-2 px-4 py-1.5 bg-stone-50 border-b border-stone-100">
+                        <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                        <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{item.name}</span>
+                      </div>
+                    )
+                  }
+                  const row = item.row
+                  return (
+                    <div
+                      key={row.id}
                       className={cn(
-                        'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 transition-colors',
-                        row.error === 'Missing name'
-                          ? 'border-red-300 text-red-700 placeholder:text-red-300'
-                          : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
+                        'grid grid-cols-12 gap-2 px-4 py-2.5 items-center text-sm transition-colors',
+                        !row.include && 'opacity-40',
+                        row.error === 'Missing name' && 'bg-red-50/50',
+                        row.error === 'Price is $0' && 'bg-orange-50/40'
                       )}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <div className="relative">
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-                      <input
-                        type="number"
-                        value={(row.priceCents / 100).toFixed(2)}
-                        onChange={(e) => updatePrice(row.id, e.target.value)}
-                        step="0.01"
-                        min="0"
-                        className={cn(
-                          'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 pl-3 transition-colors',
-                          row.error === 'Price is $0'
-                            ? 'border-orange-300 text-orange-700'
-                            : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
-                        )}
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <select
-                      value={row.durationMinutes}
-                      onChange={(e) => updateDuration(row.id, parseInt(e.target.value))}
-                      className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#0D7377] text-sm text-stone-600 focus:outline-none py-0.5 transition-colors"
                     >
-                      {DURATION_OPTIONS.map((d) => (
-                        <option key={d} value={d}>{d} min</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-1 flex justify-center">
-                    <input
-                      type="color"
-                      value={row.color}
-                      onChange={(e) => updateColor(row.id, e.target.value)}
-                      className="w-6 h-6 rounded-full border border-stone-200 cursor-pointer p-0 overflow-hidden"
-                      style={{ WebkitAppearance: 'none' }}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    {row.error === 'Missing name' ? (
-                      <span className="text-xs text-red-600 font-medium">Missing name</span>
-                    ) : row.error === 'Price is $0' ? (
-                      <span className="text-xs text-orange-600 font-medium">$0 price</span>
-                    ) : row.include ? (
-                      <span className="text-xs text-green-600 font-medium">Import</span>
-                    ) : (
-                      <span className="text-xs text-stone-400">Skip</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                      <div className="col-span-1">
+                        <input
+                          type="checkbox"
+                          checked={row.include}
+                          disabled={row.error === 'Missing name'}
+                          onChange={() => toggleRow(row.id)}
+                          className="rounded accent-[#0D7377] w-3.5 h-3.5"
+                        />
+                      </div>
+                      <div className="col-span-4">
+                        <input
+                          value={row.name}
+                          onChange={(e) => updateName(row.id, e.target.value)}
+                          placeholder="Service name"
+                          className={cn(
+                            'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 transition-colors',
+                            row.error === 'Missing name'
+                              ? 'border-red-300 text-red-700 placeholder:text-red-300'
+                              : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
+                          )}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <div className="relative">
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                          <input
+                            type="number"
+                            value={(row.priceCents / 100).toFixed(2)}
+                            onChange={(e) => updatePrice(row.id, e.target.value)}
+                            step="0.01"
+                            min="0"
+                            className={cn(
+                              'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 pl-3 transition-colors',
+                              row.error === 'Price is $0'
+                                ? 'border-orange-300 text-orange-700'
+                                : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
+                            )}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <select
+                          value={row.durationMinutes}
+                          onChange={(e) => updateDuration(row.id, parseInt(e.target.value))}
+                          className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#0D7377] text-sm text-stone-600 focus:outline-none py-0.5 transition-colors"
+                        >
+                          {DURATION_OPTIONS.map((d) => (
+                            <option key={d} value={d}>{d} min</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-1 flex justify-center">
+                        <input
+                          type="color"
+                          value={row.color}
+                          onChange={(e) => updateColor(row.id, e.target.value)}
+                          className="w-6 h-6 rounded-full border border-stone-200 cursor-pointer p-0 overflow-hidden"
+                          style={{ WebkitAppearance: 'none' }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        {row.error === 'Missing name' ? (
+                          <span className="text-xs text-red-600 font-medium">Missing name</span>
+                        ) : row.error === 'Price is $0' ? (
+                          <span className="text-xs text-orange-600 font-medium">$0 price</span>
+                        ) : row.include ? (
+                          <span className="text-xs text-green-600 font-medium">Import</span>
+                        ) : (
+                          <span className="text-xs text-stone-400">Skip</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              })()}
             </div>
           </div>
 
