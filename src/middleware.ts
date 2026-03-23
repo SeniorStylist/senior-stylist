@@ -39,6 +39,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/unauthorized') ||
     pathname.startsWith('/invite/accept') ||
     pathname.startsWith('/portal') ||
+    pathname.startsWith('/api/portal') ||
     pathname.startsWith('/invoice')
 
   if (!user && !isPublic) {
