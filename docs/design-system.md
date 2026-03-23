@@ -368,6 +368,35 @@ toast('Changes saved', 'success')
 toast('Error message', 'error')
 ```
 
+### Floating Action Bar (Multi-Select)
+
+When one or more rows are selected, a dark pill appears pinned to `bottom-6 left-1/2 -translate-x-1/2`:
+
+```tsx
+<div
+  className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl z-40 animate-in fade-in slide-in-from-bottom-3 duration-200"
+  style={{ backgroundColor: '#0D2B2E', minWidth: 'max-content' }}
+>
+```
+
+- Use `z-40` (not z-50) so it does not cover the mobile nav bar.
+- Color picker popup opens `bottom-full mb-2` above the bar to avoid clipping.
+- Inline color swatches use the service PALETTE (12 colors).
+
+### Duplicate Resolution Modal
+
+When importing services that already exist, a modal interrupts before the import runs. Per-row "Replace | Skip" toggles with global "Replace All / Skip All" shortcuts. Active toggle is highlighted with `bg-[#0D7377] text-white` (replace) or `bg-stone-700 text-white` (skip). Follows the standard modal pattern (overlay blur, `max-w-lg`, `animate-in fade-in slide-in-from-bottom-3`).
+
+### Indeterminate Checkbox
+
+React does not support `indeterminate` as a JSX prop. Set it imperatively via a callback ref:
+
+```tsx
+ref={(el) => {
+  if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < total
+}}
+```
+
 ### Destructive Confirmation
 
 Never use `window.confirm()`. Always use inline two-step confirm:

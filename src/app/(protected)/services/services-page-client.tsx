@@ -34,6 +34,41 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
   const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
 
+  // Multi-select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkColorPickerOpen, setBulkColorPickerOpen] = useState(false)
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [bulkUpdating, setBulkUpdating] = useState(false)
+
+  const handleBulkUpdate = async (updates: { color?: string; active?: boolean }) => {
+    setBulkUpdating(true)
+    try {
+      const res = await fetch('/api/services/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), updates }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast(json.error ?? 'Update failed', 'error')
+        return
+      }
+      if (updates.active === false) {
+        setServices((prev) => prev.filter((s) => !selectedIds.has(s.id)))
+        toast(`${json.data.updated} service${json.data.updated !== 1 ? 's' : ''} archived`, 'success')
+      } else if (updates.color) {
+        setServices((prev) =>
+          prev.map((s) => selectedIds.has(s.id) ? { ...s, color: updates.color! } : s)
+        )
+        toast(`Color updated for ${json.data.updated} service${json.data.updated !== 1 ? 's' : ''}`, 'success')
+      }
+      setSelectedIds(new Set())
+      setConfirmBulkDelete(false)
+    } finally {
+      setBulkUpdating(false)
+    }
+  }
+
   const startEdit = (service: Service) => {
     setEditingId(service.id)
     setEditName(service.name)
@@ -236,7 +271,24 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
           {/* Table header */}
           <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
-            <div className="col-span-5 text-xs font-semibold text-stone-500 uppercase tracking-wide">Service</div>
+            <div className="col-span-1 flex items-center">
+              <input
+                type="checkbox"
+                checked={services.length > 0 && selectedIds.size === services.length}
+                ref={(el) => {
+                  if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < services.length
+                }}
+                onChange={() => {
+                  if (selectedIds.size === services.length) {
+                    setSelectedIds(new Set())
+                  } else {
+                    setSelectedIds(new Set(services.map((s) => s.id)))
+                  }
+                }}
+                className="rounded accent-[#0D7377] w-3.5 h-3.5"
+              />
+            </div>
+            <div className="col-span-4 text-xs font-semibold text-stone-500 uppercase tracking-wide">Service</div>
             <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Duration</div>
             <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Price</div>
             <div className="col-span-3" />
@@ -296,7 +348,24 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
               ) : (
                 /* Normal row */
                 <div className="grid grid-cols-12 gap-4 items-center px-5 py-3.5">
-                  <div className="col-span-5 flex items-center gap-3">
+                  <div className="col-span-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(service.id)}
+                      onChange={() => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          next.has(service.id) ? next.delete(service.id) : next.add(service.id)
+                          return next
+                        })
+                      }}
+                      className={cn(
+                        'rounded accent-[#0D7377] w-3.5 h-3.5 transition-opacity',
+                        selectedIds.size > 0 || hoverId === service.id ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                  </div>
+                  <div className="col-span-4 flex items-center gap-3">
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: service.color ?? '#0D7377' }}
@@ -363,6 +432,92 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
         </div>
       )}
     </div>
+
+      {/* ── Multi-select floating action bar ── */}
+      {selectedIds.size > 0 && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl z-40 animate-in fade-in slide-in-from-bottom-3 duration-200"
+          style={{ backgroundColor: '#0D2B2E', minWidth: 'max-content' }}
+        >
+          {/* Count */}
+          <span className="text-sm font-semibold text-white pr-3 border-r border-white/20">
+            {selectedIds.size} selected
+          </span>
+
+          {/* Change Color */}
+          <div className="relative">
+            <button
+              onClick={() => setBulkColorPickerOpen((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+              </svg>
+              Change Color
+            </button>
+            {bulkColorPickerOpen && (
+              <div className="absolute bottom-full mb-2 left-0 bg-white rounded-xl border border-stone-200 shadow-xl p-2 grid grid-cols-6 gap-1.5 z-50">
+                {['#0D7377','#7C3AED','#DC2626','#DB2777','#D97706','#059669','#2563EB','#0891B2','#9333EA','#EA580C','#16A34A','#0284C7'].map((c) => (
+                  <button
+                    key={c}
+                    onClick={async () => {
+                      setBulkColorPickerOpen(false)
+                      await handleBulkUpdate({ color: c })
+                    }}
+                    className="w-6 h-6 rounded-full border-2 border-transparent hover:border-stone-300 transition-colors"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Delete Selected */}
+          {!confirmBulkDelete ? (
+            <button
+              onClick={() => setConfirmBulkDelete(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-red-300 hover:text-red-200 px-2 py-1 rounded-lg hover:bg-red-900/30 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4h6v2"/>
+              </svg>
+              Delete Selected
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-red-300">Delete {selectedIds.size}?</span>
+              <button
+                onClick={() => handleBulkUpdate({ active: false })}
+                disabled={bulkUpdating}
+                className="text-xs font-semibold text-red-300 hover:text-red-200 px-2 py-1 rounded-lg hover:bg-red-900/30 disabled:opacity-50 transition-colors"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmBulkDelete(false)}
+                className="text-xs text-white/60 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                No
+              </button>
+            </div>
+          )}
+
+          {/* Deselect All */}
+          <button
+            onClick={() => { setSelectedIds(new Set()); setConfirmBulkDelete(false); setBulkColorPickerOpen(false) }}
+            className="text-xs text-white/50 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors ml-1 border-l border-white/20 pl-3"
+          >
+            Deselect All
+          </button>
+        </div>
+      )}
     </ErrorBoundary>
   )
 }

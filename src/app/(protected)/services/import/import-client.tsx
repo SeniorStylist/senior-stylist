@@ -25,6 +25,12 @@ interface DoneResult {
   skipped: number
 }
 
+interface DuplicateRow {
+  parsedService: ParsedService
+  existingService: { id: string; name: string; priceCents: number }
+  resolution: 'replace' | 'skip'
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COLORS = ['#0D7377', '#E57373', '#FFB74D', '#81C784', '#64B5F6', '#BA68C8', '#4DB6AC', '#FF8A65']
@@ -180,6 +186,8 @@ export function ImportClient() {
   const [importProgress, setImportProgress] = useState(0)
   const [result, setResult] = useState<DoneResult | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [duplicates, setDuplicates] = useState<DuplicateRow[]>([])
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
 
   const selectedCount = rows.filter((r) => r.include && r.error !== 'Missing name').length
   const errorCount = rows.filter((r) => r.error === 'Missing name').length
@@ -241,21 +249,46 @@ export function ImportClient() {
 
   // ── Import ─────────────────────────────────────────────────────────────────
 
-  const handleImport = async () => {
-    const toImport = rows.filter((r) => r.include && r.error !== 'Missing name')
-    if (toImport.length === 0) return
-
+  const runImport = async (toImport: ParsedService[], resolvedDuplicates: DuplicateRow[]) => {
     setStep('importing')
     setImportProgress(0)
     setImportError(null)
+
+    const replaceRows = resolvedDuplicates.filter((d) => d.resolution === 'replace')
+    const skipNames = new Set(
+      resolvedDuplicates
+        .filter((d) => d.resolution === 'skip')
+        .map((d) => d.parsedService.name.trim().toLowerCase())
+    )
+    const replaceNames = new Set(replaceRows.map((d) => d.parsedService.name.trim().toLowerCase()))
+
+    // Exclude skipped duplicates; also exclude rows that will be handled via PUT
+    const newRows = toImport.filter(
+      (r) => !skipNames.has(r.name.trim().toLowerCase()) && !replaceNames.has(r.name.trim().toLowerCase())
+    )
 
     const BATCH = 100
     let totalCreated = 0
     let totalSkipped = 0
 
     try {
-      for (let i = 0; i < toImport.length; i += BATCH) {
-        const chunk = toImport.slice(i, i + BATCH)
+      // Handle replacements via individual PUT to existing service
+      for (const dup of replaceRows) {
+        await fetch(`/api/services/${dup.existingService.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            priceCents: dup.parsedService.priceCents,
+            durationMinutes: dup.parsedService.durationMinutes,
+            color: dup.parsedService.color,
+          }),
+        })
+        totalCreated++
+      }
+
+      // Bulk-insert new rows
+      for (let i = 0; i < newRows.length; i += BATCH) {
+        const chunk = newRows.slice(i, i + BATCH)
         const res = await fetch('/api/services/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -272,15 +305,49 @@ export function ImportClient() {
         if (!res.ok) throw new Error(json.error ?? 'Import failed')
         totalCreated += json.data.created
         totalSkipped += json.data.skipped
-        setImportProgress(Math.round(((i + chunk.length) / toImport.length) * 100))
+        setImportProgress(Math.round(((i + chunk.length) / Math.max(newRows.length, 1)) * 100))
       }
 
-      setResult({ created: totalCreated, skipped: totalSkipped })
+      setResult({ created: totalCreated, skipped: totalSkipped + skipNames.size })
       setStep('done')
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
       setStep('preview')
     }
+  }
+
+  const handleImport = async () => {
+    const toImport = rows.filter((r) => r.include && r.error !== 'Missing name')
+    if (toImport.length === 0) return
+
+    // Pre-flight: check for name collisions with existing services
+    try {
+      const res = await fetch('/api/services')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to load services')
+
+      const existing: { id: string; name: string; priceCents: number }[] = json.data ?? []
+      const existingByName = new Map(existing.map((s) => [s.name.trim().toLowerCase(), s]))
+
+      const found: DuplicateRow[] = []
+      for (const ps of toImport) {
+        const match = existingByName.get(ps.name.trim().toLowerCase())
+        if (match) {
+          found.push({ parsedService: ps, existingService: match, resolution: 'skip' })
+        }
+      }
+
+      if (found.length > 0) {
+        setDuplicates(found)
+        setShowDuplicateModal(true)
+        return
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Could not check for duplicates')
+      return
+    }
+
+    await runImport(toImport, [])
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -616,6 +683,112 @@ export function ImportClient() {
               className="h-full rounded-full transition-all duration-300"
               style={{ width: `${importProgress}%`, backgroundColor: '#0D7377' }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── Duplicate Resolution Modal ── */}
+      {showDuplicateModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(2px)',
+            zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-lg w-full mx-4 animate-in fade-in slide-in-from-bottom-3 duration-200">
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b border-stone-100">
+              <h2
+                className="text-lg font-bold text-stone-900"
+                style={{ fontFamily: "'DM Serif Display', serif" }}
+              >
+                Duplicate Services Found
+              </h2>
+              <p className="text-sm text-stone-500 mt-0.5">
+                {duplicates.length} service{duplicates.length !== 1 ? 's' : ''} already exist. Choose how to handle each.
+              </p>
+            </div>
+
+            {/* Global actions */}
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-stone-50 bg-stone-50">
+              <span className="text-xs text-stone-500 font-medium flex-1">Apply to all:</span>
+              <button
+                onClick={() => setDuplicates((prev) => prev.map((d) => ({ ...d, resolution: 'replace' })))}
+                className="px-3 py-1 text-xs font-semibold rounded-lg bg-[#0D7377] text-white hover:bg-[#0a5f63] transition-colors"
+              >
+                Replace All
+              </button>
+              <button
+                onClick={() => setDuplicates((prev) => prev.map((d) => ({ ...d, resolution: 'skip' })))}
+                className="px-3 py-1 text-xs font-semibold rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors"
+              >
+                Skip All
+              </button>
+            </div>
+
+            {/* Per-row list */}
+            <div className="max-h-64 overflow-y-auto divide-y divide-stone-50">
+              {duplicates.map((dup, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate">{dup.parsedService.name}</p>
+                    <p className="text-xs text-stone-400 mt-0.5">
+                      Existing: ${(dup.existingService.priceCents / 100).toFixed(2)}
+                      {' '}&rarr;{' '}
+                      New: ${(dup.parsedService.priceCents / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => setDuplicates((prev) => prev.map((d, j) => j === i ? { ...d, resolution: 'replace' } : d))}
+                      className={cn(
+                        'px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors',
+                        dup.resolution === 'replace'
+                          ? 'bg-[#0D7377] text-white'
+                          : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                      )}
+                    >
+                      Replace
+                    </button>
+                    <button
+                      onClick={() => setDuplicates((prev) => prev.map((d, j) => j === i ? { ...d, resolution: 'skip' } : d))}
+                      className={cn(
+                        'px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors',
+                        dup.resolution === 'skip'
+                          ? 'bg-stone-700 text-white'
+                          : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                      )}
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-stone-100">
+              <button
+                onClick={() => { setShowDuplicateModal(false); setDuplicates([]) }}
+                className="px-4 py-2 text-sm font-medium text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDuplicateModal(false)
+                  const toImport = rows.filter((r) => r.include && r.error !== 'Missing name')
+                  runImport(toImport, duplicates)
+                }}
+                className="px-4 py-2 text-sm font-semibold text-white rounded-xl active:scale-95 transition-all"
+                style={{ backgroundColor: '#0D7377' }}
+              >
+                Continue Import
+              </button>
+            </div>
           </div>
         </div>
       )}

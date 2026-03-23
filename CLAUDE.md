@@ -54,6 +54,11 @@
 - NEVER make Google Calendar sync block a response — always fire-and-forget
 - NEVER use position:sticky inside overflow:auto on iOS — use flexShrink:0 footer instead
 - ALWAYS call api.unselect() immediately in FullCalendar onSelect handler
+- NEVER use pdf-parse or @napi-rs/canvas on Vercel — use unpdf (no native deps)
+- PDF text from unpdf comes out as ONE blob with no newlines — never split('\n')
+- React does NOT support indeterminate as a JSX prop — set via callback ref: ref={(el) => { if (el) el.indeterminate = ... }}
+- Drizzle inArray() throws on empty array — always guard with .min(1) in Zod schema
+- Floating action bars should use z-40 (not z-50) so they don't cover the mobile nav
 
 ### File Structure Conventions
 - Server components in page.tsx, client logic in [name]-client.tsx

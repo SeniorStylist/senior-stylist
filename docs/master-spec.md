@@ -240,6 +240,9 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 | `GET/PUT/DELETE /api/stylists/[id]` | Authenticated | Single stylist |
 | `GET/POST /api/services` | Authenticated | List/create services |
 | `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service |
+| `POST /api/services/bulk` | Authenticated | Bulk insert services (conflict skip on name+facility) |
+| `POST /api/services/bulk-update` | Authenticated | Bulk update `color` or `active` for a set of service IDs scoped to facility |
+| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet; two-pass category detection; returns `name, priceCents, durationMinutes, category, color` |
 | `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings |
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |
 | `POST /api/facilities/select` | Authenticated | Set `selected_facility_id` cookie |
