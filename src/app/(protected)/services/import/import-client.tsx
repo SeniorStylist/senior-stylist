@@ -105,13 +105,13 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
   })
   const json = await res.json()
   if (!res.ok) throw new Error(json.error ?? 'Failed to parse PDF')
-  const rows: Array<{ name: string; priceDollars: number }> = json.data
+  const rows: Array<{ name: string; priceCents: number; durationMinutes: number }> = json.data
   if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
   return rows.map((r, i) => ({
     id: i,
     name: r.name,
-    priceCents: Math.round(r.priceDollars * 100),
-    durationMinutes: 30,
+    priceCents: r.priceCents,
+    durationMinutes: r.durationMinutes,
     color: COLORS[i % COLORS.length],
     include: true,
   }))

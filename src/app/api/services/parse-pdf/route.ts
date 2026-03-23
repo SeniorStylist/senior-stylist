@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 
+export const runtime = 'nodejs'
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -20,9 +22,10 @@ export async function POST(request: NextRequest) {
     const text = pdf.text
 
     // Parse lines looking for service name + price patterns
-    const rows: Array<{ name: string; priceDollars: number }> = []
+    const rows: Array<{ name: string; priceCents: number; durationMinutes: number }> = []
 
     // Pattern: "Service Name ... $25.00" or "Service Name    25.00"
+    // Lines that end without a number (category headers) are skipped
     const linePattern = /^(.+?)\s+\$?(\d+(?:\.\d{1,2})?)\s*$/
     const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean)
 
@@ -32,7 +35,7 @@ export async function POST(request: NextRequest) {
         const name = match[1].replace(/[.\-_]+$/, '').trim()
         const price = parseFloat(match[2])
         if (name.length > 0 && price > 0) {
-          rows.push({ name, priceDollars: price })
+          rows.push({ name, priceCents: Math.round(price * 100), durationMinutes: 30 })
         }
       }
     }
@@ -40,6 +43,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ data: rows })
   } catch (err) {
     console.error('POST /api/services/parse-pdf error:', err)
+    console.error('parse-pdf full error:', err)
     return Response.json({ error: 'Failed to parse PDF' }, { status: 500 })
   }
 }
