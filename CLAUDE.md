@@ -65,3 +65,14 @@
 - docs/master-spec.md — full architecture reference
 - src/db/schema.ts — source of truth for DB tables
 - src/lib/get-facility-id.ts — how facility scoping works
+
+## End of Every Session
+ALWAYS do these three things before finishing any task:
+1. Update docs/master-spec.md — add any new DB columns, tables,
+   API routes, or features built this session
+2. Update docs/design-system.md — add any new UI patterns or
+   anti-patterns discovered
+3. Update CLAUDE.md — add any new rules or bugs fixed that
+   should never happen again
+
+This keeps the brain of the project always current.
