@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
+import { extractText } from 'unpdf'
 
 export const runtime = 'nodejs'
 
@@ -15,17 +16,12 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null
     if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
-    const pdf = await pdfParse(buffer)
-    const text = pdf.text
+    const buffer = await file.arrayBuffer()
+    const { text } = await extractText(new Uint8Array(buffer), { mergePages: true })
 
     // Parse lines looking for service name + price patterns
-    const rows: Array<{ name: string; priceCents: number; durationMinutes: number }> = []
-
-    // Pattern: "Service Name ... $25.00" or "Service Name    25.00"
     // Lines that end without a number (category headers) are skipped
+    const rows: Array<{ name: string; priceCents: number; durationMinutes: number }> = []
     const linePattern = /^(.+?)\s+\$?(\d+(?:\.\d{1,2})?)\s*$/
     const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean)
 
@@ -34,7 +30,7 @@ export async function POST(request: NextRequest) {
       if (match) {
         const name = match[1].replace(/[.\-_]+$/, '').trim()
         const price = parseFloat(match[2])
-        if (name.length > 0 && price > 0) {
+        if (name.length > 0 && price > 0 && price < 1000) {
           rows.push({ name, priceCents: Math.round(price * 100), durationMinutes: 30 })
         }
       }
@@ -42,8 +38,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ data: rows })
   } catch (err) {
-    console.error('POST /api/services/parse-pdf error:', err)
-    console.error('parse-pdf full error:', err)
+    console.error('parse-pdf error:', err)
     return Response.json({ error: 'Failed to parse PDF' }, { status: 500 })
   }
 }
