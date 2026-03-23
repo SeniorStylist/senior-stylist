@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { residents } from '@/db/schema'
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
       facilityId,
       name: r.name.trim(),
       roomNumber: r.roomNumber?.trim() || null,
+      portalToken: crypto.randomBytes(8).toString('hex'),
     }))
 
     const inserted = await db
