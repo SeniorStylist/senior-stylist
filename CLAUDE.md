@@ -56,6 +56,7 @@
 - ALWAYS call api.unselect() immediately in FullCalendar onSelect handler
 - NEVER use pdf-parse or @napi-rs/canvas on Vercel — use unpdf (no native deps)
 - PDF text from unpdf comes out as ONE blob with no newlines — never split('\n')
+- PDF blob parsing MUST use the alternating-chunks approach: split on price numbers with capture group → alternating [text, price, text, price...] array → walk even-index text chunks → detect category changes via ' Price ' substring in the chunk. NEVER use a single regex to extract service names from a flat blob — character classes break on apostrophes/em-dashes and category names bleed into service names.
 - React does NOT support indeterminate as a JSX prop — set via callback ref: ref={(el) => { if (el) el.indeterminate = ... }}
 - Drizzle inArray() throws on empty array — always guard with .min(1) in Zod schema
 - Floating action bars should use z-40 (not z-50) so they don't cover the mobile nav

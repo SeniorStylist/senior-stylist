@@ -23,48 +23,52 @@ export async function POST(request: NextRequest) {
 
     console.log('PDF raw text (first 500):', text.substring(0, 500))
 
-    // ── BUG A FIX: strip preamble up to and including the first "Price" keyword
-    // This removes facility name, document title, copyright, etc.
-    const firstPriceIdx = text.search(/\bPrice\b/i)
-    const afterPreamble = firstPriceIdx >= 0
-      ? text.slice(firstPriceIdx + 'Price'.length)
-      : text
-
-    // Secondary cleanup: strip remaining boilerplate sentences
-    const cleanText = afterPreamble
+    // ── Step 1: Collapse whitespace and strip boilerplate ────────────────────
+    const stripped = text
+      .replace(/\s+/g, ' ')
       .replace(/Services and Prices Subject to Change[^.]*\./gi, '')
       .replace(/Copyright[^.]*\./gi, '')
+      .trim()
 
-    // ── BUG B FIX — PASS 1: locate all category headers ─────────────────────
-    // Pattern: one or more words starting with capital, immediately before "Price"
-    const categoryMatches = [...cleanText.matchAll(/([A-Z][^0-9]+?)\s+Price\b/g)]
+    // ── Step 2: Extract first category name (text before first " Price ") ────
+    // e.g. "Senior Salon Shampoo, Sets & Cuts Price Shampoo, Blow Dry 28 ..."
+    //       → firstCategory candidate = "Senior Salon Shampoo, Sets & Cuts"
+    const PRICE_SEP = ' Price '
+    const firstPricePos = stripped.indexOf(PRICE_SEP)
+    const rawFirstCategory = firstPricePos >= 0
+      ? stripped.slice(0, firstPricePos).trim()
+      : ''
 
-    const categoryPositions: Array<{ pos: number; name: string }> = []
-    const categoryColorMap = new Map<string, string>()
-    let colorIdx = 0
+    // Strip facility name / title preamble — take the last capitalised phrase
+    // that looks like a category (may contain commas, &, apostrophes, spaces)
+    const cleanFirstCategory = (() => {
+      const m = rawFirstCategory.match(/([A-Z][^0-9]+)$/)
+      return m ? m[1].trim() : rawFirstCategory
+    })()
 
-    for (const m of categoryMatches) {
-      const name = m[1].trim()
-      if (name.length < 2) continue
-      categoryPositions.push({ pos: m.index ?? 0, name })
-      if (!categoryColorMap.has(name)) {
-        categoryColorMap.set(name, PALETTE[colorIdx++ % PALETTE.length])
+    const workingBlob = firstPricePos >= 0
+      ? stripped.slice(firstPricePos + PRICE_SEP.length)
+      : stripped
+
+    // ── Step 3: Split on price numbers (capture group keeps prices in array) ─
+    // Result: [text0, price0, text1, price1, ..., textN]
+    // Even indices = text chunks, odd indices = price strings
+    const tokens = workingBlob.split(/(\d{1,3}(?:\.\d{1,2})?\s*(?:ea\.?)?)/)
+
+    // ── Step 4: Walk text chunks, detect category changes, emit services ─────
+    let colorIdx = -1
+    const colorMap = new Map<string, string>()
+    function getColor(cat: string): string {
+      if (!colorMap.has(cat)) {
+        colorIdx++
+        colorMap.set(cat, PALETTE[colorIdx % PALETTE.length])
       }
+      return colorMap.get(cat)!
     }
 
-    categoryPositions.sort((a, b) => a.pos - b.pos)
+    let currentCategory = cleanFirstCategory
+    getColor(currentCategory)
 
-    // Returns the nearest category header that appears before `pos`
-    function getCategoryAt(pos: number): string {
-      let best = ''
-      for (const cp of categoryPositions) {
-        if (cp.pos <= pos) best = cp.name
-        else break
-      }
-      return best
-    }
-
-    // ── PASS 2: find all service lines ────────────────────────────────────────
     const rows: Array<{
       name: string
       priceCents: number
@@ -73,30 +77,59 @@ export async function POST(request: NextRequest) {
       color: string
     }> = []
 
-    const serviceLineRe = /([A-Za-z][A-Za-z\s,'&/\-]{2,}?)\s+(\d{1,3}(?:\.\d{1,2})?)\s*(?=[A-Z]|$)/g
-    for (const m of cleanText.matchAll(serviceLineRe)) {
-      const rawName = m[1].trim().replace(/\s+/g, ' ')
-      const price = parseFloat(m[2])
-      if (rawName.length < 3 || price <= 0 || price >= 1000) continue
+    for (let i = 0; i < tokens.length; i += 2) {
+      const chunk = tokens[i].trim()
+      if (!chunk) continue
 
-      // Skip lines that are themselves category headers
-      const isCategory = categoryPositions.some(
-        (cp) => cp.name.toLowerCase() === rawName.toLowerCase()
-      )
-      if (isCategory) continue
+      const priceStr = i + 1 < tokens.length ? tokens[i + 1].trim() : ''
+      const hasPrice = priceStr.length > 0
 
-      const pos = m.index ?? 0
-      const category = getCategoryAt(pos)
-      const color = category
-        ? (categoryColorMap.get(category) ?? PALETTE[0])
-        : PALETTE[0]
+      // --- Detect category change ---
+      // Pattern A: "Color Price Shampoo, Single Process Color" → category + service in same chunk
+      // Pattern B: "Men's Price" (no service follows) → pure category header
+      let serviceName = chunk
+
+      if (chunk.includes(' Price ')) {
+        const sepIdx = chunk.indexOf(' Price ')
+        const catPart = chunk.slice(0, sepIdx).trim()
+        const svcPart = chunk.slice(sepIdx + ' Price '.length).trim()
+        if (catPart) {
+          currentCategory = catPart
+          getColor(catPart)
+        }
+        serviceName = svcPart
+      } else if (chunk.endsWith(' Price') || chunk === 'Price') {
+        // Pure category header e.g. "Men's Price"
+        const catName = chunk.replace(/ Price$/, '').trim()
+        if (catName) {
+          currentCategory = catName
+          getColor(catName)
+        }
+        continue // no service to emit
+      }
+
+      if (!hasPrice) continue // trailing text with no price
+
+      // Parse the numeric price value (ignore "ea." suffix)
+      const priceMatch = priceStr.match(/(\d{1,3}(?:\.\d{1,2})?)/)
+      if (!priceMatch) continue
+      const price = parseFloat(priceMatch[1])
+      if (price <= 0 || price >= 1000) continue
+
+      // Normalise service name whitespace
+      serviceName = serviceName.replace(/\s+/g, ' ').trim()
+
+      // Skip garbage: too short, footnotes (*), bare "Price" labels
+      if (serviceName.length < 3) continue
+      if (serviceName.startsWith('*')) continue
+      if (/^Price\b/i.test(serviceName)) continue
 
       rows.push({
-        name: rawName,
+        name: serviceName,
         priceCents: Math.round(price * 100),
         durationMinutes: 30,
-        category,
-        color,
+        category: currentCategory,
+        color: getColor(currentCategory),
       })
     }
 
