@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     const { text } = await extractText(new Uint8Array(buffer), { mergePages: true })
 
     console.log('PDF raw text (first 500):', text.substring(0, 500))
+    console.log('FULL PDF BLOB:', text.replace(/\s+/g, ' ').trim())
 
     // ── Step 1: Collapse whitespace and strip boilerplate ────────────────────
     const stripped = text
