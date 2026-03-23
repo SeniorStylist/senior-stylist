@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, residents, stylists, services } from '@/db/schema'
+import { facilities, residents, stylists, services, invites } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { DashboardClient } from './dashboard-client'
@@ -18,6 +18,22 @@ export default async function DashboardPage() {
     const facilityUser = await getUserFacility(user.id)
 
     if (!facilityUser) {
+      // Check for valid invite
+      const invite = await db.query.invites.findFirst({
+        where: and(
+          eq(invites.email, user.email ?? ''),
+          eq(invites.used, false),
+        ),
+      })
+
+      // Super admin bypass
+      const isSuperAdmin = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+        user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
+      if (!invite && !isSuperAdmin) {
+        redirect('/unauthorized')
+      }
+
       return (
         <div className="p-8">
           <h1

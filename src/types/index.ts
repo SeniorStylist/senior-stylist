@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'stylist' | 'viewer'
 export type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
-export type FacilityUserRole = 'admin' | 'stylist'
+export type FacilityUserRole = 'admin' | 'stylist' | 'viewer'
 
 export interface Profile {
   id: string

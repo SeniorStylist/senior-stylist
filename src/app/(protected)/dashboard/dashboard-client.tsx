@@ -233,6 +233,7 @@ export function DashboardClient({
           </h1>
           <div className="flex items-center gap-2">
             {/* Export billing */}
+            {isAdmin && (
             <div className="hidden md:flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
               <input
                 type="month"
@@ -254,6 +255,7 @@ export function DashboardClient({
                 {exporting ? 'Exporting…' : 'Export'}
               </button>
             </div>
+            )}
           <div className="flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
             {(['timeGridDay', 'timeGridWeek', 'dayGridMonth'] as const).map((view) => (
               <button
@@ -347,15 +349,17 @@ export function DashboardClient({
                   <p className="text-xl font-bold text-stone-900">{todayBookings.length}</p>
                   <p className="text-xs text-stone-400">appointments</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-bold text-[#0D7377]">{formatCents(todayRevenue)}</p>
-                  <p className="text-xs text-stone-400">revenue</p>
-                </div>
+                {isAdmin && (
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-[#0D7377]">{formatCents(todayRevenue)}</p>
+                    <p className="text-xs text-stone-400">revenue</p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Week + Month */}
-            {periodStats && (
+            {isAdmin && periodStats && (
               <div className="border-t border-stone-100 pt-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-stone-400">This week</p>

@@ -24,9 +24,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email } = body
+    const { email, inviteRole } = body
     if (!email || typeof email !== 'string') {
       return Response.json({ error: 'Email is required' }, { status: 422 })
+    }
+
+    const validRoles = ['admin', 'stylist', 'viewer']
+    if (inviteRole && !validRoles.includes(inviteRole)) {
+      return Response.json({ error: 'Invalid role. Must be admin, stylist, or viewer' }, { status: 422 })
     }
 
     const token = crypto.randomBytes(32).toString('hex')
@@ -38,6 +43,7 @@ export async function POST(request: NextRequest) {
         facilityId,
         email: email.toLowerCase().trim(),
         invitedBy: user.id,
+        inviteRole: inviteRole || 'stylist',
         token,
         expiresAt,
       })

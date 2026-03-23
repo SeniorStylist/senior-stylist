@@ -39,6 +39,7 @@ type Tab = 'general' | 'integrations' | 'team' | 'invites' | 'new-facility'
 interface InviteData {
   id: string
   email: string
+  inviteRole: string
   used: boolean
   createdAt: string | null
   expiresAt: string
@@ -126,6 +127,7 @@ export function SettingsClient({
   const [invitesList, setInvitesList] = useState<InviteData[]>([])
   const [invitesLoaded, setInvitesLoaded] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<string>('stylist')
   const [sendingInvite, setSendingInvite] = useState(false)
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
@@ -153,7 +155,7 @@ export function SettingsClient({
       const res = await fetch('/api/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail.trim() }),
+        body: JSON.stringify({ email: inviteEmail.trim(), inviteRole }),
       })
       const j = await res.json()
       if (!res.ok) {
@@ -464,6 +466,15 @@ export function SettingsClient({
               placeholder="colleague@example.com"
               className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
             />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              className="w-32 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+            >
+              <option value="admin">Admin</option>
+              <option value="stylist">Stylist</option>
+              <option value="viewer">Viewer</option>
+            </select>
             <button
               onClick={handleSendInvite}
               disabled={sendingInvite || !inviteEmail.trim()}
@@ -487,7 +498,21 @@ export function SettingsClient({
                     className={cn('flex items-center gap-3 px-4 py-3', idx > 0 && 'border-t border-stone-100')}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-800 truncate">{invite.email}</p>
+                      <p className="text-sm font-medium text-stone-800 truncate">
+                        {invite.email}
+                        <span
+                          className={cn(
+                            'ml-2 text-xs font-medium px-2 py-0.5 rounded-full',
+                            invite.inviteRole === 'admin'
+                              ? 'bg-[#e6faf9] text-[#0D7377]'
+                              : invite.inviteRole === 'viewer'
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-stone-100 text-stone-500'
+                          )}
+                        >
+                          {invite.inviteRole || 'stylist'}
+                        </span>
+                      </p>
                       <p className="text-xs text-stone-400">
                         Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                         {' · '}
@@ -524,7 +549,21 @@ export function SettingsClient({
                     className={cn('flex items-center gap-3 px-4 py-3', idx > 0 && 'border-t border-stone-100')}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-800 truncate">{invite.email}</p>
+                      <p className="text-sm font-medium text-stone-800 truncate">
+                        {invite.email}
+                        <span
+                          className={cn(
+                            'ml-2 text-xs font-medium px-2 py-0.5 rounded-full',
+                            invite.inviteRole === 'admin'
+                              ? 'bg-[#e6faf9] text-[#0D7377]'
+                              : invite.inviteRole === 'viewer'
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-stone-100 text-stone-500'
+                          )}
+                        >
+                          {invite.inviteRole || 'stylist'}
+                        </span>
+                      </p>
                       <p className="text-xs text-stone-400">
                         Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                       </p>

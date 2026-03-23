@@ -117,7 +117,7 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
     .values({
       userId: user.id,
       facilityId: invite.facilityId,
-      role: 'stylist',
+      role: invite.inviteRole || 'stylist',
     })
     .onConflictDoNothing()
 

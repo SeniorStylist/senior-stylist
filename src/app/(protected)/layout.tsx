@@ -59,7 +59,7 @@ export default async function ProtectedLayout({
       <main className="main-content flex-1 min-w-0 overflow-auto">
         <ToastProvider>{children}</ToastProvider>
       </main>
-      <MobileNav />
+      <MobileNav role={activeRole} />
     </div>
   )
 }
