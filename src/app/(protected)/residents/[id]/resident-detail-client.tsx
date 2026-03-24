@@ -35,6 +35,8 @@ interface ResidentDetailClientProps {
   resident: Resident
   bookings: HistoryBooking[]
   stats: ResidentStats
+  preferredServiceName?: string | null
+  facilityServices?: Service[]
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -51,7 +53,7 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'No show',
 }
 
-export function ResidentDetailClient({ resident: initialResident, bookings, stats }: ResidentDetailClientProps) {
+export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [] }: ResidentDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [resident, setResident] = useState(initialResident)
@@ -60,6 +62,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [roomNumber, setRoomNumber] = useState(initialResident.roomNumber ?? '')
   const [phone, setPhone] = useState(initialResident.phone ?? '')
   const [notes, setNotes] = useState(initialResident.notes ?? '')
+  const [defaultServiceId, setDefaultServiceId] = useState(initialResident.defaultServiceId ?? '')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -92,6 +95,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           roomNumber: roomNumber.trim() || undefined,
           phone: phone.trim() || undefined,
           notes: notes.trim() || undefined,
+          defaultServiceId: defaultServiceId || null,
         }),
       })
       const json = await res.json()
@@ -129,6 +133,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     setRoomNumber(resident.roomNumber ?? '')
     setPhone(resident.phone ?? '')
     setNotes(resident.notes ?? '')
+    setDefaultServiceId(resident.defaultServiceId ?? '')
     setSaveError(null)
   }
 
@@ -233,6 +238,21 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all resize-none"
                   />
                 </div>
+                {facilityServices.length > 0 && (
+                  <div>
+                    <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">Preferred Service</label>
+                    <select
+                      value={defaultServiceId}
+                      onChange={(e) => setDefaultServiceId(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] transition-all"
+                    >
+                      <option value="">No preference</option>
+                      {facilityServices.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}>Cancel</Button>
                   <Button size="sm" loading={saving} onClick={handleSave} className="flex-1">Save</Button>
@@ -243,6 +263,14 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                 <InfoRow label="Name" value={resident.name} />
                 <InfoRow label="Room" value={resident.roomNumber ? `Room ${resident.roomNumber}` : undefined} />
                 <InfoRow label="Phone" value={resident.phone ?? undefined} />
+                {preferredServiceName && (
+                  <div>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Preferred Service</p>
+                    <span className="inline-flex items-center bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                      Prefers: {preferredServiceName}
+                    </span>
+                  </div>
+                )}
                 {resident.notes && (
                   <div>
                     <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Notes</p>

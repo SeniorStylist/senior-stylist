@@ -117,6 +117,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`facility_id`** → `facilities`
 - **`name`**, **`room_number`**, **`phone`**, **`notes`**
 - **`portal_token`**: unique text (resident portal)
+- **`default_service_id`**: optional FK → `services.id` — auto-set after 3+ completed bookings with same service; also manually settable on resident detail page
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
 
@@ -139,6 +140,10 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`status`**: default **`scheduled`** (app types: `scheduled` \| `completed` \| `cancelled` \| `no_show`)
 - **`payment_status`**: default **`unpaid`** (API accepts `unpaid` \| `paid` \| `waived`)
 - **`cancellation_reason`**
+- **`recurring`**: boolean, default false
+- **`recurring_rule`**: `text` (`weekly` \| `biweekly` \| `monthly`)
+- **`recurring_end_date`**: `date`
+- **`recurring_parent_id`**: optional FK → `bookings.id` (self-referential)
 - **`google_event_id`** (unique), **`sync_error`**
 - Timestamps
 
@@ -222,6 +227,10 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Invites**: Create/list/delete invites, email via Resend (`/api/invites`), accept flow (`/invite/accept`), first-time setup (`/api/admin/setup`).
 - **Stats**: `GET /api/stats` — aggregated booking counts/revenue for today/week/month.
 - **Multi-facility**: `GET /api/facilities`, `POST /api/facilities` (creator becomes admin), `POST /api/facilities/select` sets cookie.
+- **PWA**: `src/app/icon.tsx` + `apple-icon.tsx` (ImageResponse), `manifest.ts` (Next.js MetadataRoute.Manifest), install banner (`src/components/pwa/install-banner.tsx`).
+- **Recurring appointments**: `recurring`, `recurring_rule`, `recurring_end_date`, `recurring_parent_id` on bookings; `POST /api/bookings/recurring` creates parent + children; `cancelFuture` param on PUT `/api/bookings/[id]` cancels this + future; ↻ indicator on calendar events.
+- **Resident default service**: `default_service_id` on residents; auto-set after 3+ completed bookings with same service; pre-selected in booking modal and FAB; badge on resident detail page.
+- **Onboarding wizard**: `/onboarding` — 5-step wizard (Welcome → Facility → Stylist → Services → Done); replaces DashboardSetup redirect for new users without a facility.
 
 ---
 
@@ -230,6 +239,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 | Route | Role / auth | Purpose |
 |-------|-------------|---------|
 | `GET/POST /api/bookings` | Authenticated | List/create bookings (query `start`/`end`); sends confirmation email on create |
+| `POST /api/bookings/recurring` | Authenticated | Create parent + child recurring bookings; returns `{ parentId, count }` |
 | `GET/PUT/DELETE /api/bookings/[id]` | Authenticated | Single booking; updates sync Google Calendar when configured; supports `payment_status` |
 | `POST /api/bookings/sync` | Authenticated | Push unsynced scheduled bookings to Google Calendar |
 | `GET /api/stats` | Authenticated | Today / week / month totals |

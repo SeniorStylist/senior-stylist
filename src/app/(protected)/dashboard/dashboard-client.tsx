@@ -401,6 +401,7 @@ export function DashboardClient({
         services={localServices}
         onBookingChange={handleBookingChange}
         onBookingDeleted={handleBookingDeleted}
+        isAdmin={isAdmin}
       />
     </div>
     </ErrorBoundary>

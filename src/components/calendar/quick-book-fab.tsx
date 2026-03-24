@@ -7,6 +7,7 @@ import { cn, formatCents } from '@/lib/utils'
 import type { Resident, Service, Stylist } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
 import { useToast } from '@/components/ui/toast'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 export interface QuickBookFABHandle {
   openWithSlot: (slot: { date: string; time: string }) => void
@@ -57,6 +58,7 @@ function QuickBookFAB({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bounce, setBounce] = useState(false)
+  const isMobile = useIsMobile()
 
   // Swipe-to-go-back
   const swipeStartXRef = useRef(0)
@@ -372,25 +374,35 @@ function QuickBookFAB({
                 />
               </div>
 
-              {/* Time slots */}
+              {/* Time */}
               <div className="px-5 pt-4 pb-2">
                 <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Time</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {TIME_SLOTS.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setSelectedTime(t)}
-                      className={cn(
-                        'py-2.5 rounded-xl text-xs font-medium border transition-all',
-                        selectedTime === t
-                          ? 'bg-[#0D7377] text-white border-[#0D7377]'
-                          : 'bg-white text-stone-700 border-stone-200 hover:border-stone-300 active:bg-stone-50'
-                      )}
-                    >
-                      {formatSlot(t)}
-                    </button>
-                  ))}
-                </div>
+                {isMobile ? (
+                  <input
+                    type="time"
+                    step="1800"
+                    value={selectedTime ?? ''}
+                    onChange={(e) => setSelectedTime(e.target.value || null)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                  />
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {TIME_SLOTS.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setSelectedTime(t)}
+                        className={cn(
+                          'py-2.5 rounded-xl text-xs font-medium border transition-all',
+                          selectedTime === t
+                            ? 'bg-[#0D7377] text-white border-[#0D7377]'
+                            : 'bg-white text-stone-700 border-stone-200 hover:border-stone-300 active:bg-stone-50'
+                        )}
+                      >
+                        {formatSlot(t)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

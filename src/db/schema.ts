@@ -10,6 +10,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey(),
@@ -66,6 +67,7 @@ export const residents = pgTable(
     phone: text('phone'),
     notes: text('notes'),
     portalToken: text('portal_token').unique(),
+    defaultServiceId: uuid('default_service_id').references(() => services.id),
     active: boolean('active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
@@ -125,6 +127,10 @@ export const bookings = pgTable('bookings', {
   status: text('status').default('scheduled').notNull(),
   paymentStatus: text('payment_status').default('unpaid').notNull(),
   cancellationReason: text('cancellation_reason'),
+  recurring: boolean('recurring').default(false).notNull(),
+  recurringRule: text('recurring_rule'),
+  recurringEndDate: date('recurring_end_date'),
+  recurringParentId: uuid('recurring_parent_id').references((): AnyPgColumn => bookings.id),
   googleEventId: text('google_event_id').unique(),
   syncError: text('sync_error'),
   createdAt: timestamp('created_at').defaultNow(),

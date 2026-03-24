@@ -23,6 +23,7 @@ interface BookingModalProps {
   services: Service[]
   onBookingChange: (booking: BookingWithRelations) => void
   onBookingDeleted: (bookingId: string) => void
+  isAdmin?: boolean
 }
 
 function formatDateTimeLocal(date: Date | string): string {
@@ -43,6 +44,7 @@ export function BookingModal({
   services,
   onBookingChange,
   onBookingDeleted,
+  isAdmin,
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -57,6 +59,9 @@ export function BookingModal({
   const [cancelling, setCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelReasonOther, setCancelReasonOther] = useState('')
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [recurringRule, setRecurringRule] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly')
+  const [recurringEndDate, setRecurringEndDate] = useState('')
 
   const residentInputRef = useRef<HTMLInputElement>(null)
 
@@ -94,7 +99,22 @@ export function BookingModal({
     setCancelReason('')
     setCancelReasonOther('')
     setResidentDropdownOpen(false)
+    setIsRecurring(false)
+    setRecurringRule('weekly')
+    // Default recurring end date = 3 months from now
+    const threeMonths = new Date()
+    threeMonths.setMonth(threeMonths.getMonth() + 3)
+    setRecurringEndDate(threeMonths.toISOString().split('T')[0])
   }, [open, mode, booking, defaultStart]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When resident changes, pre-select their default service
+  useEffect(() => {
+    if (mode !== 'create' || !selectedResidentId) return
+    const resident = residents.find((r) => r.id === selectedResidentId)
+    if (resident?.defaultServiceId) {
+      setSelectedServiceId(resident.defaultServiceId)
+    }
+  }, [selectedResidentId, mode, residents])
 
   // Cmd+Enter to submit
   useEffect(() => {
@@ -116,15 +136,31 @@ export function BookingModal({
     setError(null)
 
     try {
-      const payload = {
-        residentId: selectedResidentId,
-        serviceId: selectedServiceId,
-        stylistId: selectedStylistId,
-        startTime: new Date(startTime).toISOString(),
-        notes: notes || undefined,
-      }
+      const isCreatingRecurring = mode === 'create' && isRecurring && isAdmin
 
-      const url = mode === 'create' ? '/api/bookings' : `/api/bookings/${booking!.id}`
+      const payload = isCreatingRecurring
+        ? {
+            residentId: selectedResidentId,
+            serviceId: selectedServiceId,
+            stylistId: selectedStylistId,
+            startTime: new Date(startTime).toISOString(),
+            notes: notes || undefined,
+            recurringRule,
+            recurringEndDate,
+          }
+        : {
+            residentId: selectedResidentId,
+            serviceId: selectedServiceId,
+            stylistId: selectedStylistId,
+            startTime: new Date(startTime).toISOString(),
+            notes: notes || undefined,
+          }
+
+      const url = isCreatingRecurring
+        ? '/api/bookings/recurring'
+        : mode === 'create'
+          ? '/api/bookings'
+          : `/api/bookings/${booking!.id}`
       const method = mode === 'create' ? 'POST' : 'PUT'
 
       const res = await fetch(url, {
@@ -148,9 +184,16 @@ export function BookingModal({
         return
       }
 
-      onBookingChange(json.data)
-      toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success')
-      onClose()
+      if (mode === 'create' && isRecurring && isAdmin) {
+        toast(`${json.data.count} recurring appointments booked!`, 'success')
+        onClose()
+        // Trigger a reload by passing a synthetic booking change signal
+        // The caller will re-fetch bookings on next calendar navigation
+      } else {
+        onBookingChange(json.data)
+        toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success')
+        onClose()
+      }
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -408,6 +451,46 @@ export function BookingModal({
             className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all duration-150 resize-none disabled:opacity-60"
           />
         </div>
+
+        {/* Recurring — admin only, create mode only */}
+        {mode === 'create' && isAdmin && (
+          <div className="flex flex-col gap-2 pt-1 border-t border-stone-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="rounded border-stone-300 text-[#0D7377] focus:ring-[#0D7377]"
+              />
+              <span className="text-sm font-medium text-stone-700">Make this recurring</span>
+            </label>
+            {isRecurring && (
+              <div className="flex flex-col gap-3 pl-6">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Frequency</label>
+                  <select
+                    value={recurringRule}
+                    onChange={(e) => setRecurringRule(e.target.value as 'weekly' | 'biweekly' | 'monthly')}
+                    className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every 2 Weeks</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Repeat until</label>
+                  <input
+                    type="date"
+                    value={recurringEndDate}
+                    onChange={(e) => setRecurringEndDate(e.target.value)}
+                    className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {cancelSection}
     </>

@@ -15,6 +15,7 @@ interface BookingForCalendar {
   endTime: string
   status: string
   priceCents: number | null
+  recurring?: boolean
   resident: Resident
   stylist: Stylist
   service: Service
@@ -104,6 +105,7 @@ export default function CalendarView({
           if (view === 'dayGridMonth') {
             return (
               <div className="px-1 truncate text-xs font-medium leading-tight">
+                {booking.recurring && <span className="mr-0.5">↻</span>}
                 {booking.resident?.name}
               </div>
             )
@@ -113,6 +115,7 @@ export default function CalendarView({
             return (
               <div className="px-1 py-0.5 overflow-hidden">
                 <div className="text-xs font-semibold truncate leading-tight">
+                  {booking.recurring && <span className="mr-0.5">↻</span>}
                   {booking.resident?.name}
                 </div>
                 <div className="text-xs opacity-80 truncate leading-tight">
@@ -126,6 +129,7 @@ export default function CalendarView({
           return (
             <div className="px-1 py-0.5 overflow-hidden">
               <div className="text-xs font-semibold truncate leading-tight">
+                {booking.recurring && <span className="mr-0.5">↻</span>}
                 {booking.resident?.name}
               </div>
               <div className="text-xs opacity-85 truncate leading-tight">

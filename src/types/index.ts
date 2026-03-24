@@ -35,6 +35,7 @@ export interface Resident {
   phone: string | null
   notes: string | null
   portalToken: string | null
+  defaultServiceId: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -76,6 +77,10 @@ export interface Booking {
   durationMinutes: number | null
   notes: string | null
   status: BookingStatus
+  recurring: boolean
+  recurringRule: string | null
+  recurringEndDate: string | null
+  recurringParentId: string | null
   googleEventId: string | null
   syncError: string | null
   createdAt: Date | null

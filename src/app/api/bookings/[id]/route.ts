@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and, lt, gt, or, ne } from 'drizzle-orm'
+import { eq, and, lt, gt, or, ne, gte, count, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
@@ -20,6 +20,7 @@ const updateSchema = z.object({
   status: z.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
   paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional(),
   cancellationReason: z.string().optional(),
+  cancelFuture: z.boolean().optional(),
 })
 
 export async function GET(
@@ -86,7 +87,38 @@ export async function PUT(
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const updates = parsed.data
+    const { cancelFuture, ...updates } = parsed.data
+
+    // Handle cancel-future for recurring bookings
+    if (cancelFuture && existing.recurringParentId) {
+      await db
+        .update(bookings)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(
+          and(
+            eq(bookings.facilityId, facilityId),
+            eq(bookings.recurringParentId, existing.recurringParentId),
+            gte(bookings.startTime, existing.startTime)
+          )
+        )
+      // Also cancel the parent if this IS the parent
+    } else if (cancelFuture && existing.recurring && !existing.recurringParentId) {
+      await db
+        .update(bookings)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(
+          and(
+            eq(bookings.facilityId, facilityId),
+            eq(bookings.recurringParentId, existing.id),
+            gte(bookings.startTime, existing.startTime)
+          )
+        )
+      await db
+        .update(bookings)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)))
+      return Response.json({ data: { ...existing, status: 'cancelled' } })
+    }
 
     // Resolve the effective values after the update
     const effectiveStylistId = updates.stylistId ?? existing.stylistId
@@ -189,6 +221,34 @@ export async function PUT(
       .set(setPayload)
       .where(and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)))
       .returning()
+
+    // Auto-set default service after 3+ completions with same service
+    if (updates.status === 'completed') {
+      try {
+        const counts = await db
+          .select({ serviceId: bookings.serviceId, total: count() })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.residentId, updated.residentId),
+              eq(bookings.status, 'completed'),
+              eq(bookings.facilityId, facilityId)
+            )
+          )
+          .groupBy(bookings.serviceId)
+          .orderBy(desc(count()))
+          .limit(1)
+
+        if (counts[0] && counts[0].total >= 3) {
+          await db
+            .update(residents)
+            .set({ defaultServiceId: counts[0].serviceId, updatedAt: new Date() })
+            .where(eq(residents.id, updated.residentId))
+        }
+      } catch {
+        // Non-critical — don't fail the request
+      }
+    }
 
     // Attempt GCal sync
     try {

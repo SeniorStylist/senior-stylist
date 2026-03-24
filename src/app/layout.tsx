@@ -4,12 +4,18 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Senior Stylist',
   description: 'Scheduling platform for hair salons in senior living facilities',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Senior Stylist',
+  },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#0D7377',
 }
 
 export default function RootLayout({

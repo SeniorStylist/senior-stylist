@@ -7,6 +7,7 @@ import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { ToastProvider } from '@/components/ui/toast'
+import InstallBanner from '@/components/pwa/install-banner'
 
 export default async function ProtectedLayout({
   children,
@@ -60,6 +61,7 @@ export default async function ProtectedLayout({
         <ToastProvider>{children}</ToastProvider>
       </main>
       <MobileNav role={activeRole} />
+      <InstallBanner />
     </div>
   )
 }

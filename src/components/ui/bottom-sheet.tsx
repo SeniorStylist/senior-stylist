@@ -87,7 +87,7 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           position: 'absolute',
           inset: 0,
           background: 'rgba(0,0,0,0.45)',
-          backdropFilter: 'blur(2px)',
+          backdropFilter: 'blur(8px)',
           opacity: isOpen ? 1 : 0,
           transition: 'opacity 300ms ease',
         }}
@@ -107,7 +107,7 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           maxHeight: '92dvh',
           paddingBottom: 'env(safe-area-inset-bottom)',
           transform: isOpen ? `translateY(${dragY}px)` : 'translateY(100%)',
-          transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.32, 0.72, 0, 1)',
           willChange: 'transform',
         }}
       >
@@ -115,10 +115,14 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
         <div
           style={{
             flexShrink: 0,
-            padding: '12px 16px 0',
             cursor: 'grab',
             userSelect: 'none',
             touchAction: 'none',
+            height: 44,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingTop: 8,
           }}
           onTouchStart={(e) => beginDrag(e.touches[0].clientY)}
           onTouchMove={(e) => moveDrag(e.touches[0].clientY)}
@@ -128,7 +132,7 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           onMouseUp={(e) => endDrag(e.clientY)}
           onMouseLeave={(e) => dragging && endDrag(e.clientY)}
         >
-          <div style={{ width: 36, height: 4, background: '#e7e5e4', borderRadius: 2, margin: '0 auto' }} />
+          <div style={{ width: 36, height: 4, background: '#e7e5e4', borderRadius: 2 }} />
         </div>
 
         {/* Header — never scrolls */}

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { residents, bookings } from '@/db/schema'
+import { residents, bookings, services } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { ResidentDetailClient } from './resident-detail-client'
@@ -78,11 +78,28 @@ export default async function ResidentDetailPage({
     firstVisit,
   }
 
+  // Load preferred service name if set
+  let preferredServiceName: string | null = null
+  if (resident.defaultServiceId) {
+    const svc = await db.query.services.findFirst({
+      where: eq(services.id, resident.defaultServiceId),
+    })
+    preferredServiceName = svc?.name ?? null
+  }
+
+  // Load facility services for the preferred service selector
+  const facilityServices = await db.query.services.findMany({
+    where: and(eq(services.facilityId, facilityUser.facilityId), eq(services.active, true)),
+    orderBy: (t, { asc }) => [asc(t.name)],
+  })
+
   return (
     <ResidentDetailClient
       resident={JSON.parse(JSON.stringify(resident))}
       bookings={JSON.parse(JSON.stringify(residentBookings))}
       stats={stats}
+      preferredServiceName={preferredServiceName}
+      facilityServices={JSON.parse(JSON.stringify(facilityServices))}
     />
   )
   } catch (err) {

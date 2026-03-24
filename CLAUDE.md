@@ -61,6 +61,10 @@
 - React does NOT support indeterminate as a JSX prop — set via callback ref: ref={(el) => { if (el) el.indeterminate = ... }}
 - Drizzle inArray() throws on empty array — always guard with .min(1) in Zod schema
 - Floating action bars should use z-40 (not z-50) so they don't cover the mobile nav
+- PWA icons: use `src/app/icon.tsx` + `apple-icon.tsx` with ImageResponse from `next/og` — never use @napi-rs/canvas
+- Recurring bookings: self-referential FK `recurringParentId` in schema requires `(): AnyPgColumn => bookings.id` pattern
+- date-fns is installed (`addWeeks`, `addDays`, `addMonths`) — use it for date arithmetic
+- InstallBanner uses `beforeinstallprompt` (Android) + manual iOS Share instructions; checks `(display-mode: standalone)` to hide when already installed
 - drizzle-kit push will interactively prompt when it detects constraints that already exist in the DB — if it hangs, add the columns directly via the postgres driver (node script using the project's DATABASE_URL) to bypass the interactive prompt.
 - Route-level role guards: stylists/services/reports/settings pages redirect non-admins via `if (facilityUser.role !== 'admin') redirect('/dashboard')` in the server page component.
 

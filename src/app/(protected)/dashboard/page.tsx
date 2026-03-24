@@ -34,6 +34,11 @@ export default async function DashboardPage() {
         redirect('/unauthorized')
       }
 
+      // New users without a facility go to onboarding wizard
+      if (!isSuperAdmin) {
+        redirect('/onboarding')
+      }
+
       return (
         <div className="p-8">
           <h1
