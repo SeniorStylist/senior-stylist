@@ -9,6 +9,7 @@ interface FacilityInfo {
   name: string
   address: string | null
   phone: string | null
+  paymentType: string
   active: boolean
   createdAt: string | null
   residentCount: number
@@ -191,11 +192,16 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
                     <p className="text-xs text-stone-400 mt-0.5 truncate">{f.adminEmail}</p>
                   )}
                 </div>
-                {!f.active && (
-                  <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-500 uppercase tracking-wide shrink-0">
-                    Inactive
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-600 uppercase tracking-wide">
+                    {f.paymentType}
                   </span>
-                )}
+                  {!f.active && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-500 uppercase tracking-wide">
+                      Inactive
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Stats */}

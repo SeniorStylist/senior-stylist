@@ -13,6 +13,8 @@ const updateSchema = z.object({
   calendarId: z.string().optional(),
   timezone: z.string().optional(),
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
+  stripePublishableKey: z.string().optional(),
+  stripeSecretKey: z.string().optional(),
 })
 
 export async function GET() {

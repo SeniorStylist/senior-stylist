@@ -34,7 +34,7 @@ const TIMEZONES = [
   'Pacific/Honolulu',
 ]
 
-type Tab = 'general' | 'integrations' | 'team' | 'invites' | 'new-facility'
+type Tab = 'general' | 'integrations' | 'payments' | 'team' | 'invites' | 'new-facility'
 
 interface InviteData {
   id: string
@@ -68,6 +68,38 @@ export function SettingsClient({
   const [timezone, setTimezone] = useState(facility.timezone)
   const [paymentType, setPaymentType] = useState(facility.paymentType ?? 'facility')
   const [saving, setSaving] = useState(false)
+
+  // Stripe keys form
+  const [stripePublishableKey, setStripePublishableKey] = useState(facility.stripePublishableKey ?? '')
+  const [stripeSecretKey, setStripeSecretKey] = useState(facility.stripeSecretKey ?? '')
+  const [savingStripe, setSavingStripe] = useState(false)
+  const [savedStripe, setSavedStripe] = useState(false)
+  const [stripeError, setStripeError] = useState('')
+
+  const handleSaveStripe = async () => {
+    setSavingStripe(true)
+    setStripeError('')
+    try {
+      const res = await fetch('/api/facility', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stripePublishableKey: stripePublishableKey || undefined,
+          stripeSecretKey: stripeSecretKey || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const j = await res.json()
+        setStripeError(j.error ?? 'Failed to save')
+        return
+      }
+      setSavedStripe(true)
+      setTimeout(() => setSavedStripe(false), 2000)
+      router.refresh()
+    } finally {
+      setSavingStripe(false)
+    }
+  }
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
@@ -234,6 +266,7 @@ export function SettingsClient({
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: 'general', label: 'General' },
     { id: 'integrations', label: 'Integrations' },
+    { id: 'payments', label: 'Payments', adminOnly: true },
     { id: 'team', label: 'Team' },
     { id: 'invites', label: 'Invites', adminOnly: true },
     { id: 'new-facility', label: '+ New Facility' },
@@ -578,6 +611,44 @@ export function SettingsClient({
           {invitesLoaded && invitesList.length === 0 && (
             <p className="text-sm text-stone-400 text-center py-6">No invites sent yet.</p>
           )}
+        </div>
+      )}
+
+      {/* ── Payments ── */}
+      {activeTab === 'payments' && isAdmin && (
+        <div className="space-y-5">
+          <p className="text-xs text-stone-400">
+            Enter your Stripe keys to enable per-resident payment collection. These are stored securely and used for portal checkout sessions.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Publishable Key</label>
+            <input
+              type="text"
+              value={stripePublishableKey}
+              onChange={(e) => setStripePublishableKey(e.target.value)}
+              placeholder="pk_live_…"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Secret Key</label>
+            <input
+              type="password"
+              value={stripeSecretKey}
+              onChange={(e) => setStripeSecretKey(e.target.value)}
+              placeholder="sk_live_…"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] font-mono"
+            />
+          </div>
+          {stripeError && <p className="text-red-600 text-xs">{stripeError}</p>}
+          <button
+            onClick={handleSaveStripe}
+            disabled={savingStripe}
+            className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
+            style={{ backgroundColor: '#0D7377' }}
+          >
+            {savedStripe ? 'Saved!' : savingStripe ? 'Saving…' : 'Save Keys'}
+          </button>
         </div>
       )}
 

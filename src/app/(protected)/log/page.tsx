@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, logEntries, residents, stylists, services } from '@/db/schema'
+import { bookings, logEntries, residents, stylists, services, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { LogClient } from './log-client'
@@ -16,6 +16,13 @@ export default async function LogPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
   const { facilityId } = facilityUser
+
+  // If user is a stylist, look up their linked stylist profile for filtering
+  let stylistFilter: string | null = null
+  if (facilityUser.role === 'stylist') {
+    const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
+    stylistFilter = profile?.stylistId ?? null
+  }
 
   try {
   const today = new Date().toISOString().split('T')[0]
@@ -66,6 +73,7 @@ export default async function LogPage() {
       residents={JSON.parse(JSON.stringify(residentsList))}
       stylists={JSON.parse(JSON.stringify(stylistsList))}
       services={JSON.parse(JSON.stringify(servicesList))}
+      stylistFilter={stylistFilter}
     />
   )
   } catch (err) {

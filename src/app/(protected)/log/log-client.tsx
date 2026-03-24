@@ -40,6 +40,7 @@ interface LogClientProps {
   residents: Resident[]
   stylists: Stylist[]
   services: Service[]
+  stylistFilter?: string | null
 }
 
 // Round a date to nearest 30 min
@@ -73,6 +74,7 @@ export function LogClient({
   residents,
   stylists,
   services,
+  stylistFilter,
 }: LogClientProps) {
   const [date, setDate] = useState(initialDate)
   const [bookings, setBookings] = useState(initialBookings)
@@ -153,9 +155,12 @@ export function LogClient({
       if (s) stylistMap.set(entry.stylistId, { stylist: s, bookings: [] })
     }
   }
-  const stylistGroups = Array.from(stylistMap.values()).sort((a, b) =>
+  const allStylistGroups = Array.from(stylistMap.values()).sort((a, b) =>
     a.stylist.name.localeCompare(b.stylist.name)
   )
+  const stylistGroups = stylistFilter
+    ? allStylistGroups.filter((g) => g.stylist.id === stylistFilter)
+    : allStylistGroups
 
   const getLogEntry = (stylistId: string) =>
     logEntries.find((e) => e.stylistId === stylistId) ?? null

@@ -76,15 +76,29 @@ export default async function DashboardPage() {
 
     if (!facility) redirect('/login')
 
+    const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const isSuperAdminActingAsFacility =
+      superAdminEmail &&
+      user.email === superAdminEmail &&
+      facilityUser.role === 'admin'
+
     return (
-      <DashboardClient
-        facilityId={facilityUser.facilityId}
-        facility={JSON.parse(JSON.stringify(facility))}
-        initialResidents={JSON.parse(JSON.stringify(residentsList))}
-        initialStylists={JSON.parse(JSON.stringify(stylistsList))}
-        initialServices={JSON.parse(JSON.stringify(servicesList))}
-        isAdmin={facilityUser.role === 'admin'}
-      />
+      <>
+        {isSuperAdminActingAsFacility && (
+          <div className="shrink-0 bg-[#0D7377] text-white text-sm px-4 py-2 text-center">
+            Viewing as: <strong>{facility.name}</strong> —{' '}
+            <a href="/super-admin" className="underline">Back to Super Admin</a>
+          </div>
+        )}
+        <DashboardClient
+          facilityId={facilityUser.facilityId}
+          facility={JSON.parse(JSON.stringify(facility))}
+          initialResidents={JSON.parse(JSON.stringify(residentsList))}
+          initialStylists={JSON.parse(JSON.stringify(stylistsList))}
+          initialServices={JSON.parse(JSON.stringify(servicesList))}
+          isAdmin={facilityUser.role === 'admin'}
+        />
+      </>
     )
   } catch (err) {
     console.error('Dashboard error:', err)

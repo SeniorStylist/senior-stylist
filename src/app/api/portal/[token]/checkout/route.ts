@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { residents, services } from '@/db/schema'
+import { residents, services, facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -32,21 +32,23 @@ export async function POST(
 
     const { bookingId, serviceId } = parsed.data
 
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return Response.json({ error: 'Stripe not configured' }, { status: 503 })
-    }
-
-    const service = await db.query.services.findFirst({
-      where: eq(services.id, serviceId),
-    })
+    const [service, facility] = await Promise.all([
+      db.query.services.findFirst({ where: eq(services.id, serviceId) }),
+      db.query.facilities.findFirst({ where: eq(facilities.id, resident.facilityId) }),
+    ])
 
     if (!service) {
       return Response.json({ error: 'Service not found' }, { status: 404 })
     }
 
+    const stripeKey = facility?.stripeSecretKey ?? process.env.STRIPE_SECRET_KEY
+    if (!stripeKey) {
+      return Response.json({ error: 'Stripe not configured' }, { status: 503 })
+    }
+
     // Dynamic import to keep stripe server-side only
     const Stripe = (await import('stripe')).default
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+    const stripe = new Stripe(stripeKey)
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
 

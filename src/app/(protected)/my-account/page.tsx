@@ -69,6 +69,12 @@ export default async function MyAccountPage() {
     }
   }
 
+  // Load all facility stylists for the link-selector
+  const facilityStylists = await db.query.stylists.findMany({
+    where: and(eq(stylists.facilityId, facilityUser.facilityId), eq(stylists.active, true)),
+    orderBy: (t, { asc }) => [asc(t.name)],
+  })
+
   return (
     <MyAccountClient
       user={{ email: user.email ?? '', fullName: user.user_metadata?.full_name ?? null }}
@@ -76,6 +82,7 @@ export default async function MyAccountPage() {
       weekBookings={JSON.parse(JSON.stringify(weekBookings))}
       monthEarningsCents={monthEarningsCents}
       linked={!!profile?.stylistId}
+      facilityStylists={JSON.parse(JSON.stringify(facilityStylists))}
     />
   )
 }

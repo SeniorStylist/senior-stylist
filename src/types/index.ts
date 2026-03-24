@@ -20,6 +20,8 @@ export interface Facility {
   calendarId: string | null
   timezone: string
   paymentType: string
+  stripePublishableKey: string | null
+  stripeSecretKey: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

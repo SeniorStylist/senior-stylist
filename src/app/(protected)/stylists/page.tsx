@@ -16,6 +16,7 @@ export default async function StylistsPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (facilityUser.role !== 'admin') redirect('/dashboard')
 
   try {
   const stylistsList = await db.query.stylists.findMany({

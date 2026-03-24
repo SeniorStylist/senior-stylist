@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer()
     const { text } = await extractText(new Uint8Array(buffer), { mergePages: true })
 
-    console.log('PDF raw text (first 500):', text.substring(0, 500))
-    console.log('FULL PDF BLOB:', text.replace(/\s+/g, ' ').trim())
-
     // ── Step 1: Collapse whitespace and strip boilerplate ────────────────────
     const stripped = text
       .replace(/\s+/g, ' ')
@@ -109,7 +106,14 @@ export async function POST(request: NextRequest) {
         continue // no service to emit
       }
 
-      if (!hasPrice) continue // trailing text with no price
+      if (!hasPrice) {
+        // Treat as a bare category header (e.g. "Color", "Perms & Relaxers")
+        if (chunk.length >= 3 && !chunk.startsWith('*') && !/^Price\b/i.test(chunk)) {
+          currentCategory = chunk
+          getColor(chunk)
+        }
+        continue
+      }
 
       // Parse the numeric price value (ignore "ea." suffix)
       const priceMatch = priceStr.match(/(\d{1,3}(?:\.\d{1,2})?)/)

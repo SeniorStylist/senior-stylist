@@ -30,6 +30,8 @@ export const facilities = pgTable('facilities', {
   calendarId: text('calendar_id'),
   timezone: text('timezone').default('America/New_York').notNull(),
   paymentType: text('payment_type').default('facility').notNull(),
+  stripePublishableKey: text('stripe_publishable_key'),
+  stripeSecretKey: text('stripe_secret_key'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

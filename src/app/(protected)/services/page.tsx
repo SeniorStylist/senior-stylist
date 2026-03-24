@@ -15,6 +15,7 @@ export default async function ServicesPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (facilityUser.role !== 'admin') redirect('/dashboard')
 
   try {
   const servicesList = await db.query.services.findMany({

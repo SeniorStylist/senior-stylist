@@ -10,6 +10,7 @@ interface FacilityInfo {
   name: string
   address: string | null
   phone: string | null
+  paymentType: string
   active: boolean
   createdAt: string | null
   residentCount: number
@@ -55,6 +56,7 @@ export default async function SuperAdminPage() {
         name: f.name,
         address: f.address,
         phone: f.phone,
+        paymentType: f.paymentType,
         active: f.active,
         createdAt: f.createdAt?.toISOString() ?? null,
         residentCount: resCount[0]?.count ?? 0,

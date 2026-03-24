@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import type { Stylist } from '@/types'
 
@@ -19,6 +21,7 @@ interface MyAccountClientProps {
   weekBookings: WeekBooking[]
   monthEarningsCents: number
   linked: boolean
+  facilityStylists: Stylist[]
 }
 
 function groupByDay(bookings: WeekBooking[]) {
@@ -47,7 +50,35 @@ function statusBadge(status: string) {
   )
 }
 
-export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked }: MyAccountClientProps) {
+export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists }: MyAccountClientProps) {
+  const router = useRouter()
+  const [selectedStylistId, setSelectedStylistId] = useState('')
+  const [linking, setLinking] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
+
+  const handleLink = async () => {
+    if (!selectedStylistId) return
+    setLinking(true)
+    setLinkError(null)
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stylistId: selectedStylistId }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setLinkError(json.error ?? 'Failed to link stylist')
+      } else {
+        router.refresh()
+      }
+    } catch {
+      setLinkError('Failed to link stylist')
+    } finally {
+      setLinking(false)
+    }
+  }
+
   if (!linked) {
     return (
       <div className="p-4 md:p-8 max-w-2xl mx-auto">
@@ -62,10 +93,35 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
             <p className="text-sm font-medium text-stone-900">{user.fullName ?? user.email}</p>
             <p className="text-xs text-stone-400">{user.email}</p>
           </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <p className="text-sm text-amber-800">
-              Your account hasn&apos;t been linked to a stylist profile yet. Please contact your facility admin.
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="text-sm text-amber-800 mb-3">
+              Your account hasn&apos;t been linked to a stylist profile yet.
             </p>
+            {facilityStylists.length > 0 ? (
+              <div className="space-y-3">
+                <select
+                  value={selectedStylistId}
+                  onChange={(e) => setSelectedStylistId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-amber-300 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                >
+                  <option value="">Select your stylist profile…</option>
+                  {facilityStylists.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                {linkError && <p className="text-xs text-red-600">{linkError}</p>}
+                <button
+                  onClick={handleLink}
+                  disabled={!selectedStylistId || linking}
+                  className="w-full px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: '#0D7377' }}
+                >
+                  {linking ? 'Linking…' : 'Link My Account'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700">Please contact your facility admin to link your account.</p>
+            )}
           </div>
         </div>
       </div>
