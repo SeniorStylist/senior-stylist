@@ -100,6 +100,8 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `address`, `phone`, `calendar_id` | Optional |
 | `timezone` | Default **`America/New_York`** |
 | `payment_type` | `text`, default **`facility`**; API updates allow **`facility` \| `ip` \| `rfms` \| `hybrid`** |
+| `stripe_publishable_key` | Optional text — per-facility Stripe publishable key |
+| `stripe_secret_key` | Optional text — per-facility Stripe secret key (falls back to env var) |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -242,8 +244,9 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 | `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service |
 | `POST /api/services/bulk` | Authenticated | Bulk insert services (conflict skip on name+facility) |
 | `POST /api/services/bulk-update` | Authenticated | Bulk update `color` or `active` for a set of service IDs scoped to facility |
-| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet; two-pass category detection; returns `name, priceCents, durationMinutes, category, color` |
-| `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings |
+| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet; alternating-chunks algorithm; returns `name, priceCents, durationMinutes, category, color` |
+| `PUT /api/profile` | Authenticated | Update `stylist_id` on own profile (used by My Account link-stylist selector) |
+| `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings (incl. `stripePublishableKey`, `stripeSecretKey`) |
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |
 | `POST /api/facilities/select` | Authenticated | Set `selected_facility_id` cookie |
 | `POST/GET /api/invites` | **Admin** | Create invite (emails link); list invites |
