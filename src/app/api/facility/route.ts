@@ -62,11 +62,12 @@ export async function PUT(request: NextRequest) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    // Check for duplicate name (case-insensitive), excluding current facility
+    // Check for duplicate name (case-insensitive) among active facilities, excluding current
     if (parsed.data.name) {
       const existing = await db.query.facilities.findFirst({
         where: (t, { and }) => and(
           sql`lower(${t.name}) = lower(${parsed.data.name!})`,
+          eq(t.active, true),
           ne(t.id, facilityUser.facilityId)
         ),
       })

@@ -42,7 +42,14 @@ const PAYMENT_TYPES = [
 
 export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
   const router = useRouter()
+
+  // Local list so we can remove deleted facilities immediately
+  const [localFacilities, setLocalFacilities] = useState(facilities)
+
   const [enteringId, setEnteringId] = useState<string | null>(null)
+
+  // Show/hide inactive toggle
+  const [showInactive, setShowInactive] = useState(false)
 
   // Create form
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -64,6 +71,16 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
   // Deactivate confirm state
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  // Delete state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const inactiveCount = localFacilities.filter((f) => !f.active).length
+  const visibleFacilities = showInactive
+    ? localFacilities
+    : localFacilities.filter((f) => f.active)
 
   const handleEnterFacility = async (facilityId: string) => {
     setEnteringId(facilityId)
@@ -159,6 +176,30 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
     }
   }
 
+  const handleDelete = async (id: string) => {
+    setDeletingId(id)
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/super-admin/facility/${id}`, { method: 'DELETE' })
+      if (res.status === 409) {
+        const body = await res.json()
+        setDeleteError(body.error)
+        setDeleteConfirmId(null)
+        return
+      }
+      if (!res.ok) {
+        setDeleteError('Failed to delete facility')
+        return
+      }
+      setLocalFacilities((prev) => prev.filter((f) => f.id !== id))
+      setDeleteConfirmId(null)
+    } catch {
+      setDeleteError('Failed to delete facility')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -172,18 +213,28 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
               Super Admin
             </h1>
             <p className="text-sm text-stone-500 mt-1">
-              {facilities.length} {facilities.length === 1 ? 'facility' : 'facilities'} total
+              {localFacilities.length} {localFacilities.length === 1 ? 'facility' : 'facilities'} total
             </p>
           </div>
-          <button
-            onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
-            className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-            style={{ backgroundColor: '#0D7377' }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
-          >
-            {showCreateForm ? 'Cancel' : '+ Create Facility'}
-          </button>
+          <div className="flex items-center gap-2">
+            {inactiveCount > 0 && (
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className="px-3 py-2 rounded-2xl text-sm font-medium text-stone-500 border border-stone-200 hover:bg-stone-50 transition-colors"
+              >
+                {showInactive ? 'Hide inactive' : `Show inactive (${inactiveCount})`}
+              </button>
+            )}
+            <button
+              onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
+              className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
+              style={{ backgroundColor: '#0D7377' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+            >
+              {showCreateForm ? 'Cancel' : '+ Create Facility'}
+            </button>
+          </div>
         </div>
 
         {/* Create Facility Form */}
@@ -266,9 +317,17 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
           </form>
         )}
 
+        {/* Delete error banner (appears above grid if delete blocked by bookings) */}
+        {deleteError && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
+            <span>{deleteError}</span>
+            <button onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600 ml-4 shrink-0">✕</button>
+          </div>
+        )}
+
         {/* Facility Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {facilities.map((f) => (
+          {visibleFacilities.map((f) => (
             <div
               key={f.id}
               className={cn(
@@ -417,8 +476,8 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
                         : ''}
                     </span>
                     <div className="flex items-center gap-2">
-                      {/* Deactivate / Reactivate */}
                       {f.active ? (
+                        /* Active: Deactivate button */
                         deactivatingId === f.id ? (
                           <div className="flex items-center gap-1.5">
                             <span className="text-[11px] text-stone-500">Deactivate {f.name.split(' ')[0]}?</span>
@@ -445,13 +504,49 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
                           </button>
                         )
                       ) : (
-                        <button
-                          onClick={() => handleToggleActive(f, true)}
-                          disabled={togglingId === f.id}
-                          className="px-3 py-1.5 rounded-xl text-xs font-medium text-green-700 hover:bg-green-50 border border-green-200 transition-colors disabled:opacity-50"
-                        >
-                          {togglingId === f.id ? '...' : 'Reactivate'}
-                        </button>
+                        /* Inactive: Reactivate + Delete */
+                        <>
+                          {deleteConfirmId === f.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-stone-500">Delete permanently?</span>
+                              <button
+                                onClick={() => handleDelete(f.id)}
+                                disabled={deletingId === f.id}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+                              >
+                                {deletingId === f.id ? '...' : 'Yes, delete'}
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-stone-600 hover:bg-stone-100 transition-colors"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => { setDeleteConfirmId(f.id); setDeleteError(null) }}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Delete facility"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6M14 11v6" />
+                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleToggleActive(f, true)}
+                                disabled={togglingId === f.id}
+                                className="px-3 py-1.5 rounded-xl text-xs font-medium text-green-700 hover:bg-green-50 border border-green-200 transition-colors disabled:opacity-50"
+                              >
+                                {togglingId === f.id ? '...' : 'Reactivate'}
+                              </button>
+                            </>
+                          )}
+                        </>
                       )}
                       <button
                         onClick={() => handleEnterFacility(f.id)}
@@ -471,9 +566,13 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
           ))}
         </div>
 
-        {facilities.length === 0 && (
+        {visibleFacilities.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-stone-400 text-sm">No facilities yet. Create one to get started.</p>
+            <p className="text-stone-400 text-sm">
+              {localFacilities.length === 0
+                ? 'No facilities yet. Create one to get started.'
+                : 'No active facilities.'}
+            </p>
           </div>
         )}
       </div>

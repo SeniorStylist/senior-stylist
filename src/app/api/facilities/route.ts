@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, facilityUsers, profiles } from '@/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
@@ -54,9 +54,12 @@ export async function POST(request: NextRequest) {
 
     const { name, address, phone, timezone } = parsed.data
 
-    // Check for duplicate name (case-insensitive)
+    // Check for duplicate name (case-insensitive) among active facilities only
     const existing = await db.query.facilities.findFirst({
-      where: sql`lower(${facilities.name}) = lower(${name})`,
+      where: (t, { and, eq }) => and(
+        sql`lower(${t.name}) = lower(${name})`,
+        eq(t.active, true)
+      ),
     })
     if (existing) {
       return Response.json({ error: 'A facility with this name already exists' }, { status: 409 })
