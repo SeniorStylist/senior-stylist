@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, facilityUsers } from '@/db/schema'
+import { facilities, facilityUsers, profiles } from '@/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -71,6 +71,26 @@ export async function POST(request: NextRequest) {
         timezone: timezone ?? 'America/New_York',
       })
       .returning()
+
+    // Ensure profile exists before inserting facilityUsers (FK: facility_users → profiles)
+    await db
+      .insert(profiles)
+      .values({
+        id: user.id,
+        email: user.email ?? null,
+        fullName: user.user_metadata?.full_name ?? null,
+        avatarUrl: user.user_metadata?.avatar_url ?? null,
+        role: 'admin',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          email: user.email ?? null,
+          updatedAt: new Date(),
+        },
+      })
 
     // Add creator as admin
     await db.insert(facilityUsers).values({
