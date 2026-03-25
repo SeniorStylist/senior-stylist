@@ -232,7 +232,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Onboarding flow**: new users with valid invite redirect to `/onboarding` (not dashboard error); middleware allows `/onboarding` for users with no facilityUser.
 - **Recurring appointments**: `recurring`, `recurring_rule`, `recurring_end_date`, `recurring_parent_id` on bookings; `POST /api/bookings/recurring` creates parent + children; `cancelFuture` param on PUT `/api/bookings/[id]` cancels this + future; ↻ indicator on calendar events.
 - **Resident default service**: `default_service_id` on residents; auto-set after 3+ completed bookings with same service; pre-selected in booking modal and FAB; badge on resident detail page.
-- **Onboarding wizard**: `/onboarding` — 5-step wizard (Welcome → Facility → Stylist → Services → Done); replaces DashboardSetup redirect for new users without a facility.
+- **Onboarding wizard**: `/onboarding` — 6-step wizard (Welcome → Facility → Stylist → Services → Residents → Done); each content step (2–5) shows progress dots + skip links. Step 4 (Services) supports PDF/CSV/Excel import via `/api/services/parse-pdf` + `/api/services/bulk`. Step 5 (Residents) supports CSV/Excel import via `/api/residents/bulk`. Step 6 (Done) shows a setup summary (facility name, stylists/services/residents counts). Progress bar = `(step / 6) * 100`.
 
 ---
 
