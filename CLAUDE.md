@@ -14,6 +14,7 @@
 - Display prices by dividing by 100, NEVER store floats
 - After ANY schema change run: npx dotenv -e .env.local -- npx drizzle-kit push
 - facilityUsers.role is the authoritative role — not profiles.role
+- facilities.working_hours is jsonb `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }` — null = default 08:00–18:00; use it to bound time slots in booking modal
 - ALL tables MUST have RLS enabled with a `service_role_all` policy — when adding a new table, run `ALTER TABLE x ENABLE ROW LEVEL SECURITY` and `CREATE POLICY "service_role_all" ON x FOR ALL TO service_role USING (true) WITH CHECK (true)`
 - NEVER disable RLS on any table — all DB access goes through service_role (Drizzle + SUPABASE_SERVICE_ROLE_KEY); the anon key is auth-only and must never have direct table access
 
@@ -79,6 +80,10 @@
 - CSV/Excel import in onboarding: use papaparse (CSV) and xlsx (Excel) client-side; detect columns by normalizing headers toLower().replace(/\s+/g,''); snap duration to nearest [15,30,45,60,75,90,120].
 - papaparse is already installed (`Papa from 'papaparse'`); xlsx is already installed (`* as XLSX from 'xlsx'`).
 - Onboarding Step 5 (Residents) uses /api/residents/bulk (not /api/residents) for CSV/Excel import — POST `{ rows: [{ name, roomNumber? }] }`, returns `{ data: { created: N } }`.
+- Stylist dashboard mobile view: when role === 'stylist' && isMobile, show today's appointment list (not FullCalendar). setStylistListMode(true) in useEffect. Uses existing fetchBookings.
+- Invite accept auto-link: use `ilike(stylists.name, userFullName)` to match stylist by name — role === 'stylist' redirects to /my-account?welcome=1, others to /dashboard.
+- NavigationProgress: client component in src/components/ui/navigation-progress.tsx — uses usePathname to show 2px teal bar on route change. Imported in (protected)/layout.tsx.
+- Log page stylist sections are collapsible — collapsed state keyed by stylistId in useState<Record<string, boolean>>({}).
 
 ### File Structure Conventions
 - Server components in page.tsx, client logic in [name]-client.tsx
