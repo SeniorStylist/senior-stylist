@@ -14,31 +14,17 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  try {
-    const facilityUser = await getUserFacility(user.id)
+  // These checks must be OUTSIDE try/catch — Next.js redirect() throws internally
+  // and a surrounding catch block swallows it, showing the error UI instead.
+  const facilityUser = await getUserFacility(user.id)
 
-    if (!facilityUser) {
-      // Check for valid invite
-      const invite = await db.query.invites.findFirst({
-        where: and(
-          eq(invites.email, user.email ?? ''),
-          eq(invites.used, false),
-        ),
-      })
+  if (!facilityUser) {
+    const isSuperAdmin =
+      process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
-      // Super admin bypass
-      const isSuperAdmin = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
-        user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-
-      if (!invite && !isSuperAdmin) {
-        redirect('/unauthorized')
-      }
-
-      // New users without a facility go to onboarding wizard
-      if (!isSuperAdmin) {
-        redirect('/onboarding')
-      }
-
+    if (isSuperAdmin) {
+      // Super admin with no active facility → show setup UI
       return (
         <div className="p-8">
           <h1
@@ -52,6 +38,24 @@ export default async function DashboardPage() {
       )
     }
 
+    // Check for valid invite
+    const invite = await db.query.invites.findFirst({
+      where: and(
+        eq(invites.email, user.email ?? ''),
+        eq(invites.used, false),
+      ),
+    })
+
+    if (!invite) {
+      redirect('/unauthorized')
+    }
+
+    // Invited user with no facility → onboarding wizard
+    redirect('/onboarding')
+  }
+
+  // Has a facility — load dashboard data (try/catch only wraps DB queries)
+  try {
     const [facility, residentsList, stylistsList, servicesList] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),

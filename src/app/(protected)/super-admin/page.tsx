@@ -10,6 +10,7 @@ interface FacilityInfo {
   name: string
   address: string | null
   phone: string | null
+  timezone: string
   paymentType: string
   active: boolean
   createdAt: string | null
@@ -56,6 +57,7 @@ export default async function SuperAdminPage() {
         name: f.name,
         address: f.address,
         phone: f.phone,
+        timezone: f.timezone,
         paymentType: f.paymentType,
         active: f.active,
         createdAt: f.createdAt?.toISOString() ?? null,

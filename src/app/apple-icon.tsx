@@ -7,7 +7,7 @@ export default function AppleIcon() {
   return new ImageResponse(
     <div
       style={{
-        background: '#0D7377',
+        background: '#8B2E4A',
         width: 180,
         height: 180,
         display: 'flex',

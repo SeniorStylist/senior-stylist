@@ -77,7 +77,8 @@ export async function middleware(request: NextRequest) {
           hasInvite = true
         }
 
-        if (!hasInvite) {
+        // Allow /onboarding — invited users land here before creating a facility
+        if (!hasInvite && !pathname.startsWith('/onboarding')) {
           const url = request.nextUrl.clone()
           url.pathname = '/unauthorized'
           return NextResponse.redirect(url)
