@@ -70,6 +70,8 @@
 - NEVER put redirect() calls inside try/catch in Next.js page components — Next.js redirect() throws a special NEXT_REDIRECT error internally, and a catch block swallows it, causing the error UI to render instead of the redirect. Always perform auth/facility checks and their redirects OUTSIDE try/catch; only wrap DB data loading in try/catch.
 - Next.js 16 dynamic route params are a Promise — ALWAYS use `{ params }: { params: Promise<{ id: string }> }` and `const { id } = await params` inside the handler. The old sync pattern `{ params: { id: string } }` causes a build error.
 - Super admin facility mutations: use PUT /api/super-admin/facility/[id] (not the regular /api/facility route) — it verifies NEXT_PUBLIC_SUPER_ADMIN_EMAIL and accepts `active` boolean for deactivation.
+- Facility name uniqueness checks MUST include `eq(t.active, true)` — inactive/deactivated facilities should not block name reuse.
+- Hard delete facilities via DELETE /api/super-admin/facility/[id] — only allowed if no bookings exist (returns 409 otherwise). Delete facility_users FK rows first, then the facility row.
 - Middleware /onboarding bypass: invited users with no facilityUser record must be allowed through to /onboarding — add `!pathname.startsWith('/onboarding')` to the unauthorized redirect condition.
 
 ### File Structure Conventions
