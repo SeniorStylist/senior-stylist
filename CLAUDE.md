@@ -67,6 +67,9 @@
 - InstallBanner uses `beforeinstallprompt` (Android) + manual iOS Share instructions; checks `(display-mode: standalone)` to hide when already installed
 - drizzle-kit push will interactively prompt when it detects constraints that already exist in the DB — if it hangs, add the columns directly via the postgres driver (node script using the project's DATABASE_URL) to bypass the interactive prompt.
 - Route-level role guards: stylists/services/reports/settings pages redirect non-admins via `if (facilityUser.role !== 'admin') redirect('/dashboard')` in the server page component.
+- NEVER put redirect() calls inside try/catch in Next.js page components — Next.js redirect() throws a special NEXT_REDIRECT error internally, and a catch block swallows it, causing the error UI to render instead of the redirect. Always perform auth/facility checks and their redirects OUTSIDE try/catch; only wrap DB data loading in try/catch.
+- Super admin facility mutations: use PUT /api/super-admin/facility/[id] (not the regular /api/facility route) — it verifies NEXT_PUBLIC_SUPER_ADMIN_EMAIL and accepts `active` boolean for deactivation.
+- Middleware /onboarding bypass: invited users with no facilityUser record must be allowed through to /onboarding — add `!pathname.startsWith('/onboarding')` to the unauthorized redirect condition.
 
 ### File Structure Conventions
 - Server components in page.tsx, client logic in [name]-client.tsx

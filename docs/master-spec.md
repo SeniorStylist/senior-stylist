@@ -227,7 +227,9 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Invites**: Create/list/delete invites, email via Resend (`/api/invites`), accept flow (`/invite/accept`), first-time setup (`/api/admin/setup`).
 - **Stats**: `GET /api/stats` — aggregated booking counts/revenue for today/week/month.
 - **Multi-facility**: `GET /api/facilities`, `POST /api/facilities` (creator becomes admin), `POST /api/facilities/select` sets cookie.
-- **PWA**: `src/app/icon.tsx` + `apple-icon.tsx` (ImageResponse), `manifest.ts` (Next.js MetadataRoute.Manifest), install banner (`src/components/pwa/install-banner.tsx`).
+- **PWA**: `src/app/icon.tsx` + `apple-icon.tsx` (ImageResponse, burgundy #8B2E4A brand color), `manifest.ts` (Next.js MetadataRoute.Manifest), install banner (`src/components/pwa/install-banner.tsx`).
+- **Super admin CRUD**: `/super-admin` page supports inline edit (name/address/phone/timezone/paymentType) and deactivate/reactivate (2-step confirm) per facility card. Edit calls `PUT /api/super-admin/facility/[id]`. Facility name uniqueness enforced (409) on both create and edit.
+- **Onboarding flow**: new users with valid invite redirect to `/onboarding` (not dashboard error); middleware allows `/onboarding` for users with no facilityUser.
 - **Recurring appointments**: `recurring`, `recurring_rule`, `recurring_end_date`, `recurring_parent_id` on bookings; `POST /api/bookings/recurring` creates parent + children; `cancelFuture` param on PUT `/api/bookings/[id]` cancels this + future; ↻ indicator on calendar events.
 - **Resident default service**: `default_service_id` on residents; auto-set after 3+ completed bookings with same service; pre-selected in booking modal and FAB; badge on resident detail page.
 - **Onboarding wizard**: `/onboarding` — 5-step wizard (Welcome → Facility → Stylist → Services → Done); replaces DashboardSetup redirect for new users without a facility.
@@ -273,6 +275,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 | `POST /api/portal/[token]/book` | Token | Create booking |
 | `POST /api/portal/[token]/checkout` | Token | Stripe Checkout session URL |
 | `POST /api/admin/setup` | Authenticated | One-time seed: facility, profile, services, residents, stylist if user has no facility |
+| `PUT /api/super-admin/facility/[id]` | Super admin email only | Edit any facility's name/address/phone/timezone/paymentType/active — returns 409 on duplicate name |
 
 ---
 
