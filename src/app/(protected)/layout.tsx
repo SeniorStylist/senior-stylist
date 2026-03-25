@@ -8,6 +8,7 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { ToastProvider } from '@/components/ui/toast'
 import InstallBanner from '@/components/pwa/install-banner'
+import { NavigationProgress } from '@/components/ui/navigation-progress'
 
 export default async function ProtectedLayout({
   children,
@@ -54,6 +55,7 @@ export default async function ProtectedLayout({
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+      <NavigationProgress />
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} role={activeRole} />
       </div>

@@ -67,6 +67,15 @@ export function SettingsClient({
   const [phone, setPhone] = useState(facility.phone ?? '')
   const [timezone, setTimezone] = useState(facility.timezone)
   const [paymentType, setPaymentType] = useState(facility.paymentType ?? 'facility')
+  const [workingDays, setWorkingDays] = useState<string[]>(
+    (facility as { workingHours?: { days: string[]; startTime: string; endTime: string } }).workingHours?.days ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+  )
+  const [workingStart, setWorkingStart] = useState(
+    (facility as { workingHours?: { days: string[]; startTime: string; endTime: string } }).workingHours?.startTime ?? '08:00'
+  )
+  const [workingEnd, setWorkingEnd] = useState(
+    (facility as { workingHours?: { days: string[]; startTime: string; endTime: string } }).workingHours?.endTime ?? '18:00'
+  )
   const [saving, setSaving] = useState(false)
 
   // Stripe keys form
@@ -117,7 +126,14 @@ export function SettingsClient({
       const res = await fetch('/api/facility', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, address: address || undefined, phone: phone || undefined, timezone, paymentType }),
+        body: JSON.stringify({
+          name,
+          address: address || undefined,
+          phone: phone || undefined,
+          timezone,
+          paymentType,
+          workingHours: { days: workingDays, startTime: workingStart, endTime: workingEnd },
+        }),
       })
       if (!res.ok) {
         const j = await res.json()
@@ -371,6 +387,69 @@ export function SettingsClient({
               <option value="rfms">RFMS (charged to resident account)</option>
               <option value="hybrid">Hybrid (IP + RFMS mixed)</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Working Hours</label>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    disabled={!isAdmin}
+                    onClick={() => setWorkingDays((prev) =>
+                      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+                    )}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-75 active:scale-95 disabled:opacity-50 ${
+                      workingDays.includes(day)
+                        ? 'bg-[#0D7377] text-white'
+                        : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-stone-500 mb-1">Start</label>
+                  <select
+                    value={workingStart}
+                    onChange={(e) => setWorkingStart(e.target.value)}
+                    disabled={!isAdmin}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+                  >
+                    {Array.from({ length: 32 }, (_, i) => {
+                      const totalMins = 360 + i * 30
+                      const h = Math.floor(totalMins / 60)
+                      const m = totalMins % 60
+                      const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+                      const label = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                      return <option key={val} value={val}>{label}</option>
+                    })}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-stone-500 mb-1">End</label>
+                  <select
+                    value={workingEnd}
+                    onChange={(e) => setWorkingEnd(e.target.value)}
+                    disabled={!isAdmin}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+                  >
+                    {Array.from({ length: 32 }, (_, i) => {
+                      const totalMins = 360 + i * 30
+                      const h = Math.floor(totalMins / 60)
+                      const m = totalMins % 60
+                      const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+                      const label = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                      return <option key={val} value={val}>{label}</option>
+                    })}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
           {error && <p className="text-red-600 text-xs">{error}</p>}

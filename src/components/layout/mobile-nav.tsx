@@ -106,12 +106,13 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors',
+              'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',
               isActive ? 'text-[#0D7377]' : 'text-stone-400'
             )}
           >
             <span>{item.icon}</span>
             {item.label}
+            {isActive && <span className="w-1 h-1 rounded-full bg-[#0D7377] mt-0.5" />}
           </Link>
         )
       })}

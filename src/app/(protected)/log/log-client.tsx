@@ -86,6 +86,10 @@ export function LogClient({
   // Status updates
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+  // Collapsible stylist sections
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const toggleCollapsed = (id: string) => setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }))
+
   // Finalize / Unfinalize
   const [confirmFinalizeId, setConfirmFinalizeId] = useState<string | null>(null)
   const [finalizingId, setFinalizingId] = useState<string | null>(null)
@@ -565,9 +569,11 @@ export function LogClient({
             {/* Section header */}
             <div
               className={cn(
-                'flex items-center gap-3 px-4 py-3 border-b',
-                isFinalized ? 'border-green-100 bg-green-50/60' : 'border-stone-100'
+                'flex items-center gap-3 px-4 py-3 border-b cursor-pointer select-none active:opacity-70 transition-opacity duration-75',
+                isFinalized ? 'border-green-100 bg-green-50/60' : 'border-stone-100',
+                collapsed[stylist.id] && 'border-b-0'
               )}
+              onClick={() => toggleCollapsed(stylist.id)}
             >
               <Avatar name={stylist.name} color={stylist.color} size="sm" />
               <div className="flex-1 min-w-0">
@@ -579,6 +585,12 @@ export function LogClient({
                   </p>
                 )}
               </div>
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className={cn('text-stone-400 shrink-0 transition-transform duration-200 mr-1', collapsed[stylist.id] ? '-rotate-90' : '')}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
               {isFinalized ? (
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-100 px-2.5 py-1 rounded-full">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -613,7 +625,7 @@ export function LogClient({
             </div>
 
             {/* Booking rows */}
-            {stylistBookings.length === 0 ? (
+            {collapsed[stylist.id] ? null : stylistBookings.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-stone-400">No appointments</div>
             ) : (
               <div className="divide-y divide-stone-50">
@@ -734,14 +746,14 @@ export function LogClient({
                                 <button
                                   onClick={() => updateStatus(booking.id, 'completed')}
                                   disabled={isUpdating}
-                                  className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-green-200"
+                                  className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-all duration-75 disabled:opacity-40 border border-green-200 active:scale-95 active:bg-green-200"
                                 >
                                   Done
                                 </button>
                                 <button
                                   onClick={() => updateStatus(booking.id, 'no_show')}
                                   disabled={isUpdating}
-                                  className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 min-h-[44px] rounded-xl transition-colors disabled:opacity-40 border border-orange-200"
+                                  className="text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 min-h-[44px] rounded-xl transition-all duration-75 disabled:opacity-40 border border-orange-200 active:scale-95 active:bg-orange-200"
                                 >
                                   No-show
                                 </button>
@@ -760,7 +772,7 @@ export function LogClient({
             )}
 
             {/* Notes + footer */}
-            {!isFinalized && (
+            {!collapsed[stylist.id] && !isFinalized && (
               <div className="px-4 py-3 border-t border-stone-50">
                 <textarea
                   value={notes[stylist.id] ?? ''}

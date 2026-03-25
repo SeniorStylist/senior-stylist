@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   date,
+  jsonb,
   primaryKey,
   unique,
 } from 'drizzle-orm/pg-core'
@@ -33,6 +34,11 @@ export const facilities = pgTable('facilities', {
   paymentType: text('payment_type').default('facility').notNull(),
   stripePublishableKey: text('stripe_publishable_key'),
   stripeSecretKey: text('stripe_secret_key'),
+  workingHours: jsonb('working_hours').$type<{
+    days: string[]
+    startTime: string
+    endTime: string
+  }>(),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

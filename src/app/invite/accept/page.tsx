@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, facilityUsers, profiles } from '@/db/schema'
-import { eq, and, gt } from 'drizzle-orm'
+import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
+import { eq, and, gt, ilike } from 'drizzle-orm'
 
 interface Props {
   searchParams: Promise<{ token?: string }>
@@ -109,7 +109,10 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
       fullName: user.user_metadata?.full_name ?? null,
       avatarUrl: user.user_metadata?.avatar_url ?? null,
     })
-    .onConflictDoNothing()
+    .onConflictDoUpdate({
+      target: profiles.id,
+      set: { email: user.email ?? null, fullName: user.user_metadata?.full_name ?? null, avatarUrl: user.user_metadata?.avatar_url ?? null, updatedAt: new Date() },
+    })
 
   // Insert facilityUser (ignore if already exists)
   await db
@@ -126,6 +129,28 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
     .update(invites)
     .set({ used: true })
     .where(eq(invites.id, invite.id))
+
+  const role = invite.inviteRole || 'stylist'
+
+  // For stylists: try auto-linking to a stylist record by name match
+  if (role === 'stylist') {
+    const userFullName = (user.user_metadata?.full_name ?? '').trim()
+    if (userFullName) {
+      const matched = await db.query.stylists.findFirst({
+        where: and(
+          eq(stylists.facilityId, invite.facilityId),
+          eq(stylists.active, true),
+          ilike(stylists.name, userFullName)
+        ),
+      })
+      if (matched) {
+        await db.update(profiles)
+          .set({ stylistId: matched.id, updatedAt: new Date() })
+          .where(eq(profiles.id, user.id))
+      }
+    }
+    redirect('/my-account?welcome=1')
+  }
 
   redirect('/dashboard')
 }

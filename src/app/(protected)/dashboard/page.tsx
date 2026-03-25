@@ -106,6 +106,8 @@ export default async function DashboardPage() {
           initialStylists={JSON.parse(JSON.stringify(stylistsList))}
           initialServices={JSON.parse(JSON.stringify(servicesList))}
           isAdmin={facilityUser.role === 'admin'}
+          userRole={facilityUser.role}
+          userName={user.user_metadata?.full_name ?? ''}
         />
       </>
     )

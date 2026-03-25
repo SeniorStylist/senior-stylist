@@ -55,6 +55,8 @@ interface DashboardClientProps {
   initialStylists: Stylist[]
   initialServices: Service[]
   isAdmin?: boolean
+  userRole?: string
+  userName?: string
 }
 
 export function DashboardClient({
@@ -64,6 +66,8 @@ export function DashboardClient({
   initialStylists,
   initialServices,
   isAdmin = true,
+  userRole = 'admin',
+  userName = '',
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -85,6 +89,19 @@ export function DashboardClient({
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
+
+  // Stylist mobile list mode
+  const [stylistListMode, setStylistListMode] = useState(false)
+  useEffect(() => {
+    if (isMobile && userRole === 'stylist') {
+      setStylistListMode(true)
+      // Fetch today's appointments immediately
+      const start = new Date(); start.setHours(0, 0, 0, 0)
+      const end = new Date(); end.setHours(23, 59, 59, 999)
+      fetchBookings(start, end)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, userRole])
 
   // Ref for programmatic calendar view changes
   const changeViewRef = useRef<((view: CalendarViewType) => void) | null>(null)
@@ -191,6 +208,23 @@ export function DashboardClient({
     setBookings((prev) => prev.filter((b) => b.id !== bookingId))
   }
 
+  const handleMarkDone = async (bookingId: string) => {
+    // Optimistic update
+    setBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status: 'completed' } : b))
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      // Revert on failure
+      setBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status: 'scheduled' } : b))
+      toast('Failed to mark done', 'error')
+    }
+  }
+
   const switchView = (view: CalendarViewType) => {
     setCalendarView(view)
     changeViewRef.current?.(view)
@@ -217,6 +251,96 @@ export function DashboardClient({
     : null
 
   const [calendarFlash, setCalendarFlash] = useState(false)
+
+  // Stylist mobile today-list view
+  if (stylistListMode) {
+    const greeting = (() => {
+      const h = new Date().getHours()
+      if (h < 12) return 'Good morning'
+      if (h < 17) return 'Good afternoon'
+      return 'Good evening'
+    })()
+    const firstName = userName.split(' ')[0] || 'there'
+    const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+    return (
+      <ErrorBoundary>
+        <div className="flex flex-col min-h-screen pb-24" style={{ backgroundColor: 'var(--color-bg)' }}>
+          {/* Header */}
+          <div className="px-4 pt-6 pb-4">
+            <p className="text-xs text-stone-400 font-medium uppercase tracking-wide">{todayLabel}</p>
+            <h1 className="text-2xl font-bold text-stone-900 mt-0.5" style={{ fontFamily: "'DM Serif Display', serif" }}>
+              {greeting}, {firstName}
+            </h1>
+          </div>
+
+          {/* Today's appointments */}
+          <div className="px-4 space-y-2">
+            {loadingBookings && (
+              <div className="flex items-center justify-center py-10">
+                <Spinner className="text-[#0D7377]" />
+              </div>
+            )}
+            {!loadingBookings && todayBookings.length === 0 && (
+              <div className="bg-white rounded-2xl border border-stone-100 p-6 text-center">
+                <p className="text-stone-500 text-sm">No appointments today</p>
+              </div>
+            )}
+            {todayBookings.map((b) => {
+              const time = new Date(b.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+              const isDone = b.status === 'completed'
+              return (
+                <div key={b.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-[#0D7377] mb-0.5">{time}</p>
+                    <p className="text-sm font-semibold text-stone-900 truncate">{b.resident?.name ?? '—'}</p>
+                    <p className="text-xs text-stone-400 truncate">{b.service?.name ?? '—'}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn(
+                      'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                      isDone ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-600'
+                    )}>
+                      {isDone ? 'Done' : 'Scheduled'}
+                    </span>
+                    {!isDone && (
+                      <button
+                        onClick={() => handleMarkDone(b.id)}
+                        className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center active:bg-green-500 active:text-white active:scale-95 transition-all duration-75"
+                        title="Mark done"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* View full calendar */}
+          <div className="px-4 mt-4">
+            <button
+              onClick={() => setStylistListMode(false)}
+              className="w-full py-3 text-sm font-medium text-[#0D7377] bg-white rounded-2xl border border-stone-200 active:scale-[0.98] active:opacity-70 transition-all duration-75"
+            >
+              View Full Calendar →
+            </button>
+          </div>
+
+          <QuickBookFAB
+            ref={fabRef}
+            residents={residents}
+            services={localServices}
+            stylists={stylists}
+            onBookingCreated={handleBookingChange}
+          />
+        </div>
+      </ErrorBoundary>
+    )
+  }
 
   return (
     <ErrorBoundary>

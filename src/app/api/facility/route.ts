@@ -15,6 +15,11 @@ const updateSchema = z.object({
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
   stripePublishableKey: z.string().optional(),
   stripeSecretKey: z.string().optional(),
+  workingHours: z.object({
+    days: z.array(z.string()),
+    startTime: z.string(),
+    endTime: z.string(),
+  }).optional(),
 })
 
 export async function GET() {

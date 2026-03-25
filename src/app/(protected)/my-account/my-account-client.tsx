@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import type { Stylist } from '@/types'
 
@@ -52,9 +52,24 @@ function statusBadge(status: string) {
 
 export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists }: MyAccountClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')
   const [linking, setLinking] = useState(false)
   const [linkError, setLinkError] = useState<string | null>(null)
+  const [welcomeBanner, setWelcomeBanner] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (searchParams.get('welcome') === '1') {
+      setWelcomeBanner(
+        linked && stylist
+          ? `Welcome! Your account is linked to ${stylist.name}.`
+          : 'Welcome! Link your stylist profile in the section below.'
+      )
+      // Remove query param from URL without reload
+      window.history.replaceState({}, '', '/my-account')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleLink = async () => {
     if (!selectedStylistId) return
@@ -82,6 +97,14 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   if (!linked) {
     return (
       <div className="p-4 md:p-8 max-w-2xl mx-auto">
+        {welcomeBanner && (
+          <div className="mb-4 bg-teal-50 border border-teal-200 rounded-2xl p-4 flex items-start gap-3">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" className="shrink-0 mt-0.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <p className="text-sm text-teal-800">{welcomeBanner}</p>
+          </div>
+        )}
         <h1
           className="text-2xl font-bold text-stone-900 mb-6"
           style={{ fontFamily: "'DM Serif Display', serif" }}
@@ -133,6 +156,14 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
 
   return (
     <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-5">
+      {welcomeBanner && (
+        <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 flex items-start gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" className="shrink-0 mt-0.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <p className="text-sm text-teal-800">{welcomeBanner}</p>
+        </div>
+      )}
       <h1
         className="text-2xl font-bold text-stone-900"
         style={{ fontFamily: "'DM Serif Display', serif" }}
