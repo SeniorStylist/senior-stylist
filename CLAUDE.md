@@ -14,6 +14,8 @@
 - Display prices by dividing by 100, NEVER store floats
 - After ANY schema change run: npx dotenv -e .env.local -- npx drizzle-kit push
 - facilityUsers.role is the authoritative role — not profiles.role
+- ALL tables MUST have RLS enabled with a `service_role_all` policy — when adding a new table, run `ALTER TABLE x ENABLE ROW LEVEL SECURITY` and `CREATE POLICY "service_role_all" ON x FOR ALL TO service_role USING (true) WITH CHECK (true)`
+- NEVER disable RLS on any table — all DB access goes through service_role (Drizzle + SUPABASE_SERVICE_ROLE_KEY); the anon key is auth-only and must never have direct table access
 
 ### Git
 - ALWAYS use git add -A (project path has parentheses that break zsh globs)

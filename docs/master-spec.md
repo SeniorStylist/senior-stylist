@@ -236,6 +236,35 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 
 ---
 
+## Security
+
+### Row Level Security (RLS)
+
+RLS is **enabled on all 9 tables** as of March 2026. Each table has a single `service_role_all` policy:
+
+```sql
+CREATE POLICY "service_role_all" ON <table>
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+```
+
+| Table | RLS | Policy |
+|-------|-----|--------|
+| `profiles` | ✓ | service_role_all |
+| `facilities` | ✓ | service_role_all |
+| `facility_users` | ✓ | service_role_all |
+| `residents` | ✓ | service_role_all |
+| `stylists` | ✓ | service_role_all |
+| `services` | ✓ | service_role_all |
+| `bookings` | ✓ | service_role_all |
+| `log_entries` | ✓ | service_role_all |
+| `invites` | ✓ | service_role_all |
+
+**Why this works without breaking queries:** All server-side Drizzle queries run with `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS automatically. The anon key (used only for Supabase Auth client-side) has no direct table access.
+
+**New table checklist:** Any new table must have `ALTER TABLE x ENABLE ROW LEVEL SECURITY` + the `service_role_all` policy added immediately after creation.
+
+---
+
 ## API directory (`src/app/api/`)
 
 | Route | Role / auth | Purpose |
