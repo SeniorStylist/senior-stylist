@@ -16,7 +16,7 @@ const updateSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -30,7 +30,7 @@ export async function PUT(
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
     const parsed = updateSchema.safeParse(body)
     if (!parsed.success) {
