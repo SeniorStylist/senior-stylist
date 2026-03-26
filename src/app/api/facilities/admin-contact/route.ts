@@ -26,11 +26,17 @@ export async function GET(_request: NextRequest) {
     }
 
     if (!facilityId) {
-      const allFacilities = await db.query.facilities.findMany({
-        where: (t) => eq(t.active, true),
-        orderBy: (t, { asc }) => [asc(t.name)],
-        columns: { id: true, name: true, contactEmail: true },
-      })
+      let allFacilities: { id: string; name: string }[] = []
+      try {
+        allFacilities = await db.query.facilities.findMany({
+          where: (t) => eq(t.active, true),
+          orderBy: (t, { asc }) => [asc(t.name)],
+          columns: { id: true, name: true },
+        })
+      } catch (e) {
+        console.error('GET /api/facilities/admin-contact — allFacilities query failed:', e)
+      }
+      console.log('GET /api/facilities/admin-contact — returning allFacilities count:', allFacilities.length)
       return Response.json({ email: null, facilityId: null, facilityName: null, allFacilities })
     }
 
