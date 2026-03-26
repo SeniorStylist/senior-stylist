@@ -75,7 +75,8 @@
 - Super admin facility mutations: use PUT /api/super-admin/facility/[id] (not the regular /api/facility route) — it verifies NEXT_PUBLIC_SUPER_ADMIN_EMAIL and accepts `active` boolean for deactivation.
 - Facility name uniqueness checks MUST include `eq(t.active, true)` — inactive/deactivated facilities should not block name reuse.
 - Hard delete facilities via DELETE /api/super-admin/facility/[id] — only allowed if no bookings exist (returns 409 otherwise). Delete facility_users FK rows first, then the facility row.
-- Middleware /onboarding bypass: invited users with no facilityUser record must be allowed through to /onboarding — add `!pathname.startsWith('/onboarding')` to the unauthorized redirect condition.
+- facilities.contact_email is a nullable text column — used on the /unauthorized page for the "Request Access" mailto link. Falls back to facility admin's email, then to NEXT_PUBLIC_ADMIN_EMAIL env var. Set via Settings → General → Contact Email.
+- Middleware /onboarding + /invite bypass: authenticated users with no facilityUser must be allowed through to both `/onboarding` and `/invite` routes — the unauthorized redirect condition must include `!pathname.startsWith('/onboarding') && !pathname.startsWith('/invite')`.
 - Onboarding wizard is 6 steps (type Step = 1 | 2 | 3 | 4 | 5 | 6); progress = (step / 6) * 100. Step 4 = Services (choose/manual/import), Step 5 = Residents (choose/manual/import), Step 6 = Done summary.
 - CSV/Excel import in onboarding: use papaparse (CSV) and xlsx (Excel) client-side; detect columns by normalizing headers toLower().replace(/\s+/g,''); snap duration to nearest [15,30,45,60,75,90,120].
 - papaparse is already installed (`Papa from 'papaparse'`); xlsx is already installed (`* as XLSX from 'xlsx'`).
