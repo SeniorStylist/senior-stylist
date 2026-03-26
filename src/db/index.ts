@@ -7,9 +7,9 @@ const globalForDb = globalThis as unknown as { _pgClient?: ReturnType<typeof pos
 
 if (!globalForDb._pgClient) {
   globalForDb._pgClient = postgres(process.env.DATABASE_URL!, {
-    max: 3,
+    max: 1,
     idle_timeout: 20,
-    connect_timeout: 10,
+    connect_timeout: 30,
     // Required when using Supabase's pgbouncer pooler in transaction mode
     prepare: false,
   })

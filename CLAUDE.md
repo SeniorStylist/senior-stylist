@@ -39,8 +39,10 @@
 
 ### Database Connection
 - Use the pooler URL (port 5432, session mode) for DATABASE_URL
-- max: 3 connections, idle_timeout: 20, connect_timeout: 10
+- max: 1 connection, idle_timeout: 20, connect_timeout: 30
+- NEVER set max > 1 in session mode — Supabase session pooler holds a real Postgres connection per serverless instance; multiple instances with max > 1 quickly exhaust the connection limit and throw `MaxClientsInSessionMode`
 - The client is a singleton via globalThis._pgClient
+- When a route runs 3+ sequential DB queries, wrap them in db.transaction() to share a single connection
 
 ### UI / Design
 - Design system: stone colors, #0D7377 teal primary, rounded-2xl cards

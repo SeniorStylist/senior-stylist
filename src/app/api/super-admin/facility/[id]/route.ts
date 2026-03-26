@@ -80,25 +80,28 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Block delete if facility has any bookings (preserve records)
-    const [bookingCheck] = await db
-      .select({ count: count() })
-      .from(bookings)
-      .where(eq(bookings.facilityId, id))
+    await db.transaction(async (tx) => {
+      const [bookingCheck] = await tx
+        .select({ count: count() })
+        .from(bookings)
+        .where(eq(bookings.facilityId, id))
 
-    if ((bookingCheck?.count ?? 0) > 0) {
+      if ((bookingCheck?.count ?? 0) > 0) {
+        throw new Error('HAS_BOOKINGS')
+      }
+
+      await tx.delete(facilityUsers).where(eq(facilityUsers.facilityId, id))
+      await tx.delete(facilities).where(eq(facilities.id, id))
+    })
+
+    return Response.json({ data: { deleted: true } })
+  } catch (err) {
+    if (err instanceof Error && err.message === 'HAS_BOOKINGS') {
       return Response.json(
         { error: 'Cannot delete — facility has booking history. Deactivate it instead.' },
         { status: 409 }
       )
     }
-
-    // Delete facility_users first (FK dependency), then the facility
-    await db.delete(facilityUsers).where(eq(facilityUsers.facilityId, id))
-    await db.delete(facilities).where(eq(facilities.id, id))
-
-    return Response.json({ data: { deleted: true } })
-  } catch (err) {
     console.error('DELETE /api/super-admin/facility/[id] error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
