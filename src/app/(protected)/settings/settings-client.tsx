@@ -76,6 +76,9 @@ export function SettingsClient({
   const [workingEnd, setWorkingEnd] = useState(
     (facility as { workingHours?: { days: string[]; startTime: string; endTime: string } }).workingHours?.endTime ?? '18:00'
   )
+  const [contactEmail, setContactEmail] = useState(
+    (facility as { contactEmail?: string | null }).contactEmail ?? ''
+  )
   const [saving, setSaving] = useState(false)
 
   // Stripe keys form
@@ -117,7 +120,8 @@ export function SettingsClient({
     address !== (facility.address ?? '') ||
     phone !== (facility.phone ?? '') ||
     timezone !== facility.timezone ||
-    paymentType !== (facility.paymentType ?? 'facility')
+    paymentType !== (facility.paymentType ?? 'facility') ||
+    contactEmail !== ((facility as { contactEmail?: string | null }).contactEmail ?? '')
 
   const handleSaveGeneral = async () => {
     setSaving(true)
@@ -133,6 +137,7 @@ export function SettingsClient({
           timezone,
           paymentType,
           workingHours: { days: workingDays, startTime: workingStart, endTime: workingEnd },
+          contactEmail: contactEmail || undefined,
         }),
       })
       if (!res.ok) {
@@ -450,6 +455,23 @@ export function SettingsClient({
                 </div>
               </div>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-stone-600 mb-1.5">
+              Contact Email
+            </label>
+            <input
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              disabled={!isAdmin}
+              placeholder="admin@yourfacility.com"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+            />
+            <p className="text-[11px] text-stone-400 mt-1">
+              Shown on the &ldquo;Request access&rdquo; button for users waiting for an invite.
+            </p>
           </div>
 
           {error && <p className="text-red-600 text-xs">{error}</p>}

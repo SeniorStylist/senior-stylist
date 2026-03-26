@@ -12,6 +12,7 @@ interface FacilityInfo {
   phone: string | null
   timezone: string
   paymentType: string
+  contactEmail: string | null
   active: boolean
   createdAt: string | null
   residentCount: number
@@ -59,6 +60,7 @@ export default async function SuperAdminPage() {
         phone: f.phone,
         timezone: f.timezone,
         paymentType: f.paymentType,
+        contactEmail: f.contactEmail ?? null,
         active: f.active,
         createdAt: f.createdAt?.toISOString() ?? null,
         residentCount: resCount[0]?.count ?? 0,

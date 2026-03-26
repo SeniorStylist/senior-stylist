@@ -12,6 +12,7 @@ const updateSchema = z.object({
   timezone: z.string().optional(),
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
   active: z.boolean().optional(),
+  contactEmail: z.string().email().optional().nullable(),
 })
 
 async function getSuperAdmin() {

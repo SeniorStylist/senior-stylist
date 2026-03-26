@@ -39,6 +39,7 @@ export const facilities = pgTable('facilities', {
     startTime: string
     endTime: string
   }>(),
+  contactEmail: text('contact_email'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

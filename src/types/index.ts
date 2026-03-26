@@ -22,6 +22,7 @@ export interface Facility {
   paymentType: string
   stripePublishableKey: string | null
   stripeSecretKey: string | null
+  contactEmail: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

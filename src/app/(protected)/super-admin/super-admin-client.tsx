@@ -11,6 +11,7 @@ interface FacilityInfo {
   phone: string | null
   timezone: string
   paymentType: string
+  contactEmail: string | null
   active: boolean
   createdAt: string | null
   residentCount: number
@@ -129,6 +130,7 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
       phone: f.phone ?? '',
       timezone: f.timezone,
       paymentType: f.paymentType,
+      contactEmail: f.contactEmail ?? '',
     })
     setEditError(null)
   }
@@ -399,6 +401,16 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
                           ))}
                         </select>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-stone-600 mb-1">Contact Email</label>
+                      <input
+                        type="email"
+                        value={(editData as { contactEmail?: string }).contactEmail ?? ''}
+                        onChange={(e) => setEditData((d) => ({ ...d, contactEmail: e.target.value }))}
+                        placeholder="admin@facility.com"
+                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                      />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 justify-end">

@@ -20,6 +20,7 @@ const updateSchema = z.object({
     startTime: z.string(),
     endTime: z.string(),
   }).optional(),
+  contactEmail: z.string().email().optional().nullable(),
 })
 
 export async function GET() {

@@ -1,4 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
+import { db } from '@/db'
+import { invites, facilityUsers, profiles } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { SignOutButton } from './sign-out-button'
 
 export default async function UnauthorizedPage() {
@@ -7,8 +10,41 @@ export default async function UnauthorizedPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const adminEmail =
+  // Default fallback
+  let contactEmail =
     process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'admin@senior-stylist.vercel.app'
+
+  if (user?.email) {
+    // Find any invite for this email to identify their facility
+    const invite = await db.query.invites.findFirst({
+      where: (t) => eq(t.email, user.email!.toLowerCase()),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    })
+
+    if (invite) {
+      const facility = await db.query.facilities.findFirst({
+        where: (t) => eq(t.id, invite.facilityId),
+      })
+
+      if (facility?.contactEmail) {
+        contactEmail = facility.contactEmail
+      } else {
+        // Fall back to facility admin's email
+        const [adminRow] = await db
+          .select({ email: profiles.email })
+          .from(facilityUsers)
+          .innerJoin(profiles, eq(profiles.id, facilityUsers.userId))
+          .where(
+            and(eq(facilityUsers.facilityId, invite.facilityId), eq(facilityUsers.role, 'admin'))
+          )
+          .limit(1)
+
+        if (adminRow?.email) {
+          contactEmail = adminRow.email
+        }
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
@@ -41,7 +77,7 @@ export default async function UnauthorizedPage() {
 
         <div className="mt-6 space-y-3">
           <a
-            href={`mailto:${adminEmail}?subject=Senior Stylist Access Request&body=Hi, I'd like to request access to Senior Stylist. My email is ${user?.email ?? ''}.`}
+            href={`mailto:${contactEmail}?subject=Senior Stylist Access Request&body=Hi, I'd like to request access to Senior Stylist. My email is ${user?.email ?? ''}.`}
             className="block w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ backgroundColor: '#0D7377' }}
           >
