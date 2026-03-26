@@ -14,6 +14,7 @@ export default function UnauthorizedPage() {
   const [facilityId, setFacilityId] = useState<string | null>(null)
   const [facilityName, setFacilityName] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [allFacilities, setAllFacilities] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     async function init() {
@@ -30,6 +31,7 @@ export default function UnauthorizedPage() {
         const json = await res.json()
         if (json.facilityId) setFacilityId(json.facilityId)
         if (json.facilityName) setFacilityName(json.facilityName)
+        if (json.allFacilities?.length) setAllFacilities(json.allFacilities)
       } catch {
         // ignore — facilityId may remain null
       }
@@ -174,6 +176,31 @@ export default function UnauthorizedPage() {
                 </div>
               </div>
 
+              {/* Facility picker (shown when not auto-detected) */}
+              {!facilityId && allFacilities.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 mb-1">
+                    Which facility are you requesting access to?
+                  </label>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const picked = allFacilities.find((f) => f.id === e.target.value)
+                      if (picked) {
+                        setFacilityId(picked.id)
+                        setFacilityName(picked.name)
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                  >
+                    <option value="" disabled>Select a facility…</option>
+                    {allFacilities.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Submit */}
               {facilityId ? (
                 <button
@@ -184,11 +211,11 @@ export default function UnauthorizedPage() {
                 >
                   {pageState === 'submitting' ? 'Sending…' : 'Send Request'}
                 </button>
-              ) : (
+              ) : allFacilities.length === 0 ? (
                 <p className="text-xs text-stone-400 text-center py-2">
                   No facility found. Please contact your administrator directly.
                 </p>
-              )}
+              ) : null}
 
               <SignOutButton />
             </div>

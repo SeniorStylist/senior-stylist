@@ -26,7 +26,12 @@ export async function GET(_request: NextRequest) {
     }
 
     if (!facilityId) {
-      return Response.json({ email: null, facilityId: null, facilityName: null })
+      const allFacilities = await db.query.facilities.findMany({
+        where: (t) => eq(t.active, true),
+        orderBy: (t, { asc }) => [asc(t.name)],
+        columns: { id: true, name: true, contactEmail: true },
+      })
+      return Response.json({ email: null, facilityId: null, facilityName: null, allFacilities })
     }
 
     const facility = await db.query.facilities.findFirst({
