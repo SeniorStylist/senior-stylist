@@ -20,8 +20,20 @@ interface FacilityInfo {
   adminEmail: string | null
 }
 
+interface AccessRequestInfo {
+  id: string
+  email: string
+  fullName: string | null
+  role: string
+  status: string
+  userId: string | null
+  createdAt: string | null
+}
+
 interface SuperAdminClientProps {
   facilities: FacilityInfo[]
+  pendingRequests: AccessRequestInfo[]
+  activeFacilities: { id: string; name: string }[]
 }
 
 const TIMEZONES = [
@@ -41,11 +53,49 @@ const PAYMENT_TYPES = [
   { value: 'hybrid', label: 'Hybrid' },
 ]
 
-export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
+export function SuperAdminClient({ facilities, pendingRequests, activeFacilities }: SuperAdminClientProps) {
   const router = useRouter()
 
   // Local list so we can remove deleted facilities immediately
   const [localFacilities, setLocalFacilities] = useState(facilities)
+
+  // Pending access requests
+  const [requestsList, setRequestsList] = useState(pendingRequests)
+  const [assignFacility, setAssignFacility] = useState<Record<string, string>>({})
+  const [assignRole, setAssignRole] = useState<Record<string, string>>(
+    () => Object.fromEntries(pendingRequests.map((r) => [r.id, r.role]))
+  )
+  const [assignCommission, setAssignCommission] = useState<Record<string, string>>({})
+  const [actioningRequestId, setActioningRequestId] = useState<string | null>(null)
+  const [requestToast, setRequestToast] = useState<string | null>(null)
+
+  const handleRequestAction = async (id: string, action: 'approve' | 'deny') => {
+    setActioningRequestId(id)
+    try {
+      const res = await fetch(`/api/access-requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          facilityId: assignFacility[id] || undefined,
+          role: assignRole[id] || undefined,
+          commissionPercent: assignCommission[id] ? parseInt(assignCommission[id]) : undefined,
+        }),
+      })
+      if (res.ok) {
+        const req = requestsList.find((r) => r.id === id)
+        setRequestsList((prev) => prev.filter((r) => r.id !== id))
+        setRequestToast(
+          action === 'approve'
+            ? `Access granted to ${req?.fullName || req?.email}`
+            : 'Request denied'
+        )
+        setTimeout(() => setRequestToast(null), 3000)
+      }
+    } finally {
+      setActioningRequestId(null)
+    }
+  }
 
   const [enteringId, setEnteringId] = useState<string | null>(null)
 
@@ -317,6 +367,106 @@ export function SuperAdminClient({ facilities }: SuperAdminClientProps) {
               </button>
             </div>
           </form>
+        )}
+
+        {/* Pending Access Requests */}
+        {requestsList.length > 0 && (
+          <div className="mb-8">
+            <h2
+              className="text-lg font-bold text-stone-900 mb-4"
+              style={{ fontFamily: "'DM Serif Display', serif" }}
+            >
+              Pending Requests
+              <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                {requestsList.length}
+              </span>
+            </h2>
+            <div className="space-y-3">
+              {requestsList.map((req) => (
+                <div key={req.id} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-semibold text-stone-900">{req.fullName || '—'}</p>
+                      <p className="text-xs text-stone-500">{req.email}</p>
+                      {req.createdAt && (
+                        <p className="text-xs text-stone-400 mt-0.5">
+                          {new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-600 uppercase tracking-wide">
+                      {req.role}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div>
+                      <label className="block text-xs font-medium text-stone-600 mb-1">Assign to facility *</label>
+                      <select
+                        value={assignFacility[req.id] ?? ''}
+                        onChange={(e) => setAssignFacility((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                      >
+                        <option value="">Select facility…</option>
+                        {activeFacilities.map((f) => (
+                          <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-stone-600 mb-1">Role</label>
+                      <select
+                        value={assignRole[req.id] ?? 'stylist'}
+                        onChange={(e) => setAssignRole((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                      >
+                        <option value="stylist">Stylist</option>
+                        <option value="admin">Admin</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                    </div>
+                    {(assignRole[req.id] ?? req.role) === 'stylist' && (
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Commission %</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          placeholder="50"
+                          value={assignCommission[req.id] ?? ''}
+                          onChange={(e) => setAssignCommission((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 justify-end">
+                    <button
+                      onClick={() => handleRequestAction(req.id, 'deny')}
+                      disabled={actioningRequestId === req.id}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-stone-600 hover:bg-stone-100 border border-stone-200 transition-colors disabled:opacity-50"
+                    >
+                      Deny
+                    </button>
+                    <button
+                      onClick={() => handleRequestAction(req.id, 'approve')}
+                      disabled={actioningRequestId === req.id || !assignFacility[req.id]}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white transition-colors disabled:opacity-50"
+                      style={{ backgroundColor: '#0D7377' }}
+                    >
+                      {actioningRequestId === req.id ? 'Approving…' : 'Approve'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Toast */}
+        {requestToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm font-medium px-5 py-2.5 rounded-2xl shadow-xl z-50">
+            {requestToast}
+          </div>
         )}
 
         {/* Delete error banner (appears above grid if delete blocked by bookings) */}

@@ -158,7 +158,7 @@ export const invites = pgTable('invites', {
 
 export const accessRequests = pgTable('access_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
-  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  facilityId: uuid('facility_id').references(() => facilities.id),
   email: text('email').notNull(),
   fullName: text('full_name'),
   status: text('status').default('pending').notNull(),

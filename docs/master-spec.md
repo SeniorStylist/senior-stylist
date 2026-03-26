@@ -306,6 +306,23 @@ CREATE POLICY "service_role_all" ON <table>
 | `POST /api/portal/[token]/checkout` | Token | Stripe Checkout session URL |
 | `POST /api/admin/setup` | Authenticated | One-time seed: facility, profile, services, residents, stylist if user has no facility |
 | `PUT /api/super-admin/facility/[id]` | Super admin email only | Edit any facility's name/address/phone/timezone/paymentType/active — returns 409 on duplicate name |
+| `DELETE /api/super-admin/facility/[id]` | Super admin only | Hard delete facility (requires no bookings); wrapped in db.transaction() |
+| `POST /api/access-requests` | **Public** | Submit access request; facilityId is optional (null = global queue for super admin to assign). Idempotent by email. |
+| `GET /api/access-requests` | **Facility admin** | Pending requests already assigned to their facility |
+| `PUT /api/access-requests/[id]` | **Facility admin OR super admin** | Approve (with facilityId, role, optional commissionPercent) or deny. Approve provisions facilityUsers row + optional stylist record. |
+
+---
+
+## Access Request Flow
+
+New users without a facility hit `/unauthorized`. They submit name + role (no facility picker). The request goes into a global queue (`access_requests.facility_id = null`).
+
+**Super admin** sees all pending requests at `/super-admin`, picks a facility + role + commission % per request, then approves. On approve:
+1. `access_requests.status = 'approved'`, `facility_id` filled in
+2. `facilityUsers` row inserted (userId → facilityId + role)
+3. If role = stylist + commissionPercent: upsert stylist record by name match
+
+**Facility admin** sees only requests assigned to their facility in Settings → Requests tab (for audit/history after super admin assigns).
 
 ---
 

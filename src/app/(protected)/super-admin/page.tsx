@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { residents, stylists, bookings, facilityUsers } from '@/db/schema'
+import { residents, stylists, bookings, facilityUsers, accessRequests, facilities } from '@/db/schema'
 import { eq, and, gte, count } from 'drizzle-orm'
 import { SuperAdminClient } from './super-admin-client'
 
@@ -31,14 +31,25 @@ export default async function SuperAdminPage() {
     redirect('/dashboard')
   }
 
-  // Load all facilities
-  const allFacilities = await db.query.facilities.findMany({
-    orderBy: (t, { desc }) => [desc(t.createdAt)],
-  })
-
   const monthStart = new Date()
   monthStart.setDate(1)
   monthStart.setHours(0, 0, 0, 0)
+
+  // Load all facilities + pending requests + active facilities list in parallel
+  const [allFacilities, pendingRequests, activeFacilitiesList] = await Promise.all([
+    db.query.facilities.findMany({
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    }),
+    db.query.accessRequests.findMany({
+      where: (t) => eq(t.status, 'pending'),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    }),
+    db.query.facilities.findMany({
+      where: (t) => eq(t.active, true),
+      orderBy: (t, { asc }) => [asc(t.name)],
+      columns: { id: true, name: true },
+    }),
+  ])
 
   // For each facility, get counts
   const facilityInfos: FacilityInfo[] = await Promise.all(
@@ -71,5 +82,19 @@ export default async function SuperAdminPage() {
     })
   )
 
-  return <SuperAdminClient facilities={facilityInfos} />
+  return (
+    <SuperAdminClient
+      facilities={facilityInfos}
+      pendingRequests={pendingRequests.map((r) => ({
+        id: r.id,
+        email: r.email,
+        fullName: r.fullName,
+        role: r.role,
+        status: r.status,
+        userId: r.userId,
+        createdAt: r.createdAt?.toISOString() ?? null,
+      }))}
+      activeFacilities={activeFacilitiesList}
+    />
+  )
 }

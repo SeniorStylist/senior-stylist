@@ -1,14 +1,16 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { accessRequests, profiles, facilityUsers } from '@/db/schema'
+import { accessRequests, profiles, facilityUsers, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, ilike } from 'drizzle-orm'
 import { z } from 'zod'
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'deny']),
+  facilityId: z.string().uuid().optional(),
   role: z.enum(['stylist', 'admin', 'viewer']).optional(),
+  commissionPercent: z.number().int().min(0).max(100).optional(),
 })
 
 export async function PUT(
@@ -20,9 +22,19 @@ export async function PUT(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    const isSuperAdmin = !!(
+      process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    )
+
+    let facilityUser: { facilityId: string; role: string } | null = null
+    if (!isSuperAdmin) {
+      const fu = await getUserFacility(user.id)
+      if (!fu || fu.role !== 'admin') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      facilityUser = fu
+    }
 
     const { id } = await params
     const body = await request.json()
@@ -31,17 +43,19 @@ export async function PUT(
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    // Load the request — must belong to this facility
+    // Load the access request — super admin: any; facility admin: scoped to their facility
     const accessRequest = await db.query.accessRequests.findFirst({
-      where: (t) => and(eq(t.id, id), eq(t.facilityId, facilityUser.facilityId)),
+      where: (t) => isSuperAdmin
+        ? eq(t.id, id)
+        : and(eq(t.id, id), eq(t.facilityId, facilityUser!.facilityId)),
     })
 
     if (!accessRequest) {
       return Response.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const { action, role } = parsed.data
-    const assignRole = role ?? accessRequest.role ?? 'stylist'
+    const { action, commissionPercent } = parsed.data
+    const assignRole = parsed.data.role ?? accessRequest.role ?? 'stylist'
 
     if (action === 'deny') {
       await db
@@ -52,13 +66,22 @@ export async function PUT(
       return Response.json({ data: { denied: true } })
     }
 
-    // approve
+    // approve — resolve facilityId
+    const assignFacilityId = parsed.data.facilityId ?? accessRequest.facilityId
+    if (!assignFacilityId) {
+      return Response.json(
+        { error: 'A facility must be selected to approve this request' },
+        { status: 422 }
+      )
+    }
+
+    // Update the request record
     await db
       .update(accessRequests)
-      .set({ status: 'approved', updatedAt: new Date() })
+      .set({ status: 'approved', facilityId: assignFacilityId, updatedAt: new Date() })
       .where(eq(accessRequests.id, id))
 
-    // If we have a userId, provision access
+    // Provision access if we have a userId
     if (accessRequest.userId) {
       await db
         .insert(profiles)
@@ -74,10 +97,34 @@ export async function PUT(
         .insert(facilityUsers)
         .values({
           userId: accessRequest.userId,
-          facilityId: accessRequest.facilityId,
+          facilityId: assignFacilityId,
           role: assignRole,
         })
         .onConflictDoNothing()
+    }
+
+    // For stylist role: upsert stylist record with commissionPercent
+    if (assignRole === 'stylist' && commissionPercent != null && accessRequest.fullName) {
+      const existingStylist = await db.query.stylists.findFirst({
+        where: (t) => and(
+          eq(t.facilityId, assignFacilityId),
+          ilike(t.name, accessRequest.fullName!)
+        ),
+      })
+
+      if (existingStylist) {
+        await db
+          .update(stylists)
+          .set({ commissionPercent, updatedAt: new Date() })
+          .where(eq(stylists.id, existingStylist.id))
+      } else {
+        await db.insert(stylists).values({
+          facilityId: assignFacilityId,
+          name: accessRequest.fullName,
+          commissionPercent,
+          active: true,
+        })
+      }
     }
 
     return Response.json({ data: { approved: true } })

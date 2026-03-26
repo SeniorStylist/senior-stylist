@@ -7,7 +7,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { z } from 'zod'
 
 const createSchema = z.object({
-  facilityId: z.string().uuid(),
+  facilityId: z.string().uuid().optional().nullable(),
   email: z.string().email(),
   fullName: z.string().optional(),
   userId: z.string().uuid().optional(),
@@ -26,13 +26,9 @@ export async function POST(request: NextRequest) {
     const { facilityId, email, fullName, userId, role } = parsed.data
     const normalizedEmail = email.toLowerCase().trim()
 
-    // Idempotent: check for existing pending request
+    // Idempotent: check for existing pending request by email
     const existing = await db.query.accessRequests.findFirst({
-      where: (t) => and(
-        eq(t.facilityId, facilityId),
-        eq(t.email, normalizedEmail),
-        eq(t.status, 'pending')
-      ),
+      where: (t) => and(eq(t.email, normalizedEmail), eq(t.status, 'pending')),
     })
 
     if (existing) {
@@ -42,7 +38,7 @@ export async function POST(request: NextRequest) {
     const [created] = await db
       .insert(accessRequests)
       .values({
-        facilityId,
+        facilityId: facilityId ?? null,
         email: normalizedEmail,
         fullName: fullName ?? null,
         userId: userId ?? null,
@@ -58,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET — admin only
+// GET — facility admin only, scoped to their facility
 export async function GET() {
   try {
     const supabase = await createClient()
