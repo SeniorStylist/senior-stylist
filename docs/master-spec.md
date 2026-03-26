@@ -102,6 +102,8 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `payment_type` | `text`, default **`facility`**; API updates allow **`facility` \| `ip` \| `rfms` \| `hybrid`** |
 | `stripe_publishable_key` | Optional text — per-facility Stripe publishable key |
 | `stripe_secret_key` | Optional text — per-facility Stripe secret key (falls back to env var) |
+| `working_hours` | `jsonb`, nullable — `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }`; null = default 08:00–18:00; set via Settings → General; bounds booking time slots |
+| `contact_email` | Optional text — facility-specific reply-to for access request emails; falls back to first admin's email |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -159,6 +161,19 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - Timestamps
 - Unique: **`(facility_id, stylist_id, date)`**
 
+### `access_requests`
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `facility_id` | Optional FK → `facilities.id` — `null` when submitted (global queue); filled in when super admin approves |
+| `email` | Required |
+| `full_name` | Optional text |
+| `status` | `text`: `'pending'` \| `'approved'` \| `'denied'` |
+| `role` | `text`: requested role (`stylist` \| `admin` \| `viewer`) |
+| `user_id` | Optional FK → `profiles.id` — the Supabase auth UID at submission time |
+| `created_at`, `updated_at` | Timestamps |
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -199,14 +214,17 @@ Layout: branded header “Senior Stylist — Resident Portal” (`layout.tsx`).
 | `/` | Redirects to **`/dashboard`** |
 | `/login` | Login (public) |
 | `/invite/accept` | Invite redemption (public) |
-| `/unauthorized` | No facility access (public) |
+| `/unauthorized` | No facility access (public); submits access request (name + role, no facility picker) |
 | `/invoice/[facilityId]` | Printable invoice view for a facility/month (`searchParams.month`) |
+| `/my-account` | Profile page; link own profile to stylist record; shows welcome banner on first visit after invite accept |
+| `/super-admin` | Super admin only; facility CRUD + pending access request queue (assign facility + approve/deny) |
 
 ### Middleware & auth (`src/middleware.ts`)
 
-- **Public** (no Supabase session): `/login`, `/auth`, `/unauthorized`, `/invite/accept`.
-- All other matched paths require a **logged-in** user unless excluded by the matcher.
-- **`/portal/*` is not listed as public** in middleware — unauthenticated access to the resident portal routes **requires a session** under the current middleware rules.
+- **Public** (no Supabase session required): `/login`, `/auth`, `/unauthorized`, `/invite/accept`, `/portal/*`, `/api/portal/*`, `/invoice/*`.
+- All other matched paths require a **logged-in** Supabase user.
+- Authenticated users with no `facilityUser` are redirected to `/unauthorized` **except** when navigating to `/onboarding` or `/invite` — those bypass the redirect so invite/onboarding flows work.
+- **`NEXT_PUBLIC_SUPER_ADMIN_EMAIL`** bypasses the "must have facilityUser" check in middleware.
 
 ---
 
@@ -241,7 +259,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 
 ### Row Level Security (RLS)
 
-RLS is **enabled on all 9 tables** as of March 2026. Each table has a single `service_role_all` policy:
+RLS is **enabled on all 10 tables** as of March 2026. Each table has a single `service_role_all` policy:
 
 ```sql
 CREATE POLICY "service_role_all" ON <table>
@@ -259,6 +277,7 @@ CREATE POLICY "service_role_all" ON <table>
 | `bookings` | ✓ | service_role_all |
 | `log_entries` | ✓ | service_role_all |
 | `invites` | ✓ | service_role_all |
+| `access_requests` | ✓ | service_role_all |
 
 **Why this works without breaking queries:** All server-side Drizzle queries run with `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS automatically. The anon key (used only for Supabase Auth client-side) has no direct table access.
 
@@ -307,6 +326,7 @@ CREATE POLICY "service_role_all" ON <table>
 | `POST /api/admin/setup` | Authenticated | One-time seed: facility, profile, services, residents, stylist if user has no facility |
 | `PUT /api/super-admin/facility/[id]` | Super admin email only | Edit any facility's name/address/phone/timezone/paymentType/active — returns 409 on duplicate name |
 | `DELETE /api/super-admin/facility/[id]` | Super admin only | Hard delete facility (requires no bookings); wrapped in db.transaction() |
+| `GET /api/facilities/admin-contact` | **Public** | Returns facility contact email (for `/unauthorized` mailto fallback). No facilityId param = returns `allFacilities` list. |
 | `POST /api/access-requests` | **Public** | Submit access request; facilityId is optional (null = global queue for super admin to assign). Idempotent by email. |
 | `GET /api/access-requests` | **Facility admin** | Pending requests already assigned to their facility |
 | `PUT /api/access-requests/[id]` | **Facility admin OR super admin** | Approve (with facilityId, role, optional commissionPercent) or deny. Approve provisions facilityUsers row + optional stylist record. |

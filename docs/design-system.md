@@ -445,6 +445,8 @@ Stylist role shows calendar + log only. No conditional rendering based on `role 
 | `calendar_id` | text | Google Calendar ID |
 | `timezone` | text | default 'America/New_York' |
 | `payment_type` | text | default 'facility' |
+| `working_hours` | jsonb | `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }` — null = 08:00–18:00 default; bounds booking time slots |
+| `contact_email` | text | optional — mailto fallback on /unauthorized; falls back to first admin's email |
 | `active` | boolean | soft delete flag |
 
 **`services`**
@@ -459,3 +461,84 @@ Stylist role shows calendar + log only. No conditional rendering based on `role 
 | `duration_minutes` | integer | default 30 |
 | `color` | text | hex color, optional |
 | `active` | boolean | soft delete flag |
+
+---
+
+## 8. Phase 16+ Patterns
+
+### Navigation Progress Bar
+
+`src/components/ui/navigation-progress.tsx` — a 2px teal bar that appears at the top of the viewport on route change.
+
+- Uses `usePathname()` to detect navigation
+- Shows on route change; auto-hides after completion
+- Imported in `(protected)/layout.tsx` so it appears on all authenticated pages
+- Color: `#0D7377` (teal primary)
+- Height: `2px`, `z-50`, `position: fixed, top: 0`
+
+### Collapsible Log Sections
+
+The log page (`/log`) groups bookings by stylist. Each stylist's section is independently collapsible.
+
+```tsx
+// State keyed by stylistId
+const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+
+// Toggle
+const toggle = (id: string) =>
+  setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))
+
+// Section header chevron rotates on collapse
+<ChevronDown
+  style={{ transform: collapsed[id] ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}
+/>
+```
+
+### Stylist Mobile Today-List View
+
+On mobile when `role === 'stylist'`, the dashboard replaces FullCalendar with a flat list of today's appointments.
+
+- Detected via `useEffect`: `if (isMobile && role === 'stylist') setStylistListMode(true)`
+- Uses the same `fetchBookings` data as the calendar view
+- Each row has a one-tap **Mark Done** button (calls `PUT /api/bookings/[id]` with `status: 'completed'`)
+- No calendar rendering on mobile for stylists — avoids FullCalendar complexity
+
+### Amber Banner (Pending Requests)
+
+Dashboard shows an amber banner when there are pending access requests assigned to the facility.
+
+```tsx
+{pendingCount > 0 && (
+  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+    <span className="text-amber-700 text-sm font-medium">
+      {pendingCount} pending access request{pendingCount > 1 ? 's' : ''}
+    </span>
+    <a href="/settings?tab=requests" className="text-amber-700 underline text-sm">Review</a>
+  </div>
+)}
+```
+
+- Color: `bg-amber-50 border-amber-200 text-amber-700`
+- Links to Settings → Requests tab
+- Admin-only (not shown to stylists/viewers)
+
+### Access Request Form (`/unauthorized`)
+
+Public page for users who have no facility access. Collects name + role only — no facility picker.
+
+```tsx
+// State
+const [fullName, setFullName] = useState('')
+const [role, setRole] = useState<'stylist' | 'viewer'>('stylist')
+
+// Submit — always visible, no facilityId gate
+const res = await fetch('/api/access-requests', {
+  method: 'POST',
+  body: JSON.stringify({ email: userEmail, fullName, userId, role }),
+})
+```
+
+- Page is `'use client'` — fetches auth user via `createClient()` from `@/lib/supabase/client` (not server)
+- Title: `'Request access'` (no facility name)
+- On success: sets `pageState = 'submitted'` and shows confirmation message
+- `facilityId` is NOT sent — it's `null` in the DB until super admin assigns it

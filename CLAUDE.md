@@ -70,7 +70,15 @@
 - Recurring bookings: self-referential FK `recurringParentId` in schema requires `(): AnyPgColumn => bookings.id` pattern
 - date-fns is installed (`addWeeks`, `addDays`, `addMonths`) — use it for date arithmetic
 - InstallBanner uses `beforeinstallprompt` (Android) + manual iOS Share instructions; checks `(display-mode: standalone)` to hide when already installed
-- drizzle-kit push will interactively prompt when it detects constraints that already exist in the DB — if it hangs, add the columns directly via the postgres driver (node script using the project's DATABASE_URL) to bypass the interactive prompt.
+- drizzle-kit push will interactively prompt when it detects constraints that already exist in the DB — if it hangs, apply the specific SQL directly via a one-off node script using the project's DATABASE_URL:
+  ```js
+  // scripts/migrate.mjs
+  import postgres from 'postgres'
+  const sql = postgres(process.env.DATABASE_URL, { max: 1, connect_timeout: 30, prepare: false })
+  await sql`ALTER TABLE my_table ALTER COLUMN my_col DROP NOT NULL`
+  await sql.end()
+  ```
+  Run with: `npx dotenv -e .env.local -- node scripts/migrate.mjs`. Delete the script after running.
 - Route-level role guards: stylists/services/reports/settings pages redirect non-admins via `if (facilityUser.role !== 'admin') redirect('/dashboard')` in the server page component.
 - NEVER put redirect() calls inside try/catch in Next.js page components — Next.js redirect() throws a special NEXT_REDIRECT error internally, and a catch block swallows it, causing the error UI to render instead of the redirect. Always perform auth/facility checks and their redirects OUTSIDE try/catch; only wrap DB data loading in try/catch.
 - Next.js 16 dynamic route params are a Promise — ALWAYS use `{ params }: { params: Promise<{ id: string }> }` and `const { id } = await params` inside the handler. The old sync pattern `{ params: { id: string } }` causes a build error.
@@ -79,8 +87,9 @@
 - Hard delete facilities via DELETE /api/super-admin/facility/[id] — only allowed if no bookings exist (returns 409 otherwise). Delete facility_users FK rows first, then the facility row.
 - facilities.contact_email is a nullable text column — used on the /unauthorized page for the "Request Access" mailto link. Falls back to facility admin's email, then to NEXT_PUBLIC_ADMIN_EMAIL env var. Set via Settings → General → Contact Email.
 - access_requests table: id, facility_id (nullable), email, full_name, status ('pending'|'approved'|'denied'), role, user_id, timestamps. POST /api/access-requests is public (no auth); facilityId is optional — new users submit with no facility. PUT /api/access-requests/[id] supports BOTH facility admin and super admin; on approve accepts facilityId + role + commissionPercent, provisions facilityUsers row + optional stylist upsert. Super admin sees all pending requests in /super-admin page and assigns facility. Settings "Requests" tab shows requests assigned to THEIR facility. Dashboard shows amber banner when count > 0.
-- /unauthorized page is a 'use client' component — fetches user via createClient() from @/lib/supabase/client, fetches facilityId/facilityName from /api/facilities/admin-contact.
-- Middleware /onboarding + /invite bypass: authenticated users with no facilityUser must be allowed through to both `/onboarding` and `/invite` routes — the unauthorized redirect condition must include `!pathname.startsWith('/onboarding') && !pathname.startsWith('/invite')`.
+- /unauthorized page is a 'use client' component — fetches user via createClient() from @/lib/supabase/client (NOT server). It collects name + role only; no facility picker, no fetch to /api/facilities/admin-contact. POST body: { email, fullName, userId, role } — facilityId is omitted (set to null by API).
+- Middleware public routes (no auth required): `/login`, `/auth`, `/unauthorized`, `/invite/accept`, `/portal/*`, `/api/portal/*`, `/invoice/*`. Adding new public routes requires updating the `isPublic` check in src/middleware.ts.
+- Middleware /onboarding + /invite bypass: authenticated users with no facilityUser must be allowed through to both `/onboarding` and `/invite` routes — the unauthorized redirect condition must include `!pathname.startsWith('/onboarding') && !pathname.startsWith('/invite')`. (`/unauthorized` is already fully public so it doesn't need this bypass.)
 - Onboarding wizard is 6 steps (type Step = 1 | 2 | 3 | 4 | 5 | 6); progress = (step / 6) * 100. Step 4 = Services (choose/manual/import), Step 5 = Residents (choose/manual/import), Step 6 = Done summary.
 - CSV/Excel import in onboarding: use papaparse (CSV) and xlsx (Excel) client-side; detect columns by normalizing headers toLower().replace(/\s+/g,''); snap duration to nearest [15,30,45,60,75,90,120].
 - papaparse is already installed (`Papa from 'papaparse'`); xlsx is already installed (`* as XLSX from 'xlsx'`).
