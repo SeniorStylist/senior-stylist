@@ -156,6 +156,18 @@ export const invites = pgTable('invites', {
   expiresAt: timestamp('expires_at').notNull(),
 })
 
+export const accessRequests = pgTable('access_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  email: text('email').notNull(),
+  fullName: text('full_name'),
+  status: text('status').default('pending').notNull(),
+  role: text('role').default('stylist').notNull(),
+  userId: uuid('user_id'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
 export const logEntries = pgTable(
   'log_entries',
   {

@@ -57,6 +57,7 @@ interface DashboardClientProps {
   isAdmin?: boolean
   userRole?: string
   userName?: string
+  pendingRequestsCount?: number
 }
 
 export function DashboardClient({
@@ -68,6 +69,7 @@ export function DashboardClient({
   isAdmin = true,
   userRole = 'admin',
   userName = '',
+  pendingRequestsCount = 0,
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -347,6 +349,20 @@ export function DashboardClient({
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* ── Calendar column ── */}
       <div className="flex-1 flex flex-col min-w-0 p-3 md:p-4 gap-3">
+        {/* Admin: pending access requests banner */}
+        {isAdmin && pendingRequestsCount > 0 && (
+          <div className="shrink-0 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between">
+            <p className="text-sm text-amber-800">
+              <span className="font-semibold">{pendingRequestsCount}</span> access request{pendingRequestsCount > 1 ? 's' : ''} pending
+            </p>
+            <a
+              href="/settings?tab=access-requests"
+              className="text-xs font-semibold text-amber-700 underline hover:text-amber-900"
+            >
+              Review
+            </a>
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
           <h1

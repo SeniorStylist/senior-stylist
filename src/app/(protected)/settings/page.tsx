@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { facilityUsers, accessRequests } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { SettingsClient } from './settings-client'
 
@@ -17,7 +17,7 @@ export default async function SettingsPage() {
   if (!facilityUser) redirect('/dashboard')
 
   try {
-  const [facility, connectedUsers] = await Promise.all([
+  const [facility, connectedUsers, pendingRequests] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
     }),
@@ -25,6 +25,11 @@ export default async function SettingsPage() {
       where: eq(facilityUsers.facilityId, facilityUser.facilityId),
       with: { profile: true },
     }),
+    facilityUser.role === 'admin'
+      ? db.query.accessRequests.findMany({
+          where: (t) => and(eq(t.facilityId, facilityUser.facilityId), eq(t.status, 'pending')),
+        })
+      : Promise.resolve([]),
   ])
 
   if (!facility) redirect('/dashboard')
@@ -35,6 +40,7 @@ export default async function SettingsPage() {
       connectedUsers={JSON.parse(JSON.stringify(connectedUsers))}
       currentUserId={user.id}
       isAdmin={facilityUser.role === 'admin'}
+      pendingRequestsCount={pendingRequests.length}
     />
   )
   } catch (err) {

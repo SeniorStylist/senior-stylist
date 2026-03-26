@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, residents, stylists, services, invites } from '@/db/schema'
+import { facilities, residents, stylists, services, invites, accessRequests } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { DashboardClient } from './dashboard-client'
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
-    const [facility, residentsList, stylistsList, servicesList] = await Promise.all([
+    const [facility, residentsList, stylistsList, servicesList, pendingRequests] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
       }),
@@ -81,6 +81,14 @@ export default async function DashboardPage() {
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
+      facilityUser.role === 'admin'
+        ? db.query.accessRequests.findMany({
+            where: (t) => and(
+              eq(t.facilityId, facilityUser.facilityId),
+              eq(accessRequests.status, 'pending')
+            ),
+          })
+        : Promise.resolve([]),
     ])
 
     if (!facility) redirect('/login')
@@ -108,6 +116,7 @@ export default async function DashboardPage() {
           isAdmin={facilityUser.role === 'admin'}
           userRole={facilityUser.role}
           userName={user.user_metadata?.full_name ?? ''}
+          pendingRequestsCount={pendingRequests.length}
         />
       </>
     )

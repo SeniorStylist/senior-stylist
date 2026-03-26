@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { Facility } from '@/types'
@@ -17,11 +17,22 @@ interface ConnectedUser {
   }
 }
 
+interface AccessRequestData {
+  id: string
+  email: string
+  fullName: string | null
+  status: string
+  role: string
+  userId: string | null
+  createdAt: string | null
+}
+
 interface SettingsClientProps {
   facility: Facility
   connectedUsers: ConnectedUser[]
   currentUserId: string
   isAdmin: boolean
+  pendingRequestsCount: number
 }
 
 const TIMEZONES = [
@@ -34,7 +45,7 @@ const TIMEZONES = [
   'Pacific/Honolulu',
 ]
 
-type Tab = 'general' | 'integrations' | 'payments' | 'team' | 'invites' | 'new-facility'
+type Tab = 'general' | 'integrations' | 'payments' | 'team' | 'invites' | 'access-requests' | 'new-facility'
 
 interface InviteData {
   id: string
@@ -51,6 +62,7 @@ export function SettingsClient({
   connectedUsers,
   currentUserId,
   isAdmin,
+  pendingRequestsCount,
 }: SettingsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -187,6 +199,13 @@ export function SettingsClient({
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
 
+  // Access requests
+  const [requestsList, setRequestsList] = useState<AccessRequestData[]>([])
+  const [requestsLoaded, setRequestsLoaded] = useState(false)
+  const [requestRoles, setRequestRoles] = useState<Record<string, string>>({})
+  const [requestToast, setRequestToast] = useState<string | null>(null)
+  const [actioningId, setActioningId] = useState<string | null>(null)
+
   const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://senior-stylist.vercel.app'
 
   const loadInvites = async () => {
@@ -197,6 +216,40 @@ export function SettingsClient({
       setInvitesList(j.data ?? [])
     }
     setInvitesLoaded(true)
+  }
+
+  const loadRequests = async () => {
+    if (!isAdmin) return
+    const res = await fetch('/api/access-requests')
+    if (res.ok) {
+      const j = await res.json()
+      const list: AccessRequestData[] = j.data ?? []
+      setRequestsList(list)
+      const roles: Record<string, string> = {}
+      list.forEach((r) => { roles[r.id] = r.role })
+      setRequestRoles(roles)
+    }
+    setRequestsLoaded(true)
+  }
+
+  const handleRequestAction = async (id: string, action: 'approve' | 'deny') => {
+    setActioningId(id)
+    try {
+      const res = await fetch(`/api/access-requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, role: requestRoles[id] }),
+      })
+      if (res.ok) {
+        const req = requestsList.find((r) => r.id === id)
+        const name = req?.fullName || req?.email || 'User'
+        setRequestsList((prev) => prev.filter((r) => r.id !== id))
+        setRequestToast(action === 'approve' ? `Access granted to ${name}` : 'Request denied')
+        setTimeout(() => setRequestToast(null), 3000)
+      }
+    } finally {
+      setActioningId(null)
+    }
   }
 
   const handleSendInvite = async () => {
@@ -284,12 +337,26 @@ export function SettingsClient({
     }
   }
 
-  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+  const tabs: { id: Tab; label: string | React.ReactNode; adminOnly?: boolean }[] = [
     { id: 'general', label: 'General' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'payments', label: 'Payments', adminOnly: true },
     { id: 'team', label: 'Team' },
     { id: 'invites', label: 'Invites', adminOnly: true },
+    {
+      id: 'access-requests',
+      label: (
+        <span className="flex items-center gap-1">
+          Requests
+          {pendingRequestsCount > 0 && (
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold">
+              {pendingRequestsCount}
+            </span>
+          )}
+        </span>
+      ),
+      adminOnly: true,
+    },
     { id: 'new-facility', label: '+ New Facility' },
   ]
 
@@ -311,6 +378,7 @@ export function SettingsClient({
             onClick={() => {
               setActiveTab(tab.id)
               if (tab.id === 'invites' && !invitesLoaded) loadInvites()
+              if (tab.id === 'access-requests' && !requestsLoaded) loadRequests()
             }}
             className={cn(
               'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
@@ -750,6 +818,81 @@ export function SettingsClient({
           >
             {savedStripe ? 'Saved!' : savingStripe ? 'Saving…' : 'Save Keys'}
           </button>
+        </div>
+      )}
+
+      {/* ── Access Requests ── */}
+      {activeTab === 'access-requests' && (
+        <div className="space-y-4">
+          {requestToast && (
+            <div className="px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-medium text-emerald-800">
+              {requestToast}
+            </div>
+          )}
+
+          {!requestsLoaded ? (
+            <div className="py-8 flex justify-center">
+              <div className="w-5 h-5 border-2 border-stone-200 border-t-[#0D7377] rounded-full animate-spin" />
+            </div>
+          ) : requestsList.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-stone-400">No pending access requests</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {requestsList.map((req) => (
+                <div key={req.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-stone-900 truncate">
+                        {req.fullName || req.email}
+                      </p>
+                      {req.fullName && (
+                        <p className="text-xs text-stone-400 truncate">{req.email}</p>
+                      )}
+                      {req.createdAt && (
+                        <p className="text-[11px] text-stone-400 mt-0.5">
+                          {new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        value={requestRoles[req.id] ?? req.role}
+                        onChange={(e) => setRequestRoles((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                        className="px-2 py-1 rounded-lg border border-stone-200 text-xs text-stone-700 bg-white focus:outline-none"
+                      >
+                        <option value="stylist">Stylist</option>
+                        <option value="admin">Admin</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                      <button
+                        onClick={() => handleRequestAction(req.id, 'approve')}
+                        disabled={actioningId === req.id}
+                        title="Approve"
+                        className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleRequestAction(req.id, 'deny')}
+                        disabled={actioningId === req.id}
+                        title="Deny"
+                        className="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

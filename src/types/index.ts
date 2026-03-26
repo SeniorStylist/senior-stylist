@@ -94,6 +94,18 @@ export interface BookingWithRelations extends Booking {
   service: Service
 }
 
+export interface AccessRequest {
+  id: string
+  facilityId: string
+  email: string
+  fullName: string | null
+  status: string
+  role: string
+  userId: string | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
 export interface LogEntry {
   id: string
   facilityId: string
