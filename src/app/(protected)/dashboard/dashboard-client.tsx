@@ -58,6 +58,7 @@ interface DashboardClientProps {
   userRole?: string
   userName?: string
   pendingRequestsCount?: number
+  profileStylistId?: string | null
 }
 
 export function DashboardClient({
@@ -70,6 +71,7 @@ export function DashboardClient({
   userRole = 'admin',
   userName = '',
   pendingRequestsCount = 0,
+  profileStylistId = null,
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -254,6 +256,11 @@ export function DashboardClient({
 
   const [calendarFlash, setCalendarFlash] = useState(false)
 
+  // Stylist's own bookings for mobile today-list
+  const myTodayBookings = profileStylistId
+    ? todayBookings.filter((b) => b.stylistId === profileStylistId)
+    : todayBookings
+
   // Stylist mobile today-list view
   if (stylistListMode) {
     const greeting = (() => {
@@ -283,12 +290,12 @@ export function DashboardClient({
                 <Spinner className="text-[#0D7377]" />
               </div>
             )}
-            {!loadingBookings && todayBookings.length === 0 && (
+            {!loadingBookings && myTodayBookings.length === 0 && (
               <div className="bg-white rounded-2xl border border-stone-100 p-6 text-center">
                 <p className="text-stone-500 text-sm">No appointments today</p>
               </div>
             )}
-            {todayBookings.map((b) => {
+            {myTodayBookings.map((b) => {
               const time = new Date(b.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
               const isDone = b.status === 'completed'
               return (

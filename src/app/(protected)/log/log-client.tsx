@@ -103,6 +103,50 @@ export function LogClient({
   })
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
 
+  // Inline booking price/notes editing
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null)
+  const [editPrice, setEditPrice] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  const startEditBooking = (booking: LogBooking) => {
+    setEditingBookingId(booking.id)
+    setEditPrice(((booking.priceCents ?? booking.service.priceCents) / 100).toFixed(2))
+    setEditNotes(booking.notes ?? '')
+  }
+
+  const cancelEditBooking = () => {
+    setEditingBookingId(null)
+    setEditPrice('')
+    setEditNotes('')
+  }
+
+  const saveEditBooking = async () => {
+    if (!editingBookingId) return
+    setSavingEdit(true)
+    try {
+      const priceCents = Math.round(parseFloat(editPrice) * 100)
+      if (isNaN(priceCents) || priceCents < 0) return
+      const res = await fetch(`/api/bookings/${editingBookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceCents, notes: editNotes || null }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setBookings((prev) => prev.map((b) =>
+          b.id === editingBookingId
+            ? { ...b, priceCents: json.data.priceCents, notes: json.data.notes }
+            : b
+        ))
+        setEditingBookingId(null)
+        toast('Updated', 'success')
+      }
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   // Walk-in form
   const [showWalkIn, setShowWalkIn] = useState(false)
   const [wiResidentSearch, setWiResidentSearch] = useState('')
@@ -634,6 +678,8 @@ export function LogClient({
                   const isNoShow = booking.status === 'no_show'
                   const isCancelled = booking.status === 'cancelled'
                   const isUpdating = updatingId === booking.id
+                  const isEditing = editingBookingId === booking.id
+                  const canEdit = !isCancelled && !isFinalized && (!stylistFilter || booking.stylist.id === stylistFilter)
 
                   return (
                     <div
@@ -689,27 +735,81 @@ export function LogClient({
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-stone-500 mt-0.5">
-                          {formatTime(booking.startTime)} · {booking.service.name} ·{' '}
-                          {formatCents(booking.priceCents ?? booking.service.priceCents)}
-                        </p>
-                        {booking.notes === 'Walk-in' && (
-                          <span className="inline-block mt-0.5 text-xs font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">
-                            Walk-in
-                          </span>
-                        )}
-                        {booking.notes && booking.notes !== 'Walk-in' && (
-                          <p className="text-xs text-stone-400 mt-0.5 italic">{booking.notes}</p>
-                        )}
-                        {isCancelled && booking.cancellationReason && (
-                          <p className="text-xs text-stone-400 mt-0.5 italic">Reason: {booking.cancellationReason}</p>
+
+                        {isEditing ? (
+                          <div className="mt-1.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-stone-500">$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(e.target.value)}
+                                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-stone-900 focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100"
+                              />
+                            </div>
+                            <textarea
+                              value={editNotes}
+                              onChange={(e) => setEditNotes(e.target.value)}
+                              placeholder="Notes..."
+                              rows={2}
+                              className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 resize-none"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={saveEditBooking}
+                                disabled={savingEdit}
+                                className="text-xs font-semibold text-white bg-[#0D7377] hover:bg-[#0a5c5f] px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                              >
+                                {savingEdit ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEditBooking}
+                                className="text-xs font-medium text-stone-500 hover:text-stone-700 px-2 py-1.5"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-xs text-stone-500 mt-0.5">
+                              {formatTime(booking.startTime)} · {booking.service.name} ·{' '}
+                              {formatCents(booking.priceCents ?? booking.service.priceCents)}
+                            </p>
+                            {booking.notes === 'Walk-in' && (
+                              <span className="inline-block mt-0.5 text-xs font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">
+                                Walk-in
+                              </span>
+                            )}
+                            {booking.notes && booking.notes !== 'Walk-in' && (
+                              <p className="text-xs text-stone-400 mt-0.5 italic">{booking.notes}</p>
+                            )}
+                            {isCancelled && booking.cancellationReason && (
+                              <p className="text-xs text-stone-400 mt-0.5 italic">Reason: {booking.cancellationReason}</p>
+                            )}
+                          </>
                         )}
                       </div>
 
                       {/* Actions */}
                       <div className="shrink-0 flex items-center gap-1.5">
+                        {/* Edit button */}
+                        {canEdit && !isEditing && (
+                          <button
+                            onClick={() => startEditBooking(booking)}
+                            className="text-stone-400 hover:text-[#0D7377] p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                            title="Edit price & notes"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                        )}
                         {/* Payment status badge/toggle */}
-                        {!isCancelled && (
+                        {!isCancelled && !isEditing && (
                           <button
                             onClick={() => !isFinalized && updatePaymentStatus(booking.id, booking.paymentStatus ?? 'unpaid')}
                             disabled={isUpdating || isFinalized}
@@ -731,7 +831,7 @@ export function LogClient({
                               : '$'}
                           </button>
                         )}
-                        {!isFinalized && !isCancelled && (
+                        {!isFinalized && !isCancelled && !isEditing && (
                           <>
                             {isCompleted || isNoShow ? (
                               <button

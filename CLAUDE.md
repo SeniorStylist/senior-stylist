@@ -108,6 +108,14 @@
 - Super admin invite flow: POST /api/invites requires `facilityId` in body when caller is super admin (bypasses getUserFacility). GET /api/facilities returns all active facilities for super admin. Settings invites tab shows a facility dropdown when isSuperAdmin (detected via NEXT_PUBLIC_SUPER_ADMIN_EMAIL vs currentUserEmail prop).
 - NavigationProgress: client component in src/components/ui/navigation-progress.tsx — uses usePathname to show 2px teal bar on route change. Imported in (protected)/layout.tsx.
 - Log page stylist sections are collapsible — collapsed state keyed by stylistId in useState<Record<string, boolean>>({}).
+- Role permission matrix:
+  - **master_admin** (super admin): all facilities, all operations, /super-admin page, can assign facility on invite/access-request
+  - **admin**: full access to own facility — calendar, log, residents, stylists, services, reports, settings, invites
+  - **stylist**: calendar (/dashboard), daily log (/log), my account (/my-account) only. Mobile shows today-list filtered to own bookings. Log filters to own section. Can edit price/notes on own bookings only. Cannot access /residents, /stylists, /services, /reports, /settings.
+  - **viewer**: read-only, no edits. Can see residents but not stylists/services/reports/settings.
+- Stylist dashboard filtering: page.tsx looks up `profiles.stylistId`, passes `profileStylistId` to DashboardClient. Mobile today-list filters via `todayBookings.filter(b => b.stylistId === profileStylistId)`.
+- Log inline price/notes editing: log-client.tsx has `editingBookingId` state. Edit button (pencil icon) on non-cancelled, non-finalized rows. Edit mode shows $ price input + notes textarea. Saves via PUT /api/bookings/[id] with `{ priceCents, notes }`. Stylist role: only sees edit button on own bookings (gated by `stylistFilter`). Admin: edit button on all bookings.
+- PUT /api/bookings/[id] accepts `priceCents` directly in updateSchema. Direct priceCents override takes precedence over service-change priceCents. Stylist ownership guard: stylists can only edit their own bookings (checked via profiles.stylistId match).
 
 ### File Structure Conventions
 - Server components in page.tsx, client logic in [name]-client.tsx

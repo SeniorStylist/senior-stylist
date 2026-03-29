@@ -46,15 +46,31 @@
 | Area | `admin` | `stylist` | `viewer` |
 |------|---------|-----------|----------|
 | **Calendar** (`/dashboard`) | ✓ | ✓ | ✓ |
-| **Residents** (`/residents`) | ✓ | ✓ | ✓ |
+| **Residents** (`/residents`) | ✓ | — | ✓ |
 | **Stylists** (`/stylists`) | ✓ | — | — |
 | **Services** (`/services`) | ✓ | — | — |
 | **Daily Log** (`/log`) | ✓ | ✓ | — |
 | **Reports** (`/reports`) | ✓ | — | — |
 | **Settings** (`/settings`) | ✓ | — | — |
+| **My Account** (`/my-account`) | ✓ | ✓ | ✓ |
 
-- Users with role **`viewer`** see a **“View Only”** badge in the sidebar.
+- Users with role **`viewer`** see a **”View Only”** badge in the sidebar.
 - **`/reports`** server page redirects non-admins to **`/dashboard`** (`src/app/(protected)/reports/page.tsx`).
+
+### Route-level guards (server page components, OUTSIDE try/catch)
+
+| Route | Guard |
+|-------|-------|
+| `/stylists`, `/services`, `/reports`, `/settings` | `facilityUser.role !== 'admin'` → redirect `/dashboard` |
+| `/residents` | `facilityUser.role === 'stylist'` → redirect `/dashboard` |
+
+### Stylist role behavior
+
+- **Dashboard mobile**: shows today-list filtered to own bookings via `profileStylistId` (looked up from `profiles.stylistId`).
+- **Daily Log**: filtered to own stylist section only (via `stylistFilter` prop from page.tsx).
+- **Inline editing**: can edit price and notes on own bookings. Edit button gated by `stylistFilter` match + not finalized + not cancelled.
+- **API ownership guard**: `PUT /api/bookings/[id]` checks `profiles.stylistId` against `existing.stylistId` — stylists can only edit their own bookings (403 otherwise).
+- **`PUT /api/bookings/[id]`** accepts `priceCents: number` directly in the update schema. A direct `priceCents` override takes precedence over service-change-derived price.
 
 ### Dashboard & settings flags
 

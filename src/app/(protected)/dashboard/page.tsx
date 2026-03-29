@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, residents, stylists, services, invites, accessRequests } from '@/db/schema'
+import { facilities, residents, stylists, services, invites, accessRequests, profiles } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { DashboardClient } from './dashboard-client'
@@ -52,6 +52,13 @@ export default async function DashboardPage() {
 
     // Invited user with no facility → onboarding wizard
     redirect('/onboarding')
+  }
+
+  // If stylist, look up linked stylist record for filtering
+  let profileStylistId: string | null = null
+  if (facilityUser.role === 'stylist') {
+    const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
+    profileStylistId = profile?.stylistId ?? null
   }
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
@@ -117,6 +124,7 @@ export default async function DashboardPage() {
           userRole={facilityUser.role}
           userName={user.user_metadata?.full_name ?? ''}
           pendingRequestsCount={pendingRequests.length}
+          profileStylistId={profileStylistId}
         />
       </>
     )

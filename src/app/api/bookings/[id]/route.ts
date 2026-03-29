@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, facilities, residents, stylists, services } from '@/db/schema'
+import { bookings, facilities, residents, stylists, services, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, lt, gt, or, ne, gte, count, desc } from 'drizzle-orm'
 import { z } from 'zod'
@@ -16,6 +16,7 @@ const updateSchema = z.object({
   stylistId: z.string().uuid().optional(),
   serviceId: z.string().uuid().optional(),
   startTime: z.string().datetime().optional(),
+  priceCents: z.number().int().min(0).optional(),
   notes: z.string().optional(),
   status: z.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
   paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional(),
@@ -80,6 +81,14 @@ export async function PUT(
       where: and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)),
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
+
+    // Stylist can only edit their own bookings
+    if (facilityUser.role === 'stylist') {
+      const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
+      if (!profile?.stylistId || existing.stylistId !== profile.stylistId) {
+        return Response.json({ error: 'You can only edit your own bookings' }, { status: 403 })
+      }
+    }
 
     const body = await request.json()
     const parsed = updateSchema.safeParse(body)
@@ -211,6 +220,8 @@ export async function PUT(
     if (endTime !== undefined) setPayload.endTime = endTime
     if (priceCents !== undefined) setPayload.priceCents = priceCents
     if (durationMinutes !== undefined) setPayload.durationMinutes = durationMinutes
+    // Direct priceCents override takes precedence over service-change priceCents
+    if (updates.priceCents !== undefined) setPayload.priceCents = updates.priceCents
     if (updates.notes !== undefined) setPayload.notes = updates.notes
     if (updates.status !== undefined) setPayload.status = updates.status
     if (updates.paymentStatus !== undefined) setPayload.paymentStatus = updates.paymentStatus
