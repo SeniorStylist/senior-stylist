@@ -12,6 +12,7 @@ export default function UnauthorizedPage() {
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState<'stylist' | 'admin'>('stylist')
   const [userId, setUserId] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -30,6 +31,7 @@ export default function UnauthorizedPage() {
   const handleSubmit = async () => {
     if (!userEmail) return
     setPageState('submitting')
+    setErrorMsg(null)
 
     try {
       const res = await fetch('/api/access-requests', {
@@ -44,11 +46,13 @@ export default function UnauthorizedPage() {
       })
       const json = await res.json()
       if (!res.ok) {
+        setErrorMsg(json.error ?? 'Something went wrong. Please try again.')
         setPageState('idle')
         return
       }
       setPageState(json.data?.alreadyExists ? 'already_pending' : 'submitted')
     } catch {
+      setErrorMsg('Something went wrong. Please try again.')
       setPageState('idle')
     }
   }
@@ -164,12 +168,16 @@ export default function UnauthorizedPage() {
               {/* Submit */}
               <button
                 onClick={handleSubmit}
-                disabled={pageState === 'submitting'}
+                disabled={!userEmail || pageState === 'submitting'}
                 className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60 active:scale-[0.98]"
                 style={{ backgroundColor: '#0D7377' }}
               >
-                {pageState === 'submitting' ? 'Sending…' : 'Send Request'}
+                {!userEmail ? 'Loading…' : pageState === 'submitting' ? 'Sending…' : 'Send Request'}
               </button>
+
+              {errorMsg && (
+                <p className="text-xs text-red-500 text-center">{errorMsg}</p>
+              )}
 
               <SignOutButton />
             </div>

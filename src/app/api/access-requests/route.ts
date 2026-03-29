@@ -5,6 +5,7 @@ import { accessRequests } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, desc } from 'drizzle-orm'
 import { z } from 'zod'
+import { sendEmail } from '@/lib/email'
 
 const createSchema = z.object({
   facilityId: z.string().uuid().optional().nullable(),
@@ -46,6 +47,25 @@ export async function POST(request: NextRequest) {
         status: 'pending',
       })
       .returning()
+
+    // Notify admin (fire-and-forget)
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+    if (adminEmail) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+      sendEmail({
+        to: adminEmail,
+        subject: 'New access request — Senior Stylist',
+        html: `
+          <p>A new access request has been submitted.</p>
+          <ul>
+            <li><strong>Name:</strong> ${fullName ?? '(not provided)'}</li>
+            <li><strong>Email:</strong> ${normalizedEmail}</li>
+            <li><strong>Role:</strong> ${role ?? 'stylist'}</li>
+          </ul>
+          <p><a href="${appUrl}/super-admin">Review in admin</a></p>
+        `,
+      })
+    }
 
     return Response.json({ data: { id: created.id } }, { status: 201 })
   } catch (err) {

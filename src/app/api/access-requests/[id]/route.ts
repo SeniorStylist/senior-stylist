@@ -5,6 +5,7 @@ import { accessRequests, profiles, facilityUsers, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, ilike } from 'drizzle-orm'
 import { z } from 'zod'
+import { sendEmail } from '@/lib/email'
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -126,6 +127,17 @@ export async function PUT(
         })
       }
     }
+
+    // Notify user of approval (fire-and-forget)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    sendEmail({
+      to: accessRequest.email,
+      subject: "You've been approved — Senior Stylist",
+      html: `
+        <p>Your access request has been approved.</p>
+        <p>You can now sign in at <a href="${appUrl}">${appUrl}</a>.</p>
+      `,
+    })
 
     return Response.json({ data: { approved: true } })
   } catch (err) {

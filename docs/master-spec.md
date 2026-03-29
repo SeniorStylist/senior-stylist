@@ -310,7 +310,7 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings (incl. `stripePublishableKey`, `stripeSecretKey`) |
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |
 | `POST /api/facilities/select` | Authenticated | Set `selected_facility_id` cookie |
-| `POST/GET /api/invites` | **Admin** | Create invite (emails link); list invites |
+| `POST/GET /api/invites` | **Admin** | Create invite; list invites. POST fires invite email via `sendEmail()` (facility name, role, accept link) |
 | `DELETE /api/invites/[id]` | **Admin** | Revoke unused invite |
 | `GET /api/reports/monthly` | Authenticated | Monthly report payload |
 | `GET /api/reports/invoice` | **Admin** | Completed bookings + payment status for invoice UI |
@@ -327,9 +327,9 @@ CREATE POLICY "service_role_all" ON <table>
 | `PUT /api/super-admin/facility/[id]` | Super admin email only | Edit any facility's name/address/phone/timezone/paymentType/active — returns 409 on duplicate name |
 | `DELETE /api/super-admin/facility/[id]` | Super admin only | Hard delete facility (requires no bookings); wrapped in db.transaction() |
 | `GET /api/facilities/admin-contact` | **Public** | Returns facility contact email (for `/unauthorized` mailto fallback). No facilityId param = returns `allFacilities` list. |
-| `POST /api/access-requests` | **Public** | Submit access request; facilityId is optional (null = global queue for super admin to assign). Idempotent by email. |
+| `POST /api/access-requests` | **Public** | Submit access request; facilityId optional (null = global queue). Idempotent by email. Fires admin notification email to `NEXT_PUBLIC_ADMIN_EMAIL`. |
 | `GET /api/access-requests` | **Facility admin** | Pending requests already assigned to their facility |
-| `PUT /api/access-requests/[id]` | **Facility admin OR super admin** | Approve (with facilityId, role, optional commissionPercent) or deny. Approve provisions facilityUsers row + optional stylist record. |
+| `PUT /api/access-requests/[id]` | **Facility admin OR super admin** | Approve (with facilityId, role, optional commissionPercent) or deny. Approve provisions facilityUsers row + optional stylist record + fires approval email to requester. |
 
 ---
 

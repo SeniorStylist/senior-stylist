@@ -64,21 +64,27 @@ export async function middleware(request: NextRequest) {
 
       if (!facilityUser) {
         // Check if user has a pending valid invite
-        let hasInvite = false
-        const { data: invite } = await supabase
+        const { data: inviteRows } = await supabase
           .from('invites')
-          .select('id')
+          .select('id, token')
           .eq('email', user.email ?? '')
           .eq('used', false)
           .gt('expires_at', new Date().toISOString())
           .limit(1)
 
-        if (invite && invite.length > 0) {
-          hasInvite = true
-        }
+        const inviteToken = inviteRows && inviteRows.length > 0 ? (inviteRows[0] as { token: string }).token : null
 
-        // Allow /onboarding and /invite — invited users may not have a facilityUser yet
-        if (!hasInvite && !pathname.startsWith('/onboarding') && !pathname.startsWith('/invite')) {
+        // Allow /onboarding and /invite paths through regardless
+        if (pathname.startsWith('/onboarding') || pathname.startsWith('/invite')) {
+          // allow through
+        } else if (inviteToken) {
+          // Has a valid invite — send them to complete it
+          const url = request.nextUrl.clone()
+          url.pathname = '/invite/accept'
+          url.searchParams.set('token', inviteToken)
+          return NextResponse.redirect(url)
+        } else {
+          // No invite, no facilityUser
           const url = request.nextUrl.clone()
           url.pathname = '/unauthorized'
           return NextResponse.redirect(url)

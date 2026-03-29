@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, desc } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
+import { sendEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,38 +50,19 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // Send email via Resend (fire-and-forget, non-fatal)
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const facility = await db.query.facilities.findFirst({
-          where: eq(facilities.id, facilityId),
-        })
-        const facilityName = facility?.name ?? 'Senior Stylist'
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
-        const acceptLink = `${appUrl}/invite/accept?token=${token}`
-
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'Senior Stylist <noreply@senior-stylist.vercel.app>',
-            to: email,
-            subject: "You've been invited to Senior Stylist",
-            html: `
-              <p>You've been invited to join <strong>${facilityName}</strong> on Senior Stylist.</p>
-              <p><a href="${acceptLink}">Accept your invitation</a></p>
-              <p>This link expires in 7 days.</p>
-              <p style="color:#999;font-size:12px;">If you weren't expecting this invitation, you can ignore this email.</p>
-            `,
-          }),
-        })
-      } catch (emailErr) {
-        console.error('Failed to send invite email:', emailErr)
-      }
-    }
+    // Send invite email (fire-and-forget)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
+    sendEmail({
+      to: email,
+      subject: "You're invited to Senior Stylist",
+      html: `
+        <p>You've been invited to join <strong>${facility?.name ?? 'Senior Stylist'}</strong> as a <strong>${inviteRole || 'stylist'}</strong>.</p>
+        <p><a href="${appUrl}/invite/accept?token=${token}">Accept your invitation</a></p>
+        <p>This link expires in 7 days.</p>
+        <p style="color:#999;font-size:12px;">If you weren't expecting this, you can ignore this email.</p>
+      `,
+    })
 
     return Response.json({ data: invite }, { status: 201 })
   } catch (err) {
