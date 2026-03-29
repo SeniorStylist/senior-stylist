@@ -99,7 +99,9 @@
 - Onboarding Step 5 (Residents) uses /api/residents/bulk (not /api/residents) for CSV/Excel import — POST `{ rows: [{ name, roomNumber? }] }`, returns `{ data: { created: N } }`.
 - Stylist dashboard mobile view: when role === 'stylist' && isMobile, show today's appointment list (not FullCalendar). setStylistListMode(true) in useEffect. Uses existing fetchBookings.
 - Invite accept page does NOT check email — the token is the proof. Any authenticated user with a valid, unexpired, unused token is accepted. Remove/never add an email match guard.
+- Invite accept page MUST set `selected_facility_id` cookie (via `cookies()` from `next/headers`) after inserting facilityUser — without it, layout falls back to `?? 'admin'` and the invited stylist sees the admin view.
 - Invite accept auto-link: use `ilike(stylists.name, userFullName)` to match stylist by name — role === 'stylist' redirects to /my-account?welcome=1, others to /dashboard.
+- Super admin invite flow: POST /api/invites requires `facilityId` in body when caller is super admin (bypasses getUserFacility). GET /api/facilities returns all active facilities for super admin. Settings invites tab shows a facility dropdown when isSuperAdmin (detected via NEXT_PUBLIC_SUPER_ADMIN_EMAIL vs currentUserEmail prop).
 - NavigationProgress: client component in src/components/ui/navigation-progress.tsx — uses usePathname to show 2px teal bar on route change. Imported in (protected)/layout.tsx.
 - Log page stylist sections are collapsible — collapsed state keyed by stylistId in useState<Record<string, boolean>>({}).
 
