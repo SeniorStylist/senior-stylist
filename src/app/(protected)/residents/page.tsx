@@ -15,6 +15,7 @@ export default async function ResidentsPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (facilityUser.role === 'stylist') redirect('/dashboard')
 
   try {
   const [residentsList, bookingsList] = await Promise.all([

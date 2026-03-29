@@ -80,7 +80,11 @@
   await sql.end()
   ```
   Run with: `npx dotenv -e .env.local -- node scripts/migrate.mjs`. Delete the script after running.
-- Route-level role guards: stylists/services/reports/settings pages redirect non-admins via `if (facilityUser.role !== 'admin') redirect('/dashboard')` in the server page component.
+- Route-level role guards — redirect non-permitted roles in the server page component OUTSIDE try/catch:
+  - `/stylists`, `/services`, `/reports`, `/settings`: `if (facilityUser.role !== 'admin') redirect('/dashboard')`
+  - `/residents`: `if (facilityUser.role === 'stylist') redirect('/dashboard')` (viewer still allowed)
+  - Nav items in sidebar.tsx and mobile-nav.tsx use `roles: NavRole[]` arrays per item — filtered via `item.roles.includes(role as NavRole)`. Do NOT replace this with a STYLIST_ONLY_PATHS approach.
+  - Stylist visible nav: Calendar (/dashboard), Daily Log (/log), My Account (/my-account)
 - NEVER put redirect() calls inside try/catch in Next.js page components — Next.js redirect() throws a special NEXT_REDIRECT error internally, and a catch block swallows it, causing the error UI to render instead of the redirect. Always perform auth/facility checks and their redirects OUTSIDE try/catch; only wrap DB data loading in try/catch.
 - Next.js 16 dynamic route params are a Promise — ALWAYS use `{ params }: { params: Promise<{ id: string }> }` and `const { id } = await params` inside the handler. The old sync pattern `{ params: { id: string } }` causes a build error.
 - Super admin facility mutations: use PUT /api/super-admin/facility/[id] (not the regular /api/facility route) — it verifies NEXT_PUBLIC_SUPER_ADMIN_EMAIL and accepts `active` boolean for deactivation.
