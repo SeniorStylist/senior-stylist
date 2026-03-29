@@ -17,6 +17,7 @@
 - facilities.working_hours is jsonb `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }` — null = default 08:00–18:00; use it to bound time slots in booking modal
 - ALL tables MUST have RLS enabled with a `service_role_all` policy — when adding a new table, run `ALTER TABLE x ENABLE ROW LEVEL SECURITY` and `CREATE POLICY "service_role_all" ON x FOR ALL TO service_role USING (true) WITH CHECK (true)`
 - NEVER disable RLS on any table — all DB access goes through service_role (Drizzle + SUPABASE_SERVICE_ROLE_KEY); the anon key is auth-only and must never have direct table access
+- MIDDLEWARE RLS EXCEPTION: `facility_users` and `invites` have an additional scoped `authenticated` SELECT policy so that middleware (which uses the anon key / `authenticated` role) can query them. `facility_users` → `user_id = auth.uid()`; `invites` → `email = auth.jwt()->>'email'`. Without these, middleware queries silently return empty and every user gets redirected to /unauthorized. If you add a new table that middleware needs to query, add a scoped `authenticated` SELECT policy for it.
 
 ### Git
 - ALWAYS use git add -A (project path has parentheses that break zsh globs)

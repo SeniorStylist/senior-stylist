@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
-import { eq, and, gt, ilike } from 'drizzle-orm'
+import { eq, and, ilike } from 'drizzle-orm'
 
 interface Props {
   searchParams: Promise<{ token?: string }>
@@ -63,7 +63,7 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/login?next=/invite/accept?token=${token}`)
+    redirect(`/login?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`)
   }
 
   // Valid — upsert profile, add facilityUser, mark invite used

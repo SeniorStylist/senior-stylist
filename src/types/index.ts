@@ -8,6 +8,7 @@ export interface Profile {
   fullName: string | null
   avatarUrl: string | null
   role: UserRole
+  stylistId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -22,6 +23,7 @@ export interface Facility {
   paymentType: string
   stripePublishableKey: string | null
   stripeSecretKey: string | null
+  workingHours: { days: string[]; startTime: string; endTime: string } | null
   contactEmail: string | null
   active: boolean
   createdAt: Date | null
@@ -78,6 +80,8 @@ export interface Booking {
   durationMinutes: number | null
   notes: string | null
   status: BookingStatus
+  paymentStatus: string
+  cancellationReason: string | null
   recurring: boolean
   recurringRule: string | null
   recurringEndDate: string | null
@@ -96,7 +100,7 @@ export interface BookingWithRelations extends Booking {
 
 export interface AccessRequest {
   id: string
-  facilityId: string
+  facilityId: string | null
   email: string
   fullName: string | null
   status: string

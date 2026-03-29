@@ -270,18 +270,18 @@ CREATE POLICY "service_role_all" ON <table>
 |-------|-----|--------|
 | `profiles` | ✓ | service_role_all |
 | `facilities` | ✓ | service_role_all |
-| `facility_users` | ✓ | service_role_all |
+| `facility_users` | ✓ | service_role_all + authenticated_own_facility_users (SELECT, `user_id = auth.uid()`) |
 | `residents` | ✓ | service_role_all |
 | `stylists` | ✓ | service_role_all |
 | `services` | ✓ | service_role_all |
 | `bookings` | ✓ | service_role_all |
 | `log_entries` | ✓ | service_role_all |
-| `invites` | ✓ | service_role_all |
+| `invites` | ✓ | service_role_all + authenticated_own_invites (SELECT, `email = auth.jwt()->>'email'`) |
 | `access_requests` | ✓ | service_role_all |
 
-**Why this works without breaking queries:** All server-side Drizzle queries run with `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS automatically. The anon key (used only for Supabase Auth client-side) has no direct table access.
+**Why this works without breaking queries:** All server-side Drizzle queries run with `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS automatically. The anon key (used only for Supabase Auth client-side) has no direct table access — **except** for `facility_users` and `invites`, which have scoped `authenticated` SELECT policies so that middleware can query them.
 
-**New table checklist:** Any new table must have `ALTER TABLE x ENABLE ROW LEVEL SECURITY` + the `service_role_all` policy added immediately after creation.
+**New table checklist:** Any new table must have `ALTER TABLE x ENABLE ROW LEVEL SECURITY` + the `service_role_all` policy added immediately after creation. If middleware needs to query the table, also add a scoped `authenticated` SELECT policy.
 
 ---
 
