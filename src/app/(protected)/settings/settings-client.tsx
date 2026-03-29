@@ -31,6 +31,7 @@ interface SettingsClientProps {
   facility: Facility
   connectedUsers: ConnectedUser[]
   currentUserId: string
+  currentUserEmail: string | null
   isAdmin: boolean
   pendingRequestsCount: number
 }
@@ -61,6 +62,7 @@ export function SettingsClient({
   facility,
   connectedUsers,
   currentUserId,
+  currentUserEmail,
   isAdmin,
   pendingRequestsCount,
 }: SettingsClientProps) {
@@ -71,6 +73,7 @@ export function SettingsClient({
 
   useEffect(() => {
     if (tabParam && tabParam !== activeTab) setActiveTab(tabParam)
+    if (tabParam === 'invites') { loadInvites(); loadFacilitiesForInvite() }
   }, [tabParam])
 
   // General form
@@ -188,11 +191,18 @@ export function SettingsClient({
     }
   }
 
+  const isSuperAdmin = !!(
+    process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    currentUserEmail === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  )
+
   // Invites
   const [invitesList, setInvitesList] = useState<InviteData[]>([])
   const [invitesLoaded, setInvitesLoaded] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<string>('stylist')
+  const [inviteFacilityId, setInviteFacilityId] = useState<string>('')
+  const [facilitiesList, setFacilitiesList] = useState<{ id: string; name: string }[]>([])
   const [sendingInvite, setSendingInvite] = useState(false)
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
@@ -210,12 +220,25 @@ export function SettingsClient({
 
   const loadInvites = async () => {
     if (!isAdmin) return
-    const res = await fetch('/api/invites')
-    if (res.ok) {
-      const j = await res.json()
-      setInvitesList(j.data ?? [])
+    if (!isSuperAdmin) {
+      const res = await fetch('/api/invites')
+      if (res.ok) {
+        const j = await res.json()
+        setInvitesList(j.data ?? [])
+      }
     }
     setInvitesLoaded(true)
+  }
+
+  const loadFacilitiesForInvite = async () => {
+    if (!isSuperAdmin) return
+    const res = await fetch('/api/facilities')
+    if (res.ok) {
+      const j = await res.json()
+      const list: { id: string; name: string }[] = j.data ?? []
+      setFacilitiesList(list)
+      if (list.length > 0 && !inviteFacilityId) setInviteFacilityId(list[0].id)
+    }
   }
 
   const loadRequests = async () => {
@@ -254,14 +277,17 @@ export function SettingsClient({
 
   const handleSendInvite = async () => {
     if (!inviteEmail.trim()) { setInviteError('Email is required'); return }
+    if (isSuperAdmin && !inviteFacilityId) { setInviteError('Select a facility'); return }
     setSendingInvite(true)
     setInviteError('')
     setInviteSuccess('')
     try {
+      const body: Record<string, string> = { email: inviteEmail.trim(), inviteRole }
+      if (isSuperAdmin) body.facilityId = inviteFacilityId
       const res = await fetch('/api/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail.trim(), inviteRole }),
+        body: JSON.stringify(body),
       })
       const j = await res.json()
       if (!res.ok) {
@@ -377,7 +403,7 @@ export function SettingsClient({
             key={tab.id}
             onClick={() => {
               setActiveTab(tab.id)
-              if (tab.id === 'invites' && !invitesLoaded) loadInvites()
+              if (tab.id === 'invites' && !invitesLoaded) { loadInvites(); loadFacilitiesForInvite() }
               if (tab.id === 'access-requests' && !requestsLoaded) loadRequests()
             }}
             className={cn(
@@ -655,18 +681,33 @@ export function SettingsClient({
       {activeTab === 'invites' && isAdmin && (
         <div className="space-y-5">
           <p className="text-xs text-stone-400">
-            Invite users to join <span className="font-semibold text-stone-600">{facility.name}</span>. Links expire after 7 days.
+            {isSuperAdmin
+              ? 'Invite users to any facility. Links expire after 7 days.'
+              : <>Invite users to join <span className="font-semibold text-stone-600">{facility.name}</span>. Links expire after 7 days.</>
+            }
           </p>
 
           {/* Send invite form */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isSuperAdmin && (
+              <select
+                value={inviteFacilityId}
+                onChange={(e) => setInviteFacilityId(e.target.value)}
+                className="w-48 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              >
+                {facilitiesList.length === 0 && <option value="">Loading…</option>}
+                {facilitiesList.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            )}
             <input
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendInvite()}
               placeholder="colleague@example.com"
-              className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
             />
             <select
               value={inviteRole}
@@ -679,7 +720,7 @@ export function SettingsClient({
             </select>
             <button
               onClick={handleSendInvite}
-              disabled={sendingInvite || !inviteEmail.trim()}
+              disabled={sendingInvite || !inviteEmail.trim() || (isSuperAdmin && !inviteFacilityId)}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
               style={{ backgroundColor: '#0D7377' }}
             >

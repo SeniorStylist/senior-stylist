@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
@@ -95,6 +96,15 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
     .update(invites)
     .set({ used: true })
     .where(eq(invites.id, invite.id))
+
+  // Set selected_facility_id cookie so layout picks the correct facility + role
+  const cookieStore = await cookies()
+  cookieStore.set('selected_facility_id', invite.facilityId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+  })
 
   const role = invite.inviteRole || 'stylist'
 

@@ -15,17 +15,28 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    const { facilityId } = facilityUser
-
-    // Admin only
-    if (facilityUser.role !== 'admin') {
-      return Response.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const isSuperAdmin = !!(
+      process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    )
 
     const body = await request.json()
     const { email, inviteRole } = body
+
+    let facilityId: string
+    if (isSuperAdmin) {
+      if (!body.facilityId || typeof body.facilityId !== 'string') {
+        return Response.json({ error: 'facilityId is required' }, { status: 422 })
+      }
+      facilityId = body.facilityId
+    } else {
+      const facilityUser = await getUserFacility(user.id)
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (facilityUser.role !== 'admin') {
+        return Response.json({ error: 'Admin access required' }, { status: 403 })
+      }
+      facilityId = facilityUser.facilityId
+    }
     if (!email || typeof email !== 'string') {
       return Response.json({ error: 'Email is required' }, { status: 422 })
     }

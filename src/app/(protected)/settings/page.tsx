@@ -39,6 +39,7 @@ export default async function SettingsPage() {
       facility={JSON.parse(JSON.stringify(facility))}
       connectedUsers={JSON.parse(JSON.stringify(connectedUsers))}
       currentUserId={user.id}
+      currentUserEmail={user.email ?? null}
       isAdmin={facilityUser.role === 'admin'}
       pendingRequestsCount={pendingRequests.length}
     />

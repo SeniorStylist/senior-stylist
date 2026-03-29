@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, facilityUsers, profiles } from '@/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
@@ -19,6 +19,19 @@ export async function GET() {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const isSuperAdmin = !!(
+      process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    )
+
+    if (isSuperAdmin) {
+      const allFacilities = await db.query.facilities.findMany({
+        where: eq(facilities.active, true),
+        orderBy: [asc(facilities.name)],
+      })
+      return Response.json({ data: allFacilities.map((f) => ({ ...f, role: 'admin' })) })
+    }
 
     const userFacilities = await db.query.facilityUsers.findMany({
       where: eq(facilityUsers.userId, user.id),
