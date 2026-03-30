@@ -383,4 +383,19 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 
 ---
 
+---
+
+## Brain Files
+
+The project brain consists of four files that must ALL be
+updated at the end of every Claude Code session:
+
+- CLAUDE.md — rules, conventions, common bugs to avoid
+- docs/master-spec.md — full architecture and API reference
+- docs/design-system.md — UI patterns and component rules
+- docs/project-context.md — phases, current status, handoff info
+
+These files are also uploaded to Claude Projects so the AI
+assistant in chat always has full context.
+
 *End of master specification.*
