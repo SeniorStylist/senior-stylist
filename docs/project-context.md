@@ -133,7 +133,7 @@ Tailwind CSS 4, Vercel
 ### In Progress / Needs Testing
 - OCR log sheet import — SDK replaced with direct REST fetch (2026-03-30)
   Root cause: @google/generative-ai SDK hardcodes v1beta; flash models removed from v1beta
-  Fix: removed SDK entirely, now calls v1/models/gemini-1.5-flash:generateContent via fetch
+  Fix: removed SDK entirely, now calls v1beta/models/gemini-2.0-flash:generateContent via fetch
   45s per-file Promise.race timeout guard in place
   maxDuration=60 + dynamic='force-dynamic' on route
   Status: deployed, needs real-world test to confirm fix
@@ -171,7 +171,7 @@ Symphony Manor + Sunrise Bethesda real facilities.
 
 4. DB pool max:1 in session mode — never set higher.
 
-5. Never use gemini-2.0-flash — use gemini-1.5-flash only.
+5. OCR uses gemini-2.0-flash on v1beta endpoint (direct fetch, no SDK). All Gemini 1.5 models shut down March 2026 — never use them.
 
 6. All emails fire-and-forget — never await sendEmail().
 
