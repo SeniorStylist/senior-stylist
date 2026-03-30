@@ -131,12 +131,12 @@ Tailwind CSS 4, Vercel
 - Franchise CRUD in super admin page
 
 ### In Progress / Needs Testing
-- OCR log sheet import — network error fix applied (2026-03-30)
-  Added maxDuration=60 + dynamic='force-dynamic' to route.ts
-  Added experimental.serverActions.bodySizeLimit='10mb' to next.config.ts
-  Added stack trace logging to outer catch
-  Model: gemini-1.5-flash, PDF support via Gemini inlineData
-  Status: deployed, needs real-world PDF test to confirm fix
+- OCR log sheet import — two fixes applied (2026-03-30)
+  Model changed from gemini-1.5-flash → gemini-1.5-flash-8b (1.5-flash 404s on v1beta)
+  Added 45s per-file Promise.race timeout guard
+  maxDuration=60 + dynamic='force-dynamic' on route
+  experimental.serverActions.bodySizeLimit='10mb' in next.config.ts
+  Status: deployed, needs real-world test to confirm fix
 
 ### Not Started
 - Symphony Manor and Sunrise Bethesda not yet created in app

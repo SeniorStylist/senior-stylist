@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-8b',
       systemInstruction: `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.
 
 Return ONLY a valid JSON object with this exact shape:
@@ -80,12 +80,19 @@ Rules:
       try {
         const bytes = await file.arrayBuffer()
         const base64 = Buffer.from(bytes).toString('base64')
+        if (file.type === 'application/pdf') {
+          console.log(`[OCR] PDF file ${i}: ${(file.size / 1024).toFixed(1)} KB`)
+        }
         console.log(`[OCR] Sending file ${i} to Gemini (${base64.length} base64 chars)`)
 
-        const result = await model.generateContent([
+        const geminiCall = model.generateContent([
           { inlineData: { data: base64, mimeType: file.type } },
           'Extract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.',
         ])
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini timeout after 45s')), 45_000)
+        )
+        const result = await Promise.race([geminiCall, timeoutPromise])
 
         const rawText = result.response.text()
         console.log(`[OCR] Raw Gemini response for file ${i}:`, rawText.slice(0, 500))
