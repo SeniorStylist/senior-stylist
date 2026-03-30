@@ -117,6 +117,7 @@ export function OcrImportModal({
   const [previews, setPreviews] = useState<string[]>([])
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [sheetErrors, setSheetErrors] = useState<{ index: number; error: string }[]>([])
   const [sheets, setSheets] = useState<SheetState[]>([])
   const [activeTab, setActiveTab] = useState(0)
   const [importing, setImporting] = useState(false)
@@ -129,6 +130,7 @@ export function OcrImportModal({
     setPreviews(prev => { prev.forEach(url => URL.revokeObjectURL(url)); return [] })
     setScanning(false)
     setScanError(null)
+    setSheetErrors([])
     setSheets([])
     setActiveTab(0)
     setImporting(false)
@@ -145,12 +147,14 @@ export function OcrImportModal({
     const arr = Array.from(selected)
     setFiles(arr)
     previews.forEach(url => URL.revokeObjectURL(url))
-    setPreviews(arr.map(f => URL.createObjectURL(f)))
+    // PDFs can't be previewed as images — store empty string as placeholder
+    setPreviews(arr.map(f => f.type === 'application/pdf' ? '' : URL.createObjectURL(f)))
     setScanError(null)
+    setSheetErrors([])
   }
 
   const removeFile = (i: number) => {
-    URL.revokeObjectURL(previews[i])
+    if (previews[i]) URL.revokeObjectURL(previews[i])
     setFiles(prev => prev.filter((_, fi) => fi !== i))
     setPreviews(prev => prev.filter((_, pi) => pi !== i))
   }
@@ -167,12 +171,16 @@ export function OcrImportModal({
       if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }
 
       const rawSheets: OcrRawSheet[] = json.data.sheets
+      const errorSheets = rawSheets.filter(s => s.error)
       const built = rawSheets
         .filter(s => !s.error)
         .map(s => buildSheetState(s, residents, stylists, services, date))
 
+      setSheetErrors(errorSheets.map(s => ({ index: s.imageIndex, error: s.error! })))
+
       if (built.length === 0) {
-        setScanError('No sheets could be read. Check image quality and try again.')
+        const msgs = errorSheets.map(s => `Sheet ${s.imageIndex + 1}: ${s.error}`).join('. ')
+        setScanError(msgs || 'No sheets could be read. Check image quality and try again.')
         return
       }
       setSheets(built)
@@ -311,26 +319,38 @@ export function OcrImportModal({
                 </svg>
                 <p className="text-sm font-medium text-stone-700">
                   {files.length > 0
-                    ? `${files.length} photo${files.length > 1 ? 's' : ''} selected`
-                    : 'Tap to select photos'}
+                    ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
+                    : 'Tap to select files'}
                 </p>
-                <p className="text-xs text-stone-400 mt-1">JPEG, PNG, or WEBP — multiple allowed</p>
+                <p className="text-xs text-stone-400 mt-1">JPEG, PNG, WEBP, or PDF — multiple allowed</p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
                   multiple
                   className="hidden"
                   onChange={(e) => handleFiles(e.target.files)}
                 />
               </div>
 
-              {previews.length > 0 && (
+              {files.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {previews.map((url, i) => (
+                  {files.map((file, i) => (
                     <div key={i} className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`Sheet ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
+                      {file.type === 'application/pdf' ? (
+                        <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="9" y1="15" x2="15" y2="15" />
+                            <line x1="9" y1="11" x2="15" y2="11" />
+                          </svg>
+                          <span className="text-[9px] font-medium text-stone-500 uppercase">PDF</span>
+                        </div>
+                      ) : (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={previews[i]} alt={`Sheet ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
+                      )}
                       <button
                         onClick={() => removeFile(i)}
                         className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-stone-700 text-white text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors"
