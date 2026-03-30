@@ -57,6 +57,7 @@
 
 ### Common Bugs to Avoid
 - NEVER use new URL(request.url).origin for redirects on Vercel — use request.nextUrl.clone()
+- Long-running API routes (OCR, AI calls) MUST export `export const maxDuration = 60` and `export const dynamic = 'force-dynamic'` at the top of the file — without maxDuration, Vercel cuts the function at 10s and the client sees a network error
 - NEVER put page.tsx files inside /app/api/ directories
 - NEVER set selectMirror=true on FullCalendar (causes squish bug)
 - NEVER make Google Calendar sync block a response — always fire-and-forget

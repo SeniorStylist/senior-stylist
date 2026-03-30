@@ -3,6 +3,9 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest } from 'next/server'
 
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -129,6 +132,7 @@ Rules:
     return Response.json({ data: { sheets } })
   } catch (err) {
     console.error('POST /api/log/ocr error:', err)
+    console.error('Stack:', err instanceof Error ? err.stack : err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

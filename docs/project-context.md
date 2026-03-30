@@ -131,12 +131,12 @@ Tailwind CSS 4, Vercel
 - Franchise CRUD in super admin page
 
 ### In Progress / Needs Testing
-- OCR log sheet import — getting network error on PDF upload
-  Root cause: likely Vercel body size limit or timeout
-  Fix needed: maxDuration=60 on route, body size limit in next.config.ts,
-  explicit GEMINI_API_KEY check
-  Model confirmed: gemini-1.5-flash
-  PDF support added via Gemini inlineData
+- OCR log sheet import — network error fix applied (2026-03-30)
+  Added maxDuration=60 + dynamic='force-dynamic' to route.ts
+  Added experimental.serverActions.bodySizeLimit='10mb' to next.config.ts
+  Added stack trace logging to outer catch
+  Model: gemini-1.5-flash, PDF support via Gemini inlineData
+  Status: deployed, needs real-world PDF test to confirm fix
 
 ### Not Started
 - Symphony Manor and Sunrise Bethesda not yet created in app
@@ -148,23 +148,12 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-OCR network error fix — paste into Claude Code:
+OCR fix is deployed (2026-03-30). Next step: test PDF upload on live site.
+If still failing, check Vercel function logs for `[OCR]` lines to see
+exactly where it fails (timeout vs API key vs Gemini error).
 
-Read docs/master-spec.md, CLAUDE.md first.
-Use supabase MCP to verify schema before writing code.
-Then /plan the following before writing any code:
-
-Read src/app/api/log/ocr/route.ts and next.config.ts
-
-Fix the OCR network error on PDF upload:
-1. Add to route.ts: export const maxDuration = 60
-2. Add to route.ts: export const dynamic = 'force-dynamic'
-3. Add explicit GEMINI_API_KEY check at top of handler
-4. In next.config.ts add: experimental: { serverActions: { bodySizeLimit: '10mb' } }
-5. Add detailed console.error logging around the full handler
-
-Run npx tsc --noEmit, commit and push.
-Update CLAUDE.md and docs/project-context.md.
+Next planned work: Phase 4 cross-facility reporting, or onboard
+Symphony Manor + Sunrise Bethesda real facilities.
 
 ---
 
