@@ -131,11 +131,11 @@ Tailwind CSS 4, Vercel
 - Franchise CRUD in super admin page
 
 ### In Progress / Needs Testing
-- OCR log sheet import — two fixes applied (2026-03-30)
-  Model changed from gemini-1.5-flash → gemini-1.5-flash-8b (1.5-flash 404s on v1beta)
-  Added 45s per-file Promise.race timeout guard
+- OCR log sheet import — SDK replaced with direct REST fetch (2026-03-30)
+  Root cause: @google/generative-ai SDK hardcodes v1beta; flash models removed from v1beta
+  Fix: removed SDK entirely, now calls v1/models/gemini-1.5-flash:generateContent via fetch
+  45s per-file Promise.race timeout guard in place
   maxDuration=60 + dynamic='force-dynamic' on route
-  experimental.serverActions.bodySizeLimit='10mb' in next.config.ts
   Status: deployed, needs real-world test to confirm fix
 
 ### Not Started

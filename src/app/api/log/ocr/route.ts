@@ -1,10 +1,61 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest } from 'next/server'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
+
+const SYSTEM_INSTRUCTION = `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.
+
+Return ONLY a valid JSON object with this exact shape:
+{
+  "date": "YYYY-MM-DD or null if not found",
+  "stylistName": "name of stylist if shown on sheet header or null",
+  "entries": [
+    {
+      "residentName": "string",
+      "roomNumber": "string or null",
+      "serviceName": "string",
+      "price": 0,
+      "notes": "string or null",
+      "unclear": false
+    }
+  ]
+}
+
+Rules:
+- Preserve the ORDER of entries exactly as they appear
+- If a date appears in the header (e.g. 'March 15' or '3/15/26'), extract it as YYYY-MM-DD
+- If a stylist name appears in the header, extract it
+- For unclear handwriting, include your best guess and set unclear: true
+- price is a number in dollars (not cents), or null if not readable
+- Include ALL notes written next to any entry
+- Never skip entries even if unclear
+- Return ONLY the JSON, no markdown, no explanation`
+
+async function callGemini(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+  const body = {
+    system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: mimeType, data: base64 } },
+        { text: 'Extract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.' },
+      ],
+    }],
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Gemini API error ${res.status}: ${errText}`)
+  }
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,38 +84,6 @@ export async function POST(request: NextRequest) {
     // Images + PDFs — Gemini handles PDFs natively via inlineData
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']
 
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash-8b',
-      systemInstruction: `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.
-
-Return ONLY a valid JSON object with this exact shape:
-{
-  "date": "YYYY-MM-DD or null if not found",
-  "stylistName": "name of stylist if shown on sheet header or null",
-  "entries": [
-    {
-      "residentName": "string",
-      "roomNumber": "string or null",
-      "serviceName": "string",
-      "price": 0,
-      "notes": "string or null",
-      "unclear": false
-    }
-  ]
-}
-
-Rules:
-- Preserve the ORDER of entries exactly as they appear
-- If a date appears in the header (e.g. 'March 15' or '3/15/26'), extract it as YYYY-MM-DD
-- If a stylist name appears in the header, extract it
-- For unclear handwriting, include your best guess and set unclear: true
-- price is a number in dollars (not cents), or null if not readable
-- Include ALL notes written next to any entry
-- Never skip entries even if unclear
-- Return ONLY the JSON, no markdown, no explanation`,
-    })
-
     const sheets: unknown[] = []
 
     for (let i = 0; i < files.length; i++) {
@@ -85,16 +104,12 @@ Rules:
         }
         console.log(`[OCR] Sending file ${i} to Gemini (${base64.length} base64 chars)`)
 
-        const geminiCall = model.generateContent([
-          { inlineData: { data: base64, mimeType: file.type } },
-          'Extract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.',
+        const rawText = await Promise.race([
+          callGemini(base64, file.type, apiKey),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Gemini timeout after 45s')), 45_000)
+          ),
         ])
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Gemini timeout after 45s')), 45_000)
-        )
-        const result = await Promise.race([geminiCall, timeoutPromise])
-
-        const rawText = result.response.text()
         console.log(`[OCR] Raw Gemini response for file ${i}:`, rawText.slice(0, 500))
 
         let parsed: { date: string | null; stylistName: string | null; entries: unknown[] }
