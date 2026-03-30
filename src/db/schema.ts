@@ -194,6 +194,29 @@ export const logEntries = pgTable(
   })
 )
 
+export const franchises = pgTable('franchises', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  ownerUserId: uuid('owner_user_id').references(() => profiles.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export const franchiseFacilities = pgTable(
+  'franchise_facilities',
+  {
+    franchiseId: uuid('franchise_id')
+      .references(() => franchises.id, { onDelete: 'cascade' })
+      .notNull(),
+    facilityId: uuid('facility_id')
+      .references(() => facilities.id, { onDelete: 'cascade' })
+      .notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.franchiseId, t.facilityId] }),
+  })
+)
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
@@ -236,6 +259,7 @@ export const facilitiesRelations = relations(facilities, ({ many }) => ({
   bookings: many(bookings),
   logEntries: many(logEntries),
   invites: many(invites),
+  franchiseFacilities: many(franchiseFacilities),
 }))
 
 export const invitesRelations = relations(invites, ({ one }) => ({
@@ -268,5 +292,24 @@ export const logEntriesRelations = relations(logEntries, ({ one }) => ({
   stylist: one(stylists, {
     fields: [logEntries.stylistId],
     references: [stylists.id],
+  }),
+}))
+
+export const franchisesRelations = relations(franchises, ({ one, many }) => ({
+  owner: one(profiles, {
+    fields: [franchises.ownerUserId],
+    references: [profiles.id],
+  }),
+  franchiseFacilities: many(franchiseFacilities),
+}))
+
+export const franchiseFacilitiesRelations = relations(franchiseFacilities, ({ one }) => ({
+  franchise: one(franchises, {
+    fields: [franchiseFacilities.franchiseId],
+    references: [franchises.id],
+  }),
+  facility: one(facilities, {
+    fields: [franchiseFacilities.facilityId],
+    references: [facilities.id],
   }),
 }))

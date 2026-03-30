@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -26,35 +26,19 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const base64 = Buffer.from(bytes).toString('base64')
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system:
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      systemInstruction:
         'You are reading a handwritten salon log sheet from a senior living facility. Extract all appointments you can read. For each appointment return JSON with: { residentName, serviceName, price, stylistName, notes }. Return ONLY a JSON array, no other text. If handwriting is unclear, make your best guess and add unclear: true to that entry.',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-                data: base64,
-              },
-            },
-            {
-              type: 'text',
-              text: 'Extract all appointments from this log sheet. Return ONLY a JSON array: [{ residentName, serviceName, price, stylistName, notes, unclear? }]',
-            },
-          ],
-        },
-      ],
     })
 
-    const rawText = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const result = await model.generateContent([
+      { inlineData: { data: base64, mimeType: file.type } },
+      'Extract all appointments from this log sheet. Return ONLY a JSON array: [{ residentName, serviceName, price, stylistName, notes, unclear? }]',
+    ])
+
+    const rawText = result.response.text()
 
     let entries: unknown[]
     try {
@@ -63,7 +47,7 @@ export async function POST(request: NextRequest) {
       entries = JSON.parse(cleaned)
       if (!Array.isArray(entries)) throw new Error('Not an array')
     } catch {
-      return Response.json({ error: 'Could not parse response from Claude' }, { status: 422 })
+      return Response.json({ error: 'Could not parse response from Gemini' }, { status: 422 })
     }
 
     return Response.json({ data: { entries } })

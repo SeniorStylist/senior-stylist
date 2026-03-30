@@ -717,6 +717,7 @@ export function SettingsClient({
               <option value="admin">Admin</option>
               <option value="stylist">Stylist</option>
               <option value="viewer">Viewer</option>
+              {isSuperAdmin && <option value="super_admin">Super Admin</option>}
             </select>
             <button
               onClick={handleSendInvite}

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { residents, stylists, bookings, facilityUsers, accessRequests, facilities } from '@/db/schema'
+import { residents, stylists, bookings, facilityUsers, accessRequests, facilities, franchises } from '@/db/schema'
 import { eq, and, gte, count } from 'drizzle-orm'
 import { SuperAdminClient } from './super-admin-client'
 
@@ -35,8 +35,8 @@ export default async function SuperAdminPage() {
   monthStart.setDate(1)
   monthStart.setHours(0, 0, 0, 0)
 
-  // Load all facilities + pending requests + active facilities list in parallel
-  const [allFacilities, pendingRequests, activeFacilitiesList] = await Promise.all([
+  // Load all facilities + pending requests + active facilities list + franchises in parallel
+  const [allFacilities, pendingRequests, activeFacilitiesList, franchiseList] = await Promise.all([
     db.query.facilities.findMany({
       orderBy: (t, { desc }) => [desc(t.createdAt)],
     }),
@@ -48,6 +48,15 @@ export default async function SuperAdminPage() {
       where: (t) => eq(t.active, true),
       orderBy: (t, { asc }) => [asc(t.name)],
       columns: { id: true, name: true },
+    }),
+    db.query.franchises.findMany({
+      with: {
+        owner: { columns: { email: true, fullName: true } },
+        franchiseFacilities: {
+          with: { facility: { columns: { id: true, name: true } } },
+        },
+      },
+      orderBy: (t, { asc }) => [asc(t.name)],
     }),
   ])
 
@@ -95,6 +104,16 @@ export default async function SuperAdminPage() {
         createdAt: r.createdAt?.toISOString() ?? null,
       }))}
       activeFacilities={activeFacilitiesList}
+      franchises={franchiseList.map((f) => ({
+        id: f.id,
+        name: f.name,
+        ownerEmail: f.owner?.email ?? null,
+        ownerName: f.owner?.fullName ?? null,
+        facilities: f.franchiseFacilities.map((ff) => ({
+          id: ff.facility.id,
+          name: ff.facility.name,
+        })),
+      }))}
     />
   )
 }

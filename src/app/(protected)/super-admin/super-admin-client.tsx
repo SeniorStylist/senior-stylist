@@ -30,10 +30,19 @@ interface AccessRequestInfo {
   createdAt: string | null
 }
 
+interface FranchiseInfo {
+  id: string
+  name: string
+  ownerEmail: string | null
+  ownerName: string | null
+  facilities: { id: string; name: string }[]
+}
+
 interface SuperAdminClientProps {
   facilities: FacilityInfo[]
   pendingRequests: AccessRequestInfo[]
   activeFacilities: { id: string; name: string }[]
+  franchises: FranchiseInfo[]
 }
 
 const TIMEZONES = [
@@ -53,7 +62,7 @@ const PAYMENT_TYPES = [
   { value: 'hybrid', label: 'Hybrid' },
 ]
 
-export function SuperAdminClient({ facilities, pendingRequests, activeFacilities }: SuperAdminClientProps) {
+export function SuperAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises }: SuperAdminClientProps) {
   const router = useRouter()
 
   // Local list so we can remove deleted facilities immediately
@@ -127,6 +136,120 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Franchise state
+  const [localFranchises, setLocalFranchises] = useState(initialFranchises)
+  const [showCreateFranchise, setShowCreateFranchise] = useState(false)
+  const [franchiseForm, setFranchiseForm] = useState({ name: '', ownerEmail: '', facilityIds: [] as string[] })
+  const [franchiseFormError, setFranchiseFormError] = useState<string | null>(null)
+  const [creatingFranchise, setCreatingFranchise] = useState(false)
+  const [editingFranchiseId, setEditingFranchiseId] = useState<string | null>(null)
+  const [franchiseEditForm, setFranchiseEditForm] = useState({ name: '', ownerEmail: '', facilityIds: [] as string[] })
+  const [franchiseEditError, setFranchiseEditError] = useState<string | null>(null)
+  const [savingFranchiseId, setSavingFranchiseId] = useState<string | null>(null)
+  const [deleteFranchiseConfirmId, setDeleteFranchiseConfirmId] = useState<string | null>(null)
+  const [deletingFranchiseId, setDeletingFranchiseId] = useState<string | null>(null)
+
+  const handleCreateFranchise = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!franchiseForm.name.trim() || !franchiseForm.ownerEmail.trim() || franchiseForm.facilityIds.length === 0) return
+    setCreatingFranchise(true)
+    setFranchiseFormError(null)
+    try {
+      const res = await fetch('/api/super-admin/franchises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(franchiseForm),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setFranchiseFormError(json.error?.formErrors?.[0] ?? json.error ?? 'Failed to create franchise')
+        return
+      }
+      setLocalFranchises(
+        json.data.map((f: { id: string; name: string; owner?: { email?: string; fullName?: string } | null; franchiseFacilities: { facility: { id: string; name: string } }[] }) => ({
+          id: f.id,
+          name: f.name,
+          ownerEmail: f.owner?.email ?? null,
+          ownerName: f.owner?.fullName ?? null,
+          facilities: f.franchiseFacilities.map((ff) => ({ id: ff.facility.id, name: ff.facility.name })),
+        }))
+      )
+      setFranchiseForm({ name: '', ownerEmail: '', facilityIds: [] })
+      setShowCreateFranchise(false)
+    } catch {
+      setFranchiseFormError('Failed to create franchise')
+    } finally {
+      setCreatingFranchise(false)
+    }
+  }
+
+  const startEditFranchise = (f: FranchiseInfo) => {
+    setEditingFranchiseId(f.id)
+    setFranchiseEditForm({
+      name: f.name,
+      ownerEmail: f.ownerEmail ?? '',
+      facilityIds: f.facilities.map((fac) => fac.id),
+    })
+    setFranchiseEditError(null)
+  }
+
+  const handleSaveFranchise = async (id: string) => {
+    setSavingFranchiseId(id)
+    setFranchiseEditError(null)
+    try {
+      const res = await fetch(`/api/super-admin/franchises/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(franchiseEditForm),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setFranchiseEditError(json.error?.formErrors?.[0] ?? json.error ?? 'Failed to save')
+        return
+      }
+      const updated = json.data
+      setLocalFranchises((prev) =>
+        prev.map((f) =>
+          f.id === id
+            ? {
+                id: updated.id,
+                name: updated.name,
+                ownerEmail: updated.owner?.email ?? null,
+                ownerName: updated.owner?.fullName ?? null,
+                facilities: updated.franchiseFacilities.map((ff: { facility: { id: string; name: string } }) => ({
+                  id: ff.facility.id,
+                  name: ff.facility.name,
+                })),
+              }
+            : f
+        )
+      )
+      setEditingFranchiseId(null)
+    } catch {
+      setFranchiseEditError('Failed to save')
+    } finally {
+      setSavingFranchiseId(null)
+    }
+  }
+
+  const handleDeleteFranchise = async (id: string) => {
+    setDeletingFranchiseId(id)
+    try {
+      const res = await fetch(`/api/super-admin/franchises/${id}`, { method: 'DELETE' })
+      if (!res.ok) return
+      setLocalFranchises((prev) => prev.filter((f) => f.id !== id))
+      setDeleteFranchiseConfirmId(null)
+    } catch {
+      // silently fail
+    } finally {
+      setDeletingFranchiseId(null)
+    }
+  }
+
+  const toggleFranchiseFacility = (fid: string, form: string[], setForm: (ids: string[]) => void) => {
+    setForm(form.includes(fid) ? form.filter((id) => id !== fid) : [...form, fid])
+  }
 
   const inactiveCount = localFacilities.filter((f) => !f.active).length
   const visibleFacilities = showInactive
@@ -737,6 +860,238 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
             </p>
           </div>
         )}
+
+        {/* Franchises Section */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2
+              className="text-lg font-bold text-stone-900"
+              style={{ fontFamily: "'DM Serif Display', serif" }}
+            >
+              Franchises
+            </h2>
+            <button
+              onClick={() => { setShowCreateFranchise((v) => !v); setFranchiseFormError(null) }}
+              className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
+              style={{ backgroundColor: '#0D7377' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+            >
+              {showCreateFranchise ? 'Cancel' : '+ New Franchise'}
+            </button>
+          </div>
+
+          {showCreateFranchise && (
+            <form
+              onSubmit={handleCreateFranchise}
+              className="bg-white rounded-2xl border border-stone-200 p-6 mb-6 shadow-sm"
+            >
+              <h3 className="text-base font-semibold text-stone-900 mb-4">New Franchise</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">Franchise Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={franchiseForm.name}
+                    onChange={(e) => { setFranchiseForm((d) => ({ ...d, name: e.target.value })); setFranchiseFormError(null) }}
+                    placeholder="Sunrise Group"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">Owner Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={franchiseForm.ownerEmail}
+                    onChange={(e) => { setFranchiseForm((d) => ({ ...d, ownerEmail: e.target.value })); setFranchiseFormError(null) }}
+                    placeholder="owner@example.com"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                  />
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-stone-600 mb-2">Facilities *</label>
+                <div className="flex flex-wrap gap-2">
+                  {activeFacilities.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => toggleFranchiseFacility(f.id, franchiseForm.facilityIds, (ids) => setFranchiseForm((d) => ({ ...d, facilityIds: ids })))}
+                      className={cn(
+                        'px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors',
+                        franchiseForm.facilityIds.includes(f.id)
+                          ? 'bg-[#0D7377] text-white border-[#0D7377]'
+                          : 'bg-white text-stone-600 border-stone-200 hover:border-[#0D7377]'
+                      )}
+                    >
+                      {f.name}
+                    </button>
+                  ))}
+                </div>
+                {franchiseForm.facilityIds.length === 0 && (
+                  <p className="text-xs text-stone-400 mt-1">Select at least one facility</p>
+                )}
+              </div>
+              {franchiseFormError && (
+                <p className="text-xs text-red-600 mb-3">{franchiseFormError}</p>
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={creatingFranchise || franchiseForm.facilityIds.length === 0}
+                  className="px-5 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: '#0D7377' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                >
+                  {creatingFranchise ? 'Creating...' : 'Create Franchise'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {localFranchises.length === 0 && !showCreateFranchise && (
+            <p className="text-sm text-stone-400 py-6 text-center">No franchises yet.</p>
+          )}
+
+          <div className="space-y-4">
+            {localFranchises.map((f) => (
+              <div key={f.id} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+                {editingFranchiseId === f.id ? (
+                  <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={franchiseEditForm.name}
+                          onChange={(e) => setFranchiseEditForm((d) => ({ ...d, name: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Owner Email</label>
+                        <input
+                          type="email"
+                          value={franchiseEditForm.ownerEmail}
+                          onChange={(e) => setFranchiseEditForm((d) => ({ ...d, ownerEmail: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                        />
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-stone-600 mb-2">Facilities</label>
+                      <div className="flex flex-wrap gap-2">
+                        {activeFacilities.map((fac) => (
+                          <button
+                            key={fac.id}
+                            type="button"
+                            onClick={() => toggleFranchiseFacility(fac.id, franchiseEditForm.facilityIds, (ids) => setFranchiseEditForm((d) => ({ ...d, facilityIds: ids })))}
+                            className={cn(
+                              'px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors',
+                              franchiseEditForm.facilityIds.includes(fac.id)
+                                ? 'bg-[#0D7377] text-white border-[#0D7377]'
+                                : 'bg-white text-stone-600 border-stone-200 hover:border-[#0D7377]'
+                            )}
+                          >
+                            {fac.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {franchiseEditError && (
+                      <p className="text-xs text-red-600 mb-3">{franchiseEditError}</p>
+                    )}
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        onClick={() => { setEditingFranchiseId(null); setFranchiseEditError(null) }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-medium text-stone-600 hover:bg-stone-100 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSaveFranchise(f.id)}
+                        disabled={savingFranchiseId === f.id}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-50"
+                        style={{ backgroundColor: '#0D7377' }}
+                      >
+                        {savingFranchiseId === f.id ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="text-base font-bold text-stone-900">{f.name}</h3>
+                        {f.ownerEmail && (
+                          <p className="text-xs text-stone-500 mt-0.5">{f.ownerEmail}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => startEditFranchise(f)}
+                          className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                          title="Edit franchise"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        {deleteFranchiseConfirmId === f.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-stone-500">Delete?</span>
+                            <button
+                              onClick={() => handleDeleteFranchise(f.id)}
+                              disabled={deletingFranchiseId === f.id}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                              {deletingFranchiseId === f.id ? '...' : 'Yes'}
+                            </button>
+                            <button
+                              onClick={() => setDeleteFranchiseConfirmId(null)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-stone-600 hover:bg-stone-100 transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteFranchiseConfirmId(f.id)}
+                            className="p-1 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete franchise"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {f.facilities.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {f.facilities.map((fac) => (
+                          <span
+                            key={fac.id}
+                            className="px-2.5 py-1 rounded-xl text-[11px] font-medium bg-stone-100 text-stone-600"
+                          >
+                            {fac.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

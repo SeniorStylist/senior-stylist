@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, facilities } from '@/db/schema'
+import { facilityUsers, facilities, franchises } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -41,6 +41,19 @@ export default async function ProtectedLayout({
         name: fu.facility!.name,
         role: fu.role,
       }))
+
+    // For super_admin users, restrict facility switcher to their franchise only
+    const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')
+    if (hasSuperAdminRole) {
+      const franchise = await db.query.franchises.findFirst({
+        where: eq(franchises.ownerUserId, user.id),
+        with: { franchiseFacilities: true },
+      })
+      if (franchise) {
+        const franchiseFacilityIds = new Set(franchise.franchiseFacilities.map((ff) => ff.facilityId))
+        allFacilities = allFacilities.filter((f) => franchiseFacilityIds.has(f.id))
+      }
+    }
 
     // Determine active facility from cookie or first
     const cookieStore = await cookies()
