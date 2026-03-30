@@ -263,7 +263,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Booking email**: Confirmation email via Resend when creating bookings (`src/app/api/bookings/route.ts`).
 - **Residents**: CRUD, per-resident stats, `portal_token` on create, bulk insert (`/api/residents/bulk`), import UI (`papaparse` / `xlsx`).
 - **Stylists & services**: CRUD APIs and admin-navigated pages; **commission** on stylists used in reports/stylist detail.
-- **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`). **OCR import**: `POST /api/log/ocr` accepts multipart `image`, calls **Google Gemini 2.0 Flash** via `@google/generative-ai` SDK (`GEMINI_API_KEY` server-side env var), uses `inlineData: { data: base64, mimeType }` format, returns `{ data: { entries: [{ residentName, serviceName, price, stylistName, notes, unclear? }] } }`. Log client has "Scan log sheet" camera button + modal with fuzzy-matched dropdowns + "Import Selected" → POST /api/bookings.
+- **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`). **Smart OCR import**: `POST /api/log/ocr` accepts multipart `images[]` (multiple files), processes each with Gemini 2.0 Flash, extracts `{ date, stylistName, entries[] }` per sheet, returns `{ data: { sheets: [...] } }`. `POST /api/log/ocr/import` creates missing residents + services + completed bookings in one `db.transaction()`. UI: `OcrImportModal` 3-step flow (upload thumbnails → review per-sheet with duplicate detection → confirm summary).
 - **Reports**: Monthly aggregates (`/api/reports/monthly`), charts in UI (`recharts`), CSV export (`/api/export/billing` with `?month=`).
 - **Invoices**: Admin API (`/api/reports/invoice`), printable **`/invoice/[facilityId]`** page.
 - **Payments**: Facility `payment_type` includes **`facility`**, **`ip`**, **`rfms`**, **`hybrid`**; Stripe Checkout for portal (`/api/portal/[token]/checkout`), webhook marks bookings paid (`/api/webhooks/stripe`); admin bulk mark-paid (`/api/reports/mark-paid`).
@@ -322,6 +322,8 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET /api/stats` | Authenticated | Today / week / month totals |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |
+| `POST /api/log/ocr` | Authenticated | Accept `images[]`, extract `{ date, stylistName, entries[] }` per sheet via Gemini 2.0 Flash, return `{ data: { sheets } }` |
+| `POST /api/log/ocr/import` | **Admin** | Create missing residents + services + completed bookings from reviewed sheets in one `db.transaction()`; bookings spaced 30 min from 09:00 UTC |
 | `GET/POST /api/residents` | Authenticated | List/create residents (portal token on create) |
 | `GET/PUT/DELETE /api/residents/[id]` | Authenticated | Single resident |
 | `POST /api/residents/bulk` | Authenticated | Bulk insert residents (conflict skip on name+facility) |
