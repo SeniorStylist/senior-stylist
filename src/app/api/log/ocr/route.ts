@@ -36,11 +36,10 @@ Rules:
 async function callGemini(base64: string, mimeType: string, apiKey: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`
   const body = {
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
     contents: [{
       parts: [
         { inlineData: { mimeType: mimeType, data: base64 } },
-        { text: 'Extract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.' },
+        { text: SYSTEM_INSTRUCTION + '\n\nExtract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.' },
       ],
     }],
   }
