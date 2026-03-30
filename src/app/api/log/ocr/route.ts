@@ -34,7 +34,7 @@ Rules:
 - Return ONLY the JSON, no markdown, no explanation`
 
 async function callGemini(base64: string, mimeType: string, apiKey: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`
   const body = {
     contents: [{
       parts: [
