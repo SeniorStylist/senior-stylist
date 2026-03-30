@@ -136,6 +136,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`name`**, **`room_number`**, **`phone`**, **`notes`**
 - **`portal_token`**: unique text (resident portal)
 - **`default_service_id`**: optional FK → `services.id` — auto-set after 3+ completed bookings with same service; also manually settable on resident detail page
+- **`poa_name`**, **`poa_email`**, **`poa_phone`**, **`poa_payment_method`**: nullable text — Power of Attorney info. Editable on resident detail page. `poa_payment_method` one of: `cash | check | credit card | facility billing | insurance`. POA badge on resident list when `poa_name` is set.
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
 
@@ -253,7 +254,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Booking email**: Confirmation email via Resend when creating bookings (`src/app/api/bookings/route.ts`).
 - **Residents**: CRUD, per-resident stats, `portal_token` on create, bulk insert (`/api/residents/bulk`), import UI (`papaparse` / `xlsx`).
 - **Stylists & services**: CRUD APIs and admin-navigated pages; **commission** on stylists used in reports/stylist detail.
-- **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`).
+- **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`). **OCR import**: `POST /api/log/ocr` accepts multipart `image`, calls `claude-sonnet-4-6` vision API (`ANTHROPIC_API_KEY`), returns `{ data: { entries: [{ residentName, serviceName, price, stylistName, notes, unclear? }] } }`. Log client has "Scan log sheet" camera button + modal with fuzzy-matched dropdowns + "Import Selected" → POST /api/bookings.
 - **Reports**: Monthly aggregates (`/api/reports/monthly`), charts in UI (`recharts`), CSV export (`/api/export/billing` with `?month=`).
 - **Invoices**: Admin API (`/api/reports/invoice`), printable **`/invoice/[facilityId]`** page.
 - **Payments**: Facility `payment_type` includes **`facility`**, **`ip`**, **`rfms`**, **`hybrid`**; Stripe Checkout for portal (`/api/portal/[token]/checkout`), webhook marks bookings paid (`/api/webhooks/stripe`); admin bulk mark-paid (`/api/reports/mark-paid`).

@@ -236,7 +236,14 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
             >
               <div className="col-span-4 flex items-center gap-3">
                 <Avatar name={resident.name} size="sm" />
-                <span className="text-sm font-medium text-stone-900 truncate">{resident.name}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm font-medium text-stone-900 truncate">{resident.name}</span>
+                  {resident.poaName && (
+                    <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold bg-teal-50 text-teal-700">
+                      POA
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="col-span-2 text-sm text-stone-500">
                 {resident.roomNumber ? `Room ${resident.roomNumber}` : '—'}

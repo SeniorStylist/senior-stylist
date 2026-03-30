@@ -63,6 +63,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [phone, setPhone] = useState(initialResident.phone ?? '')
   const [notes, setNotes] = useState(initialResident.notes ?? '')
   const [defaultServiceId, setDefaultServiceId] = useState(initialResident.defaultServiceId ?? '')
+  const [poaName, setPoaName] = useState(initialResident.poaName ?? '')
+  const [poaEmail, setPoaEmail] = useState(initialResident.poaEmail ?? '')
+  const [poaPhone, setPoaPhone] = useState(initialResident.poaPhone ?? '')
+  const [poaPaymentMethod, setPoaPaymentMethod] = useState(initialResident.poaPaymentMethod ?? '')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -96,6 +100,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           phone: phone.trim() || undefined,
           notes: notes.trim() || undefined,
           defaultServiceId: defaultServiceId || null,
+          poaName: poaName.trim() || undefined,
+          poaEmail: poaEmail.trim() || undefined,
+          poaPhone: poaPhone.trim() || undefined,
+          poaPaymentMethod: poaPaymentMethod || undefined,
         }),
       })
       const json = await res.json()
@@ -134,6 +142,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     setPhone(resident.phone ?? '')
     setNotes(resident.notes ?? '')
     setDefaultServiceId(resident.defaultServiceId ?? '')
+    setPoaName(resident.poaName ?? '')
+    setPoaEmail(resident.poaEmail ?? '')
+    setPoaPhone(resident.poaPhone ?? '')
+    setPoaPaymentMethod(resident.poaPaymentMethod ?? '')
     setSaveError(null)
   }
 
@@ -253,6 +265,53 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     </select>
                   </div>
                 )}
+                {/* POA fields */}
+                <div className="pt-2 border-t border-stone-100">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Power of Attorney</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">POA Name</label>
+                      <input
+                        value={poaName}
+                        onChange={(e) => setPoaName(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">POA Email</label>
+                      <input
+                        type="email"
+                        value={poaEmail}
+                        onChange={(e) => setPoaEmail(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">POA Phone</label>
+                      <input
+                        type="tel"
+                        value={poaPhone}
+                        onChange={(e) => setPoaPhone(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">Preferred Payment</label>
+                      <select
+                        value={poaPaymentMethod}
+                        onChange={(e) => setPoaPaymentMethod(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] transition-all"
+                      >
+                        <option value="">Not specified</option>
+                        <option value="cash">Cash</option>
+                        <option value="check">Check</option>
+                        <option value="credit card">Credit card</option>
+                        <option value="facility billing">Facility billing</option>
+                        <option value="insurance">Insurance</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}>Cancel</Button>
                   <Button size="sm" loading={saving} onClick={handleSave} className="flex-1">Save</Button>
@@ -275,6 +334,15 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   <div>
                     <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Notes</p>
                     <p className="text-sm text-stone-700 whitespace-pre-wrap">{resident.notes}</p>
+                  </div>
+                )}
+                {(resident.poaName || resident.poaEmail || resident.poaPhone || resident.poaPaymentMethod) && (
+                  <div className="pt-2 border-t border-stone-100">
+                    <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">Power of Attorney</p>
+                    <InfoRow label="Name" value={resident.poaName ?? undefined} />
+                    <InfoRow label="Email" value={resident.poaEmail ?? undefined} />
+                    <InfoRow label="Phone" value={resident.poaPhone ?? undefined} />
+                    <InfoRow label="Payment" value={resident.poaPaymentMethod ?? undefined} />
                   </div>
                 )}
               </div>

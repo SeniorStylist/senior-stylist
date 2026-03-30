@@ -13,6 +13,10 @@ const updateSchema = z.object({
   notes: z.string().optional(),
   active: z.boolean().optional(),
   defaultServiceId: z.string().uuid().nullable().optional(),
+  poaName: z.string().optional(),
+  poaEmail: z.string().optional(),
+  poaPhone: z.string().optional(),
+  poaPaymentMethod: z.string().optional(),
 })
 
 export async function GET(

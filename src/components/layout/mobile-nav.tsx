@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 type NavRole = 'admin' | 'stylist' | 'viewer'
@@ -89,6 +90,11 @@ interface MobileNavProps {
 
 export function MobileNav({ role = 'admin' }: MobileNavProps) {
   const pathname = usePathname()
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPendingHref(null)
+  }, [pathname])
 
   const filtered = navItems.filter((item) => item.roles.includes(role as NavRole))
 
@@ -98,13 +104,16 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
       style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
     >
       {filtered.map((item) => {
-        const isActive =
-          pathname === item.href ||
-          (item.href !== '/dashboard' && pathname.startsWith(item.href))
+        const isActive = pendingHref
+          ? pendingHref === item.href
+          : pathname === item.href ||
+            (item.href !== '/dashboard' && pathname.startsWith(item.href))
         return (
           <Link
             key={item.href}
             href={item.href}
+            prefetch={true}
+            onClick={() => setPendingHref(item.href)}
             className={cn(
               'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',
               isActive ? 'text-[#0D7377]' : 'text-stone-400'

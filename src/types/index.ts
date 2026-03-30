@@ -39,6 +39,10 @@ export interface Resident {
   notes: string | null
   portalToken: string | null
   defaultServiceId: string | null
+  poaName: string | null
+  poaEmail: string | null
+  poaPhone: string | null
+  poaPaymentMethod: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

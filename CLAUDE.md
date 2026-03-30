@@ -116,6 +116,10 @@
 - Stylist dashboard filtering: page.tsx looks up `profiles.stylistId`, passes `profileStylistId` to DashboardClient. Mobile today-list filters via `todayBookings.filter(b => b.stylistId === profileStylistId)`.
 - Log inline price/notes editing: log-client.tsx has `editingBookingId` state. Edit button (pencil icon) on non-cancelled, non-finalized rows. Edit mode shows $ price input + notes textarea. Saves via PUT /api/bookings/[id] with `{ priceCents, notes }`. Stylist role: only sees edit button on own bookings (gated by `stylistFilter`). Admin: edit button on all bookings.
 - PUT /api/bookings/[id] accepts `priceCents` directly in updateSchema. Direct priceCents override takes precedence over service-change priceCents. Stylist ownership guard: stylists can only edit their own bookings (checked via profiles.stylistId match).
+- Mobile nav prefetch: `<Link prefetch={true}>` on all nav links in mobile-nav.tsx and sidebar.tsx. mobile-nav.tsx also has `pendingHref` state — set on click for immediate tab highlight, cleared on pathname change.
+- loading.tsx files exist for /dashboard, /log, /residents — use existing skeleton components from src/components/ui/skeleton.tsx.
+- OCR log import: POST /api/log/ocr accepts multipart/form-data `image` field, calls Anthropic SDK (ANTHROPIC_API_KEY env var, server-side only, NEVER NEXT_PUBLIC_), returns `{ data: { entries: [...] } }`. Model: `claude-sonnet-4-6`. Strips markdown code fences before JSON.parse. Log client has "Scan log sheet" camera button + OcrModal with fuzzy resident/stylist/service matching.
+- POA fields on residents: `poa_name`, `poa_email`, `poa_phone`, `poa_payment_method` nullable text columns. Update schema.ts + PUT /api/residents/[id] updateSchema + Resident type in src/types/index.ts. POA section in resident-detail-client.tsx (edit + display). POA badge on resident list cards.
 
 ### File Structure Conventions
 - Server components in page.tsx, client logic in [name]-client.tsx
