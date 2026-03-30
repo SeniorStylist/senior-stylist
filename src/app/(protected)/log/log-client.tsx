@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
@@ -9,6 +9,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { OcrImportModal } from './ocr-import-modal'
 
 interface LogBooking {
   id: string
@@ -158,100 +159,8 @@ export function LogClient({
   const [wiAdding, setWiAdding] = useState(false)
   const [wiError, setWiError] = useState<string | null>(null)
 
-  // OCR import
-  interface OcrEntry {
-    residentName: string
-    serviceName: string
-    price: string
-    stylistName: string
-    notes: string
-    unclear?: boolean
-    residentId: string | null
-    stylistId: string | null
-    serviceId: string | null
-    included: boolean
-  }
+  // OCR import modal
   const [ocrOpen, setOcrOpen] = useState(false)
-  const [ocrFile, setOcrFile] = useState<File | null>(null)
-  const [ocrLoading, setOcrLoading] = useState(false)
-  const [ocrEntries, setOcrEntries] = useState<OcrEntry[] | null>(null)
-  const [ocrError, setOcrError] = useState<string | null>(null)
-  const [ocrImporting, setOcrImporting] = useState(false)
-  const ocrFileRef = useRef<HTMLInputElement>(null)
-
-  function fuzzyFindResident(name: string): Resident | null {
-    const q = name.toLowerCase()
-    return residents.find(r => r.name.toLowerCase().includes(q) || q.includes(r.name.toLowerCase())) ?? null
-  }
-  function fuzzyFindStylist(name: string): Stylist | null {
-    const q = name.toLowerCase()
-    return stylists.find(s => s.name.toLowerCase().includes(q) || q.includes(s.name.toLowerCase())) ?? null
-  }
-  function fuzzyFindService(name: string): Service | null {
-    const q = name.toLowerCase()
-    return services.find(s => s.name.toLowerCase().includes(q) || q.includes(s.name.toLowerCase())) ?? null
-  }
-
-  const runOcr = async () => {
-    if (!ocrFile) return
-    setOcrLoading(true)
-    setOcrError(null)
-    try {
-      const fd = new FormData()
-      fd.append('image', ocrFile)
-      const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (!res.ok) { setOcrError(json.error ?? 'OCR failed'); return }
-      const matched: OcrEntry[] = (json.data.entries as OcrEntry[]).map((e) => {
-        const r = fuzzyFindResident(e.residentName ?? '')
-        const s = fuzzyFindStylist(e.stylistName ?? '')
-        const svc = fuzzyFindService(e.serviceName ?? '')
-        return {
-          ...e,
-          price: String(e.price ?? ''),
-          notes: e.notes ?? '',
-          residentId: r?.id ?? null,
-          stylistId: s?.id ?? null,
-          serviceId: svc?.id ?? null,
-          included: true,
-        }
-      })
-      setOcrEntries(matched)
-    } catch {
-      setOcrError('Network error')
-    } finally {
-      setOcrLoading(false)
-    }
-  }
-
-  const importOcrEntries = async () => {
-    if (!ocrEntries) return
-    setOcrImporting(true)
-    const toImport = ocrEntries.filter(e => e.included && e.residentId && e.stylistId && e.serviceId)
-    let imported = 0
-    for (const entry of toImport) {
-      try {
-        const res = await fetch('/api/bookings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            residentId: entry.residentId,
-            stylistId: entry.stylistId,
-            serviceId: entry.serviceId,
-            startTime: `${date}T09:00:00.000Z`,
-            notes: entry.notes || undefined,
-          }),
-        })
-        if (res.ok) imported++
-      } catch { /* skip failed row */ }
-    }
-    setOcrImporting(false)
-    setOcrOpen(false)
-    setOcrEntries(null)
-    setOcrFile(null)
-    toast(`${imported} booking${imported !== 1 ? 's' : ''} imported`, 'success')
-    navigateDate(date)
-  }
 
   const { toast } = useToast()
   const today = new Date().toISOString().split('T')[0]
@@ -1023,7 +932,7 @@ export function LogClient({
         <div className="fixed bottom-6 right-6 flex flex-col items-end gap-2 md:relative md:bottom-auto md:right-auto md:flex-row md:mt-2">
           {/* OCR import button */}
           <button
-            onClick={() => { setOcrOpen(true); setOcrEntries(null); setOcrFile(null); setOcrError(null) }}
+            onClick={() => setOcrOpen(true)}
             className="flex items-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-lg hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold md:flex-1 md:justify-center"
             title="Import from photo"
           >
@@ -1046,193 +955,15 @@ export function LogClient({
         </div>
       )}
 
-      {/* OCR Import Modal */}
-      {ocrOpen && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) { setOcrOpen(false) } }}
-        >
-          <div className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-2xl md:mx-4 max-h-[90vh] flex flex-col shadow-2xl">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100 shrink-0">
-              <div>
-                <h2 className="text-base font-semibold text-stone-900">Scan Log Sheet</h2>
-                <p className="text-xs text-stone-500 mt-0.5">Upload a photo and Claude will extract the appointments</p>
-              </div>
-              <button
-                onClick={() => setOcrOpen(false)}
-                className="p-2 rounded-xl hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {!ocrEntries ? (
-                <>
-                  {/* File picker */}
-                  <div
-                    className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] hover:bg-teal-50/30 transition-colors"
-                    onClick={() => ocrFileRef.current?.click()}
-                  >
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5" className="mx-auto mb-3">
-                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                      <circle cx="12" cy="13" r="4"/>
-                    </svg>
-                    <p className="text-sm font-medium text-stone-700">
-                      {ocrFile ? ocrFile.name : 'Tap to select photo'}
-                    </p>
-                    <p className="text-xs text-stone-400 mt-1">JPEG, PNG, or WEBP</p>
-                    <input
-                      ref={ocrFileRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={(e) => setOcrFile(e.target.files?.[0] ?? null)}
-                    />
-                  </div>
-                  {ocrError && <p className="text-xs text-red-600 text-center">{ocrError}</p>}
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-stone-500">{ocrEntries.length} appointment{ocrEntries.length !== 1 ? 's' : ''} found — review and select which to import:</p>
-                  <div className="space-y-3">
-                    {ocrEntries.map((entry, idx) => (
-                      <div key={idx} className={cn('rounded-2xl border p-3 space-y-2', entry.included ? 'border-stone-200 bg-white' : 'border-stone-100 bg-stone-50 opacity-60')}>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={entry.included}
-                            onChange={(e) => setOcrEntries(prev => prev!.map((r, i) => i === idx ? { ...r, included: e.target.checked } : r))}
-                            className="w-4 h-4 accent-[#0D7377]"
-                          />
-                          {entry.unclear && (
-                            <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-md font-medium">Unclear</span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* Resident */}
-                          <div>
-                            <label className="text-xs text-stone-500 block mb-0.5">Resident</label>
-                            <select
-                              value={entry.residentId ?? ''}
-                              onChange={(e) => setOcrEntries(prev => prev!.map((r, i) => i === idx ? { ...r, residentId: e.target.value || null } : r))}
-                              className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                            >
-                              <option value="">-- select --</option>
-                              {residents.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                            </select>
-                          </div>
-                          {/* Stylist */}
-                          <div>
-                            <label className="text-xs text-stone-500 block mb-0.5">Stylist</label>
-                            <select
-                              value={entry.stylistId ?? ''}
-                              onChange={(e) => setOcrEntries(prev => prev!.map((r, i) => i === idx ? { ...r, stylistId: e.target.value || null } : r))}
-                              className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                            >
-                              <option value="">-- select --</option>
-                              {stylists.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                          </div>
-                          {/* Service */}
-                          <div>
-                            <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                            <select
-                              value={entry.serviceId ?? ''}
-                              onChange={(e) => setOcrEntries(prev => prev!.map((r, i) => i === idx ? { ...r, serviceId: e.target.value || null } : r))}
-                              className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                            >
-                              <option value="">-- select --</option>
-                              {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                          </div>
-                          {/* Price */}
-                          <div>
-                            <label className="text-xs text-stone-500 block mb-0.5">Price</label>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-stone-400">$</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={entry.price}
-                                onChange={(e) => setOcrEntries(prev => prev!.map((r, i) => i === idx ? { ...r, price: e.target.value } : r))}
-                                className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        {/* Notes */}
-                        <div>
-                          <label className="text-xs text-stone-500 block mb-0.5">Notes</label>
-                          <input
-                            type="text"
-                            value={entry.notes}
-                            onChange={(e) => setOcrEntries(prev => prev!.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r))}
-                            className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-stone-100 shrink-0 flex gap-2">
-              {!ocrEntries ? (
-                <>
-                  <button
-                    onClick={() => setOcrOpen(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={runOcr}
-                    disabled={!ocrFile || ocrLoading}
-                    className="flex-1 py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-                  >
-                    {ocrLoading ? (
-                      <>
-                        <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                        Reading...
-                      </>
-                    ) : 'Read Log Sheet'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setOcrEntries(null)}
-                    className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={importOcrEntries}
-                    disabled={ocrImporting || ocrEntries.filter(e => e.included && e.residentId && e.stylistId && e.serviceId).length === 0}
-                    className="flex-1 py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-                  >
-                    {ocrImporting ? (
-                      <>
-                        <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                        Importing...
-                      </>
-                    ) : `Import ${ocrEntries.filter(e => e.included && e.residentId && e.stylistId && e.serviceId).length} Selected`}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <OcrImportModal
+        open={ocrOpen}
+        onClose={() => setOcrOpen(false)}
+        onImported={() => navigateDate(date)}
+        residents={residents}
+        stylists={stylists}
+        services={services}
+        date={date}
+      />
     </div>
     </ErrorBoundary>
   )
