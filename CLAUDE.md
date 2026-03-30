@@ -28,7 +28,9 @@
 - role 'admin' — full access to everything
 - role 'stylist' — calendar, log, own earnings only. No reports, no settings
 - role 'viewer' — read-only, no edits
-- Super admin bypasses all checks via NEXT_PUBLIC_SUPER_ADMIN_EMAIL env var
+- role 'super_admin' — franchise owner; scoped to only the facilities in their franchise (via franchises + franchise_facilities tables). Facility switcher in layout.tsx filters to franchise facilities only. Assigned via facility_users.role = 'super_admin' by master admin.
+- Super admin (master admin) bypasses all checks via NEXT_PUBLIC_SUPER_ADMIN_EMAIL env var
+- Franchise system: `franchises` table (id, name, owner_user_id → profiles). `franchise_facilities` join table (franchise_id, facility_id, CASCADE on both). When a franchise is created/updated, facilityUsers rows are upserted for the owner with role='super_admin' on all franchise facilities. API: GET/POST /api/super-admin/franchises, PUT/DELETE /api/super-admin/franchises/[id]. CRUD UI in /super-admin page Franchises section.
 - Portal routes (/portal/*) are PUBLIC — token = auth, no login required
 - Invoice routes (/invoice/*) are PUBLIC — printable pages
 
@@ -118,7 +120,7 @@
 - PUT /api/bookings/[id] accepts `priceCents` directly in updateSchema. Direct priceCents override takes precedence over service-change priceCents. Stylist ownership guard: stylists can only edit their own bookings (checked via profiles.stylistId match).
 - Mobile nav prefetch: `<Link prefetch={true}>` on all nav links in mobile-nav.tsx and sidebar.tsx. mobile-nav.tsx also has `pendingHref` state — set on click for immediate tab highlight, cleared on pathname change.
 - loading.tsx files exist for /dashboard, /log, /residents — use existing skeleton components from src/components/ui/skeleton.tsx.
-- OCR log import: POST /api/log/ocr accepts multipart/form-data `image` field, calls Anthropic SDK (ANTHROPIC_API_KEY env var, server-side only, NEVER NEXT_PUBLIC_), returns `{ data: { entries: [...] } }`. Model: `claude-sonnet-4-6`. Strips markdown code fences before JSON.parse. Log client has "Scan log sheet" camera button + OcrModal with fuzzy resident/stylist/service matching.
+- OCR log import: POST /api/log/ocr accepts multipart/form-data `image` field, calls Google Gemini 2.0 Flash via `@google/generative-ai` SDK (GEMINI_API_KEY env var, server-side only, NEVER NEXT_PUBLIC_), returns `{ data: { entries: [...] } }`. Uses `inlineData: { data: base64, mimeType }` format. Strips markdown code fences before JSON.parse. Log client has "Scan log sheet" camera button + OcrModal with fuzzy resident/stylist/service matching.
 - POA fields on residents: `poa_name`, `poa_email`, `poa_phone`, `poa_payment_method` nullable text columns. Update schema.ts + PUT /api/residents/[id] updateSchema + Resident type in src/types/index.ts. POA section in resident-detail-client.tsx (edit + display). POA badge on resident list cards.
 
 ### File Structure Conventions

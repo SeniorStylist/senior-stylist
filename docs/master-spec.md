@@ -33,13 +33,22 @@
 
 ### Types (`src/types/index.ts`)
 
-- **`UserRole`**: `'admin' | 'stylist' | 'viewer'` — used for **profile** typing.
-- **`FacilityUserRole`**: `'admin' | 'stylist'` — TypeScript type for facility-scoped roles (the **`facility_users.role`** column is plain `text` in Drizzle; the UI also recognizes **`viewer`** for navigation).
+- **`UserRole`**: `’admin’ | ‘stylist’ | ‘viewer’` — used for **profile** typing.
+- **`FacilityUserRole`**: `’admin’ | ‘stylist’` — TypeScript type for facility-scoped roles (the **`facility_users.role`** column is plain `text` in Drizzle; the UI also recognizes **`viewer`** and **`super_admin`** for navigation).
 
 ### Facility membership (`facility_users`)
 
 - Each authenticated user’s access to a facility is stored in **`facility_users`** (`user_id`, `facility_id`, **`role`**).
 - The **active facility** is chosen via the **`selected_facility_id`** cookie (`getUserFacility()` / `POST /api/facilities/select`).
+
+### Franchise system
+
+- **`franchises`** table: `id`, `name`, `owner_user_id` (FK → `profiles`), timestamps.
+- **`franchise_facilities`** join table: `franchise_id` + `facility_id` composite PK, CASCADE on both FKs.
+- When a franchise is created/updated, `facilityUsers` rows are upserted for the franchise owner with `role = ‘super_admin’` on all included facilities.
+- **`layout.tsx`** detects `super_admin` role and filters the facility switcher to only show facilities in the user’s franchise.
+- **API routes**: `GET /api/super-admin/franchises`, `POST /api/super-admin/franchises`, `PUT /api/super-admin/franchises/[id]`, `DELETE /api/super-admin/franchises/[id]` — all guarded by `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`.
+- **Master admin UI**: `/super-admin` page has a Franchises section with create, edit (inline), delete (confirm) flows.
 
 ### Navigation (primary UX contract) — `src/components/layout/sidebar.tsx`
 
@@ -254,7 +263,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Booking email**: Confirmation email via Resend when creating bookings (`src/app/api/bookings/route.ts`).
 - **Residents**: CRUD, per-resident stats, `portal_token` on create, bulk insert (`/api/residents/bulk`), import UI (`papaparse` / `xlsx`).
 - **Stylists & services**: CRUD APIs and admin-navigated pages; **commission** on stylists used in reports/stylist detail.
-- **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`). **OCR import**: `POST /api/log/ocr` accepts multipart `image`, calls `claude-sonnet-4-6` vision API (`ANTHROPIC_API_KEY`), returns `{ data: { entries: [{ residentName, serviceName, price, stylistName, notes, unclear? }] } }`. Log client has "Scan log sheet" camera button + modal with fuzzy-matched dropdowns + "Import Selected" → POST /api/bookings.
+- **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`). **OCR import**: `POST /api/log/ocr` accepts multipart `image`, calls **Google Gemini 2.0 Flash** via `@google/generative-ai` SDK (`GEMINI_API_KEY` server-side env var), uses `inlineData: { data: base64, mimeType }` format, returns `{ data: { entries: [{ residentName, serviceName, price, stylistName, notes, unclear? }] } }`. Log client has "Scan log sheet" camera button + modal with fuzzy-matched dropdowns + "Import Selected" → POST /api/bookings.
 - **Reports**: Monthly aggregates (`/api/reports/monthly`), charts in UI (`recharts`), CSV export (`/api/export/billing` with `?month=`).
 - **Invoices**: Admin API (`/api/reports/invoice`), printable **`/invoice/[facilityId]`** page.
 - **Payments**: Facility `payment_type` includes **`facility`**, **`ip`**, **`rfms`**, **`hybrid`**; Stripe Checkout for portal (`/api/portal/[token]/checkout`), webhook marks bookings paid (`/api/webhooks/stripe`); admin bulk mark-paid (`/api/reports/mark-paid`).
