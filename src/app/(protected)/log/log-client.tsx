@@ -929,22 +929,25 @@ export function LogClient({
 
       {/* Add walk-in FAB */}
       {!showWalkIn && (
-        <div className="fixed right-6 flex flex-col items-end gap-2 md:relative md:bottom-auto md:right-auto md:flex-row md:mt-2" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
+        <div
+          className="fixed left-4 right-4 flex flex-col sm:flex-row gap-2 md:relative md:left-auto md:right-auto md:bottom-auto md:flex-row md:mt-2"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
+        >
           {/* OCR import button */}
           <button
             onClick={() => setOcrOpen(true)}
-            className="flex items-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-lg hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold md:flex-1 md:justify-center"
+            className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-lg hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
             title="Import from photo"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
-            <span className="hidden md:inline">Scan log sheet</span>
+            Scan log sheet
           </button>
           <button
             onClick={() => setShowWalkIn(true)}
-            className="flex items-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 shadow-lg hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold md:flex-1 md:justify-center"
+            className="flex-1 flex items-center justify-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 shadow-lg hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
