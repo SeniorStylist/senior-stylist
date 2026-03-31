@@ -436,8 +436,8 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
       {/* ── Multi-select floating action bar ── */}
       {selectedIds.size > 0 && (
         <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl z-40 animate-in fade-in slide-in-from-bottom-3 duration-200"
-          style={{ backgroundColor: '#0D2B2E', minWidth: 'max-content' }}
+          className="fixed left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl z-40 animate-in fade-in slide-in-from-bottom-3 duration-200"
+          style={{ backgroundColor: '#0D2B2E', minWidth: 'max-content', bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
         >
           {/* Count */}
           <span className="text-sm font-semibold text-white pr-3 border-r border-white/20">

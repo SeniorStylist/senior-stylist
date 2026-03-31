@@ -929,7 +929,7 @@ export function LogClient({
 
       {/* Add walk-in FAB */}
       {!showWalkIn && (
-        <div className="fixed bottom-6 right-6 flex flex-col items-end gap-2 md:relative md:bottom-auto md:right-auto md:flex-row md:mt-2">
+        <div className="fixed right-6 flex flex-col items-end gap-2 md:relative md:bottom-auto md:right-auto md:flex-row md:mt-2" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
           {/* OCR import button */}
           <button
             onClick={() => setOcrOpen(true)}
