@@ -53,12 +53,32 @@ interface OcrImportModalProps {
   date: string
 }
 
+function normalizeWords(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+}
+
 function fuzzyMatches<T extends { name: string }>(items: T[], name: string): T[] {
   if (!name) return []
   const q = name.toLowerCase()
-  return items.filter(
-    (item) => item.name.toLowerCase().includes(q) || q.includes(item.name.toLowerCase())
-  )
+  const qWords = normalizeWords(name)
+
+  return items.filter((item) => {
+    const iName = item.name.toLowerCase()
+    // Pass 1: substring match
+    if (iName.includes(q) || q.includes(iName)) return true
+    // Pass 2: normalized word-set overlap (≥80%)
+    if (qWords.length === 0) return false
+    const iWords = normalizeWords(item.name)
+    if (iWords.length === 0) return false
+    const intersection = qWords.filter(w => iWords.includes(w))
+    const overlapRatio = intersection.length / Math.max(qWords.length, iWords.length)
+    return overlapRatio >= 0.8
+  })
 }
 
 function buildSheetState(

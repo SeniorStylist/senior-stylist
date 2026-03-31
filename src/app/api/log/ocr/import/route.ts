@@ -55,6 +55,10 @@ export async function POST(request: Request) {
     let createdServices = 0
     let createdBookings = 0
 
+    // In-memory dedup maps — prevent duplicate inserts within a single import
+    const residentMap = new Map<string, string>()
+    const serviceMap = new Map<string, string>()
+
     await db.transaction(async (tx) => {
       for (const sheet of parsed.data.sheets) {
         const includedEntries = sheet.entries.filter((e) => e.include)
@@ -64,34 +68,46 @@ export async function POST(request: Request) {
           // Resolve or create resident
           let residentId = entry.residentId
           if (!residentId) {
-            const portalToken = crypto.randomBytes(8).toString('hex')
-            const [newResident] = await tx
-              .insert(residents)
-              .values({
-                facilityId,
-                name: entry.residentName,
-                roomNumber: entry.roomNumber ?? null,
-                portalToken,
-              })
-              .returning({ id: residents.id })
-            residentId = newResident.id
-            createdResidents++
+            const key = entry.residentName.toLowerCase().trim()
+            if (residentMap.has(key)) {
+              residentId = residentMap.get(key)!
+            } else {
+              const portalToken = crypto.randomBytes(8).toString('hex')
+              const [newResident] = await tx
+                .insert(residents)
+                .values({
+                  facilityId,
+                  name: entry.residentName,
+                  roomNumber: entry.roomNumber ?? null,
+                  portalToken,
+                })
+                .returning({ id: residents.id })
+              residentId = newResident.id
+              residentMap.set(key, residentId)
+              createdResidents++
+            }
           }
 
           // Resolve or create service
           let serviceId = entry.serviceId
           if (!serviceId) {
-            const [newService] = await tx
-              .insert(services)
-              .values({
-                facilityId,
-                name: entry.serviceName,
-                priceCents: entry.priceCents ?? 0,
-                durationMinutes: 30,
-              })
-              .returning({ id: services.id })
-            serviceId = newService.id
-            createdServices++
+            const key = entry.serviceName.toLowerCase().trim()
+            if (serviceMap.has(key)) {
+              serviceId = serviceMap.get(key)!
+            } else {
+              const [newService] = await tx
+                .insert(services)
+                .values({
+                  facilityId,
+                  name: entry.serviceName,
+                  priceCents: entry.priceCents ?? 0,
+                  durationMinutes: 30,
+                })
+                .returning({ id: services.id })
+              serviceId = newService.id
+              serviceMap.set(key, serviceId)
+              createdServices++
+            }
           }
 
           // Space bookings 30 min apart from 09:00 UTC
