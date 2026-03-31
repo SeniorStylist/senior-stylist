@@ -68,7 +68,6 @@ function buildSheetState(
   services: Service[],
   fallbackDate: string
 ): SheetState {
-  // Resolve stylist from header name, or auto-select if only one stylist
   let stylistId: string | null = null
   if (raw.stylistName) {
     const matches = fuzzyMatches(stylists, raw.stylistName)
@@ -123,11 +122,12 @@ export function OcrImportModal({
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
     setStep('upload')
     setFiles([])
-    setPreviews(prev => { prev.forEach(url => URL.revokeObjectURL(url)); return [] })
+    setPreviews(prev => { prev.forEach(url => { if (url) URL.revokeObjectURL(url) }); return [] })
     setScanning(false)
     setScanError(null)
     setSheetErrors([])
@@ -146,8 +146,7 @@ export function OcrImportModal({
     if (!selected) return
     const arr = Array.from(selected)
     setFiles(arr)
-    previews.forEach(url => URL.revokeObjectURL(url))
-    // PDFs can't be previewed as images — store empty string as placeholder
+    previews.forEach(url => { if (url) URL.revokeObjectURL(url) })
     setPreviews(arr.map(f => f.type === 'application/pdf' ? '' : URL.createObjectURL(f)))
     setScanError(null)
     setSheetErrors([])
@@ -207,7 +206,6 @@ export function OcrImportModal({
     setSheets(prev => prev.map((s, si) => (si !== sheetIdx ? s : { ...s, ...updates })))
   }
 
-  // Sheets with a stylist selected
   const validSheets = sheets.filter(s => s.stylistId)
 
   const totalIncluded = validSheets.reduce(
@@ -308,7 +306,7 @@ export function OcrImportModal({
 
           {/* ── STEP 1: UPLOAD ── */}
           {step === 'upload' && (
-            <div className="px-5 py-4 space-y-4">
+            <div className="px-5 py-4 space-y-3">
               <div
                 className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] hover:bg-teal-50/30 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
@@ -328,6 +326,28 @@ export function OcrImportModal({
                   type="file"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
                   multiple
+                  className="hidden"
+                  onChange={(e) => handleFiles(e.target.files)}
+                />
+              </div>
+
+              {/* Camera button — mobile only */}
+              <div className="md:hidden">
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="w-full min-h-[44px] py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 flex items-center justify-center gap-2 hover:bg-stone-50 transition-colors"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  Take Photo
+                </button>
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
                   className="hidden"
                   onChange={(e) => handleFiles(e.target.files)}
                 />
@@ -392,8 +412,45 @@ export function OcrImportModal({
               {(() => {
                 const sheet = sheets[activeTab]
                 if (!sheet) return null
+                const sourceFile = files[sheet.imageIndex]
+                const sourcePreview = previews[sheet.imageIndex]
                 return (
                   <div className="px-5 py-4 space-y-4">
+
+                    {/* Source sheet reference image */}
+                    {sourceFile && (
+                      <details className="group">
+                        <summary className="text-xs text-stone-500 cursor-pointer select-none list-none flex items-center gap-1.5 py-1">
+                          <svg
+                            width="12" height="12" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2"
+                            className="transition-transform group-open:rotate-90 shrink-0"
+                          >
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                          Source sheet
+                        </summary>
+                        <div className="mt-2">
+                          {sourceFile.type === 'application/pdf' ? (
+                            <div className="w-16 h-16 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                              </svg>
+                              <span className="text-[9px] font-medium text-stone-500 uppercase">PDF</span>
+                            </div>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={sourcePreview}
+                              alt="Source sheet"
+                              className="max-h-48 w-auto rounded-xl border border-stone-200 object-contain"
+                            />
+                          )}
+                        </div>
+                      </details>
+                    )}
+
                     {/* Sheet header: date + stylist */}
                     <div className="flex flex-wrap gap-3 items-end">
                       <div>
@@ -402,7 +459,7 @@ export function OcrImportModal({
                           type="date"
                           value={sheet.date}
                           onChange={(e) => updateSheet(activeTab, { date: e.target.value })}
-                          className="px-3 py-1.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
                         />
                       </div>
                       <div className="flex-1 min-w-[180px]">
@@ -411,7 +468,7 @@ export function OcrImportModal({
                           value={sheet.stylistId ?? ''}
                           onChange={(e) => updateSheet(activeTab, { stylistId: e.target.value || null })}
                           className={cn(
-                            'w-full px-3 py-1.5 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]',
+                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]',
                             !sheet.stylistId ? 'border-red-300' : 'border-stone-200'
                           )}
                         >
@@ -473,7 +530,7 @@ export function OcrImportModal({
                                     {resMatches.map(r => (
                                       <button
                                         key={r.id}
-                                        onClick={() => updateEntry(activeTab, ei, { residentId: r.id })}
+                                        onClick={() => updateEntry(activeTab, ei, { residentId: r.id, residentName: r.name })}
                                         className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 font-medium transition-colors"
                                       >
                                         {r.name}
@@ -489,7 +546,7 @@ export function OcrImportModal({
                                     {svcMatches.map(s => (
                                       <button
                                         key={s.id}
-                                        onClick={() => updateEntry(activeTab, ei, { serviceId: s.id })}
+                                        onClick={() => updateEntry(activeTab, ei, { serviceId: s.id, serviceName: s.name })}
                                         className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 font-medium transition-colors"
                                       >
                                         {s.name}
@@ -499,25 +556,36 @@ export function OcrImportModal({
                                 </div>
                               )}
 
-                              {/* Fields grid */}
+                              {/* Fields grid: 2-col on all sizes */}
                               <div className="grid grid-cols-2 gap-2">
-                                {/* Resident dropdown */}
+                                {/* Resident combo input */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Resident</label>
-                                  <select
-                                    value={entry.residentId ?? ''}
-                                    onChange={(e) =>
-                                      updateEntry(activeTab, ei, { residentId: e.target.value || null })
-                                    }
-                                    className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                                  >
-                                    <option value="">
-                                      {entry.residentName ? `Create new: "${entry.residentName}"` : 'Create new…'}
-                                    </option>
+                                  <input
+                                    type="text"
+                                    list={`residents-${activeTab}-${ei}`}
+                                    value={entry.residentName}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      const matched = residents.find(
+                                        r => r.name.toLowerCase() === val.toLowerCase()
+                                      )
+                                      updateEntry(activeTab, ei, {
+                                        residentName: val,
+                                        residentId: matched?.id ?? null,
+                                      })
+                                    }}
+                                    placeholder="Type or pick…"
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                  />
+                                  <datalist id={`residents-${activeTab}-${ei}`}>
                                     {residents.map(r => (
-                                      <option key={r.id} value={r.id}>{r.name}</option>
+                                      <option key={r.id} value={r.name} />
                                     ))}
-                                  </select>
+                                  </datalist>
+                                  {!entry.residentId && entry.residentName && (
+                                    <p className="text-[10px] text-stone-400 mt-0.5">Will create new resident</p>
+                                  )}
                                 </div>
 
                                 {/* Room # — only visible when creating new resident */}
@@ -531,31 +599,41 @@ export function OcrImportModal({
                                       onChange={(e) =>
                                         updateEntry(activeTab, ei, { roomNumber: e.target.value || null })
                                       }
-                                      className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
+                                      className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
                                     />
                                   </div>
                                 ) : (
-                                  /* Spacer when room # is hidden */
                                   <div />
                                 )}
 
-                                {/* Service dropdown */}
+                                {/* Service combo input */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  <select
-                                    value={entry.serviceId ?? ''}
-                                    onChange={(e) =>
-                                      updateEntry(activeTab, ei, { serviceId: e.target.value || null })
-                                    }
-                                    className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                                  >
-                                    <option value="">
-                                      {entry.serviceName ? `Create new: "${entry.serviceName}"` : 'Create new…'}
-                                    </option>
+                                  <input
+                                    type="text"
+                                    list={`services-${activeTab}-${ei}`}
+                                    value={entry.serviceName}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      const matched = services.find(
+                                        s => s.name.toLowerCase() === val.toLowerCase()
+                                      )
+                                      updateEntry(activeTab, ei, {
+                                        serviceName: val,
+                                        serviceId: matched?.id ?? null,
+                                      })
+                                    }}
+                                    placeholder="Type or pick…"
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                  />
+                                  <datalist id={`services-${activeTab}-${ei}`}>
                                     {services.map(s => (
-                                      <option key={s.id} value={s.id}>{s.name}</option>
+                                      <option key={s.id} value={s.name} />
                                     ))}
-                                  </select>
+                                  </datalist>
+                                  {!entry.serviceId && entry.serviceName && (
+                                    <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
+                                  )}
                                 </div>
 
                                 {/* Price */}
@@ -573,7 +651,7 @@ export function OcrImportModal({
                                         priceCents: isNaN(val) ? null : Math.round(val * 100),
                                       })
                                     }}
-                                    className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
                                   />
                                 </div>
                               </div>
@@ -586,7 +664,7 @@ export function OcrImportModal({
                                   placeholder="optional"
                                   value={entry.notes ?? ''}
                                   onChange={(e) => updateEntry(activeTab, ei, { notes: e.target.value || null })}
-                                  className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
+                                  className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
                                 />
                               </div>
                             </div>
@@ -636,14 +714,14 @@ export function OcrImportModal({
             <>
               <button
                 onClick={handleClose}
-                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleScan}
                 disabled={files.length === 0 || scanning}
-                className="flex-1 py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {scanning ? (
                   <>
@@ -660,14 +738,14 @@ export function OcrImportModal({
             <>
               <button
                 onClick={() => setStep('upload')}
-                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={() => setStep('confirm')}
                 disabled={totalIncluded === 0}
-                className="flex-1 py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40"
               >
                 Review {totalIncluded} Booking{totalIncluded !== 1 ? 's' : ''}
               </button>
@@ -677,14 +755,14 @@ export function OcrImportModal({
             <>
               <button
                 onClick={() => setStep('review')}
-                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={handleImport}
                 disabled={importing || summary.bookings === 0}
-                className="flex-1 py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {importing ? (
                   <>

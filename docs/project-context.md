@@ -144,12 +144,14 @@ Tailwind CSS 4, Vercel
 - Franchise CRUD in super admin page
 
 ### In Progress / Needs Testing
-- OCR log sheet import — SDK replaced with direct REST fetch (2026-03-30)
-  Root cause: @google/generative-ai SDK hardcodes v1beta; flash models removed from v1beta
-  Fix: removed SDK entirely, now calls v1beta/models/gemini-2.0-flash:generateContent via fetch
-  45s per-file Promise.race timeout guard in place
-  maxDuration=60 + dynamic='force-dynamic' on route
-  Status: deployed, needs real-world test to confirm fix
+- OCR log sheet import — UI improvements shipped (2026-03-31)
+  Combo inputs for Resident and Service (datalist, free text + existing pick)
+  Collapsible source image in review step
+  Mobile tap targets (min-h-[44px] on all inputs)
+  "Take Photo" camera button on mobile (capture=environment)
+  Service name normalization: "w/" → "wash" in OCR route
+  Model: gemini-2.5-flash on v1beta (direct fetch, no SDK)
+  Status: deployed, needs real-world test
 
 ### Not Started
 - Symphony Manor and Sunrise Bethesda not yet created in app

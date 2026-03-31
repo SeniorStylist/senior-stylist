@@ -130,6 +130,13 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        // Normalize service name shorthand: "w/" and "w /" → "wash"
+        for (const e of parsed.entries as Array<{ serviceName?: string }>) {
+          if (e.serviceName) {
+            e.serviceName = e.serviceName.replace(/\bw\s*\//gi, 'wash')
+          }
+        }
+
         console.log(`[OCR] File ${i} parsed OK: ${(parsed.entries as unknown[]).length} entries, date=${parsed.date}`)
         sheets.push({
           imageIndex: i,
