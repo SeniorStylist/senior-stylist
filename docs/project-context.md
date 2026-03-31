@@ -116,6 +116,19 @@ Tailwind CSS 4, Vercel
 - CSV template export for bookkeepers
 - Booking confirmations to resident and POA
 
+### Phase 6 PLANNED
+- Per-stylist Google Calendar integration
+  - Add `calendar_id` column to `stylists` table
+  - Add `google_refresh_token` to `stylists` table (OAuth per stylist)
+  - OAuth flow: each stylist connects their personal Google Calendar
+    from My Account page
+  - Sync: stylist's bookings go to their personal calendar only
+  - Facility calendar continues to receive ALL bookings (unchanged)
+  - Stylist sees only their own appointments in their Google Calendar
+  - Facility rep sees all appointments in facility calendar
+  - Admin UI: show connected/disconnected status per stylist on
+    Stylists page
+
 ---
 
 ## 6. CURRENT STATUS
