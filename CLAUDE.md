@@ -62,6 +62,8 @@
 - NEVER set selectMirror=true on FullCalendar (causes squish bug)
 - NEVER make Google Calendar sync block a response — always fire-and-forget
 - NEVER use position:sticky inside overflow:auto on iOS — use flexShrink:0 footer instead
+- Safe area insets in modals: use inline `style` (not Tailwind) for `env()` values — Tailwind cannot compute them. Header: `style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)' }}`. Footer: `style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}`. Scroll areas with bottom buttons: `style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}`.
+- Lightbox pattern: `const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)`. Overlay: `fixed inset-0 z-[60] bg-black/90 flex items-center justify-center` with safe-area padding inline styles. Tap overlay to close. Image `onClick` stops propagation. ✕ button: `style={{ top: 'calc(env(safe-area-inset-top) + 16px)' }}` positioned `absolute right-4`.
 - ALWAYS call api.unselect() immediately in FullCalendar onSelect handler
 - NEVER use pdf-parse or @napi-rs/canvas on Vercel — use unpdf (no native deps)
 - PDF text from unpdf comes out as ONE blob with no newlines — never split('\n')

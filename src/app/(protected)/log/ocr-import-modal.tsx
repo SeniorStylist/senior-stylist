@@ -146,6 +146,7 @@ export function OcrImportModal({
   const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
 
   const reset = () => {
     setStep('upload')
@@ -301,7 +302,10 @@ export function OcrImportModal({
       <div className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-3xl md:mx-4 max-h-[90vh] flex flex-col shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100 shrink-0">
+        <div
+          className="flex items-center justify-between px-5 pb-4 border-b border-stone-100 shrink-0"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)' }}
+        >
           <div>
             <h2 className="text-base font-semibold text-stone-900">
               {step === 'upload' ? 'Scan Log Sheets' : step === 'review' ? 'Review Entries' : 'Confirm Import'}
@@ -329,7 +333,7 @@ export function OcrImportModal({
 
           {/* ── STEP 1: UPLOAD ── */}
           {step === 'upload' && (
-            <div className="px-5 py-4 space-y-3">
+            <div className="px-5 py-4 space-y-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
               <div
                 className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] hover:bg-teal-50/30 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
@@ -442,7 +446,7 @@ export function OcrImportModal({
 
                     {/* Source sheet reference image */}
                     {sourceFile && (
-                      <details className="group">
+                      <details className="group" open>
                         <summary className="text-xs text-stone-500 cursor-pointer select-none list-none flex items-center gap-1.5 py-1">
                           <svg
                             width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -455,20 +459,24 @@ export function OcrImportModal({
                         </summary>
                         <div className="mt-2">
                           {sourceFile.type === 'application/pdf' ? (
-                            <div className="w-16 h-16 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
+                            <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                                 <polyline points="14 2 14 8 20 8" />
                               </svg>
-                              <span className="text-[9px] font-medium text-stone-500 uppercase">PDF</span>
+                              <span className="text-xs text-stone-500">PDF — no preview available</span>
                             </div>
                           ) : (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                              src={sourcePreview}
-                              alt="Source sheet"
-                              className="max-h-48 w-auto rounded-xl border border-stone-200 object-contain"
-                            />
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={sourcePreview}
+                                alt="Source sheet"
+                                className="w-full max-h-64 rounded-xl border border-stone-200 object-contain cursor-pointer"
+                                onClick={() => setLightboxSrc(sourcePreview)}
+                              />
+                              <p className="text-[10px] text-stone-400 mt-1 text-center">Tap to expand</p>
+                            </>
                           )}
                         </div>
                       </details>
@@ -732,7 +740,10 @@ export function OcrImportModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-stone-100 shrink-0 flex gap-2">
+        <div
+          className="px-5 pt-4 border-t border-stone-100 shrink-0 flex gap-2"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+        >
           {step === 'upload' && (
             <>
               <button
@@ -800,6 +811,33 @@ export function OcrImportModal({
           )}
         </div>
       </div>
+
+      {/* Fullscreen lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+          style={{
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
+          onClick={() => setLightboxSrc(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Source sheet full view"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            className="absolute right-4 text-white text-2xl leading-none"
+            style={{ top: 'calc(env(safe-area-inset-top) + 16px)' }}
+            onClick={() => setLightboxSrc(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }
