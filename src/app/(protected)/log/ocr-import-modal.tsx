@@ -4,9 +4,6 @@ import { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Resident, Stylist, Service } from '@/types'
-import * as pdfjsLib from 'pdfjs-dist'
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-
 interface OcrRawEntry {
   residentName: string
   roomNumber: string | null
@@ -56,6 +53,8 @@ interface OcrImportModalProps {
 }
 
 async function renderPdfToDataUrl(file: File): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const page = await pdf.getPage(1)
@@ -199,8 +198,8 @@ export function OcrImportModal({
           next[i] = dataUrl
           return next
         })
-      }).catch(() => {
-        // Leave as '' — fallback icon will show
+      }).catch((err) => {
+        console.error('[PDF preview] render failed:', err)
       })
     })
   }
