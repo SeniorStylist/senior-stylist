@@ -110,6 +110,12 @@ export function DashboardClient({
   // Ref for programmatic calendar view changes
   const changeViewRef = useRef<((view: CalendarViewType) => void) | null>(null)
 
+  // Refs for custom calendar nav controls
+  const prevRef = useRef<(() => void) | null>(null)
+  const nextRef = useRef<(() => void) | null>(null)
+  const todayRef = useRef<(() => void) | null>(null)
+  const [calendarTitle, setCalendarTitle] = useState('')
+
   // Ref for QuickBook FAB imperative control
   const fabRef = useRef<QuickBookFABHandle>(null)
 
@@ -370,17 +376,65 @@ export function DashboardClient({
             </a>
           </div>
         )}
-        {/* Header */}
-        <div className="flex items-center justify-between shrink-0">
+        {/* Row 1 — Facility name + view switcher */}
+        <div className="flex items-center justify-between shrink-0 mb-2">
           <h1
-            className="text-base md:text-lg font-bold text-stone-900"
+            className="text-lg font-bold text-stone-900 truncate"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             {facility.name}
           </h1>
-          <div className="flex items-center gap-2">
-            {/* Export billing */}
-            {isAdmin && (
+          <div className="flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1 shrink-0">
+            {(['timeGridDay', 'timeGridWeek', 'dayGridMonth'] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => switchView(view)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-95',
+                  calendarView === view
+                    ? 'bg-[#0D7377] text-white'
+                    : 'text-stone-600 hover:bg-stone-100'
+                )}
+              >
+                {view === 'timeGridDay' ? 'Day' : view === 'timeGridWeek' ? 'Week' : 'Month'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2 — Month nav + Export */}
+        <div className="flex items-center justify-between shrink-0 mb-3">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => prevRef.current?.()}
+              className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500 transition-colors"
+              aria-label="Previous"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <span className="text-sm font-semibold text-stone-700 min-w-[120px] text-center">
+              {calendarTitle}
+            </span>
+            <button
+              onClick={() => nextRef.current?.()}
+              className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500 transition-colors"
+              aria-label="Next"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+            <button
+              onClick={() => todayRef.current?.()}
+              className="ml-1 px-2.5 py-1 text-xs font-semibold rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-100 transition-colors"
+            >
+              Today
+            </button>
+          </div>
+          {/* Export billing — admin only, desktop only */}
+          {isAdmin && (
             <div className="hidden md:flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
               <input
                 type="month"
@@ -402,24 +456,7 @@ export function DashboardClient({
                 {exporting ? 'Exporting…' : 'Export'}
               </button>
             </div>
-            )}
-          <div className="flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
-            {(['timeGridDay', 'timeGridWeek', 'dayGridMonth'] as const).map((view) => (
-              <button
-                key={view}
-                onClick={() => switchView(view)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-95',
-                  calendarView === view
-                    ? 'bg-[#0D7377] text-white'
-                    : 'text-stone-600 hover:bg-stone-100'
-                )}
-              >
-                {view === 'timeGridDay' ? 'Day' : view === 'timeGridWeek' ? 'Week' : 'Month'}
-              </button>
-            ))}
-          </div>
-          </div>
+          )}
         </div>
 
         {/* Calendar card */}
@@ -428,6 +465,10 @@ export function DashboardClient({
             bookings={bookings}
             currentView={calendarView}
             onChangeViewRef={changeViewRef}
+            onPrevRef={prevRef}
+            onNextRef={nextRef}
+            onTodayRef={todayRef}
+            onTitleChange={setCalendarTitle}
             onDatesSet={fetchBookings}
             onSelectSlot={openCreateModal}
             onEventClick={openEditModal}

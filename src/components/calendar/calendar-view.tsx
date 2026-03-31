@@ -27,6 +27,10 @@ interface CalendarViewProps {
   bookings: BookingForCalendar[]
   currentView: CalendarViewType
   onChangeViewRef: React.MutableRefObject<((view: CalendarViewType) => void) | null>
+  onPrevRef: React.MutableRefObject<(() => void) | null>
+  onNextRef: React.MutableRefObject<(() => void) | null>
+  onTodayRef: React.MutableRefObject<(() => void) | null>
+  onTitleChange: (title: string) => void
   onDatesSet: (start: Date, end: Date) => void
   onSelectSlot: (start: Date, end: Date) => void
   onEventClick: (bookingId: string) => void
@@ -36,17 +40,24 @@ export default function CalendarView({
   bookings,
   currentView,
   onChangeViewRef,
+  onPrevRef,
+  onNextRef,
+  onTodayRef,
+  onTitleChange,
   onDatesSet,
   onSelectSlot,
   onEventClick,
 }: CalendarViewProps) {
   const fcRef = useRef<FullCalendar>(null)
 
-  // Expose changeView to parent via ref
+  // Expose changeView + nav to parent via refs
   useEffect(() => {
     onChangeViewRef.current = (view: CalendarViewType) => {
       fcRef.current?.getApi().changeView(view)
     }
+    onPrevRef.current = () => { fcRef.current?.getApi().prev() }
+    onNextRef.current = () => { fcRef.current?.getApi().next() }
+    onTodayRef.current = () => { fcRef.current?.getApi().today() }
   })
 
   const events = bookings
@@ -79,14 +90,11 @@ export default function CalendarView({
         slotMaxTime="21:00:00"
         slotDuration="00:30:00"
         slotLabelInterval="01:00:00"
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: '',
-        }}
+        headerToolbar={false}
         events={events}
         datesSet={(dateInfo) => {
           onDatesSet(dateInfo.start, dateInfo.end)
+          onTitleChange(fcRef.current?.getApi().view.title ?? '')
         }}
         select={(arg) => {
           fcRef.current?.getApi().unselect()
