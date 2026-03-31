@@ -4,6 +4,8 @@ import { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Resident, Stylist, Service } from '@/types'
+import * as pdfjsLib from 'pdfjs-dist'
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 interface OcrRawEntry {
   residentName: string
@@ -51,6 +53,19 @@ interface OcrImportModalProps {
   stylists: Stylist[]
   services: Service[]
   date: string
+}
+
+async function renderPdfToDataUrl(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const page = await pdf.getPage(1)
+  const viewport = page.getViewport({ scale: 1.5 })
+  const canvas = document.createElement('canvas')
+  canvas.width = viewport.width
+  canvas.height = viewport.height
+  const ctx = canvas.getContext('2d')!
+  await page.render({ canvasContext: ctx, canvas, viewport }).promise
+  return canvas.toDataURL('image/jpeg', 0.85)
 }
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
@@ -171,9 +186,23 @@ export function OcrImportModal({
     const arr = Array.from(selected)
     setFiles(arr)
     previews.forEach(url => { if (url) URL.revokeObjectURL(url) })
-    setPreviews(arr.map(f => f.type === 'application/pdf' ? '' : URL.createObjectURL(f)))
+    const initial = arr.map(f => f.type === 'application/pdf' ? '' : URL.createObjectURL(f))
+    setPreviews(initial)
     setScanError(null)
     setSheetErrors([])
+    // Async: render PDF first pages into data URLs
+    arr.forEach((f, i) => {
+      if (f.type !== 'application/pdf') return
+      renderPdfToDataUrl(f).then(dataUrl => {
+        setPreviews(prev => {
+          const next = [...prev]
+          next[i] = dataUrl
+          return next
+        })
+      }).catch(() => {
+        // Leave as '' — fallback icon will show
+      })
+    })
   }
 
   const removeFile = (i: number) => {
@@ -384,7 +413,10 @@ export function OcrImportModal({
                 <div className="flex flex-wrap gap-2">
                   {files.map((file, i) => (
                     <div key={i} className="relative">
-                      {file.type === 'application/pdf' ? (
+                      {previews[i] ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={previews[i]} alt={`Sheet ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
+                      ) : (
                         <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -394,9 +426,6 @@ export function OcrImportModal({
                           </svg>
                           <span className="text-[9px] font-medium text-stone-500 uppercase">PDF</span>
                         </div>
-                      ) : (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={previews[i]} alt={`Sheet ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
                       )}
                       <button
                         onClick={() => removeFile(i)}
@@ -458,15 +487,7 @@ export function OcrImportModal({
                           Source sheet
                         </summary>
                         <div className="mt-2">
-                          {sourceFile.type === 'application/pdf' ? (
-                            <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-2">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                              </svg>
-                              <span className="text-xs text-stone-500">PDF — no preview available</span>
-                            </div>
-                          ) : (
+                          {sourcePreview ? (
                             <>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -477,6 +498,14 @@ export function OcrImportModal({
                               />
                               <p className="text-[10px] text-stone-400 mt-1 text-center">Tap to expand</p>
                             </>
+                          ) : (
+                            <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                              </svg>
+                              <span className="text-xs text-stone-500">PDF — no preview available</span>
+                            </div>
                           )}
                         </div>
                       </details>
