@@ -53,12 +53,15 @@ interface OcrImportModalProps {
   date: string
 }
 
+const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
+
 function normalizeWords(s: string): string[] {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
+    .map(w => WORD_EXPANSIONS[w] ?? w)
     .sort()
 }
 
