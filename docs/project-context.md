@@ -144,14 +144,14 @@ Tailwind CSS 4, Vercel
 - Franchise CRUD in super admin page
 
 ### In Progress / Needs Testing
-- OCR log sheet import — UI improvements shipped (2026-03-31)
-  Combo inputs for Resident and Service (datalist, free text + existing pick)
-  Collapsible source image in review step
-  Mobile tap targets (min-h-[44px] on all inputs)
-  "Take Photo" camera button on mobile (capture=environment)
-  Service name normalization: "w/" → "wash" in OCR route
-  Model: gemini-2.5-flash on v1beta (direct fetch, no SDK)
-  Status: deployed, needs real-world test
+- OCR log sheet import — full stack shipped (2026-04-01)
+  Gemini 2.5 Flash, PDF preview via pdfjs-dist, safe area insets,
+  source image lightbox, dedup via fuzzy match against DB records,
+  WORD_EXPANSIONS normalization. Needs real-world test with Symphony Manor.
+- Resident deduplication — shipped (2026-04-01)
+  GET /api/residents/duplicates (fuzzy score >= 0.6), POST /api/residents/merge
+  (bookings reassigned, merged resident soft-deleted), MergeDuplicatesModal
+  with Keep A/B + editable name/room + localStorage dismissed pairs.
 
 ### Not Started
 - Symphony Manor and Sunrise Bethesda not yet created in app
@@ -163,12 +163,13 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-OCR fix is deployed (2026-03-30). Next step: test PDF upload on live site.
-If still failing, check Vercel function logs for `[OCR]` lines to see
-exactly where it fails (timeout vs API key vs Gemini error).
+Resident merge and OCR dedup both deployed (2026-04-01). Next steps:
+1. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
+2. Test OCR import with a real handwritten log sheet from Symphony Manor
+3. Verify PDF preview works (check DevTools for [PDF preview] error logs)
+4. Run "Find Duplicates" after first OCR import to clean up any dupes
 
-Next planned work: Phase 4 cross-facility reporting, or onboard
-Symphony Manor + Sunrise Bethesda real facilities.
+Next planned work: Phase 4 cross-facility reporting.
 
 ---
 

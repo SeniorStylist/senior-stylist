@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
@@ -11,6 +11,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { MergeDuplicatesModal } from './merge-duplicates-modal'
 
 interface ResidentWithStats extends Resident {
   lastVisit: string | null
@@ -20,9 +21,10 @@ interface ResidentWithStats extends Resident {
 
 interface ResidentsPageClientProps {
   residents: ResidentWithStats[]
+  facilityId: string
 }
 
-export function ResidentsPageClient({ residents: initialResidents }: ResidentsPageClientProps) {
+export function ResidentsPageClient({ residents: initialResidents, facilityId }: ResidentsPageClientProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [residents, setResidents] = useState(initialResidents)
@@ -37,6 +39,30 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
   const [phone, setPhone] = useState('')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [showMerge, setShowMerge] = useState(false)
+  const [dupeCount, setDupeCount] = useState(0)
+
+  // Fetch duplicate count on mount (fire-and-forget)
+  useEffect(() => {
+    fetch('/api/residents/duplicates')
+      .then(r => r.json())
+      .then(json => {
+        const pairs: unknown[] = json.data?.pairs ?? []
+        // Filter out dismissed pairs from localStorage
+        try {
+          const raw = localStorage.getItem(`dismissed-duplicate-pairs-${facilityId}`)
+          const dismissed: string[] = raw ? JSON.parse(raw) : []
+          setDupeCount(pairs.length - dismissed.length)
+        } catch {
+          setDupeCount(pairs.length)
+        }
+      })
+      .catch(() => {})
+  }, [facilityId])
+
+  const handleDupeCountChange = useCallback((count: number) => {
+    setDupeCount(Math.max(0, count))
+  }, [])
 
   const filtered = residents.filter(
     (r) =>
@@ -109,6 +135,22 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowMerge(true)}
+            className="relative flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+            title="Find duplicate residents"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="8" cy="12" r="4" />
+              <circle cx="16" cy="12" r="4" />
+            </svg>
+            Duplicates
+            {dupeCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {dupeCount > 9 ? '9+' : dupeCount}
+              </span>
+            )}
+          </button>
           <Link
             href="/residents/import"
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
@@ -264,6 +306,13 @@ export function ResidentsPageClient({ residents: initialResidents }: ResidentsPa
         </div>
       )}
     </div>
+    <MergeDuplicatesModal
+      open={showMerge}
+      onClose={() => setShowMerge(false)}
+      onMerged={() => router.refresh()}
+      facilityId={facilityId}
+      onCountChange={handleDupeCountChange}
+    />
     </ErrorBoundary>
   )
 }

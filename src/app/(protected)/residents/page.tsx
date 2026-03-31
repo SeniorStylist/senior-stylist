@@ -69,6 +69,7 @@ export default async function ResidentsPage() {
   return (
     <ResidentsPageClient
       residents={JSON.parse(JSON.stringify(residentsWithStats))}
+      facilityId={facilityUser.facilityId}
     />
   )
   } catch (err) {
