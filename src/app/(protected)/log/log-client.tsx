@@ -402,7 +402,7 @@ export function LogClient({
   return (
     <ErrorBoundary>
     <div
-      className="p-4 md:p-6 max-w-3xl mx-auto"
+      className="p-4 md:p-6 max-w-3xl mx-auto pb-40 md:pb-0"
       {...pullHandlers}
     >
       {/* Header */}
@@ -927,16 +927,15 @@ export function LogClient({
       </div>
       )}{/* end body wrapper */}
 
-      {/* Add walk-in FAB */}
+      {/* Mobile footer bar — pinned above nav bar */}
       {!showWalkIn && (
         <div
-          className="fixed left-4 right-4 flex flex-col sm:flex-row gap-2 md:relative md:left-auto md:right-auto md:bottom-auto md:flex-row md:mt-2"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
+          className="md:hidden fixed left-0 right-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
+          style={{ bottom: '72px', paddingTop: '8px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
         >
-          {/* OCR import button */}
           <button
             onClick={() => setOcrOpen(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-lg hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
+            className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
             title="Import from photo"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -947,7 +946,34 @@ export function LogClient({
           </button>
           <button
             onClick={() => setShowWalkIn(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 shadow-lg hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold"
+            className="flex-1 flex items-center justify-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add walk-in
+          </button>
+        </div>
+      )}
+
+      {/* Desktop inline buttons */}
+      {!showWalkIn && (
+        <div className="hidden md:flex gap-2 mt-4">
+          <button
+            onClick={() => setOcrOpen(true)}
+            className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-sm hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
+            title="Import from photo"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Scan log sheet
+          </button>
+          <button
+            onClick={() => setShowWalkIn(true)}
+            className="flex-1 flex items-center justify-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
