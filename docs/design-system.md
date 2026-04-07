@@ -552,6 +552,19 @@ Used in the `/super-admin` page to switch between Facilities, Franchises, Reques
 - Each tab wraps its section content in `{activeTab === 'tab' && <...>}` — no animation needed
 - Badge counts (e.g. `Requests (3)`) inline in the button label when `count > 0`
 
+### Invite Accept Page (`/invite/accept`)
+
+Self-contained auth page for unauthenticated invitees. Server + client component split.
+
+- Same card pattern as login page: `bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center`
+- Logo + DM Serif Display heading: "Join [Facility Name]"
+- Subtitle: "You've been invited as a [role]"
+- Primary action: email input (pre-filled with invite email) + teal "Send magic link" button
+- Divider: `flex items-center gap-3` with `h-px bg-stone-200` lines and "or" text
+- Secondary: Google OAuth button (same style as login page)
+- "Check your email" state: teal checkmark icon in `#e6faf9` background, "Use a different email" ghost button
+- Mobile-first layout with `px-4` page padding
+
 ### Access Request Form (`/unauthorized`)
 
 Public page for users who have no facility access. Collects name + role only — no facility picker.

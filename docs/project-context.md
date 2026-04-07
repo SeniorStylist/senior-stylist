@@ -139,7 +139,12 @@ Tailwind CSS 4, Vercel
 ## 6. CURRENT STATUS
 
 ### Working
-- Full auth flow: invite → accept → correct facility + role
+- Full auth flow: invite → accept → correct facility + role (fixed 2026-04-07)
+- Invite emails now send from noreply@seniorstylist.com (domain verified)
+- Invite accept works for unauthenticated users: magic link + Google OAuth on same page
+- Login redirect preservation: middleware passes ?redirect= through OAuth callback
+- Resend invite button in Settings → Invites tab
+- Expired/pending badges on invite list
 - Stylist role: correct nav, correct restrictions, log filtering
 - Admin role: full access to their facility
 - Master admin: /super-admin, franchise management, all facilities
@@ -168,14 +173,14 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 4 cross-facility reporting shipped (2026-04-01). Next steps:
-1. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
-2. Test OCR import with a real handwritten log sheet from Symphony Manor
-3. Verify PDF preview works (check DevTools for [PDF preview] error logs)
-4. Run "Find Duplicates" after first OCR import to clean up any dupes
-5. Test Reports tab in /super-admin with real facility data once onboarded
+Invite auth flow fixed (2026-04-07). Email from address updated, redirect chain fixed, magic link auth added. Next steps:
+1. Verify DNS propagation for seniorstylist.com (DKIM, SPF, MX, DMARC) — check Resend dashboard
+2. Send a real invite to a test email and verify delivery
+3. Test full invite flow: click link → magic link auth → lands at /my-account?welcome=1
+4. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
+5. Test OCR import with a real handwritten log sheet from Symphony Manor
 
-Next planned work: Phase 5 resident portal POA booking.
+Next planned work: Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md).
 
 ---
 

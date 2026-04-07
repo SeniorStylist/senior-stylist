@@ -100,7 +100,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 ### Special cases
 
 - **`NEXT_PUBLIC_SUPER_ADMIN_EMAIL`**: if the signed-in user’s email matches, middleware skips the “must have `facility_users` or pending invite” check (`src/middleware.ts`).
-- **`invite/accept`**: public route for redeeming invites (see `src/app/invite/accept/page.tsx`).
+- **`invite/accept`**: public route for redeeming invites (see `src/app/invite/accept/page.tsx`). Server component validates token; if authenticated, redeems immediately. If NOT authenticated, renders `InviteAcceptClient` — a self-contained auth page offering magic link (OTP) and Google OAuth. Token preserved through auth via `emailRedirectTo` / `redirectTo` → `/auth/callback?next=/invite/accept?token=X`.
 - **`getSuperAdminFacilities(userId, userEmail)`** (`src/lib/get-super-admin-facilities.ts`): role-aware scope helper used by all `/api/super-admin/reports/*` routes. If `userEmail === NEXT_PUBLIC_SUPER_ADMIN_EMAIL`, returns all active facility IDs. Otherwise returns only facility IDs from the user’s franchise(s) via `franchise_facilities` join.
 
 ---
@@ -341,8 +341,9 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings (incl. `stripePublishableKey`, `stripeSecretKey`) |
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |
 | `POST /api/facilities/select` | Authenticated | Set `selected_facility_id` cookie |
-| `POST/GET /api/invites` | **Admin** | Create invite; list invites. POST fires invite email via `sendEmail()` (facility name, role, accept link) |
+| `POST/GET /api/invites` | **Admin** | Create invite; list invites. POST fires invite email via `sendEmail()` with branded HTML template (`buildInviteEmailHtml`). From: `noreply@seniorstylist.com` |
 | `DELETE /api/invites/[id]` | **Admin** | Revoke unused invite |
+| `POST /api/invites/[id]/resend` | **Admin** | Re-send invite email for unused, non-expired invites. Uses same branded template. |
 | `GET /api/reports/monthly` | Authenticated | Monthly report payload |
 | `GET /api/reports/invoice` | **Admin** | Completed bookings + payment status for invoice UI |
 | `POST /api/reports/mark-paid` | **Admin** | Mark completed unpaid bookings paid for a month (or all) |
