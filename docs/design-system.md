@@ -522,6 +522,36 @@ Dashboard shows an amber banner when there are pending access requests assigned 
 - Links to Settings → Requests tab
 - Admin-only (not shown to stylists/viewers)
 
+### Tab Navigation (Segmented Control)
+
+Used in the `/super-admin` page to switch between Facilities, Franchises, Requests, and Reports sections.
+
+```tsx
+// Container
+<div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1 mb-6">
+  {tabs.map((tab) => (
+    <button
+      key={tab}
+      onClick={() => setActiveTab(tab)}
+      className={cn(
+        'flex-1 py-1.5 text-xs font-semibold rounded-lg capitalize transition-all',
+        activeTab === tab
+          ? 'bg-[#0D7377] text-white'
+          : 'text-stone-600 hover:bg-stone-100'
+      )}
+    >
+      {tab}
+    </button>
+  ))}
+</div>
+```
+
+- Container: `bg-white rounded-xl border border-stone-200 p-1`
+- Active pill: `bg-[#0D7377] text-white rounded-lg`
+- Inactive: `text-stone-600 hover:bg-stone-100 rounded-lg`
+- Each tab wraps its section content in `{activeTab === 'tab' && <...>}` — no animation needed
+- Badge counts (e.g. `Requests (3)`) inline in the button label when `count > 0`
+
 ### Access Request Form (`/unauthorized`)
 
 Public page for users who have no facility access. Collects name + role only — no facility picker.

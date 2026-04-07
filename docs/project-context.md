@@ -104,11 +104,16 @@ Tailwind CSS 4, Vercel
 - Smart OCR: multi-sheet upload, auto-creates residents/services/bookings,
   duplicate detection, extracts date and stylist from sheet header
 
-### Phase 4 PLANNED
-- Cross-facility reporting
-- Multi-facility revenue dashboard QuickBooks-style
-- Outstanding balance view across facilities
-- Facility grouping for custom reports
+### Phase 4 COMPLETE
+- Cross-facility reporting shipped (2026-04-01)
+- `getSuperAdminFacilities()` helper — role-aware scope (master admin = all, super_admin = franchise)
+- `/api/super-admin/reports/monthly` — per-facility revenue aggregates, 5-min cache
+- `/api/super-admin/reports/outstanding` — all unpaid completed bookings across facilities
+- `/api/super-admin/reports/mark-paid` — bulk or individual mark-paid with facility auth check
+- `/api/super-admin/export/billing` — cross-facility CSV with Facility column + subtotals
+- `ReportsTab` component — month picker, bar chart (Recharts), per-facility cards, outstanding balances with checkboxes
+- `/super-admin` page upgraded to 4-tab layout: Facilities / Franchises / Requests / Reports
+- Booking mutations (`POST`, `PUT`, `DELETE /api/bookings/*`) now call `revalidateTag('bookings', {})` for cache invalidation
 
 ### Phase 5 PLANNED
 - Resident portal enhancements
@@ -142,6 +147,7 @@ Tailwind CSS 4, Vercel
 - POA fields on residents
 - Mobile speed improvements: prefetch, skeletons, instant tab highlight
 - Franchise CRUD in super admin page
+- Cross-facility reporting (Phase 4): Reports tab in /super-admin with revenue chart, outstanding balances, mark-paid, CSV export
 
 ### In Progress / Needs Testing
 - OCR log sheet import — full stack shipped (2026-04-01)
@@ -156,20 +162,20 @@ Tailwind CSS 4, Vercel
 ### Not Started
 - Symphony Manor and Sunrise Bethesda not yet created in app
 - Real stylists Sierra, Mariah Owens, Senait Edwards not yet invited
-- Phase 4 cross-facility reporting
 - Phase 5 resident portal POA booking
 
 ---
 
 ## 7. IMMEDIATE NEXT FIX
 
-Resident merge and OCR dedup both deployed (2026-04-01). Next steps:
+Phase 4 cross-facility reporting shipped (2026-04-01). Next steps:
 1. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
 2. Test OCR import with a real handwritten log sheet from Symphony Manor
 3. Verify PDF preview works (check DevTools for [PDF preview] error logs)
 4. Run "Find Duplicates" after first OCR import to clean up any dupes
+5. Test Reports tab in /super-admin with real facility data once onboarded
 
-Next planned work: Phase 4 cross-facility reporting.
+Next planned work: Phase 5 resident portal POA booking.
 
 ---
 
@@ -198,6 +204,10 @@ Next planned work: Phase 4 cross-facility reporting.
 9. All DB queries scoped to facilityId via getUserFacility().
 
 10. Next.js 16 async params — always { params: Promise<{id: string}> }.
+
+11. `revalidateTag` in Next.js 16 takes TWO args — `revalidateTag('bookings', {})` not `revalidateTag('bookings')`.
+
+12. Super-admin reports use `unstable_cache` with `tags: ['bookings']` and `revalidate: 300`. Cache key must include sorted facilityIds + month/year.
 
 ---
 

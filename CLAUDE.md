@@ -74,6 +74,8 @@
 - PDF category headers (e.g. "Color", "Perms & Relaxers") appear as no-price text chunks — when hasPrice is false and the chunk is not garbage (length >= 3, not starting with *, not "Price"), treat it as the new currentCategory.
 - React does NOT support indeterminate as a JSX prop — set via callback ref: ref={(el) => { if (el) el.indeterminate = ... }}
 - Drizzle inArray() throws on empty array — always guard with .min(1) in Zod schema
+- `revalidateTag` in Next.js 16 requires TWO arguments: `revalidateTag('tag', {})` — the second arg is a `CacheLifeConfig` object; passing an empty object `{}` satisfies the type. Single-arg form causes a TS error. Applies to all booking mutation routes.
+- `unstable_cache` pattern for super-admin cross-facility reports: wrap the DB fetcher in `unstable_cache(fetcher, [cacheKey], { revalidate: 300, tags: ['bookings'] })`. Cache key must include the sorted facilityIds and the month/year so different admins/months get separate cache entries. Always call the returned function (it returns a Promise). Booking mutations call `revalidateTag('bookings', {})` to invalidate these.
 - Floating action bars should use z-40 (not z-50) so they don't cover the mobile nav
 - PWA icons: use `src/app/icon.tsx` + `apple-icon.tsx` with ImageResponse from `next/og` — never use @napi-rs/canvas
 - Recurring bookings: self-referential FK `recurringParentId` in schema requires `(): AnyPgColumn => bookings.id` pattern
