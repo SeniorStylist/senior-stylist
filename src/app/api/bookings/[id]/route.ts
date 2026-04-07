@@ -10,6 +10,7 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
 } from '@/lib/google-calendar/sync'
+import { revalidateTag } from 'next/cache'
 
 const updateSchema = z.object({
   residentId: z.string().uuid().optional(),
@@ -309,6 +310,7 @@ export async function PUT(
       },
     })
 
+    revalidateTag('bookings', {})
     return Response.json({ data })
   } catch (err) {
     console.error('PUT /api/bookings/[id] error:', err)
@@ -363,6 +365,7 @@ export async function DELETE(
         .where(eq(bookings.id, id))
     }
 
+    revalidateTag('bookings', {})
     return Response.json({ data: cancelled })
   } catch (err) {
     console.error('DELETE /api/bookings/[id] error:', err)

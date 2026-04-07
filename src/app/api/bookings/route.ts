@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
 import { Resend } from 'resend'
+import { revalidateTag } from 'next/cache'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -237,6 +238,7 @@ export async function POST(request: NextRequest) {
       console.error('Confirmation email failed (non-fatal):', emailErr)
     }
 
+    revalidateTag('bookings', {})
     return Response.json({ data }, { status: 201 })
   } catch (err) {
     console.error('POST /api/bookings error:', err)

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { ReportsTab } from './reports-tab'
 
 interface FacilityInfo {
   id: string
@@ -64,6 +65,10 @@ const PAYMENT_TYPES = [
 
 export function SuperAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises }: SuperAdminClientProps) {
   const router = useRouter()
+
+  // Active tab
+  type TabId = 'facilities' | 'franchises' | 'requests' | 'reports'
+  const [activeTab, setActiveTab] = useState<TabId>('facilities')
 
   // Local list so we can remove deleted facilities immediately
   const [localFacilities, setLocalFacilities] = useState(facilities)
@@ -379,36 +384,68 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1
-              className="text-2xl font-bold text-stone-900"
-              style={{ fontFamily: "'DM Serif Display', serif" }}
-            >
-              Super Admin
-            </h1>
-            <p className="text-sm text-stone-500 mt-1">
-              {localFacilities.length} {localFacilities.length === 1 ? 'facility' : 'facilities'} total
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {inactiveCount > 0 && (
-              <button
-                onClick={() => setShowInactive((v) => !v)}
-                className="px-3 py-2 rounded-2xl text-sm font-medium text-stone-500 border border-stone-200 hover:bg-stone-50 transition-colors"
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1
+                className="text-2xl font-bold text-stone-900"
+                style={{ fontFamily: "'DM Serif Display', serif" }}
               >
-                {showInactive ? 'Hide inactive' : `Show inactive (${inactiveCount})`}
+                Super Admin
+              </h1>
+              <p className="text-sm text-stone-500 mt-1">
+                {localFacilities.length} {localFacilities.length === 1 ? 'facility' : 'facilities'} total
+              </p>
+            </div>
+            {activeTab === 'facilities' && (
+              <div className="flex items-center gap-2">
+                {inactiveCount > 0 && (
+                  <button
+                    onClick={() => setShowInactive((v) => !v)}
+                    className="px-3 py-2 rounded-2xl text-sm font-medium text-stone-500 border border-stone-200 hover:bg-stone-50 transition-colors"
+                  >
+                    {showInactive ? 'Hide inactive' : `Show inactive (${inactiveCount})`}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
+                  className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
+                  style={{ backgroundColor: '#0D7377' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                >
+                  {showCreateForm ? 'Cancel' : '+ Create Facility'}
+                </button>
+              </div>
+            )}
+            {activeTab === 'franchises' && (
+              <button
+                onClick={() => { setShowCreateFranchise((v) => !v); setFranchiseFormError(null) }}
+                className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
+                style={{ backgroundColor: '#0D7377' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+              >
+                {showCreateFranchise ? 'Cancel' : '+ New Franchise'}
               </button>
             )}
-            <button
-              onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
-              className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-              style={{ backgroundColor: '#0D7377' }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
-            >
-              {showCreateForm ? 'Cancel' : '+ Create Facility'}
-            </button>
+          </div>
+          {/* Tab bar */}
+          <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1">
+            {(['facilities', 'franchises', 'requests', 'reports'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  'flex-1 py-1.5 text-xs font-semibold rounded-lg capitalize transition-all duration-150',
+                  activeTab === tab ? 'bg-[#0D7377] text-white' : 'text-stone-600 hover:bg-stone-100'
+                )}
+              >
+                {tab === 'requests' && requestsList.length > 0
+                  ? `Requests (${requestsList.length})`
+                  : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -493,7 +530,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
         )}
 
         {/* Pending Access Requests */}
-        {requestsList.length > 0 && (
+        {activeTab === 'requests' && requestsList.length > 0 && (
           <div className="mb-8">
             <h2
               className="text-lg font-bold text-stone-900 mb-4"
@@ -585,6 +622,10 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
           </div>
         )}
 
+        {activeTab === 'requests' && requestsList.length === 0 && (
+          <div className="text-center py-16 text-sm text-stone-400">No pending access requests</div>
+        )}
+
         {/* Toast */}
         {requestToast && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm font-medium px-5 py-2.5 rounded-2xl shadow-xl z-50">
@@ -592,6 +633,10 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
           </div>
         )}
 
+        {activeTab === 'reports' && <ReportsTab />}
+
+        {activeTab === 'facilities' && (
+        <>
         {/* Delete error banner (appears above grid if delete blocked by bookings) */}
         {deleteError && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
@@ -860,26 +905,13 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
             </p>
           </div>
         )}
+        </>
+        )}
 
-        {/* Franchises Section */}
-        <div className="mt-12">
-          <div className="flex items-center justify-between mb-4">
-            <h2
-              className="text-lg font-bold text-stone-900"
-              style={{ fontFamily: "'DM Serif Display', serif" }}
-            >
-              Franchises
-            </h2>
-            <button
-              onClick={() => { setShowCreateFranchise((v) => !v); setFranchiseFormError(null) }}
-              className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-              style={{ backgroundColor: '#0D7377' }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
-            >
-              {showCreateFranchise ? 'Cancel' : '+ New Franchise'}
-            </button>
-          </div>
+        {activeTab === 'franchises' && (
+        <div className="mt-4">
+          {/* Franchises Section */}
+          <div className="mt-0">
 
           {showCreateFranchise && (
             <form
@@ -1091,7 +1123,10 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
               </div>
             ))}
           </div>
+          </div>
         </div>
+        )}
+
       </div>
     </div>
   )
