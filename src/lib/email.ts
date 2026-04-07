@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM = 'Senior Stylist <onboarding@resend.dev>'
+const FROM = 'Senior Stylist <noreply@seniorstylist.com>'
 
 export async function sendEmail({
   to,
@@ -14,8 +14,9 @@ export async function sendEmail({
 }) {
   if (!process.env.RESEND_API_KEY) return
   try {
-    await resend.emails.send({ from: FROM, to, subject, html })
+    const result = await resend.emails.send({ from: FROM, to, subject, html })
+    console.log('[sendEmail] sent:', { to, messageId: result.data?.id })
   } catch (err) {
-    console.error('[sendEmail] failed:', err)
+    console.error('[sendEmail] failed:', { to, error: err })
   }
 }

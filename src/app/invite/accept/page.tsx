@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
+import { invites, facilityUsers, profiles, stylists, facilities } from '@/db/schema'
 import { eq, and, ilike } from 'drizzle-orm'
+import { InviteAcceptClient } from './invite-accept-client'
 
 interface Props {
   searchParams: Promise<{ token?: string }>
@@ -64,10 +65,21 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`)
+    // Not authenticated — show the client-side auth UI
+    const facility = await db.query.facilities.findFirst({
+      where: eq(facilities.id, invite.facilityId),
+    })
+    return (
+      <InviteAcceptClient
+        token={token!}
+        facilityName={facility?.name ?? 'Senior Stylist'}
+        inviteRole={invite.inviteRole || 'stylist'}
+        inviteEmail={invite.email}
+      />
+    )
   }
 
-  // Valid — upsert profile, add facilityUser, mark invite used
+  // Valid & authenticated — upsert profile, add facilityUser, mark invite used
   await db
     .insert(profiles)
     .values({

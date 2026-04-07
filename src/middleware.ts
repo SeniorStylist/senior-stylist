@@ -44,7 +44,12 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
+    const originalPath = pathname + request.nextUrl.search
     url.pathname = '/login'
+    url.search = ''
+    if (originalPath && originalPath !== '/') {
+      url.searchParams.set('redirect', originalPath)
+    }
     return NextResponse.redirect(url)
   }
 

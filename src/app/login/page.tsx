@@ -2,17 +2,26 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
-export default function LoginPage() {
+function LoginForm() {
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get('redirect')
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+  const callbackUrl = redirect
+    ? `${appUrl}/auth/callback?next=${encodeURIComponent(redirect)}`
+    : `${appUrl}/auth/callback`
 
   const signInWithGoogle = async () => {
     setLoading(true)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+        redirectTo: callbackUrl,
       },
     })
   }
@@ -69,5 +78,28 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ backgroundColor: '#0D2B2E' }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#14D9C4" opacity="0.3"/>
+              <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#14D9C4"/>
+              <path d="M14 11a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="#0D2B2E"/>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold" style={{ fontFamily: "'DM Serif Display', serif", color: 'var(--color-text)' }}>
+            Senior Stylist
+          </h1>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

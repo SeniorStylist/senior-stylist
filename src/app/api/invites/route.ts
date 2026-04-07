@@ -64,15 +64,13 @@ export async function POST(request: NextRequest) {
     // Send invite email (fire-and-forget)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
     const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
+    const facilityName = facility?.name ?? 'Senior Stylist'
+    const role = inviteRole || 'stylist'
+    const acceptUrl = `${appUrl}/invite/accept?token=${token}`
     sendEmail({
       to: email,
-      subject: "You're invited to Senior Stylist",
-      html: `
-        <p>You've been invited to join <strong>${facility?.name ?? 'Senior Stylist'}</strong> as a <strong>${inviteRole || 'stylist'}</strong>.</p>
-        <p><a href="${appUrl}/invite/accept?token=${token}">Accept your invitation</a></p>
-        <p>This link expires in 7 days.</p>
-        <p style="color:#999;font-size:12px;">If you weren't expecting this, you can ignore this email.</p>
-      `,
+      subject: `You're invited to join ${facilityName}`,
+      html: buildInviteEmailHtml({ facilityName, role, acceptUrl }),
     })
 
     return Response.json({ data: invite }, { status: 201 })
@@ -112,4 +110,48 @@ export async function GET(_request: NextRequest) {
     console.error('GET /api/invites error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+export function buildInviteEmailHtml({
+  facilityName,
+  role,
+  acceptUrl,
+}: {
+  facilityName: string
+  role: string
+  acceptUrl: string
+}): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#0D7377;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">You're Invited</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;color:#1C1917;font-size:15px;line-height:1.6;">
+        You've been invited to join <strong>${facilityName}</strong> as a <strong>${role}</strong> on Senior Stylist.
+      </p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${acceptUrl}" style="display:inline-block;background:#0D7377;color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:12px;">
+          Accept Invitation
+        </a>
+      </div>
+      <p style="margin:20px 0 0;color:#78716C;font-size:13px;line-height:1.5;">
+        This link expires in 7 days. If the button doesn't work, copy and paste this URL into your browser:
+      </p>
+      <p style="margin:8px 0 0;color:#0D7377;font-size:12px;word-break:break-all;">
+        ${acceptUrl}
+      </p>
+      <hr style="border:none;border-top:1px solid #F5F5F4;margin:24px 0;" />
+      <p style="margin:0;color:#A8A29E;font-size:12px;">
+        If you weren't expecting this invitation, you can safely ignore this email.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim()
 }

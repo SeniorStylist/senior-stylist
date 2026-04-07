@@ -209,6 +209,8 @@ export function SettingsClient({
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null)
 
   // Access requests
   const [requestsList, setRequestsList] = useState<AccessRequestData[]>([])
@@ -313,6 +315,20 @@ export function SettingsClient({
       }
     } finally {
       setRevokingId(null)
+    }
+  }
+
+  const handleResendInvite = async (id: string) => {
+    setResendingId(id)
+    setResendSuccess(null)
+    try {
+      const res = await fetch(`/api/invites/${id}/resend`, { method: 'POST' })
+      if (res.ok) {
+        setResendSuccess(id)
+        setTimeout(() => setResendSuccess(null), 3000)
+      }
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -737,7 +753,9 @@ export function SettingsClient({
             <div>
               <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Pending</p>
               <div className="rounded-2xl border border-stone-100 overflow-hidden">
-                {invitesList.filter((i) => !i.used).map((invite, idx) => (
+                {invitesList.filter((i) => !i.used).map((invite, idx) => {
+                  const isExpired = new Date(invite.expiresAt) < new Date()
+                  return (
                   <div
                     key={invite.id}
                     className={cn('flex items-center gap-3 px-4 py-3', idx > 0 && 'border-t border-stone-100')}
@@ -757,13 +775,27 @@ export function SettingsClient({
                         >
                           {invite.inviteRole || 'stylist'}
                         </span>
+                        {isExpired && (
+                          <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                            Expired
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-stone-400">
                         Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                         {' · '}
-                        Expires {new Date(invite.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {isExpired ? 'Expired' : 'Expires'} {new Date(invite.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
                     </div>
+                    {!isExpired && (
+                      <button
+                        onClick={() => handleResendInvite(invite.id)}
+                        disabled={resendingId === invite.id}
+                        className="text-xs text-[#0D7377] hover:text-[#0a5f63] font-medium px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors disabled:opacity-40"
+                      >
+                        {resendingId === invite.id ? 'Sending…' : resendSuccess === invite.id ? 'Sent!' : 'Resend'}
+                      </button>
+                    )}
                     <button
                       onClick={() => copyInviteLink(invite.token)}
                       className="text-xs text-stone-400 hover:text-stone-600 font-medium px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors"
@@ -778,7 +810,8 @@ export function SettingsClient({
                       {revokingId === invite.id ? 'Revoking…' : 'Revoke'}
                     </button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
