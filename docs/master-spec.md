@@ -160,6 +160,10 @@ Many other authenticated routes only require a valid **facility user** and **do 
 
 - **`facility_id`** → `facilities`
 - **`name`**, **`description`**, **`price_cents`**, **`duration_minutes`** (default 30), **`color`**, **`active`**, timestamps
+- **`pricing_type`**: text, NOT NULL, default `'fixed'` — one of `fixed` \| `addon` \| `tiered` \| `multi_option`
+- **`addon_amount_cents`**: integer, nullable — add-on surcharge for `addon` type
+- **`pricing_tiers`**: jsonb, nullable — array of `{ minQty, maxQty, unitPriceCents }` for `tiered` type
+- **`pricing_options`**: jsonb, nullable — array of `{ name, priceCents }` for `multi_option` type
 
 ### `bookings`
 
@@ -173,8 +177,13 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`recurring_rule`**: `text` (`weekly` \| `biweekly` \| `monthly`)
 - **`recurring_end_date`**: `date`
 - **`recurring_parent_id`**: optional FK → `bookings.id` (self-referential)
+- **`selected_quantity`**: integer, nullable — quantity chosen for `tiered` bookings
+- **`selected_option`**: text, nullable — option name chosen for `multi_option` bookings
+- **`addon_service_ids`**: text[], nullable — reserved for future addon tracking
+- **`addon_total_cents`**: integer, nullable — sum of add-on surcharges included in `price_cents`
 - **`google_event_id`** (unique), **`sync_error`**
 - Timestamps
+- **`price_cents` is ALWAYS the final fully-resolved total** including add-ons, tier calculation, or option price — never a partial amount
 
 ### `invites`
 
@@ -318,8 +327,8 @@ CREATE POLICY "service_role_all" ON <table>
 
 | Route | Role / auth | Purpose |
 |-------|-------------|---------|
-| `GET/POST /api/bookings` | Authenticated | List/create bookings (query `start`/`end`); sends confirmation email on create |
-| `POST /api/bookings/recurring` | Authenticated | Create parent + child recurring bookings; returns `{ parentId, count }` |
+| `GET/POST /api/bookings` | Authenticated | List/create bookings (query `start`/`end`); sends confirmation email on create. POST accepts optional `selectedQuantity`, `selectedOption`, `addonChecked` for flexible pricing — server resolves final price via `resolvePrice()` |
+| `POST /api/bookings/recurring` | Authenticated | Create parent + child recurring bookings; returns `{ parentId, count }`. Accepts same pricing fields as POST /api/bookings |
 | `GET/PUT/DELETE /api/bookings/[id]` | Authenticated | Single booking; updates sync Google Calendar when configured; supports `payment_status` |
 | `POST /api/bookings/sync` | Authenticated | Push unsynced scheduled bookings to Google Calendar |
 | `GET /api/stats` | Authenticated | Today / week / month totals |
@@ -332,11 +341,11 @@ CREATE POLICY "service_role_all" ON <table>
 | `POST /api/residents/bulk` | Authenticated | Bulk insert residents (conflict skip on name+facility) |
 | `GET/POST /api/stylists` | Authenticated | List/create stylists |
 | `GET/PUT/DELETE /api/stylists/[id]` | Authenticated | Single stylist |
-| `GET/POST /api/services` | Authenticated | List/create services |
-| `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service |
+| `GET/POST /api/services` | Authenticated | List/create services. POST accepts `pricingType`, `addonAmountCents`, `pricingTiers`, `pricingOptions` with `.refine()` validation |
+| `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service. PUT accepts same pricing fields as POST |
 | `POST /api/services/bulk` | Authenticated | Bulk insert services (conflict skip on name+facility) |
 | `POST /api/services/bulk-update` | Authenticated | Bulk update `color` or `active` for a set of service IDs scoped to facility |
-| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet; alternating-chunks algorithm; returns `name, priceCents, durationMinutes, category, color` |
+| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet; alternating-chunks algorithm; returns `name, priceCents, durationMinutes, category, color, pricingType, addonAmountCents, pricingTiers, pricingOptions`. Detects addon ("add $X to service amount"), tiered ("X-Y $Z ea. N or more $W ea."), and multi_option ("-or-" patterns) |
 | `PUT /api/profile` | Authenticated | Update `stylist_id` on own profile (used by My Account link-stylist selector) |
 | `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings (incl. `stripePublishableKey`, `stripeSecretKey`) |
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |

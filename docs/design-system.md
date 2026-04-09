@@ -166,6 +166,24 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 `StatusBadge` maps booking statuses (`confirmed`, `completed`, `cancelled`, `no_show`, `pending`) to badge variants automatically.
 
+**Pricing type badges** (inline, not using Badge component):
+- `text-[10px] font-medium text-stone-400 uppercase tracking-wide` on services list (subtle)
+- `text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md` on import preview:
+  - Addon: `bg-amber-50 text-amber-700`
+  - Tiered: `bg-purple-50 text-purple-700`
+  - Options: `bg-blue-50 text-blue-700`
+
+**Pricing UI in booking modal:**
+- Addon: checkbox below service select — `"Add-on (+$10.00)"` with `bg-stone-50 border rounded-xl` styling
+- Tiered: number input labeled "Quantity" with live price calculation
+- Multi-option: `<select>` dropdown showing `"OptionName — $XX.00"` per option, pre-selects first
+- Price display uses `resolvePrice()` from `src/lib/pricing.ts` for real-time preview
+
+**Pricing UI in services page:**
+- Pricing type `<select>` dropdown in add/edit forms (Fixed / Add-on / Tiered / Multiple Options)
+- Conditional fields: addon amount input, dynamic tier rows (min–max × price), dynamic option rows (name + price)
+- Price column shows `formatPricingLabel()` output — range for multi_option, "+addon" for addon, "/unit" for tiered
+
 ### Avatar (`src/components/ui/avatar.tsx`)
 
 Initials-only (no image upload). Renders up to 2 initials from the name.
@@ -457,9 +475,13 @@ Stylist role shows calendar + log only. No conditional rendering based on `role 
 | `facility_id` | uuid | FK, required — all queries scoped here |
 | `name` | text | required |
 | `description` | text | optional |
-| `price_cents` | integer | required, no floats |
+| `price_cents` | integer | required, no floats — for multi_option type, set to first option's price as fallback |
 | `duration_minutes` | integer | default 30 |
 | `color` | text | hex color, optional |
+| `pricing_type` | text | NOT NULL, default `'fixed'` — `fixed` \| `addon` \| `tiered` \| `multi_option` |
+| `addon_amount_cents` | integer | nullable — surcharge amount for addon type |
+| `pricing_tiers` | jsonb | nullable — `[{ minQty, maxQty, unitPriceCents }]` for tiered type |
+| `pricing_options` | jsonb | nullable — `[{ name, priceCents }]` for multi_option type |
 | `active` | boolean | soft delete flag |
 
 ---
