@@ -49,7 +49,16 @@ function parsePriceCents(raw: string): number {
   return isNaN(n) ? 0 : Math.round(n * 100)
 }
 
-type ServiceRow = { name: string; priceCents: number; durationMinutes: number; include: boolean }
+type ServiceRow = {
+  name: string
+  priceCents: number
+  durationMinutes: number
+  include: boolean
+  pricingType?: string
+  addonAmountCents?: number | null
+  pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
+  pricingOptions?: Array<{ name: string; priceCents: number }> | null
+}
 type ResidentRow = { name: string; roomNumber?: string; include: boolean }
 
 function findKey(keys: string[], targets: string[]): string | undefined {
@@ -66,11 +75,15 @@ async function parseServiceFile(file: File): Promise<ServiceRow[]> {
     const res = await fetch('/api/services/parse-pdf', { method: 'POST', body: fd })
     if (!res.ok) throw new Error('Failed to parse PDF')
     const json = await res.json()
-    return (json.data ?? []).map((r: { name: string; priceCents: number; durationMinutes: number }) => ({
+    return (json.data ?? []).map((r: { name: string; priceCents: number; durationMinutes: number; pricingType?: string; addonAmountCents?: number | null; pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null; pricingOptions?: Array<{ name: string; priceCents: number }> | null }) => ({
       name: r.name,
       priceCents: r.priceCents,
       durationMinutes: r.durationMinutes ?? 30,
       include: true,
+      pricingType: r.pricingType,
+      addonAmountCents: r.addonAmountCents,
+      pricingTiers: r.pricingTiers,
+      pricingOptions: r.pricingOptions,
     }))
   }
 
@@ -706,8 +719,17 @@ export default function OnboardingClient() {
                                 className="shrink-0"
                               />
                               <span className="flex-1 truncate text-sm text-stone-800">{row.name}</span>
+                              {row.pricingType && row.pricingType !== 'fixed' && (
+                                <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md shrink-0 ${
+                                  row.pricingType === 'addon' ? 'bg-amber-50 text-amber-700' :
+                                  row.pricingType === 'tiered' ? 'bg-purple-50 text-purple-700' :
+                                  'bg-blue-50 text-blue-700'
+                                }`}>
+                                  {row.pricingType === 'addon' ? 'add-on' : row.pricingType === 'tiered' ? 'tiered' : 'options'}
+                                </span>
+                              )}
                               <span className="text-sm text-stone-500 shrink-0">
-                                ${(row.priceCents / 100).toFixed(2)}
+                                {row.pricingType === 'addon' ? `+$${((row.addonAmountCents ?? 0) / 100).toFixed(2)}` : `$${(row.priceCents / 100).toFixed(2)}`}
                               </span>
                             </div>
                           ))}

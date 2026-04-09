@@ -6,13 +6,33 @@ import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
+const pricingTierSchema = z.object({
+  minQty: z.number().int().min(1),
+  maxQty: z.number().int().min(1),
+  unitPriceCents: z.number().int().min(0),
+})
+
+const pricingOptionSchema = z.object({
+  name: z.string().min(1),
+  priceCents: z.number().int().min(0),
+})
+
 const createSchema = z.object({
   name: z.string().min(1),
-  priceCents: z.number().int().positive(),
+  priceCents: z.number().int().min(0),
   durationMinutes: z.number().int().positive(),
   description: z.string().optional(),
   color: z.string().optional(),
-})
+  pricingType: z.enum(['fixed', 'addon', 'tiered', 'multi_option']).default('fixed'),
+  addonAmountCents: z.number().int().min(0).nullable().optional(),
+  pricingTiers: z.array(pricingTierSchema).nullable().optional(),
+  pricingOptions: z.array(pricingOptionSchema).nullable().optional(),
+}).refine((data) => {
+  if (data.pricingType === 'addon' && !data.addonAmountCents) return false
+  if (data.pricingType === 'tiered' && (!data.pricingTiers || data.pricingTiers.length === 0)) return false
+  if (data.pricingType === 'multi_option' && (!data.pricingOptions || data.pricingOptions.length === 0)) return false
+  return true
+}, { message: 'Missing pricing data for selected pricing type' })
 
 export async function GET() {
   try {
@@ -56,7 +76,10 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const { name, priceCents, durationMinutes, description, color } = parsed.data
+    const {
+      name, priceCents, durationMinutes, description, color,
+      pricingType, addonAmountCents, pricingTiers, pricingOptions,
+    } = parsed.data
 
     const [created] = await db
       .insert(services)
@@ -67,6 +90,10 @@ export async function POST(request: NextRequest) {
         durationMinutes,
         description: description ?? null,
         color: color ?? null,
+        pricingType,
+        addonAmountCents: addonAmountCents ?? null,
+        pricingTiers: pricingTiers ?? null,
+        pricingOptions: pricingOptions ?? null,
       })
       .returning()
 

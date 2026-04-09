@@ -6,6 +6,7 @@ import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { formatCents } from '@/lib/utils'
+import { resolvePrice, formatPricingLabel } from '@/lib/pricing'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Resident, Stylist, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
@@ -62,6 +63,9 @@ export function BookingModal({
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurringRule, setRecurringRule] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly')
   const [recurringEndDate, setRecurringEndDate] = useState('')
+  const [addonChecked, setAddonChecked] = useState(false)
+  const [selectedQuantity, setSelectedQuantity] = useState(1)
+  const [selectedOptionName, setSelectedOptionName] = useState('')
 
   const residentInputRef = useRef<HTMLInputElement>(null)
 
@@ -101,6 +105,9 @@ export function BookingModal({
     setResidentDropdownOpen(false)
     setIsRecurring(false)
     setRecurringRule('weekly')
+    setAddonChecked(false)
+    setSelectedQuantity(1)
+    setSelectedOptionName('')
     // Default recurring end date = 3 months from now
     const threeMonths = new Date()
     threeMonths.setMonth(threeMonths.getMonth() + 3)
@@ -115,6 +122,26 @@ export function BookingModal({
       setSelectedServiceId(resident.defaultServiceId)
     }
   }, [selectedResidentId, mode, residents])
+
+  // Reset pricing inputs when service changes
+  useEffect(() => {
+    setAddonChecked(false)
+    setSelectedQuantity(1)
+    if (selectedService?.pricingType === 'multi_option' && selectedService.pricingOptions?.length) {
+      setSelectedOptionName(selectedService.pricingOptions[0].name)
+    } else {
+      setSelectedOptionName('')
+    }
+  }, [selectedServiceId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Compute resolved price for display
+  const resolvedPrice = selectedService
+    ? resolvePrice(selectedService, {
+        quantity: selectedQuantity,
+        selectedOption: selectedOptionName,
+        includeAddon: addonChecked,
+      })
+    : null
 
   // Cmd+Enter to submit
   useEffect(() => {
@@ -138,6 +165,12 @@ export function BookingModal({
     try {
       const isCreatingRecurring = mode === 'create' && isRecurring && isAdmin
 
+      const pricingFields = {
+        ...(selectedService?.pricingType === 'addon' ? { addonChecked } : {}),
+        ...(selectedService?.pricingType === 'tiered' ? { selectedQuantity } : {}),
+        ...(selectedService?.pricingType === 'multi_option' ? { selectedOption: selectedOptionName } : {}),
+      }
+
       const payload = isCreatingRecurring
         ? {
             residentId: selectedResidentId,
@@ -147,6 +180,7 @@ export function BookingModal({
             notes: notes || undefined,
             recurringRule,
             recurringEndDate,
+            ...pricingFields,
           }
         : {
             residentId: selectedResidentId,
@@ -154,6 +188,7 @@ export function BookingModal({
             stylistId: selectedStylistId,
             startTime: new Date(startTime).toISOString(),
             notes: notes || undefined,
+            ...pricingFields,
           }
 
       const url = isCreatingRecurring
@@ -380,10 +415,63 @@ export function BookingModal({
           <option value="">Select a service</option>
           {services.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name} — {formatCents(s.priceCents)} · {s.durationMinutes}min
+              {s.name} — {formatPricingLabel(s)} · {s.durationMinutes}min
             </option>
           ))}
         </Select>
+
+        {/* Pricing inputs — conditional on service type */}
+        {selectedService?.pricingType === 'addon' && (
+          <label className="flex items-center gap-2.5 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-stone-100 transition-colors">
+            <input
+              type="checkbox"
+              checked={addonChecked}
+              onChange={(e) => setAddonChecked(e.target.checked)}
+              disabled={submitting}
+              className="rounded accent-[#0D7377] w-4 h-4"
+            />
+            <span className="text-sm text-stone-700">
+              Add-on (+{formatCents(selectedService.addonAmountCents ?? 0)})
+            </span>
+          </label>
+        )}
+
+        {selectedService?.pricingType === 'tiered' && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              Quantity
+            </label>
+            <input
+              type="number"
+              value={selectedQuantity}
+              onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              min={1}
+              max={selectedService.pricingTiers?.[selectedService.pricingTiers.length - 1]?.maxQty}
+              disabled={submitting}
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60"
+            />
+          </div>
+        )}
+
+        {selectedService?.pricingType === 'multi_option' && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              Option
+            </label>
+            <select
+              value={selectedOptionName}
+              onChange={(e) => setSelectedOptionName(e.target.value)}
+              disabled={submitting}
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60"
+            >
+              {selectedService.pricingOptions?.map((opt) => (
+                <option key={opt.name} value={opt.name}>
+                  {opt.name} — {formatCents(opt.priceCents)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Price & Duration auto-fill */}
         {selectedService && (
@@ -393,7 +481,7 @@ export function BookingModal({
                 Price
               </label>
               <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-teal-800">
-                {formatCents(selectedService.priceCents)}
+                {formatCents(resolvedPrice?.priceCents ?? selectedService.priceCents)}
               </div>
             </div>
             <div className="flex flex-col gap-1.5">

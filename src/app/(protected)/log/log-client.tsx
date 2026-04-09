@@ -20,6 +20,9 @@ interface LogBooking {
   cancellationReason: string | null
   priceCents: number | null
   notes: string | null
+  selectedQuantity: number | null
+  selectedOption: string | null
+  addonTotalCents: number | null
   resident: Resident
   stylist: Stylist
   service: Service
@@ -781,6 +784,15 @@ export function LogClient({
                             <p className="text-xs text-stone-500 mt-0.5">
                               {formatTime(booking.startTime)} · {booking.service.name} ·{' '}
                               {formatCents(booking.priceCents ?? booking.service.priceCents)}
+                              {booking.selectedOption && (
+                                <span className="text-stone-400"> ({booking.selectedOption})</span>
+                              )}
+                              {booking.addonTotalCents && booking.addonTotalCents > 0 && (
+                                <span className="text-stone-400"> (incl. {formatCents(booking.addonTotalCents)} add-on)</span>
+                              )}
+                              {booking.selectedQuantity && booking.selectedQuantity > 1 && (
+                                <span className="text-stone-400"> ({booking.selectedQuantity} units)</span>
+                              )}
                             </p>
                             {booking.notes === 'Walk-in' && (
                               <span className="inline-block mt-0.5 text-xs font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">

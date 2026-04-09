@@ -11,6 +11,7 @@ import {
   deleteCalendarEvent,
 } from '@/lib/google-calendar/sync'
 import { revalidateTag } from 'next/cache'
+import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 
 const updateSchema = z.object({
   residentId: z.string().uuid().optional(),
@@ -23,6 +24,9 @@ const updateSchema = z.object({
   paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional(),
   cancellationReason: z.string().optional(),
   cancelFuture: z.boolean().optional(),
+  selectedQuantity: z.number().int().min(1).optional(),
+  selectedOption: z.string().optional(),
+  addonChecked: z.boolean().optional(),
 })
 
 export async function GET(
@@ -162,6 +166,7 @@ export async function PUT(
     // If serviceId changes, fetch new service for price/duration snapshots
     let priceCents: number | undefined
     let durationMinutes: number | undefined
+    let addonTotalCents: number | null | undefined
 
     if (updates.serviceId && updates.serviceId !== existing.serviceId) {
       const service = await db.query.services.findFirst({
@@ -171,8 +176,21 @@ export async function PUT(
         ),
       })
       if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
-      priceCents = service.priceCents
       durationMinutes = service.durationMinutes
+
+      // Resolve pricing for the new service
+      const priceInput = {
+        quantity: updates.selectedQuantity,
+        selectedOption: updates.selectedOption,
+        includeAddon: updates.addonChecked,
+      }
+      const priceError = validatePricingInput(service, priceInput)
+      if (priceError) {
+        return Response.json({ error: priceError }, { status: 422 })
+      }
+      const resolved = resolvePrice(service, priceInput)
+      priceCents = resolved.priceCents
+      addonTotalCents = resolved.addonTotalCents
     }
 
     // Recalculate endTime if startTime or service changed
@@ -227,6 +245,9 @@ export async function PUT(
     if (updates.status !== undefined) setPayload.status = updates.status
     if (updates.paymentStatus !== undefined) setPayload.paymentStatus = updates.paymentStatus
     if (updates.cancellationReason !== undefined) setPayload.cancellationReason = updates.cancellationReason
+    if (updates.selectedQuantity !== undefined) setPayload.selectedQuantity = updates.selectedQuantity
+    if (updates.selectedOption !== undefined) setPayload.selectedOption = updates.selectedOption
+    if (addonTotalCents !== undefined) setPayload.addonTotalCents = addonTotalCents
 
     const [updated] = await db
       .update(bookings)

@@ -1,3 +1,16 @@
+export type PricingType = 'fixed' | 'addon' | 'tiered' | 'multi_option'
+
+export interface PricingTier {
+  minQty: number
+  maxQty: number
+  unitPriceCents: number
+}
+
+export interface PricingOption {
+  name: string
+  priceCents: number
+}
+
 export type UserRole = 'admin' | 'stylist' | 'viewer'
 export type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 export type FacilityUserRole = 'admin' | 'stylist' | 'viewer'
@@ -67,6 +80,10 @@ export interface Service {
   priceCents: number
   durationMinutes: number
   color: string | null
+  pricingType: PricingType
+  addonAmountCents: number | null
+  pricingTiers: PricingTier[] | null
+  pricingOptions: PricingOption[] | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -83,6 +100,10 @@ export interface Booking {
   priceCents: number | null
   durationMinutes: number | null
   notes: string | null
+  selectedQuantity: number | null
+  selectedOption: string | null
+  addonServiceIds: string[] | null
+  addonTotalCents: number | null
   status: BookingStatus
   paymentStatus: string
   cancellationReason: string | null

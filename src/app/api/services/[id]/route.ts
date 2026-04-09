@@ -6,13 +6,28 @@ import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
+const pricingTierSchema = z.object({
+  minQty: z.number().int().min(1),
+  maxQty: z.number().int().min(1),
+  unitPriceCents: z.number().int().min(0),
+})
+
+const pricingOptionSchema = z.object({
+  name: z.string().min(1),
+  priceCents: z.number().int().min(0),
+})
+
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
-  priceCents: z.number().int().positive().optional(),
+  priceCents: z.number().int().min(0).optional(),
   durationMinutes: z.number().int().positive().optional(),
   description: z.string().optional(),
   color: z.string().optional(),
   active: z.boolean().optional(),
+  pricingType: z.enum(['fixed', 'addon', 'tiered', 'multi_option']).optional(),
+  addonAmountCents: z.number().int().min(0).nullable().optional(),
+  pricingTiers: z.array(pricingTierSchema).nullable().optional(),
+  pricingOptions: z.array(pricingOptionSchema).nullable().optional(),
 })
 
 export async function GET(

@@ -9,6 +9,7 @@ import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
 import { Resend } from 'resend'
 import { revalidateTag } from 'next/cache'
+import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -16,6 +17,9 @@ const createSchema = z.object({
   serviceId: z.string().uuid(),
   startTime: z.string().datetime(),
   notes: z.string().optional(),
+  selectedQuantity: z.number().int().min(1).optional(),
+  selectedOption: z.string().optional(),
+  addonChecked: z.boolean().optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -98,6 +102,18 @@ export async function POST(request: NextRequest) {
     })
     if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
 
+    // Resolve pricing
+    const priceInput = {
+      quantity: parsed.data.selectedQuantity,
+      selectedOption: parsed.data.selectedOption,
+      includeAddon: parsed.data.addonChecked,
+    }
+    const priceError = validatePricingInput(service, priceInput)
+    if (priceError) {
+      return Response.json({ error: priceError }, { status: 422 })
+    }
+    const { priceCents: resolvedPrice, addonTotalCents } = resolvePrice(service, priceInput)
+
     const startTime = new Date(startTimeStr)
     const endTime = new Date(startTime.getTime() + service.durationMinutes * 60000)
 
@@ -132,9 +148,12 @@ export async function POST(request: NextRequest) {
         serviceId,
         startTime,
         endTime,
-        priceCents: service.priceCents,
+        priceCents: resolvedPrice,
         durationMinutes: service.durationMinutes,
         notes: notes ?? null,
+        selectedQuantity: parsed.data.selectedQuantity ?? null,
+        selectedOption: parsed.data.selectedOption ?? null,
+        addonTotalCents,
         status: 'scheduled',
       })
       .returning()
@@ -200,8 +219,8 @@ export async function POST(request: NextRequest) {
           minute: '2-digit',
           hour12: true,
         })
-        const priceStr = service.priceCents
-          ? `$${(service.priceCents / 100).toFixed(2)}`
+        const priceStr = resolvedPrice
+          ? `$${(resolvedPrice / 100).toFixed(2)}`
           : 'N/A'
 
         await resend.emails.send({

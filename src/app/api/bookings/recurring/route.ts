@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { addDays, addWeeks, addMonths } from 'date-fns'
+import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 
 const recurringSchema = z.object({
   residentId: z.string().uuid(),
@@ -15,6 +16,9 @@ const recurringSchema = z.object({
   notes: z.string().optional(),
   recurringRule: z.enum(['weekly', 'biweekly', 'monthly']),
   recurringEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  selectedQuantity: z.number().int().min(1).optional(),
+  selectedOption: z.string().optional(),
+  addonChecked: z.boolean().optional(),
 })
 
 type RecurringRule = 'weekly' | 'biweekly' | 'monthly'
@@ -38,12 +42,18 @@ export async function POST(request: NextRequest) {
     const parsed = recurringSchema.safeParse(body)
     if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
-    const { residentId, stylistId, serviceId, startTime, notes, recurringRule, recurringEndDate } = parsed.data
+    const { residentId, stylistId, serviceId, startTime, notes, recurringRule, recurringEndDate, selectedQuantity, selectedOption, addonChecked } = parsed.data
 
     const service = await db.query.services.findFirst({
       where: and(eq(services.id, serviceId), eq(services.facilityId, facilityUser.facilityId)),
     })
     if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
+
+    // Resolve pricing
+    const priceInput = { quantity: selectedQuantity, selectedOption, includeAddon: addonChecked }
+    const priceError = validatePricingInput(service, priceInput)
+    if (priceError) return Response.json({ error: priceError }, { status: 422 })
+    const { priceCents: resolvedPrice, addonTotalCents } = resolvePrice(service, priceInput)
 
     const endDateLimit = new Date(recurringEndDate + 'T23:59:59Z')
     const parentStart = new Date(startTime)
@@ -56,8 +66,11 @@ export async function POST(request: NextRequest) {
       serviceId,
       startTime: parentStart,
       endTime: parentEnd,
-      priceCents: service.priceCents,
+      priceCents: resolvedPrice,
       durationMinutes: service.durationMinutes,
+      selectedQuantity: selectedQuantity ?? null,
+      selectedOption: selectedOption ?? null,
+      addonTotalCents,
       notes: notes ?? null,
       status: 'scheduled',
       paymentStatus: 'unpaid',
@@ -79,8 +92,11 @@ export async function POST(request: NextRequest) {
           serviceId,
           startTime: currentStart,
           endTime: currentEnd,
-          priceCents: service.priceCents,
+          priceCents: resolvedPrice,
           durationMinutes: service.durationMinutes,
+          selectedQuantity: selectedQuantity ?? null,
+          selectedOption: selectedOption ?? null,
+          addonTotalCents,
           notes: notes ?? null,
           status: 'scheduled',
           paymentStatus: 'unpaid',
