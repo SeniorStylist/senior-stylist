@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
+import { extractText } from 'unpdf'
 
 export const runtime = 'nodejs'
 
@@ -136,33 +137,12 @@ export async function POST(request: NextRequest) {
 
     const buffer = await file.arrayBuffer()
 
-    // ── PDF text extraction via pdfjs-dist ───────────────────────────────────
-    // unpdf silently drops the first text layer on some PDFs (e.g. Symphony Manor).
-    // pdfjs-dist getTextContent() reads all text objects with position data,
-    // sorts by Y then X (reading order), and returns the complete text.
-    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    // No workerSrc override — pdfjs v5 auto-detects Node.js and sets workerSrc to
-    // "./pdf.worker.mjs" relative to pdf.mjs, then loads it via dynamic import()
-    // in the main thread (no worker_threads.Worker). The worker file is bundled via
-    // outputFileTracingIncludes in next.config.ts.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const doc = await (pdfjsLib as any).getDocument({ data: new Uint8Array(buffer) }).promise
-    const textParts: string[] = []
-    for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
-      const page = await doc.getPage(pageNum)
-      const tc = await page.getTextContent()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sorted = (tc.items as any[])
-        .filter((item) => 'str' in item && item.str.trim())
-        .sort((a: any, b: any) => {
-          const dy: number = b.transform[5] - a.transform[5]
-          return Math.abs(dy) > 5 ? dy : a.transform[4] - b.transform[4]
-        })
-        .map((item: any) => item.str as string)
-        .join(' ')
-      if (sorted) textParts.push(sorted)
-    }
-    const text = textParts.join(' ')
+    // ── PDF text extraction via unpdf ─────────────────────────────────────────
+    // mergePages: false returns string[] (one string per PDF page object).
+    // Join all pages — missing content may be on a separate PDF page object
+    // from the one that appears first in mergePages: true output.
+    const { text: pages } = await extractText(new Uint8Array(buffer), { mergePages: false })
+    const text = pages.join(' ')
 
     // ── Step 1: Collapse whitespace and strip boilerplate ────────────────────
     const stripped = text
@@ -186,9 +166,10 @@ export async function POST(request: NextRequest) {
       return m ? m[1].trim() : rawFirstCategory
     })()
 
-    let workingBlob = firstPricePos >= 0
-      ? stripped.slice(firstPricePos + PRICE_SEP.length)
-      : stripped
+    // Use the full stripped text — the token loop handles " Price " as category
+    // separators wherever they appear. Not slicing at the first " Price " avoids
+    // dropping content that appears before it due to PDF internal ordering.
+    let workingBlob = stripped
 
     // ── Step 3: Pre-extract special pricing entries BEFORE the split ─────────
     // Replaces addon/tiered/multi_option patterns with letter-only placeholders
