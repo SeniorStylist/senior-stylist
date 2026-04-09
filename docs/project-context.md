@@ -169,6 +169,7 @@ Tailwind CSS 4, Vercel
 - Cross-facility reporting (Phase 4): Reports tab in /super-admin with revenue chart, outstanding balances, mark-paid, CSV export
 - Flexible pricing types (Phase 4.5): addon, tiered, multi_option pricing on services; conditional booking modal inputs; PDF parser pricing detection
 - PDF parser extraction fix (2026-04-09): switched from unpdf to pdfjs-dist getTextContent() with position-based sorting — unpdf silently dropped the first text layer on Symphony Manor PDF. All 16 services now parse correctly across 5 sections.
+- pdfjs-dist worker fix (2026-04-09): removed createRequire workerSrc override — pdfjs v5 auto-sets "./pdf.worker.mjs" relative to pdf.mjs on Node.js and loads it via dynamic import() in main thread. Override caused "Failed to parse PDF" on Vercel because absolute path didn't match deployed bundle layout.
 
 ### In Progress / Needs Testing
 - OCR log sheet import — full stack shipped (2026-04-01)
@@ -189,17 +190,12 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Invite auth flow fixed (2026-04-07). Email from address updated, redirect chain fixed, magic link auth added. Next steps:
-1. Verify DNS propagation for seniorstylist.com (DKIM, SPF, MX, DMARC) — check Resend dashboard
-2. Send a real invite to a test email and verify delivery
-3. Test full invite flow: click link → magic link auth → lands at /my-account?welcome=1
-4. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
-5. Test OCR import with a real handwritten log sheet from Symphony Manor
-
-Next planned work:
+PDF parser now fully working on Vercel (2026-04-09). Next steps:
 1. Test PDF parser on Vercel with real Symphony Manor price sheet — upload via /services/import, verify 16 services across 5 sections parse correctly
 2. Test flexible pricing end-to-end: create services of each type, book, verify log/reports
-3. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+3. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
+4. Test OCR import with a real handwritten log sheet from Symphony Manor
+5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
 ---
 
