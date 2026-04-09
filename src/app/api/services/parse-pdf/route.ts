@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
-import { extractText } from 'unpdf'
+import { createRequire } from 'module'
 
 export const runtime = 'nodejs'
 
@@ -25,7 +25,8 @@ interface ParsedService {
 // placeholders so the split sees no embedded digits.
 
 // "Updo add 10 to service amount" → addon
-const ADDON_GLOBAL = /([A-Za-z][A-Za-z\s,'\-]*?)\s+add\s+\$?(\d+(?:\.\d{1,2})?)\s+to\s+service\s+amount/gi
+// Character class includes () so names like "Long Hair (longer than shoulder length)" match
+const ADDON_GLOBAL = /([A-Za-z][A-Za-z\s,'()\-]*?)\s+add\s+\$?(\d+(?:\.\d{1,2})?)\s+to\s+service\s+amount/gi
 
 // "Corn Rows 1-4 8 ea. 5 or more 5 ea." → tiered
 const TIERED_GLOBAL = /([A-Za-z][A-Za-z\s,'\-]*?)\s+(\d+)\s*-\s*(\d+)\s+\$?(\d+(?:\.\d{1,2})?)\s*ea\.?\s+(\d+)\s+or\s+more\s+\$?(\d+(?:\.\d{1,2})?)\s*ea\.?/gi
@@ -135,7 +136,34 @@ export async function POST(request: NextRequest) {
     if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
 
     const buffer = await file.arrayBuffer()
-    const { text } = await extractText(new Uint8Array(buffer), { mergePages: true })
+
+    // ── PDF text extraction via pdfjs-dist ───────────────────────────────────
+    // unpdf silently drops the first text layer on some PDFs (e.g. Symphony Manor).
+    // pdfjs-dist getTextContent() reads all text objects with position data,
+    // sorts by Y then X (reading order), and returns the complete text.
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const _require = createRequire(process.cwd() + '/package.json')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = _require.resolve(
+      'pdfjs-dist/legacy/build/pdf.worker.mjs'
+    )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc = await (pdfjsLib as any).getDocument({ data: new Uint8Array(buffer) }).promise
+    const textParts: string[] = []
+    for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
+      const page = await doc.getPage(pageNum)
+      const tc = await page.getTextContent()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sorted = (tc.items as any[])
+        .filter((item) => 'str' in item && item.str.trim())
+        .sort((a: any, b: any) => {
+          const dy: number = b.transform[5] - a.transform[5]
+          return Math.abs(dy) > 5 ? dy : a.transform[4] - b.transform[4]
+        })
+        .map((item: any) => item.str as string)
+        .join(' ')
+      if (sorted) textParts.push(sorted)
+    }
+    const text = textParts.join(' ')
 
     // ── Step 1: Collapse whitespace and strip boilerplate ────────────────────
     const stripped = text
