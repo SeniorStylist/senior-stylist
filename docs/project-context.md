@@ -128,6 +128,7 @@ Tailwind CSS 4, Vercel
 - All booking APIs (POST, PUT, recurring) accept and validate pricing inputs, resolve final price server-side
 - Backward compatible: all existing services default to 'fixed', all existing bookings unaffected
 - PDF parser bug fix (2026-04-09): pre-extraction of special pricing patterns before the alternating-chunks split — fixes Symphony Manor first category services being silently dropped due to embedded numbers desyncing the split algorithm
+- Flexible pricing UX polish (2026-04-10): import preview shows +add-on/tiered/options badges and +$X.XX for addon services; PDF parser filters garbage rows (boilerplate, mid-sentence fragments); booking modal has multi-addon service checklist with live price breakdown; POST /api/bookings accepts addonServiceIds[]; log shows "Service + Addon1 + Addon2" with improved qty/option display; walk-in form has addon checklist
 
 ### Phase 5 PLANNED
 - Resident portal enhancements
@@ -190,10 +191,10 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-PDF parser now fully working on Vercel (2026-04-09). Next steps:
-1. Test PDF parser on Vercel with real Symphony Manor price sheet — upload via /services/import, verify 16 services across 5 sections parse correctly
-2. Test flexible pricing end-to-end: create services of each type, book, verify log/reports
-3. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists
+Flexible pricing UX complete (2026-04-10). Next steps:
+1. Test PDF parser on Vercel with real Symphony Manor price sheet — upload via /services/import, verify 16 services across 5 sections parse correctly with pricing badges
+2. Test addon multi-select end-to-end: create addon services, book primary + addons, verify log shows combined name and correct total price
+3. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists Sierra, Mariah Owens, Senait Edwards
 4. Test OCR import with a real handwritten log sheet from Symphony Manor
 5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
