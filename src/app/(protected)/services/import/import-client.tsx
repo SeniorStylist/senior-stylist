@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, formatCents } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,8 @@ interface ParsedService {
   category: string
   include: boolean
   error?: string
+  pricingType?: string
+  addonAmountCents?: number | null
 }
 
 type Step = 'upload' | 'preview' | 'importing' | 'done'
@@ -112,7 +114,10 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
   })
   const json = await res.json()
   if (!res.ok) throw new Error(json.error ?? 'Failed to parse PDF')
-  const rows: Array<{ name: string; priceCents: number; durationMinutes: number; category: string; color: string }> = json.data
+  const rows: Array<{
+    name: string; priceCents: number; durationMinutes: number; category: string; color: string
+    pricingType?: string; addonAmountCents?: number | null
+  }> = json.data
   if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
   return rows.map((r, i) => ({
     id: i,
@@ -122,6 +127,8 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
     category: r.category,
     color: r.color,
     include: true,
+    pricingType: r.pricingType,
+    addonAmountCents: r.addonAmountCents ?? null,
   }))
 }
 
@@ -584,7 +591,7 @@ export function ImportClient() {
                           className="rounded accent-[#0D7377] w-3.5 h-3.5"
                         />
                       </div>
-                      <div className="col-span-4">
+                      <div className="col-span-4 flex flex-col gap-0.5">
                         <input
                           value={row.name}
                           onChange={(e) => updateName(row.id, e.target.value)}
@@ -596,24 +603,39 @@ export function ImportClient() {
                               : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
                           )}
                         />
+                        {row.pricingType === 'addon' && (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 self-start">+add-on</span>
+                        )}
+                        {row.pricingType === 'tiered' && (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 self-start">tiered</span>
+                        )}
+                        {row.pricingType === 'multi_option' && (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 self-start">options</span>
+                        )}
                       </div>
                       <div className="col-span-2">
-                        <div className="relative">
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-                          <input
-                            type="number"
-                            value={(row.priceCents / 100).toFixed(2)}
-                            onChange={(e) => updatePrice(row.id, e.target.value)}
-                            step="0.01"
-                            min="0"
-                            className={cn(
-                              'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 pl-3 transition-colors',
-                              row.error === 'Price is $0'
-                                ? 'border-orange-300 text-orange-700'
-                                : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
-                            )}
-                          />
-                        </div>
+                        {row.pricingType === 'addon' && (row.addonAmountCents ?? 0) > 0 ? (
+                          <span className="text-sm font-medium text-amber-700 pl-1">
+                            +{formatCents(row.addonAmountCents ?? 0)}
+                          </span>
+                        ) : (
+                          <div className="relative">
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                            <input
+                              type="number"
+                              value={(row.priceCents / 100).toFixed(2)}
+                              onChange={(e) => updatePrice(row.id, e.target.value)}
+                              step="0.01"
+                              min="0"
+                              className={cn(
+                                'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 pl-3 transition-colors',
+                                row.error === 'Price is $0'
+                                  ? 'border-orange-300 text-orange-700'
+                                  : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
+                              )}
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="col-span-2">
                         <select

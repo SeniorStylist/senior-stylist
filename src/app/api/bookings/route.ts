@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and, gte, lte, lt, gt, or } from 'drizzle-orm'
+import { eq, and, gte, lte, lt, gt, or, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
@@ -20,6 +20,7 @@ const createSchema = z.object({
   selectedQuantity: z.number().int().min(1).optional(),
   selectedOption: z.string().optional(),
   addonChecked: z.boolean().optional(),
+  addonServiceIds: z.array(z.string().uuid()).optional().default([]),
 })
 
 export async function GET(request: NextRequest) {
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     })
     if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
 
-    // Resolve pricing
+    // Resolve pricing for primary service
     const priceInput = {
       quantity: parsed.data.selectedQuantity,
       selectedOption: parsed.data.selectedOption,
@@ -113,6 +114,18 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: priceError }, { status: 422 })
     }
     const { priceCents: resolvedPrice, addonTotalCents } = resolvePrice(service, priceInput)
+
+    // Resolve addon services (additional addon-type services stacked on primary)
+    const addonServiceIds = parsed.data.addonServiceIds ?? []
+    let multiAddonTotalCents = 0
+    if (addonServiceIds.length > 0) {
+      const addonSvcs = await db.query.services.findMany({
+        where: and(eq(services.facilityId, facilityId), inArray(services.id, addonServiceIds)),
+      })
+      multiAddonTotalCents = addonSvcs.reduce((sum, s) => sum + (s.addonAmountCents ?? 0), 0)
+    }
+    const finalPriceCents = resolvedPrice + multiAddonTotalCents
+    const finalAddonTotalCents = ((addonTotalCents ?? 0) + multiAddonTotalCents) || null
 
     const startTime = new Date(startTimeStr)
     const endTime = new Date(startTime.getTime() + service.durationMinutes * 60000)
@@ -148,12 +161,13 @@ export async function POST(request: NextRequest) {
         serviceId,
         startTime,
         endTime,
-        priceCents: resolvedPrice,
+        priceCents: finalPriceCents,
         durationMinutes: service.durationMinutes,
         notes: notes ?? null,
         selectedQuantity: parsed.data.selectedQuantity ?? null,
         selectedOption: parsed.data.selectedOption ?? null,
-        addonTotalCents,
+        addonTotalCents: finalAddonTotalCents,
+        addonServiceIds: addonServiceIds.length > 0 ? addonServiceIds : null,
         status: 'scheduled',
       })
       .returning()

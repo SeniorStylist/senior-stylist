@@ -23,6 +23,7 @@ interface LogBooking {
   selectedQuantity: number | null
   selectedOption: string | null
   addonTotalCents: number | null
+  addonServiceIds: string[] | null
   resident: Resident
   stylist: Stylist
   service: Service
@@ -58,6 +59,15 @@ function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + days)
   return d.toISOString().split('T')[0]
+}
+
+function serviceDisplayName(booking: LogBooking, allServices: Service[]): string {
+  const addonNames = (booking.addonServiceIds ?? [])
+    .map((id) => allServices.find((s) => s.id === id)?.name)
+    .filter((n): n is string => Boolean(n))
+  return addonNames.length > 0
+    ? `${booking.service.name} + ${addonNames.join(' + ')}`
+    : booking.service.name
 }
 
 function formatLogDate(dateStr: string): string {
@@ -159,6 +169,7 @@ export function LogClient({
   const [wiServiceId, setWiServiceId] = useState(services[0]?.id ?? '')
   const [wiStylistId, setWiStylistId] = useState(stylists[0]?.id ?? '')
   const [wiTime, setWiTime] = useState(() => roundToNearest30(new Date()))
+  const [wiAddonServiceIds, setWiAddonServiceIds] = useState<string[]>([])
   const [wiAdding, setWiAdding] = useState(false)
   const [wiError, setWiError] = useState<string | null>(null)
 
@@ -354,6 +365,9 @@ export function LogClient({
       r.name.toLowerCase().includes(wiResidentSearch.toLowerCase()) ||
       (r.roomNumber && r.roomNumber.toLowerCase().includes(wiResidentSearch.toLowerCase()))
   )
+  const wiAddonServices = services.filter(
+    (s) => s.pricingType === 'addon' && s.id !== wiServiceId
+  )
 
   const handleAddWalkIn = async () => {
     if (!wiResidentId) { setWiError('Select a resident'); return }
@@ -374,6 +388,7 @@ export function LogClient({
           stylistId: wiStylistId,
           startTime: startTime.toISOString(),
           notes: 'Walk-in',
+          ...(wiAddonServiceIds.length > 0 ? { addonServiceIds: wiAddonServiceIds } : {}),
         }),
       })
       const json = await res.json()
@@ -385,6 +400,7 @@ export function LogClient({
         setWiResidentSearch('')
         setWiResidentId('')
         setWiServiceId(services[0]?.id ?? '')
+        setWiAddonServiceIds([])
         setWiTime(roundToNearest30(new Date()))
         toast('Appointment booked!', 'success')
       } else {
@@ -572,6 +588,26 @@ export function LogClient({
               className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
             />
           </div>
+
+          {wiAddonServices.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Add-ons</p>
+              {wiAddonServices.map((svc) => (
+                <label key={svc.id} className="flex items-center gap-2.5 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 cursor-pointer min-h-[44px]">
+                  <input
+                    type="checkbox"
+                    checked={wiAddonServiceIds.includes(svc.id)}
+                    onChange={() => setWiAddonServiceIds((prev) =>
+                      prev.includes(svc.id) ? prev.filter((x) => x !== svc.id) : [...prev, svc.id]
+                    )}
+                    className="rounded accent-[#0D7377] w-4 h-4 shrink-0"
+                  />
+                  <span className="text-sm text-stone-700 flex-1">{svc.name}</span>
+                  <span className="text-sm text-amber-700">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+                </label>
+              ))}
+            </div>
+          )}
 
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null) }} disabled={wiAdding}>
@@ -782,16 +818,13 @@ export function LogClient({
                         ) : (
                           <>
                             <p className="text-xs text-stone-500 mt-0.5">
-                              {formatTime(booking.startTime)} · {booking.service.name} ·{' '}
+                              {formatTime(booking.startTime)} · {serviceDisplayName(booking, services)} ·{' '}
                               {formatCents(booking.priceCents ?? booking.service.priceCents)}
-                              {booking.selectedOption && (
-                                <span className="text-stone-400"> ({booking.selectedOption})</span>
-                              )}
-                              {booking.addonTotalCents && booking.addonTotalCents > 0 && (
-                                <span className="text-stone-400"> (incl. {formatCents(booking.addonTotalCents)} add-on)</span>
-                              )}
                               {booking.selectedQuantity && booking.selectedQuantity > 1 && (
-                                <span className="text-stone-400"> ({booking.selectedQuantity} units)</span>
+                                <span className="text-stone-400"> (qty: {booking.selectedQuantity})</span>
+                              )}
+                              {booking.selectedOption && (
+                                <span className="text-stone-400"> — {booking.selectedOption}</span>
                               )}
                             </p>
                             {booking.notes === 'Walk-in' && (

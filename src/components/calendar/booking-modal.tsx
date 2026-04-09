@@ -66,6 +66,7 @@ export function BookingModal({
   const [addonChecked, setAddonChecked] = useState(false)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [selectedOptionName, setSelectedOptionName] = useState('')
+  const [selectedAddonServiceIds, setSelectedAddonServiceIds] = useState<string[]>([])
 
   const residentInputRef = useRef<HTMLInputElement>(null)
 
@@ -108,6 +109,7 @@ export function BookingModal({
     setAddonChecked(false)
     setSelectedQuantity(1)
     setSelectedOptionName('')
+    setSelectedAddonServiceIds([])
     // Default recurring end date = 3 months from now
     const threeMonths = new Date()
     threeMonths.setMonth(threeMonths.getMonth() + 3)
@@ -127,6 +129,7 @@ export function BookingModal({
   useEffect(() => {
     setAddonChecked(false)
     setSelectedQuantity(1)
+    setSelectedAddonServiceIds([])
     if (selectedService?.pricingType === 'multi_option' && selectedService.pricingOptions?.length) {
       setSelectedOptionName(selectedService.pricingOptions[0].name)
     } else {
@@ -142,6 +145,22 @@ export function BookingModal({
         includeAddon: addonChecked,
       })
     : null
+
+  // Addon services available for multi-select (separate from primary service's own addon type)
+  const addonServices = services.filter(
+    (s) => s.pricingType === 'addon' && s.id !== selectedServiceId
+  )
+  const multiAddonTotal = selectedAddonServiceIds.reduce((sum, id) => {
+    const svc = addonServices.find((s) => s.id === id)
+    return sum + (svc?.addonAmountCents ?? 0)
+  }, 0)
+  const displayPriceCents =
+    (resolvedPrice?.priceCents ?? selectedService?.priceCents ?? 0) + multiAddonTotal
+
+  const toggleAddonService = (id: string) =>
+    setSelectedAddonServiceIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
 
   // Cmd+Enter to submit
   useEffect(() => {
@@ -169,6 +188,7 @@ export function BookingModal({
         ...(selectedService?.pricingType === 'addon' ? { addonChecked } : {}),
         ...(selectedService?.pricingType === 'tiered' ? { selectedQuantity } : {}),
         ...(selectedService?.pricingType === 'multi_option' ? { selectedOption: selectedOptionName } : {}),
+        ...(selectedAddonServiceIds.length > 0 ? { addonServiceIds: selectedAddonServiceIds } : {}),
       }
 
       const payload = isCreatingRecurring
@@ -473,6 +493,33 @@ export function BookingModal({
           </div>
         )}
 
+        {/* Add-on services — multi-select checklist of addon-type services */}
+        {addonServices.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              Add-ons
+            </label>
+            <div className="space-y-1.5">
+              {addonServices.map((svc) => (
+                <label
+                  key={svc.id}
+                  className="flex items-center gap-2.5 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-stone-100 transition-colors min-h-[44px]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAddonServiceIds.includes(svc.id)}
+                    onChange={() => toggleAddonService(svc.id)}
+                    disabled={submitting}
+                    className="rounded accent-[#0D7377] w-4 h-4 shrink-0"
+                  />
+                  <span className="text-sm text-stone-700 flex-1">{svc.name}</span>
+                  <span className="text-sm font-medium text-amber-700">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Price & Duration auto-fill */}
         {selectedService && (
           <div className="grid grid-cols-2 gap-3">
@@ -480,9 +527,31 @@ export function BookingModal({
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
                 Price
               </label>
-              <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-teal-800">
-                {formatCents(resolvedPrice?.priceCents ?? selectedService.priceCents)}
-              </div>
+              {selectedAddonServiceIds.length > 0 ? (
+                <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm space-y-1">
+                  <div className="flex justify-between text-stone-600">
+                    <span className="truncate pr-2">{selectedService.name}</span>
+                    <span className="shrink-0">{formatCents(resolvedPrice?.priceCents ?? selectedService.priceCents)}</span>
+                  </div>
+                  {selectedAddonServiceIds.map((id) => {
+                    const svc = addonServices.find((s) => s.id === id)!
+                    return (
+                      <div key={id} className="flex justify-between text-stone-500 text-xs">
+                        <span className="truncate pr-2">+ {svc.name}</span>
+                        <span className="shrink-0">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+                      </div>
+                    )
+                  })}
+                  <div className="flex justify-between font-semibold text-teal-800 border-t border-teal-200 pt-1">
+                    <span>Total</span>
+                    <span>{formatCents(displayPriceCents)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-teal-800">
+                  {formatCents(displayPriceCents)}
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">

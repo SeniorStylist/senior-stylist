@@ -247,6 +247,10 @@ export async function POST(request: NextRequest) {
       if (serviceName.startsWith('*')) continue
       if (/^Price\b/i.test(serviceName)) continue
 
+      // Skip boilerplate that leaks through as service names
+      if (/salon services|subject to change|copyright|services and prices/i.test(serviceName)) continue
+      if (/^(or |and )/i.test(serviceName)) continue
+
       // ── Placeholder substitution ─────────────────────────────────────────
       // Pre-extracted special services are stored under SVCPH* keys.
       // The dummy price "1" in the blob is irrelevant — use the stored data.
@@ -263,6 +267,9 @@ export async function POST(request: NextRequest) {
       if (!priceMatch) continue
       const price = parseFloat(priceMatch[1])
       if (price <= 0 || price >= 1000) continue
+
+      // Fragment: ≤2 words AND price ≤ $5.00 are likely number artifacts, not real services
+      if (serviceName.split(/\s+/).filter(Boolean).length <= 2 && Math.round(price * 100) <= 500) continue
 
       // Check if "ea." suffix means multi_option (flag for admin review)
       const isEach = /ea\.?$/i.test(priceStr)
