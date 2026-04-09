@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
-import { createRequire } from 'module'
 
 export const runtime = 'nodejs'
 
@@ -142,10 +141,10 @@ export async function POST(request: NextRequest) {
     // pdfjs-dist getTextContent() reads all text objects with position data,
     // sorts by Y then X (reading order), and returns the complete text.
     const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    const _require = createRequire(process.cwd() + '/package.json')
-    pdfjsLib.GlobalWorkerOptions.workerSrc = _require.resolve(
-      'pdfjs-dist/legacy/build/pdf.worker.mjs'
-    )
+    // No workerSrc override — pdfjs v5 auto-detects Node.js and sets workerSrc to
+    // "./pdf.worker.mjs" relative to pdf.mjs, then loads it via dynamic import()
+    // in the main thread (no worker_threads.Worker). The worker file is bundled via
+    // outputFileTracingIncludes in next.config.ts.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doc = await (pdfjsLib as any).getDocument({ data: new Uint8Array(buffer) }).promise
     const textParts: string[] = []
