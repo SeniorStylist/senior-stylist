@@ -212,6 +212,12 @@ export function SettingsClient({
   const [resendingId, setResendingId] = useState<string | null>(null)
   const [resendSuccess, setResendSuccess] = useState<string | null>(null)
 
+  // Team / remove access
+  const [localUsers, setLocalUsers] = useState<ConnectedUser[]>(connectedUsers)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+  const [teamToast, setTeamToast] = useState<string | null>(null)
+
   // Access requests
   const [requestsList, setRequestsList] = useState<AccessRequestData[]>([])
   const [requestsLoaded, setRequestsLoaded] = useState(false)
@@ -275,6 +281,24 @@ export function SettingsClient({
       }
     } finally {
       setActioningId(null)
+    }
+  }
+
+  const handleRemoveUser = async (userId: string) => {
+    setRemovingUserId(userId)
+    try {
+      const res = await fetch(`/api/facility/users/${userId}`, { method: 'DELETE' })
+      const j = await res.json()
+      if (!res.ok) {
+        setTeamToast(j.error ?? 'Failed to remove user')
+      } else {
+        setLocalUsers((prev) => prev.filter((u) => u.userId !== userId))
+        setTeamToast('Access removed')
+      }
+    } finally {
+      setRemovingUserId(null)
+      setConfirmRemoveId(null)
+      setTimeout(() => setTeamToast(null), 3000)
     }
   }
 
@@ -648,8 +672,13 @@ export function SettingsClient({
           <p className="text-xs text-stone-400">
             Users with access to <span className="font-semibold text-stone-600">{facility.name}</span>
           </p>
+          {teamToast && (
+            <div className="px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-medium text-emerald-800">
+              {teamToast}
+            </div>
+          )}
           <div className="rounded-2xl border border-stone-100 overflow-hidden">
-            {connectedUsers.map((cu, i) => {
+            {localUsers.map((cu, i) => {
               const isYou = cu.userId === currentUserId
               const initials = cu.profile.fullName
                 ? cu.profile.fullName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
@@ -661,6 +690,9 @@ export function SettingsClient({
                     'flex items-center gap-3 px-4 py-3',
                     i > 0 && 'border-t border-stone-100'
                   )}
+                  onMouseLeave={() => {
+                    if (confirmRemoveId === cu.userId) setConfirmRemoveId(null)
+                  }}
                 >
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -687,6 +719,33 @@ export function SettingsClient({
                   >
                     {cu.role}
                   </span>
+                  {isAdmin && !isYou && (
+                    confirmRemoveId === cu.userId ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs text-stone-500">Remove?</span>
+                        <button
+                          onClick={() => handleRemoveUser(cu.userId)}
+                          disabled={removingUserId === cu.userId}
+                          className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                        >
+                          {removingUserId === cu.userId ? '…' : 'Yes'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmRemoveId(null)}
+                          className="text-xs text-stone-400 hover:text-stone-600"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmRemoveId(cu.userId)}
+                        className="text-xs text-stone-400 hover:text-red-500 transition-colors shrink-0 min-h-[32px] px-2"
+                      >
+                        Remove
+                      </button>
+                    )
+                  )}
                 </div>
               )
             })}
