@@ -127,6 +127,7 @@ Tailwind CSS 4, Vercel
 - PDF parser: detects addon, tiered, multi_option patterns from price sheets; shows pricing type badges in onboarding import preview
 - All booking APIs (POST, PUT, recurring) accept and validate pricing inputs, resolve final price server-side
 - Backward compatible: all existing services default to 'fixed', all existing bookings unaffected
+- PDF parser bug fix (2026-04-09): pre-extraction of special pricing patterns before the alternating-chunks split — fixes Symphony Manor first category services being silently dropped due to embedded numbers desyncing the split algorithm
 
 ### Phase 5 PLANNED
 - Resident portal enhancements
@@ -167,6 +168,7 @@ Tailwind CSS 4, Vercel
 - Franchise CRUD in super admin page
 - Cross-facility reporting (Phase 4): Reports tab in /super-admin with revenue chart, outstanding balances, mark-paid, CSV export
 - Flexible pricing types (Phase 4.5): addon, tiered, multi_option pricing on services; conditional booking modal inputs; PDF parser pricing detection
+- PDF parser pre-extraction fix: Symphony Manor first category + special pricing rows (addon/tiered) now correctly parsed
 
 ### In Progress / Needs Testing
 - OCR log sheet import — full stack shipped (2026-04-01)
@@ -195,8 +197,9 @@ Invite auth flow fixed (2026-04-07). Email from address updated, redirect chain 
 5. Test OCR import with a real handwritten log sheet from Symphony Manor
 
 Next planned work:
-1. Test flexible pricing end-to-end: create services of each type, book, verify log/reports
-2. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+1. Test PDF parser with real Symphony Manor price sheet — upload via /services/import, verify all sections parse correctly (especially "Shampoo, Sets & Cuts" + addon/tiered rows)
+2. Test flexible pricing end-to-end: create services of each type, book, verify log/reports
+3. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
 ---
 
