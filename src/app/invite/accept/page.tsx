@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, facilityUsers, profiles, stylists, facilities } from '@/db/schema'
-import { eq, and, ilike } from 'drizzle-orm'
+import { invites, facilities } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { InviteAcceptClient } from './invite-accept-client'
 
 interface Props {
@@ -79,66 +78,6 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
     )
   }
 
-  // Valid & authenticated — upsert profile, add facilityUser, mark invite used
-  await db
-    .insert(profiles)
-    .values({
-      id: user.id,
-      email: user.email ?? null,
-      fullName: user.user_metadata?.full_name ?? null,
-      avatarUrl: user.user_metadata?.avatar_url ?? null,
-    })
-    .onConflictDoUpdate({
-      target: profiles.id,
-      set: { email: user.email ?? null, fullName: user.user_metadata?.full_name ?? null, avatarUrl: user.user_metadata?.avatar_url ?? null, updatedAt: new Date() },
-    })
-
-  // Insert facilityUser (ignore if already exists)
-  await db
-    .insert(facilityUsers)
-    .values({
-      userId: user.id,
-      facilityId: invite.facilityId,
-      role: invite.inviteRole || 'stylist',
-    })
-    .onConflictDoNothing()
-
-  // Mark invite as used
-  await db
-    .update(invites)
-    .set({ used: true })
-    .where(eq(invites.id, invite.id))
-
-  // Set selected_facility_id cookie so layout picks the correct facility + role
-  const cookieStore = await cookies()
-  cookieStore.set('selected_facility_id', invite.facilityId, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365,
-  })
-
-  const role = invite.inviteRole || 'stylist'
-
-  // For stylists: try auto-linking to a stylist record by name match
-  if (role === 'stylist') {
-    const userFullName = (user.user_metadata?.full_name ?? '').trim()
-    if (userFullName) {
-      const matched = await db.query.stylists.findFirst({
-        where: and(
-          eq(stylists.facilityId, invite.facilityId),
-          eq(stylists.active, true),
-          ilike(stylists.name, userFullName)
-        ),
-      })
-      if (matched) {
-        await db.update(profiles)
-          .set({ stylistId: matched.id, updatedAt: new Date() })
-          .where(eq(profiles.id, user.id))
-      }
-    }
-    redirect('/my-account?welcome=1')
-  }
-
-  redirect('/dashboard')
+  // Valid & authenticated — hand off to route handler which can set cookies
+  redirect(`/api/invite/redeem?token=${token!}`)
 }
