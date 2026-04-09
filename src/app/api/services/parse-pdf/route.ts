@@ -18,50 +18,52 @@ interface ParsedService {
   pricingOptions: Array<{ name: string; priceCents: number }> | null
 }
 
-// Match "add $X to service amount" pattern
-const ADDON_RE = /^(.+?)\s+add\s+\$?(\d+(?:\.\d{1,2})?)\s+to\s+service\s+amount$/i
+// ── Global pre-extraction regexes ────────────────────────────────────────────
+// These run on the FULL workingBlob BEFORE the alternating-chunks split.
+// Entries with embedded numbers (addon amounts, tiered ranges) would desync
+// the split algorithm — pre-extraction replaces them with letter-only
+// placeholders so the split sees no embedded digits.
 
-// Match "Name X-Y $Z ea. / Y+ $W ea." tiered pattern
-// e.g. "Corn Rows 1-4 $8 ea. 5 or more $5 ea."
-const TIERED_RE = /^(.+?)\s+(\d+)\s*-\s*(\d+)\s+\$?(\d+(?:\.\d{1,2})?)\s*ea\.?\s+(\d+)\s+or\s+more\s+\$?(\d+(?:\.\d{1,2})?)\s*ea\.?$/i
+// "Updo add 10 to service amount" → addon
+const ADDON_GLOBAL = /([A-Za-z][A-Za-z\s,'\-]*?)\s+add\s+\$?(\d+(?:\.\d{1,2})?)\s+to\s+service\s+amount/gi
 
-// Match "Name ... X ea. -or- Y for all Z" multi-option pattern
-// e.g. "Hair Removal - Brow, Chin, Lip, Ear 15 ea. -or- 40 for all 4"
-const MULTI_OPTION_RE = /^(.+?)\s+(\d+(?:\.\d{1,2})?)\s*ea\.?\s*-or-\s*(\d+(?:\.\d{1,2})?)\s+for\s+all\s+(\d+)$/i
+// "Corn Rows 1-4 8 ea. 5 or more 5 ea." → tiered
+const TIERED_GLOBAL = /([A-Za-z][A-Za-z\s,'\-]*?)\s+(\d+)\s*-\s*(\d+)\s+\$?(\d+(?:\.\d{1,2})?)\s*ea\.?\s+(\d+)\s+or\s+more\s+\$?(\d+(?:\.\d{1,2})?)\s*ea\.?/gi
+
+// "Hair Removal - Brow, Chin, Lip, Ear 15 ea. -or- 40 for all 4" → multi_option
+const MULTI_OPTION_GLOBAL = /([A-Za-z][A-Za-z\s,'\-]+?)\s+(\d+(?:\.\d{1,2})?)\s*ea\.?\s*-or-\s*(\d+(?:\.\d{1,2})?)\s+for\s+all\s+(\d+)/gi
+
+/** Generate next placeholder ID: SVCPHA, SVCPHB, ... SVCPHZ, SVCPHAA, ... */
+function nextPlaceholder(counter: number): string {
+  let id = ''
+  let n = counter
+  do {
+    id = String.fromCharCode(65 + (n % 26)) + id
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return 'SVCPH' + id
+}
 
 /**
- * Check if a raw service name + price string contains a special pricing pattern.
- * Returns pricing metadata or null if it's a standard fixed-price service.
+ * Pre-extract special pricing entries from the blob before the alternating split.
+ * Returns the updated blob (with letter-only placeholders + dummy price "1")
+ * and a Map of stored services keyed by placeholder ID.
  */
-function detectPricingPattern(rawName: string): ParsedService | null {
-  const name = rawName.replace(/\s+/g, ' ').trim()
+function preExtractSpecialPricing(blob: string): {
+  blob: string
+  specialServices: Map<string, ParsedService>
+} {
+  const specialServices = new Map<string, ParsedService>()
+  let counter = 0
 
-  // "Updo add $10 to service amount" → addon
-  const addonMatch = name.match(ADDON_RE)
-  if (addonMatch) {
-    return {
-      name: addonMatch[1].trim(),
-      priceCents: 0,
-      durationMinutes: 30,
-      category: '',
-      color: '',
-      pricingType: 'addon',
-      addonAmountCents: Math.round(parseFloat(addonMatch[2]) * 100),
-      pricingTiers: null,
-      pricingOptions: null,
-    }
-  }
-
-  // "Corn Rows 1-4 $8 ea. 5 or more $5 ea." → tiered
-  const tieredMatch = name.match(TIERED_RE)
-  if (tieredMatch) {
-    const minQty1 = parseInt(tieredMatch[2])
-    const maxQty1 = parseInt(tieredMatch[3])
-    const price1 = Math.round(parseFloat(tieredMatch[4]) * 100)
-    const minQty2 = parseInt(tieredMatch[5])
-    const price2 = Math.round(parseFloat(tieredMatch[6]) * 100)
-    return {
-      name: tieredMatch[1].trim(),
+  // Extract tiered patterns first — they're more specific and longer, so
+  // they must be matched before addon patterns accidentally consume part of them
+  blob = blob.replace(TIERED_GLOBAL, (_match, name, min1Str, max1Str, price1Str, min2Str, price2Str) => {
+    const placeholder = nextPlaceholder(counter++)
+    const price1 = Math.round(parseFloat(price1Str) * 100)
+    const price2 = Math.round(parseFloat(price2Str) * 100)
+    specialServices.set(placeholder, {
+      name: name.trim(),
       priceCents: price1,
       durationMinutes: 30,
       category: '',
@@ -69,21 +71,22 @@ function detectPricingPattern(rawName: string): ParsedService | null {
       pricingType: 'tiered',
       addonAmountCents: null,
       pricingTiers: [
-        { minQty: minQty1, maxQty: maxQty1, unitPriceCents: price1 },
-        { minQty: minQty2, maxQty: 999, unitPriceCents: price2 },
+        { minQty: parseInt(min1Str), maxQty: parseInt(max1Str), unitPriceCents: price1 },
+        { minQty: parseInt(min2Str), maxQty: 999, unitPriceCents: price2 },
       ],
       pricingOptions: null,
-    }
-  }
+    })
+    return placeholder + ' 1'
+  })
 
-  // "Hair Removal - Brow, Chin, Lip, Ear 15 ea. -or- 40 for all 4" → multi_option
-  const multiMatch = name.match(MULTI_OPTION_RE)
-  if (multiMatch) {
-    const eachPrice = Math.round(parseFloat(multiMatch[2]) * 100)
-    const allPrice = Math.round(parseFloat(multiMatch[3]) * 100)
-    const allCount = parseInt(multiMatch[4])
-    return {
-      name: multiMatch[1].trim(),
+  // Extract multi_option patterns
+  blob = blob.replace(MULTI_OPTION_GLOBAL, (_match, name, eachStr, allStr, countStr) => {
+    const placeholder = nextPlaceholder(counter++)
+    const eachPrice = Math.round(parseFloat(eachStr) * 100)
+    const allPrice = Math.round(parseFloat(allStr) * 100)
+    const allCount = parseInt(countStr)
+    specialServices.set(placeholder, {
+      name: name.trim(),
       priceCents: eachPrice,
       durationMinutes: 30,
       category: '',
@@ -95,10 +98,28 @@ function detectPricingPattern(rawName: string): ParsedService | null {
         { name: 'Each', priceCents: eachPrice },
         { name: `All ${allCount}`, priceCents: allPrice },
       ],
-    }
-  }
+    })
+    return placeholder + ' 1'
+  })
 
-  return null
+  // Extract addon patterns last (shortest, most likely to overlap with others)
+  blob = blob.replace(ADDON_GLOBAL, (_match, name, amountStr) => {
+    const placeholder = nextPlaceholder(counter++)
+    specialServices.set(placeholder, {
+      name: name.trim(),
+      priceCents: 0,
+      durationMinutes: 30,
+      category: '',
+      color: '',
+      pricingType: 'addon',
+      addonAmountCents: Math.round(parseFloat(amountStr) * 100),
+      pricingTiers: null,
+      pricingOptions: null,
+    })
+    return placeholder + ' 1'
+  })
+
+  return { blob, specialServices }
 }
 
 export async function POST(request: NextRequest) {
@@ -133,22 +154,28 @@ export async function POST(request: NextRequest) {
       : ''
 
     // Strip facility name / title preamble — take the last capitalised phrase
-    // that looks like a category (may contain commas, &, apostrophes, spaces)
     const cleanFirstCategory = (() => {
       const m = rawFirstCategory.match(/([A-Z][^0-9]+)$/)
       return m ? m[1].trim() : rawFirstCategory
     })()
 
-    const workingBlob = firstPricePos >= 0
+    let workingBlob = firstPricePos >= 0
       ? stripped.slice(firstPricePos + PRICE_SEP.length)
       : stripped
 
-    // ── Step 3: Split on price numbers (capture group keeps prices in array) ─
+    // ── Step 3: Pre-extract special pricing entries BEFORE the split ─────────
+    // Replaces addon/tiered/multi_option patterns with letter-only placeholders
+    // (e.g. "SVCPHA 1") so the alternating-chunks split never sees embedded
+    // digits that would desync the text/price pairing.
+    const { blob: cleanedBlob, specialServices } = preExtractSpecialPricing(workingBlob)
+    workingBlob = cleanedBlob
+
+    // ── Step 4: Split on price numbers (capture group keeps prices in array) ─
     // Result: [text0, price0, text1, price1, ..., textN]
     // Even indices = text chunks, odd indices = price strings
     const tokens = workingBlob.split(/(\d{1,3}(?:\.\d{1,2})?\s*(?:ea\.?)?)/)
 
-    // ── Step 4: Walk text chunks, detect category changes, emit services ─────
+    // ── Step 5: Walk text chunks, detect category changes, emit services ─────
     let colorIdx = -1
     const colorMap = new Map<string, string>()
     function getColor(cat: string): string {
@@ -163,13 +190,6 @@ export async function POST(request: NextRequest) {
     if (currentCategory) getColor(currentCategory)
 
     const rows: ParsedService[] = []
-
-    // ── Bug 1 fix: Check if there are text chunks BEFORE the first price ─────
-    // When the first token (index 0) has no price following it AND is before
-    // the first " Price " separator, it may itself be a category header.
-    // The cleanFirstCategory extraction above already handles the case where
-    // " Price " exists. But when the blob starts with text that has no price,
-    // we need to check if token[0] is a bare category header.
 
     for (let i = 0; i < tokens.length; i += 2) {
       const chunk = tokens[i].trim()
@@ -204,10 +224,28 @@ export async function POST(request: NextRequest) {
 
       if (!hasPrice) {
         // Treat as a bare category header (e.g. "Color", "Perms & Relaxers")
-        // Category detection: >= 3 chars, not *, not "$", not bare "Price"
         if (chunk.length >= 3 && !chunk.startsWith('*') && !chunk.includes('$') && !/^Price\b/i.test(chunk)) {
           currentCategory = chunk
           getColor(chunk)
+        }
+        continue
+      }
+
+      // Normalise service name whitespace
+      serviceName = serviceName.replace(/\s+/g, ' ').trim()
+
+      // Skip garbage: too short, footnotes (*), bare "Price" labels
+      if (serviceName.length < 3) continue
+      if (serviceName.startsWith('*')) continue
+      if (/^Price\b/i.test(serviceName)) continue
+
+      // ── Placeholder substitution ─────────────────────────────────────────
+      // Pre-extracted special services are stored under SVCPH* keys.
+      // The dummy price "1" in the blob is irrelevant — use the stored data.
+      if (/^SVCPH[A-Z]+$/.test(serviceName)) {
+        const stored = specialServices.get(serviceName)
+        if (stored) {
+          rows.push({ ...stored, category: currentCategory, color: getColor(currentCategory) })
         }
         continue
       }
@@ -218,42 +256,20 @@ export async function POST(request: NextRequest) {
       const price = parseFloat(priceMatch[1])
       if (price <= 0 || price >= 1000) continue
 
-      // Normalise service name whitespace
-      serviceName = serviceName.replace(/\s+/g, ' ').trim()
+      // Check if "ea." suffix means multi_option (flag for admin review)
+      const isEach = /ea\.?$/i.test(priceStr)
 
-      // Skip garbage: too short, footnotes (*), bare "Price" labels
-      if (serviceName.length < 3) continue
-      if (serviceName.startsWith('*')) continue
-      if (/^Price\b/i.test(serviceName)) continue
-
-      // ── Bug 2 fix: Detect special pricing patterns ──────────────────────
-      // Reassemble the full raw text including the price for pattern detection
-      const fullRaw = serviceName + ' ' + priceStr
-      const pricingResult = detectPricingPattern(fullRaw)
-
-      if (pricingResult) {
-        // Special pricing detected — use parsed result
-        rows.push({
-          ...pricingResult,
-          category: currentCategory,
-          color: getColor(currentCategory),
-        })
-      } else {
-        // Check if "ea." suffix means multi_option (flag for admin review)
-        const isEach = /ea\.?$/i.test(priceStr)
-
-        rows.push({
-          name: serviceName,
-          priceCents: Math.round(price * 100),
-          durationMinutes: 30,
-          category: currentCategory,
-          color: getColor(currentCategory),
-          pricingType: isEach ? 'multi_option' : 'fixed',
-          addonAmountCents: null,
-          pricingTiers: null,
-          pricingOptions: isEach ? [{ name: 'Each', priceCents: Math.round(price * 100) }] : null,
-        })
-      }
+      rows.push({
+        name: serviceName,
+        priceCents: Math.round(price * 100),
+        durationMinutes: 30,
+        category: currentCategory,
+        color: getColor(currentCategory),
+        pricingType: isEach ? 'multi_option' : 'fixed',
+        addonAmountCents: null,
+        pricingTiers: null,
+        pricingOptions: isEach ? [{ name: 'Each', priceCents: Math.round(price * 100) }] : null,
+      })
     }
 
     return Response.json({ data: rows })
