@@ -10,6 +10,7 @@ interface ConnectedUser {
   userId: string
   facilityId: string
   role: string
+  lastSignIn: string | null
   profile: {
     id: string
     email: string | null
@@ -719,6 +720,25 @@ export function SettingsClient({
                   >
                     {cu.role}
                   </span>
+                  {(() => {
+                    const status = !cu.lastSignIn
+                      ? 'invited'
+                      : (Date.now() - new Date(cu.lastSignIn).getTime()) / 86400000 > 90
+                        ? 'inactive'
+                        : 'active'
+                    return (
+                      <span
+                        className={cn(
+                          'text-xs font-medium px-2 py-0.5 rounded-full shrink-0',
+                          status === 'active' && 'bg-emerald-50 text-emerald-700',
+                          status === 'invited' && 'bg-amber-50 text-amber-700',
+                          status === 'inactive' && 'bg-stone-100 text-stone-500'
+                        )}
+                      >
+                        {status === 'active' ? 'Active' : status === 'invited' ? 'Invited' : 'Inactive'}
+                      </span>
+                    )
+                  })()}
                   {isAdmin && !isYou && (
                     confirmRemoveId === cu.userId ? (
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -846,13 +866,23 @@ export function SettingsClient({
                         {isExpired ? 'Expired' : 'Expires'} {new Date(invite.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
                     </div>
-                    {!isExpired && (
+                    {!isExpired ? (
                       <button
                         onClick={() => handleResendInvite(invite.id)}
                         disabled={resendingId === invite.id}
                         className="text-xs text-[#0D7377] hover:text-[#0a5f63] font-medium px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors disabled:opacity-40"
                       >
                         {resendingId === invite.id ? 'Sending…' : resendSuccess === invite.id ? 'Sent!' : 'Resend'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setInviteEmail(invite.email)
+                          setInviteRole(invite.inviteRole || 'stylist')
+                        }}
+                        className="text-xs text-[#0D7377] hover:text-[#0a5f63] font-medium px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"
+                      >
+                        Re-invite
                       </button>
                     )}
                     <button

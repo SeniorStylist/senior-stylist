@@ -351,7 +351,9 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |
 | `POST /api/facilities/select` | Authenticated | Set `selected_facility_id` cookie |
 | `POST/GET /api/invites` | **Admin** | Create invite; list invites. POST fires invite email via `sendEmail()` with branded HTML template (`buildInviteEmailHtml`). From: `noreply@seniorstylist.com` |
-| `DELETE /api/invites/[id]` | **Admin** | Revoke unused invite |
+| `DELETE /api/invites/[id]` | **Admin** | Revoke unused invite + clean up pending access_requests for same email+facility |
+| `GET /api/invite/redeem` | Authenticated (no facilityUser needed) | Redeems invite: upserts profile, inserts facilityUser, marks invite used, sets `selected_facility_id` cookie, redirects. Bypasses middleware facilityUser check. |
+| `DELETE /api/facility/users/[userId]` | **Admin** | Remove user's facility access. Guards: can't remove self, can't remove last admin. Invalidates Supabase session via admin signOut. |
 | `POST /api/invites/[id]/resend` | **Admin** | Re-send invite email for unused, non-expired invites. Uses same branded template. |
 | `GET /api/reports/monthly` | Authenticated | Monthly report payload |
 | `GET /api/reports/invoice` | **Admin** | Completed bookings + payment status for invoice UI |

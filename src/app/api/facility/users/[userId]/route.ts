@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { facilityUsers } from '@/db/schema'
@@ -43,6 +44,19 @@ export async function DELETE(
     await db
       .delete(facilityUsers)
       .where(and(eq(facilityUsers.facilityId, facilityId), eq(facilityUsers.userId, userId)))
+
+    // Invalidate the removed user's Supabase sessions so they can't continue navigating
+    try {
+      const adminClient = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      await adminClient.auth.admin.signOut(userId, 'global')
+    } catch (signOutErr) {
+      // Non-fatal — facilityUser is already deleted, middleware will catch them on next server request
+      console.error('[removeUser] session invalidation failed:', signOutErr)
+    }
 
     return Response.json({ data: { removed: userId } })
   } catch (err) {

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites } from '@/db/schema'
+import { invites, accessRequests } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -37,6 +37,17 @@ export async function DELETE(
     }
 
     await db.delete(invites).where(and(eq(invites.id, id), eq(invites.facilityId, facilityId)))
+
+    // Clean up any pending access requests for this email at this facility
+    await db
+      .delete(accessRequests)
+      .where(
+        and(
+          eq(accessRequests.email, existing.email),
+          eq(accessRequests.facilityId, facilityId),
+          eq(accessRequests.status, 'pending')
+        )
+      )
 
     return Response.json({ data: { id } })
   } catch (err) {

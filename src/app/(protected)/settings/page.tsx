@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilityUsers, accessRequests } from '@/db/schema'
@@ -35,10 +36,29 @@ export default async function SettingsPage() {
 
   if (!facility) redirect('/dashboard')
 
+  // Fetch last_sign_in_at from auth.users for status indicators
+  let authMap = new Map<string, string | null>()
+  try {
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { data: { users: authUsers } } = await adminClient.auth.admin.listUsers()
+    authMap = new Map(authUsers.map((u) => [u.id, u.last_sign_in_at ?? null]))
+  } catch (err) {
+    console.error('[SettingsPage] auth admin listUsers failed:', err)
+  }
+
+  const usersWithStatus = connectedUsers.map((cu) => ({
+    ...cu,
+    lastSignIn: authMap.get(cu.userId) ?? null,
+  }))
+
   return (
     <SettingsClient
       facility={JSON.parse(JSON.stringify(facility))}
-      connectedUsers={JSON.parse(JSON.stringify(connectedUsers))}
+      connectedUsers={JSON.parse(JSON.stringify(usersWithStatus))}
       currentUserId={user.id}
       currentUserEmail={user.email ?? null}
       isAdmin={facilityUser.role === 'admin'}
