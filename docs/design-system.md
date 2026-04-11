@@ -431,6 +431,22 @@ Admin-only features are hidden via `isAdmin` prop:
 ```
 Stylist role shows calendar + log only. No conditional rendering based on `role === 'viewer'` — viewer gets the same read UI; all mutation actions simply fail the server-side role check.
 
+### Settings — Team Tab
+
+Each user row shows: avatar initials → name/email → role badge → linked stylist name (if any) → status badge → Remove button.
+
+- **Role badge**: teal pill for admin, stone pill for others
+- **Linked stylist** (`↔ StylistName`): shown in `text-xs text-stone-400 hidden sm:inline` when `cu.stylistName` is set. Resolved server-side via batch `inArray` query in page.tsx; passed as `stylistName: string | null` on `ConnectedUser`.
+- **Status badges**: Active (emerald, last sign-in < 90 days), Invited (amber, never signed in), Inactive (stone, > 90 days)
+- **Remove flow**: two-step inline confirm; mouse leave cancels confirm state; optimistic `localUsers` removal; emerald toast "Access removed" for 3 s
+
+### Settings — Invites Tab
+
+- **Send Invite**: form with email + role select + "Send Invite" button
+- **Success messages**: "Invite sent!" for new invites; "Invite refreshed and resent" when the API returns `{ refreshed: true }` (pending invite already existed — token was refreshed and email resent). Both auto-clear after 3 s.
+- **Error messages**: inline red text; includes "This person already has access to this facility" (409) when the invited email already has a `used=true` invite.
+- **Pending list**: shows role badge + Expired badge + Resend / Copy link / Revoke buttons per invite
+
 ### Animations
 
 | Name | Trigger | Duration |
