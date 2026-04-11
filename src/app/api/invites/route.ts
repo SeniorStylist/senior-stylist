@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, facilities } from '@/db/schema'
+import { invites, facilities, profiles, facilityUsers } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, desc, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -59,10 +59,28 @@ export async function POST(request: NextRequest) {
 
     if (existingInvite) {
       if (existingInvite.used) {
-        return Response.json(
-          { error: 'This person already has access to this facility' },
-          { status: 409 }
-        )
+        // used=true means the invite was consumed OR cancelled — check if they actually still have access
+        const profileForEmail = await db.query.profiles.findFirst({
+          where: eq(profiles.email, normalizedEmail),
+          columns: { id: true },
+        })
+        const hasActiveAccess = profileForEmail
+          ? !!(await db.query.facilityUsers.findFirst({
+              where: and(
+                eq(facilityUsers.facilityId, facilityId),
+                eq(facilityUsers.userId, profileForEmail.id)
+              ),
+            }))
+          : false
+
+        if (hasActiveAccess) {
+          return Response.json(
+            { error: 'This person already has access to this facility' },
+            { status: 409 }
+          )
+        }
+        // No active access (revoked or never provisioned) — delete stale invite and fall through to fresh insert
+        await db.delete(invites).where(eq(invites.id, existingInvite.id))
       }
       // Pending (used=false) — refresh token + expiry and re-send
       const newToken = crypto.randomBytes(32).toString('hex')
