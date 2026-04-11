@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, accessRequests } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { facilityUsers, accessRequests, stylists } from '@/db/schema'
+import { eq, and, inArray } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { SettingsClient } from './settings-client'
 
@@ -50,10 +50,27 @@ export default async function SettingsPage() {
     console.error('[SettingsPage] auth admin listUsers failed:', err)
   }
 
-  const usersWithStatus = connectedUsers.map((cu) => ({
-    ...cu,
-    lastSignIn: authMap.get(cu.userId) ?? null,
-  }))
+  // Batch-resolve stylist names for the Team tab display
+  const stylistIds = connectedUsers
+    .map((cu) => (cu.profile as { stylistId?: string | null } | null)?.stylistId)
+    .filter((id): id is string => Boolean(id))
+  const stylistNameMap = new Map<string, string>()
+  if (stylistIds.length > 0) {
+    const stylistRows = await db
+      .select({ id: stylists.id, name: stylists.name })
+      .from(stylists)
+      .where(inArray(stylists.id, stylistIds))
+    stylistRows.forEach((s) => stylistNameMap.set(s.id, s.name))
+  }
+
+  const usersWithStatus = connectedUsers.map((cu) => {
+    const stylistId = (cu.profile as { stylistId?: string | null } | null)?.stylistId
+    return {
+      ...cu,
+      lastSignIn: authMap.get(cu.userId) ?? null,
+      stylistName: stylistId ? (stylistNameMap.get(stylistId) ?? null) : null,
+    }
+  })
 
   return (
     <SettingsClient

@@ -154,6 +154,7 @@ Tailwind CSS 4, Vercel
 ## 6. CURRENT STATUS
 
 ### Working
+- Invite deduplication + clean revocation (2026-04-12): POST /api/invites now upserts — if a pending invite exists for email+facility it refreshes the token and resends; if a used invite exists it returns a clear 409 error. DELETE /api/facility/users/[userId] now clears profiles.stylist_id and cancels pending invites in a transaction on revocation. DELETE /api/invites/[id] clears profiles.stylist_id if the revoked email had a stylist linked at that facility. Team tab shows linked stylist name next to role badge. UI shows "Invite refreshed and resent" vs "Invite sent!" correctly.
 - Full auth flow: invite → accept → correct facility + role (fixed 2026-04-07)
 - Invite emails now send from noreply@seniorstylist.com (domain verified)
 - Invite accept works for unauthenticated users: magic link + Google OAuth on same page
@@ -195,13 +196,11 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-User lifecycle overhaul complete (2026-04-10). cheflisa817@gmail.com invites reset — she needs to re-accept them. Next steps:
-1. Have cheflisa817@gmail.com click her invite links to complete onboarding (invites reset with fresh 7-day expiry)
-2. Check Supabase Auth settings: Email+OTP enabled, Site URL = https://senior-stylist.vercel.app, Redirect URLs include /auth/callback
-3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-4. Test PDF parser on Vercel with real Symphony Manor price sheet
-5. Test OCR import with a real handwritten log sheet from Symphony Manor
-6. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+Invite deduplication + clean revocation shipped (2026-04-12). Next steps:
+1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
+2. Test PDF parser on Vercel with real Symphony Manor price sheet
+3. Test OCR import with a real handwritten log sheet from Symphony Manor
+4. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
 ---
 

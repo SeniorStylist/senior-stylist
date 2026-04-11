@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, accessRequests } from '@/db/schema'
+import { invites, accessRequests, profiles, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -48,6 +48,27 @@ export async function DELETE(
           eq(accessRequests.status, 'pending')
         )
       )
+
+    // If a profile with this email has a stylist linked at this facility, free it
+    const profileForEmail = await db.query.profiles.findFirst({
+      where: eq(profiles.email, existing.email),
+      columns: { id: true, stylistId: true },
+    })
+    if (profileForEmail?.stylistId) {
+      const linkedStylist = await db.query.stylists.findFirst({
+        where: and(
+          eq(stylists.id, profileForEmail.stylistId),
+          eq(stylists.facilityId, facilityId)
+        ),
+        columns: { id: true },
+      })
+      if (linkedStylist) {
+        await db
+          .update(profiles)
+          .set({ stylistId: null, updatedAt: new Date() })
+          .where(eq(profiles.id, profileForEmail.id))
+      }
+    }
 
     return Response.json({ data: { id } })
   } catch (err) {

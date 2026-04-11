@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { sendEmail } from '@/lib/email'
@@ -46,6 +46,40 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Invalid role. Must be admin, stylist, or viewer' }, { status: 422 })
     }
 
+    const normalizedEmail = email.toLowerCase().trim()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
+    const facilityName = facility?.name ?? 'Senior Stylist'
+    const role = inviteRole || 'stylist'
+
+    // Dedup: check for an existing invite at this email + facility
+    const existingInvite = await db.query.invites.findFirst({
+      where: and(eq(invites.email, normalizedEmail), eq(invites.facilityId, facilityId)),
+    })
+
+    if (existingInvite) {
+      if (existingInvite.used) {
+        return Response.json(
+          { error: 'This person already has access to this facility' },
+          { status: 409 }
+        )
+      }
+      // Pending (used=false) — refresh token + expiry and re-send
+      const newToken = crypto.randomBytes(32).toString('hex')
+      const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      const [refreshed] = await db
+        .update(invites)
+        .set({ token: newToken, expiresAt: newExpiresAt, inviteRole: role })
+        .where(eq(invites.id, existingInvite.id))
+        .returning()
+      sendEmail({
+        to: normalizedEmail,
+        subject: `You're invited to join ${facilityName}`,
+        html: buildInviteEmailHtml({ facilityName, role, acceptUrl: `${appUrl}/invite/accept?token=${newToken}` }),
+      })
+      return Response.json({ data: refreshed, refreshed: true })
+    }
+
     const token = crypto.randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
@@ -53,22 +87,18 @@ export async function POST(request: NextRequest) {
       .insert(invites)
       .values({
         facilityId,
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         invitedBy: user.id,
-        inviteRole: inviteRole || 'stylist',
+        inviteRole: role,
         token,
         expiresAt,
       })
       .returning()
 
     // Send invite email (fire-and-forget)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
-    const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
-    const facilityName = facility?.name ?? 'Senior Stylist'
-    const role = inviteRole || 'stylist'
     const acceptUrl = `${appUrl}/invite/accept?token=${token}`
     sendEmail({
-      to: email,
+      to: normalizedEmail,
       subject: `You're invited to join ${facilityName}`,
       html: buildInviteEmailHtml({ facilityName, role, acceptUrl }),
     })

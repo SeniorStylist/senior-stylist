@@ -11,6 +11,7 @@ interface ConnectedUser {
   facilityId: string
   role: string
   lastSignIn: string | null
+  stylistName: string | null
   profile: {
     id: string
     email: string | null
@@ -323,9 +324,14 @@ export function SettingsClient({
         return
       }
       setInviteEmail('')
-      setInviteSuccess('Invite sent!')
+      if (j.refreshed) {
+        setInvitesList((prev) => prev.map((i) => (i.id === j.data.id ? j.data : i)))
+        setInviteSuccess('Invite refreshed and resent')
+      } else {
+        setInvitesList((prev) => [j.data, ...prev])
+        setInviteSuccess('Invite sent!')
+      }
       setTimeout(() => setInviteSuccess(''), 3000)
-      setInvitesList((prev) => [j.data, ...prev])
     } finally {
       setSendingInvite(false)
     }
@@ -720,6 +726,11 @@ export function SettingsClient({
                   >
                     {cu.role}
                   </span>
+                  {cu.stylistName && (
+                    <span className="text-xs text-stone-400 truncate hidden sm:inline">
+                      ↔ {cu.stylistName}
+                    </span>
+                  )}
                   {(() => {
                     const status = !cu.lastSignIn
                       ? 'invited'

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { facilityUsers } from '@/db/schema'
+import { facilityUsers, profiles, invites } from '@/db/schema'
 import { and, eq, count } from 'drizzle-orm'
 
 export async function DELETE(
@@ -41,9 +41,38 @@ export async function DELETE(
       }
     }
 
-    await db
-      .delete(facilityUsers)
-      .where(and(eq(facilityUsers.facilityId, facilityId), eq(facilityUsers.userId, userId)))
+    // Fetch profile email before deletion so we can cancel pending invites
+    const profileRow = await db.query.profiles.findFirst({
+      where: eq(profiles.id, userId),
+      columns: { email: true },
+    })
+    const revokedEmail = profileRow?.email?.toLowerCase().trim() ?? null
+
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(facilityUsers)
+        .where(and(eq(facilityUsers.facilityId, facilityId), eq(facilityUsers.userId, userId)))
+
+      // Clear stylist linkage so the stylist record can be re-linked to a future user
+      await tx
+        .update(profiles)
+        .set({ stylistId: null, updatedAt: new Date() })
+        .where(eq(profiles.id, userId))
+
+      // Cancel any pending invites for this email at this facility
+      if (revokedEmail) {
+        await tx
+          .update(invites)
+          .set({ used: true })
+          .where(
+            and(
+              eq(invites.email, revokedEmail),
+              eq(invites.facilityId, facilityId),
+              eq(invites.used, false)
+            )
+          )
+      }
+    })
 
     // Invalidate the removed user's Supabase sessions so they can't continue navigating
     try {
