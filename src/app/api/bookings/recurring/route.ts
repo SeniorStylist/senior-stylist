@@ -2,7 +2,7 @@ import { db } from '@/db'
 import { bookings, services } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { createClient } from '@/lib/supabase/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { addDays, addWeeks, addMonths } from 'date-fns'
@@ -11,7 +11,9 @@ import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 const recurringSchema = z.object({
   residentId: z.string().uuid(),
   stylistId: z.string().uuid(),
-  serviceId: z.string().uuid(),
+  serviceId: z.string().uuid().optional(),
+  serviceIds: z.array(z.string().uuid()).min(1).optional(),
+  addonServiceIds: z.array(z.string().uuid()).optional().default([]),
   startTime: z.string().datetime(),
   notes: z.string().optional(),
   recurringRule: z.enum(['weekly', 'biweekly', 'monthly']),
@@ -19,6 +21,8 @@ const recurringSchema = z.object({
   selectedQuantity: z.number().int().min(1).optional(),
   selectedOption: z.string().optional(),
   addonChecked: z.boolean().optional(),
+}).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
+  message: 'serviceId or serviceIds is required',
 })
 
 type RecurringRule = 'weekly' | 'biweekly' | 'monthly'
@@ -42,67 +46,92 @@ export async function POST(request: NextRequest) {
     const parsed = recurringSchema.safeParse(body)
     if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
-    const { residentId, stylistId, serviceId, startTime, notes, recurringRule, recurringEndDate, selectedQuantity, selectedOption, addonChecked } = parsed.data
+    const { residentId, stylistId, startTime, notes, recurringRule, recurringEndDate, selectedQuantity, selectedOption, addonChecked } = parsed.data
 
-    const service = await db.query.services.findFirst({
-      where: and(eq(services.id, serviceId), eq(services.facilityId, facilityUser.facilityId)),
+    // Normalize to primary service id list
+    const primaryServiceIds: string[] =
+      parsed.data.serviceIds && parsed.data.serviceIds.length > 0
+        ? parsed.data.serviceIds
+        : parsed.data.serviceId
+          ? [parsed.data.serviceId]
+          : []
+    if (primaryServiceIds.length === 0) {
+      return Response.json({ error: 'serviceId or serviceIds is required' }, { status: 422 })
+    }
+
+    const svcRows = await db.query.services.findMany({
+      where: and(eq(services.facilityId, facilityUser.facilityId), inArray(services.id, primaryServiceIds)),
     })
-    if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
+    if (svcRows.length !== primaryServiceIds.length) {
+      return Response.json({ error: 'One or more services not found' }, { status: 404 })
+    }
+    const primaryServices = primaryServiceIds
+      .map((id) => svcRows.find((s) => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s)
+    const primary = primaryServices[0]
 
-    // Resolve pricing
+    // Resolve pricing (primary gets pricing inputs; additional primaries use fixed)
     const priceInput = { quantity: selectedQuantity, selectedOption, includeAddon: addonChecked }
-    const priceError = validatePricingInput(service, priceInput)
+    const priceError = validatePricingInput(primary, priceInput)
     if (priceError) return Response.json({ error: priceError }, { status: 422 })
-    const { priceCents: resolvedPrice, addonTotalCents } = resolvePrice(service, priceInput)
+    const { priceCents: primaryResolved, addonTotalCents: primaryAddon } = resolvePrice(primary, priceInput)
+    const additionalTotal = primaryServices.slice(1).reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
+
+    // Resolve addon-type services
+    const addonServiceIdsInput = parsed.data.addonServiceIds ?? []
+    let multiAddonTotalCents = 0
+    if (addonServiceIdsInput.length > 0) {
+      const addonSvcs = await db.query.services.findMany({
+        where: and(eq(services.facilityId, facilityUser.facilityId), inArray(services.id, addonServiceIdsInput)),
+      })
+      multiAddonTotalCents = addonSvcs.reduce((sum, s) => sum + (s.addonAmountCents ?? 0), 0)
+    }
+    const resolvedPrice = primaryResolved + additionalTotal + multiAddonTotalCents
+    const addonTotalCents = ((primaryAddon ?? 0) + multiAddonTotalCents) || null
+    const totalDurationMinutes = primaryServices.reduce((sum, s) => sum + s.durationMinutes, 0)
 
     const endDateLimit = new Date(recurringEndDate + 'T23:59:59Z')
     const parentStart = new Date(startTime)
-    const parentEnd = new Date(parentStart.getTime() + service.durationMinutes * 60 * 1000)
+    const parentEnd = new Date(parentStart.getTime() + totalDurationMinutes * 60 * 1000)
 
-    const [parent] = await db.insert(bookings).values({
+    const sharedValues = {
       facilityId: facilityUser.facilityId,
       residentId,
       stylistId,
-      serviceId,
-      startTime: parentStart,
-      endTime: parentEnd,
+      serviceId: primary.id,
+      serviceIds: primaryServices.map((s) => s.id),
+      serviceNames: primaryServices.map((s) => s.name),
+      totalDurationMinutes,
       priceCents: resolvedPrice,
-      durationMinutes: service.durationMinutes,
+      durationMinutes: primary.durationMinutes,
       selectedQuantity: selectedQuantity ?? null,
       selectedOption: selectedOption ?? null,
       addonTotalCents,
+      addonServiceIds: addonServiceIdsInput.length > 0 ? addonServiceIdsInput : null,
       notes: notes ?? null,
-      status: 'scheduled',
+      status: 'scheduled' as const,
       paymentStatus: 'unpaid',
       recurring: true,
       recurringRule,
       recurringEndDate,
+    }
+
+    const [parent] = await db.insert(bookings).values({
+      ...sharedValues,
+      startTime: parentStart,
+      endTime: parentEnd,
     }).returning()
 
     let count = 0
     let currentStart = advanceDate(parentStart, recurringRule)
 
     while (currentStart <= endDateLimit) {
-      const currentEnd = new Date(currentStart.getTime() + service.durationMinutes * 60 * 1000)
+      const currentEnd = new Date(currentStart.getTime() + totalDurationMinutes * 60 * 1000)
       try {
         await db.insert(bookings).values({
-          facilityId: facilityUser.facilityId,
-          residentId,
-          stylistId,
-          serviceId,
+          ...sharedValues,
           startTime: currentStart,
           endTime: currentEnd,
-          priceCents: resolvedPrice,
-          durationMinutes: service.durationMinutes,
-          selectedQuantity: selectedQuantity ?? null,
-          selectedOption: selectedOption ?? null,
-          addonTotalCents,
-          notes: notes ?? null,
-          status: 'scheduled',
-          paymentStatus: 'unpaid',
-          recurring: true,
-          recurringRule,
-          recurringEndDate,
           recurringParentId: parent.id,
         })
         count++

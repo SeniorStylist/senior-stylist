@@ -16,6 +16,7 @@ Return ONLY a valid JSON object with this exact shape:
       "residentName": "string",
       "roomNumber": "string or null",
       "serviceName": "string",
+      "additionalServices": ["string"],
       "price": 0,
       "notes": "string or null",
       "unclear": false
@@ -31,6 +32,12 @@ Rules:
 - price is a number in dollars (not cents), or null if not readable
 - Include ALL notes written next to any entry
 - Never skip entries even if unclear
+- COMBINED SERVICES: when an entry lists multiple services joined by "+", "/", "&", "and", or commas between service terms (e.g. "Shampoo + Cut", "Wash/Color", "Curl and Cut", "Cut, Color"), put the FIRST term in "serviceName" and the REST in "additionalServices" as an array of strings. If only one service, use an empty array [] for additionalServices.
+- Examples:
+  - "Shampoo + Long Hair" → serviceName: "Shampoo", additionalServices: ["Long Hair"]
+  - "Cut / Color" → serviceName: "Cut", additionalServices: ["Color"]
+  - "Wash, Curl, Chin" → serviceName: "Wash", additionalServices: ["Curl", "Chin"]
+  - "Perm" → serviceName: "Perm", additionalServices: []
 - Return ONLY the JSON, no markdown, no explanation`
 
 async function callGemini(base64: string, mimeType: string, apiKey: string): Promise<string> {

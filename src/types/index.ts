@@ -104,6 +104,9 @@ export interface Booking {
   selectedOption: string | null
   addonServiceIds: string[] | null
   addonTotalCents: number | null
+  serviceIds: string[] | null
+  serviceNames: string[] | null
+  totalDurationMinutes: number | null
   status: BookingStatus
   paymentStatus: string
   cancellationReason: string | null

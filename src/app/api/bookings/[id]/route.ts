@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and, lt, gt, or, ne, gte, count, desc } from 'drizzle-orm'
+import { eq, and, lt, gt, or, ne, gte, count, desc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
@@ -17,6 +17,8 @@ const updateSchema = z.object({
   residentId: z.string().uuid().optional(),
   stylistId: z.string().uuid().optional(),
   serviceId: z.string().uuid().optional(),
+  serviceIds: z.array(z.string().uuid()).min(1).optional(),
+  addonServiceIds: z.array(z.string().uuid()).optional(),
   startTime: z.string().datetime().optional(),
   priceCents: z.number().int().min(0).optional(),
   notes: z.string().optional(),
@@ -136,7 +138,6 @@ export async function PUT(
 
     // Resolve the effective values after the update
     const effectiveStylistId = updates.stylistId ?? existing.stylistId
-    const effectiveServiceId = updates.serviceId ?? existing.serviceId
     const effectiveStartTime = updates.startTime
       ? new Date(updates.startTime)
       : existing.startTime
@@ -163,46 +164,73 @@ export async function PUT(
       if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
     }
 
-    // If serviceId changes, fetch new service for price/duration snapshots
+    // If service(s) change, fetch new service(s) for price/duration snapshots.
+    // Multi-service: prefer updates.serviceIds when provided; fall back to single serviceId.
     let priceCents: number | undefined
     let durationMinutes: number | undefined
+    let totalDurationMinutes: number | undefined
     let addonTotalCents: number | null | undefined
+    let newServiceIds: string[] | undefined
+    let newServiceNames: string[] | undefined
+    let newPrimaryServiceId: string | undefined
 
-    if (updates.serviceId && updates.serviceId !== existing.serviceId) {
-      const service = await db.query.services.findFirst({
-        where: and(
-          eq(services.id, updates.serviceId),
-          eq(services.facilityId, facilityId)
-        ),
+    const incomingServiceIds: string[] | undefined =
+      updates.serviceIds && updates.serviceIds.length > 0
+        ? updates.serviceIds
+        : updates.serviceId
+          ? [updates.serviceId]
+          : undefined
+
+    const serviceChanged =
+      !!incomingServiceIds &&
+      (incomingServiceIds.length !== (existing.serviceIds?.length ?? 1) ||
+        incomingServiceIds.some((id, i) => id !== (existing.serviceIds?.[i] ?? existing.serviceId)))
+
+    if (incomingServiceIds && serviceChanged) {
+      const svcRows = await db.query.services.findMany({
+        where: and(eq(services.facilityId, facilityId), inArray(services.id, incomingServiceIds)),
       })
-      if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
-      durationMinutes = service.durationMinutes
+      if (svcRows.length !== incomingServiceIds.length) {
+        return Response.json({ error: 'One or more services not found' }, { status: 404 })
+      }
+      const ordered = incomingServiceIds
+        .map((id) => svcRows.find((s) => s.id === id))
+        .filter((s): s is NonNullable<typeof s> => !!s)
+      const primary = ordered[0]
 
-      // Resolve pricing for the new service
+      // Resolve pricing for the primary service; additional primaries resolve as fixed
       const priceInput = {
         quantity: updates.selectedQuantity,
         selectedOption: updates.selectedOption,
         includeAddon: updates.addonChecked,
       }
-      const priceError = validatePricingInput(service, priceInput)
+      const priceError = validatePricingInput(primary, priceInput)
       if (priceError) {
         return Response.json({ error: priceError }, { status: 422 })
       }
-      const resolved = resolvePrice(service, priceInput)
-      priceCents = resolved.priceCents
-      addonTotalCents = resolved.addonTotalCents
+      const { priceCents: primaryResolved, addonTotalCents: primaryAddon } = resolvePrice(primary, priceInput)
+      const additionalTotal = ordered.slice(1).reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
+
+      // Addon-type services still counted separately below; here we compute primary total
+      priceCents = primaryResolved + additionalTotal
+      addonTotalCents = primaryAddon
+      durationMinutes = primary.durationMinutes
+      totalDurationMinutes = ordered.reduce((sum, s) => sum + s.durationMinutes, 0)
+      newServiceIds = ordered.map((s) => s.id)
+      newServiceNames = ordered.map((s) => s.name)
+      newPrimaryServiceId = primary.id
     }
 
     // Recalculate endTime if startTime or service changed
     const effectiveDuration =
-      durationMinutes ?? existing.durationMinutes ?? 30
+      totalDurationMinutes ?? existing.totalDurationMinutes ?? existing.durationMinutes ?? 30
     const endTime =
-      updates.startTime || updates.serviceId
+      updates.startTime || serviceChanged
         ? new Date(effectiveStartTime.getTime() + effectiveDuration * 60000)
         : undefined
 
     // Check stylist conflict if stylist or time window changed
-    if (updates.stylistId || updates.startTime || updates.serviceId) {
+    if (updates.stylistId || updates.startTime || serviceChanged) {
       const effectiveEndTime =
         endTime ??
         new Date(effectiveStartTime.getTime() + effectiveDuration * 60000)
@@ -234,7 +262,10 @@ export async function PUT(
 
     if (updates.residentId !== undefined) setPayload.residentId = updates.residentId
     if (updates.stylistId !== undefined) setPayload.stylistId = updates.stylistId
-    if (updates.serviceId !== undefined) setPayload.serviceId = updates.serviceId
+    if (newPrimaryServiceId !== undefined) setPayload.serviceId = newPrimaryServiceId
+    if (newServiceIds !== undefined) setPayload.serviceIds = newServiceIds
+    if (newServiceNames !== undefined) setPayload.serviceNames = newServiceNames
+    if (totalDurationMinutes !== undefined) setPayload.totalDurationMinutes = totalDurationMinutes
     if (updates.startTime !== undefined) setPayload.startTime = effectiveStartTime
     if (endTime !== undefined) setPayload.endTime = endTime
     if (priceCents !== undefined) setPayload.priceCents = priceCents
@@ -247,6 +278,7 @@ export async function PUT(
     if (updates.cancellationReason !== undefined) setPayload.cancellationReason = updates.cancellationReason
     if (updates.selectedQuantity !== undefined) setPayload.selectedQuantity = updates.selectedQuantity
     if (updates.selectedOption !== undefined) setPayload.selectedOption = updates.selectedOption
+    if (updates.addonServiceIds !== undefined) setPayload.addonServiceIds = updates.addonServiceIds.length > 0 ? updates.addonServiceIds : null
     if (addonTotalCents !== undefined) setPayload.addonTotalCents = addonTotalCents
 
     const [updated] = await db

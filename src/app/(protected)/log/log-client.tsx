@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
+import { formatPricingLabel } from '@/lib/pricing'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
@@ -24,6 +25,9 @@ interface LogBooking {
   selectedOption: string | null
   addonTotalCents: number | null
   addonServiceIds: string[] | null
+  serviceIds: string[] | null
+  serviceNames: string[] | null
+  totalDurationMinutes: number | null
   resident: Resident
   stylist: Stylist
   service: Service
@@ -62,12 +66,16 @@ function addDays(dateStr: string, days: number): string {
 }
 
 function serviceDisplayName(booking: LogBooking, allServices: Service[]): string {
+  // Prefer denormalized serviceNames (multi-service bookings), fall back to single service
+  const primaryNames =
+    booking.serviceNames && booking.serviceNames.length > 0
+      ? booking.serviceNames
+      : [booking.service.name]
   const addonNames = (booking.addonServiceIds ?? [])
     .map((id) => allServices.find((s) => s.id === id)?.name)
     .filter((n): n is string => Boolean(n))
-  return addonNames.length > 0
-    ? `${booking.service.name} + ${addonNames.join(' + ')}`
-    : booking.service.name
+  const all = [...primaryNames, ...addonNames]
+  return all.join(' + ')
 }
 
 function formatLogDate(dateStr: string): string {
@@ -564,7 +572,7 @@ export function LogClient({
             >
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} · {formatCents(s.priceCents)}
+                  {s.name} · {formatPricingLabel(s)}
                 </option>
               ))}
             </select>

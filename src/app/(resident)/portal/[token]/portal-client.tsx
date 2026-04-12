@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { formatCents } from '@/lib/utils'
+import { formatPricingLabel } from '@/lib/pricing'
+import type { PricingTier, PricingOption } from '@/types'
 
 interface ServiceData {
   id: string
@@ -9,6 +11,10 @@ interface ServiceData {
   description: string | null
   priceCents: number
   durationMinutes: number
+  pricingType: string
+  addonAmountCents: number | null
+  pricingTiers: PricingTier[] | null
+  pricingOptions: PricingOption[] | null
 }
 
 interface StylistData {
@@ -329,7 +335,7 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
                   >
                     <p className="text-sm font-semibold text-stone-900">{svc.name}</p>
                     <p className="text-xs text-stone-500 mt-1">
-                      {formatCents(svc.priceCents)} · {svc.durationMinutes} min
+                      {formatPricingLabel(svc)} · {svc.durationMinutes} min
                     </p>
                     {svc.description && (
                       <p className="text-xs text-stone-400 mt-1">{svc.description}</p>
@@ -344,7 +350,7 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
               <div className="space-y-4">
                 {/* Selected service summary */}
                 <div className="bg-teal-50 rounded-xl p-3 text-sm text-teal-800 font-medium">
-                  {selectedService?.name} — {formatCents(selectedService?.priceCents ?? 0)}
+                  {selectedService?.name} — {selectedService ? formatPricingLabel(selectedService) : formatCents(0)}
                 </div>
 
                 {/* Stylist picker (if multiple) */}
@@ -470,7 +476,7 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
                   </div>
                   <div className="flex justify-between border-t border-stone-200 pt-2 mt-2">
                     <span className="text-stone-500">Price</span>
-                    <span className="font-bold text-stone-900">{formatCents(selectedService.priceCents)}</span>
+                    <span className="font-bold text-stone-900">{formatPricingLabel(selectedService)}</span>
                   </div>
                 </div>
 

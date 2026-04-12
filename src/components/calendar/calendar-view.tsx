@@ -16,6 +16,8 @@ interface BookingForCalendar {
   status: string
   priceCents: number | null
   recurring?: boolean
+  serviceNames?: string[] | null
+  addonServiceIds?: string[] | null
   resident: Resident
   stylist: Stylist
   service: Service
@@ -25,6 +27,7 @@ type CalendarViewType = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
 
 interface CalendarViewProps {
   bookings: BookingForCalendar[]
+  services?: Service[]
   currentView: CalendarViewType
   onChangeViewRef: React.MutableRefObject<((view: CalendarViewType) => void) | null>
   onPrevRef: React.MutableRefObject<(() => void) | null>
@@ -38,6 +41,7 @@ interface CalendarViewProps {
 
 export default function CalendarView({
   bookings,
+  services = [],
   currentView,
   onChangeViewRef,
   onPrevRef,
@@ -110,6 +114,20 @@ export default function CalendarView({
           const booking = arg.event.extendedProps.booking as BookingForCalendar
           const view = arg.view.type
 
+          const primaryNames =
+            booking.serviceNames && booking.serviceNames.length > 0
+              ? booking.serviceNames
+              : booking.service?.name
+                ? [booking.service.name]
+                : []
+          const addonNames =
+            (booking.addonServiceIds ?? [])
+              .map((id) => services.find((s) => s.id === id)?.name)
+              .filter((n): n is string => Boolean(n))
+
+          const primaryLabel = primaryNames.join(' + ')
+          const fullLabel = [...primaryNames, ...addonNames].join(' + ')
+
           if (view === 'dayGridMonth') {
             return (
               <div className="px-1 truncate text-xs font-medium leading-tight">
@@ -127,7 +145,7 @@ export default function CalendarView({
                   {booking.resident?.name}
                 </div>
                 <div className="text-xs opacity-80 truncate leading-tight">
-                  {booking.service?.name}
+                  {fullLabel || primaryLabel}
                 </div>
               </div>
             )
@@ -141,7 +159,7 @@ export default function CalendarView({
                 {booking.resident?.name}
               </div>
               <div className="text-xs opacity-85 truncate leading-tight">
-                {booking.service?.name}
+                {fullLabel || primaryLabel}
               </div>
               <div className="text-xs opacity-70 truncate leading-tight">
                 {booking.stylist?.name} ·{' '}

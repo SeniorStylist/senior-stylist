@@ -6,6 +6,41 @@ export const runtime = 'nodejs'
 
 const PALETTE = ['#0D7377','#7C3AED','#DC2626','#DB2777','#D97706','#059669','#2563EB','#0891B2','#9333EA','#EA580C','#16A34A','#0284C7']
 
+// Known salon category headers — chunks matching these (case-insensitive) are
+// treated as category headers even without the normal " Price " separator.
+const CATEGORY_KEYWORDS = [
+  'color', 'cut', 'cuts', 'perm', 'perms', 'perms & relaxers', 'relaxer', 'relaxers',
+  'specialty', 'chemical', 'styling', 'style', 'misc', 'miscellaneous', 'wash',
+  'shampoo', 'add-ons', 'add ons', 'addons', 'extras', "men's", 'mens',
+]
+
+/** Check if a chunk looks like a standalone salon category header. */
+function isCategoryKeyword(chunk: string): boolean {
+  const norm = chunk.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[:.]+$/, '')
+  if (CATEGORY_KEYWORDS.includes(norm)) return true
+  // Also accept compound titles like "Color Services", "Cut & Style"
+  for (const kw of CATEGORY_KEYWORDS) {
+    if (norm === kw || norm.startsWith(kw + ' ') || norm.endsWith(' ' + kw)) return true
+  }
+  return false
+}
+
+/** Infer a category from a service name when no header was found. */
+function inferCategoryFromName(name: string): string | null {
+  const n = name.toLowerCase()
+  if (/\b(color|highlight|toner|tint|balayage)\b/.test(n)) return 'Color'
+  if (/\b(perm|relaxer|wave)\b/.test(n)) return 'Perms & Relaxers'
+  if (/\b(cut|trim)\b/.test(n)) return 'Cut'
+  if (/\b(style|blowout|blow-dry|blow dry|curl|set|updo)\b/.test(n)) return 'Styling'
+  if (/\b(wash|shampoo)\b/.test(n)) return 'Wash'
+  return null
+}
+
+/** Long Hair / Matted Hair are addons that modify the preceding service. */
+function isAddonNameThatInherits(name: string): boolean {
+  return /^(long|matted)\s+hair\b/i.test(name.trim())
+}
+
 interface ParsedService {
   name: string
   priceCents: number
@@ -197,6 +232,10 @@ export async function POST(request: NextRequest) {
     let currentCategory = cleanFirstCategory
     if (currentCategory) getColor(currentCategory)
 
+    // Category of the most recent non-addon service emitted — used to
+    // force Long Hair / Matted Hair under their parent service's category.
+    let previousServiceCategory = currentCategory
+
     const rows: ParsedService[] = []
 
     for (let i = 0; i < tokens.length; i += 2) {
@@ -232,7 +271,11 @@ export async function POST(request: NextRequest) {
 
       if (!hasPrice) {
         // Treat as a bare category header (e.g. "Color", "Perms & Relaxers")
-        if (chunk.length >= 3 && !chunk.startsWith('*') && !chunk.includes('$') && !/^Price\b/i.test(chunk)) {
+        // Preferred signal: the chunk matches a known salon category keyword.
+        // Fallback: the chunk is short-ish and not obviously garbage.
+        const looksValid =
+          chunk.length >= 3 && !chunk.startsWith('*') && !chunk.includes('$') && !/^Price\b/i.test(chunk)
+        if (isCategoryKeyword(chunk) || looksValid) {
           currentCategory = chunk
           getColor(chunk)
         }
@@ -257,7 +300,15 @@ export async function POST(request: NextRequest) {
       if (/^SVCPH[A-Z]+$/.test(serviceName)) {
         const stored = specialServices.get(serviceName)
         if (stored) {
-          rows.push({ ...stored, category: currentCategory, color: getColor(currentCategory) })
+          // Long Hair / Matted Hair inherit the preceding service's category,
+          // not whatever currentCategory happens to be now.
+          let cat = currentCategory
+          if (isAddonNameThatInherits(stored.name) && previousServiceCategory) {
+            cat = previousServiceCategory
+          } else if (!cat || /^services?$/i.test(cat)) {
+            cat = inferCategoryFromName(stored.name) ?? cat
+          }
+          rows.push({ ...stored, category: cat, color: getColor(cat || 'Services') })
         }
         continue
       }
@@ -274,17 +325,28 @@ export async function POST(request: NextRequest) {
       // Check if "ea." suffix means multi_option (flag for admin review)
       const isEach = /ea\.?$/i.test(priceStr)
 
+      // Determine category: use current header; fall back to name-based heuristic
+      // when no header was detected or the header is generic ("Services").
+      let cat = currentCategory
+      if (!cat || /^services?$/i.test(cat)) {
+        cat = inferCategoryFromName(serviceName) ?? cat
+      }
+
       rows.push({
         name: serviceName,
         priceCents: Math.round(price * 100),
         durationMinutes: 30,
-        category: currentCategory,
-        color: getColor(currentCategory),
+        category: cat,
+        color: getColor(cat || 'Services'),
         pricingType: isEach ? 'multi_option' : 'fixed',
         addonAmountCents: null,
         pricingTiers: null,
         pricingOptions: isEach ? [{ name: 'Each', priceCents: Math.round(price * 100) }] : null,
       })
+
+      // Track this as the last "parent" service so subsequent Long Hair /
+      // Matted Hair addons can inherit its category.
+      if (cat) previousServiceCategory = cat
     }
 
     return Response.json({ data: rows })

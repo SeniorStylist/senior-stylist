@@ -39,6 +39,8 @@ const importSchema = z.object({
           roomNumber: z.string().nullable(),
           serviceId: z.string().uuid().nullable(),
           serviceName: z.string().min(1),
+          additionalServiceIds: z.array(z.string().uuid().nullable()).optional().default([]),
+          additionalServiceNames: z.array(z.string()).optional().default([]),
           priceCents: z.number().int().min(0).nullable(),
           notes: z.string().nullable(),
         })
@@ -127,45 +129,72 @@ export async function POST(request: Request) {
             }
           }
 
-          // Resolve or create service (3-step: provided ID → in-memory map → fuzzy DB match → insert)
-          let serviceId = entry.serviceId
-          if (!serviceId) {
-            const key = entry.serviceName.toLowerCase().trim()
-            if (serviceMap.has(key)) {
-              serviceId = serviceMap.get(key)!
-            } else {
-              const dbMatch = existingServices.find(s => fuzzyScore(s.name, entry.serviceName) >= 0.8)
-              if (dbMatch) {
-                serviceId = dbMatch.id
-                serviceMap.set(key, serviceId)
-              } else {
-                const [newService] = await tx
-                  .insert(services)
-                  .values({
-                    facilityId,
-                    name: entry.serviceName,
-                    priceCents: entry.priceCents ?? 0,
-                    durationMinutes: 30,
-                  })
-                  .returning({ id: services.id })
-                serviceId = newService.id
-                serviceMap.set(key, serviceId)
-                existingServices.push({ id: serviceId, name: entry.serviceName })
-                createdServices++
-              }
+          // Resolve or create a service by name (shared helper used for primary + additionals)
+          const resolveServiceId = async (
+            providedId: string | null,
+            name: string
+          ): Promise<{ id: string; name: string }> => {
+            if (providedId) {
+              const existing = existingServices.find((s) => s.id === providedId)
+              return { id: providedId, name: existing?.name ?? name }
             }
+            const key = name.toLowerCase().trim()
+            if (serviceMap.has(key)) {
+              const id = serviceMap.get(key)!
+              const existing = existingServices.find((s) => s.id === id)
+              return { id, name: existing?.name ?? name }
+            }
+            const dbMatch = existingServices.find((s) => fuzzyScore(s.name, name) >= 0.8)
+            if (dbMatch) {
+              serviceMap.set(key, dbMatch.id)
+              return { id: dbMatch.id, name: dbMatch.name }
+            }
+            const [newService] = await tx
+              .insert(services)
+              .values({
+                facilityId,
+                name,
+                priceCents: 0,
+                durationMinutes: 30,
+              })
+              .returning({ id: services.id })
+            serviceMap.set(key, newService.id)
+            existingServices.push({ id: newService.id, name })
+            createdServices++
+            return { id: newService.id, name }
           }
+
+          // Primary service
+          const primary = await resolveServiceId(entry.serviceId, entry.serviceName)
+
+          // Additional services (add-ons treated as additional primary services per plan)
+          const additionalNames = entry.additionalServiceNames ?? []
+          const additionalIds = entry.additionalServiceIds ?? []
+          const resolvedAdditional: { id: string; name: string }[] = []
+          for (let i = 0; i < additionalNames.length; i++) {
+            const name = (additionalNames[i] ?? '').trim()
+            if (!name) continue
+            const providedId = additionalIds[i] ?? null
+            resolvedAdditional.push(await resolveServiceId(providedId, name))
+          }
+
+          const allServiceIds = [primary.id, ...resolvedAdditional.map((s) => s.id)]
+          const allServiceNames = [primary.name, ...resolvedAdditional.map((s) => s.name)]
 
           // Space bookings 30 min apart from 09:00 UTC
           const startTime = new Date(`${sheet.date}T09:00:00.000Z`)
           startTime.setMinutes(startTime.getMinutes() + entryIndex * 30)
-          const endTime = new Date(startTime.getTime() + 30 * 60 * 1000)
+          const totalDurationMinutes = allServiceIds.length * 30
+          const endTime = new Date(startTime.getTime() + totalDurationMinutes * 60 * 1000)
 
           await tx.insert(bookings).values({
             facilityId,
             residentId,
             stylistId: sheet.stylistId,
-            serviceId,
+            serviceId: primary.id,
+            serviceIds: allServiceIds,
+            serviceNames: allServiceNames,
+            totalDurationMinutes,
             startTime,
             endTime,
             priceCents: entry.priceCents ?? null,

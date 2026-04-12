@@ -30,6 +30,13 @@ export interface BookingWithRelations {
   residentId: string
   stylistId: string
   serviceId: string
+  serviceIds: string[] | null
+  serviceNames: string[] | null
+  totalDurationMinutes: number | null
+  addonServiceIds: string[] | null
+  addonTotalCents: number | null
+  selectedQuantity: number | null
+  selectedOption: string | null
   startTime: string
   endTime: string
   priceCents: number | null
@@ -38,6 +45,10 @@ export interface BookingWithRelations {
   status: string
   paymentStatus: string
   cancellationReason: string | null
+  recurring?: boolean
+  recurringRule?: string | null
+  recurringEndDate?: string | null
+  recurringParentId?: string | null
   googleEventId: string | null
   syncError: string | null
   resident: Resident
@@ -460,6 +471,7 @@ export function DashboardClient({
         <div className={cn('flex-1 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden min-h-0', calendarFlash && 'calendar-booking-flash')}>
           <CalendarView
             bookings={bookings}
+            services={localServices}
             currentView={calendarView}
             onChangeViewRef={changeViewRef}
             onPrevRef={prevRef}

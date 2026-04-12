@@ -14,13 +14,16 @@ import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 const createSchema = z.object({
   residentId: z.string().uuid(),
   stylistId: z.string().uuid(),
-  serviceId: z.string().uuid(),
+  serviceId: z.string().uuid().optional(),
+  serviceIds: z.array(z.string().uuid()).min(1).optional(),
   startTime: z.string().datetime(),
   notes: z.string().optional(),
   selectedQuantity: z.number().int().min(1).optional(),
   selectedOption: z.string().optional(),
   addonChecked: z.boolean().optional(),
   addonServiceIds: z.array(z.string().uuid()).optional().default([]),
+}).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
+  message: 'serviceId or serviceIds is required',
 })
 
 export async function GET(request: NextRequest) {
@@ -83,7 +86,18 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const { residentId, stylistId, serviceId, startTime: startTimeStr, notes } = parsed.data
+    const { residentId, stylistId, startTime: startTimeStr, notes } = parsed.data
+
+    // Normalize to an ordered list of primary service IDs (first = primary)
+    const primaryServiceIds: string[] =
+      parsed.data.serviceIds && parsed.data.serviceIds.length > 0
+        ? parsed.data.serviceIds
+        : parsed.data.serviceId
+          ? [parsed.data.serviceId]
+          : []
+    if (primaryServiceIds.length === 0) {
+      return Response.json({ error: 'serviceId or serviceIds is required' }, { status: 422 })
+    }
 
     // Verify resident belongs to this facility
     const resident = await db.query.residents.findFirst({
@@ -97,13 +111,21 @@ export async function POST(request: NextRequest) {
     })
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
 
-    // Fetch service from DB for authoritative priceCents and durationMinutes
-    const service = await db.query.services.findFirst({
-      where: and(eq(services.id, serviceId), eq(services.facilityId, facilityId)),
+    // Fetch all primary services in one query (single inArray, guarded .length > 0)
+    const primarySvcRows = await db.query.services.findMany({
+      where: and(eq(services.facilityId, facilityId), inArray(services.id, primaryServiceIds)),
     })
-    if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
+    if (primarySvcRows.length !== primaryServiceIds.length) {
+      return Response.json({ error: 'One or more services not found' }, { status: 404 })
+    }
+    // Preserve caller-specified order
+    const primaryServices = primaryServiceIds
+      .map((id) => primarySvcRows.find((s) => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s)
+    const service = primaryServices[0] // primary = first
 
-    // Resolve pricing for primary service
+    // Resolve pricing for the PRIMARY (first) service using any quantity/option inputs.
+    // Additional primary services resolve as fixed price (no per-service options in the current UI).
     const priceInput = {
       quantity: parsed.data.selectedQuantity,
       selectedOption: parsed.data.selectedOption,
@@ -113,22 +135,29 @@ export async function POST(request: NextRequest) {
     if (priceError) {
       return Response.json({ error: priceError }, { status: 422 })
     }
-    const { priceCents: resolvedPrice, addonTotalCents } = resolvePrice(service, priceInput)
+    const { priceCents: primaryResolved, addonTotalCents } = resolvePrice(service, priceInput)
+    const additionalPrimaryTotal = primaryServices
+      .slice(1)
+      .reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
+    const resolvedPrice = primaryResolved + additionalPrimaryTotal
 
-    // Resolve addon services (additional addon-type services stacked on primary)
-    const addonServiceIds = parsed.data.addonServiceIds ?? []
+    // Resolve addon services (stacked addon-type services)
+    const addonServiceIdsInput = parsed.data.addonServiceIds ?? []
     let multiAddonTotalCents = 0
-    if (addonServiceIds.length > 0) {
+    if (addonServiceIdsInput.length > 0) {
       const addonSvcs = await db.query.services.findMany({
-        where: and(eq(services.facilityId, facilityId), inArray(services.id, addonServiceIds)),
+        where: and(eq(services.facilityId, facilityId), inArray(services.id, addonServiceIdsInput)),
       })
       multiAddonTotalCents = addonSvcs.reduce((sum, s) => sum + (s.addonAmountCents ?? 0), 0)
     }
     const finalPriceCents = resolvedPrice + multiAddonTotalCents
     const finalAddonTotalCents = ((addonTotalCents ?? 0) + multiAddonTotalCents) || null
 
+    // Total duration = sum of all primary services (addons never consume duration)
+    const totalDurationMinutes = primaryServices.reduce((sum, s) => sum + s.durationMinutes, 0)
+
     const startTime = new Date(startTimeStr)
-    const endTime = new Date(startTime.getTime() + service.durationMinutes * 60000)
+    const endTime = new Date(startTime.getTime() + totalDurationMinutes * 60000)
 
     // Check for stylist conflict
     const conflict = await db.query.bookings.findFirst({
@@ -158,7 +187,10 @@ export async function POST(request: NextRequest) {
         facilityId,
         residentId,
         stylistId,
-        serviceId,
+        serviceId: primaryServices[0].id,
+        serviceIds: primaryServices.map((s) => s.id),
+        serviceNames: primaryServices.map((s) => s.name),
+        totalDurationMinutes,
         startTime,
         endTime,
         priceCents: finalPriceCents,
@@ -167,7 +199,7 @@ export async function POST(request: NextRequest) {
         selectedQuantity: parsed.data.selectedQuantity ?? null,
         selectedOption: parsed.data.selectedOption ?? null,
         addonTotalCents: finalAddonTotalCents,
-        addonServiceIds: addonServiceIds.length > 0 ? addonServiceIds : null,
+        addonServiceIds: addonServiceIdsInput.length > 0 ? addonServiceIdsInput : null,
         status: 'scheduled',
       })
       .returning()

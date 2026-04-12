@@ -50,7 +50,8 @@ export function BookingModal({
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
   const [selectedResidentId, setSelectedResidentId] = useState('')
-  const [selectedServiceId, setSelectedServiceId] = useState('')
+  // Multi-service: ordered list of primary service IDs. First = primary.
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
   const [selectedStylistId, setSelectedStylistId] = useState('')
   const [startTime, setStartTime] = useState('')
   const [notes, setNotes] = useState('')
@@ -72,7 +73,19 @@ export function BookingModal({
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
-  const selectedService = services.find((s) => s.id === selectedServiceId)
+
+  // Split services: primaries (non-addon) pickable in the multi-service list; addons are a separate checklist
+  const primaryServiceCandidates = services.filter((s) => s.pricingType !== 'addon')
+  const addonServices = services.filter(
+    (s) => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id)
+  )
+
+  // Selected primary services in order
+  const selectedServices = selectedServiceIds
+    .map((id) => services.find((s) => s.id === id))
+    .filter((s): s is Service => !!s)
+  const primaryService = selectedServices[0] ?? null
+  const selectedServiceId = primaryService?.id ?? ''
 
   const filteredResidents = residents.filter(
     (r) =>
@@ -86,14 +99,22 @@ export function BookingModal({
 
     if (mode === 'edit' && booking) {
       setSelectedResidentId(booking.residentId)
-      setSelectedServiceId(booking.serviceId)
+      // Prefer booking.serviceIds (multi), fall back to single serviceId
+      const existingIds =
+        booking.serviceIds && booking.serviceIds.length > 0
+          ? booking.serviceIds
+          : [booking.serviceId]
+      setSelectedServiceIds(existingIds)
+      setSelectedAddonServiceIds(booking.addonServiceIds ?? [])
       setSelectedStylistId(booking.stylistId)
       setStartTime(formatDateTimeLocal(booking.startTime))
       setNotes(booking.notes ?? '')
       setResidentSearch(booking.resident?.name ?? '')
     } else {
       setSelectedResidentId('')
-      setSelectedServiceId(services[0]?.id ?? '')
+      const defaultPrimary = primaryServiceCandidates[0]?.id ?? services[0]?.id ?? ''
+      setSelectedServiceIds(defaultPrimary ? [defaultPrimary] : [])
+      setSelectedAddonServiceIds([])
       setSelectedStylistId(stylists[0]?.id ?? '')
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart) : '')
       setNotes('')
@@ -109,58 +130,75 @@ export function BookingModal({
     setAddonChecked(false)
     setSelectedQuantity(1)
     setSelectedOptionName('')
-    setSelectedAddonServiceIds([])
     // Default recurring end date = 3 months from now
     const threeMonths = new Date()
     threeMonths.setMonth(threeMonths.getMonth() + 3)
     setRecurringEndDate(threeMonths.toISOString().split('T')[0])
   }, [open, mode, booking, defaultStart]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When resident changes, pre-select their default service
+  // When resident changes (create mode), pre-select their default service
   useEffect(() => {
     if (mode !== 'create' || !selectedResidentId) return
     const resident = residents.find((r) => r.id === selectedResidentId)
     if (resident?.defaultServiceId) {
-      setSelectedServiceId(resident.defaultServiceId)
+      setSelectedServiceIds([resident.defaultServiceId])
     }
   }, [selectedResidentId, mode, residents])
 
-  // Reset pricing inputs when service changes
+  // Reset pricing inputs when the PRIMARY service changes
   useEffect(() => {
     setAddonChecked(false)
     setSelectedQuantity(1)
-    setSelectedAddonServiceIds([])
-    if (selectedService?.pricingType === 'multi_option' && selectedService.pricingOptions?.length) {
-      setSelectedOptionName(selectedService.pricingOptions[0].name)
+    if (primaryService?.pricingType === 'multi_option' && primaryService.pricingOptions?.length) {
+      setSelectedOptionName(primaryService.pricingOptions[0].name)
     } else {
       setSelectedOptionName('')
     }
   }, [selectedServiceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Compute resolved price for display
-  const resolvedPrice = selectedService
-    ? resolvePrice(selectedService, {
+  // --- Pricing totals ---
+  const primaryResolved = primaryService
+    ? resolvePrice(primaryService, {
         quantity: selectedQuantity,
         selectedOption: selectedOptionName,
         includeAddon: addonChecked,
       })
     : null
-
-  // Addon services available for multi-select (separate from primary service's own addon type)
-  const addonServices = services.filter(
-    (s) => s.pricingType === 'addon' && s.id !== selectedServiceId
-  )
+  const additionalPrimaryTotal = selectedServices
+    .slice(1)
+    .reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
   const multiAddonTotal = selectedAddonServiceIds.reduce((sum, id) => {
-    const svc = addonServices.find((s) => s.id === id)
+    const svc = services.find((s) => s.id === id)
     return sum + (svc?.addonAmountCents ?? 0)
   }, 0)
   const displayPriceCents =
-    (resolvedPrice?.priceCents ?? selectedService?.priceCents ?? 0) + multiAddonTotal
+    (primaryResolved?.priceCents ?? primaryService?.priceCents ?? 0) +
+    additionalPrimaryTotal +
+    multiAddonTotal
+
+  const totalDurationMinutes = selectedServices.reduce(
+    (sum, s) => sum + s.durationMinutes,
+    0
+  )
 
   const toggleAddonService = (id: string) =>
     setSelectedAddonServiceIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
+
+  const setServiceAt = (index: number, id: string) =>
+    setSelectedServiceIds((prev) => {
+      const next = [...prev]
+      next[index] = id
+      return next
+    })
+  const removeServiceAt = (index: number) =>
+    setSelectedServiceIds((prev) => prev.filter((_, i) => i !== index))
+  const addAnotherService = () => {
+    // Pick the first primary candidate NOT already selected
+    const firstFree = primaryServiceCandidates.find((s) => !selectedServiceIds.includes(s.id))
+    if (firstFree) setSelectedServiceIds((prev) => [...prev, firstFree.id])
+  }
 
   // Cmd+Enter to submit
   useEffect(() => {
@@ -170,10 +208,10 @@ export function BookingModal({
     if (open) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedResidentId, selectedServiceId, selectedStylistId, startTime, notes])
+  }, [open, selectedResidentId, selectedServiceIds, selectedStylistId, startTime, notes])
 
   const handleSubmit = async () => {
-    if (!selectedResidentId || !selectedServiceId || !selectedStylistId || !startTime) {
+    if (!selectedResidentId || selectedServiceIds.length === 0 || !selectedStylistId || !startTime) {
       setError('Please fill in all required fields.')
       return
     }
@@ -185,31 +223,28 @@ export function BookingModal({
       const isCreatingRecurring = mode === 'create' && isRecurring && isAdmin
 
       const pricingFields = {
-        ...(selectedService?.pricingType === 'addon' ? { addonChecked } : {}),
-        ...(selectedService?.pricingType === 'tiered' ? { selectedQuantity } : {}),
-        ...(selectedService?.pricingType === 'multi_option' ? { selectedOption: selectedOptionName } : {}),
-        ...(selectedAddonServiceIds.length > 0 ? { addonServiceIds: selectedAddonServiceIds } : {}),
+        ...(primaryService?.pricingType === 'addon' ? { addonChecked } : {}),
+        ...(primaryService?.pricingType === 'tiered' ? { selectedQuantity } : {}),
+        ...(primaryService?.pricingType === 'multi_option' ? { selectedOption: selectedOptionName } : {}),
+        ...(selectedAddonServiceIds.length > 0
+          ? { addonServiceIds: selectedAddonServiceIds }
+          : mode === 'edit'
+            ? { addonServiceIds: [] } // explicitly clear
+            : {}),
+      }
+
+      const basePayload = {
+        residentId: selectedResidentId,
+        serviceIds: selectedServiceIds,
+        stylistId: selectedStylistId,
+        startTime: new Date(startTime).toISOString(),
+        notes: notes || undefined,
+        ...pricingFields,
       }
 
       const payload = isCreatingRecurring
-        ? {
-            residentId: selectedResidentId,
-            serviceId: selectedServiceId,
-            stylistId: selectedStylistId,
-            startTime: new Date(startTime).toISOString(),
-            notes: notes || undefined,
-            recurringRule,
-            recurringEndDate,
-            ...pricingFields,
-          }
-        : {
-            residentId: selectedResidentId,
-            serviceId: selectedServiceId,
-            stylistId: selectedStylistId,
-            startTime: new Date(startTime).toISOString(),
-            notes: notes || undefined,
-            ...pricingFields,
-          }
+        ? { ...basePayload, recurringRule, recurringEndDate }
+        : basePayload
 
       const url = isCreatingRecurring
         ? '/api/bookings/recurring'
@@ -242,8 +277,6 @@ export function BookingModal({
       if (mode === 'create' && isRecurring && isAdmin) {
         toast(`${json.data.count} recurring appointments booked!`, 'success')
         onClose()
-        // Trigger a reload by passing a synthetic booking change signal
-        // The caller will re-fetch bookings on next calendar navigation
       } else {
         onBookingChange(json.data)
         toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success')
@@ -425,38 +458,73 @@ export function BookingModal({
           )}
         </div>
 
-        {/* Service */}
-        <Select
-          label="Service *"
-          value={selectedServiceId}
-          onChange={(e) => setSelectedServiceId(e.target.value)}
-          disabled={submitting}
-        >
-          <option value="">Select a service</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} — {formatPricingLabel(s)} · {s.durationMinutes}min
-            </option>
-          ))}
-        </Select>
+        {/* Services — multi-service builder */}
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+            Services <span className="text-red-400">*</span>
+          </label>
+          {selectedServiceIds.map((svcId, idx) => {
+            const availableOptions = primaryServiceCandidates.filter(
+              (s) => s.id === svcId || !selectedServiceIds.includes(s.id)
+            )
+            return (
+              <div key={idx} className="flex items-center gap-2">
+                <select
+                  value={svcId}
+                  onChange={(e) => setServiceAt(idx, e.target.value)}
+                  disabled={submitting}
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[44px]"
+                >
+                  <option value="">Select a service</option>
+                  {availableOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {formatPricingLabel(s)} · {s.durationMinutes}min
+                    </option>
+                  ))}
+                </select>
+                {selectedServiceIds.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeServiceAt(idx)}
+                    disabled={submitting}
+                    aria-label="Remove service"
+                    className="shrink-0 h-11 w-11 rounded-xl border border-stone-200 bg-stone-50 text-stone-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors flex items-center justify-center"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          {primaryServiceCandidates.some((s) => !selectedServiceIds.includes(s.id)) && (
+            <button
+              type="button"
+              onClick={addAnotherService}
+              disabled={submitting}
+              className="text-left text-sm font-medium text-[#0D7377] hover:text-[#0a5e61] transition-colors min-h-[44px] flex items-center gap-1"
+            >
+              + Add another service
+            </button>
+          )}
+        </div>
 
-        {/* Pricing inputs — conditional on service type */}
-        {selectedService?.pricingType === 'addon' && (
-          <label className="flex items-center gap-2.5 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-stone-100 transition-colors">
+        {/* Pricing inputs — apply to the PRIMARY (first) service */}
+        {primaryService?.pricingType === 'addon' && (
+          <label className="flex items-center gap-3 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-3 cursor-pointer hover:bg-stone-100 transition-colors min-h-[44px]">
             <input
               type="checkbox"
               checked={addonChecked}
               onChange={(e) => setAddonChecked(e.target.checked)}
               disabled={submitting}
-              className="rounded accent-[#0D7377] w-4 h-4"
+              className="rounded accent-[#0D7377] h-6 w-6 shrink-0"
             />
             <span className="text-sm text-stone-700">
-              Add-on (+{formatCents(selectedService.addonAmountCents ?? 0)})
+              Add-on (+{formatCents(primaryService.addonAmountCents ?? 0)})
             </span>
           </label>
         )}
 
-        {selectedService?.pricingType === 'tiered' && (
+        {primaryService?.pricingType === 'tiered' && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
               Quantity
@@ -466,14 +534,14 @@ export function BookingModal({
               value={selectedQuantity}
               onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
               min={1}
-              max={selectedService.pricingTiers?.[selectedService.pricingTiers.length - 1]?.maxQty}
+              max={primaryService.pricingTiers?.[primaryService.pricingTiers.length - 1]?.maxQty}
               disabled={submitting}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60"
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[44px]"
             />
           </div>
         )}
 
-        {selectedService?.pricingType === 'multi_option' && (
+        {primaryService?.pricingType === 'multi_option' && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
               Option
@@ -482,9 +550,9 @@ export function BookingModal({
               value={selectedOptionName}
               onChange={(e) => setSelectedOptionName(e.target.value)}
               disabled={submitting}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60"
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[44px]"
             >
-              {selectedService.pricingOptions?.map((opt) => (
+              {primaryService.pricingOptions?.map((opt) => (
                 <option key={opt.name} value={opt.name}>
                   {opt.name} — {formatCents(opt.priceCents)}
                 </option>
@@ -493,73 +561,33 @@ export function BookingModal({
           </div>
         )}
 
-        {/* Add-on services — multi-select checklist of addon-type services */}
+        {/* Add-on services — labeled divider + full-width checklist with 24px checkboxes */}
         {addonServices.length > 0 && (
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-              Add-ons
-            </label>
-            <div className="space-y-1.5">
+            <div className="relative flex items-center my-1">
+              <div className="flex-grow border-t border-stone-200" />
+              <span className="shrink-0 mx-3 px-2 py-0.5 rounded-full bg-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                Add-ons (optional)
+              </span>
+              <div className="flex-grow border-t border-stone-200" />
+            </div>
+            <div className="space-y-2">
               {addonServices.map((svc) => (
                 <label
                   key={svc.id}
-                  className="flex items-center gap-2.5 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-stone-100 transition-colors min-h-[44px]"
+                  className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl px-3 py-3 cursor-pointer hover:bg-stone-50 transition-colors min-h-[44px] w-full"
                 >
                   <input
                     type="checkbox"
                     checked={selectedAddonServiceIds.includes(svc.id)}
                     onChange={() => toggleAddonService(svc.id)}
                     disabled={submitting}
-                    className="rounded accent-[#0D7377] w-4 h-4 shrink-0"
+                    className="rounded accent-[#0D7377] h-6 w-6 shrink-0"
                   />
-                  <span className="text-sm text-stone-700 flex-1">{svc.name}</span>
-                  <span className="text-sm font-medium text-amber-700">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+                  <span className="text-sm font-medium text-stone-800 flex-1 truncate">{svc.name}</span>
+                  <span className="text-sm text-stone-500 shrink-0">+{formatCents(svc.addonAmountCents ?? 0)}</span>
                 </label>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Price & Duration auto-fill */}
-        {selectedService && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Price
-              </label>
-              {selectedAddonServiceIds.length > 0 ? (
-                <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm space-y-1">
-                  <div className="flex justify-between text-stone-600">
-                    <span className="truncate pr-2">{selectedService.name}</span>
-                    <span className="shrink-0">{formatCents(resolvedPrice?.priceCents ?? selectedService.priceCents)}</span>
-                  </div>
-                  {selectedAddonServiceIds.map((id) => {
-                    const svc = addonServices.find((s) => s.id === id)!
-                    return (
-                      <div key={id} className="flex justify-between text-stone-500 text-xs">
-                        <span className="truncate pr-2">+ {svc.name}</span>
-                        <span className="shrink-0">+{formatCents(svc.addonAmountCents ?? 0)}</span>
-                      </div>
-                    )
-                  })}
-                  <div className="flex justify-between font-semibold text-teal-800 border-t border-teal-200 pt-1">
-                    <span>Total</span>
-                    <span>{formatCents(displayPriceCents)}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-teal-800">
-                  {formatCents(displayPriceCents)}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Duration
-              </label>
-              <div className="bg-teal-50 border border-teal-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-teal-800">
-                {selectedService.durationMinutes} min
-              </div>
             </div>
           </div>
         )}
@@ -590,7 +618,7 @@ export function BookingModal({
             onChange={(e) => setStartTime(e.target.value)}
             step="1800"
             disabled={submitting}
-            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all duration-150 disabled:opacity-60"
+            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all duration-150 disabled:opacity-60 min-h-[44px]"
           />
         </div>
 
@@ -653,23 +681,64 @@ export function BookingModal({
     </>
   )
 
-  // Action buttons — always visible footer, never scrolls
+  // --- Sticky footer with breakdown + total + Book button ---
+  const breakdown = primaryService ? (
+    <div className="space-y-1 mb-3 text-sm">
+      {selectedServices.map((s, idx) => {
+        const price =
+          idx === 0
+            ? primaryResolved?.priceCents ?? s.priceCents
+            : resolvePrice(s).priceCents
+        return (
+          <div key={s.id} className="flex justify-between text-stone-600">
+            <span className="truncate pr-2">{s.name}</span>
+            <span className="shrink-0">{formatCents(price)}</span>
+          </div>
+        )
+      })}
+      {selectedAddonServiceIds.map((id) => {
+        const svc = services.find((s) => s.id === id)
+        if (!svc) return null
+        return (
+          <div key={id} className="flex justify-between text-stone-500 text-xs">
+            <span className="truncate pr-2">+ {svc.name}</span>
+            <span className="shrink-0">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+          </div>
+        )
+      })}
+      <div className="flex justify-between font-semibold text-stone-900 border-t border-stone-200 pt-1.5 mt-1.5">
+        <span>Total</span>
+        <span>{formatCents(displayPriceCents)}</span>
+      </div>
+      <div className="flex justify-between text-xs text-stone-500">
+        <span>Duration</span>
+        <span>{totalDurationMinutes} min</span>
+      </div>
+    </div>
+  ) : null
+
   const formFooter = (
-    <div className="bg-white px-6 pb-4 pt-4 flex items-center justify-end gap-2 border-t border-stone-100">
-      <Button
-        variant="secondary"
-        onClick={onClose}
-        disabled={submitting || cancelling}
-      >
-        Close
-      </Button>
-      <Button
-        onClick={handleSubmit}
-        loading={submitting}
-        disabled={cancelling}
-      >
-        {mode === 'create' ? 'Book appointment' : 'Save changes'}
-      </Button>
+    <div
+      className="bg-white px-6 pt-4 border-t border-stone-100"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+    >
+      {breakdown}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          variant="secondary"
+          onClick={onClose}
+          disabled={submitting || cancelling}
+        >
+          Close
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          loading={submitting}
+          disabled={cancelling}
+        >
+          {mode === 'create' ? 'Book appointment' : 'Save changes'}
+        </Button>
+      </div>
     </div>
   )
 
@@ -685,6 +754,7 @@ export function BookingModal({
     <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg">
       {formFields}
       <div className="sticky bottom-0 bg-white px-6 pb-6 border-t border-stone-100 pt-4">
+        {breakdown}
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
           <Button onClick={handleSubmit} loading={submitting} disabled={cancelling}>
