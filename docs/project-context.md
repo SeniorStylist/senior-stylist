@@ -154,6 +154,7 @@ Tailwind CSS 4, Vercel
 ## 6. CURRENT STATUS
 
 ### Working
+- PDF parser → Gemini vision (2026-04-12): replaced pdfjs-dist alternating-chunks regex parser with a direct Gemini 2.5 Flash PDF vision call. Gemini receives the raw PDF as base64 application/pdf inlineData and returns a structured JSON array. Reason: text extraction silently drops sections on PDFs with non-standard internal layouts (Symphony Manor first section was always missing). No frontend changes needed — response shape unchanged.
 - Multi-service bookings + OCR combo detection + PDF category fixes (2026-04-12): bookings table gained `service_ids text[]`, `service_names text[]`, `total_duration_minutes integer`. Booking modal now supports N primary services via list-with-add-button; POST/PUT/recurring routes accept `serviceIds` (falling back to `serviceId` for back-compat). Calendar `eventContent()` shows "Cut + Color" on week/day views; log `serviceDisplayName()` joins primary + addon names. Addon UX polished: 24px checkboxes, 44px rows, labeled "Add-ons (optional)" divider, sticky footer with safe-area-inset-bottom. Service price display everywhere uses `formatPricingLabel()` (log walk-in dropdown + portal service cards). OCR Gemini prompt returns `additionalServices: string[]` for combos like "Shampoo + Long Hair"; review modal has per-add-on combo inputs with fuzzy match; import creates single multi-service booking. PDF parser gained three fallbacks: `CATEGORY_KEYWORDS` set for standalone headers, `inferCategoryFromName()` when currentCategory is empty/generic, Long Hair/Matted Hair inherit `previousServiceCategory`.
 - Invite deduplication + clean revocation (2026-04-12): POST /api/invites now upserts — if a pending invite exists for email+facility it refreshes the token and resends; if a used invite exists it returns a clear 409 error. DELETE /api/facility/users/[userId] now clears profiles.stylist_id and cancels pending invites in a transaction on revocation. DELETE /api/invites/[id] clears profiles.stylist_id if the revoked email had a stylist linked at that facility. Team tab shows linked stylist name next to role badge. UI shows "Invite refreshed and resent" vs "Invite sent!" correctly.
 - Full auth flow: invite → accept → correct facility + role (fixed 2026-04-07)
@@ -199,7 +200,7 @@ Tailwind CSS 4, Vercel
 
 Multi-service bookings, addon UX polish, OCR combo detection, and PDF category fixes shipped (2026-04-12). Next steps:
 1. Real-device test: book a multi-service appointment on iPhone — verify 24px checkboxes, safe-area footer, combined "Cut + Color" label in calendar + log
-2. Re-import Symphony Manor PDF — confirm Long Hair / Matted Hair sit under their parent service's category
+2. Import Symphony Manor PDF using Gemini vision — verify all sections including "Shampoo, Sets & Cuts" appear (previously missing with text extraction)
 3. OCR-import a handwritten sheet containing "Shampoo + Long Hair" — confirm review UI shows primary + add-on combo inputs
 4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
 5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)

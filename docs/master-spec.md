@@ -348,7 +348,7 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service. PUT accepts same pricing fields as POST |
 | `POST /api/services/bulk` | Authenticated | Bulk insert services (conflict skip on name+facility) |
 | `POST /api/services/bulk-update` | Authenticated | Bulk update `color` or `active` for a set of service IDs scoped to facility |
-| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet; uses **pdfjs-dist** `getTextContent()` with position-based sort (not unpdf — unpdf drops text layers); **pre-extracts** addon/tiered/multi_option patterns (replacing with `SVCPH*` placeholders) BEFORE the alternating-chunks split; returns `name, priceCents, durationMinutes, category, color, pricingType, addonAmountCents, pricingTiers, pricingOptions` |
+| `POST /api/services/parse-pdf` | Authenticated | Extract services from a PDF price sheet using **Gemini 2.5 Flash** vision (PDF sent as native `application/pdf` inlineData). No text extraction or regex — Gemini reads the visual layout. Returns `name, priceCents, durationMinutes, category, color, pricingType, addonAmountCents, pricingTiers, pricingOptions`. Switched from pdfjs-dist alternating-chunks parser because PDF text streams are unreliable (Symphony Manor first section was invisible to text extraction) |
 | `PUT /api/profile` | Authenticated | Update `stylist_id` on own profile (used by My Account link-stylist selector) |
 | `GET/PUT /api/facility` | Authenticated; **PUT admin** | Current facility; update settings (incl. `stripePublishableKey`, `stripeSecretKey`) |
 | `GET/POST /api/facilities` | Authenticated | List user’s facilities; create facility (creator = admin) |
