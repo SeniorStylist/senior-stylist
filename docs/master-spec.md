@@ -179,8 +179,11 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`recurring_parent_id`**: optional FK → `bookings.id` (self-referential)
 - **`selected_quantity`**: integer, nullable — quantity chosen for `tiered` bookings
 - **`selected_option`**: text, nullable — option name chosen for `multi_option` bookings
-- **`addon_service_ids`**: text[], nullable — reserved for future addon tracking
+- **`addon_service_ids`**: text[], nullable — list of addon-type service IDs applied to this booking
 - **`addon_total_cents`**: integer, nullable — sum of add-on surcharges included in `price_cents`
+- **`service_ids`**: text[], nullable — ordered list of PRIMARY service IDs for multi-service bookings (first = "the primary"). Old single-service bookings leave this null and keep using `service_id`.
+- **`service_names`**: text[], nullable — denormalized service names parallel to `service_ids` for display without re-querying
+- **`total_duration_minutes`**: integer, nullable — sum of all primary services' durations (addons never add duration). Used for endTime + conflict detection on multi-service bookings.
 - **`google_event_id`** (unique), **`sync_error`**
 - Timestamps
 - **`price_cents` is ALWAYS the final fully-resolved total** including add-ons, tier calculation, or option price — never a partial amount
@@ -327,15 +330,15 @@ CREATE POLICY "service_role_all" ON <table>
 
 | Route | Role / auth | Purpose |
 |-------|-------------|---------|
-| `GET/POST /api/bookings` | Authenticated | List/create bookings (query `start`/`end`); sends confirmation email on create. POST accepts optional `selectedQuantity`, `selectedOption`, `addonChecked` for flexible pricing — server resolves final price via `resolvePrice()` |
-| `POST /api/bookings/recurring` | Authenticated | Create parent + child recurring bookings; returns `{ parentId, count }`. Accepts same pricing fields as POST /api/bookings |
+| `GET/POST /api/bookings` | Authenticated | List/create bookings (query `start`/`end`); sends confirmation email on create. POST accepts optional `selectedQuantity`, `selectedOption`, `addonChecked` for flexible pricing — server resolves final price via `resolvePrice()`. Also accepts `serviceIds: string[]` for multi-service bookings (first = primary); `serviceId` is still accepted for single-service callers. Server populates `service_ids`, `service_names`, `total_duration_minutes` and sets `service_id = serviceIds[0]` |
+| `POST /api/bookings/recurring` | Authenticated | Create parent + child recurring bookings; returns `{ parentId, count }`. Accepts same pricing + multi-service fields as POST /api/bookings |
 | `GET/PUT/DELETE /api/bookings/[id]` | Authenticated | Single booking; updates sync Google Calendar when configured; supports `payment_status` |
 | `POST /api/bookings/sync` | Authenticated | Push unsynced scheduled bookings to Google Calendar |
 | `GET /api/stats` | Authenticated | Today / week / month totals |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |
-| `POST /api/log/ocr` | Authenticated | Accept `images[]`, extract `{ date, stylistName, entries[] }` per sheet via Gemini 2.0 Flash, return `{ data: { sheets } }` |
-| `POST /api/log/ocr/import` | **Admin** | Create missing residents + services + completed bookings from reviewed sheets in one `db.transaction()`; bookings spaced 30 min from 09:00 UTC |
+| `POST /api/log/ocr` | Authenticated | Accept `images[]`, extract `{ date, stylistName, entries[] }` per sheet via Gemini 2.5 Flash, return `{ data: { sheets } }`. Each entry includes `additionalServices: string[]` when the handwriting lists multiple services joined by `+`/`/`/`&`/`and`/`,` |
+| `POST /api/log/ocr/import` | **Admin** | Create missing residents + services + multi-service completed bookings from reviewed sheets in one `db.transaction()`; bookings spaced 30 min from 09:00 UTC. Accepts `additionalServiceIds: (string \| null)[]` + `additionalServiceNames: string[]` per entry; resolves each via the 3-step fuzzy-match algorithm and stores all IDs in `service_ids` |
 | `GET/POST /api/residents` | Authenticated | List/create residents (portal token on create) |
 | `GET/PUT/DELETE /api/residents/[id]` | Authenticated | Single resident |
 | `POST /api/residents/bulk` | Authenticated | Bulk insert residents (conflict skip on name+facility) |

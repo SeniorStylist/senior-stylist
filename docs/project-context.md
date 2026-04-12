@@ -154,6 +154,7 @@ Tailwind CSS 4, Vercel
 ## 6. CURRENT STATUS
 
 ### Working
+- Multi-service bookings + OCR combo detection + PDF category fixes (2026-04-12): bookings table gained `service_ids text[]`, `service_names text[]`, `total_duration_minutes integer`. Booking modal now supports N primary services via list-with-add-button; POST/PUT/recurring routes accept `serviceIds` (falling back to `serviceId` for back-compat). Calendar `eventContent()` shows "Cut + Color" on week/day views; log `serviceDisplayName()` joins primary + addon names. Addon UX polished: 24px checkboxes, 44px rows, labeled "Add-ons (optional)" divider, sticky footer with safe-area-inset-bottom. Service price display everywhere uses `formatPricingLabel()` (log walk-in dropdown + portal service cards). OCR Gemini prompt returns `additionalServices: string[]` for combos like "Shampoo + Long Hair"; review modal has per-add-on combo inputs with fuzzy match; import creates single multi-service booking. PDF parser gained three fallbacks: `CATEGORY_KEYWORDS` set for standalone headers, `inferCategoryFromName()` when currentCategory is empty/generic, Long Hair/Matted Hair inherit `previousServiceCategory`.
 - Invite deduplication + clean revocation (2026-04-12): POST /api/invites now upserts — if a pending invite exists for email+facility it refreshes the token and resends; if a used invite exists it returns a clear 409 error. DELETE /api/facility/users/[userId] now clears profiles.stylist_id and cancels pending invites in a transaction on revocation. DELETE /api/invites/[id] clears profiles.stylist_id if the revoked email had a stylist linked at that facility. Team tab shows linked stylist name next to role badge. UI shows "Invite refreshed and resent" vs "Invite sent!" correctly.
 - Full auth flow: invite → accept → correct facility + role (fixed 2026-04-07)
 - Invite emails now send from noreply@seniorstylist.com (domain verified)
@@ -196,11 +197,12 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Invite deduplication + clean revocation shipped (2026-04-12). Next steps:
-1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-2. Test PDF parser on Vercel with real Symphony Manor price sheet
-3. Test OCR import with a real handwritten log sheet from Symphony Manor
-4. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+Multi-service bookings, addon UX polish, OCR combo detection, and PDF category fixes shipped (2026-04-12). Next steps:
+1. Real-device test: book a multi-service appointment on iPhone — verify 24px checkboxes, safe-area footer, combined "Cut + Color" label in calendar + log
+2. Re-import Symphony Manor PDF — confirm Long Hair / Matted Hair sit under their parent service's category
+3. OCR-import a handwritten sheet containing "Shampoo + Long Hair" — confirm review UI shows primary + add-on combo inputs
+4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
+5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
 ---
 

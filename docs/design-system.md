@@ -179,6 +179,13 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 - Multi-option: `<select>` dropdown showing `"OptionName — $XX.00"` per option, pre-selects first
 - Price display uses `resolvePrice()` from `src/lib/pricing.ts` for real-time preview
 
+**Multi-service + addon picker (booking modal):**
+- Primary services rendered as a list-with-"+ Add another service" button; each row is a service `<select>` with a trash icon (`h-11 w-11`) appearing only when >1 row. First row = the "primary" service; it alone drives `selectedQuantity`/`selectedOption`/`addonChecked`. Duration = sum of all primary `durationMinutes`.
+- Labeled divider between primary and addon sections: flex container with two `flex-1 border-t border-stone-200` spans surrounding a centered pill `<span>` reading `"Add-ons (optional)"` (`text-[11px] uppercase tracking-wide text-stone-500`).
+- Addon checklist: each row full-width, `min-h-[44px]`, `py-3 px-3`, `rounded-xl border border-stone-200`. Checkbox `h-6 w-6 accent-[#0D7377] shrink-0`. Service name left-aligned, `+$X.XX` right-aligned in `text-stone-500`.
+- Footer (outside the scroll area, `flexShrink: 0`) holds a breakdown (one line per primary + one per addon + bold Total + Duration row) followed by the Book button. Mobile inline style: `style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}`.
+- All interactive elements ≥44px tap targets.
+
 **Pricing UI in services page:**
 - Pricing type `<select>` dropdown in add/edit forms (Fixed / Add-on / Tiered / Multiple Options)
 - Conditional fields: addon amount input, dynamic tier rows (min–max × price), dynamic option rows (name + price)
