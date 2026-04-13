@@ -161,7 +161,7 @@ function buildSheetState(
 
   const entries: EntryState[] = (raw.entries ?? []).map((entry) => {
     const resMatches = fuzzyMatches(residents, entry.residentName ?? '')
-    const svcBest = fuzzyBestMatch(services, entry.serviceName ?? '')
+    const svcBest = fuzzyBestMatch(services.filter(s => s.pricingType !== 'addon'), entry.serviceName ?? '')
     const additionalServices = (entry.additionalServices ?? []).filter(
       (s): s is string => typeof s === 'string' && s.trim().length > 0
     )
@@ -309,6 +309,7 @@ export function OcrImportModal({
         setScanProgress(`Scanning batch ${ci + 1} of ${chunks.length}…`)
         const fd = new FormData()
         chunks[ci].forEach(f => fd.append('images', f))
+        fd.append('servicesJson', JSON.stringify(services.map(s => ({ name: s.name, priceCents: s.priceCents }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
         const json = await res.json()
         if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }

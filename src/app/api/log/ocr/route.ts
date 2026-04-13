@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 
-const SYSTEM_INSTRUCTION = `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.
+const BASE_INSTRUCTION = `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.
 
 Return ONLY a valid JSON object with this exact shape:
 {
@@ -38,15 +38,44 @@ Rules:
   - "Cut / Color" → serviceName: "Cut", additionalServices: ["Color"]
   - "Wash, Curl, Chin" → serviceName: "Wash", additionalServices: ["Curl", "Chin"]
   - "Perm" → serviceName: "Perm", additionalServices: []
+- For residentName: write the full name exactly as you can read it. If handwriting is unclear, make your best attempt — do NOT return letter-by-letter gibberish like "KBARBdY". If you truly cannot read a name, return "Unclear" as the name. Names are people's names — they follow normal naming patterns.
 - Return ONLY the JSON, no markdown, no explanation`
 
-async function callGemini(base64: string, mimeType: string, apiKey: string): Promise<string> {
+const ABBREVIATIONS = `
+Common abbreviations used on these sheets:
+- S/ or Sh = Shampoo
+- B.Dry or BiDry or BDry or BD = Blow Dry
+- Set = Set (roller set or style)
+- Cut or Ct = Cut/Haircut
+- Mani or mani = Manicure
+- Pedi = Pedicure
+- Col or Clr or Clor = Color
+- Hl or Hi = Highlight
+- Cond = Conditioner treatment
+- Brows = Eyebrow wax/trim
+- Perm = Permanent wave
+- Tint = Hair color/tint`
+
+function buildInstruction(knownServices: { name: string; priceCents: number }[]): string {
+  if (knownServices.length === 0) return BASE_INSTRUCTION + ABBREVIATIONS
+  const serviceList = knownServices
+    .map(s => `- ${s.name} ($${(s.priceCents / 100).toFixed(2)})`)
+    .join('\n')
+  return BASE_INSTRUCTION + ABBREVIATIONS + `
+
+Known services at this facility (match against these):
+${serviceList}
+
+IMPORTANT: Expand all abbreviations using the known services list above. Use the price as a strong signal — if the written price matches a known service closely, prefer that service name. For serviceName and additionalServices: return the FULL expanded name that best matches a known service, or your best expansion if no close match exists. Never return raw abbreviations like "S/BDry" or "BiDry".`
+}
+
+async function callGemini(base64: string, mimeType: string, apiKey: string, instruction: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
   const body = {
     contents: [{
       parts: [
         { inlineData: { mimeType: mimeType, data: base64 } },
-        { text: SYSTEM_INSTRUCTION + '\n\nExtract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.' },
+        { text: instruction + '\n\nExtract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.' },
       ],
     }],
   }
@@ -83,7 +112,10 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const files = formData.getAll('images') as File[]
-    console.log(`[OCR] Received ${files.length} file(s)`)
+    const servicesJson = formData.get('servicesJson') as string | null
+    const knownServices: { name: string; priceCents: number }[] = servicesJson ? JSON.parse(servicesJson) : []
+    const instruction = buildInstruction(knownServices)
+    console.log(`[OCR] Received ${files.length} file(s), ${knownServices.length} known services`)
 
     if (files.length === 0) return Response.json({ error: 'No images provided' }, { status: 400 })
 
@@ -111,7 +143,7 @@ export async function POST(request: NextRequest) {
         console.log(`[OCR] Sending file ${i} to Gemini (${base64.length} base64 chars)`)
 
         const rawText = await Promise.race([
-          callGemini(base64, file.type, apiKey),
+          callGemini(base64, file.type, apiKey, instruction),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Gemini timeout after 90s')), 90_000)
           ),
