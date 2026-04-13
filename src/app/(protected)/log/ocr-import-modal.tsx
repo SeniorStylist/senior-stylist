@@ -161,7 +161,30 @@ function buildSheetState(
 
   const entries: EntryState[] = (raw.entries ?? []).map((entry) => {
     const resMatches = fuzzyMatches(residents, entry.residentName ?? '')
-    const svcBest = fuzzyBestMatch(services.filter(s => s.pricingType !== 'addon'), entry.serviceName ?? '')
+    const ocrPrice = entry.price != null ? Math.round(entry.price * 100) : null
+    const nonAddonServices = services.filter(s => s.pricingType !== 'addon')
+
+    const svcBest = (() => {
+      const byName = fuzzyBestMatch(nonAddonServices, entry.serviceName ?? '')
+      if (!ocrPrice) return byName
+
+      // Services whose catalog price exactly matches the sheet price
+      const byPrice = nonAddonServices.filter(s => s.priceCents === ocrPrice)
+
+      if (byPrice.length === 1) {
+        // Single exact-price match — use it unless name match is very confident
+        const nameScore = byName ? fuzzyScore(entry.serviceName ?? '', byName.name) : 0
+        if (nameScore < 0.85) return byPrice[0]
+      }
+
+      if (byName) {
+        // Name match found — trust it (price mismatch may mean combined services)
+        return byName
+      }
+
+      // No name match — fall back to unique price match
+      return byPrice.length === 1 ? byPrice[0] : null
+    })()
     const additionalServices = (entry.additionalServices ?? []).filter(
       (s): s is string => typeof s === 'string' && s.trim().length > 0
     )
@@ -854,6 +877,7 @@ export function OcrImportModal({
                                     placeholder="0.00"
                                     value={entry.priceCents != null ? (entry.priceCents / 100).toFixed(2) : ''}
                                     onChange={(e) => {
+                                      // Only priceCents — never serviceId/serviceName (sheet price is source of truth)
                                       const val = parseFloat(e.target.value)
                                       updateEntry(activeTab, ei, {
                                         priceCents: isNaN(val) ? null : Math.round(val * 100),
