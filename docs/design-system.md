@@ -654,6 +654,10 @@ On mobile when `role === 'stylist'`, the dashboard replaces FullCalendar with a 
 - Each row has a one-tap **Mark Done** button (calls `PUT /api/bookings/[id]` with `status: 'completed'`)
 - No calendar rendering on mobile for stylists — avoids FullCalendar complexity
 
+### Portal Service Picker Cards
+
+Service selection in `portal-client.tsx` uses full-width tap cards instead of a native `<select>`. Selected state: `border-[#0D7377] bg-teal-50` + checkmark SVG. Unselected: `border-stone-200 bg-white hover:border-stone-300`. Color swatch: `w-2.5 h-2.5 rounded-full` inline style from `service.color`. Category headers: `text-xs font-semibold text-stone-500 uppercase tracking-wide`. Live price breakdown card uses `bg-stone-50 rounded-xl px-4 py-3` with amber `text-amber-700` rows for add-ons. `groupByCategory()` is defined inline (cannot import from booking-modal); identical logic to the booking modal version.
+
 ### Teal Info Banner (POA Portal)
 
 Used on `/portal/[token]` when `poaName` is set, to indicate the visitor is a Power of Attorney booking on behalf of a resident.
