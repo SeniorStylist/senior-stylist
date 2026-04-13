@@ -473,7 +473,7 @@ export function BookingModal({
                   value={svcId}
                   onChange={(e) => setServiceAt(idx, e.target.value)}
                   disabled={submitting}
-                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[44px]"
+                  className="flex-1 w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[48px]"
                 >
                   <option value="">Select a service</option>
                   {availableOptions.map((s) => (
@@ -501,7 +501,7 @@ export function BookingModal({
               type="button"
               onClick={addAnotherService}
               disabled={submitting}
-              className="text-left text-sm font-medium text-[#0D7377] hover:text-[#0a5e61] transition-colors min-h-[44px] flex items-center gap-1"
+              className="w-full border border-dashed border-stone-200 rounded-xl py-2.5 text-sm font-medium text-[#0D7377] hover:bg-teal-50 transition-colors flex items-center justify-center gap-1 min-h-[44px]"
             >
               + Add another service
             </button>
@@ -528,7 +528,7 @@ export function BookingModal({
           const tiers = primaryService.pricingTiers ?? []
           const activeTier = tiers.find((t) => selectedQuantity >= t.minQty && selectedQuantity <= t.maxQty)
           return (
-            <div className="flex flex-col gap-2">
+            <div className="bg-stone-50 rounded-xl px-3.5 py-3 flex flex-col gap-2">
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
                 How many?
               </label>
@@ -566,7 +566,7 @@ export function BookingModal({
         })()}
 
         {primaryService?.pricingType === 'multi_option' && (
-          <div className="flex flex-col gap-1.5">
+          <div className="bg-stone-50 rounded-xl px-3.5 py-3 flex flex-col gap-2">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
               Option
             </label>
@@ -588,7 +588,7 @@ export function BookingModal({
         {/* Add-on services — labeled divider + full-width checklist with 24px checkboxes */}
         {addonServices.length > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="relative flex items-center my-1">
+            <div className="relative flex items-center my-3">
               <div className="flex-grow border-t border-stone-200" />
               <span className="shrink-0 mx-3 px-2 py-0.5 rounded-full bg-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
                 Add-ons (optional)
