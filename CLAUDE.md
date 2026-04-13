@@ -99,6 +99,8 @@
 - Floating action bars should use z-40 (not z-50) so they don't cover the mobile nav
 - PWA icons: use `src/app/icon.tsx` + `apple-icon.tsx` with ImageResponse from `next/og` — never use @napi-rs/canvas
 - Recurring bookings: self-referential FK `recurringParentId` in schema requires `(): AnyPgColumn => bookings.id` pattern
+- **`handleSubmit` double-submission guard**: `setSubmitting(true)` is async state — React doesn't re-render (disable the button) until the next tick, so rapid taps or simultaneous Cmd+Enter + click slip through. Use a `submittingRef = useRef(false)` mutex alongside the `submitting` state: check `if (submittingRef.current) return` at the top of `handleSubmit`, set `submittingRef.current = true` before the fetch, and reset in `finally`. This prevents every concurrent-call scenario regardless of React batching.
+- **Recurring route `revalidateTag`**: `POST /api/bookings/recurring` must call `revalidateTag('bookings', {})` before returning — it was originally missing (all other booking mutation routes have it). Without it, the super-admin unstable_cache doesn't invalidate after recurring series creation.
 - date-fns is installed (`addWeeks`, `addDays`, `addMonths`) — use it for date arithmetic
 - InstallBanner uses `beforeinstallprompt` (Android) + manual iOS Share instructions; checks `(display-mode: standalone)` to hide when already installed
 - drizzle-kit push will interactively prompt when it detects constraints that already exist in the DB — if it hangs, apply the specific SQL directly via a one-off node script using the project's DATABASE_URL:

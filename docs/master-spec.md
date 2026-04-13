@@ -409,6 +409,10 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 
 ---
 
+## Booking modal submit guard
+
+`handleSubmit` uses a `submittingRef = useRef(false)` mutex in addition to `submitting` state. The ref check (`if (submittingRef.current) return`) fires synchronously before any async work, preventing concurrent invocations from rapid taps, simultaneous Cmd+Enter + click, or any React batching edge case. The `submitting` state still drives the button's `loading`/`disabled` UI.
+
 ## Booking modal pricing UI (src/components/calendar/booking-modal.tsx)
 
 - **Addon display**: addon-type service surcharge displayed as `(addonAmountCents ?? priceCents ?? 0)` at three sites: `multiAddonTotal` reduce, checklist label, breakdown line. Do NOT use `addonAmountCents ?? 0` — manual services store surcharge in `priceCents`.

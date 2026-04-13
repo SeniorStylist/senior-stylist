@@ -77,6 +77,8 @@ export function BookingModal({
 
   const residentInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Synchronous mutex — prevents concurrent handleSubmit calls regardless of render batching
+  const submittingRef = useRef(false)
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
@@ -261,6 +263,10 @@ export function BookingModal({
       setError('Please fill in all required fields.')
       return
     }
+    // Synchronous guard — setSubmitting(true) is async state and won't re-render before the
+    // next tick, so rapid taps/Cmd+Enter can slip through. A ref check is immune to that.
+    if (submittingRef.current) return
+    submittingRef.current = true
 
     setSubmitting(true)
     setError(null)
@@ -331,6 +337,7 @@ export function BookingModal({
     } catch {
       setError('Network error. Please try again.')
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }

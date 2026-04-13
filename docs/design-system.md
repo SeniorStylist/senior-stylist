@@ -461,6 +461,26 @@ ref={(el) => {
 }}
 ```
 
+### Async Submit Double-Fire Guard
+
+`useState` for `submitting` does NOT prevent concurrent calls — `setSubmitting(true)` is batched and the component doesn't re-render (disable the button) until the next tick. Rapid double-tap on mobile or simultaneous Cmd+Enter + click slips through.
+
+Pattern for any async submit handler:
+```tsx
+const submittingRef = useRef(false)
+
+const handleSubmit = async () => {
+  if (submittingRef.current) return  // synchronous — immune to batching
+  submittingRef.current = true
+  setSubmitting(true)   // drives loading/disabled UI
+  try { ... }
+  finally {
+    submittingRef.current = false
+    setSubmitting(false)
+  }
+}
+```
+
 ### Destructive Confirmation
 
 Never use `window.confirm()`. Always use inline two-step confirm:

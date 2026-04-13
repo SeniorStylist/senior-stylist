@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { addDays, addWeeks, addMonths } from 'date-fns'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
+import { revalidateTag } from 'next/cache'
 
 const recurringSchema = z.object({
   residentId: z.string().uuid(),
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest) {
       currentStart = advanceDate(currentStart, recurringRule)
     }
 
+    revalidateTag('bookings', {})
     return Response.json({ data: { parentId: parent.id, count: count + 1 } })
   } catch (err) {
     console.error('POST /api/bookings/recurring error:', err)
