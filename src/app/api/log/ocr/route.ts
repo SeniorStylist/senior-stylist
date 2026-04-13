@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         const rawText = await Promise.race([
           callGemini(base64, file.type, apiKey),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Gemini timeout after 45s')), 45_000)
+            setTimeout(() => reject(new Error('Gemini timeout after 90s')), 90_000)
           ),
         ])
         console.log(`[OCR] Raw Gemini response for file ${i}:`, rawText.slice(0, 500))
