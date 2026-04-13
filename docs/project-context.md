@@ -137,6 +137,13 @@ Tailwind CSS 4, Vercel
 - Multi-service support (+ Add another service), Continue button (no immediate tap-to-advance)
 - Book route updated: accepts `serviceIds[]`, `addonServiceIds[]`, `selectedQuantity`, `selectedOption`; uses `resolvePrice()` throughout
 
+### POA Email Opt-In SHIPPED (2026-04-14)
+- `poa_notifications_enabled boolean NOT NULL DEFAULT true` column added to `residents` table
+- Staff toggle "Send booking confirmations to POA" checkbox in resident detail edit mode + "Confirmations on/off" badge in display mode
+- `PATCH /api/portal/[token]/notifications` — public route for self-serve opt-out from portal preferences section
+- Portal: "Notification Preferences" section shown at bottom when `poaEmail` is set; fire-and-forget toggle
+- Both POA email gates (`POST /api/bookings` + `POST /api/portal/[token]/book`) check `poaNotificationsEnabled !== false`
+
 ### Phase 5 SHIPPED (2026-04-14)
 - POA portal banner on `/portal/[token]` when `poaName` is set — shows "Booking on behalf of {name}"
 - "Send portal link" button in resident detail Portal Link section — fires email to `poaEmail` via `POST /api/residents/[id]/send-portal-link`
@@ -280,7 +287,7 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Portal service picker + Phase 6 (2026-04-14). Next steps:
+POA Email Opt-In shipped (2026-04-14). Next steps:
 1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
 2. Phase 6: Per-stylist Google Calendar integration
 3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts

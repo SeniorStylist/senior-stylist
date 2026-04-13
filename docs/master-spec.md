@@ -147,6 +147,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`portal_token`**: unique text (resident portal)
 - **`default_service_id`**: optional FK → `services.id` — auto-set after 3+ completed bookings with same service; also manually settable on resident detail page
 - **`poa_name`**, **`poa_email`**, **`poa_phone`**, **`poa_payment_method`**: nullable text — Power of Attorney info. Editable on resident detail page. `poa_payment_method` one of: `cash | check | credit card | facility billing | insurance`. POA badge on resident list when `poa_name` is set.
+- **`poa_notifications_enabled`**: `boolean NOT NULL DEFAULT true` — when `false`, POA confirmation emails are suppressed for both staff and portal bookings. Staff toggle in resident detail edit mode; self-serve toggle via `PATCH /api/portal/[token]/notifications` from portal preferences section.
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
 

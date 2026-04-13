@@ -170,6 +170,10 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 `StatusBadge` maps booking statuses (`confirmed`, `completed`, `cancelled`, `no_show`, `pending`) to badge variants automatically.
 
+**POA notification status badge** (inline, not using Badge component, shown in resident detail display mode next to POA email):
+- Enabled: `bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-medium` — "Confirmations on"
+- Disabled: `bg-stone-100 text-stone-500 text-xs px-2 py-0.5 rounded-full font-medium` — "Confirmations off"
+
 **Pricing type badges** (inline, not using Badge component):
 - `text-[10px] font-medium text-stone-400 uppercase tracking-wide` on services list (subtle)
 - `text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md` on import preview:
