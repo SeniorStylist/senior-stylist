@@ -669,3 +669,32 @@ const res = await fetch('/api/access-requests', {
 - Title: `'Request access'` (no facility name)
 - On success: sets `pageState = 'submitted'` and shows confirmation message
 - `facilityId` is NOT sent — it's `null` in the DB until super admin assigns it
+
+---
+
+## Upcoming UI patterns (Phases 7–14)
+
+### Compliance badge (Phase 7)
+Three-state colored dot/badge on stylist list rows:
+- **Green** — all required documents verified and not expiring within 30 days
+- **Amber** — at least one document expires within 60 days, or unverified
+- **Red** — at least one document expired or missing
+
+Use inline SVG dot (`w-2 h-2 rounded-full`) with `bg-emerald-500` / `bg-amber-400` / `bg-red-500`. Never use Tailwind `text-` color classes for status dots — always `bg-` to ensure color-blind distinction.
+
+### Coverage request status chips (Phase 8)
+Reuse the existing `Badge` component: `open` → amber, `filled` → emerald, `cancelled` → stone.
+
+### Region hierarchy breadcrumb (Phase 9)
+`Master Admin > Franchise Name > Region Name > Facility Name` — render as `text-xs text-stone-400` with `›` separators. Clickable segments navigate to the respective admin view.
+
+### Payroll entry card (Phase 10)
+White card, stone border, two-column layout: left = stylist name + period, right = pay amounts stacked. "Approved" state: emerald left border + lock icon. Use `formatCents()` for all money values.
+
+### Issue severity colors (Phase 11)
+- `low` — stone-500 text, no badge background
+- `medium` — amber-600 text, `bg-amber-50` badge
+- `high` — red-600 text, `bg-red-50` badge + triggers dashboard red banner (same pattern as existing amber pending-requests banner)
+
+### QB sync status (Phase 14)
+Synced: `text-emerald-600` with checkmark. Failed: `text-red-600` with exclamation + retry button. Pending: `text-stone-400` with spinner. All using existing icon SVG patterns.

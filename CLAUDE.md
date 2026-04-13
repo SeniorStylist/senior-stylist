@@ -174,6 +174,17 @@
 - All types in src/types/index.ts
 - DB queries scoped via src/lib/get-facility-id.ts
 
+## Locked Phase Roadmap (Phases 7–14)
+These phases are locked and must not be re-ordered or re-scoped without explicit user instruction.
+- **Phase 7** — Compliance & Document Management: compliance_documents table, license/insurance columns on stylists, upload from My Account, admin verify, compliance badge (green/amber/red), 60/30-day expiry email alerts.
+- **Phase 8** — Workforce Availability & Coverage: stylist_availability table, coverage_requests table, time-off from My Account, "Needs Coverage" calendar flag, admin coverage queue, email alerts.
+- **Phase 9** — Territory / Region Management: regions table with franchise_id, region_id on facilities + stylists, Regions tab in /super-admin, region filter on all views. Hierarchy: Master Admin → Franchise → Region → Facility.
+- **Phase 10** — Payroll Operations: payroll_periods + payroll_entries tables, auto-calc from completed bookings via commission_percent, admin approval, QuickBooks-compatible CSV, payroll history on stylist detail.
+- **Phase 11** — Incident & Issue Tracking: issues table (severity: low|medium|high, type: cancellation|complaint|safety|…), "Report Issue" on booking cards + log rows, high severity → email + red banner.
+- **Phase 12** — Advanced KPI Dashboard: no schema changes, new metrics (cancellation rate, avg ticket, utilization, concentration risk, MoM/YoY), region filtering, weekly email digest, PDF export.
+- **Phase 13** — Facility Contact Portal: facility_contact role, service_change_requests table (add_day|cancel_day|…), restricted nav (Schedule read-only, Visit Summaries, Invoices, Submit Request).
+- **Phase 14** — QuickBooks Online Integration: QB OAuth per facility in Settings, quickbooks_sync_log table, push invoices + payroll to QB, sync payment status back, error log with retry, CSV export as fallback.
+
 ## Reference Files
 - docs/master-spec.md — full architecture reference
 - src/db/schema.ts — source of truth for DB tables

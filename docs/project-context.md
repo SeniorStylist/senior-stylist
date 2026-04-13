@@ -150,6 +150,67 @@ Tailwind CSS 4, Vercel
   - Admin UI: show connected/disconnected status per stylist on
     Stylists page
 
+### Phase 7 PLANNED — Compliance & Document Management
+- New table: `compliance_documents` (stylist_id, document_type: license|insurance|w9|contractor_agreement|background_check, file_url, file_name, expires_at, verified, uploaded_at)
+- New columns on `stylists`: license_number, license_type, license_expires_at, insurance_verified, insurance_expires_at, background_check_verified
+- Stylists upload compliance docs from My Account page
+- Admins verify documents on the Stylists page
+- Compliance badge (green/amber/red) on stylist list rows based on expiry/verification status
+- Expiration alerts at 60 days and 30 days via Resend email to admin
+
+### Phase 8 PLANNED — Workforce Availability & Coverage
+- New table: `stylist_availability` (stylist_id, day_of_week, start_time, end_time, active)
+- New table: `coverage_requests` (facility_id, stylist_id, requested_date, reason, status: open|filled|cancelled, substitute_stylist_id)
+- Stylists set weekly availability and submit time-off requests from My Account
+- "Needs Coverage" flag on calendar days where a regular stylist has a gap
+- Admin coverage queue to assign a substitute stylist
+- Email alerts on gap creation and on substitute assignment
+
+### Phase 9 PLANNED — Territory / Region Management
+- New table: `regions` (id, name, franchise_id nullable, active)
+- Add `region_id` to `facilities` and `stylists` tables
+- Regions tab in `/super-admin` for CRUD
+- Region filter on all list and report views
+- Hierarchy: Master Admin → Franchise → Region → Facility
+
+### Phase 10 PLANNED — Payroll Operations
+- New table: `payroll_periods` (start_date, end_date, status: draft|approved|paid)
+- New table: `payroll_entries` (payroll_period_id, stylist_id, gross_revenue_cents, commission_cents, tips_cents, adjustments_cents, total_pay_cents, booking_ids text[], approved)
+- Auto-calculates from completed bookings using stylists.commission_percent
+- Admin approval workflow before marking a period paid
+- QuickBooks-compatible payroll CSV export
+- Payroll history on stylist detail page
+
+### Phase 11 PLANNED — Incident & Issue Tracking
+- New table: `issues` (facility_id, stylist_id nullable, booking_id nullable, reported_by, issue_type: cancellation|complaint|safety|access_problem|payment_issue|supply_issue|staff_behavior|other, severity: low|medium|high, description, action_taken, assigned_to, status: open|in_progress|resolved, resolved_at)
+- "Report Issue" button on booking cards and log rows
+- Issues list in Settings
+- High severity triggers email to admin + red dashboard banner
+- Issue count shown on facility and stylist detail pages
+
+### Phase 12 PLANNED — Advanced KPI Dashboard
+- No schema changes
+- New metrics in `/reports` and super-admin reports: cancellation rate per facility, avg ticket per stylist, utilization rate, facility concentration risk, MoM/YoY trends
+- Region filtering on all metrics
+- Weekly email digest to NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+- Dashboard PDF export
+
+### Phase 13 PLANNED — Facility Contact Portal
+- New role `facility_contact` in `facility_users.role`
+- New table: `service_change_requests` (facility_id, submitted_by, request_type: add_day|cancel_day|change_hours|request_substitute|special_event, requested_date, notes, status: pending|approved|denied)
+- Facility contacts invited via existing invite flow with the new role
+- Restricted nav: Schedule (read-only), Visit Summaries, Invoices, Submit Request
+- Cannot see residents, other facilities, or stylist details
+
+### Phase 14 PLANNED — QuickBooks Online Integration
+- New columns on `facilities`: quickbooks_realm_id, quickbooks_access_token, quickbooks_refresh_token, quickbooks_token_expires_at
+- New table: `quickbooks_sync_log` (facility_id, entity_type: invoice|payroll, entity_id, qb_id, status: synced|failed, error, synced_at)
+- OAuth connection per facility in Settings → Integrations tab
+- Push invoices and payroll entries to QuickBooks Online
+- Sync payment status back from QB
+- Sync error log with retry button
+- CSV export remains as fallback for non-QB facilities
+
 ---
 
 ## 6. CURRENT STATUS
@@ -205,12 +266,10 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Unified mobile booking flow shipped (2026-04-13). Next steps:
-1. Test mobile FAB on iPhone — confirm booking-modal opens as BottomSheet with full pricing UI (stepper, multi-option, addon checklist)
-2. Test booking-modal service select — verify `<optgroup>` category groupings render (Symphony Manor should show 5 categories)
-3. Test services page category section headers — verify alphabetical order, "Other" last
-4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+QoL improvements + Phase 7 (2026-04-13). Next steps:
+1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
+2. Phase 5: resident portal POA booking (plan written at docs/portal-auth-plan.md)
+3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts
 
 ---
 

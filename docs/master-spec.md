@@ -418,6 +418,34 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 
 ---
 
+## Planned phases (schema preview)
+
+### Phase 7 — Compliance & Document Management
+New table `compliance_documents`: `stylist_id` FK, `document_type` text (license|insurance|w9|contractor_agreement|background_check), `file_url`, `file_name`, `expires_at`, `verified` boolean, `uploaded_at`. New columns on `stylists`: `license_number`, `license_type`, `license_expires_at`, `insurance_verified`, `insurance_expires_at`, `background_check_verified`. RLS: service_role_all + authenticated SELECT scoped to facility_id join.
+
+### Phase 8 — Workforce Availability & Coverage
+New table `stylist_availability`: `stylist_id`, `day_of_week` (0–6), `start_time`, `end_time`, `active`. New table `coverage_requests`: `facility_id`, `stylist_id`, `requested_date`, `reason`, `status` (open|filled|cancelled), `substitute_stylist_id` nullable FK → stylists.
+
+### Phase 9 — Territory / Region Management
+New table `regions`: `id` uuid PK, `name`, `franchise_id` nullable FK → franchises, `active`. Add `region_id` nullable FK to `facilities` and `stylists`. Hierarchy: Master Admin → Franchise → Region → Facility.
+
+### Phase 10 — Payroll Operations
+New table `payroll_periods`: `start_date`, `end_date`, `status` (draft|approved|paid), `facility_id`. New table `payroll_entries`: `payroll_period_id` FK, `stylist_id` FK, `gross_revenue_cents`, `commission_cents`, `tips_cents`, `adjustments_cents`, `total_pay_cents`, `booking_ids text[]`, `approved` boolean.
+
+### Phase 11 — Incident & Issue Tracking
+New table `issues`: `facility_id`, `stylist_id` nullable, `booking_id` nullable, `reported_by` (user_id), `issue_type` text, `severity` (low|medium|high), `description`, `action_taken`, `assigned_to` nullable, `status` (open|in_progress|resolved), `resolved_at`.
+
+### Phase 12 — Advanced KPI Dashboard
+No schema changes. New computed metrics in existing report endpoints plus a new weekly digest email route.
+
+### Phase 13 — Facility Contact Portal
+New role `facility_contact` in `facility_users.role`. New table `service_change_requests`: `facility_id`, `submitted_by` (user_id), `request_type` text, `requested_date`, `notes`, `status` (pending|approved|denied).
+
+### Phase 14 — QuickBooks Online Integration
+New columns on `facilities`: `quickbooks_realm_id`, `quickbooks_access_token`, `quickbooks_refresh_token`, `quickbooks_token_expires_at`. New table `quickbooks_sync_log`: `facility_id`, `entity_type` (invoice|payroll), `entity_id`, `qb_id`, `status` (synced|failed), `error`, `synced_at`.
+
+---
+
 ## Brain Files
 
 The project brain consists of four files that must ALL be
