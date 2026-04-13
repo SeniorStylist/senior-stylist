@@ -364,8 +364,10 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET /api/reports/invoice` | **Admin** | Completed bookings + payment status for invoice UI |
 | `POST /api/reports/mark-paid` | **Admin** | Mark completed unpaid bookings paid for a month (or all) |
 | `GET /api/export/billing` | Authenticated | CSV billing export for a month |
+| `GET /api/export/bookkeeper?month=YYYY-MM` | **Admin** | Bookkeeper CSV: Date, Resident, Room, Service, Stylist, Duration, Price, Payment Status, Payment Method, Notes. Completed bookings only, facility timezone aware. |
+| `POST /api/residents/[id]/send-portal-link` | Authenticated | Send portal link email to resident's `poaEmail`. Guards: resident must exist in facility, have `poaEmail` and `portalToken`. |
 | `POST /api/webhooks/stripe` | Stripe signature | On `checkout.session.completed`, set booking `payment_status` to `paid` |
-| `GET /api/portal/[token]` | **No session** (uses token) | Resident + bookings + facility payment type |
+| `GET /api/portal/[token]` | **No session** (uses token) | Resident + bookings + facility payment type + `poaName` + `poaEmail` |
 | `GET /api/portal/[token]/stylists` | Token | Active stylists for facility |
 | `GET /api/portal/[token]/services` | Token | Active services |
 | `GET /api/portal/[token]/available-times` | Token | Taken slots for a date |

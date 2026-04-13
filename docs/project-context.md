@@ -131,11 +131,12 @@ Tailwind CSS 4, Vercel
 - Flexible pricing UX polish (2026-04-10): import preview shows +add-on/tiered/options badges and +$X.XX for addon services; PDF parser filters garbage rows (boilerplate, mid-sentence fragments); booking modal has multi-addon service checklist with live price breakdown; POST /api/bookings accepts addonServiceIds[]; log shows "Service + Addon1 + Addon2" with improved qty/option display; walk-in form has addon checklist
 - Pricing UI fixes (2026-04-12): (1) addon $0 bug fixed — checklist and breakdown now use `(addonAmountCents ?? priceCents ?? 0)` at all three sites in booking-modal.tsx; (2) tiered quantity input replaced with 44px stepper (− stone / qty / + teal) plus live tier hint line showing active range and calculated total; (3) price breakdown contextual annotations — tiered shows `(qty × $X/ea)`, multi_option shows `— OptionName`, addon checklist lines rendered in amber (`text-amber-700`)
 
-### Phase 5 PLANNED
-- Resident portal enhancements
-- POA can book on behalf of resident
-- CSV template export for bookkeepers
-- Booking confirmations to resident and POA
+### Phase 5 SHIPPED (2026-04-14)
+- POA portal banner on `/portal/[token]` when `poaName` is set — shows "Booking on behalf of {name}"
+- "Send portal link" button in resident detail Portal Link section — fires email to `poaEmail` via `POST /api/residents/[id]/send-portal-link`
+- Booking confirmation emails to POA on staff-created bookings (`POST /api/bookings`) and portal bookings (`POST /api/portal/[token]/book`) — fire-and-forget via `buildBookingConfirmationEmailHtml()` in `src/lib/email.ts`
+- `GET /api/export/bookkeeper?month=YYYY-MM` — admin-only CSV with Date, Resident, Room, Service, Stylist, Duration, Price, Payment Status, Payment Method, Notes; respects facility timezone
+- "Bookkeeper CSV" button in Reports invoice tab action bar
 
 ### Phase 6 PLANNED
 - Per-stylist Google Calendar integration
@@ -269,15 +270,13 @@ Tailwind CSS 4, Vercel
 ### Not Started
 - Symphony Manor and Sunrise Bethesda not yet created in app
 - Real stylists Sierra, Mariah Owens, Senait Edwards not yet invited
-- Phase 5 resident portal POA booking
-
 ---
 
 ## 7. IMMEDIATE NEXT FIX
 
-QoL improvements + Phase 7 (2026-04-13). Next steps:
+Phase 6 + real facility onboarding (2026-04-14). Next steps:
 1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-2. Phase 5: resident portal POA booking (plan written at docs/portal-auth-plan.md)
+2. Phase 6: Per-stylist Google Calendar integration
 3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts
 
 ---

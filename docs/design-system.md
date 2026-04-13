@@ -654,6 +654,21 @@ On mobile when `role === 'stylist'`, the dashboard replaces FullCalendar with a 
 - Each row has a one-tap **Mark Done** button (calls `PUT /api/bookings/[id]` with `status: 'completed'`)
 - No calendar rendering on mobile for stylists — avoids FullCalendar complexity
 
+### Teal Info Banner (POA Portal)
+
+Used on `/portal/[token]` when `poaName` is set, to indicate the visitor is a Power of Attorney booking on behalf of a resident.
+
+```tsx
+{poaName && (
+  <div className="bg-teal-50 border border-teal-100 rounded-xl px-4 py-2.5 text-sm text-teal-800">
+    Booking on behalf of <strong>{residentName}</strong>
+    {poaEmail && <span className="text-teal-600 ml-1">({poaEmail})</span>}
+  </div>
+)}
+```
+
+Placed between the resident header card and the Book button.
+
 ### Amber Banner (Pending Requests)
 
 Dashboard shows an amber banner when there are pending access requests assigned to the facility.
