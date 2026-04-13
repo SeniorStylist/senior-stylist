@@ -152,6 +152,10 @@ transition: 'transform cubic-bezier(0.34, 1.56, 0.64, 1) 380ms'  // spring
 
 Footer/save buttons must be **outside** the scroll area with `flexShrink: 0`. The scrollable body uses `WebkitOverflowScrolling: 'touch'` and `overscrollBehavior: 'contain'`.
 
+**Structural invariant:** drag handle (44px, `flexShrink: 0`), optional title header (`flexShrink: 0`, `borderBottom`), scroll area (`flex: 1, overflowY: auto, minHeight: 0`), and footer (`flexShrink: 0`) are **flex siblings inside the sheet panel** — NOT overlay / `position: fixed` / `position: sticky` children on top of the scroll area. The first child of `children` renders immediately below the header. Never add a second header layer inside the sheet content.
+
+**Mobile-mode detection:** `useIsMobile()` (`src/hooks/use-is-mobile.ts`) is **lazy-initialized** from `window.innerWidth < 768` when `window` is defined (falls back to `false` during SSR). Components that conditionally render Modal vs BottomSheet (e.g. `booking-modal.tsx`) must rely on this lazy init to avoid a first-paint Modal flash on iPhone. Any code that depends on the correct platform DOM before paint (e.g. scroll-reset effects) should use `useLayoutEffect` with `isMobile` in its dep list so it re-runs after a late detection flip.
+
 ### Badge (`src/components/ui/badge.tsx`)
 
 Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -147,23 +147,28 @@ export function BookingModal({
     setSelectedQuantity(1)
     setSelectedOptionName('')
 
-    // Scroll content area back to top so the form always opens at Resident
-    if (scrollRef.current) {
-      let el: HTMLElement | null = scrollRef.current
-      while (el) {
-        const { overflowY, overflow } = window.getComputedStyle(el)
-        if (overflowY === 'auto' || overflowY === 'scroll' || overflow === 'auto' || overflow === 'scroll') {
-          el.scrollTop = 0
-          break
-        }
-        el = el.parentElement
-      }
-    }
     // Default recurring end date = 3 months from now
     const threeMonths = new Date()
     threeMonths.setMonth(threeMonths.getMonth() + 3)
     setRecurringEndDate(threeMonths.toISOString().split('T')[0])
   }, [open, mode, booking, defaultStart]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll content area back to top so the form always opens at Resident.
+  // Runs on [open, isMobile] so the reset fires after the mobile-mode swap
+  // (first render can be Modal before useIsMobile flips, then BottomSheet mounts).
+  useLayoutEffect(() => {
+    if (!open) return
+    if (!scrollRef.current) return
+    let el: HTMLElement | null = scrollRef.current
+    while (el) {
+      const { overflowY, overflow } = window.getComputedStyle(el)
+      if (overflowY === 'auto' || overflowY === 'scroll' || overflow === 'auto' || overflow === 'scroll') {
+        el.scrollTop = 0
+        break
+      }
+      el = el.parentElement
+    }
+  }, [open, isMobile])
 
   // When resident changes (create mode), pre-select their default service
   useEffect(() => {
