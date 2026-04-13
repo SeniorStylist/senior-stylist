@@ -471,7 +471,12 @@ export function BookingModal({
               }
             }}
             onFocus={() => setResidentDropdownOpen(true)}
-            onBlur={() => setTimeout(() => setResidentDropdownOpen(false), 150)}
+            onBlur={(e) => {
+              const related = e.relatedTarget as HTMLElement | null
+              const dropdown = e.currentTarget.closest('.relative')
+              if (dropdown && related && dropdown.contains(related)) return
+              setTimeout(() => setResidentDropdownOpen(false), 150)
+            }}
             placeholder="Search by name or room..."
             disabled={submitting}
             className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all duration-150 disabled:opacity-60"
@@ -486,12 +491,14 @@ export function BookingModal({
                   )}
                   <input
                     autoFocus
+                    tabIndex={0}
                     value={createResidentName}
                     onChange={(e) => setCreateResidentName(e.target.value)}
                     placeholder="Full name *"
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
                   />
                   <input
+                    tabIndex={0}
                     value={createResidentRoom}
                     onChange={(e) => setCreateResidentRoom(e.target.value)}
                     placeholder="Room number (optional)"

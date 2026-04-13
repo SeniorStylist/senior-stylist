@@ -558,7 +558,12 @@ export function LogClient({
                 }
               }}
               onFocus={() => setWiResidentDropOpen(true)}
-              onBlur={() => setTimeout(() => setWiResidentDropOpen(false), 150)}
+              onBlur={(e) => {
+                const related = e.relatedTarget as HTMLElement | null
+                const dropdown = e.currentTarget.closest('.relative')
+                if (dropdown && related && dropdown.contains(related)) return
+                setTimeout(() => setWiResidentDropOpen(false), 150)
+              }}
               placeholder="Search resident..."
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
             />
@@ -572,12 +577,14 @@ export function LogClient({
                     )}
                     <input
                       autoFocus
+                      tabIndex={0}
                       value={wiCreateName}
                       onChange={(e) => setWiCreateName(e.target.value)}
                       placeholder="Full name *"
                       className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
                     />
                     <input
+                      tabIndex={0}
                       value={wiCreateRoom}
                       onChange={(e) => setWiCreateRoom(e.target.value)}
                       placeholder="Room number (optional)"
