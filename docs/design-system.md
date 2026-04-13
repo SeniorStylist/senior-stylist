@@ -424,6 +424,29 @@ Icon stroke color is always `#A8A29E` (stone-400 equivalent) for empty state ico
 
 Skeleton components (e.g. `SkeletonResidentRow`) use the `shimmer` animation from globals.css. The pull-to-refresh indicator uses a spinning refresh SVG with `stroke="#0D7377"`.
 
+### Multi-step modal in-progress loading overlay
+
+When a long async operation replaces step content (e.g. OCR scanning in `ocr-import-modal.tsx`), replace the step body with a centered overlay — same outer container dimensions. Pattern:
+
+```tsx
+{step === 'upload' && (scanning ? (() => {
+  // parse progress
+  return (
+    <div className="px-5 py-8 flex flex-col items-center justify-center gap-6" style={{ minHeight: '280px' }}>
+      <svg ... className="animate-pulse">...</svg>  {/* teal icon */}
+      <p style={{ opacity: tipVisible ? 1 : 0 }} className="transition-opacity duration-300">{SCAN_TIPS[tipIndex]}</p>
+      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden w-full max-w-xs">
+        <div className="h-full bg-[#0D7377] rounded-full transition-all duration-700" style={{ width: `${progressPct}%` }} />
+      </div>
+    </div>
+  )
+})() : (
+  <div ...>normal step content</div>
+))}
+```
+
+Tip rotation: `useEffect` keyed on the `scanning` flag; 3s interval fades out (`tipVisible=false`) → 400ms delay increments index → fades in. Progress bar: regex parse the progress string → `(X/Y)*100` capped at 90, default 5 when empty.
+
 ### Toast Notifications
 
 ```tsx
