@@ -453,7 +453,7 @@ Service fields in the OCR review step (`ocr-import-modal.tsx`) use `<select>` dr
 
 - Options: existing services grouped by category (`<optgroup>`), price shown via `formatCents(s.priceCents)`. When only 1 category, flat list (no optgroups).
 - `__new__${name}` value at bottom: shown when `!entry.serviceId && entry.serviceName`. Selecting it keeps `serviceId = null` so the import route creates a new service.
-- Pre-selection at load time via `fuzzyBestMatch(services.filter(s => s.pricingType !== 'addon'), ocrName, 0.7)` in `buildSheetState` — catches shorthand OCR names. Addon-type services are excluded from primary matching (prevents "S/BDry" → "Add on Deep Conditioner" false matches). Add-on rows use the full `services` list.
+- Pre-selection at load time via two-signal IIFE in `buildSheetState`: (1) `fuzzyBestMatch(nonAddonServices, name)` for name score, (2) `nonAddonServices.filter(s => s.priceCents === ocrPrice)` for exact price match. If unique price match and nameScore < 0.85, price wins. If name match found, trust it (price mismatch = add-ons bundled in total). If no name match, fall back to unique price match. Add-on rows use full `services` list (name-only).
 - `fuzzyScore(a,b)`: 1.0 for exact, 0.85 for substring containment, else word-set overlap ratio (using `normalizeWords`). `fuzzyBestMatch` scans all items and returns the highest scorer above threshold.
 - Same `<select>` pattern for add-on service rows.
 - **Price field**: read-only intent — `onChange` only updates `priceCents`, never `serviceId`/`serviceName`. Shows `"from sheet"` hint (`text-[10px] text-stone-400`) below the input to indicate it came from the handwritten log.
