@@ -70,6 +70,7 @@ export function BookingModal({
   const [selectedAddonServiceIds, setSelectedAddonServiceIds] = useState<string[]>([])
 
   const residentInputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
@@ -130,6 +131,19 @@ export function BookingModal({
     setAddonChecked(false)
     setSelectedQuantity(1)
     setSelectedOptionName('')
+
+    // Scroll content area back to top so the form always opens at Resident
+    if (scrollRef.current) {
+      let el: HTMLElement | null = scrollRef.current
+      while (el) {
+        const { overflowY, overflow } = window.getComputedStyle(el)
+        if (overflowY === 'auto' || overflowY === 'scroll' || overflow === 'auto' || overflow === 'scroll') {
+          el.scrollTop = 0
+          break
+        }
+        el = el.parentElement
+      }
+    }
     // Default recurring end date = 3 months from now
     const threeMonths = new Date()
     threeMonths.setMonth(threeMonths.getMonth() + 3)
@@ -400,7 +414,7 @@ export function BookingModal({
   // Scrollable form content — all form fields + cancel section
   const formFields = (
     <>
-      <div className="px-6 py-4 space-y-4">
+      <div ref={scrollRef} className="px-6 py-4 space-y-4">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-700">
             {error}
