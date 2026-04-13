@@ -37,6 +37,8 @@ export default async function PortalPage({
       token={token}
       residentName={resident.name}
       roomNumber={resident.roomNumber}
+      poaName={resident.poaName}
+      poaEmail={resident.poaEmail}
     />
   )
 }

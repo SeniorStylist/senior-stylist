@@ -51,6 +51,8 @@ export async function GET(
           name: resident.name,
           roomNumber: resident.roomNumber,
           facilityId: resident.facilityId,
+          poaName: resident.poaName,
+          poaEmail: resident.poaEmail,
         },
         facilityPaymentType: facility?.paymentType ?? 'facility',
         upcomingBookings: JSON.parse(JSON.stringify(upcomingBookings)),

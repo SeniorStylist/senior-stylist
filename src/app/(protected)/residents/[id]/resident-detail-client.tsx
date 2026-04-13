@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -73,6 +73,8 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [sendingLink, setSendingLink] = useState(false)
+  const [linkSent, setLinkSent] = useState(false)
 
   const portalUrl = typeof window !== 'undefined' && resident.portalToken
     ? `${window.location.origin}/portal/${resident.portalToken}`
@@ -85,6 +87,22 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       setTimeout(() => setLinkCopied(false), 2000)
     })
   }
+
+  const handleSendPortalLink = useCallback(async () => {
+    setSendingLink(true)
+    try {
+      const res = await fetch(`/api/residents/${resident.id}/send-portal-link`, { method: 'POST' })
+      if (res.ok) {
+        setLinkSent(true)
+        toast('Portal link sent', 'success')
+        setTimeout(() => setLinkSent(false), 3000)
+      } else {
+        toast('Failed to send link', 'error')
+      }
+    } finally {
+      setSendingLink(false)
+    }
+  }, [resident.id, toast])
 
   const handleSave = async () => {
     if (!name.trim()) { setSaveError('Name is required'); return }
@@ -354,7 +372,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
               <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Portal Link</p>
               <p className="text-xs text-stone-400 mb-3">Share with resident or family</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   size="sm"
                   variant="secondary"
@@ -372,6 +390,15 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   >
                     Open Portal
                   </a>
+                )}
+                {resident.poaEmail && (
+                  <button
+                    onClick={handleSendPortalLink}
+                    disabled={sendingLink}
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl text-xs font-medium border border-[#0D7377] text-[#0D7377] hover:bg-teal-50 transition-colors disabled:opacity-40 min-h-[44px]"
+                  >
+                    {sendingLink ? 'Sending…' : linkSent ? 'Sent!' : 'Send portal link'}
+                  </button>
                 )}
               </div>
             </div>

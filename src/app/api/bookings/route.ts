@@ -10,6 +10,7 @@ import { createCalendarEvent } from '@/lib/google-calendar/sync'
 import { Resend } from 'resend'
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
+import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -301,6 +302,29 @@ export async function POST(request: NextRequest) {
       }
     } catch (emailErr) {
       console.error('Confirmation email failed (non-fatal):', emailErr)
+    }
+
+    // POA booking confirmation — fire-and-forget
+    const poaEmail = data?.resident?.poaEmail
+    if (poaEmail && data?.resident?.portalToken) {
+      const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
+      const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${data.resident.portalToken}`
+      const tz = facility?.timezone ?? 'America/New_York'
+      const poaDateStr = startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz })
+      const poaTimeStr = startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz })
+      const poaPriceStr = resolvedPrice ? `$${(resolvedPrice / 100).toFixed(2)}` : 'N/A'
+      const poaHtml = buildBookingConfirmationEmailHtml({
+        residentName: data.resident.name,
+        serviceName: data.service?.name ?? service.name,
+        stylistName: data.stylist?.name ?? stylist.name,
+        dateStr: poaDateStr,
+        timeStr: poaTimeStr,
+        priceStr: poaPriceStr,
+        facilityName: facility?.name ?? 'Senior Stylist',
+        portalUrl,
+        bookedBy: 'staff',
+      })
+      sendEmail({ to: poaEmail, subject: `Appointment booked for ${data.resident.name}`, html: poaHtml }).catch(console.error)
     }
 
     revalidateTag('bookings', {})

@@ -51,6 +51,8 @@ interface PortalClientProps {
   token: string
   residentName: string
   roomNumber: string | null
+  poaName?: string | null
+  poaEmail?: string | null
 }
 
 function formatDateTime(dateStr: string) {
@@ -116,7 +118,7 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function PortalClient({ token, residentName, roomNumber }: PortalClientProps) {
+export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail }: PortalClientProps) {
   const [data, setData] = useState<PortalData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showPast, setShowPast] = useState(false)
@@ -286,6 +288,14 @@ export function PortalClient({ token, residentName, roomNumber }: PortalClientPr
           </div>
         </div>
       </div>
+
+      {/* POA banner */}
+      {poaName && (
+        <div className="bg-teal-50 border border-teal-100 rounded-xl px-4 py-2.5 text-sm text-teal-800">
+          Booking on behalf of <strong>{residentName}</strong>
+          {poaEmail && <span className="text-teal-600 ml-1">({poaEmail})</span>}
+        </div>
+      )}
 
       {/* Book button */}
       {!booking && (

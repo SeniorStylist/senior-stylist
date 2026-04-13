@@ -498,6 +498,14 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
               >
                 Generate Invoice
               </a>
+              <a
+                href={`/api/export/bookkeeper?month=${month}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 text-stone-600 hover:bg-stone-50 transition-all"
+              >
+                Bookkeeper CSV
+              </a>
               <button
                 onClick={handleMarkAllPaid}
                 disabled={markingPaid}
