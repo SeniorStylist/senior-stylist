@@ -68,6 +68,12 @@ export function BookingModal({
   const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [selectedOptionName, setSelectedOptionName] = useState('')
   const [selectedAddonServiceIds, setSelectedAddonServiceIds] = useState<string[]>([])
+  const [localNewResidents, setLocalNewResidents] = useState<Resident[]>([])
+  const [createResidentOpen, setCreateResidentOpen] = useState(false)
+  const [createResidentName, setCreateResidentName] = useState('')
+  const [createResidentRoom, setCreateResidentRoom] = useState('')
+  const [creatingResident, setCreatingResident] = useState(false)
+  const [createResidentError, setCreateResidentError] = useState<string | null>(null)
 
   const residentInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -103,7 +109,8 @@ export function BookingModal({
   const primaryService = selectedServices[0] ?? null
   const selectedServiceId = primaryService?.id ?? ''
 
-  const filteredResidents = residents.filter(
+  const allResidents = [...residents, ...localNewResidents]
+  const filteredResidents = allResidents.filter(
     (r) =>
       r.name.toLowerCase().includes(residentSearch.toLowerCase()) ||
       (r.roomNumber && r.roomNumber.toLowerCase().includes(residentSearch.toLowerCase()))
@@ -146,6 +153,11 @@ export function BookingModal({
     setAddonChecked(false)
     setSelectedQuantity(1)
     setSelectedOptionName('')
+    setLocalNewResidents([])
+    setCreateResidentOpen(false)
+    setCreateResidentName('')
+    setCreateResidentRoom('')
+    setCreateResidentError(null)
 
     // Default recurring end date = 3 months from now
     const threeMonths = new Date()
@@ -173,11 +185,11 @@ export function BookingModal({
   // When resident changes (create mode), pre-select their default service if it exists
   useEffect(() => {
     if (mode !== 'create' || !selectedResidentId) return
-    const resident = residents.find((r) => r.id === selectedResidentId)
+    const resident = allResidents.find((r) => r.id === selectedResidentId)
     if (!resident?.defaultServiceId) return
     const svc = primaryServiceCandidates.find((s) => s.id === resident.defaultServiceId)
     if (svc) setSelectedServiceIds([svc.id])
-  }, [selectedResidentId, mode, residents]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedResidentId, mode, residents, localNewResidents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset pricing inputs when the PRIMARY service changes
   useEffect(() => {
@@ -464,30 +476,136 @@ export function BookingModal({
             disabled={submitting}
             className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all duration-150 disabled:opacity-60"
           />
-          {residentDropdownOpen && filteredResidents.length > 0 && (
-            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-44 overflow-y-auto">
-              {filteredResidents.map((r) => (
+          {residentDropdownOpen && (
+            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
+              {createResidentOpen ? (
+                <div className="p-3 space-y-2">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">New Resident</p>
+                  {createResidentError && (
+                    <p className="text-xs text-red-600">{createResidentError}</p>
+                  )}
+                  <input
+                    autoFocus
+                    value={createResidentName}
+                    onChange={(e) => setCreateResidentName(e.target.value)}
+                    placeholder="Full name *"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                  />
+                  <input
+                    value={createResidentRoom}
+                    onChange={(e) => setCreateResidentRoom(e.target.value)}
+                    placeholder="Room number (optional)"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                  />
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onMouseDown={() => { setCreateResidentOpen(false); setCreateResidentError(null) }}
+                      className="flex-1 min-h-[44px] text-sm text-stone-600 border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!createResidentName.trim() || creatingResident}
+                      onMouseDown={async () => {
+                        if (!createResidentName.trim()) return
+                        setCreatingResident(true)
+                        setCreateResidentError(null)
+                        try {
+                          const res = await fetch('/api/residents', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              name: createResidentName.trim(),
+                              roomNumber: createResidentRoom.trim() || undefined,
+                            }),
+                          })
+                          const json = await res.json()
+                          if (!res.ok) {
+                            setCreateResidentError(
+                              res.status === 409
+                                ? 'A resident with this name already exists'
+                                : (json.error ?? 'Failed to create resident')
+                            )
+                            return
+                          }
+                          const newResident: Resident = json.data
+                          setLocalNewResidents((prev) => [...prev, newResident])
+                          setSelectedResidentId(newResident.id)
+                          setResidentSearch(newResident.name)
+                          setResidentDropdownOpen(false)
+                          setCreateResidentOpen(false)
+                          setCreateResidentName('')
+                          setCreateResidentRoom('')
+                        } finally {
+                          setCreatingResident(false)
+                        }
+                      }}
+                      className="flex-1 min-h-[44px] text-sm font-semibold bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] disabled:opacity-50 transition-colors"
+                    >
+                      {creatingResident ? 'Creating…' : 'Create & Select'}
+                    </button>
+                  </div>
+                </div>
+              ) : filteredResidents.length > 0 ? (
+                <>
+                  {filteredResidents.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onMouseDown={() => {
+                        setSelectedResidentId(r.id)
+                        setResidentSearch(r.name)
+                        setResidentDropdownOpen(false)
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
+                    >
+                      <span className="font-medium text-stone-900">{r.name}</span>
+                      {r.roomNumber && (
+                        <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>
+                      )}
+                    </button>
+                  ))}
+                  {residentSearch.trim().length >= 3 && (
+                    <button
+                      type="button"
+                      onMouseDown={() => {
+                        setCreateResidentName(residentSearch.trim())
+                        setCreateResidentRoom('')
+                        setCreateResidentError(null)
+                        setCreateResidentOpen(true)
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#0D7377] border-t border-stone-100 hover:bg-teal-50 transition-colors flex items-center gap-2"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      Create &quot;{residentSearch.trim()}&quot;
+                    </button>
+                  )}
+                </>
+              ) : residentSearch.trim().length >= 3 ? (
                 <button
-                  key={r.id}
                   type="button"
                   onMouseDown={() => {
-                    setSelectedResidentId(r.id)
-                    setResidentSearch(r.name)
-                    setResidentDropdownOpen(false)
+                    setCreateResidentName(residentSearch.trim())
+                    setCreateResidentRoom('')
+                    setCreateResidentError(null)
+                    setCreateResidentOpen(true)
                   }}
-                  className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
+                  className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#0D7377] hover:bg-teal-50 transition-colors flex items-center gap-2"
                 >
-                  <span className="font-medium text-stone-900">{r.name}</span>
-                  {r.roomNumber && (
-                    <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>
-                  )}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Create &quot;{residentSearch.trim()}&quot;
                 </button>
-              ))}
-            </div>
-          )}
-          {residentDropdownOpen && residentSearch && filteredResidents.length === 0 && (
-            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 px-3.5 py-3">
-              <p className="text-sm text-stone-400">No residents found</p>
+              ) : residentSearch ? (
+                <div className="px-3.5 py-3">
+                  <p className="text-sm text-stone-400">No residents found</p>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

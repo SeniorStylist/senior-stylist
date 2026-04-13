@@ -180,11 +180,17 @@ export function LogClient({
   const [wiAddonServiceIds, setWiAddonServiceIds] = useState<string[]>([])
   const [wiAdding, setWiAdding] = useState(false)
   const [wiError, setWiError] = useState<string | null>(null)
+  const [wiCreateOpen, setWiCreateOpen] = useState(false)
+  const [wiCreateName, setWiCreateName] = useState('')
+  const [wiCreateRoom, setWiCreateRoom] = useState('')
+  const [wiCreating, setWiCreating] = useState(false)
+  const [wiCreateError, setWiCreateError] = useState<string | null>(null)
+  const [localNewResidents, setLocalNewResidents] = useState<Resident[]>([])
 
   // Auto-select resident's default service in walk-in form
   useEffect(() => {
     if (!wiResidentId) return
-    const resident = residents.find((r) => r.id === wiResidentId)
+    const resident = [...residents, ...localNewResidents].find((r) => r.id === wiResidentId)
     if (!resident?.defaultServiceId) return
     const svc = services.find((s) => s.id === resident.defaultServiceId && s.pricingType !== 'addon')
     if (svc) setWiServiceId(svc.id)
@@ -377,7 +383,8 @@ export function LogClient({
   }
 
   // Add walk-in
-  const filteredResidents = residents.filter(
+  const allResidents = [...residents, ...localNewResidents]
+  const filteredResidents = allResidents.filter(
     (r) =>
       r.name.toLowerCase().includes(wiResidentSearch.toLowerCase()) ||
       (r.roomNumber && r.roomNumber.toLowerCase().includes(wiResidentSearch.toLowerCase()))
@@ -419,6 +426,11 @@ export function LogClient({
         setWiServiceId(services[0]?.id ?? '')
         setWiAddonServiceIds([])
         setWiTime(roundToNearest30(new Date()))
+        setLocalNewResidents([])
+        setWiCreateOpen(false)
+        setWiCreateName('')
+        setWiCreateRoom('')
+        setWiCreateError(null)
         toast('Appointment booked!', 'success')
       } else {
         setWiError(json.error?.message ?? json.error ?? 'Failed to add walk-in')
@@ -550,25 +562,136 @@ export function LogClient({
               placeholder="Search resident..."
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
             />
-            {wiResidentDropOpen && filteredResidents.length > 0 && (
-              <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
-                {filteredResidents.map((r) => (
+            {wiResidentDropOpen && (
+              <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
+                {wiCreateOpen ? (
+                  <div className="p-3 space-y-2">
+                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">New Resident</p>
+                    {wiCreateError && (
+                      <p className="text-xs text-red-600">{wiCreateError}</p>
+                    )}
+                    <input
+                      autoFocus
+                      value={wiCreateName}
+                      onChange={(e) => setWiCreateName(e.target.value)}
+                      placeholder="Full name *"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                    />
+                    <input
+                      value={wiCreateRoom}
+                      onChange={(e) => setWiCreateRoom(e.target.value)}
+                      placeholder="Room number (optional)"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                    />
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onMouseDown={() => { setWiCreateOpen(false); setWiCreateError(null) }}
+                        className="flex-1 min-h-[44px] text-sm text-stone-600 border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!wiCreateName.trim() || wiCreating}
+                        onMouseDown={async () => {
+                          if (!wiCreateName.trim()) return
+                          setWiCreating(true)
+                          setWiCreateError(null)
+                          try {
+                            const res = await fetch('/api/residents', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                name: wiCreateName.trim(),
+                                roomNumber: wiCreateRoom.trim() || undefined,
+                              }),
+                            })
+                            const json = await res.json()
+                            if (!res.ok) {
+                              setWiCreateError(
+                                res.status === 409
+                                  ? 'A resident with this name already exists'
+                                  : (json.error ?? 'Failed to create resident')
+                              )
+                              return
+                            }
+                            const newResident: Resident = json.data
+                            setLocalNewResidents((prev) => [...prev, newResident])
+                            setWiResidentId(newResident.id)
+                            setWiResidentSearch(newResident.name)
+                            setWiResidentDropOpen(false)
+                            setWiCreateOpen(false)
+                            setWiCreateName('')
+                            setWiCreateRoom('')
+                          } finally {
+                            setWiCreating(false)
+                          }
+                        }}
+                        className="flex-1 min-h-[44px] text-sm font-semibold bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] disabled:opacity-50 transition-colors"
+                      >
+                        {wiCreating ? 'Creating…' : 'Create & Select'}
+                      </button>
+                    </div>
+                  </div>
+                ) : filteredResidents.length > 0 ? (
+                  <>
+                    {filteredResidents.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onMouseDown={() => {
+                          setWiResidentId(r.id)
+                          setWiResidentSearch(r.name)
+                          setWiResidentDropOpen(false)
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
+                      >
+                        <span className="font-medium text-stone-900">{r.name}</span>
+                        {r.roomNumber && (
+                          <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>
+                        )}
+                      </button>
+                    ))}
+                    {wiResidentSearch.trim().length >= 3 && (
+                      <button
+                        type="button"
+                        onMouseDown={() => {
+                          setWiCreateName(wiResidentSearch.trim())
+                          setWiCreateRoom('')
+                          setWiCreateError(null)
+                          setWiCreateOpen(true)
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#0D7377] border-t border-stone-100 hover:bg-teal-50 transition-colors flex items-center gap-2"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        Create &quot;{wiResidentSearch.trim()}&quot;
+                      </button>
+                    )}
+                  </>
+                ) : wiResidentSearch.trim().length >= 3 ? (
                   <button
-                    key={r.id}
                     type="button"
                     onMouseDown={() => {
-                      setWiResidentId(r.id)
-                      setWiResidentSearch(r.name)
-                      setWiResidentDropOpen(false)
+                      setWiCreateName(wiResidentSearch.trim())
+                      setWiCreateRoom('')
+                      setWiCreateError(null)
+                      setWiCreateOpen(true)
                     }}
-                    className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
+                    className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#0D7377] hover:bg-teal-50 transition-colors flex items-center gap-2"
                   >
-                    <span className="font-medium text-stone-900">{r.name}</span>
-                    {r.roomNumber && (
-                      <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>
-                    )}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Create &quot;{wiResidentSearch.trim()}&quot;
                   </button>
-                ))}
+                ) : wiResidentSearch ? (
+                  <div className="px-3.5 py-3">
+                    <p className="text-sm text-stone-400">No residents found</p>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -627,7 +750,7 @@ export function LogClient({
           )}
 
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null) }} disabled={wiAdding}>
+            <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null); setLocalNewResidents([]); setWiCreateOpen(false); setWiCreateName(''); setWiCreateRoom(''); setWiCreateError(null) }} disabled={wiAdding}>
               Cancel
             </Button>
             <Button size="sm" loading={wiAdding} onClick={handleAddWalkIn}>

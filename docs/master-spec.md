@@ -415,6 +415,7 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 - **Tiered stepper**: `<input type="number">` replaced with a 44px three-part stepper (`−` stone / count span / `+` teal). An IIFE below the stepper computes `activeTier` and renders a hint: `{min}–{max+}: $X each → $total`.
 - **Breakdown annotations** (idx===0 primary service): IIFE computes a context-aware `nameLabel` — tiered shows `ServiceName (qty × $X/ea)`, multi_option shows `ServiceName — OptionName`, addon shows `ServiceName (+$X add-on)`. Addon checklist lines in breakdown use `text-amber-700`.
 - **Service selector option text**: `` `${s.name} · ${formatPricingLabel(s)}` `` — no duration suffix. `formatPricingLabel` returns `+$X.00` for addon, `$X.00/unit` for tiered, `$X.00–$Y.00` for multi_option.
+- **Inline create resident**: resident combobox supports inline creation when ≥3 chars typed with no match. "+ Create 'name'" button opens a mini-form inside the same dropdown (name pre-filled, room optional) → POST /api/residents → auto-select. `localNewResidents: Resident[]` state merged with `residents` prop for filtering. Same pattern in log walk-in form. All state resets on close. 409 → "A resident with this name already exists".
 
 ---
 

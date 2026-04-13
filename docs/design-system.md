@@ -493,6 +493,19 @@ Each user row shows: avatar initials → name/email → role badge → linked st
 - **Error messages**: inline red text; includes "This person already has access to this facility" (409) when the invited email already has a `used=true` invite.
 - **Pending list**: shows role badge + Expired badge + Resend / Copy link / Revoke buttons per invite
 
+### Inline Create in Combobox
+
+Used in booking-modal.tsx (resident field) and log-client.tsx walk-in form. Pattern:
+
+- When search length ≥ 3 and no match exists: show a single "+ Create 'name'" button (teal, 44px min-height) inside the dropdown
+- When search length ≥ 3 and partial matches exist: show matching rows + "+ Create 'name'" at the bottom separated by a `border-t border-stone-100`
+- Tapping "+ Create" replaces the dropdown content with an inline mini-form (name pre-filled, room optional, Cancel / Create & Select buttons)
+- On success: push to `localNewResidents: Resident[]` → auto-select → close dropdown
+- State: `localNewResidents`, `createResidentOpen`, `createResidentName`, `createResidentRoom`, `creatingResident`, `createResidentError`
+- 409 error → "A resident with this name already exists"
+- All buttons inside the dropdown use `onMouseDown` (not `onClick`) to beat the 150ms `onBlur` close timeout
+- All create state resets on modal/form close
+
 ### Animations
 
 | Name | Trigger | Duration |
