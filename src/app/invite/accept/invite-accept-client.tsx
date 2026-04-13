@@ -59,8 +59,8 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ backgroundColor: '#e6faf9' }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ backgroundColor: '#fdf2f4' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2">
               <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
@@ -79,7 +79,7 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
           </p>
           <button
             onClick={() => { setSent(false); setError(null) }}
-            className="mt-6 text-sm font-semibold text-[#0D7377] hover:underline"
+            className="mt-6 text-sm font-semibold text-[#8B2E4A] hover:underline"
           >
             Use a different email
           </button>
@@ -119,12 +119,12 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             onKeyDown={(e) => e.key === 'Enter' && handleMagicLink()}
-            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
           />
           <button
             onClick={handleMagicLink}
             disabled={loading || !email.trim()}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl hover:bg-[#72253C] active:scale-95 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? (
               <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">

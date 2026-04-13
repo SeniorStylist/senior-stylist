@@ -428,7 +428,7 @@ export default function OnboardingClient() {
   // ── Shared style classes ───────────────────────────────────────────
   const inputClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all'
   const selectClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] transition-all'
-  const ctaClass = 'w-full py-3.5 rounded-2xl bg-[#0D7377] text-white font-semibold text-base active:scale-[0.98] transition-all shadow-sm disabled:opacity-50'
+  const ctaClass = 'w-full py-3.5 rounded-2xl bg-[#8B2E4A] text-white font-semibold text-base active:scale-[0.98] transition-all shadow-sm disabled:opacity-50'
   const skipClass = 'w-full text-sm text-stone-400 hover:text-stone-600 transition-colors py-1'
   const optionCardClass = 'w-full p-4 rounded-2xl border-2 border-stone-200 hover:border-[#0D7377] text-left transition-all cursor-pointer'
 
@@ -447,7 +447,7 @@ export default function OnboardingClient() {
           {/* Progress bar */}
           <div className="h-1 bg-stone-100">
             <div
-              className="h-full bg-[#0D7377] transition-all duration-500"
+              className="h-full bg-[#8B2E4A] transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -464,12 +464,12 @@ export default function OnboardingClient() {
                     <div
                       className={cn(
                         'w-2 h-2 rounded-full transition-all duration-300',
-                        done ? 'bg-[#0D7377]' : active ? 'bg-[#0D7377] ring-2 ring-[#0D7377]/25 ring-offset-1' : 'bg-stone-200'
+                        done ? 'bg-[#8B2E4A]' : active ? 'bg-[#8B2E4A] ring-2 ring-[#8B2E4A]/25 ring-offset-1' : 'bg-stone-200'
                       )}
                       title={label}
                     />
                     {i < 3 && (
-                      <div className={cn('h-px w-6 transition-all duration-300', done ? 'bg-[#0D7377]' : 'bg-stone-200')} />
+                      <div className={cn('h-px w-6 transition-all duration-300', done ? 'bg-[#8B2E4A]' : 'bg-stone-200')} />
                     )}
                   </div>
                 )
@@ -482,7 +482,7 @@ export default function OnboardingClient() {
             {/* ─── Step 1 — Welcome ─────────────────────────────────────── */}
             {step === 1 && (
               <div className="text-center space-y-6">
-                <div className="w-16 h-16 bg-[#0D7377] rounded-2xl flex items-center justify-center mx-auto">
+                <div className="w-16 h-16 bg-[#8B2E4A] rounded-2xl flex items-center justify-center mx-auto">
                   <span className="text-white text-2xl font-bold">SS</span>
                 </div>
                 <div>

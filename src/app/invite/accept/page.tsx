@@ -48,7 +48,7 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
           </p>
           <a
             href="/login"
-            className="mt-6 inline-block text-sm font-semibold text-[#0D7377] hover:underline"
+            className="mt-6 inline-block text-sm font-semibold text-[#8B2E4A] hover:underline"
           >
             Go to login
           </a>

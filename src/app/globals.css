@@ -3,8 +3,10 @@
 :root {
   --color-bg: #F7F6F2;
   --color-sidebar: #0D2B2E;
-  --color-primary: #0D7377;
-  --color-primary-light: #14D9C4;
+  --color-primary: #8B2E4A;
+  --color-primary-light: #C4687A;
+  --color-brand-hover: #72253C;
+  --color-portal-bg: #FDF8F8;
   --color-card: #FFFFFF;
   --color-border: #E7E5E4;
   --color-text: #1C1917;
@@ -97,14 +99,14 @@ body {
 }
 
 .fc .fc-button:hover {
-  background-color: #0a5f63 !important;
-  border-color: #0a5f63 !important;
+  background-color: #72253C !important;
+  border-color: #72253C !important;
 }
 
 .fc .fc-button-active,
 .fc .fc-button:active {
-  background-color: #084c50 !important;
-  border-color: #084c50 !important;
+  background-color: #5c1e2e !important;
+  border-color: #5c1e2e !important;
 }
 
 .fc .fc-event {
@@ -133,7 +135,7 @@ body {
 }
 
 .fc .fc-highlight {
-  background: rgba(13, 115, 119, 0.1) !important;
+  background: rgba(139, 46, 74, 0.1) !important;
 }
 
 .fc .fc-now-indicator-line {

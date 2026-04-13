@@ -331,7 +331,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-6 h-6 border-2 border-[#0D7377] border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[#8B2E4A] border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -351,7 +351,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
         <div className="flex items-center gap-3">
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
-            style={{ backgroundColor: '#0D7377' }}
+            style={{ backgroundColor: '#8B2E4A' }}
           >
             {residentName.charAt(0).toUpperCase()}
           </div>
@@ -364,9 +364,9 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
 
       {/* POA banner */}
       {poaName && (
-        <div className="bg-teal-50 border border-teal-100 rounded-xl px-4 py-2.5 text-sm text-teal-800">
+        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 text-sm text-rose-800">
           Booking on behalf of <strong>{residentName}</strong>
-          {poaEmail && <span className="text-teal-600 ml-1">({poaEmail})</span>}
+          {poaEmail && <span className="text-rose-600 ml-1">({poaEmail})</span>}
         </div>
       )}
 
@@ -375,7 +375,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
         <button
           onClick={startBooking}
           className="w-full py-3.5 rounded-2xl text-white font-semibold text-sm transition-all active:scale-95"
-          style={{ backgroundColor: '#0D7377' }}
+          style={{ backgroundColor: '#8B2E4A' }}
         >
           Book Appointment
         </button>
@@ -475,7 +475,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                                     onClick={() => setServiceAt(idx, svc.id)}
                                     className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
                                       svcId === svc.id
-                                        ? 'border-[#0D7377] bg-teal-50'
+                                        ? 'border-[#8B2E4A] bg-rose-50'
                                         : 'border-stone-200 bg-white hover:border-stone-300'
                                     }`}
                                   >
@@ -492,7 +492,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                                       )}
                                     </div>
                                     {svcId === svc.id && (
-                                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2.5">
+                                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.5">
                                         <polyline points="20 6 9 17 4 12" />
                                       </svg>
                                     )}
@@ -527,7 +527,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                         </span>
                         <button
                           onClick={() => setSelectedQuantity(q => q + 1)}
-                          className="h-11 w-11 flex items-center justify-center text-white bg-[#0D7377] hover:bg-[#0a5f63] text-lg font-medium border-l border-stone-200"
+                          className="h-11 w-11 flex items-center justify-center text-white bg-[#8B2E4A] hover:bg-[#72253C] text-lg font-medium border-l border-stone-200"
                         >
                           +
                         </button>
@@ -556,7 +556,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                               onClick={() => setSelectedOptionName(opt.name)}
                               className={`px-3 py-2 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
                                 selectedOptionName === opt.name
-                                  ? 'bg-[#0D7377] text-white'
+                                  ? 'bg-[#8B2E4A] text-white'
                                   : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                               }`}
                             >
@@ -568,7 +568,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                         <select
                           value={selectedOptionName}
                           onChange={e => setSelectedOptionName(e.target.value)}
-                          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all min-h-[44px]"
+                          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all min-h-[44px]"
                         >
                           <option value="">Select an option</option>
                           {opts.map(opt => (
@@ -604,7 +604,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                             onChange={() => setSelectedAddonServiceIds(prev =>
                               prev.includes(svc.id) ? prev.filter(id => id !== svc.id) : [...prev, svc.id]
                             )}
-                            className="rounded accent-[#0D7377] h-5 w-5 shrink-0"
+                            className="rounded accent-[#8B2E4A] h-5 w-5 shrink-0"
                           />
                           <span className="text-sm font-medium text-stone-800 flex-1 truncate">{svc.name}</span>
                           <span className="text-sm text-stone-500 shrink-0">
@@ -693,7 +693,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                       (primaryService?.pricingType === 'multi_option' && !selectedOptionName)
                     }
                     className="w-full py-3 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-40"
-                    style={{ backgroundColor: '#0D7377' }}
+                    style={{ backgroundColor: '#8B2E4A' }}
                   >
                     Continue
                   </button>
@@ -705,7 +705,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
             {bookingStep === 'details' && (
               <div className="space-y-4">
                 {/* Selected service summary */}
-                <div className="bg-teal-50 rounded-xl p-3 text-sm text-teal-800 font-medium">
+                <div className="bg-rose-50 rounded-xl p-3 text-sm text-rose-800 font-medium">
                   {selectedServiceIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')}
                   {' — '}{formatCents(totalPriceCents)}
                 </div>
@@ -721,7 +721,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                           onClick={() => setSelectedStylist(s)}
                           className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
                             selectedStylist?.id === s.id
-                              ? 'border-[#0D7377] bg-teal-50 text-teal-800'
+                              ? 'border-[#8B2E4A] bg-rose-50 text-rose-800'
                               : 'border-stone-100 text-stone-700 hover:border-stone-200'
                           }`}
                         >
@@ -750,7 +750,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                       setSelectedTime(null)
                       if (e.target.value) fetchTakenSlots(e.target.value)
                     }}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                   />
                 </div>
 
@@ -776,7 +776,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                               isTaken
                                 ? 'bg-stone-100 text-stone-300 cursor-not-allowed'
                                 : selectedTime === slot
-                                  ? 'bg-[#0D7377] text-white'
+                                  ? 'bg-[#8B2E4A] text-white'
                                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
                             }`}
                           >
@@ -803,7 +803,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                     }}
                     disabled={!selectedStylist || !selectedTime}
                     className="flex-1 py-3 rounded-xl text-white text-sm font-medium transition-all disabled:opacity-40"
-                    style={{ backgroundColor: '#0D7377' }}
+                    style={{ backgroundColor: '#8B2E4A' }}
                   >
                     Continue
                   </button>
@@ -865,7 +865,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                     onClick={handleBook}
                     disabled={submitting}
                     className="flex-1 py-3 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                    style={{ backgroundColor: '#0D7377' }}
+                    style={{ backgroundColor: '#8B2E4A' }}
                   >
                     {submitting ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -880,7 +880,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
               <div className="text-center py-4 space-y-4">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12" />
@@ -894,7 +894,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   onClick={handleCheckout}
                   disabled={checkingOut}
                   className="w-full py-3 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                 >
                   {checkingOut ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -914,7 +914,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
               <div className="text-center py-4 space-y-3">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12" />
@@ -927,7 +927,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                 <button
                   onClick={() => setBooking(false)}
                   className="mt-2 px-6 py-2.5 rounded-xl text-white text-sm font-medium"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                 >
                   Done
                 </button>
@@ -1041,7 +1041,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   body: JSON.stringify({ enabled }),
                 }).catch(console.error)
               }}
-              className="h-5 w-5 rounded accent-[#0D7377] shrink-0"
+              className="h-5 w-5 rounded accent-[#8B2E4A] shrink-0"
             />
           </label>
         </div>

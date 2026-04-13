@@ -64,7 +64,7 @@ export default function UnauthorizedPage() {
         {/* Loading */}
         {pageState === 'loading' && (
           <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-stone-200 border-t-[#0D7377] rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-stone-200 border-t-[#8B2E4A] rounded-full animate-spin" />
           </div>
         )}
 
@@ -88,7 +88,7 @@ export default function UnauthorizedPage() {
               <button
                 onClick={() => window.location.reload()}
                 className="block w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-                style={{ backgroundColor: '#0D7377' }}
+                style={{ backgroundColor: '#8B2E4A' }}
               >
                 Refresh
               </button>
@@ -130,7 +130,7 @@ export default function UnauthorizedPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Enter your full name"
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                 />
               </div>
 
@@ -143,7 +143,7 @@ export default function UnauthorizedPage() {
                     onClick={() => setRole('stylist')}
                     className={`px-4 py-3 rounded-xl border-2 text-sm font-semibold text-left transition-all ${
                       role === 'stylist'
-                        ? 'border-[#0D7377] bg-teal-50 text-[#0D7377]'
+                        ? 'border-[#8B2E4A] bg-rose-50 text-[#8B2E4A]'
                         : 'border-stone-200 text-stone-600 hover:border-stone-300'
                     }`}
                   >
@@ -155,7 +155,7 @@ export default function UnauthorizedPage() {
                     onClick={() => setRole('admin')}
                     className={`px-4 py-3 rounded-xl border-2 text-sm font-semibold text-left transition-all ${
                       role === 'admin'
-                        ? 'border-[#0D7377] bg-teal-50 text-[#0D7377]'
+                        ? 'border-[#8B2E4A] bg-rose-50 text-[#8B2E4A]'
                         : 'border-stone-200 text-stone-600 hover:border-stone-300'
                     }`}
                   >
@@ -170,7 +170,7 @@ export default function UnauthorizedPage() {
                 onClick={handleSubmit}
                 disabled={!userEmail || pageState === 'submitting'}
                 className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60 active:scale-[0.98]"
-                style={{ backgroundColor: '#0D7377' }}
+                style={{ backgroundColor: '#8B2E4A' }}
               >
                 {!userEmail ? 'Loading…' : pageState === 'submitting' ? 'Sending…' : 'Send Request'}
               </button>
