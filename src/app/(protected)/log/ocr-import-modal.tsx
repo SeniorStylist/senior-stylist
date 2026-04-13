@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Resident, Stylist, Service } from '@/types'
@@ -71,6 +71,17 @@ async function renderPdfPage(file: File, scale: number): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.85)
 }
 
+
+const SCAN_TIPS = [
+  "Reading handwriting takes a moment — Gemini is working hard! ✨",
+  "Tip: Clearer photos = more accurate results 📸",
+  "We're matching names to your resident list automatically 👥",
+  "Services are being matched to your service menu 💇",
+  "Almost there — reviewing each entry carefully 🔍",
+  "Pro tip: Good lighting makes a big difference 💡",
+  "Checking dates, names, and services on each sheet...",
+  "The more you use it, the better the matching gets 🎯",
+]
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
 
@@ -177,6 +188,20 @@ export function OcrImportModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [tipIndex, setTipIndex] = useState(0)
+  const [tipVisible, setTipVisible] = useState(true)
+
+  useEffect(() => {
+    if (!scanning) return
+    const interval = setInterval(() => {
+      setTipVisible(false)
+      setTimeout(() => {
+        setTipIndex(i => (i + 1) % SCAN_TIPS.length)
+        setTipVisible(true)
+      }, 400)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [scanning])
 
   const reset = () => {
     setStep('upload')
@@ -399,7 +424,51 @@ export function OcrImportModal({
         <div className="flex-1 overflow-y-auto">
 
           {/* ── STEP 1: UPLOAD ── */}
-          {step === 'upload' && (
+          {step === 'upload' && (scanning ? (() => {
+            const progressMatch = scanProgress.match(/Scanning batch (\d+) of (\d+)/)
+            const progressPct = progressMatch
+              ? Math.min(90, Math.round((parseInt(progressMatch[1]) / parseInt(progressMatch[2])) * 100))
+              : 5
+            return (
+              <div className="px-5 py-8 flex flex-col items-center justify-center gap-6" style={{ minHeight: '280px' }}>
+                {/* Animated icon */}
+                <div className="relative">
+                  <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="animate-pulse">
+                    <rect x="9" y="5" width="30" height="38" rx="4" fill="#0D7377" opacity="0.1" />
+                    <path d="M9 9a4 4 0 014-4h18l10 10v28a4 4 0 01-4 4H13a4 4 0 01-4-4V9z" stroke="#0D7377" strokeWidth="2" fill="none" />
+                    <path d="M31 5v9a1 1 0 001 1h9" stroke="#0D7377" strokeWidth="2" />
+                    <line x1="16" y1="23" x2="36" y2="23" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="16" y1="29" x2="36" y2="29" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="16" y1="35" x2="26" y2="35" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#0D7377" className="absolute -top-1 -right-2 animate-bounce" style={{ animationDuration: '1.2s' }}>
+                    <path d="M12 2l1.8 3.6L18 7l-3 2.9.7 4.1L12 12l-3.7 2 .7-4.1L6 7l4.2-1.4z" />
+                  </svg>
+                </div>
+
+                {/* Tip message with fade */}
+                <div className="text-center px-4" style={{ minHeight: '48px' }}>
+                  <p
+                    className="text-sm text-stone-600 transition-opacity duration-300"
+                    style={{ opacity: tipVisible ? 1 : 0 }}
+                  >
+                    {SCAN_TIPS[tipIndex]}
+                  </p>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full max-w-xs space-y-1.5">
+                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#0D7377] rounded-full transition-all duration-700 ease-out"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-stone-400 text-center">{scanProgress || 'Scanning…'}</p>
+                </div>
+              </div>
+            )
+          })() : (
             <div className="px-5 py-4 space-y-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
               <div
                 className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] hover:bg-teal-50/30 transition-colors"
@@ -483,7 +552,7 @@ export function OcrImportModal({
 
               {scanError && <p className="text-xs text-red-600 text-center">{scanError}</p>}
             </div>
-          )}
+          ))}
 
           {/* ── STEP 2: REVIEW ── */}
           {step === 'review' && sheets.length > 0 && (
