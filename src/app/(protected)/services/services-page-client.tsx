@@ -49,6 +49,19 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [bulkUpdating, setBulkUpdating] = useState(false)
 
+  const [sortKey, setSortKey] = useState<'name' | 'category' | 'duration' | 'price'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const sortablePrice = (s: Service): number => {
+    if (s.pricingType === 'addon') return s.addonAmountCents ?? s.priceCents
+    if (s.pricingType === 'tiered') return s.pricingTiers?.[0]?.unitPriceCents ?? s.priceCents
+    if (s.pricingType === 'multi_option') return s.pricingOptions?.[0]?.priceCents ?? s.priceCents
+    return s.priceCents
+  }
+
   const handleBulkUpdate = async (updates: { color?: string; active?: boolean }) => {
     setBulkUpdating(true)
     try {
@@ -385,33 +398,64 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                 className="rounded accent-[#0D7377] w-3.5 h-3.5"
               />
             </div>
-            <div className="col-span-4 text-xs font-semibold text-stone-500 uppercase tracking-wide">Service</div>
-            <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Duration</div>
-            <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Price</div>
-            <div className="col-span-3" />
+            {(['name', 'category', 'duration', 'price'] as const).map((key) => (
+              <div
+                key={key}
+                className={cn(
+                  key === 'name' ? 'col-span-3' : key === 'category' ? 'col-span-2' : 'col-span-2'
+                )}
+              >
+                <button
+                  onClick={() => toggleSort(key)}
+                  className={cn(
+                    'flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors',
+                    sortKey === key ? 'text-[#0D7377]' : 'text-stone-500 hover:text-stone-700'
+                  )}
+                >
+                  {key === 'name' ? 'Service' : key === 'category' ? 'Category' : key === 'duration' ? 'Duration' : 'Price'}
+                  {sortKey === key && (
+                    <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </button>
+              </div>
+            ))}
+            <div className="col-span-2" />
           </div>
 
           {(() => {
             const sorted = [...services].sort((a, b) => {
-              const ca = a.category?.trim() || 'zzzOther' // force "Other" last
-              const cb = b.category?.trim() || 'zzzOther'
-              if (ca !== cb) return ca.localeCompare(cb)
-              return a.name.localeCompare(b.name)
+              let cmp = 0
+              if (sortKey === 'name') {
+                cmp = a.name.localeCompare(b.name)
+              } else if (sortKey === 'category') {
+                const ca = a.category?.trim() || 'zzzOther'
+                const cb = b.category?.trim() || 'zzzOther'
+                cmp = ca.localeCompare(cb)
+                if (cmp === 0) cmp = a.name.localeCompare(b.name)
+              } else if (sortKey === 'duration') {
+                cmp = a.durationMinutes - b.durationMinutes
+              } else if (sortKey === 'price') {
+                cmp = sortablePrice(a) - sortablePrice(b)
+              }
+              return sortDir === 'asc' ? cmp : -cmp
             })
             let lastCategory: string | null = null
             const nodes: ReactNode[] = []
             for (const service of sorted) {
-              const cat = service.category?.trim() || 'Other'
-              if (cat !== lastCategory) {
-                nodes.push(
-                  <div
-                    key={`cat-${cat}`}
-                    className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
-                  >
-                    {cat}
-                  </div>
-                )
-                lastCategory = cat
+              // Only show category section headers when sorting by category
+              if (sortKey === 'category') {
+                const cat = service.category?.trim() || 'Other'
+                if (cat !== lastCategory) {
+                  nodes.push(
+                    <div
+                      key={`cat-${cat}`}
+                      className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
+                    >
+                      {cat}
+                    </div>
+                  )
+                  lastCategory = cat
+                }
               }
               nodes.push(
             <div
@@ -540,17 +584,15 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                       )}
                     />
                   </div>
-                  <div className="col-span-4 flex items-center gap-3">
+                  <div className="col-span-3 flex items-center gap-3">
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: service.color ?? '#0D7377' }}
                     />
-                    <div>
-                      <span className="text-sm font-medium text-stone-900">{service.name}</span>
-                      {service.category && (
-                        <p className="text-xs text-stone-400 mt-0.5">{service.category}</p>
-                      )}
-                    </div>
+                    <span className="text-sm font-medium text-stone-900 truncate">{service.name}</span>
+                  </div>
+                  <div className="col-span-2 text-sm text-stone-500 truncate">
+                    {service.category ?? '—'}
                   </div>
                   <div className="col-span-2 text-sm text-stone-500">
                     {service.durationMinutes} min
@@ -563,7 +605,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                       </span>
                     )}
                   </div>
-                  <div className="col-span-3 flex items-center justify-end gap-2">
+                  <div className="col-span-2 flex items-center justify-end gap-2">
                     {confirmArchiveId === service.id ? (
                       <>
                         <span className="text-xs text-stone-500">Archive?</span>

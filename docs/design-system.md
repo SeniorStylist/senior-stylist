@@ -124,8 +124,8 @@ Padding is added inside by the consumer, not by the card component itself.
 ### Modal (`src/components/ui/modal.tsx`)
 
 Desktop only. Structure:
-- Overlay: `position: fixed, inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)'`
-- Panel: `bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full mx-4`
+- Overlay: `fixed inset-0 z-50 flex items-start justify-center p-4 pt-16` — `items-start` + `pt-16` (64px) keeps the top of the panel below browser chrome. Do NOT use `items-center` (centers vertically, cuts off top fields behind URL/bookmark bar on tall forms).
+- Panel: `bg-white rounded-2xl max-h-[calc(100dvh-5rem)] overflow-y-auto` — panel scrolls; `sticky bottom-0` footer inside works correctly (sticks to bottom of panel scroll container). `mb-8` prevents the panel from touching the bottom of the viewport.
 - Enter animation: `animate-in fade-in slide-in-from-bottom-3 duration-200`
 - Escape key closes; body `overflow: hidden` while open
 

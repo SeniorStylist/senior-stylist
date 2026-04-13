@@ -30,13 +30,14 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16"
       style={{ backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
         className={cn(
-          'bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full',
+          'bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full mb-8',
+          'max-h-[calc(100dvh-5rem)] overflow-y-auto',
           'animate-in fade-in slide-in-from-bottom-3 duration-200',
           className
         )}
