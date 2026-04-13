@@ -111,6 +111,7 @@ export const services = pgTable('services', {
   priceCents: integer('price_cents').notNull(),
   durationMinutes: integer('duration_minutes').default(30).notNull(),
   color: text('color'),
+  category: text('category'),
   pricingType: text('pricing_type').default('fixed').notNull(),
   addonAmountCents: integer('addon_amount_cents'),
   pricingTiers: jsonb('pricing_tiers').$type<Array<{ minQty: number; maxQty: number; unitPriceCents: number }>>(),

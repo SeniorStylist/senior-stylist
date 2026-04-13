@@ -157,6 +157,7 @@ Tailwind CSS 4, Vercel
 ### Working
 - PDF parser → Gemini vision (2026-04-12): replaced pdfjs-dist alternating-chunks regex parser with a direct Gemini 2.5 Flash PDF vision call. Gemini receives the raw PDF as base64 application/pdf inlineData and returns a structured JSON array. Reason: text extraction silently drops sections on PDFs with non-standard internal layouts (Symphony Manor first section was always missing). No frontend changes needed — response shape unchanged.
 - Pricing UI fixes (2026-04-12): addon $0 bug fixed; tiered stepper (44px − / qty / + buttons) with live tier hint; booking modal price breakdown shows `(qty × $X/ea)` for tiered, `— OptionName` for multi_option, amber `text-amber-700` for addon checklist lines.
+- Category + pricing display fixes (2026-04-13): `category` column added to services table; bulk import now persists category; services list shows category sub-label under name; `formatPricingLabel()` fixed for addon (now shows `+$15.00` not `$0.00 + $15.00`); booking modal service selector cleaned up to `"Service · $X.00"` format.
 - Multi-service bookings + OCR combo detection + PDF category fixes (2026-04-12): bookings table gained `service_ids text[]`, `service_names text[]`, `total_duration_minutes integer`. Booking modal now supports N primary services via list-with-add-button; POST/PUT/recurring routes accept `serviceIds` (falling back to `serviceId` for back-compat). Calendar `eventContent()` shows "Cut + Color" on week/day views; log `serviceDisplayName()` joins primary + addon names. Addon UX polished: 24px checkboxes, 44px rows, labeled "Add-ons (optional)" divider, sticky footer with safe-area-inset-bottom. Service price display everywhere uses `formatPricingLabel()` (log walk-in dropdown + portal service cards). OCR Gemini prompt returns `additionalServices: string[]` for combos like "Shampoo + Long Hair"; review modal has per-add-on combo inputs with fuzzy match; import creates single multi-service booking. PDF parser gained three fallbacks: `CATEGORY_KEYWORDS` set for standalone headers, `inferCategoryFromName()` when currentCategory is empty/generic, Long Hair/Matted Hair inherit `previousServiceCategory`.
 - Invite deduplication + clean revocation (2026-04-12): POST /api/invites now upserts — if a pending invite exists for email+facility it refreshes the token and resends; if a used invite exists it returns a clear 409 error. DELETE /api/facility/users/[userId] now clears profiles.stylist_id and cancels pending invites in a transaction on revocation. DELETE /api/invites/[id] clears profiles.stylist_id if the revoked email had a stylist linked at that facility. Team tab shows linked stylist name next to role badge. UI shows "Invite refreshed and resent" vs "Invite sent!" correctly.
 - Full auth flow: invite → accept → correct facility + role (fixed 2026-04-07)
@@ -201,12 +202,11 @@ Tailwind CSS 4, Vercel
 ## 7. IMMEDIATE NEXT FIX
 
 Pricing UI fixes shipped (2026-04-12). Next steps:
-1. Real-device test: book a tiered service on iPhone — verify stepper increments correctly, tier hint updates live, breakdown shows `(qty × $X/ea)`
-2. Test multi_option service booking — select an option, verify breakdown shows `ServiceName — OptionName`
-3. Test addon checklist — check addon, verify breakdown shows amber line and price includes surcharge
-4. Import Symphony Manor PDF using Gemini vision — verify all sections including "Shampoo, Sets & Cuts" appear (previously missing with text extraction)
-5. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-6. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+1. Import Symphony Manor PDF — verify all services appear with correct categories shown in services list
+2. Book addon service — verify selector shows `+$15.00` format, not `$0.00 + $15.00`
+3. Book tiered service on iPhone — stepper increments correctly, tier hint live, breakdown shows `(qty × $X/ea)`
+4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
+5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
 ---
 

@@ -80,6 +80,7 @@ export interface Service {
   priceCents: number
   durationMinutes: number
   color: string | null
+  category: string | null
   pricingType: PricingType
   addonAmountCents: number | null
   pricingTiers: PricingTier[] | null

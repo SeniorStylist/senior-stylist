@@ -315,6 +315,7 @@ export function ImportClient() {
               addonAmountCents: r.addonAmountCents ?? null,
               pricingTiers: r.pricingTiers ?? null,
               pricingOptions: r.pricingOptions ?? null,
+              category: r.category ?? null,
             })),
           }),
         })

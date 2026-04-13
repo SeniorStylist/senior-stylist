@@ -23,6 +23,7 @@ const bulkSchema = z.object({
         name: z.string(),
         priceCents: z.number().int(),
       })).nullable().optional(),
+      category: z.string().nullable().optional(),
     })
   ).min(1).max(500),
 })
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       addonAmountCents: r.addonAmountCents ?? null,
       pricingTiers: r.pricingTiers ?? null,
       pricingOptions: r.pricingOptions ?? null,
+      category: r.category ?? null,
     }))
 
     const inserted = await db

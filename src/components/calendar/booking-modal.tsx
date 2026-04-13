@@ -478,7 +478,7 @@ export function BookingModal({
                   <option value="">Select a service</option>
                   {availableOptions.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — {formatPricingLabel(s)} · {s.durationMinutes}min
+                      {`${s.name} · ${formatPricingLabel(s)}`}
                     </option>
                   ))}
                 </select>

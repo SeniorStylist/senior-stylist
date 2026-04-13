@@ -178,7 +178,8 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 - Tiered: **stepper row** (NOT a number input) — `rounded-xl border border-stone-200 overflow-hidden bg-stone-50 self-start flex items-center`. Left button (−): `h-11 w-11 text-stone-600 hover:bg-stone-100 border-r border-stone-200`. Right button (+): `h-11 w-11 text-white bg-[#0D7377] hover:bg-[#0a5f63] border-l border-stone-200`. Count display: `w-14 text-center text-base font-semibold select-none`. Below the stepper, a tier hint: `{minQty}–{maxQty >= 999 ? minQty + '+' : maxQty}: $X each → $total` in `text-xs text-stone-500`.
 - Multi-option: `<select>` dropdown showing `"OptionName — $XX.00"` per option, pre-selects first
 - Price display uses `resolvePrice()` from `src/lib/pricing.ts` for real-time preview
-- **Addon price display**: always use `(addonAmountCents ?? priceCents ?? 0)` — do NOT use `addonAmountCents ?? 0` alone, since manually created addon services may store the surcharge in `priceCents` instead.
+- **Addon price display**: `formatPricingLabel()` returns `+$X.00` for addon (e.g. `+$15.00`) using `(addonAmountCents ?? priceCents)`. Do NOT use `addonAmountCents ?? 0` alone anywhere — manually created addon services may store the surcharge in `priceCents`.
+- **Category sub-label**: services list shows `<p className="text-xs text-stone-400 mt-0.5">{service.category}</p>` under the name when `service.category` is truthy. Category flows from PDF parser → `ParsedService.category` → bulk POST body → DB `services.category` column.
 
 **Multi-service + addon picker (booking modal):**
 - Primary services rendered as a list-with-"+ Add another service" button; each row is a service `<select>` with a trash icon (`h-11 w-11`) appearing only when >1 row. First row = the "primary" service; it alone drives `selectedQuantity`/`selectedOption`/`addonChecked`. Duration = sum of all primary `durationMinutes`.

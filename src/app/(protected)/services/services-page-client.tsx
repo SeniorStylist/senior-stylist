@@ -523,7 +523,12 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: service.color ?? '#0D7377' }}
                     />
-                    <span className="text-sm font-medium text-stone-900">{service.name}</span>
+                    <div>
+                      <span className="text-sm font-medium text-stone-900">{service.name}</span>
+                      {service.category && (
+                        <p className="text-xs text-stone-400 mt-0.5">{service.category}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-2 text-sm text-stone-500">
                     {service.durationMinutes} min

@@ -62,10 +62,10 @@ export function resolvePrice(
 
 export function formatPricingLabel(service: PricingService): string {
   switch (service.pricingType) {
-    case 'addon':
-      return service.addonAmountCents
-        ? `${formatCents(service.priceCents)} + ${formatCents(service.addonAmountCents)}`
-        : formatCents(service.priceCents)
+    case 'addon': {
+      const surcharge = service.addonAmountCents ?? service.priceCents
+      return surcharge ? `+${formatCents(surcharge)}` : formatCents(service.priceCents)
+    }
 
     case 'tiered': {
       const tiers = service.pricingTiers ?? []
