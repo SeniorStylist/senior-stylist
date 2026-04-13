@@ -12,10 +12,12 @@ All tokens are CSS custom properties declared in `src/app/globals.css`.
 
 | Token | Value | Usage |
 |---|---|---|
-| `--color-bg` | `#F7F6F2` | Page background (warm off-white) |
-| `--color-sidebar` | `#0D2B2E` | Sidebar background (dark teal) |
-| `--color-primary` | `#0D7377` | Buttons, active states, focus rings |
-| `--color-primary-light` | `#14D9C4` | Active nav icon color |
+| `--color-bg` | `#F7F6F2` | App page background (warm off-white) |
+| `--color-sidebar` | `#0D2B2E` | Sidebar background (dark teal — do NOT change) |
+| `--color-primary` | `#8B2E4A` | Buttons, active states, focus rings, FullCalendar toolbar |
+| `--color-primary-light` | `#C4687A` | Softer rose accent |
+| `--color-brand-hover` | `#72253C` | Hover state for primary burgundy |
+| `--color-portal-bg` | `#FDF8F8` | Resident portal page background (warm blush) |
 | `--color-card` | `#FFFFFF` | Card backgrounds |
 | `--color-border` | `#E7E5E4` | Default borders |
 | `--color-text` | `#1C1917` | Primary text |
@@ -24,7 +26,15 @@ All tokens are CSS custom properties declared in `src/app/globals.css`.
 
 Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The design tokens above map to Tailwind equivalents for consistency.
 
-Hover state for primary: `#0a5f63` (hardcoded inline, no token).
+**Brand palette (from marketing site seniorstylist.com):**
+- Primary: `#8B2E4A` (deep burgundy/wine — logo, headings, CTAs)
+- Hover: `#72253C` (darker wine)
+- Portal background: `#FDF8F8` (warm blush)
+- Accent: `#C4687A` (softer rose — secondary elements)
+
+**Important:** The internal admin app still uses `#0D7377` teal in `button.tsx`, `input.tsx`, `select.tsx`, `toast.tsx`, and many admin-specific components. Only the portal and entry-point pages (onboarding, invite, unauthorized) use the burgundy palette. Do NOT do a global find/replace of `#0D7377` — it would break the admin UI.
+
+**FullCalendar hover:** `#72253C`; active: `#5c1e2e`; highlight tint: `rgba(139, 46, 74, 0.1)`.
 
 ### Service Color Palette
 
@@ -788,3 +798,34 @@ White card, stone border, two-column layout: left = stylist name + period, right
 
 ### QB sync status (Phase 14)
 Synced: `text-emerald-600` with checkmark. Failed: `text-red-600` with exclamation + retry button. Pending: `text-stone-400` with spinner. All using existing icon SVG patterns.
+
+---
+
+## 9. Resident Portal Design Patterns
+
+The portal (`src/app/(resident)/`) uses the **brand burgundy palette** — distinct from the admin teal.
+
+### Portal color palette
+- Background: `#FDF8F8` (warm blush, set via inline style on layout wrapper)
+- Header background: `#8B2E4A` (burgundy, inline style)
+- Header hover/active: `#72253C` / `#5c1e2e`
+- Primary buttons: `style={{ backgroundColor: '#8B2E4A' }}`
+- Selected card border: `border-[#8B2E4A]`
+- Selected card bg: `bg-rose-50`
+- Focus rings: `focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100`
+- Checkboxes: `accent-[#8B2E4A]`
+- POA banner: `bg-rose-50 border border-rose-200 text-rose-800`
+- Stepper + button: `bg-[#8B2E4A] hover:bg-[#72253C]`
+
+### Floral SVG header accent
+Inline SVG rose outline in the portal header, positioned `absolute right:-8px top:-10px`, `width:80px height:96px`, `pointerEvents:none`. Stroke colors use `rgba(255,255,255,0.15)` for outer petals and `rgba(255,255,255,0.12)` for inner details/stem/leaves. viewBox `0 0 100 120`. The SVG is in `src/app/(resident)/layout.tsx` and uses no external assets.
+
+### Portal vs. admin color boundary
+- Portal files (`src/app/(resident)/`) → burgundy `#8B2E4A` / rose-* palette
+- Admin files (`src/app/(protected)/`) → keep existing teal `#0D7377` (except entry pages: onboarding, unauthorized)
+- Entry/auth pages (onboarding, invite/accept, unauthorized) → burgundy CTAs, rose selected states
+- `src/components/ui/button.tsx` → still teal `#0D7377` (admin-wide component, not changed)
+
+### Status badge colors in portal
+The `STATUS_STYLES` record in portal-client.tsx uses semantic colors (not brand colors):
+- `completed`: `bg-teal-50 text-teal-700` — keep as-is (teal is semantic for "done" status here, not brand)

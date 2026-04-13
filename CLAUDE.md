@@ -48,7 +48,12 @@
 - When a route runs 3+ sequential DB queries, wrap them in db.transaction() to share a single connection
 
 ### UI / Design
-- Design system: stone colors, #0D7377 teal primary, rounded-2xl cards
+- Design system: stone colors, rounded-2xl cards
+- **Brand palette (from seniorstylist.com marketing site):** primary `#8B2E4A` (burgundy), hover `#72253C`, portal bg `#FDF8F8` (warm blush), accent `#C4687A` (rose)
+- **Portal (`src/app/(resident)/`) uses BURGUNDY palette** — `#8B2E4A` buttons/borders, `bg-rose-50` selected states, `border-rose-200` banners, `accent-[#8B2E4A]` checkboxes
+- **Admin app still uses teal `#0D7377`** for most components (`button.tsx`, `input.tsx`, calendar, booking modal, etc.). Do NOT globally replace `#0D7377` — only portal + entry pages (onboarding, invite, unauthorized) use burgundy
+- Portal layout header: `style={{ backgroundColor: '#8B2E4A' }}` with inline floral SVG rose accent (`rgba(255,255,255,0.15)` stroke, `80×96px`, positioned absolute top-right)
+- `--color-primary` CSS variable in globals.css is now `#8B2E4A` — affects FullCalendar toolbar buttons only (all component-level teal is hardcoded `bg-[#0D7377]`, not the CSS variable)
 - Fonts: DM Serif Display (headings), DM Sans (body)
 - Bottom sheets on mobile, modals on desktop
 - All bottom sheets: fixed overlay → flex-col → justify-end structure

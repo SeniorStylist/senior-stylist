@@ -132,10 +132,17 @@ Tailwind CSS 4, Vercel
 - Pricing UI fixes (2026-04-12): (1) addon $0 bug fixed — checklist and breakdown now use `(addonAmountCents ?? priceCents ?? 0)` at all three sites in booking-modal.tsx; (2) tiered quantity input replaced with 44px stepper (− stone / qty / + teal) plus live tier hint line showing active range and calculated total; (3) price breakdown contextual annotations — tiered shows `(qty × $X/ea)`, multi_option shows `— OptionName`, addon checklist lines rendered in amber (`text-amber-700`)
 
 ### Portal Service Picker SHIPPED (2026-04-14)
-- Card-based service selection with category grouping, color swatches, teal selected state
+- Card-based service selection with category grouping, color swatches, burgundy selected state
 - Tiered pricing stepper, multi-option pills/select, add-on checklist, live price breakdown
 - Multi-service support (+ Add another service), Continue button (no immediate tap-to-advance)
 - Book route updated: accepts `serviceIds[]`, `addonServiceIds[]`, `selectedQuantity`, `selectedOption`; uses `resolvePrice()` throughout
+
+### Brand Alignment SHIPPED (2026-04-14)
+- Portal (`src/app/(resident)/`) fully rebranded: warm blush background `#FDF8F8`, burgundy header `#8B2E4A`, all CTAs/selected states/checkboxes → burgundy, POA banner → rose-50/200/800
+- Floral SVG rose accent in portal header (inline SVG, `rgba(255,255,255,0.15)` stroke)
+- `--color-primary` updated to `#8B2E4A` in globals.css — affects FullCalendar toolbar buttons
+- Entry pages updated: onboarding progress/CTA, invite accept button, unauthorized submit/role selector → all burgundy
+- PWA `themeColor` updated to `#8B2E4A`
 
 ### POA Email Opt-In SHIPPED (2026-04-14)
 - `poa_notifications_enabled boolean NOT NULL DEFAULT true` column added to `residents` table
@@ -287,7 +294,7 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-POA Email Opt-In shipped (2026-04-14). Next steps:
+Brand alignment shipped (2026-04-14) — portal is now burgundy/warm-blush matching seniorstylist.com. Next steps:
 1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
 2. Phase 6: Per-stylist Google Calendar integration
 3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts
