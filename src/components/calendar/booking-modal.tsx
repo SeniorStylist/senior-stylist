@@ -825,7 +825,7 @@ export function BookingModal({
   const formFooter = (
     <div
       className="bg-white px-6 pt-4 border-t border-stone-100"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
     >
       {breakdown}
       <div className="flex items-center justify-end gap-2">
