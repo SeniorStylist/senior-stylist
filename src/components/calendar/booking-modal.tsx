@@ -81,6 +81,21 @@ export function BookingModal({
     (s) => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id)
   )
 
+  // Group services by `category`. "Other" (nullish) sorts last; other categories alphabetical.
+  const groupByCategory = <T extends { category?: string | null }>(items: T[]): Array<[string, T[]]> => {
+    const groups = new Map<string, T[]>()
+    for (const s of items) {
+      const key = s.category?.trim() || 'Other'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(s)
+    }
+    return [...groups.entries()].sort(([a], [b]) => {
+      if (a === 'Other') return 1
+      if (b === 'Other') return -1
+      return a.localeCompare(b)
+    })
+  }
+
   // Selected primary services in order
   const selectedServices = selectedServiceIds
     .map((id) => services.find((s) => s.id === id))
@@ -490,11 +505,25 @@ export function BookingModal({
                   className="flex-1 w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[48px]"
                 >
                   <option value="">Select a service</option>
-                  {availableOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {`${s.name} · ${formatPricingLabel(s)}`}
-                    </option>
-                  ))}
+                  {(() => {
+                    const groups = groupByCategory(availableOptions)
+                    if (groups.length <= 1) {
+                      return availableOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {`${s.name} · ${formatPricingLabel(s)}`}
+                        </option>
+                      ))
+                    }
+                    return groups.map(([category, list]) => (
+                      <optgroup key={category} label={category}>
+                        {list.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {`${s.name} · ${formatPricingLabel(s)}`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                  })()}
                 </select>
                 {selectedServiceIds.length > 1 && (
                   <button
@@ -609,8 +638,8 @@ export function BookingModal({
               </span>
               <div className="flex-grow border-t border-stone-200" />
             </div>
-            <div className="space-y-2">
-              {addonServices.map((svc) => (
+            {(() => {
+              const renderRow = (svc: Service) => (
                 <label
                   key={svc.id}
                   className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl px-3 py-3 cursor-pointer hover:bg-stone-50 transition-colors min-h-[44px] w-full"
@@ -625,8 +654,22 @@ export function BookingModal({
                   <span className="text-sm font-medium text-stone-800 flex-1 truncate">{svc.name}</span>
                   <span className="text-sm text-stone-500 shrink-0">+{formatCents(svc.addonAmountCents ?? svc.priceCents ?? 0)}</span>
                 </label>
-              ))}
-            </div>
+              )
+              const groups = groupByCategory(addonServices)
+              if (groups.length <= 1) {
+                return <div className="space-y-2">{addonServices.map(renderRow)}</div>
+              }
+              return (
+                <div className="space-y-3">
+                  {groups.map(([category, list]) => (
+                    <div key={category} className="space-y-2">
+                      <div className="text-xs font-medium text-stone-500 uppercase tracking-wide pt-1">{category}</div>
+                      {list.map(renderRow)}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
         )}
 

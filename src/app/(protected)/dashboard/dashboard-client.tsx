@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { BookingModal } from '@/components/calendar/booking-modal'
 import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
-import type { QuickBookFABHandle } from '@/components/calendar/quick-book-fab'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
@@ -127,9 +126,6 @@ export function DashboardClient({
   const todayRef = useRef<(() => void) | null>(null)
   const [calendarTitle, setCalendarTitle] = useState('')
 
-  // Ref for QuickBook FAB imperative control
-  const fabRef = useRef<QuickBookFABHandle>(null)
-
   // Period stats (week + month)
   const [periodStats, setPeriodStats] = useState<{
     thisWeek: { revenueCents: number }
@@ -184,17 +180,25 @@ export function DashboardClient({
   }, [])
 
   const openCreateModal = (start: Date, end: Date) => {
-    if (isMobile && fabRef.current) {
-      const pad = (n: number) => n.toString().padStart(2, '0')
-      const date = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`
-      const time = `${pad(start.getHours())}:${pad(start.getMinutes())}`
-      fabRef.current.openWithSlot({ date, time })
-      return
-    }
     setEditBookingId(null)
     setModalStart(start)
     setModalEnd(end)
     setModalOpen(true)
+  }
+
+  // FAB tap → open BookingModal with next 30-min slot from now.
+  const openQuickCreate = () => {
+    const start = new Date()
+    start.setSeconds(0, 0)
+    const m = start.getMinutes()
+    if (m < 30) {
+      start.setMinutes(30)
+    } else {
+      start.setMinutes(0)
+      start.setHours(start.getHours() + 1)
+    }
+    const end = new Date(start.getTime() + 30 * 60 * 1000)
+    openCreateModal(start, end)
   }
 
   const openEditModal = (bookingId: string) => {
@@ -356,13 +360,7 @@ export function DashboardClient({
             </button>
           </div>
 
-          <QuickBookFAB
-            ref={fabRef}
-            residents={residents}
-            services={localServices}
-            stylists={stylists}
-            onBookingCreated={handleBookingChange}
-          />
+          <QuickBookFAB onOpen={openQuickCreate} />
         </div>
       </ErrorBoundary>
     )
@@ -577,13 +575,7 @@ export function DashboardClient({
       </div>
 
       {/* Quick Book FAB — mobile only */}
-      <QuickBookFAB
-        ref={fabRef}
-        residents={residents}
-        services={localServices}
-        stylists={stylists}
-        onBookingCreated={handleBookingChange}
-      />
+      <QuickBookFAB onOpen={openQuickCreate} />
 
       {/* Booking Modal */}
       <BookingModal

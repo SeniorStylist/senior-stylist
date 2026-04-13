@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
@@ -391,7 +391,29 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
             <div className="col-span-3" />
           </div>
 
-          {services.map((service) => (
+          {(() => {
+            const sorted = [...services].sort((a, b) => {
+              const ca = a.category?.trim() || 'zzzOther' // force "Other" last
+              const cb = b.category?.trim() || 'zzzOther'
+              if (ca !== cb) return ca.localeCompare(cb)
+              return a.name.localeCompare(b.name)
+            })
+            let lastCategory: string | null = null
+            const nodes: ReactNode[] = []
+            for (const service of sorted) {
+              const cat = service.category?.trim() || 'Other'
+              if (cat !== lastCategory) {
+                nodes.push(
+                  <div
+                    key={`cat-${cat}`}
+                    className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
+                  >
+                    {cat}
+                  </div>
+                )
+                lastCategory = cat
+              }
+              nodes.push(
             <div
               key={service.id}
               className="border-b border-stone-50 last:border-0"
@@ -591,7 +613,10 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                 </div>
               )}
             </div>
-          ))}
+              )
+            }
+            return nodes
+          })()}
         </div>
       )}
     </div>
