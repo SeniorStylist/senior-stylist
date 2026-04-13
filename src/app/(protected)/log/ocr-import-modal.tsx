@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import type { Resident, Stylist, Service } from '@/types'
 interface OcrRawEntry {
@@ -119,6 +119,32 @@ function fuzzyMatches<T extends { name: string }>(items: T[], name: string): T[]
   })
 }
 
+function fuzzyScore(a: string, b: string): number {
+  const al = a.toLowerCase()
+  const bl = b.toLowerCase()
+  if (al === bl) return 1.0
+  if (al.includes(bl) || bl.includes(al)) return 0.85
+  const aw = normalizeWords(a)
+  const bw = normalizeWords(b)
+  if (aw.length === 0 || bw.length === 0) return 0
+  const intersection = aw.filter(w => bw.includes(w))
+  return intersection.length / Math.max(aw.length, bw.length)
+}
+
+function fuzzyBestMatch<T extends { name: string }>(items: T[], name: string, minScore = 0.7): T | null {
+  if (!name) return null
+  let best: T | null = null
+  let bestScore = minScore - 0.001
+  for (const item of items) {
+    const score = fuzzyScore(name, item.name)
+    if (score > bestScore) {
+      bestScore = score
+      best = item
+    }
+  }
+  return best
+}
+
 function buildSheetState(
   raw: OcrRawSheet,
   residents: Resident[],
@@ -135,13 +161,12 @@ function buildSheetState(
 
   const entries: EntryState[] = (raw.entries ?? []).map((entry) => {
     const resMatches = fuzzyMatches(residents, entry.residentName ?? '')
-    const svcMatches = fuzzyMatches(services, entry.serviceName ?? '')
+    const svcBest = fuzzyBestMatch(services, entry.serviceName ?? '')
     const additionalServices = (entry.additionalServices ?? []).filter(
       (s): s is string => typeof s === 'string' && s.trim().length > 0
     )
     const additionalServiceIds = additionalServices.map((name) => {
-      const matches = fuzzyMatches(services, name)
-      return matches.length === 1 ? matches[0].id : null
+      return fuzzyBestMatch(services, name)?.id ?? null
     })
 
     return {
@@ -149,7 +174,7 @@ function buildSheetState(
       roomNumber: entry.roomNumber ?? null,
       residentId: resMatches.length === 1 ? resMatches[0].id : null,
       serviceName: entry.serviceName ?? '',
-      serviceId: svcMatches.length === 1 ? svcMatches[0].id : null,
+      serviceId: svcBest?.id ?? null,
       additionalServices,
       additionalServiceIds,
       priceCents: entry.price != null ? Math.round(entry.price * 100) : null,
@@ -672,9 +697,7 @@ export function OcrImportModal({
                       <div className="space-y-3">
                         {sheet.entries.map((entry, ei) => {
                           const resMatches = fuzzyMatches(residents, entry.residentName)
-                          const svcMatches = fuzzyMatches(services, entry.serviceName)
                           const showResDupe = resMatches.length >= 2 && !entry.residentId
-                          const showSvcDupe = svcMatches.length >= 2 && !entry.serviceId
 
                           return (
                             <div
@@ -716,22 +739,6 @@ export function OcrImportModal({
                                         className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 font-medium transition-colors"
                                       >
                                         {r.name}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {showSvcDupe && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800">
-                                  <p className="font-medium mb-1.5">Did you mean…?</p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {svcMatches.map(s => (
-                                      <button
-                                        key={s.id}
-                                        onClick={() => updateEntry(activeTab, ei, { serviceId: s.id, serviceName: s.name })}
-                                        className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 font-medium transition-colors"
-                                      >
-                                        {s.name}
                                       </button>
                                     ))}
                                   </div>
@@ -788,31 +795,49 @@ export function OcrImportModal({
                                   <div />
                                 )}
 
-                                {/* Service combo input */}
+                                {/* Service select — existing services with fuzzy pre-select */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  <input
-                                    type="text"
-                                    list={`services-${activeTab}-${ei}`}
-                                    value={entry.serviceName}
-                                    onChange={(e) => {
-                                      const val = e.target.value
-                                      const matched = services.find(
-                                        s => s.name.toLowerCase() === val.toLowerCase()
-                                      )
-                                      updateEntry(activeTab, ei, {
-                                        serviceName: val,
-                                        serviceId: matched?.id ?? null,
-                                      })
-                                    }}
-                                    placeholder="Type or pick…"
-                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
-                                  />
-                                  <datalist id={`services-${activeTab}-${ei}`}>
-                                    {services.map(s => (
-                                      <option key={s.id} value={s.name} />
-                                    ))}
-                                  </datalist>
+                                  {(() => {
+                                    const cats = Array.from(new Set(services.map(s => s.category?.trim() || 'Other'))).sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b))
+                                    const selectVal = entry.serviceId !== null
+                                      ? entry.serviceId
+                                      : (entry.serviceName ? `__new__${entry.serviceName}` : '')
+                                    return (
+                                      <select
+                                        value={selectVal}
+                                        onChange={(e) => {
+                                          const val = e.target.value
+                                          if (!val) {
+                                            updateEntry(activeTab, ei, { serviceId: null, serviceName: '' })
+                                          } else if (val.startsWith('__new__')) {
+                                            updateEntry(activeTab, ei, { serviceId: null, serviceName: val.slice(7) })
+                                          } else {
+                                            const svc = services.find(s => s.id === val)
+                                            updateEntry(activeTab, ei, { serviceId: val, serviceName: svc?.name ?? entry.serviceName })
+                                          }
+                                        }}
+                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                      >
+                                        <option value="">— select service —</option>
+                                        {cats.length <= 1
+                                          ? services.map(s => (
+                                              <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
+                                            ))
+                                          : cats.map(cat => (
+                                              <optgroup key={cat} label={cat}>
+                                                {services.filter(s => (s.category?.trim() || 'Other') === cat).map(s => (
+                                                  <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
+                                                ))}
+                                              </optgroup>
+                                            ))
+                                        }
+                                        {!entry.serviceId && entry.serviceName && (
+                                          <option value={`__new__${entry.serviceName}`}>➕ Create &ldquo;{entry.serviceName}&rdquo;</option>
+                                        )}
+                                      </select>
+                                    )
+                                  })()}
                                   {!entry.serviceId && entry.serviceName && (
                                     <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
                                   )}
@@ -856,7 +881,6 @@ export function OcrImportModal({
                                   </button>
                                 </div>
                                 {entry.additionalServices.map((addName, ai) => {
-                                  const addMatches = fuzzyMatches(services, addName)
                                   const addId = entry.additionalServiceIds[ai] ?? null
                                   return (
                                     <div key={ai} className="space-y-1">
@@ -864,32 +888,38 @@ export function OcrImportModal({
                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-[#0D7377] border border-teal-100 font-medium shrink-0">
                                           + add-on
                                         </span>
-                                        <input
-                                          type="text"
-                                          list={`add-services-${activeTab}-${ei}-${ai}`}
-                                          value={addName}
+                                        <select
+                                          value={addId !== null ? addId : (addName ? `__new__${addName}` : '')}
                                           onChange={(e) => {
                                             const val = e.target.value
-                                            const matched = services.find(
-                                              (s) => s.name.toLowerCase() === val.toLowerCase()
-                                            )
                                             const newNames = [...entry.additionalServices]
                                             const newIds = [...entry.additionalServiceIds]
-                                            newNames[ai] = val
-                                            newIds[ai] = matched?.id ?? null
+                                            if (!val) {
+                                              newIds[ai] = null
+                                              newNames[ai] = ''
+                                            } else if (val.startsWith('__new__')) {
+                                              newIds[ai] = null
+                                              newNames[ai] = val.slice(7)
+                                            } else {
+                                              const svc = services.find(s => s.id === val)
+                                              newIds[ai] = val
+                                              newNames[ai] = svc?.name ?? addName
+                                            }
                                             updateEntry(activeTab, ei, {
                                               additionalServices: newNames,
                                               additionalServiceIds: newIds,
                                             })
                                           }}
-                                          placeholder="Type or pick…"
                                           className="flex-1 min-h-[36px] text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
-                                        />
-                                        <datalist id={`add-services-${activeTab}-${ei}-${ai}`}>
-                                          {services.map((s) => (
-                                            <option key={s.id} value={s.name} />
+                                        >
+                                          <option value="">— select service —</option>
+                                          {services.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
                                           ))}
-                                        </datalist>
+                                          {addId === null && addName.trim().length > 0 && (
+                                            <option value={`__new__${addName}`}>➕ Create &ldquo;{addName}&rdquo;</option>
+                                          )}
+                                        </select>
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -906,33 +936,7 @@ export function OcrImportModal({
                                           ✕
                                         </button>
                                       </div>
-                                      {addMatches.length >= 2 && !addId && (
-                                        <div className="ml-[54px] bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-[11px] text-amber-800">
-                                          <span className="font-medium">Did you mean…?</span>
-                                          <div className="flex flex-wrap gap-1 mt-1">
-                                            {addMatches.map((s) => (
-                                              <button
-                                                key={s.id}
-                                                type="button"
-                                                onClick={() => {
-                                                  const newNames = [...entry.additionalServices]
-                                                  const newIds = [...entry.additionalServiceIds]
-                                                  newNames[ai] = s.name
-                                                  newIds[ai] = s.id
-                                                  updateEntry(activeTab, ei, {
-                                                    additionalServices: newNames,
-                                                    additionalServiceIds: newIds,
-                                                  })
-                                                }}
-                                                className="px-2 py-0.5 rounded bg-white border border-amber-300 hover:bg-amber-100 font-medium"
-                                              >
-                                                {s.name}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {!addId && addName.trim().length > 0 && addMatches.length < 2 && (
+                                      {addId === null && addName.trim().length > 0 && (
                                         <p className="ml-[54px] text-[10px] text-stone-400">Will create new service</p>
                                       )}
                                     </div>
