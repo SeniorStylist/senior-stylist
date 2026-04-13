@@ -55,13 +55,14 @@ interface OcrImportModalProps {
   date: string
 }
 
-async function renderPdfToDataUrl(file: File): Promise<string> {
+async function renderPdfPage(file: File, scale: number): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const page = await pdf.getPage(1)
-  const viewport = page.getViewport({ scale: 1.5 })
+  const viewport = page.getViewport({ scale })
   const canvas = document.createElement('canvas')
   canvas.width = viewport.width
   canvas.height = viewport.height
@@ -69,6 +70,7 @@ async function renderPdfToDataUrl(file: File): Promise<string> {
   await page.render({ canvasContext: ctx, canvas, viewport }).promise
   return canvas.toDataURL('image/jpeg', 0.85)
 }
+
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
 
@@ -162,7 +164,8 @@ export function OcrImportModal({
 
   const [step, setStep] = useState<Step>('upload')
   const [files, setFiles] = useState<File[]>([])
-  const [previews, setPreviews] = useState<string[]>([])
+  const [previews, setPreviews] = useState<string[]>([])       // scale-0.5 thumbnails
+  const [fullResPreviews, setFullResPreviews] = useState<string[]>([])  // scale-1.5 for lightbox
   const [scanning, setScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState('')
   const [scanError, setScanError] = useState<string | null>(null)
@@ -178,7 +181,8 @@ export function OcrImportModal({
   const reset = () => {
     setStep('upload')
     setFiles([])
-    setPreviews(prev => { prev.forEach(url => { if (url) URL.revokeObjectURL(url) }); return [] })
+    setPreviews(prev => { prev.forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) }); return [] })
+    setFullResPreviews([])
     setScanning(false)
     setScanProgress('')
     setScanError(null)
@@ -198,30 +202,32 @@ export function OcrImportModal({
     if (!selected) return
     const arr = Array.from(selected)
     setFiles(arr)
-    previews.forEach(url => { if (url) URL.revokeObjectURL(url) })
-    const initial = arr.map(f => f.type === 'application/pdf' ? '' : URL.createObjectURL(f))
-    setPreviews(initial)
+    previews.forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) })
+    // PDFs start as '' (shows spinner) until async render resolves
+    const objectUrls = arr.map(f => f.type === 'application/pdf' ? '' : URL.createObjectURL(f))
+    setPreviews(objectUrls)
+    setFullResPreviews(objectUrls.slice()) // same initial values, independent array
     setScanError(null)
     setSheetErrors([])
-    // Async: render PDF first pages into data URLs
+    // Async: render PDF pages at two scales in parallel
     arr.forEach((f, i) => {
       if (f.type !== 'application/pdf') return
-      renderPdfToDataUrl(f).then(dataUrl => {
-        setPreviews(prev => {
-          const next = [...prev]
-          next[i] = dataUrl
-          return next
-        })
-      }).catch((err) => {
-        console.error('[PDF preview] render failed:', err)
-      })
+      // Thumbnail (fast, scale 0.5)
+      renderPdfPage(f, 0.5).then(dataUrl => {
+        setPreviews(prev => { const next = [...prev]; next[i] = dataUrl; return next })
+      }).catch((err) => console.error('[PDF thumbnail] render failed:', err))
+      // Full-res for lightbox (scale 1.5)
+      renderPdfPage(f, 1.5).then(dataUrl => {
+        setFullResPreviews(prev => { const next = [...prev]; next[i] = dataUrl; return next })
+      }).catch((err) => console.error('[PDF full-res] render failed:', err))
     })
   }
 
   const removeFile = (i: number) => {
-    if (previews[i]) URL.revokeObjectURL(previews[i])
+    if (previews[i] && previews[i].startsWith('blob:')) URL.revokeObjectURL(previews[i])
     setFiles(prev => prev.filter((_, fi) => fi !== i))
     setPreviews(prev => prev.filter((_, pi) => pi !== i))
+    setFullResPreviews(prev => prev.filter((_, pi) => pi !== i))
   }
 
   const handleScan = async () => {
@@ -448,6 +454,11 @@ export function OcrImportModal({
                       {previews[i] ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={previews[i]} alt={`Sheet ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
+                      ) : file.type === 'application/pdf' ? (
+                        /* PDF is rendering — show spinner */
+                        <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+                        </div>
                       ) : (
                         <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
@@ -501,7 +512,7 @@ export function OcrImportModal({
                 const sheet = sheets[activeTab]
                 if (!sheet) return null
                 const sourceFile = files[sheet.imageIndex]
-                const sourcePreview = previews[sheet.imageIndex]
+                const sourcePreview = fullResPreviews[sheet.imageIndex]
                 return (
                   <div className="px-5 py-4 space-y-4">
 
@@ -530,15 +541,12 @@ export function OcrImportModal({
                               />
                               <p className="text-[10px] text-stone-400 mt-1 text-center">Tap to expand</p>
                             </>
-                          ) : (
-                            <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-2">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                              </svg>
-                              <span className="text-xs text-stone-500">PDF — no preview available</span>
+                          ) : sourceFile?.type === 'application/pdf' ? (
+                            /* Full-res render still in progress */
+                            <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-center">
+                              <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </details>
                     )}
