@@ -53,6 +53,7 @@ export async function GET(
           facilityId: resident.facilityId,
           poaName: resident.poaName,
           poaEmail: resident.poaEmail,
+          poaNotificationsEnabled: resident.poaNotificationsEnabled,
         },
         facilityPaymentType: facility?.paymentType ?? 'facility',
         upcomingBookings: JSON.parse(JSON.stringify(upcomingBookings)),

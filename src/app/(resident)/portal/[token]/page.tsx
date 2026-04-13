@@ -39,6 +39,7 @@ export default async function PortalPage({
       roomNumber={resident.roomNumber}
       poaName={resident.poaName}
       poaEmail={resident.poaEmail}
+      poaNotificationsEnabled={resident.poaNotificationsEnabled}
     />
   )
 }

@@ -56,6 +56,7 @@ export interface Resident {
   poaEmail: string | null
   poaPhone: string | null
   poaPaymentMethod: string | null
+  poaNotificationsEnabled: boolean
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

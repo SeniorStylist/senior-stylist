@@ -67,6 +67,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [poaEmail, setPoaEmail] = useState(initialResident.poaEmail ?? '')
   const [poaPhone, setPoaPhone] = useState(initialResident.poaPhone ?? '')
   const [poaPaymentMethod, setPoaPaymentMethod] = useState(initialResident.poaPaymentMethod ?? '')
+  const [poaNotificationsEnabled, setPoaNotificationsEnabled] = useState(initialResident.poaNotificationsEnabled !== false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -122,6 +123,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           poaEmail: poaEmail.trim() || undefined,
           poaPhone: poaPhone.trim() || undefined,
           poaPaymentMethod: poaPaymentMethod || undefined,
+          poaNotificationsEnabled,
         }),
       })
       const json = await res.json()
@@ -164,6 +166,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     setPoaEmail(resident.poaEmail ?? '')
     setPoaPhone(resident.poaPhone ?? '')
     setPoaPaymentMethod(resident.poaPaymentMethod ?? '')
+    setPoaNotificationsEnabled(resident.poaNotificationsEnabled !== false)
     setSaveError(null)
   }
 
@@ -328,6 +331,18 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                         <option value="insurance">Insurance</option>
                       </select>
                     </div>
+                    <div className="flex items-center justify-between py-1">
+                      <label htmlFor="poa-notif" className="text-sm text-stone-700">
+                        Send booking confirmations to POA
+                      </label>
+                      <input
+                        id="poa-notif"
+                        type="checkbox"
+                        checked={poaNotificationsEnabled}
+                        onChange={e => setPoaNotificationsEnabled(e.target.checked)}
+                        className="h-4 w-4 rounded accent-[#0D7377]"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -359,6 +374,17 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">Power of Attorney</p>
                     <InfoRow label="Name" value={resident.poaName ?? undefined} />
                     <InfoRow label="Email" value={resident.poaEmail ?? undefined} />
+                    {resident.poaEmail && (
+                      <div className="mt-1 mb-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          resident.poaNotificationsEnabled
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-stone-100 text-stone-500'
+                        }`}>
+                          {resident.poaNotificationsEnabled ? 'Confirmations on' : 'Confirmations off'}
+                        </span>
+                      </div>
+                    )}
                     <InfoRow label="Phone" value={resident.poaPhone ?? undefined} />
                     <InfoRow label="Payment" value={resident.poaPaymentMethod ?? undefined} />
                   </div>

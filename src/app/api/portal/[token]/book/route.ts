@@ -105,7 +105,7 @@ export async function POST(
       .returning()
 
     // POA booking confirmation — fire-and-forget
-    if (resident.poaEmail && resident.portalToken) {
+    if (resident.poaEmail && resident.portalToken && resident.poaNotificationsEnabled !== false) {
       const [facility, stylist] = await Promise.all([
         db.query.facilities.findFirst({ where: eq(facilities.id, resident.facilityId) }),
         db.query.stylists.findFirst({ where: eq(stylists.id, stylistId) }),

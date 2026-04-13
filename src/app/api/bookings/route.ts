@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
 
     // POA booking confirmation — fire-and-forget
     const poaEmail = data?.resident?.poaEmail
-    if (poaEmail && data?.resident?.portalToken) {
+    if (poaEmail && data?.resident?.portalToken && data?.resident?.poaNotificationsEnabled !== false) {
       const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
       const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${data.resident.portalToken}`
       const tz = facility?.timezone ?? 'America/New_York'

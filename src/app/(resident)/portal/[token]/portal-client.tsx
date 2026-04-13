@@ -55,6 +55,7 @@ interface PortalClientProps {
   roomNumber: string | null
   poaName?: string | null
   poaEmail?: string | null
+  poaNotificationsEnabled?: boolean | null
 }
 
 function formatDateTime(dateStr: string) {
@@ -134,9 +135,10 @@ function groupByCategory<T extends { category?: string | null }>(items: T[]): Ar
   })
 }
 
-export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail }: PortalClientProps) {
+export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail, poaNotificationsEnabled }: PortalClientProps) {
   const [data, setData] = useState<PortalData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(poaNotificationsEnabled !== false)
   const [showPast, setShowPast] = useState(false)
   const [booking, setBooking] = useState(false)
   const [bookingStep, setBookingStep] = useState<BookingStep>('service')
@@ -1016,6 +1018,32 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Notification preferences — only when POA email is set */}
+      {poaEmail && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
+            Notification Preferences
+          </p>
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-sm text-stone-700">Email me when appointments are booked</span>
+            <input
+              type="checkbox"
+              checked={notificationsEnabled}
+              onChange={async (e) => {
+                const enabled = e.target.checked
+                setNotificationsEnabled(enabled)
+                fetch(`/api/portal/${token}/notifications`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ enabled }),
+                }).catch(console.error)
+              }}
+              className="h-5 w-5 rounded accent-[#0D7377] shrink-0"
+            />
+          </label>
         </div>
       )}
     </div>

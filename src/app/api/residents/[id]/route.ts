@@ -17,6 +17,7 @@ const updateSchema = z.object({
   poaEmail: z.string().optional(),
   poaPhone: z.string().optional(),
   poaPaymentMethod: z.string().optional(),
+  poaNotificationsEnabled: z.boolean().optional(),
 })
 
 export async function GET(
