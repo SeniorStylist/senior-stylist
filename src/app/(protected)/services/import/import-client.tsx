@@ -18,6 +18,8 @@ interface ParsedService {
   error?: string
   pricingType?: string
   addonAmountCents?: number | null
+  pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
+  pricingOptions?: Array<{ name: string; priceCents: number }> | null
 }
 
 type Step = 'upload' | 'preview' | 'importing' | 'done'
@@ -117,6 +119,8 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
   const rows: Array<{
     name: string; priceCents: number; durationMinutes: number; category: string; color: string
     pricingType?: string; addonAmountCents?: number | null
+    pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
+    pricingOptions?: Array<{ name: string; priceCents: number }> | null
   }> = json.data
   if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
   return rows.map((r, i) => ({
@@ -129,6 +133,8 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
     include: true,
     pricingType: r.pricingType,
     addonAmountCents: r.addonAmountCents ?? null,
+    pricingTiers: r.pricingTiers ?? null,
+    pricingOptions: r.pricingOptions ?? null,
   }))
 }
 
@@ -302,9 +308,13 @@ export function ImportClient() {
           body: JSON.stringify({
             rows: chunk.map((r) => ({
               name: r.name.trim(),
-              priceCents: r.priceCents,
+              priceCents: r.pricingType === 'addon' ? 0 : r.priceCents,
               durationMinutes: r.durationMinutes,
               color: r.color,
+              pricingType: r.pricingType,
+              addonAmountCents: r.addonAmountCents ?? null,
+              pricingTiers: r.pricingTiers ?? null,
+              pricingOptions: r.pricingOptions ?? null,
             })),
           }),
         })

@@ -12,6 +12,17 @@ const bulkSchema = z.object({
       priceCents: z.number().int().min(0),
       durationMinutes: z.number().int().min(1).default(30),
       color: z.string().optional(),
+      pricingType: z.enum(['fixed', 'addon', 'tiered', 'multi_option']).optional().default('fixed'),
+      addonAmountCents: z.number().int().nullable().optional(),
+      pricingTiers: z.array(z.object({
+        minQty: z.number().int(),
+        maxQty: z.number().int(),
+        unitPriceCents: z.number().int(),
+      })).nullable().optional(),
+      pricingOptions: z.array(z.object({
+        name: z.string(),
+        priceCents: z.number().int(),
+      })).nullable().optional(),
     })
   ).min(1).max(500),
 })
@@ -37,9 +48,13 @@ export async function POST(request: NextRequest) {
     const values = parsed.data.rows.map((r) => ({
       facilityId,
       name: r.name.trim(),
-      priceCents: r.priceCents,
+      priceCents: r.pricingType === 'addon' ? 0 : r.priceCents,
       durationMinutes: r.durationMinutes,
       color: r.color || null,
+      pricingType: r.pricingType,
+      addonAmountCents: r.addonAmountCents ?? null,
+      pricingTiers: r.pricingTiers ?? null,
+      pricingOptions: r.pricingOptions ?? null,
     }))
 
     const inserted = await db
