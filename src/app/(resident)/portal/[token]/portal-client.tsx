@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatCents } from '@/lib/utils'
-import { formatPricingLabel } from '@/lib/pricing'
+import { formatPricingLabel, resolvePrice } from '@/lib/pricing'
 import type { PricingTier, PricingOption } from '@/types'
 
 interface ServiceData {
@@ -15,6 +15,8 @@ interface ServiceData {
   addonAmountCents: number | null
   pricingTiers: PricingTier[] | null
   pricingOptions: PricingOption[] | null
+  category: string | null
+  color: string | null
 }
 
 interface StylistData {
@@ -118,6 +120,20 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function groupByCategory<T extends { category?: string | null }>(items: T[]): Array<[string, T[]]> {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const key = item.category?.trim() || 'Other'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(item)
+  }
+  return [...groups.entries()].sort(([a], [b]) => {
+    if (a === 'Other') return 1
+    if (b === 'Other') return -1
+    return a.localeCompare(b)
+  })
+}
+
 export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail }: PortalClientProps) {
   const [data, setData] = useState<PortalData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -128,7 +144,10 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
   // Booking form state
   const [services, setServices] = useState<ServiceData[]>([])
   const [stylists, setStylists] = useState<StylistData[]>([])
-  const [selectedService, setSelectedService] = useState<ServiceData | null>(null)
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
+  const [selectedAddonServiceIds, setSelectedAddonServiceIds] = useState<string[]>([])
+  const [selectedQuantity, setSelectedQuantity] = useState(1)
+  const [selectedOptionName, setSelectedOptionName] = useState('')
   const [selectedStylist, setSelectedStylist] = useState<StylistData | null>(null)
   const [selectedDate, setSelectedDate] = useState(todayStr())
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
@@ -138,6 +157,53 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [lastBookingId, setLastBookingId] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState(false)
+
+  // Derived values
+  const nonAddonServices = services.filter(s => s.pricingType !== 'addon')
+  const primaryService = services.find(s => s.id === selectedServiceIds[0]) ?? null
+  // backward-compat alias used in success/payment steps
+  const selectedService = primaryService
+
+  const addonServices = services.filter(s => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id))
+
+  const primaryResolved = primaryService
+    ? resolvePrice(primaryService, { quantity: selectedQuantity, selectedOption: selectedOptionName || undefined })
+    : null
+
+  const addonTotal = selectedAddonServiceIds.reduce((sum, id) => {
+    const svc = services.find(s => s.id === id)
+    return sum + (svc ? (svc.addonAmountCents ?? svc.priceCents ?? 0) : 0)
+  }, 0)
+
+  const additionalPrimariesTotal = selectedServiceIds.slice(1).reduce((sum, id) => {
+    const svc = services.find(s => s.id === id)
+    return sum + (svc ? resolvePrice(svc).priceCents : 0)
+  }, 0)
+
+  const totalPriceCents = (primaryResolved?.priceCents ?? 0) + addonTotal + additionalPrimariesTotal
+
+  const totalDurationMinutes = selectedServiceIds.reduce((sum, id) => {
+    const svc = services.find(s => s.id === id)
+    return sum + (svc?.durationMinutes ?? 0)
+  }, 0)
+
+  // Service picker helpers
+  const setServiceAt = (idx: number, id: string) => {
+    setSelectedServiceIds(prev => {
+      const next = [...prev]
+      next[idx] = id
+      return next
+    })
+    if (idx === 0) {
+      setSelectedQuantity(1)
+      setSelectedOptionName('')
+      setSelectedAddonServiceIds([])
+    }
+  }
+
+  const removeServiceAt = (idx: number) => {
+    setSelectedServiceIds(prev => prev.filter((_, i) => i !== idx))
+  }
 
   const loadPortalData = () => {
     setLoading(true)
@@ -173,7 +239,10 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
   const startBooking = async () => {
     setBooking(true)
     setBookingStep('service')
-    setSelectedService(null)
+    setSelectedServiceIds([])
+    setSelectedAddonServiceIds([])
+    setSelectedQuantity(1)
+    setSelectedOptionName('')
     setSelectedStylist(null)
     const today = todayStr()
     setSelectedDate(today)
@@ -192,12 +261,11 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
       if (stlJson.data.length === 1) setSelectedStylist(stlJson.data[0])
     }
 
-    // Pre-fetch taken slots for today
     fetchTakenSlots(today)
   }
 
   const handleBook = async () => {
-    if (!selectedService || !selectedStylist || !selectedTime) return
+    if (selectedServiceIds.length === 0 || !selectedStylist || !selectedTime) return
     setSubmitting(true)
     setBookError(null)
     try {
@@ -205,9 +273,12 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          serviceId: selectedService.id,
+          serviceIds: selectedServiceIds,
           stylistId: selectedStylist.id,
           startTime: selectedTime,
+          addonServiceIds: selectedAddonServiceIds,
+          ...(primaryService?.pricingType === 'tiered' ? { selectedQuantity } : {}),
+          ...(primaryService?.pricingType === 'multi_option' ? { selectedOption: selectedOptionName } : {}),
         }),
       })
       if (res.ok) {
@@ -331,27 +402,300 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
           </div>
 
           <div className="p-5">
-            {/* Step 1: Service */}
+            {/* Step 1: Service picker */}
             {bookingStep === 'service' && (
-              <div className="grid grid-cols-1 gap-3">
-                {services.map((svc) => (
+              <div className="space-y-4">
+                {/* Service slot rows — starts empty, user picks first slot */}
+                {selectedServiceIds.length === 0 ? (
+                  /* Initial unselected state — show all non-addon services */
+                  (() => {
+                    const groups = groupByCategory(nonAddonServices)
+                    return (
+                      <div className="space-y-4">
+                        {(groups.length <= 1 ? [['', nonAddonServices] as [string, ServiceData[]]] : groups).map(([category, list]) => (
+                          <div key={category || 'all'} className="space-y-2">
+                            {groups.length > 1 && category && (
+                              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{category}</p>
+                            )}
+                            {list.map(svc => (
+                              <button
+                                key={svc.id}
+                                onClick={() => setServiceAt(0, svc.id)}
+                                className="w-full text-left p-4 rounded-xl border-2 border-stone-200 bg-white hover:border-stone-300 transition-all flex items-start gap-3"
+                              >
+                                {svc.color && (
+                                  <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: svc.color }} />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-stone-900">{svc.name}</p>
+                                  <p className="text-xs text-stone-500 mt-0.5">
+                                    {formatPricingLabel(svc)} · {svc.durationMinutes} min
+                                  </p>
+                                  {svc.description && (
+                                    <p className="text-xs text-stone-400 mt-1 line-clamp-2">{svc.description}</p>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()
+                ) : (
+                  /* After first selection — show selected + allow additional */
+                  <div className="space-y-4">
+                    {selectedServiceIds.map((svcId, idx) => {
+                      const availableForSlot = nonAddonServices.filter(s => s.id === svcId || !selectedServiceIds.includes(s.id))
+                      const groups = groupByCategory(availableForSlot)
+                      return (
+                        <div key={idx} className="space-y-2">
+                          {idx > 0 && (
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Additional Service</p>
+                              <button
+                                onClick={() => removeServiceAt(idx)}
+                                className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                          <div className="space-y-4">
+                            {(groups.length <= 1 ? [['', availableForSlot] as [string, ServiceData[]]] : groups).map(([category, list]) => (
+                              <div key={category || 'all'} className="space-y-2">
+                                {groups.length > 1 && category && (
+                                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{category}</p>
+                                )}
+                                {list.map(svc => (
+                                  <button
+                                    key={svc.id}
+                                    onClick={() => setServiceAt(idx, svc.id)}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                                      svcId === svc.id
+                                        ? 'border-[#0D7377] bg-teal-50'
+                                        : 'border-stone-200 bg-white hover:border-stone-300'
+                                    }`}
+                                  >
+                                    {svc.color && (
+                                      <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: svc.color }} />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-stone-900">{svc.name}</p>
+                                      <p className="text-xs text-stone-500 mt-0.5">
+                                        {formatPricingLabel(svc)} · {svc.durationMinutes} min
+                                      </p>
+                                      {svc.description && (
+                                        <p className="text-xs text-stone-400 mt-1 line-clamp-2">{svc.description}</p>
+                                      )}
+                                    </div>
+                                    {svcId === svc.id && (
+                                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2.5">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Tiered stepper — primary service only */}
+                {primaryService?.pricingType === 'tiered' && (() => {
+                  const tiers = primaryService.pricingTiers ?? []
+                  const activeTier = tiers.find(t => selectedQuantity >= t.minQty && selectedQuantity <= t.maxQty)
+                  return (
+                    <div className="bg-stone-50 rounded-xl px-4 py-3 space-y-2">
+                      <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">How many?</p>
+                      <div className="flex items-center rounded-xl border border-stone-200 overflow-hidden bg-white w-fit">
+                        <button
+                          onClick={() => setSelectedQuantity(q => Math.max(1, q - 1))}
+                          disabled={selectedQuantity <= 1}
+                          className="h-11 w-11 flex items-center justify-center text-stone-600 hover:bg-stone-100 disabled:opacity-40 text-lg font-medium border-r border-stone-200"
+                        >
+                          −
+                        </button>
+                        <span className="w-14 text-center text-base font-semibold text-stone-900 select-none">
+                          {selectedQuantity}
+                        </span>
+                        <button
+                          onClick={() => setSelectedQuantity(q => q + 1)}
+                          className="h-11 w-11 flex items-center justify-center text-white bg-[#0D7377] hover:bg-[#0a5f63] text-lg font-medium border-l border-stone-200"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {activeTier && (
+                        <p className="text-xs text-stone-500">
+                          {activeTier.minQty}–{activeTier.maxQty >= 999 ? `${activeTier.minQty}+` : activeTier.maxQty}: {formatCents(activeTier.unitPriceCents)} each
+                          {' → '}<span className="font-semibold text-stone-700">{formatCents(selectedQuantity * activeTier.unitPriceCents)}</span>
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* Multi-option pills/select — primary service only */}
+                {primaryService?.pricingType === 'multi_option' && (() => {
+                  const opts = primaryService.pricingOptions ?? []
+                  return (
+                    <div className="bg-stone-50 rounded-xl px-4 py-3 space-y-2">
+                      <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Option</p>
+                      {opts.length <= 3 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {opts.map(opt => (
+                            <button
+                              key={opt.name}
+                              onClick={() => setSelectedOptionName(opt.name)}
+                              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
+                                selectedOptionName === opt.name
+                                  ? 'bg-[#0D7377] text-white'
+                                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                              }`}
+                            >
+                              {opt.name} — {formatCents(opt.priceCents)}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedOptionName}
+                          onChange={e => setSelectedOptionName(e.target.value)}
+                          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all min-h-[44px]"
+                        >
+                          <option value="">Select an option</option>
+                          {opts.map(opt => (
+                            <option key={opt.name} value={opt.name}>
+                              {opt.name} — {formatCents(opt.priceCents)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* Add-on checklist */}
+                {primaryService && addonServices.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="relative flex items-center">
+                      <div className="flex-grow border-t border-stone-200" />
+                      <span className="shrink-0 mx-3 px-2 py-0.5 rounded-full bg-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                        Add-ons (optional)
+                      </span>
+                      <div className="flex-grow border-t border-stone-200" />
+                    </div>
+                    {(() => {
+                      const renderAddon = (svc: ServiceData) => (
+                        <label
+                          key={svc.id}
+                          className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl px-3 py-3 cursor-pointer hover:bg-stone-50 transition-colors min-h-[44px] w-full"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAddonServiceIds.includes(svc.id)}
+                            onChange={() => setSelectedAddonServiceIds(prev =>
+                              prev.includes(svc.id) ? prev.filter(id => id !== svc.id) : [...prev, svc.id]
+                            )}
+                            className="rounded accent-[#0D7377] h-5 w-5 shrink-0"
+                          />
+                          <span className="text-sm font-medium text-stone-800 flex-1 truncate">{svc.name}</span>
+                          <span className="text-sm text-stone-500 shrink-0">
+                            +{formatCents(svc.addonAmountCents ?? svc.priceCents ?? 0)}
+                          </span>
+                        </label>
+                      )
+                      const groups = groupByCategory(addonServices)
+                      if (groups.length <= 1) return <div className="space-y-2">{addonServices.map(renderAddon)}</div>
+                      return (
+                        <div className="space-y-3">
+                          {groups.map(([cat, list]) => (
+                            <div key={cat} className="space-y-2">
+                              <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">{cat}</p>
+                              {list.map(renderAddon)}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* Live price breakdown */}
+                {primaryService && (
+                  <div className="bg-stone-50 rounded-xl px-4 py-3 space-y-1.5 text-sm">
+                    {selectedServiceIds.map((id, idx) => {
+                      const svc = services.find(s => s.id === id)
+                      if (!svc) return null
+                      const price = idx === 0
+                        ? (primaryResolved?.priceCents ?? svc.priceCents)
+                        : resolvePrice(svc).priceCents
+                      const label = (() => {
+                        if (idx !== 0) return svc.name
+                        if (svc.pricingType === 'tiered') {
+                          const tier = (svc.pricingTiers ?? []).find(t => selectedQuantity >= t.minQty && selectedQuantity <= t.maxQty)
+                          return tier ? `${svc.name} (${selectedQuantity} × ${formatCents(tier.unitPriceCents)})` : svc.name
+                        }
+                        if (svc.pricingType === 'multi_option' && selectedOptionName) return `${svc.name} — ${selectedOptionName}`
+                        return svc.name
+                      })()
+                      return (
+                        <div key={id} className="flex justify-between text-stone-600">
+                          <span className="truncate pr-2">{label}</span>
+                          <span className="shrink-0">{formatCents(price)}</span>
+                        </div>
+                      )
+                    })}
+                    {selectedAddonServiceIds.map(id => {
+                      const svc = services.find(s => s.id === id)
+                      if (!svc) return null
+                      return (
+                        <div key={id} className="flex justify-between text-amber-700 text-xs">
+                          <span className="truncate pr-2">+ {svc.name}</span>
+                          <span className="shrink-0">+{formatCents(svc.addonAmountCents ?? svc.priceCents ?? 0)}</span>
+                        </div>
+                      )
+                    })}
+                    <div className="flex justify-between font-semibold text-stone-900 border-t border-stone-200 pt-1.5 mt-0.5">
+                      <span>Total</span>
+                      <span>{formatCents(totalPriceCents)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-stone-500">
+                      <span>Duration</span>
+                      <span>{totalDurationMinutes} min</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* + Add another service */}
+                {selectedServiceIds.length > 0 && !selectedServiceIds.includes('') && selectedServiceIds.length < nonAddonServices.length && (
                   <button
-                    key={svc.id}
-                    onClick={() => {
-                      setSelectedService(svc)
-                      setBookingStep('details')
-                    }}
-                    className="text-left p-4 rounded-xl border-2 border-stone-100 hover:border-[#0D7377] transition-all"
+                    onClick={() => setSelectedServiceIds(prev => [...prev, ''])}
+                    className="w-full py-2.5 rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:text-stone-700 hover:border-stone-400 transition-colors"
                   >
-                    <p className="text-sm font-semibold text-stone-900">{svc.name}</p>
-                    <p className="text-xs text-stone-500 mt-1">
-                      {formatPricingLabel(svc)} · {svc.durationMinutes} min
-                    </p>
-                    {svc.description && (
-                      <p className="text-xs text-stone-400 mt-1">{svc.description}</p>
-                    )}
+                    + Add another service
                   </button>
-                ))}
+                )}
+
+                {/* Continue */}
+                {selectedServiceIds.length > 0 && (
+                  <button
+                    onClick={() => setBookingStep('details')}
+                    disabled={
+                      selectedServiceIds.includes('') ||
+                      (primaryService?.pricingType === 'multi_option' && !selectedOptionName)
+                    }
+                    className="w-full py-3 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-40"
+                    style={{ backgroundColor: '#0D7377' }}
+                  >
+                    Continue
+                  </button>
+                )}
               </div>
             )}
 
@@ -360,7 +704,8 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
               <div className="space-y-4">
                 {/* Selected service summary */}
                 <div className="bg-teal-50 rounded-xl p-3 text-sm text-teal-800 font-medium">
-                  {selectedService?.name} — {selectedService ? formatPricingLabel(selectedService) : formatCents(0)}
+                  {selectedServiceIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')}
+                  {' — '}{formatCents(totalPriceCents)}
                 </div>
 
                 {/* Stylist picker (if multiple) */}
@@ -465,13 +810,23 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
             )}
 
             {/* Step 3: Confirm */}
-            {bookingStep === 'confirm' && selectedService && selectedStylist && selectedTime && (
+            {bookingStep === 'confirm' && primaryService && selectedStylist && selectedTime && (
               <div className="space-y-4">
                 <div className="bg-stone-50 rounded-xl p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-stone-500">Service</span>
-                    <span className="font-medium text-stone-900">{selectedService.name}</span>
+                    <span className="font-medium text-stone-900 text-right">
+                      {selectedServiceIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')}
+                    </span>
                   </div>
+                  {selectedAddonServiceIds.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Add-ons</span>
+                      <span className="font-medium text-stone-900 text-right">
+                        {selectedAddonServiceIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(', ')}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-stone-500">Stylist</span>
                     <span className="font-medium text-stone-900">{selectedStylist.name}</span>
@@ -486,7 +841,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   </div>
                   <div className="flex justify-between border-t border-stone-200 pt-2 mt-2">
                     <span className="text-stone-500">Price</span>
-                    <span className="font-bold text-stone-900">{formatPricingLabel(selectedService)}</span>
+                    <span className="font-bold text-stone-900">{formatCents(totalPriceCents)}</span>
                   </div>
                 </div>
 
@@ -519,7 +874,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
             )}
 
             {/* Step 4: Payment (IP/hybrid mode) */}
-            {bookingStep === 'payment' && selectedService && (
+            {bookingStep === 'payment' && (
               <div className="text-center py-4 space-y-4">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
@@ -541,7 +896,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                 >
                   {checkingOut ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : `Pay Now — ${formatCents(selectedService.priceCents)}`}
+                  ) : `Pay Now — ${formatCents(totalPriceCents)}`}
                 </button>
                 <button
                   onClick={() => setBookingStep('success')}
