@@ -29,7 +29,7 @@ Rules:
 - If a date appears in the header (e.g. 'March 15' or '3/15/26'), extract it as YYYY-MM-DD
 - If a stylist name appears in the header, extract it
 - For unclear handwriting, include your best guess and set unclear: true
-- price is a number in dollars (not cents), or null if not readable
+- price is a number in dollars (not cents), or null if not readable. Extract the EXACT dollar amount written on the sheet — this is the source of truth. Never substitute a default, estimated, or catalog price. If no price is written for an entry, return null.
 - Include ALL notes written next to any entry
 - Never skip entries even if unclear
 - COMBINED SERVICES: when an entry lists multiple services joined by "+", "/", "&", "and", or commas between service terms (e.g. "Shampoo + Cut", "Wash/Color", "Curl and Cut", "Cut, Color"), put the FIRST term in "serviceName" and the REST in "additionalServices" as an array of strings. If only one service, use an empty array [] for additionalServices.

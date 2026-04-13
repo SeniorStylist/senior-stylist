@@ -861,6 +861,7 @@ export function OcrImportModal({
                                     }}
                                     className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
                                   />
+                                  <p className="text-[10px] text-stone-400 mt-0.5">from sheet</p>
                                 </div>
                               </div>
 
