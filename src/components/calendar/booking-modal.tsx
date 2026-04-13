@@ -169,7 +169,7 @@ export function BookingModal({
     .reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
   const multiAddonTotal = selectedAddonServiceIds.reduce((sum, id) => {
     const svc = services.find((s) => s.id === id)
-    return sum + (svc?.addonAmountCents ?? 0)
+    return sum + (svc?.addonAmountCents ?? svc?.priceCents ?? 0)
   }, 0)
   const displayPriceCents =
     (primaryResolved?.priceCents ?? primaryService?.priceCents ?? 0) +
@@ -524,22 +524,46 @@ export function BookingModal({
           </label>
         )}
 
-        {primaryService?.pricingType === 'tiered' && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-              Quantity
-            </label>
-            <input
-              type="number"
-              value={selectedQuantity}
-              onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-              min={1}
-              max={primaryService.pricingTiers?.[primaryService.pricingTiers.length - 1]?.maxQty}
-              disabled={submitting}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all disabled:opacity-60 min-h-[44px]"
-            />
-          </div>
-        )}
+        {primaryService?.pricingType === 'tiered' && (() => {
+          const tiers = primaryService.pricingTiers ?? []
+          const activeTier = tiers.find((t) => selectedQuantity >= t.minQty && selectedQuantity <= t.maxQty)
+          return (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                How many?
+              </label>
+              <div className="flex items-center rounded-xl border border-stone-200 overflow-hidden bg-stone-50 self-start">
+                <button
+                  type="button"
+                  onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
+                  disabled={submitting || selectedQuantity <= 1}
+                  className="h-11 w-11 flex items-center justify-center text-stone-600 hover:bg-stone-100 active:bg-stone-200 transition-colors disabled:opacity-40 text-lg font-medium border-r border-stone-200"
+                  aria-label="Decrease quantity"
+                >
+                  −
+                </button>
+                <span className="w-14 text-center text-base font-semibold text-stone-900 select-none">
+                  {selectedQuantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedQuantity((q) => q + 1)}
+                  disabled={submitting}
+                  className="h-11 w-11 flex items-center justify-center text-white bg-[#0D7377] hover:bg-[#0a5f63] active:bg-[#096063] transition-colors text-lg font-medium border-l border-stone-200"
+                  aria-label="Increase quantity"
+                >
+                  +
+                </button>
+              </div>
+              {activeTier && (
+                <p className="text-xs text-stone-500">
+                  {activeTier.minQty}–{activeTier.maxQty >= 999 ? `${activeTier.minQty}+` : activeTier.maxQty}: {formatCents(activeTier.unitPriceCents)} each
+                  {' → '}<span className="font-semibold text-stone-700">{formatCents(selectedQuantity * activeTier.unitPriceCents)}</span>
+                </p>
+              )}
+            </div>
+          )
+        })()}
 
         {primaryService?.pricingType === 'multi_option' && (
           <div className="flex flex-col gap-1.5">
@@ -585,7 +609,7 @@ export function BookingModal({
                     className="rounded accent-[#0D7377] h-6 w-6 shrink-0"
                   />
                   <span className="text-sm font-medium text-stone-800 flex-1 truncate">{svc.name}</span>
-                  <span className="text-sm text-stone-500 shrink-0">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+                  <span className="text-sm text-stone-500 shrink-0">+{formatCents(svc.addonAmountCents ?? svc.priceCents ?? 0)}</span>
                 </label>
               ))}
             </div>
@@ -689,9 +713,28 @@ export function BookingModal({
           idx === 0
             ? primaryResolved?.priceCents ?? s.priceCents
             : resolvePrice(s).priceCents
+        // Context-aware name for primary service
+        const nameLabel = (() => {
+          if (idx !== 0) return s.name
+          if (s.pricingType === 'tiered') {
+            const tier = (s.pricingTiers ?? []).find(
+              (t) => selectedQuantity >= t.minQty && selectedQuantity <= t.maxQty
+            )
+            return tier
+              ? `${s.name} (${selectedQuantity} × ${formatCents(tier.unitPriceCents)})`
+              : s.name
+          }
+          if (s.pricingType === 'multi_option' && selectedOptionName) {
+            return `${s.name} — ${selectedOptionName}`
+          }
+          if (s.pricingType === 'addon' && addonChecked && s.addonAmountCents) {
+            return `${s.name} (+${formatCents(s.addonAmountCents)} add-on)`
+          }
+          return s.name
+        })()
         return (
           <div key={s.id} className="flex justify-between text-stone-600">
-            <span className="truncate pr-2">{s.name}</span>
+            <span className="truncate pr-2">{nameLabel}</span>
             <span className="shrink-0">{formatCents(price)}</span>
           </div>
         )
@@ -700,9 +743,9 @@ export function BookingModal({
         const svc = services.find((s) => s.id === id)
         if (!svc) return null
         return (
-          <div key={id} className="flex justify-between text-stone-500 text-xs">
+          <div key={id} className="flex justify-between text-amber-700 text-xs">
             <span className="truncate pr-2">+ {svc.name}</span>
-            <span className="shrink-0">+{formatCents(svc.addonAmountCents ?? 0)}</span>
+            <span className="shrink-0">+{formatCents(svc.addonAmountCents ?? svc.priceCents ?? 0)}</span>
           </div>
         )
       })}

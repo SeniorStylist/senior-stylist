@@ -129,6 +129,7 @@ Tailwind CSS 4, Vercel
 - Backward compatible: all existing services default to 'fixed', all existing bookings unaffected
 - PDF parser bug fix (2026-04-09): pre-extraction of special pricing patterns before the alternating-chunks split — fixes Symphony Manor first category services being silently dropped due to embedded numbers desyncing the split algorithm
 - Flexible pricing UX polish (2026-04-10): import preview shows +add-on/tiered/options badges and +$X.XX for addon services; PDF parser filters garbage rows (boilerplate, mid-sentence fragments); booking modal has multi-addon service checklist with live price breakdown; POST /api/bookings accepts addonServiceIds[]; log shows "Service + Addon1 + Addon2" with improved qty/option display; walk-in form has addon checklist
+- Pricing UI fixes (2026-04-12): (1) addon $0 bug fixed — checklist and breakdown now use `(addonAmountCents ?? priceCents ?? 0)` at all three sites in booking-modal.tsx; (2) tiered quantity input replaced with 44px stepper (− stone / qty / + teal) plus live tier hint line showing active range and calculated total; (3) price breakdown contextual annotations — tiered shows `(qty × $X/ea)`, multi_option shows `— OptionName`, addon checklist lines rendered in amber (`text-amber-700`)
 
 ### Phase 5 PLANNED
 - Resident portal enhancements
@@ -155,6 +156,7 @@ Tailwind CSS 4, Vercel
 
 ### Working
 - PDF parser → Gemini vision (2026-04-12): replaced pdfjs-dist alternating-chunks regex parser with a direct Gemini 2.5 Flash PDF vision call. Gemini receives the raw PDF as base64 application/pdf inlineData and returns a structured JSON array. Reason: text extraction silently drops sections on PDFs with non-standard internal layouts (Symphony Manor first section was always missing). No frontend changes needed — response shape unchanged.
+- Pricing UI fixes (2026-04-12): addon $0 bug fixed; tiered stepper (44px − / qty / + buttons) with live tier hint; booking modal price breakdown shows `(qty × $X/ea)` for tiered, `— OptionName` for multi_option, amber `text-amber-700` for addon checklist lines.
 - Multi-service bookings + OCR combo detection + PDF category fixes (2026-04-12): bookings table gained `service_ids text[]`, `service_names text[]`, `total_duration_minutes integer`. Booking modal now supports N primary services via list-with-add-button; POST/PUT/recurring routes accept `serviceIds` (falling back to `serviceId` for back-compat). Calendar `eventContent()` shows "Cut + Color" on week/day views; log `serviceDisplayName()` joins primary + addon names. Addon UX polished: 24px checkboxes, 44px rows, labeled "Add-ons (optional)" divider, sticky footer with safe-area-inset-bottom. Service price display everywhere uses `formatPricingLabel()` (log walk-in dropdown + portal service cards). OCR Gemini prompt returns `additionalServices: string[]` for combos like "Shampoo + Long Hair"; review modal has per-add-on combo inputs with fuzzy match; import creates single multi-service booking. PDF parser gained three fallbacks: `CATEGORY_KEYWORDS` set for standalone headers, `inferCategoryFromName()` when currentCategory is empty/generic, Long Hair/Matted Hair inherit `previousServiceCategory`.
 - Invite deduplication + clean revocation (2026-04-12): POST /api/invites now upserts — if a pending invite exists for email+facility it refreshes the token and resends; if a used invite exists it returns a clear 409 error. DELETE /api/facility/users/[userId] now clears profiles.stylist_id and cancels pending invites in a transaction on revocation. DELETE /api/invites/[id] clears profiles.stylist_id if the revoked email had a stylist linked at that facility. Team tab shows linked stylist name next to role badge. UI shows "Invite refreshed and resent" vs "Invite sent!" correctly.
 - Full auth flow: invite → accept → correct facility + role (fixed 2026-04-07)
@@ -198,12 +200,13 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Multi-service bookings, addon UX polish, OCR combo detection, and PDF category fixes shipped (2026-04-12). Next steps:
-1. Real-device test: book a multi-service appointment on iPhone — verify 24px checkboxes, safe-area footer, combined "Cut + Color" label in calendar + log
-2. Import Symphony Manor PDF using Gemini vision — verify all sections including "Shampoo, Sets & Cuts" appear (previously missing with text extraction)
-3. OCR-import a handwritten sheet containing "Shampoo + Long Hair" — confirm review UI shows primary + add-on combo inputs
-4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-5. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
+Pricing UI fixes shipped (2026-04-12). Next steps:
+1. Real-device test: book a tiered service on iPhone — verify stepper increments correctly, tier hint updates live, breakdown shows `(qty × $X/ea)`
+2. Test multi_option service booking — select an option, verify breakdown shows `ServiceName — OptionName`
+3. Test addon checklist — check addon, verify breakdown shows amber line and price includes surcharge
+4. Import Symphony Manor PDF using Gemini vision — verify all sections including "Shampoo, Sets & Cuts" appear (previously missing with text extraction)
+5. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
+6. Phase 5 resident portal POA booking (plan written at docs/portal-auth-plan.md)
 
 ---
 

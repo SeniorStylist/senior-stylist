@@ -175,15 +175,17 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 **Pricing UI in booking modal:**
 - Addon: checkbox below service select — `"Add-on (+$10.00)"` with `bg-stone-50 border rounded-xl` styling
-- Tiered: number input labeled "Quantity" with live price calculation
+- Tiered: **stepper row** (NOT a number input) — `rounded-xl border border-stone-200 overflow-hidden bg-stone-50 self-start flex items-center`. Left button (−): `h-11 w-11 text-stone-600 hover:bg-stone-100 border-r border-stone-200`. Right button (+): `h-11 w-11 text-white bg-[#0D7377] hover:bg-[#0a5f63] border-l border-stone-200`. Count display: `w-14 text-center text-base font-semibold select-none`. Below the stepper, a tier hint: `{minQty}–{maxQty >= 999 ? minQty + '+' : maxQty}: $X each → $total` in `text-xs text-stone-500`.
 - Multi-option: `<select>` dropdown showing `"OptionName — $XX.00"` per option, pre-selects first
 - Price display uses `resolvePrice()` from `src/lib/pricing.ts` for real-time preview
+- **Addon price display**: always use `(addonAmountCents ?? priceCents ?? 0)` — do NOT use `addonAmountCents ?? 0` alone, since manually created addon services may store the surcharge in `priceCents` instead.
 
 **Multi-service + addon picker (booking modal):**
 - Primary services rendered as a list-with-"+ Add another service" button; each row is a service `<select>` with a trash icon (`h-11 w-11`) appearing only when >1 row. First row = the "primary" service; it alone drives `selectedQuantity`/`selectedOption`/`addonChecked`. Duration = sum of all primary `durationMinutes`.
 - Labeled divider between primary and addon sections: flex container with two `flex-1 border-t border-stone-200` spans surrounding a centered pill `<span>` reading `"Add-ons (optional)"` (`text-[11px] uppercase tracking-wide text-stone-500`).
 - Addon checklist: each row full-width, `min-h-[44px]`, `py-3 px-3`, `rounded-xl border border-stone-200`. Checkbox `h-6 w-6 accent-[#0D7377] shrink-0`. Service name left-aligned, `+$X.XX` right-aligned in `text-stone-500`.
 - Footer (outside the scroll area, `flexShrink: 0`) holds a breakdown (one line per primary + one per addon + bold Total + Duration row) followed by the Book button. Mobile inline style: `style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}`.
+- **Breakdown annotations**: primary service name (idx===0) is context-aware via IIFE — tiered: `ServiceName (qty × $X/ea)`, multi_option: `ServiceName — OptionName`, plain addon: `ServiceName (+$X add-on)`. Addon checklist lines in breakdown use `text-amber-700` (not `text-stone-500`).
 - All interactive elements ≥44px tap targets.
 
 **Pricing UI in services page:**
