@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { SkeletonResidentRow } from '@/components/ui/skeleton'
-import { formatCents, formatDate } from '@/lib/utils'
+import { cn, formatCents, formatDate } from '@/lib/utils'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -64,11 +64,38 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
     setDupeCount(Math.max(0, count))
   }, [])
 
-  const filtered = residents.filter(
-    (r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      (r.roomNumber && r.roomNumber.toLowerCase().includes(search.toLowerCase()))
-  )
+  const [sortKey, setSortKey] = useState<'name' | 'room' | 'lastVisit' | 'totalSpent'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const filtered = residents
+    .filter(
+      (r) =>
+        r.name.toLowerCase().includes(search.toLowerCase()) ||
+        (r.roomNumber && r.roomNumber.toLowerCase().includes(search.toLowerCase()))
+    )
+    .sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'name') {
+        cmp = a.name.localeCompare(b.name)
+      } else if (sortKey === 'room') {
+        if (!a.roomNumber && !b.roomNumber) cmp = 0
+        else if (!a.roomNumber) cmp = 1
+        else if (!b.roomNumber) cmp = -1
+        else cmp = a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true })
+      } else if (sortKey === 'lastVisit') {
+        if (!a.lastVisit && !b.lastVisit) cmp = 0
+        else if (!a.lastVisit) cmp = 1
+        else if (!b.lastVisit) cmp = -1
+        else cmp = new Date(a.lastVisit).getTime() - new Date(b.lastVisit).getTime()
+      } else if (sortKey === 'totalSpent') {
+        cmp = a.totalSpent - b.totalSpent
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
 
   const handleAdd = async () => {
     if (!name.trim()) { setAddError('Name is required'); return }
@@ -262,10 +289,29 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
           {/* Table header */}
           <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
-            <div className="col-span-4 text-xs font-semibold text-stone-500 uppercase tracking-wide">Resident</div>
-            <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Room</div>
-            <div className="col-span-3 text-xs font-semibold text-stone-500 uppercase tracking-wide">Last visit</div>
-            <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Total spent</div>
+            {(
+              [
+                { key: 'name', label: 'Resident', span: 'col-span-4' },
+                { key: 'room', label: 'Room', span: 'col-span-2' },
+                { key: 'lastVisit', label: 'Last visit', span: 'col-span-3' },
+                { key: 'totalSpent', label: 'Total spent', span: 'col-span-2' },
+              ] as const
+            ).map(({ key, label, span }) => (
+              <div key={key} className={span}>
+                <button
+                  onClick={() => toggleSort(key)}
+                  className={cn(
+                    'flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors',
+                    sortKey === key ? 'text-[#0D7377]' : 'text-stone-500 hover:text-stone-700'
+                  )}
+                >
+                  {label}
+                  {sortKey === key && (
+                    <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </button>
+              </div>
+            ))}
             <div className="col-span-1" />
           </div>
 

@@ -204,7 +204,7 @@ export function SettingsClient({
   const [invitesLoaded, setInvitesLoaded] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<string>('stylist')
-  const [inviteFacilityId, setInviteFacilityId] = useState<string>('')
+  const [inviteFacilityId, setInviteFacilityId] = useState<string>(facility.id)
   const [facilitiesList, setFacilitiesList] = useState<{ id: string; name: string }[]>([])
   const [sendingInvite, setSendingInvite] = useState(false)
   const [inviteError, setInviteError] = useState('')
@@ -248,6 +248,7 @@ export function SettingsClient({
       const j = await res.json()
       const list: { id: string; name: string }[] = j.data ?? []
       setFacilitiesList(list)
+      // Keep current facility selected; only fall back to first if somehow unset
       if (list.length > 0 && !inviteFacilityId) setInviteFacilityId(list[0].id)
     }
   }

@@ -170,14 +170,14 @@ export function BookingModal({
     }
   }, [open, isMobile])
 
-  // When resident changes (create mode), pre-select their default service
+  // When resident changes (create mode), pre-select their default service if it exists
   useEffect(() => {
     if (mode !== 'create' || !selectedResidentId) return
     const resident = residents.find((r) => r.id === selectedResidentId)
-    if (resident?.defaultServiceId) {
-      setSelectedServiceIds([resident.defaultServiceId])
-    }
-  }, [selectedResidentId, mode, residents])
+    if (!resident?.defaultServiceId) return
+    const svc = primaryServiceCandidates.find((s) => s.id === resident.defaultServiceId)
+    if (svc) setSelectedServiceIds([svc.id])
+  }, [selectedResidentId, mode, residents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset pricing inputs when the PRIMARY service changes
   useEffect(() => {

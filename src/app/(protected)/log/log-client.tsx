@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
@@ -180,6 +180,15 @@ export function LogClient({
   const [wiAddonServiceIds, setWiAddonServiceIds] = useState<string[]>([])
   const [wiAdding, setWiAdding] = useState(false)
   const [wiError, setWiError] = useState<string | null>(null)
+
+  // Auto-select resident's default service in walk-in form
+  useEffect(() => {
+    if (!wiResidentId) return
+    const resident = residents.find((r) => r.id === wiResidentId)
+    if (!resident?.defaultServiceId) return
+    const svc = services.find((s) => s.id === resident.defaultServiceId && s.pricingType !== 'addon')
+    if (svc) setWiServiceId(svc.id)
+  }, [wiResidentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // OCR import modal
   const [ocrOpen, setOcrOpen] = useState(false)
