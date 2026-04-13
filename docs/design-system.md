@@ -284,6 +284,25 @@ Adds `shadow-sm` and uses white background by default:
 <select className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] transition-all" />
 ```
 
+### Category Grouping in Native Selects
+
+Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`, sorted alphabetical with "Other" last. Skip the grouping wrapper when `groups.length <= 1` — a single-group `<optgroup>` adds visual noise without segmentation value.
+
+```tsx
+<select>
+  <option value="">Select a service</option>
+  {(() => {
+    const groups = groupByCategory(options)
+    if (groups.length <= 1) return options.map(s => <option key={s.id} value={s.id}>{label(s)}</option>)
+    return groups.map(([category, list]) => (
+      <optgroup key={category} label={category}>
+        {list.map(s => <option key={s.id} value={s.id}>{label(s)}</option>)}
+      </optgroup>
+    ))
+  })()}
+</select>
+```
+
 ### Price Input
 
 Uses a `$` prefix character absolutely positioned inside a relative wrapper:
@@ -358,6 +377,19 @@ Interleaved non-interactive category headers in grouped lists:
     <div className="w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
     <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{name}</span>
   </div>
+</div>
+```
+
+### Category Section Headers (Services Page List)
+
+Same concept, simpler markup — used on the main services list. Built via an IIFE that sorts services by `category` then pushes a header `<div>` each time the category changes into a `ReactNode[]`. Sort forces "Other" last via a `|| 'zzzOther'` sort key.
+
+```tsx
+<div
+  key={`cat-${cat}`}
+  className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
+>
+  {cat}
 </div>
 ```
 
