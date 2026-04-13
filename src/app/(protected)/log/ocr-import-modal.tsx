@@ -164,6 +164,7 @@ export function OcrImportModal({
   const [files, setFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
   const [scanning, setScanning] = useState(false)
+  const [scanProgress, setScanProgress] = useState('')
   const [scanError, setScanError] = useState<string | null>(null)
   const [sheetErrors, setSheetErrors] = useState<{ index: number; error: string }[]>([])
   const [sheets, setSheets] = useState<SheetState[]>([])
@@ -179,6 +180,7 @@ export function OcrImportModal({
     setFiles([])
     setPreviews(prev => { prev.forEach(url => { if (url) URL.revokeObjectURL(url) }); return [] })
     setScanning(false)
+    setScanProgress('')
     setScanError(null)
     setSheetErrors([])
     setSheets([])
@@ -225,17 +227,29 @@ export function OcrImportModal({
   const handleScan = async () => {
     if (files.length === 0) return
     setScanning(true)
+    setScanProgress('')
     setScanError(null)
     try {
-      const fd = new FormData()
-      files.forEach(f => fd.append('images', f))
-      const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }
+      // Split into chunks of 3 so each batch stays well under the 120s Vercel limit
+      const chunkSize = 3
+      const chunks: File[][] = []
+      for (let i = 0; i < files.length; i += chunkSize) {
+        chunks.push(files.slice(i, i + chunkSize))
+      }
 
-      const rawSheets: OcrRawSheet[] = json.data.sheets
-      const errorSheets = rawSheets.filter(s => s.error)
-      const built = rawSheets
+      const allRawSheets: OcrRawSheet[] = []
+      for (let ci = 0; ci < chunks.length; ci++) {
+        setScanProgress(`Scanning batch ${ci + 1} of ${chunks.length}…`)
+        const fd = new FormData()
+        chunks[ci].forEach(f => fd.append('images', f))
+        const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
+        const json = await res.json()
+        if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }
+        allRawSheets.push(...(json.data.sheets as OcrRawSheet[]))
+      }
+
+      const errorSheets = allRawSheets.filter(s => s.error)
+      const built = allRawSheets
         .filter(s => !s.error)
         .map(s => buildSheetState(s, residents, stylists, services, date))
 
@@ -252,6 +266,7 @@ export function OcrImportModal({
     } catch {
       setScanError('Network error. Please try again.')
     } finally {
+      setScanProgress('')
       setScanning(false)
     }
   }
@@ -908,7 +923,7 @@ export function OcrImportModal({
                 {scanning ? (
                   <>
                     <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    Scanning…
+                    {scanProgress || 'Scanning…'}
                   </>
                 ) : (
                   `Scan ${files.length > 0 ? files.length + ' ' : ''}Sheet${files.length !== 1 ? 's' : ''}`

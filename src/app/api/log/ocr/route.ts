@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 
-export const maxDuration = 60
+export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 
 const SYSTEM_INSTRUCTION = `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.

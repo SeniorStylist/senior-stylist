@@ -339,7 +339,7 @@ CREATE POLICY "service_role_all" ON <table>
 | `GET /api/stats` | Authenticated | Today / week / month totals |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |
-| `POST /api/log/ocr` | Authenticated | Accept `images[]`, extract `{ date, stylistName, entries[] }` per sheet via Gemini 2.5 Flash, return `{ data: { sheets } }`. Each entry includes `additionalServices: string[]` when the handwriting lists multiple services joined by `+`/`/`/`&`/`and`/`,` |
+| `POST /api/log/ocr` | Authenticated | Accept `images[]`, extract `{ date, stylistName, entries[] }` per sheet via Gemini 2.5 Flash, return `{ data: { sheets } }`. Each entry includes `additionalServices: string[]` when the handwriting lists multiple services joined by `+`/`/`/`&`/`and`/`,`. `maxDuration = 120`. Client batches files in chunks of 3 and sends sequential requests; sheets are merged client-side. |
 | `POST /api/log/ocr/import` | **Admin** | Create missing residents + services + multi-service completed bookings from reviewed sheets in one `db.transaction()`; bookings spaced 30 min from 09:00 UTC. Accepts `additionalServiceIds: (string \| null)[]` + `additionalServiceNames: string[]` per entry; resolves each via the 3-step fuzzy-match algorithm and stores all IDs in `service_ids` |
 | `GET/POST /api/residents` | Authenticated | List/create residents (portal token on create) |
 | `GET/PUT/DELETE /api/residents/[id]` | Authenticated | Single resident |
