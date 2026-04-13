@@ -456,6 +456,7 @@ Service fields in the OCR review step (`ocr-import-modal.tsx`) use `<select>` dr
 - Pre-selection at load time via `fuzzyBestMatch(services.filter(s => s.pricingType !== 'addon'), ocrName, 0.7)` in `buildSheetState` — catches shorthand OCR names. Addon-type services are excluded from primary matching (prevents "S/BDry" → "Add on Deep Conditioner" false matches). Add-on rows use the full `services` list.
 - `fuzzyScore(a,b)`: 1.0 for exact, 0.85 for substring containment, else word-set overlap ratio (using `normalizeWords`). `fuzzyBestMatch` scans all items and returns the highest scorer above threshold.
 - Same `<select>` pattern for add-on service rows.
+- **Price field**: read-only intent — `onChange` only updates `priceCents`, never `serviceId`/`serviceName`. Shows `"from sheet"` hint (`text-[10px] text-stone-400`) below the input to indicate it came from the handwritten log.
 
 ### Toast Notifications
 
