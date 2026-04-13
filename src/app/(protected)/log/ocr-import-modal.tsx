@@ -56,19 +56,24 @@ interface OcrImportModalProps {
 }
 
 async function renderPdfPage(file: File, scale: number): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  const page = await pdf.getPage(1)
-  const viewport = page.getViewport({ scale })
-  const canvas = document.createElement('canvas')
-  canvas.width = viewport.width
-  canvas.height = viewport.height
-  const ctx = canvas.getContext('2d')!
-  await page.render({ canvasContext: ctx, canvas, viewport }).promise
-  return canvas.toDataURL('image/jpeg', 0.85)
+  try {
+    const pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    const arrayBuffer = await file.arrayBuffer()
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    const page = await pdf.getPage(1)
+    const viewport = page.getViewport({ scale })
+    const canvas = document.createElement('canvas')
+    canvas.width = viewport.width
+    canvas.height = viewport.height
+    const ctx = canvas.getContext('2d')!
+    await page.render({ canvasContext: ctx, canvas, viewport }).promise
+    return canvas.toDataURL('image/jpeg', 0.85)
+  } catch (err) {
+    console.error(`[renderPdfPage] scale=${scale} file="${file.name}" error:`, err)
+    throw err
+  }
 }
 
 
@@ -240,11 +245,17 @@ export function OcrImportModal({
       // Thumbnail (fast, scale 0.5)
       renderPdfPage(f, 0.5).then(dataUrl => {
         setPreviews(prev => { const next = [...prev]; next[i] = dataUrl; return next })
-      }).catch((err) => console.error('[PDF thumbnail] render failed:', err))
+      }).catch((err) => {
+        console.error('[PDF thumbnail] render failed:', err)
+        setPreviews(prev => { const next = [...prev]; next[i] = 'error'; return next })
+      })
       // Full-res for lightbox (scale 1.5)
       renderPdfPage(f, 1.5).then(dataUrl => {
         setFullResPreviews(prev => { const next = [...prev]; next[i] = dataUrl; return next })
-      }).catch((err) => console.error('[PDF full-res] render failed:', err))
+      }).catch((err) => {
+        console.error('[PDF full-res] render failed:', err)
+        setFullResPreviews(prev => { const next = [...prev]; next[i] = 'error'; return next })
+      })
     })
   }
 
@@ -518,17 +529,19 @@ export function OcrImportModal({
 
               {files.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {files.map((file, i) => (
+                  {files.map((_file, i) => (
                     <div key={i} className="relative">
-                      {previews[i] ? (
+                      {previews[i] && previews[i] !== 'error' ? (
+                        /* Rendered data URL or blob URL */
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={previews[i]} alt={`Sheet ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
-                      ) : file.type === 'application/pdf' ? (
-                        /* PDF is rendering — show spinner */
+                      ) : previews[i] === '' ? (
+                        /* Still rendering — show spinner */
                         <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-center">
                           <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
                         </div>
                       ) : (
+                        /* Error or non-PDF — show PDF icon */
                         <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -599,7 +612,7 @@ export function OcrImportModal({
                           Source sheet
                         </summary>
                         <div className="mt-2">
-                          {sourcePreview ? (
+                          {sourcePreview && sourcePreview !== 'error' ? (
                             <>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -610,7 +623,7 @@ export function OcrImportModal({
                               />
                               <p className="text-[10px] text-stone-400 mt-1 text-center">Tap to expand</p>
                             </>
-                          ) : sourceFile?.type === 'application/pdf' ? (
+                          ) : sourcePreview === '' ? (
                             /* Full-res render still in progress */
                             <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-center">
                               <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
