@@ -102,3 +102,75 @@ export function buildComplianceAlertEmailHtml(params: {
 </body>
 </html>`.trim()
 }
+
+export function buildCoverageRequestEmailHtml(params: {
+  stylistName: string
+  requestedDate: string
+  reason: string | null
+  facilityName: string
+  dashboardUrl: string
+}): string {
+  const { stylistName, requestedDate, reason, facilityName, dashboardUrl } = params
+  const reasonRow = reason
+    ? `<tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Reason</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${reason}</td></tr>`
+    : ''
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Coverage Requested</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
+        <strong>${stylistName}</strong> has requested time off and needs coverage for <strong>${requestedDate}</strong>.
+      </p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Stylist</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${stylistName}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Date</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${requestedDate}</td></tr>
+        ${reasonRow}
+        <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Status</td><td style="padding:10px 0;color:#B45309;font-size:14px;font-weight:700;">Open</td></tr>
+      </table>
+      <p style="margin:20px 0 0;font-size:13px;color:#57534E;line-height:1.5;">Review the dashboard coverage queue and assign a substitute to confirm.</p>
+      <p style="margin:16px 0 0;">
+        <a href="${dashboardUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Open Coverage Queue</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`.trim()
+}
+
+export function buildCoverageFilledEmailHtml(params: {
+  stylistName: string
+  substituteName: string
+  requestedDate: string
+  facilityName: string
+}): string {
+  const { stylistName, substituteName, requestedDate, facilityName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Coverage Confirmed</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
+        Hi ${stylistName}, your time-off request for <strong>${requestedDate}</strong> has been covered.
+      </p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Date</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${requestedDate}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Substitute</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${substituteName}</td></tr>
+        <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Status</td><td style="padding:10px 0;color:#047857;font-size:14px;font-weight:700;">Filled</td></tr>
+      </table>
+      <p style="margin:20px 0 0;font-size:13px;color:#57534E;line-height:1.5;">Enjoy your day off — we'll see you when you're back.</p>
+    </div>
+  </div>
+</body>
+</html>`.trim()
+}

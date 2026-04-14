@@ -861,3 +861,25 @@ Reset to `{}` on `startBooking()`.
 ### Status badge colors in portal
 The `STATUS_STYLES` record in portal-client.tsx uses semantic colors (not brand colors):
 - `completed`: `bg-teal-50 text-teal-700` — keep as-is (teal is semantic for "done" status here, not brand)
+
+### Coverage request status badges (Phase 8)
+Used on the My Account Time Off list. Small pill: `px-2 py-0.5 rounded-full text-xs font-semibold`.
+- `open`: `bg-amber-50 text-amber-700`
+- `filled`: `bg-emerald-50 text-emerald-700`
+- `cancelled`: `bg-stone-100 text-stone-500`
+
+### Coverage banner (Phase 8)
+The admin dashboard coverage banner reuses the **exact class signature** of the pending access-requests banner — only the copy and the action differ:
+`shrink-0 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between`. The action is a `<button>` (not `<a>`) that calls `document.getElementById('coverage-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })`. Never diverge the visual language between the two amber banners — they stack and should read as one system.
+
+### Weekly availability row (Phase 8)
+Each of the 7 day rows in the My Account Weekly Availability card:
+```
+min-h-[44px] flex items-center gap-3
+  <input type="checkbox" accent-[#8B2E4A]> + <day label 3-char>
+  <input type="time" startTime> "to" <input type="time" endTime>
+```
+When `active === false`, both time inputs get `opacity-50` and are visually disabled (still editable — toggling active=true keeps the same times). Mobile tap-target is guaranteed by `min-h-[44px]`. Validation message ("End must be after start") renders as a red `text-xs` line below the grid on save. Inline feedback uses local `savedMsg`/`availError` state — no toast system in my-account-client.tsx.
+
+### Coverage Queue card (Phase 8)
+Admin dashboard right-rail card placed **above** the residents/services/stylists tabs, with `id="coverage-queue"`. Hidden entirely when the queue is empty to preserve vertical space for the panel + stats footer below. Wrapper: `shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm`. Row anatomy: stylist name (font-semibold, truncate) + formatted date label (`Short, MMM D`) + reason (2-line clamp, muted) + substitute `<select>` + burgundy Assign button (`bg-[#8B2E4A] hover:bg-[#72253C]`, disabled until substitute picked). List scrolls within `max-h-[320px] overflow-y-auto divide-y divide-stone-100`. Assignment optimistically removes the row from local state without `router.refresh()`.

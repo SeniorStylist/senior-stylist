@@ -209,6 +209,18 @@
 - **Status helper** `computeComplianceStatus(stylist, docs)` in `src/lib/compliance.ts` — required types are license + insurance. red = expired or required-type missing/unverified; amber = ≤60d OR any unverified doc; green = all good + >30d; none = no signals. Dot colors: green `bg-emerald-500`, amber `bg-amber-400`, red `bg-red-500`, none = no dot.
 - **Doc type palette** (badges in My Account + Stylist Detail): license `bg-blue-50 text-blue-700`, insurance `bg-purple-50 text-purple-700`, w9 `bg-stone-100 text-stone-700`, contractor_agreement `bg-stone-100 text-stone-700`, background_check `bg-emerald-50 text-emerald-700`.
 
+### Availability & Coverage (Phase 8)
+- **Availability PUT is a full-week atomic replace** inside `db.transaction()` — delete all rows for the stylist, then insert the submitted 7 rows (active + inactive, so GETs always return a stable 7-day array). Never a partial upsert. Active rows require `startTime < endTime`; Zod `.max(7)` on the array.
+- **Coverage POST derives `stylistId` server-side** from `profiles.stylistId` — NEVER trust `stylistId` from the request body. Past dates rejected. 409 on duplicate open request for the same `(stylistId, requestedDate)`.
+- **Coverage status transitions**:
+  - Admin: open → filled (requires `substituteStylistId`; verifies substitute is in facility + active + ≠ requester; sets `assignedBy`/`assignedAt`; fires `buildCoverageFilledEmailHtml`); open → cancelled; filled → cancelled (clears substitute fields); anything → open.
+  - Stylist: may only submit `{ status: 'cancelled' }` on their own `open` request; any other body or status returns 403.
+- **Coverage GET scoping**: stylist-role callers are ALWAYS forced to `stylistId = profile.stylistId` regardless of a `?stylistId=` query param. Viewer-role 403.
+- **Coverage DELETE**: admin any; stylist-owner only while `status='open'`. Hard delete (not `active=false`) — coverage requests are transient.
+- **Drizzle named relations**: `coverageRequestsRelations` joins to `stylists` twice via `relationName: 'coverage_stylist'` + `'coverage_substitute'`; `stylistsRelations` mirrors both sides. Two relations on the same target table REQUIRE named `relationName` on both sides or Drizzle throws at query time.
+- **Emails are fire-and-forget**: `buildCoverageRequestEmailHtml` + `buildCoverageFilledEmailHtml` both called via `sendEmail(...).catch(console.error)` — never `await`.
+- **Coverage banner + queue UI**: the amber banner below the pending-requests banner reuses its exact class signature (`shrink-0 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between`). Coverage Queue card lives above the tabs in the dashboard right rail with `id="coverage-queue"`; the banner's "View" button scrolls there via `scrollIntoView({ behavior: 'smooth' })`. Queue rows are hidden when empty to keep the rail tight; assignment optimistically removes the row from local state without `router.refresh()`.
+
 ### Cron Routes
 - **Vercel cron auth pattern**: every route under `/api/cron/*` MUST check `request.headers.get('authorization') === \`Bearer \${process.env.CRON_SECRET}\`` and 401 otherwise. Vercel injects this header automatically when `CRON_SECRET` is set as a project env var.
 - **Middleware bypass**: `src/middleware.ts` already includes `pathname.startsWith('/api/cron')` in the public-route check — new cron routes need no further middleware work.

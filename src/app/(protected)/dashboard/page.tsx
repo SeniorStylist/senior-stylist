@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, residents, stylists, services, invites, accessRequests, profiles } from '@/db/schema'
+import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
-    const [facility, residentsList, stylistsList, servicesList, pendingRequests] = await Promise.all([
+    const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
       }),
@@ -97,6 +97,16 @@ export default async function DashboardPage() {
             ),
           })
         : Promise.resolve([]),
+      facilityUser.role === 'admin'
+        ? db.query.coverageRequests.findMany({
+            where: and(
+              eq(coverageRequests.facilityId, facilityUser.facilityId),
+              eq(coverageRequests.status, 'open')
+            ),
+            with: { stylist: { columns: { id: true, name: true } } },
+            orderBy: (t, { asc }) => [asc(t.requestedDate), asc(t.createdAt)],
+          })
+        : Promise.resolve([]),
     ])
 
     if (!facility) redirect('/login')
@@ -126,6 +136,7 @@ export default async function DashboardPage() {
           userName={user.user_metadata?.full_name ?? ''}
           pendingRequestsCount={pendingRequests.length}
           profileStylistId={profileStylistId}
+          openCoverageRequests={JSON.parse(JSON.stringify(openCoverageRequests))}
         />
       </>
     )

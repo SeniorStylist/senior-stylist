@@ -218,13 +218,16 @@ Tailwind CSS 4, Vercel
 - Extended `PUT /api/stylists/[id]` Zod schema with license/insurance date fields
 - Daily cron `GET /api/cron/compliance-alerts` at 09:00 UTC — Bearer `CRON_SECRET`; emails facility admins (or `NEXT_PUBLIC_ADMIN_EMAIL` fallback) when any verified compliance doc or stylist license/insurance expiry date falls exactly 30 or 60 days from today; `vercel.json` registers the schedule; middleware bypass added for `/api/cron/*`
 
-### Phase 8 PLANNED — Workforce Availability & Coverage
-- New table: `stylist_availability` (stylist_id, day_of_week, start_time, end_time, active)
-- New table: `coverage_requests` (facility_id, stylist_id, requested_date, reason, status: open|filled|cancelled, substitute_stylist_id)
-- Stylists set weekly availability and submit time-off requests from My Account
-- "Needs Coverage" flag on calendar days where a regular stylist has a gap
-- Admin coverage queue to assign a substitute stylist
-- Email alerts on gap creation and on substitute assignment
+### Phase 8 SHIPPED (2026-04-14) — Workforce Availability & Coverage
+- New table: `stylist_availability` (stylist_id, facility_id, day_of_week 0–6, start_time HH:MM, end_time HH:MM, active) with `UNIQUE(stylist_id, day_of_week)`
+- New table: `coverage_requests` (facility_id, stylist_id, requested_date, reason, status: open|filled|cancelled, substitute_stylist_id, assigned_by, assigned_at)
+- API: `GET/PUT /api/availability` (full-week atomic replace via `db.transaction()`); `GET/POST /api/coverage` + `PUT/DELETE /api/coverage/[id]`
+- My Account (stylists): Weekly Availability grid (7 days, checkbox + time inputs, 44px min-height) + Time Off card with inline request form, status badges (open/filled/cancelled), inline cancel
+- Dashboard (admins): amber banner below access-requests banner, Coverage Queue card in right rail (`id="coverage-queue"`) with substitute `<select>` + Assign button (optimistic removal)
+- Stylist Detail (admins): read-only Availability card between Compliance and Upcoming; consecutive same-time days collapse into `Mon–Fri 9am–5pm` style ranges
+- Emails: `buildCoverageRequestEmailHtml` (to admins on new request) + `buildCoverageFilledEmailHtml` (to requester on fill); burgundy header, fire-and-forget
+- Role guards: stylist can only cancel their own open request; admin owns fill/delete transitions; stylist-role GET is always forced to self regardless of query params
+- RLS + `service_role_all` policy on both new tables
 
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
@@ -333,11 +336,11 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 7 (Compliance) shipped (2026-04-14). Next steps:
+Phase 8 (Availability & Coverage) shipped (2026-04-14). Next steps:
 1. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs for each.
-4. Phase 8: Workforce Availability & Coverage — stylist_availability table, coverage_requests table, time-off from My Account, needs-coverage calendar flag, admin coverage queue, email alerts.
+3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs; confirm weekly availability in My Account.
+4. Phase 9: Territory / Region Management — `regions` table, `region_id` on facilities + stylists, Regions tab in /super-admin, region filter across all list/report views.
 
 ---
 

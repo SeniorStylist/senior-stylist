@@ -129,6 +129,46 @@ export const complianceDocuments = pgTable('compliance_documents', {
   createdAt: timestamp('created_at').defaultNow(),
 })
 
+export const stylistAvailability = pgTable(
+  'stylist_availability',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stylistId: uuid('stylist_id')
+      .references(() => stylists.id)
+      .notNull(),
+    facilityId: uuid('facility_id')
+      .references(() => facilities.id)
+      .notNull(),
+    dayOfWeek: integer('day_of_week').notNull(),
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    active: boolean('active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (t) => ({
+    uniqueStylistDay: unique().on(t.stylistId, t.dayOfWeek),
+  })
+)
+
+export const coverageRequests = pgTable('coverage_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id')
+    .references(() => facilities.id)
+    .notNull(),
+  stylistId: uuid('stylist_id')
+    .references(() => stylists.id)
+    .notNull(),
+  requestedDate: date('requested_date').notNull(),
+  reason: text('reason'),
+  status: text('status').default('open').notNull(),
+  substituteStylistId: uuid('substitute_stylist_id').references(() => stylists.id),
+  assignedBy: uuid('assigned_by').references(() => profiles.id),
+  assignedAt: timestamp('assigned_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
 export const services = pgTable('services', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id')
@@ -293,6 +333,41 @@ export const stylistsRelations = relations(stylists, ({ many }) => ({
   bookings: many(bookings),
   logEntries: many(logEntries),
   complianceDocuments: many(complianceDocuments),
+  availability: many(stylistAvailability),
+  coverageRequests: many(coverageRequests, { relationName: 'coverage_stylist' }),
+  coveringRequests: many(coverageRequests, { relationName: 'coverage_substitute' }),
+}))
+
+export const stylistAvailabilityRelations = relations(stylistAvailability, ({ one }) => ({
+  stylist: one(stylists, {
+    fields: [stylistAvailability.stylistId],
+    references: [stylists.id],
+  }),
+  facility: one(facilities, {
+    fields: [stylistAvailability.facilityId],
+    references: [facilities.id],
+  }),
+}))
+
+export const coverageRequestsRelations = relations(coverageRequests, ({ one }) => ({
+  stylist: one(stylists, {
+    fields: [coverageRequests.stylistId],
+    references: [stylists.id],
+    relationName: 'coverage_stylist',
+  }),
+  substituteStylist: one(stylists, {
+    fields: [coverageRequests.substituteStylistId],
+    references: [stylists.id],
+    relationName: 'coverage_substitute',
+  }),
+  facility: one(facilities, {
+    fields: [coverageRequests.facilityId],
+    references: [facilities.id],
+  }),
+  assignedByProfile: one(profiles, {
+    fields: [coverageRequests.assignedBy],
+    references: [profiles.id],
+  }),
 }))
 
 export const complianceDocumentsRelations = relations(complianceDocuments, ({ one }) => ({

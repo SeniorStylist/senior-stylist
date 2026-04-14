@@ -9,7 +9,7 @@ import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
 import { cn, formatCents } from '@/lib/utils'
-import type { Resident, Stylist, Service, Facility } from '@/types'
+import type { Resident, Stylist, Service, Facility, CoverageRequest } from '@/types'
 import { Spinner } from '@/components/ui'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -69,6 +69,7 @@ interface DashboardClientProps {
   userName?: string
   pendingRequestsCount?: number
   profileStylistId?: string | null
+  openCoverageRequests?: CoverageRequest[]
 }
 
 export function DashboardClient({
@@ -82,6 +83,7 @@ export function DashboardClient({
   userName = '',
   pendingRequestsCount = 0,
   profileStylistId = null,
+  openCoverageRequests = [],
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -100,6 +102,8 @@ export function DashboardClient({
   const [residents, setResidents] = useState<Resident[]>(initialResidents)
   const [stylists, setStylists] = useState<Stylist[]>(initialStylists)
   const [localServices, setLocalServices] = useState<Service[]>(initialServices)
+  const [coverageQueue, setCoverageQueue] = useState<CoverageRequest[]>(openCoverageRequests)
+  const openCoverageCount = coverageQueue.length
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
@@ -385,6 +389,21 @@ export function DashboardClient({
             </a>
           </div>
         )}
+        {/* Admin: open coverage requests banner */}
+        {isAdmin && openCoverageCount > 0 && (
+          <div className="shrink-0 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between">
+            <p className="text-sm text-amber-800">
+              <span className="font-semibold">{openCoverageCount}</span> open coverage request{openCoverageCount > 1 ? 's' : ''} need attention
+            </p>
+            <button
+              type="button"
+              onClick={() => document.getElementById('coverage-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="text-xs font-semibold text-amber-700 underline hover:text-amber-900"
+            >
+              View
+            </button>
+          </div>
+        )}
         {/* Header */}
         <div className="shrink-0">
           <p className="text-sm font-semibold text-stone-700 mb-2">{facility.name}</p>
@@ -485,6 +504,26 @@ export function DashboardClient({
 
       {/* ── Right panel — hidden on mobile ── */}
       <div className="hidden md:flex w-[300px] shrink-0 flex-col h-screen p-4 pl-0 gap-3">
+        {/* Coverage Queue (admin only) */}
+        {isAdmin && coverageQueue.length > 0 && (
+          <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
+            <div className="px-4 py-3 border-b border-stone-100">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                Coverage Requests
+              </p>
+            </div>
+            <ul className="max-h-[320px] overflow-y-auto divide-y divide-stone-100">
+              {coverageQueue.map((r) => (
+                <CoverageQueueRow
+                  key={r.id}
+                  request={r}
+                  stylists={stylists.filter((s) => s.id !== r.stylistId)}
+                  onAssigned={(id) => setCoverageQueue((prev) => prev.filter((x) => x.id !== id))}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
         {/* Tabs */}
         <div className="bg-white rounded-xl border border-stone-200 p-1 flex gap-1 shrink-0">
           {(['residents', 'services', 'stylists'] as const).map((tab) => (
@@ -594,5 +633,88 @@ export function DashboardClient({
       />
     </div>
     </ErrorBoundary>
+  )
+}
+
+function CoverageQueueRow({
+  request,
+  stylists,
+  onAssigned,
+}: {
+  request: CoverageRequest
+  stylists: Stylist[]
+  onAssigned: (id: string) => void
+}) {
+  const [substituteId, setSubstituteId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const dateLabel = (() => {
+    const [y, m, d] = request.requestedDate.split('-').map((v) => Number(v))
+    const dt = new Date(y, m - 1, d)
+    return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  })()
+
+  async function handleAssign() {
+    if (!substituteId || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/coverage/${request.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'filled', substituteStylistId: substituteId }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error ?? 'Failed to assign')
+        setSaving(false)
+        return
+      }
+      onAssigned(request.id)
+    } catch {
+      setError('Network error')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <li className="px-4 py-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-stone-900 truncate">
+            {request.stylist?.name ?? 'Stylist'}
+          </p>
+          <p className="text-xs text-stone-500">{dateLabel}</p>
+        </div>
+      </div>
+      {request.reason && (
+        <p className="text-xs text-stone-500 line-clamp-2">{request.reason}</p>
+      )}
+      <div className="flex items-center gap-2">
+        <select
+          value={substituteId}
+          onChange={(e) => setSubstituteId(e.target.value)}
+          className="flex-1 min-w-0 text-xs rounded-lg border border-stone-200 px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+          disabled={saving}
+        >
+          <option value="">Pick substitute…</option>
+          {stylists.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleAssign}
+          disabled={!substituteId || saving}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? '…' : 'Assign'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </li>
   )
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
-import type { Stylist, Service, Resident, ComplianceDocumentWithUrl, ComplianceDocumentType } from '@/types'
+import type { Stylist, Service, Resident, ComplianceDocumentWithUrl, ComplianceDocumentType, StylistAvailability } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 
@@ -23,6 +23,45 @@ const DOC_TYPE_BADGE: Record<ComplianceDocumentType, string> = {
   w9: 'bg-stone-100 text-stone-600',
   contractor_agreement: 'bg-stone-100 text-stone-600',
   background_check: 'bg-emerald-50 text-emerald-700',
+}
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function formatTimeLabel(hhmm: string): string {
+  const [hStr, mStr] = hhmm.split(':')
+  const h = Number(hStr)
+  const m = Number(mStr)
+  const period = h >= 12 ? 'pm' : 'am'
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  return m === 0 ? `${hour12}${period}` : `${hour12}:${String(m).padStart(2, '0')}${period}`
+}
+
+function summarizeAvailability(rows: StylistAvailability[]): string[] {
+  const active = rows
+    .filter((r) => r.active)
+    .slice()
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+  if (active.length === 0) return []
+  const groups: string[] = []
+  let groupStart = 0
+  for (let i = 1; i <= active.length; i++) {
+    const prev = active[i - 1]
+    const cur = active[i]
+    const sameTimes =
+      cur && cur.startTime === prev.startTime && cur.endTime === prev.endTime
+    const consecutive = cur && cur.dayOfWeek === prev.dayOfWeek + 1
+    if (!sameTimes || !consecutive) {
+      const first = active[groupStart]
+      const last = prev
+      const dayLabel =
+        first.dayOfWeek === last.dayOfWeek
+          ? DAY_SHORT[first.dayOfWeek]
+          : `${DAY_SHORT[first.dayOfWeek]}–${DAY_SHORT[last.dayOfWeek]}`
+      groups.push(`${dayLabel} ${formatTimeLabel(first.startTime)}–${formatTimeLabel(first.endTime)}`)
+      groupStart = i
+    }
+  }
+  return groups
 }
 
 const PRESET_COLORS = [
@@ -65,6 +104,7 @@ interface StylistDetailClientProps {
     serviceBreakdown: ServiceBreakdown[]
   }
   complianceDocuments: ComplianceDocumentWithUrl[]
+  availability: StylistAvailability[]
   isAdmin: boolean
 }
 
@@ -73,6 +113,7 @@ export function StylistDetailClient({
   upcomingBookings,
   stats,
   complianceDocuments,
+  availability,
   isAdmin,
 }: StylistDetailClientProps) {
   const router = useRouter()
@@ -454,6 +495,21 @@ export function StylistDetailClient({
               })}
             </ul>
           )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+          <div className="px-5 py-4 border-b border-stone-100">
+            <h3 className="text-sm font-semibold text-stone-900">Availability</h3>
+          </div>
+          <div className="px-5 py-4 text-sm text-stone-600 space-y-1">
+            {(() => {
+              const lines = summarizeAvailability(availability)
+              if (lines.length === 0) {
+                return <p className="text-stone-500">No availability set.</p>
+              }
+              return lines.map((line) => <p key={line}>{line}</p>)
+            })()}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">

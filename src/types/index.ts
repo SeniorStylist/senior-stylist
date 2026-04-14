@@ -184,3 +184,33 @@ export interface LogEntry {
   createdAt: Date | null
   updatedAt: Date | null
 }
+
+export interface StylistAvailability {
+  id: string
+  stylistId: string
+  facilityId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  active: boolean
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export type CoverageRequestStatus = 'open' | 'filled' | 'cancelled'
+
+export interface CoverageRequest {
+  id: string
+  facilityId: string
+  stylistId: string
+  requestedDate: string
+  reason: string | null
+  status: CoverageRequestStatus
+  substituteStylistId: string | null
+  assignedBy: string | null
+  assignedAt: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+  stylist?: { id: string; name: string } | null
+  substituteStylist?: { id: string; name: string } | null
+}

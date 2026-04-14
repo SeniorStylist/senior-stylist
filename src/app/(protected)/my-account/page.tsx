@@ -1,7 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { profiles, stylists, bookings, complianceDocuments } from '@/db/schema'
+import {
+  profiles,
+  stylists,
+  bookings,
+  complianceDocuments,
+  stylistAvailability,
+  coverageRequests,
+} from '@/db/schema'
 import { eq, and, gte, lte, desc } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
@@ -24,6 +31,8 @@ export default async function MyAccountPage() {
   let weekBookings: any[] = []
   let monthEarningsCents = 0
   let complianceDocs: Array<Record<string, unknown>> = []
+  let availabilityRows: Array<Record<string, unknown>> = []
+  let coverageRows: Array<Record<string, unknown>> = []
 
   if (profile?.stylistId) {
     stylist = await db.query.stylists.findFirst({
@@ -86,6 +95,22 @@ export default async function MyAccountPage() {
           return { ...d, signedUrl: data?.signedUrl ?? null }
         })
       )
+
+      availabilityRows = await db.query.stylistAvailability.findMany({
+        where: and(
+          eq(stylistAvailability.stylistId, stylist.id),
+          eq(stylistAvailability.facilityId, facilityUser.facilityId)
+        ),
+        orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
+      })
+
+      coverageRows = await db.query.coverageRequests.findMany({
+        where: and(
+          eq(coverageRequests.stylistId, stylist.id),
+          eq(coverageRequests.facilityId, facilityUser.facilityId)
+        ),
+        orderBy: (t, { asc }) => [asc(t.requestedDate)],
+      })
     }
   }
 
@@ -105,6 +130,8 @@ export default async function MyAccountPage() {
       facilityStylists={JSON.parse(JSON.stringify(sanitizeStylists(facilityStylists)))}
       googleCalendarConnected={!!(stylist?.googleCalendarId)}
       complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
+      availability={JSON.parse(JSON.stringify(availabilityRows))}
+      coverageRequests={JSON.parse(JSON.stringify(coverageRows))}
       stylistId={profile?.stylistId ?? null}
     />
   )

@@ -250,6 +250,38 @@ Used by `/api/auth/google-calendar/connect` + `/callback` to bind the OAuth call
 
 Storage bucket: **`compliance-docs`** — private (`public=false`), `fileSizeLimit: 10485760` (10 MB), `allowedMimeTypes: ['application/pdf','image/jpeg','image/png']`. All reads/writes go through service-role API routes — the service-role key never reaches the browser.
 
+### `stylist_availability`
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `stylist_id` | FK → `stylists.id` NOT NULL |
+| `facility_id` | FK → `facilities.id` NOT NULL |
+| `day_of_week` | `integer` NOT NULL — 0 = Sunday … 6 = Saturday |
+| `start_time` | `text` NOT NULL — `HH:MM` 24h |
+| `end_time` | `text` NOT NULL — `HH:MM` 24h |
+| `active` | `boolean` NOT NULL, default true — inactive rows represent checked-off days and are kept for a stable 7-day response |
+| `created_at` / `updated_at` | `timestamp`, default now |
+
+Constraint: `UNIQUE(stylist_id, day_of_week)`. Writes replace the full week atomically inside `db.transaction()` — never a partial upsert.
+
+### `coverage_requests`
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `facility_id` | FK → `facilities.id` NOT NULL |
+| `stylist_id` | FK → `stylists.id` NOT NULL — the requester |
+| `requested_date` | `date` NOT NULL |
+| `reason` | `text`, nullable |
+| `status` | `text` NOT NULL, default `open` — `open` \| `filled` \| `cancelled` |
+| `substitute_stylist_id` | FK → `stylists.id`, nullable — set when filled |
+| `assigned_by` | FK → `profiles.id`, nullable — admin who filled |
+| `assigned_at` | `timestamp`, nullable |
+| `created_at` / `updated_at` | `timestamp`, default now |
+
+Two Drizzle relations to `stylists` via named `relationName`: `coverage_stylist` (requester) + `coverage_substitute` (assigned substitute). POST derives `stylistId` from the caller's `profiles.stylistId` — never trusted from body.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -484,6 +516,12 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `DELETE /api/compliance/[id]` | Admin OR (stylist-owner AND unverified) | Removes the storage object, then the DB row. |
 | `PUT /api/compliance/[id]/verify` | **Admin** | Sets `verified=true`, `verified_by`, `verified_at`. In one `db.transaction()` mirrors to stylist columns: `license` → `license_expires_at`; `insurance` → `insurance_verified=true` + `insurance_expires_at`; `background_check` → `background_check_verified=true`. |
 | `PUT /api/compliance/[id]/unverify` | **Admin** | Clears `verified`/`verified_by`/`verified_at`. Does NOT roll back stylist mirror columns. |
+| `GET /api/availability?stylistId=` | Authenticated; admin any, stylist self only | Returns `{ availability: StylistAvailability[] }` ordered by `dayOfWeek`. |
+| `PUT /api/availability` | Stylist-self or admin in facility | Body `{ stylistId, availability: DayRow[] }`. Replaces the full week atomically inside `db.transaction()` — never a partial upsert. Active rows require `startTime < endTime`. |
+| `GET /api/coverage` | Admin (facility-wide) / stylist (forced self) / viewer 403 | Optional `?status=` + `?stylistId=` (admin only). Joins requester + substitute stylist via named relations. |
+| `POST /api/coverage` | Stylist only | Body `{ requestedDate, reason? }`. `stylistId` derived server-side from `profiles.stylistId` — never trusted. 409 on existing open request for same date. Past dates rejected. Fires `buildCoverageRequestEmailHtml` to facility admins. |
+| `PUT /api/coverage/[id]` | Admin any; stylist only to cancel own open request | Admin can set status/substituteStylistId/reason. On `status='filled'` substitute must be in facility + active + ≠ requester; sets `assignedBy`/`assignedAt`; fires `buildCoverageFilledEmailHtml` to requester. |
+| `DELETE /api/coverage/[id]` | Admin any; stylist-owner only when `status='open'` | Hard delete — coverage requests are transient. |
 | `GET /api/cron/compliance-alerts` | **Vercel Cron** (`Bearer CRON_SECRET`) | Daily at 09:00 UTC via `vercel.json`. Emails facility admins when any verified doc or stylist license/insurance `expires_at` is exactly **today+30** or **today+60**. Fallback recipient: `NEXT_PUBLIC_ADMIN_EMAIL`. All `sendEmail()` fire-and-forget. Returns `{ data: { alertsSent } }`. |
 
 ---
@@ -531,8 +569,8 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 ### Phase 7 — Compliance & Document Management (SHIPPED 2026-04-14)
 See the `compliance_documents` schema section above and the `/api/compliance/*` + `/api/cron/compliance-alerts` rows in the API directory. Admin UI lives on Stylist Detail (verify/unverify + license edits); stylist-facing UI lives on My Account (upload/view/delete own unverified docs). `computeComplianceStatus()` helper in `src/lib/compliance.ts` drives the dot on the Stylists list. Uploads proxy through the API — the service-role key is never exposed to the browser.
 
-### Phase 8 — Workforce Availability & Coverage
-New table `stylist_availability`: `stylist_id`, `day_of_week` (0–6), `start_time`, `end_time`, `active`. New table `coverage_requests`: `facility_id`, `stylist_id`, `requested_date`, `reason`, `status` (open|filled|cancelled), `substitute_stylist_id` nullable FK → stylists.
+### Phase 8 — Workforce Availability & Coverage (SHIPPED 2026-04-14)
+See the `stylist_availability` + `coverage_requests` schema sections above and the `/api/availability` + `/api/coverage*` rows in the API directory. Stylist-facing UI on My Account: Weekly Availability grid + Time Off request list. Admin-facing UI on the Dashboard: amber coverage banner + Coverage Queue card (`id="coverage-queue"`) in the right rail with substitute `<select>` + Assign (optimistic removal). Stylist Detail gets a read-only Availability card that collapses consecutive same-time days into `Mon–Fri 9am–5pm` ranges. Emails: `buildCoverageRequestEmailHtml` fires to admins on POST; `buildCoverageFilledEmailHtml` fires to the requester when an admin PUTs status=filled.
 
 ### Phase 9 — Territory / Region Management
 New table `regions`: `id` uuid PK, `name`, `franchise_id` nullable FK → franchises, `active`. Add `region_id` nullable FK to `facilities` and `stylists`. Hierarchy: Master Admin → Franchise → Region → Facility.

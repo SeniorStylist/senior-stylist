@@ -3,7 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
-import type { Stylist, ComplianceDocumentWithUrl, ComplianceDocumentType } from '@/types'
+import type {
+  Stylist,
+  ComplianceDocumentWithUrl,
+  ComplianceDocumentType,
+  StylistAvailability,
+  CoverageRequest,
+} from '@/types'
 
 interface WeekBooking {
   id: string
@@ -24,7 +30,64 @@ interface MyAccountClientProps {
   facilityStylists: Stylist[]
   googleCalendarConnected: boolean
   complianceDocuments: ComplianceDocumentWithUrl[]
+  availability: StylistAvailability[]
+  coverageRequests: CoverageRequest[]
   stylistId: string | null
+}
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DEFAULT_ACTIVE_DAYS = [1, 2, 3, 4, 5]
+
+type DayRow = {
+  dayOfWeek: number
+  active: boolean
+  startTime: string
+  endTime: string
+}
+
+function seedDays(rows: StylistAvailability[]): DayRow[] {
+  const byDay = new Map(rows.map((r) => [r.dayOfWeek, r]))
+  return Array.from({ length: 7 }, (_, day) => {
+    const existing = byDay.get(day)
+    if (existing) {
+      return {
+        dayOfWeek: day,
+        active: existing.active,
+        startTime: existing.startTime,
+        endTime: existing.endTime,
+      }
+    }
+    return {
+      dayOfWeek: day,
+      active: DEFAULT_ACTIVE_DAYS.includes(day),
+      startTime: '09:00',
+      endTime: '17:00',
+    }
+  })
+}
+
+function formatCoverageDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function coverageStatusBadge(status: CoverageRequest['status']) {
+  const map = {
+    open: { cls: 'bg-amber-50 text-amber-700', label: 'Open' },
+    filled: { cls: 'bg-emerald-50 text-emerald-700', label: 'Filled' },
+    cancelled: { cls: 'bg-stone-100 text-stone-500', label: 'Cancelled' },
+  }
+  const s = map[status]
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${s.cls}`}>
+      {s.label}
+    </span>
+  )
 }
 
 const DOC_TYPE_LABEL: Record<ComplianceDocumentType, string> = {
@@ -69,7 +132,7 @@ function statusBadge(status: string) {
   )
 }
 
-export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, stylistId }: MyAccountClientProps) {
+export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId }: MyAccountClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')
@@ -86,6 +149,98 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [days, setDays] = useState<DayRow[]>(() => seedDays(availability))
+  const [savingAvailability, setSavingAvailability] = useState(false)
+  const [availabilitySavedMsg, setAvailabilitySavedMsg] = useState<string | null>(null)
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null)
+  const [coverageOpen, setCoverageOpen] = useState(false)
+  const [coverageDate, setCoverageDate] = useState('')
+  const [coverageReason, setCoverageReason] = useState('')
+  const [coverageSubmitting, setCoverageSubmitting] = useState(false)
+  const [coverageError, setCoverageError] = useState<string | null>(null)
+  const [coverageSavedMsg, setCoverageSavedMsg] = useState<string | null>(null)
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
+
+  const todayStr = (() => {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  })()
+
+  const handleSaveAvailability = async () => {
+    if (!stylistId) return
+    const invalid = days.find((d) => d.active && d.startTime >= d.endTime)
+    if (invalid) {
+      setAvailabilityError(`${DAY_LABELS[invalid.dayOfWeek]} start time must be before end time`)
+      return
+    }
+    setAvailabilityError(null)
+    setSavingAvailability(true)
+    try {
+      const res = await fetch('/api/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stylistId, availability: days }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setAvailabilityError(typeof json.error === 'string' ? json.error : 'Failed to save')
+      } else {
+        setAvailabilitySavedMsg('Availability saved')
+        setTimeout(() => setAvailabilitySavedMsg(null), 3000)
+        router.refresh()
+      }
+    } catch {
+      setAvailabilityError('Failed to save')
+    } finally {
+      setSavingAvailability(false)
+    }
+  }
+
+  const handleCreateCoverage = async () => {
+    if (!coverageDate) return
+    setCoverageSubmitting(true)
+    setCoverageError(null)
+    try {
+      const res = await fetch('/api/coverage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestedDate: coverageDate,
+          reason: coverageReason.trim() || undefined,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCoverageError(typeof json.error === 'string' ? json.error : 'Failed to submit')
+      } else {
+        setCoverageOpen(false)
+        setCoverageDate('')
+        setCoverageReason('')
+        setCoverageSavedMsg('Request submitted')
+        setTimeout(() => setCoverageSavedMsg(null), 3000)
+        router.refresh()
+      }
+    } catch {
+      setCoverageError('Failed to submit')
+    } finally {
+      setCoverageSubmitting(false)
+    }
+  }
+
+  const handleCancelCoverage = async (id: string) => {
+    const res = await fetch(`/api/coverage/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled' }),
+    })
+    if (res.ok) {
+      setConfirmCancelId(null)
+      router.refresh()
+    }
+  }
 
   const handleUpload = async () => {
     if (!uploadFile || !stylistId) return
@@ -511,6 +666,201 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           </ul>
         )}
       </div>
+
+      {linked && stylistId && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">
+              Weekly Availability
+            </p>
+            <button
+              onClick={handleSaveAvailability}
+              disabled={savingAvailability}
+              className="text-xs font-medium px-2.5 py-1 rounded-lg text-white disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              {savingAvailability ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+          <ul className="space-y-1">
+            {days.map((d) => (
+              <li
+                key={d.dayOfWeek}
+                className="flex items-center gap-3 min-h-[44px] px-2 rounded-xl hover:bg-stone-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={d.active}
+                  onChange={(e) =>
+                    setDays((prev) =>
+                      prev.map((row) =>
+                        row.dayOfWeek === d.dayOfWeek ? { ...row, active: e.target.checked } : row
+                      )
+                    )
+                  }
+                  className="w-4 h-4 accent-[#8B2E4A]"
+                />
+                <span className="text-sm font-medium text-stone-700 w-10 shrink-0">
+                  {DAY_LABELS[d.dayOfWeek]}
+                </span>
+                <input
+                  type="time"
+                  value={d.startTime}
+                  disabled={!d.active}
+                  onChange={(e) =>
+                    setDays((prev) =>
+                      prev.map((row) =>
+                        row.dayOfWeek === d.dayOfWeek ? { ...row, startTime: e.target.value } : row
+                      )
+                    )
+                  }
+                  className={`px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 ${!d.active ? 'opacity-50' : ''}`}
+                />
+                <span className="text-xs text-stone-400">to</span>
+                <input
+                  type="time"
+                  value={d.endTime}
+                  disabled={!d.active}
+                  onChange={(e) =>
+                    setDays((prev) =>
+                      prev.map((row) =>
+                        row.dayOfWeek === d.dayOfWeek ? { ...row, endTime: e.target.value } : row
+                      )
+                    )
+                  }
+                  className={`px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 ${!d.active ? 'opacity-50' : ''}`}
+                />
+              </li>
+            ))}
+          </ul>
+          {availabilityError && (
+            <p className="mt-3 text-xs text-red-600">{availabilityError}</p>
+          )}
+          {availabilitySavedMsg && (
+            <p className="mt-3 text-xs text-emerald-600">{availabilitySavedMsg}</p>
+          )}
+        </div>
+      )}
+
+      {linked && stylistId && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">
+              Time Off &amp; Coverage Requests
+            </p>
+            {!coverageOpen && (
+              <button
+                onClick={() => setCoverageOpen(true)}
+                className="text-xs font-medium px-2.5 py-1 rounded-lg border border-rose-200 text-[#8B2E4A] hover:bg-rose-50 transition-colors"
+              >
+                + Request Time Off
+              </button>
+            )}
+          </div>
+
+          {coverageOpen && (
+            <div className="mb-4 p-4 rounded-xl bg-rose-50 border border-rose-100 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-stone-600 block mb-1">Date</label>
+                <input
+                  type="date"
+                  required
+                  min={todayStr}
+                  value={coverageDate}
+                  onChange={(e) => setCoverageDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-stone-600 block mb-1">Reason (optional)</label>
+                <textarea
+                  value={coverageReason}
+                  maxLength={500}
+                  rows={2}
+                  onChange={(e) => setCoverageReason(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 resize-none"
+                />
+              </div>
+              {coverageError && <p className="text-xs text-red-600">{coverageError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateCoverage}
+                  disabled={!coverageDate || coverageSubmitting}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: '#8B2E4A' }}
+                >
+                  {coverageSubmitting ? 'Submitting…' : 'Submit'}
+                </button>
+                <button
+                  onClick={() => {
+                    setCoverageOpen(false)
+                    setCoverageDate('')
+                    setCoverageReason('')
+                    setCoverageError(null)
+                  }}
+                  className="px-4 py-2 rounded-xl text-sm text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {coverageSavedMsg && (
+            <p className="mb-3 text-xs text-emerald-600">{coverageSavedMsg}</p>
+          )}
+
+          {coverageRequests.length === 0 ? (
+            <p className="text-sm text-stone-400 py-2">No time-off requests yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {coverageRequests.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-100"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-stone-900">
+                      {formatCoverageDate(r.requestedDate)}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {coverageStatusBadge(r.status)}
+                      <span className="text-[11px] text-stone-500 truncate">
+                        {r.reason || '—'}
+                      </span>
+                    </div>
+                  </div>
+                  {r.status === 'open' && (
+                    confirmCancelId === r.id ? (
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => handleCancelCoverage(r.id)}
+                          className="text-xs px-2 py-1 rounded-lg text-white bg-red-500 hover:bg-red-600"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => setConfirmCancelId(null)}
+                          className="text-xs px-2 py-1 rounded-lg text-stone-600 border border-stone-200"
+                        >
+                          Keep
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmCancelId(r.id)}
+                        className="shrink-0 text-xs text-stone-500 hover:text-red-600"
+                      >
+                        Cancel
+                      </button>
+                    )
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Schedule card */}
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">

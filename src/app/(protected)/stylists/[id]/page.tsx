@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, stylists, complianceDocuments } from '@/db/schema'
+import { bookings, stylists, complianceDocuments, stylistAvailability } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
@@ -113,6 +113,14 @@ export default async function StylistDetailPage({
     serviceBreakdown,
   }
 
+  const availability = await db.query.stylistAvailability.findMany({
+    where: and(
+      eq(stylistAvailability.stylistId, id),
+      eq(stylistAvailability.facilityId, facilityUser.facilityId)
+    ),
+    orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
+  })
+
   const docs = await db.query.complianceDocuments.findMany({
     where: and(
       eq(complianceDocuments.stylistId, id),
@@ -136,6 +144,7 @@ export default async function StylistDetailPage({
       upcomingBookings={JSON.parse(JSON.stringify(upcomingBookings))}
       stats={stats}
       complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
+      availability={JSON.parse(JSON.stringify(availability))}
       isAdmin={facilityUser.role === 'admin'}
     />
   )
