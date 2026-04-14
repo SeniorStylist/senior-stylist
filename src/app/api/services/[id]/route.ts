@@ -75,6 +75,7 @@ export async function PUT(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
     const { facilityId } = facilityUser
 
     const body = await request.json()
@@ -113,6 +114,7 @@ export async function DELETE(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
     const { facilityId } = facilityUser
 
     const [updated] = await db

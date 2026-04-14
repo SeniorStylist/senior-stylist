@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
+
+const MAX_PDF_BYTES = 50 * 1024 * 1024
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -66,9 +69,16 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const facilityUser = await getUserFacility(user.id)
+    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
+    if (file.size > MAX_PDF_BYTES) {
+      return Response.json({ error: 'File too large (max 50MB)' }, { status: 413 })
+    }
 
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) {

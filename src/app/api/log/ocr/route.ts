@@ -5,6 +5,9 @@ import { NextRequest } from 'next/server'
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+const MAX_FILE_COUNT = 20
+
 const BASE_INSTRUCTION = `You are reading a handwritten salon log sheet from a senior living facility. Extract ALL information you can read from this sheet.
 
 Return ONLY a valid JSON object with this exact shape:
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     // Verify API key is present
     const apiKey = process.env.GEMINI_API_KEY
@@ -118,6 +122,14 @@ export async function POST(request: NextRequest) {
     console.log(`[OCR] Received ${files.length} file(s), ${knownServices.length} known services`)
 
     if (files.length === 0) return Response.json({ error: 'No images provided' }, { status: 400 })
+    if (files.length > MAX_FILE_COUNT) {
+      return Response.json({ error: `Too many files (max ${MAX_FILE_COUNT})` }, { status: 413 })
+    }
+    for (const f of files) {
+      if (f.size > MAX_FILE_BYTES) {
+        return Response.json({ error: `File too large (max 10MB): ${f.name}` }, { status: 413 })
+      }
+    }
 
     // Images + PDFs — Gemini handles PDFs natively via inlineData
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']
