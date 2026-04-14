@@ -159,6 +159,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [lastBookingId, setLastBookingId] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState<Record<number, boolean>>({})
 
   // Derived values
   const nonAddonServices = services.filter(s => s.pricingType !== 'addon')
@@ -194,6 +195,10 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
     setSelectedServiceIds(prev => {
       const next = [...prev]
       next[idx] = id
+      const totalRows = Math.max(prev.length, idx + 1)
+      if (totalRows <= 1) {
+        setTimeout(() => setPickerOpen(p => ({ ...p, [idx]: false })), 150)
+      }
       return next
     })
     if (idx === 0) {
@@ -245,6 +250,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
     setSelectedAddonServiceIds([])
     setSelectedQuantity(1)
     setSelectedOptionName('')
+    setPickerOpen({})
     setSelectedStylist(null)
     const today = todayStr()
     setSelectedDate(today)
@@ -448,6 +454,8 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   /* After first selection — show selected + allow additional */
                   <div className="space-y-4">
                     {selectedServiceIds.map((svcId, idx) => {
+                      const isOpen = pickerOpen[idx] !== false
+                      const selectedSvc = services.find(s => s.id === svcId)
                       const availableForSlot = nonAddonServices.filter(s => s.id === svcId || !selectedServiceIds.includes(s.id))
                       const groups = groupByCategory(availableForSlot)
                       return (
@@ -463,44 +471,64 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                               </button>
                             </div>
                           )}
-                          <div className="space-y-4">
-                            {(groups.length <= 1 ? [['', availableForSlot] as [string, ServiceData[]]] : groups).map(([category, list]) => (
-                              <div key={category || 'all'} className="space-y-2">
-                                {groups.length > 1 && category && (
-                                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{category}</p>
+                          {!isOpen && selectedSvc ? (
+                            /* Collapsed summary row */
+                            <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {selectedSvc.color && (
+                                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: selectedSvc.color }} />
                                 )}
-                                {list.map(svc => (
-                                  <button
-                                    key={svc.id}
-                                    onClick={() => setServiceAt(idx, svc.id)}
-                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
-                                      svcId === svc.id
-                                        ? 'border-[#8B2E4A] bg-rose-50'
-                                        : 'border-stone-200 bg-white hover:border-stone-300'
-                                    }`}
-                                  >
-                                    {svc.color && (
-                                      <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: svc.color }} />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-stone-900">{svc.name}</p>
-                                      <p className="text-xs text-stone-500 mt-0.5">
-                                        {formatPricingLabel(svc)} · {svc.durationMinutes} min
-                                      </p>
-                                      {svc.description && (
-                                        <p className="text-xs text-stone-400 mt-1 line-clamp-2">{svc.description}</p>
-                                      )}
-                                    </div>
-                                    {svcId === svc.id && (
-                                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.5">
-                                        <polyline points="20 6 9 17 4 12" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                ))}
+                                <span className="text-sm font-semibold text-stone-900 truncate">{selectedSvc.name}</span>
+                                <span className="text-xs text-stone-500 shrink-0">{formatPricingLabel(selectedSvc)}</span>
                               </div>
-                            ))}
-                          </div>
+                              <button
+                                onClick={() => setPickerOpen(p => ({ ...p, [idx]: true }))}
+                                className="text-xs font-medium text-[#8B2E4A] shrink-0 ml-3"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          ) : (
+                            /* Full card grid */
+                            <div className="space-y-4">
+                              {(groups.length <= 1 ? [['', availableForSlot] as [string, ServiceData[]]] : groups).map(([category, list]) => (
+                                <div key={category || 'all'} className="space-y-2">
+                                  {groups.length > 1 && category && (
+                                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{category}</p>
+                                  )}
+                                  {list.map(svc => (
+                                    <button
+                                      key={svc.id}
+                                      onClick={() => setServiceAt(idx, svc.id)}
+                                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                                        svcId === svc.id
+                                          ? 'border-[#8B2E4A] bg-rose-50'
+                                          : 'border-stone-200 bg-white hover:border-stone-300'
+                                      }`}
+                                    >
+                                      {svc.color && (
+                                        <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: svc.color }} />
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-stone-900">{svc.name}</p>
+                                        <p className="text-xs text-stone-500 mt-0.5">
+                                          {formatPricingLabel(svc)} · {svc.durationMinutes} min
+                                        </p>
+                                        {svc.description && (
+                                          <p className="text-xs text-stone-400 mt-1 line-clamp-2">{svc.description}</p>
+                                        )}
+                                      </div>
+                                      {svcId === svc.id && (
+                                        <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.5">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
