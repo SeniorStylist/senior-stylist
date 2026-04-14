@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { profiles } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { profiles, stylists, oauthStates } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { getAuthUrl } from '@/lib/google-calendar/oauth-client'
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -22,7 +23,17 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'No stylist linked to this account' }, { status: 400 })
     }
 
-    const url = getAuthUrl(profile.stylistId)
+    const stylist = await db.query.stylists.findFirst({
+      where: and(eq(stylists.id, profile.stylistId), eq(stylists.facilityId, facilityUser.facilityId)),
+    })
+    if (!stylist) {
+      return Response.json({ error: 'Stylist not in your facility' }, { status: 403 })
+    }
+
+    const nonce = randomUUID()
+    await db.insert(oauthStates).values({ nonce, userId: user.id, stylistId: stylist.id })
+
+    const url = getAuthUrl(nonce)
     return NextResponse.redirect(url)
   } catch (err) {
     console.error('Google Calendar connect error:', err)

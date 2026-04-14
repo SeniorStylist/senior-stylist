@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
+import { toClientJson } from '@/lib/sanitize'
 
 const createSchema = z.object({
   stylistId: z.string().uuid(),
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    return Response.json({ data: { bookings: dayBookings, logEntries: dayLogEntries } })
+    return Response.json({ data: { bookings: toClientJson(dayBookings), logEntries: dayLogEntries } })
   } catch (err) {
     console.error('GET /api/log error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

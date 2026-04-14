@@ -1,6 +1,7 @@
 import { db } from '@/db'
 import { residents, bookings, facilities } from '@/db/schema'
 import { eq, gte, lt, ne } from 'drizzle-orm'
+import { toClientJson } from '@/lib/sanitize'
 import { NextRequest } from 'next/server'
 
 export async function GET(
@@ -24,6 +25,14 @@ export async function GET(
       where: eq(facilities.id, resident.facilityId),
     })
 
+    const stylistCols = {
+      id: true,
+      facilityId: true,
+      name: true,
+      color: true,
+      active: true,
+    } as const
+
     const [upcomingBookings, pastBookings] = await Promise.all([
       db.query.bookings.findMany({
         where: (b, { and, eq: eqFn, gte: gteFn, ne: neFn }) =>
@@ -32,13 +41,13 @@ export async function GET(
             gteFn(b.startTime, now),
             neFn(b.status, 'cancelled')
           ),
-        with: { service: true, stylist: true },
+        with: { service: true, stylist: { columns: stylistCols } },
         orderBy: (t, { asc }) => [asc(t.startTime)],
       }),
       db.query.bookings.findMany({
         where: (b, { and, eq: eqFn, lt: ltFn }) =>
           and(eqFn(b.residentId, resident.id), ltFn(b.startTime, now)),
-        with: { service: true, stylist: true },
+        with: { service: true, stylist: { columns: stylistCols } },
         orderBy: (t, { desc }) => [desc(t.startTime)],
         limit: 10,
       }),
@@ -56,8 +65,8 @@ export async function GET(
           poaNotificationsEnabled: resident.poaNotificationsEnabled,
         },
         facilityPaymentType: facility?.paymentType ?? 'facility',
-        upcomingBookings: JSON.parse(JSON.stringify(upcomingBookings)),
-        pastBookings: JSON.parse(JSON.stringify(pastBookings)),
+        upcomingBookings: toClientJson(upcomingBookings),
+        pastBookings: toClientJson(pastBookings),
       },
     })
   } catch (err) {

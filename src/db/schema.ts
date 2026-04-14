@@ -209,6 +209,13 @@ export const logEntries = pgTable(
   })
 )
 
+export const oauthStates = pgTable('oauth_states', {
+  nonce: text('nonce').primaryKey(),
+  userId: uuid('user_id').notNull(),
+  stylistId: uuid('stylist_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const franchises = pgTable('franchises', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

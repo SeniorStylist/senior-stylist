@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { profiles, stylists, bookings } from '@/db/schema'
 import { eq, and, gte, lte } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
 import { MyAccountClient } from './my-account-client'
 
 export default async function MyAccountPage() {
@@ -78,11 +79,11 @@ export default async function MyAccountPage() {
   return (
     <MyAccountClient
       user={{ email: user.email ?? '', fullName: user.user_metadata?.full_name ?? null }}
-      stylist={stylist ? JSON.parse(JSON.stringify(stylist)) : null}
+      stylist={stylist ? JSON.parse(JSON.stringify(sanitizeStylist(stylist))) : null}
       weekBookings={JSON.parse(JSON.stringify(weekBookings))}
       monthEarningsCents={monthEarningsCents}
       linked={!!profile?.stylistId}
-      facilityStylists={JSON.parse(JSON.stringify(facilityStylists))}
+      facilityStylists={JSON.parse(JSON.stringify(sanitizeStylists(facilityStylists)))}
       googleCalendarConnected={!!(stylist?.googleCalendarId)}
     />
   )

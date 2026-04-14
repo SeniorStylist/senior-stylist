@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
 import { bookings, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { sanitizeStylist } from '@/lib/sanitize'
 import { eq, and, gte, lte, ne } from 'drizzle-orm'
 import { StylistDetailClient } from './stylist-detail-client'
 
@@ -113,7 +114,7 @@ export default async function StylistDetailPage({
 
   return (
     <StylistDetailClient
-      stylist={JSON.parse(JSON.stringify(stylist))}
+      stylist={JSON.parse(JSON.stringify(sanitizeStylist(stylist)))}
       upcomingBookings={JSON.parse(JSON.stringify(upcomingBookings))}
       stats={stats}
     />

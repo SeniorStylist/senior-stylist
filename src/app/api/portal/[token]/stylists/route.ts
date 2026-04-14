@@ -20,6 +20,7 @@ export async function GET(
 
     const data = await db.query.stylists.findMany({
       where: and(eq(stylists.facilityId, resident.facilityId), eq(stylists.active, true)),
+      columns: { id: true, name: true, color: true, active: true, facilityId: true },
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

@@ -23,8 +23,20 @@ export async function GET() {
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
+    const isAdmin = facilityUser.role === 'admin'
     const data = await db.query.stylists.findMany({
       where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)),
+      columns: {
+        id: true,
+        facilityId: true,
+        name: true,
+        color: true,
+        active: true,
+        googleCalendarId: true,
+        createdAt: true,
+        updatedAt: true,
+        commissionPercent: isAdmin,
+      },
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

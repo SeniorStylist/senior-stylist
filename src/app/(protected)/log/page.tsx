@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { bookings, logEntries, residents, stylists, services, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { toClientJson } from '@/lib/sanitize'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { LogClient } from './log-client'
 
@@ -68,11 +69,11 @@ export default async function LogPage() {
   return (
     <LogClient
       initialDate={today}
-      initialBookings={JSON.parse(JSON.stringify(todayBookings))}
-      initialLogEntries={JSON.parse(JSON.stringify(todayLogEntries))}
-      residents={JSON.parse(JSON.stringify(residentsList))}
-      stylists={JSON.parse(JSON.stringify(stylistsList))}
-      services={JSON.parse(JSON.stringify(servicesList))}
+      initialBookings={toClientJson(todayBookings)}
+      initialLogEntries={toClientJson(todayLogEntries)}
+      residents={toClientJson(residentsList)}
+      stylists={toClientJson(stylistsList)}
+      services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}
     />
   )

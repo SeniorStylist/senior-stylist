@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
 import { residents, bookings, services } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { toClientJson } from '@/lib/sanitize'
 import { eq, and } from 'drizzle-orm'
 import { ResidentDetailClient } from './resident-detail-client'
 
@@ -95,11 +96,11 @@ export default async function ResidentDetailPage({
 
   return (
     <ResidentDetailClient
-      resident={JSON.parse(JSON.stringify(resident))}
-      bookings={JSON.parse(JSON.stringify(residentBookings))}
+      resident={toClientJson(resident)}
+      bookings={toClientJson(residentBookings)}
       stats={stats}
       preferredServiceName={preferredServiceName}
-      facilityServices={JSON.parse(JSON.stringify(facilityServices))}
+      facilityServices={toClientJson(facilityServices)}
     />
   )
   } catch (err) {

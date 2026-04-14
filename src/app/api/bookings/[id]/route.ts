@@ -13,6 +13,7 @@ import {
 import { updateStylistCalendarEvent, deleteStylistCalendarEvent } from '@/lib/google-calendar/oauth-client'
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
+import { toClientJson } from '@/lib/sanitize'
 
 const updateSchema = z.object({
   residentId: z.string().uuid().optional(),
@@ -60,7 +61,7 @@ export async function GET(
 
     if (!data) return Response.json({ error: 'Not found' }, { status: 404 })
 
-    return Response.json({ data })
+    return Response.json({ data: toClientJson(data) })
   } catch (err) {
     console.error('GET /api/bookings/[id] error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
@@ -396,7 +397,7 @@ export async function PUT(
     })
 
     revalidateTag('bookings', {})
-    return Response.json({ data })
+    return Response.json({ data: toClientJson(data) })
   } catch (err) {
     console.error('PUT /api/bookings/[id] error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

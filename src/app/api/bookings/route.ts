@@ -12,6 +12,7 @@ import { Resend } from 'resend'
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
+import { toClientJson } from '@/lib/sanitize'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
       orderBy: (t, { asc }) => [asc(t.startTime)],
     })
 
-    return Response.json({ data })
+    return Response.json({ data: toClientJson(data) })
   } catch (err) {
     console.error('GET /api/bookings error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
@@ -348,7 +349,7 @@ export async function POST(request: NextRequest) {
     }
 
     revalidateTag('bookings', {})
-    return Response.json({ data }, { status: 201 })
+    return Response.json({ data: toClientJson(data) }, { status: 201 })
   } catch (err) {
     console.error('POST /api/bookings error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

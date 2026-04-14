@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { facilities, residents, stylists, services, invites, accessRequests, profiles } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { sanitizeStylists } from '@/lib/sanitize'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
 
@@ -118,7 +119,7 @@ export default async function DashboardPage() {
           facilityId={facilityUser.facilityId}
           facility={JSON.parse(JSON.stringify(facility))}
           initialResidents={JSON.parse(JSON.stringify(residentsList))}
-          initialStylists={JSON.parse(JSON.stringify(stylistsList))}
+          initialStylists={JSON.parse(JSON.stringify(sanitizeStylists(stylistsList)))}
           initialServices={JSON.parse(JSON.stringify(servicesList))}
           isAdmin={facilityUser.role === 'admin'}
           userRole={facilityUser.role}
