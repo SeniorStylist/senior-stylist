@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
+import { sanitizeFacility } from '@/lib/sanitize'
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -39,7 +40,7 @@ export async function GET() {
     })
     if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
 
-    return Response.json({ data: facility })
+    return Response.json({ data: sanitizeFacility(facility) })
   } catch (err) {
     console.error('GET /api/facility error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
@@ -88,7 +89,7 @@ export async function PUT(request: NextRequest) {
       .where(eq(facilities.id, facilityUser.facilityId))
       .returning()
 
-    return Response.json({ data: updated })
+    return Response.json({ data: sanitizeFacility(updated) })
   } catch (err) {
     console.error('PUT /api/facility error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

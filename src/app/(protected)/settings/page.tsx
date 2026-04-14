@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { facilityUsers, accessRequests, stylists } from '@/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { SettingsClient } from './settings-client'
 
 export default async function SettingsPage() {
@@ -74,8 +75,8 @@ export default async function SettingsPage() {
 
   return (
     <SettingsClient
-      facility={JSON.parse(JSON.stringify(facility))}
-      connectedUsers={JSON.parse(JSON.stringify(usersWithStatus))}
+      facility={toClientJson(sanitizeFacility(facility))}
+      connectedUsers={toClientJson(usersWithStatus)}
       currentUserId={user.id}
       currentUserEmail={user.email ?? null}
       isAdmin={facilityUser.role === 'admin'}

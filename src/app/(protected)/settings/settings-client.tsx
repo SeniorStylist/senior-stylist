@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import type { Facility } from '@/types'
+import type { PublicFacility } from '@/lib/sanitize'
 import { createClient } from '@/lib/supabase/client'
 
 interface ConnectedUser {
@@ -31,7 +31,7 @@ interface AccessRequestData {
 }
 
 interface SettingsClientProps {
-  facility: Facility
+  facility: PublicFacility
   connectedUsers: ConnectedUser[]
   currentUserId: string
   currentUserEmail: string | null
@@ -99,9 +99,11 @@ export function SettingsClient({
   )
   const [saving, setSaving] = useState(false)
 
-  // Stripe keys form
+  // Stripe keys form — secret is write-only: we never receive it from the server,
+  // so the input stays blank unless the admin is entering a new value.
   const [stripePublishableKey, setStripePublishableKey] = useState(facility.stripePublishableKey ?? '')
-  const [stripeSecretKey, setStripeSecretKey] = useState(facility.stripeSecretKey ?? '')
+  const [stripeSecretKey, setStripeSecretKey] = useState('')
+  const hasStripeSecret = facility.hasStripeSecret
   const [savingStripe, setSavingStripe] = useState(false)
   const [savedStripe, setSavedStripe] = useState(false)
   const [stripeError, setStripeError] = useState('')
@@ -982,9 +984,16 @@ export function SettingsClient({
               type="password"
               value={stripeSecretKey}
               onChange={(e) => setStripeSecretKey(e.target.value)}
-              placeholder="sk_live_…"
+              placeholder={hasStripeSecret ? 'Stored securely — enter a new key to replace' : 'sk_live_…'}
+              autoComplete="new-password"
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] font-mono"
             />
+            {hasStripeSecret && !stripeSecretKey && (
+              <p className="mt-1.5 text-[11px] text-emerald-700 flex items-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                Secret key configured
+              </p>
+            )}
           </div>
           {stripeError && <p className="text-red-600 text-xs">{stripeError}</p>}
           <button
