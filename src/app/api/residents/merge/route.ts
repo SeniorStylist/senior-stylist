@@ -9,8 +9,8 @@ import { z } from 'zod'
 const mergeSchema = z.object({
   keepId: z.string().uuid(),
   mergeId: z.string().uuid(),
-  finalName: z.string().min(1),
-  finalRoom: z.string().nullable(),
+  finalName: z.string().min(1).max(200),
+  finalRoom: z.string().max(50).nullable(),
 })
 
 export async function POST(request: Request) {

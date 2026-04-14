@@ -7,16 +7,16 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  roomNumber: z.string().optional(),
-  phone: z.string().optional(),
-  notes: z.string().optional(),
+  name: z.string().min(1).max(200).optional(),
+  roomNumber: z.string().max(50).optional(),
+  phone: z.string().max(50).optional(),
+  notes: z.string().max(2000).optional(),
   active: z.boolean().optional(),
   defaultServiceId: z.string().uuid().nullable().optional(),
-  poaName: z.string().optional(),
-  poaEmail: z.string().optional(),
-  poaPhone: z.string().optional(),
-  poaPaymentMethod: z.string().optional(),
+  poaName: z.string().max(200).optional(),
+  poaEmail: z.string().max(320).optional(),
+  poaPhone: z.string().max(50).optional(),
+  poaPaymentMethod: z.string().max(100).optional(),
   poaNotificationsEnabled: z.boolean().optional(),
 })
 

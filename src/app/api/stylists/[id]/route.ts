@@ -7,8 +7,8 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  color: z.string().optional(),
+  name: z.string().min(1).max(200).optional(),
+  color: z.string().max(20).optional(),
   commissionPercent: z.number().int().min(0).max(100).optional(),
   active: z.boolean().optional(),
 })

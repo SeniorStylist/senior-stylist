@@ -6,10 +6,10 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const createSchema = z.object({
-  name: z.string().min(1),
-  address: z.string().optional(),
-  phone: z.string().optional(),
-  timezone: z.string().optional(),
+  name: z.string().min(1).max(200),
+  address: z.string().max(500).optional(),
+  phone: z.string().max(50).optional(),
+  timezone: z.string().max(100).optional(),
 })
 
 export async function GET() {

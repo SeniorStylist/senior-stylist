@@ -7,8 +7,8 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const createSchema = z.object({
-  name: z.string().min(1),
-  color: z.string().optional(),
+  name: z.string().min(1).max(200),
+  color: z.string().max(20).optional(),
 })
 
 export async function GET() {

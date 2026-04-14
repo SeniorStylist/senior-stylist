@@ -8,9 +8,9 @@ import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 
 const createSchema = z.object({
-  name: z.string().min(1),
-  roomNumber: z.string().optional(),
-  phone: z.string().optional(),
+  name: z.string().min(1).max(200),
+  roomNumber: z.string().max(50).optional(),
+  phone: z.string().max(50).optional(),
 })
 
 export async function GET() {

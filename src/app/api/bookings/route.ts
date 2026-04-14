@@ -20,9 +20,9 @@ const createSchema = z.object({
   serviceId: z.string().uuid().optional(),
   serviceIds: z.array(z.string().uuid()).min(1).optional(),
   startTime: z.string().datetime(),
-  notes: z.string().optional(),
-  selectedQuantity: z.number().int().min(1).optional(),
-  selectedOption: z.string().optional(),
+  notes: z.string().max(2000).optional(),
+  selectedQuantity: z.number().int().min(1).max(1000).optional(),
+  selectedOption: z.string().max(200).optional(),
   addonChecked: z.boolean().optional(),
   addonServiceIds: z.array(z.string().uuid()).optional().default([]),
 }).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {

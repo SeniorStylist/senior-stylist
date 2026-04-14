@@ -18,8 +18,8 @@ function getClientIp(request: NextRequest): string {
 
 const createSchema = z.object({
   facilityId: z.string().uuid().optional().nullable(),
-  email: z.string().email(),
-  fullName: z.string().optional(),
+  email: z.string().email().max(320),
+  fullName: z.string().max(200).optional(),
   userId: z.string().uuid().optional(),
   role: z.enum(['stylist', 'admin', 'viewer']).optional(),
 })

@@ -18,16 +18,16 @@ const pricingOptionSchema = z.object({
 })
 
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  priceCents: z.number().int().min(0).optional(),
-  durationMinutes: z.number().int().positive().optional(),
-  description: z.string().optional(),
-  color: z.string().optional(),
+  name: z.string().min(1).max(200).optional(),
+  priceCents: z.number().int().min(0).max(10_000_000).optional(),
+  durationMinutes: z.number().int().positive().max(1440).optional(),
+  description: z.string().max(2000).optional(),
+  color: z.string().max(20).optional(),
   active: z.boolean().optional(),
   pricingType: z.enum(['fixed', 'addon', 'tiered', 'multi_option']).optional(),
-  addonAmountCents: z.number().int().min(0).nullable().optional(),
-  pricingTiers: z.array(pricingTierSchema).nullable().optional(),
-  pricingOptions: z.array(pricingOptionSchema).nullable().optional(),
+  addonAmountCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  pricingTiers: z.array(pricingTierSchema).max(20).nullable().optional(),
+  pricingOptions: z.array(pricingOptionSchema).max(20).nullable().optional(),
 })
 
 export async function GET(

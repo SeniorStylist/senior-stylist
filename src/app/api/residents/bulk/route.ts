@@ -9,8 +9,8 @@ import { NextRequest } from 'next/server'
 const bulkSchema = z.object({
   rows: z.array(
     z.object({
-      name: z.string().min(1),
-      roomNumber: z.string().optional(),
+      name: z.string().min(1).max(200),
+      roomNumber: z.string().max(50).optional(),
     })
   ).min(1).max(500),
 })

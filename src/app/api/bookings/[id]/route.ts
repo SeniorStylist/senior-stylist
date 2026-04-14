@@ -23,13 +23,13 @@ const updateSchema = z.object({
   addonServiceIds: z.array(z.string().uuid()).optional(),
   startTime: z.string().datetime().optional(),
   priceCents: z.number().int().min(0).optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
   status: z.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
   paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional(),
-  cancellationReason: z.string().optional(),
+  cancellationReason: z.string().max(500).optional(),
   cancelFuture: z.boolean().optional(),
-  selectedQuantity: z.number().int().min(1).optional(),
-  selectedOption: z.string().optional(),
+  selectedQuantity: z.number().int().min(1).max(1000).optional(),
+  selectedOption: z.string().max(200).optional(),
   addonChecked: z.boolean().optional(),
 })
 

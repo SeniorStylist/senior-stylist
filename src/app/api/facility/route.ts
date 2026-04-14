@@ -8,20 +8,20 @@ import { NextRequest } from 'next/server'
 import { sanitizeFacility } from '@/lib/sanitize'
 
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  address: z.string().optional(),
-  phone: z.string().optional(),
-  calendarId: z.string().optional(),
-  timezone: z.string().optional(),
+  name: z.string().min(1).max(200).optional(),
+  address: z.string().max(500).optional(),
+  phone: z.string().max(50).optional(),
+  calendarId: z.string().max(500).optional(),
+  timezone: z.string().max(100).optional(),
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
-  stripePublishableKey: z.string().optional(),
-  stripeSecretKey: z.string().optional(),
+  stripePublishableKey: z.string().max(500).optional(),
+  stripeSecretKey: z.string().max(500).optional(),
   workingHours: z.object({
-    days: z.array(z.string()),
-    startTime: z.string(),
-    endTime: z.string(),
+    days: z.array(z.string().max(20)).max(7),
+    startTime: z.string().max(10),
+    endTime: z.string().max(10),
   }).optional(),
-  contactEmail: z.string().email().optional().nullable(),
+  contactEmail: z.string().email().max(320).optional().nullable(),
 })
 
 export async function GET() {

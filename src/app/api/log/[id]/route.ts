@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const updateSchema = z.object({
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
   finalized: z.boolean().optional(),
 })
 

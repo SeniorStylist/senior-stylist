@@ -12,8 +12,8 @@ const bookSchema = z.object({
   serviceIds: z.array(z.string().uuid()).min(1).optional(),
   stylistId: z.string().uuid(),
   startTime: z.string().datetime(),
-  selectedQuantity: z.number().int().min(1).optional(),
-  selectedOption: z.string().optional(),
+  selectedQuantity: z.number().int().min(1).max(1000).optional(),
+  selectedOption: z.string().max(200).optional(),
   addonServiceIds: z.array(z.string().uuid()).optional().default([]),
 }).refine(d => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
   message: 'serviceId or serviceIds is required',

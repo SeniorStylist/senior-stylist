@@ -10,7 +10,7 @@ import { toClientJson } from '@/lib/sanitize'
 const createSchema = z.object({
   stylistId: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
   finalized: z.boolean().optional(),
 })
 

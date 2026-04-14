@@ -35,14 +35,14 @@ const importSchema = z.object({
         z.object({
           include: z.boolean(),
           residentId: z.string().uuid().nullable(),
-          residentName: z.string().min(1),
-          roomNumber: z.string().nullable(),
+          residentName: z.string().min(1).max(200),
+          roomNumber: z.string().max(50).nullable(),
           serviceId: z.string().uuid().nullable(),
-          serviceName: z.string().min(1),
-          additionalServiceIds: z.array(z.string().uuid().nullable()).optional().default([]),
-          additionalServiceNames: z.array(z.string()).optional().default([]),
-          priceCents: z.number().int().min(0).nullable(),
-          notes: z.string().nullable(),
+          serviceName: z.string().min(1).max(200),
+          additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
+          additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
+          priceCents: z.number().int().min(0).max(10_000_000).nullable(),
+          notes: z.string().max(2000).nullable(),
         })
       ),
     })
