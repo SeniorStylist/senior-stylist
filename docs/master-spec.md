@@ -155,6 +155,8 @@ Many other authenticated routes only require a valid **facility user** and **do 
 
 - **`facility_id`** → `facilities`
 - **`name`**, **`color`** (default `#0D7377`), **`commission_percent`** (int, default 0)
+- **`google_calendar_id`** (text, nullable) — personal Google Calendar ID after OAuth connect
+- **`google_refresh_token`** (text, nullable) — OAuth refresh token; cleared on disconnect
 - **`active`**, timestamps
 
 ### `services`
@@ -276,7 +278,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 
 - **Staff calendar**: FullCalendar on `/dashboard`; bookings CRUD via `/api/bookings` and `/api/bookings/[id]`; conflict detection for stylist overlap.
 - **Google Calendar sync**: Optional sync of unsynced scheduled bookings to a facility `calendar_id` (`POST /api/bookings/sync`, `src/lib/google-calendar/`), with `google_event_id` / `sync_error` on bookings.
-- **Google Calendar sync — per-stylist (planned Phase 6)**: `stylists.calendar_id` and `stylists.google_refresh_token` columns (not yet added); OAuth flow per stylist via My Account page; stylist bookings sync to their personal calendar only; facility calendar continues receiving all bookings.
+- **Google Calendar sync — per-stylist (Phase 6, shipped 2026-04-14)**: `stylists.google_calendar_id` + `stylists.google_refresh_token` nullable columns. OAuth2 via `googleapis` — `src/lib/google-calendar/oauth-client.ts` (`getAuthUrl`, `exchangeCodeForTokens`, `createStylistCalendarEvent`, `updateStylistCalendarEvent`, `deleteStylistCalendarEvent`). Routes: `GET /api/auth/google-calendar/connect` (authenticated, redirects to Google), `GET /api/auth/google-calendar/callback` (public, stores tokens → `/my-account?calendar=connected`), `POST /api/auth/google-calendar/disconnect` (clears tokens). Booking create/update/delete fire-and-forget per-stylist sync after facility GCal sync. My Account shows Google Calendar section. Stylist detail shows "Calendar connected" emerald badge.
 - **Booking email**: Confirmation email via Resend when creating bookings (`src/app/api/bookings/route.ts`).
 - **Residents**: CRUD, per-resident stats, `portal_token` on create, bulk insert (`/api/residents/bulk`), import UI (`papaparse` / `xlsx`).
 - **Stylists & services**: CRUD APIs and admin-navigated pages; **commission** on stylists used in reports/stylist detail.

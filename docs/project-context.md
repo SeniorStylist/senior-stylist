@@ -178,15 +178,16 @@ Tailwind CSS 4, Vercel
 - Portal header: `<Image filter:invert>` linked to `https://seniorstylist.com` (white on burgundy)
 - Login, invite-accept, unauthorized: `<Image>` on white background, no filter
 
-### Phase 6 PLANNED
-- Per-stylist Google Calendar integration
-  - Add `calendar_id` column to `stylists` table
-  - Add `google_refresh_token` to `stylists` table (OAuth per stylist)
-  - OAuth flow: each stylist connects their personal Google Calendar
-    from My Account page
-  - Sync: stylist's bookings go to their personal calendar only
-  - Facility calendar continues to receive ALL bookings (unchanged)
-  - Stylist sees only their own appointments in their Google Calendar
+### Phase 6 SHIPPED (2026-04-14)
+- Per-stylist Google Calendar OAuth integration
+  - `google_calendar_id` + `google_refresh_token` nullable columns added to `stylists`
+  - `src/lib/google-calendar/oauth-client.ts` — OAuth2 helpers: `getAuthUrl`, `exchangeCodeForTokens`, `getAccessToken`, `createStylistCalendarEvent`, `updateStylistCalendarEvent`, `deleteStylistCalendarEvent`
+  - `GET /api/auth/google-calendar/connect` — authenticated, redirects to Google OAuth
+  - `GET /api/auth/google-calendar/callback` — public, decodes base64 state → stylistId, stores tokens, redirects to `/my-account?calendar=connected`
+  - `POST /api/auth/google-calendar/disconnect` — clears tokens from stylist record
+  - My Account: Google Calendar section (connect/disconnect with two-step confirm, success/error banners)
+  - Booking create/update/delete: fire-and-forget per-stylist sync after facility GCal sync
+  - Stylists detail: read-only "Calendar connected" emerald badge when `googleCalendarId` is set
   - Facility rep sees all appointments in facility calendar
   - Admin UI: show connected/disconnected status per stylist on
     Stylists page
@@ -314,10 +315,9 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Brand alignment shipped (2026-04-14) — portal is now burgundy/warm-blush matching seniorstylist.com. Next steps:
+Phase 6 shipped (2026-04-14) — per-stylist Google Calendar OAuth live. Next steps:
 1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-2. Phase 6: Per-stylist Google Calendar integration
-3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts
+2. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts
 
 ---
 
