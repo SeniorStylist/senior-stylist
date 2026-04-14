@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist — Resident Portal',
@@ -12,7 +13,9 @@ export default function ResidentLayout({ children }: { children: ReactNode }) {
         style={{ backgroundColor: '#8B2E4A' }}
         className="px-5 py-3.5 flex items-center relative overflow-hidden"
       >
-        <span className="text-white font-semibold text-sm tracking-wide relative z-10">Senior Stylist</span>
+        <a href="https://seniorstylist.com" target="_blank" rel="noopener noreferrer" className="relative z-10">
+          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={120} height={36} style={{ filter: 'brightness(0) invert(1)' }} />
+        </a>
         {/* Decorative floral SVG accent */}
         <svg
           aria-hidden="true"

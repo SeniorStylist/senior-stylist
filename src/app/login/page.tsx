@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import Image from 'next/image'
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
@@ -31,19 +32,7 @@ function LoginForm() {
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
         {/* Logo */}
         <div className="mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ backgroundColor: '#0D2B2E' }}>
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#C4687A" opacity="0.3"/>
-              <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#C4687A"/>
-              <path d="M14 11a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="#0D2B2E"/>
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold" style={{ fontFamily: "'DM Serif Display', serif", color: 'var(--color-text)' }}>
-            Senior Stylist
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Salon scheduling for senior living
-          </p>
+          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
         </div>
 
         {/* Sign in */}
@@ -86,16 +75,7 @@ export default function LoginPage() {
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ backgroundColor: '#0D2B2E' }}>
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#C4687A" opacity="0.3"/>
-              <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#C4687A"/>
-              <path d="M14 11a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="#0D2B2E"/>
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold" style={{ fontFamily: "'DM Serif Display', serif", color: 'var(--color-text)' }}>
-            Senior Stylist
-          </h1>
+          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto mb-8" />
         </div>
       </div>
     }>

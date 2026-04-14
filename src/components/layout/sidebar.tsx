@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -161,24 +162,16 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
     >
       {/* Logo / Facility name */}
       <div className="px-5 py-5 border-b border-white/10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(139, 46, 74, 0.2)' }}>
-            <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
-              <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#C4687A" opacity="0.4"/>
-              <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#C4687A"/>
-            </svg>
+        <Link href="/dashboard" className="block">
+          <div className="bg-white/95 px-2 py-1.5 rounded-xl inline-block">
+            <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={40} className="block" />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-white text-sm font-bold leading-tight" style={{ fontFamily: "'DM Serif Display', serif" }}>
-              Senior Stylist
-            </div>
-            {facilityName && !showSwitcher && (
-              <div className="text-xs leading-tight mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                {facilityName}
-              </div>
-            )}
+        </Link>
+        {facilityName && !showSwitcher && (
+          <div className="text-xs leading-tight mt-1 truncate px-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            {facilityName}
           </div>
-        </div>
+        )}
 
         {/* Facility switcher */}
         {showSwitcher && (

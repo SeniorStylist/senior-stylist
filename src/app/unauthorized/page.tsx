@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { SignOutButton } from './sign-out-button'
+import Image from 'next/image'
 
 type PageState = 'loading' | 'idle' | 'submitting' | 'submitted' | 'already_pending'
 
@@ -102,13 +103,7 @@ export default function UnauthorizedPage() {
           <>
             {/* Icon */}
             <div className="flex justify-center mb-4">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl" style={{ backgroundColor: '#0D2B2E' }}>
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                  <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#C4687A" opacity="0.3"/>
-                  <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#C4687A"/>
-                  <path d="M14 11a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="#0D2B2E"/>
-                </svg>
-              </div>
+              <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
             </div>
 
             <h1 className="text-xl font-bold text-stone-900 text-center mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>
