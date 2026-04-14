@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { resolvePrice } from '@/lib/pricing'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const bookSchema = z.object({
   serviceId: z.string().uuid().optional(),
@@ -24,6 +25,9 @@ export async function POST(
 ) {
   try {
     const { token } = await params
+
+    const rl = await checkRateLimit('portalBook', token)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.portalToken, token),

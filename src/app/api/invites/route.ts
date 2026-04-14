@@ -6,6 +6,7 @@ import { eq, desc, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { sendEmail } from '@/lib/email'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +15,9 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const rl = await checkRateLimit('invites', user.id)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
     const isSuperAdmin = !!(
       process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&

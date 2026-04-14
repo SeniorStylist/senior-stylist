@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+
+    const rl = await checkRateLimit('parsePdf', user.id)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null

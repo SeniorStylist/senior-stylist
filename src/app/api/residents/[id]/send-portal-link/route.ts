@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(
   _request: NextRequest,
@@ -19,6 +20,9 @@ export async function POST(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+
+    const rl = await checkRateLimit('sendPortalLink', user.id)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
     const { id } = await params
 

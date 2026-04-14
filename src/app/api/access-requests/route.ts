@@ -6,6 +6,15 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  )
+}
 
 const createSchema = z.object({
   facilityId: z.string().uuid().optional().nullable(),
@@ -18,6 +27,9 @@ const createSchema = z.object({
 // POST — public, no auth required
 export async function POST(request: NextRequest) {
   try {
+    const rl = await checkRateLimit('signup', getClientIp(request))
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
+
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
