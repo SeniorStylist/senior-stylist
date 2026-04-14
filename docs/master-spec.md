@@ -153,7 +153,9 @@ Many other authenticated routes only require a valid **facility user** and **do 
 
 ### `stylists`
 
-- **`facility_id`** → `facilities`
+- **`facility_id`** → `facilities`, **NULLABLE** (Phase 8.5) — `NULL` means franchise-pool (unassigned)
+- **`franchise_id`** → `franchises`, NULLABLE (Phase 8.5) — scope for pool stylists and cross-facility reassignment
+- **`stylist_code`** (text, NOT NULL, UNIQUE, Phase 8.5) — human ID matching `^ST\d{3,}$` (e.g. `ST001`). Generated server-side via `src/lib/stylist-code.ts` (`pg_advisory_xact_lock(9191)` serialization).
 - **`name`**, **`color`** (default `#0D7377`), **`commission_percent`** (int, default 0)
 - **`google_calendar_id`** (text, nullable) — personal Google Calendar ID after OAuth connect
 - **`google_refresh_token`** (text, nullable) — OAuth refresh token; cleared on disconnect
@@ -272,7 +274,8 @@ Constraint: `UNIQUE(stylist_id, day_of_week)`. Writes replace the full week atom
 | `id` | PK `uuid`, default random |
 | `facility_id` | FK → `facilities.id` NOT NULL |
 | `stylist_id` | FK → `stylists.id` NOT NULL — the requester |
-| `requested_date` | `date` NOT NULL |
+| `start_date` | `date` NOT NULL (Phase 8.5 — replaced `requested_date`) |
+| `end_date` | `date` NOT NULL, with CHECK `end_date >= start_date` |
 | `reason` | `text`, nullable |
 | `status` | `text` NOT NULL, default `open` — `open` \| `filled` \| `cancelled` |
 | `substitute_stylist_id` | FK → `stylists.id`, nullable — set when filled |
@@ -471,8 +474,9 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `GET/POST /api/residents` | Authenticated | List/create residents (portal token on create) |
 | `GET/PUT/DELETE /api/residents/[id]` | Authenticated | Single resident |
 | `POST /api/residents/bulk` | Authenticated | Bulk insert residents (conflict skip on name+facility) |
-| `GET/POST /api/stylists` | Authenticated | List/create stylists |
-| `GET/PUT/DELETE /api/stylists/[id]` | Authenticated | Single stylist |
+| `GET/POST /api/stylists` | Authenticated | List/create stylists. GET accepts `?scope=facility\|franchise\|all` and optional `?franchiseId=` (master admin). POST is admin-only; `stylistCode` auto-generated via `generateStylistCode(tx)` (advisory lock 9191) when omitted; accepts `facilityId: null` to create franchise-pool stylists |
+| `GET/PUT/DELETE /api/stylists/[id]` | Authenticated | Single stylist. PUT accepts `facilityId`, `franchiseId`, `stylistCode` (master admin only for existing ST code edits); facility moves must stay within the caller's franchise |
+| `POST /api/stylists/import` | **Admin** | CSV/XLSX stylist import (200 row cap). Columns: name, code/stcode/stylistcode, color, commission, facility, licenseNumber, licenseType, licenseExpires. Returns `{ data: { imported, updated, errors } }` |
 | `GET/POST /api/services` | Authenticated | List/create services. POST accepts `pricingType`, `addonAmountCents`, `pricingTiers`, `pricingOptions` with `.refine()` validation |
 | `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service. PUT accepts same pricing fields as POST |
 | `POST /api/services/bulk` | Authenticated | Bulk insert services (conflict skip on name+facility) |
@@ -497,7 +501,8 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `GET /api/portal/[token]` | **No session** (uses token) | Resident + bookings + facility payment type + `poaName` + `poaEmail` |
 | `GET /api/portal/[token]/stylists` | Token | Active stylists for facility |
 | `GET /api/portal/[token]/services` | Token | Active services |
-| `GET /api/portal/[token]/available-times` | Token | Taken slots for a date |
+| `GET /api/portal/[token]/available-times` | Token | **Rewritten in Phase 8.5.** Returns `{ availableSlots, bookedSlots }` computed from `stylist_availability` + `resolveAvailableStylists()`. Only slots with ≥1 candidate stylist are listed. Accepts `?duration=` |
+| `GET /api/portal/[token]/available-days?month=YYYY-MM` | Token | New in Phase 8.5. Returns `{ availableDates: ['YYYY-MM-DD'] }` — every date that has ≥1 active stylist available (by availability + coverage) |
 | `POST /api/portal/[token]/book` | Token | Create booking |
 | `POST /api/portal/[token]/checkout` | Token | Stripe Checkout session URL |
 | `POST /api/admin/setup` | Authenticated | One-time seed: facility, profile, services, residents, stylist if user has no facility |
@@ -519,9 +524,10 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `GET /api/availability?stylistId=` | Authenticated; admin any, stylist self only | Returns `{ availability: StylistAvailability[] }` ordered by `dayOfWeek`. |
 | `PUT /api/availability` | Stylist-self or admin in facility | Body `{ stylistId, availability: DayRow[] }`. Replaces the full week atomically inside `db.transaction()` — never a partial upsert. Active rows require `startTime < endTime`. |
 | `GET /api/coverage` | Admin (facility-wide) / stylist (forced self) / viewer 403 | Optional `?status=` + `?stylistId=` (admin only). Joins requester + substitute stylist via named relations. |
-| `POST /api/coverage` | Stylist only | Body `{ requestedDate, reason? }`. `stylistId` derived server-side from `profiles.stylistId` — never trusted. 409 on existing open request for same date. Past dates rejected. Fires `buildCoverageRequestEmailHtml` to facility admins. |
-| `PUT /api/coverage/[id]` | Admin any; stylist only to cancel own open request | Admin can set status/substituteStylistId/reason. On `status='filled'` substitute must be in facility + active + ≠ requester; sets `assignedBy`/`assignedAt`; fires `buildCoverageFilledEmailHtml` to requester. |
+| `POST /api/coverage` | Stylist only | Body `{ startDate, endDate, reason? }` (Phase 8.5 — replaced single `requestedDate`). `stylistId` derived server-side. 409 on overlapping open request for same stylist (`new.start ≤ existing.end AND new.end ≥ existing.start`). Past start-dates rejected. Fires `buildCoverageRequestEmailHtml` with range label. |
+| `PUT /api/coverage/[id]` | Admin any; stylist only to cancel own open request | Admin can set status/substituteStylistId/reason/startDate/endDate. On `status='filled'` substitute must be in caller's facility OR a franchise-pool stylist in the caller's franchise, active, ≠ requester; sets `assignedBy`/`assignedAt`; fires `buildCoverageFilledEmailHtml` with range. |
 | `DELETE /api/coverage/[id]` | Admin any; stylist-owner only when `status='open'` | Hard delete — coverage requests are transient. |
+| `GET /api/coverage/substitutes?date=YYYY-MM-DD` | **Admin** | Returns `{ data: { facilityStylists, franchiseStylists } }` — both lists are `{ id, name, stylistCode }`. Facility pool = active stylists at caller's facility with availability on that day-of-week, not themselves on coverage that date. Franchise pool = active stylists with `facilityId IS NULL AND franchiseId = caller's franchise`. |
 | `GET /api/cron/compliance-alerts` | **Vercel Cron** (`Bearer CRON_SECRET`) | Daily at 09:00 UTC via `vercel.json`. Emails facility admins when any verified doc or stylist license/insurance `expires_at` is exactly **today+30** or **today+60**. Fallback recipient: `NEXT_PUBLIC_ADMIN_EMAIL`. All `sendEmail()` fire-and-forget. Returns `{ data: { alertsSent } }`. |
 
 ---
@@ -570,7 +576,13 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 See the `compliance_documents` schema section above and the `/api/compliance/*` + `/api/cron/compliance-alerts` rows in the API directory. Admin UI lives on Stylist Detail (verify/unverify + license edits); stylist-facing UI lives on My Account (upload/view/delete own unverified docs). `computeComplianceStatus()` helper in `src/lib/compliance.ts` drives the dot on the Stylists list. Uploads proxy through the API — the service-role key is never exposed to the browser.
 
 ### Phase 8 — Workforce Availability & Coverage (SHIPPED 2026-04-14)
-See the `stylist_availability` + `coverage_requests` schema sections above and the `/api/availability` + `/api/coverage*` rows in the API directory. Stylist-facing UI on My Account: Weekly Availability grid + Time Off request list. Admin-facing UI on the Dashboard: amber coverage banner + Coverage Queue card (`id="coverage-queue"`) in the right rail with substitute `<select>` + Assign (optimistic removal). Stylist Detail gets a read-only Availability card that collapses consecutive same-time days into `Mon–Fri 9am–5pm` ranges. Emails: `buildCoverageRequestEmailHtml` fires to admins on POST; `buildCoverageFilledEmailHtml` fires to the requester when an admin PUTs status=filled.
+See the `stylist_availability` + `coverage_requests` schema sections above and the `/api/availability` + `/api/coverage*` rows in the API directory. Stylist-facing UI on My Account: Weekly Availability grid + Time Off request list. Admin-facing UI on the Dashboard: amber coverage banner + Coverage Queue card (`id="coverage-queue"`) in the right rail with substitute `<select>` + Assign (optimistic removal). Stylist Detail gets a read-only Availability card that collapses consecutive same-time days into `Mon–Fri 9am–5pm` ranges. Emails: `buildCoverageRequestEmailHtml` fires to admins on POST; `buildCoverageFilledEmailHtml` fires to the requester when an admin PUTs status=filled. **Phase 8.5 replaced `requested_date` with `start_date` + `end_date` — see below.**
+
+### Phase 8.5 — Franchise Stylist Directory, ST Codes, Availability-Based Portal Booking (SHIPPED 2026-04-14)
+Three interlocking changes shipped in a single phase:
+1. **Franchise stylist directory** — `stylists.facility_id` is now nullable, new `stylists.franchise_id` (nullable FK → `franchises.id`), new `stylists.stylist_code` (NOT NULL, UNIQUE, `^ST\d{3,}$`, backfilled as `ST001`…`ST###` in `created_at` order). New helper `src/lib/stylist-code.ts` → `generateStylistCode(tx)` uses `pg_advisory_xact_lock(9191)` inside `db.transaction()` for race-safe serial generation. New `/stylists/directory` page (admin, franchise-scoped) with search, filter pills (All / Assigned / Unassigned), inline Add Stylist form, and CSV/XLSX import modal. `POST /api/stylists/import` (200-row cap) parses CSV/XLSX, upserts by `stylistCode`, returns `{ imported, updated, errors }`. Sidebar "Directory" link between Stylists and Services. `GET /api/stylists?scope=facility|franchise|all` makes the franchise-pool inclusion explicit at every call site. `getUserFranchise()` helper added to `src/lib/get-facility-id.ts`.
+2. **Availability-based portal booking** — Portal no longer exposes stylist picking. Flow is now service → date → time → confirm. New `GET /api/portal/[token]/available-days?month=YYYY-MM` powers the date-picker greyed-out days. `GET /api/portal/[token]/available-times` rewritten to consult `stylist_availability` + `resolveAvailableStylists()` (`src/lib/portal-assignment.ts`) — only slots with ≥1 candidate stylist are returned. `POST /api/portal/[token]/book` no longer requires `stylistId` — server picks the available stylist with the fewest bookings on that date. 409 when no candidates.
+3. **Coverage date ranges + franchise-pool substitutes** — `coverage_requests.requested_date` replaced by `start_date` + `end_date` (CHECK `end_date >= start_date`). POST/PUT/GET updated; duplicate-overlap detection uses `new.start ≤ existing.end AND new.end ≥ existing.start`. `GET /api/coverage/substitutes?date=` returns two groups — `facilityStylists` (facility pool with DoW availability, not themselves on coverage) and `franchiseStylists` (franchise-pool stylists, `facilityId IS NULL AND franchiseId = caller's franchise`). Dashboard `CoverageQueueRow` renders two `<optgroup>` blocks in its picker. Emails (`buildCoverageRequestEmailHtml`, `buildCoverageFilledEmailHtml`) now take `startDate` + `endDate` and render `Jun 3 – Jun 7` when different, single date when equal.
 
 ### Phase 9 — Territory / Region Management
 New table `regions`: `id` uuid PK, `name`, `franchise_id` nullable FK → franchises, `active`. Add `region_id` nullable FK to `facilities` and `stylists`. Hierarchy: Master Admin → Franchise → Region → Facility.

@@ -91,9 +91,9 @@ export const residents = pgTable(
 
 export const stylists = pgTable('stylists', {
   id: uuid('id').primaryKey().defaultRandom(),
-  facilityId: uuid('facility_id')
-    .references(() => facilities.id)
-    .notNull(),
+  stylistCode: text('stylist_code').notNull().unique(),
+  facilityId: uuid('facility_id').references(() => facilities.id),
+  franchiseId: uuid('franchise_id').references((): AnyPgColumn => franchises.id),
   name: text('name').notNull(),
   color: text('color').default('#0D7377').notNull(),
   commissionPercent: integer('commission_percent').default(0).notNull(),
@@ -159,7 +159,8 @@ export const coverageRequests = pgTable('coverage_requests', {
   stylistId: uuid('stylist_id')
     .references(() => stylists.id)
     .notNull(),
-  requestedDate: date('requested_date').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
   reason: text('reason'),
   status: text('status').default('open').notNull(),
   substituteStylistId: uuid('substitute_stylist_id').references(() => stylists.id),
@@ -329,7 +330,15 @@ export const residentsRelations = relations(residents, ({ many }) => ({
   bookings: many(bookings),
 }))
 
-export const stylistsRelations = relations(stylists, ({ many }) => ({
+export const stylistsRelations = relations(stylists, ({ one, many }) => ({
+  facility: one(facilities, {
+    fields: [stylists.facilityId],
+    references: [facilities.id],
+  }),
+  franchise: one(franchises, {
+    fields: [stylists.franchiseId],
+    references: [franchises.id],
+  }),
   bookings: many(bookings),
   logEntries: many(logEntries),
   complianceDocuments: many(complianceDocuments),
@@ -439,6 +448,7 @@ export const franchisesRelations = relations(franchises, ({ one, many }) => ({
     references: [profiles.id],
   }),
   franchiseFacilities: many(franchiseFacilities),
+  stylists: many(stylists),
 }))
 
 export const franchiseFacilitiesRelations = relations(franchiseFacilities, ({ one }) => ({

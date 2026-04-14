@@ -97,20 +97,6 @@ const STATUS_STYLES: Record<string, string> = {
   no_show: 'bg-amber-50 text-amber-700',
 }
 
-// Generate 30-min time slots 9am–8pm
-function generateTimeSlots(dateStr: string): string[] {
-  if (!dateStr) return []
-  const slots: string[] = []
-  for (let h = 9; h < 20; h++) {
-    for (const m of [0, 30]) {
-      const d = new Date(dateStr + 'T00:00:00')
-      d.setHours(h, m, 0, 0)
-      slots.push(d.toISOString())
-    }
-  }
-  return slots
-}
-
 function formatSlotLabel(iso: string) {
   const d = new Date(iso)
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -145,18 +131,18 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
 
   // Booking form state
   const [services, setServices] = useState<ServiceData[]>([])
-  const [stylists, setStylists] = useState<StylistData[]>([])
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
   const [selectedAddonServiceIds, setSelectedAddonServiceIds] = useState<string[]>([])
   const [selectedQuantity, setSelectedQuantity] = useState(1)
   const [selectedOptionName, setSelectedOptionName] = useState('')
-  const [selectedStylist, setSelectedStylist] = useState<StylistData | null>(null)
   const [selectedDate, setSelectedDate] = useState(todayStr())
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [bookError, setBookError] = useState<string | null>(null)
-  const [takenSlots, setTakenSlots] = useState<string[]>([])
+  const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set())
+  const [loadingDays, setLoadingDays] = useState(false)
   const [lastBookingId, setLastBookingId] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState(false)
   const [pickerOpen, setPickerOpen] = useState<Record<number, boolean>>({})
@@ -229,17 +215,33 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  const fetchTakenSlots = async (date: string) => {
+  const fetchAvailableSlots = async (date: string, duration: number) => {
     setLoadingSlots(true)
     try {
-      const res = await fetch(`/api/portal/${token}/available-times?date=${date}`)
+      const res = await fetch(
+        `/api/portal/${token}/available-times?date=${date}&duration=${duration}`,
+      )
       const json = await res.json()
-      if (json.takenSlots) setTakenSlots(json.takenSlots)
-      else setTakenSlots([])
+      const slots: string[] = json?.data?.availableSlots ?? []
+      setAvailableSlots(slots)
     } catch {
-      setTakenSlots([])
+      setAvailableSlots([])
     } finally {
       setLoadingSlots(false)
+    }
+  }
+
+  const fetchAvailableDays = async (month: string) => {
+    setLoadingDays(true)
+    try {
+      const res = await fetch(`/api/portal/${token}/available-days?month=${month}`)
+      const json = await res.json()
+      const dates: string[] = json?.data?.availableDates ?? []
+      setAvailableDates(new Set(dates))
+    } catch {
+      setAvailableDates(new Set())
+    } finally {
+      setLoadingDays(false)
     }
   }
 
@@ -251,29 +253,22 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
     setSelectedQuantity(1)
     setSelectedOptionName('')
     setPickerOpen({})
-    setSelectedStylist(null)
     const today = todayStr()
     setSelectedDate(today)
     setSelectedTime(null)
     setBookError(null)
-    setTakenSlots([])
+    setAvailableSlots([])
+    setAvailableDates(new Set())
 
-    const [svcRes, stlRes] = await Promise.all([
-      fetch(`/api/portal/${token}/services`),
-      fetch(`/api/portal/${token}/stylists`),
-    ])
-    const [svcJson, stlJson] = await Promise.all([svcRes.json(), stlRes.json()])
+    const svcRes = await fetch(`/api/portal/${token}/services`)
+    const svcJson = await svcRes.json()
     if (svcJson.data) setServices(svcJson.data)
-    if (stlJson.data) {
-      setStylists(stlJson.data)
-      if (stlJson.data.length === 1) setSelectedStylist(stlJson.data[0])
-    }
 
-    fetchTakenSlots(today)
+    fetchAvailableDays(today.slice(0, 7))
   }
 
   const handleBook = async () => {
-    if (selectedServiceIds.length === 0 || !selectedStylist || !selectedTime) return
+    if (selectedServiceIds.length === 0 || !selectedTime) return
     setSubmitting(true)
     setBookError(null)
     try {
@@ -282,7 +277,6 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           serviceIds: selectedServiceIds,
-          stylistId: selectedStylist.id,
           startTime: selectedTime,
           addonServiceIds: selectedAddonServiceIds,
           ...(primaryService?.pricingType === 'tiered' ? { selectedQuantity } : {}),
@@ -331,8 +325,6 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
       setCheckingOut(false)
     }
   }
-
-  const timeSlots = generateTimeSlots(selectedDate)
 
   if (loading) {
     return (
@@ -729,7 +721,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
               </div>
             )}
 
-            {/* Step 2: Stylist + Date + Time */}
+            {/* Step 2: Date + Time */}
             {bookingStep === 'details' && (
               <div className="space-y-4">
                 {/* Selected service summary */}
@@ -738,82 +730,66 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   {' — '}{formatCents(totalPriceCents)}
                 </div>
 
-                {/* Stylist picker (if multiple) */}
-                {stylists.length > 1 && (
-                  <div>
-                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Stylist</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {stylists.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => setSelectedStylist(s)}
-                          className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                            selectedStylist?.id === s.id
-                              ? 'border-[#8B2E4A] bg-rose-50 text-rose-800'
-                              : 'border-stone-100 text-stone-700 hover:border-stone-200'
-                          }`}
-                        >
-                          {s.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {stylists.length === 1 && selectedStylist && (
-                  <div className="bg-stone-50 rounded-xl p-3 text-sm text-stone-600">
-                    Stylist: <span className="font-semibold">{selectedStylist.name}</span>
-                  </div>
-                )}
-
                 {/* Date picker */}
                 <div>
-                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Date</p>
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
+                    Date {loadingDays && <span className="text-stone-300 font-normal">(loading…)</span>}
+                  </p>
                   <input
                     type="date"
                     value={selectedDate}
                     min={todayStr()}
                     onChange={(e) => {
-                      setSelectedDate(e.target.value)
+                      const val = e.target.value
+                      setSelectedDate(val)
                       setSelectedTime(null)
-                      if (e.target.value) fetchTakenSlots(e.target.value)
+                      setAvailableSlots([])
+                      if (!val) return
+                      const newMonth = val.slice(0, 7)
+                      const curMonth = selectedDate.slice(0, 7)
+                      if (newMonth !== curMonth) fetchAvailableDays(newMonth)
+                      fetchAvailableSlots(val, Math.max(totalDurationMinutes, 30))
                     }}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                   />
+                  {selectedDate && availableDates.size > 0 && !availableDates.has(selectedDate) && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      No availability on this date — please pick another.
+                    </p>
+                  )}
                 </div>
 
                 {/* Time slots */}
-                {selectedDate && (
+                {selectedDate && availableDates.has(selectedDate) && (
                   <div>
                     <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
                       Time {loadingSlots && <span className="text-stone-300 font-normal">(loading…)</span>}
                     </p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {timeSlots.map((slot) => {
-                        const slotDate = new Date(slot)
-                        const h = String(slotDate.getHours()).padStart(2, '0')
-                        const m = String(slotDate.getMinutes()).padStart(2, '0')
-                        const hhmm = `${h}:${m}`
-                        const isTaken = takenSlots.includes(hhmm)
-                        return (
-                          <button
-                            key={slot}
-                            onClick={() => { if (!isTaken) setSelectedTime(slot) }}
-                            disabled={isTaken}
-                            className={`py-2 rounded-xl text-xs font-medium transition-all flex flex-col items-center ${
-                              isTaken
-                                ? 'bg-stone-100 text-stone-300 cursor-not-allowed'
-                                : selectedTime === slot
+                    {!loadingSlots && availableSlots.length === 0 ? (
+                      <p className="text-xs text-stone-400 py-2">
+                        No open times on this date.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2">
+                        {availableSlots.map((hhmm) => {
+                          const iso = new Date(`${selectedDate}T${hhmm}:00`).toISOString()
+                          const isSelected = selectedTime === iso
+                          return (
+                            <button
+                              key={hhmm}
+                              onClick={() => setSelectedTime(iso)}
+                              className={`py-2 rounded-xl text-xs font-medium transition-all ${
+                                isSelected
                                   ? 'bg-[#8B2E4A] text-white'
                                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
-                            }`}
-                          >
-                            {formatSlotLabel(slot)}
-                            {isTaken && <span className="text-[9px] leading-none mt-0.5">Booked</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
+                              }`}
+                            >
+                              {formatSlotLabel(iso)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -826,10 +802,10 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   </button>
                   <button
                     onClick={() => {
-                      if (!selectedStylist || !selectedTime) return
+                      if (!selectedTime) return
                       setBookingStep('confirm')
                     }}
-                    disabled={!selectedStylist || !selectedTime}
+                    disabled={!selectedTime}
                     className="flex-1 py-3 rounded-xl text-white text-sm font-medium transition-all disabled:opacity-40"
                     style={{ backgroundColor: '#8B2E4A' }}
                   >
@@ -840,7 +816,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
             )}
 
             {/* Step 3: Confirm */}
-            {bookingStep === 'confirm' && primaryService && selectedStylist && selectedTime && (
+            {bookingStep === 'confirm' && primaryService && selectedTime && (
               <div className="space-y-4">
                 <div className="bg-stone-50 rounded-xl p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -858,10 +834,6 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-stone-500">Stylist</span>
-                    <span className="font-medium text-stone-900">{selectedStylist.name}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-stone-500">Date</span>
                     <span className="font-medium text-stone-900">{formatDate(selectedTime)}</span>
                   </div>
@@ -874,6 +846,9 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                     <span className="font-bold text-stone-900">{formatCents(totalPriceCents)}</span>
                   </div>
                 </div>
+                <p className="text-xs text-stone-400 text-center">
+                  A stylist will be assigned automatically.
+                </p>
 
                 {bookError && (
                   <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-700">
@@ -950,7 +925,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                 </div>
                 <p className="text-base font-bold text-stone-900">Appointment Booked!</p>
                 <p className="text-sm text-stone-500">
-                  Your {selectedService?.name} appointment with {selectedStylist?.name} on {selectedTime ? formatDateTime(selectedTime) : ''} has been scheduled.
+                  Your {selectedService?.name} appointment on {selectedTime ? formatDateTime(selectedTime) : ''} has been scheduled. A stylist will be assigned.
                 </p>
                 <button
                   onClick={() => setBooking(false)}

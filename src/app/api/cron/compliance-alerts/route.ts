@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
     }
 
     const stylistIds = activeStylists.map((s) => s.id)
-    const facilityIds = Array.from(new Set(activeStylists.map((s) => s.facilityId)))
+    const facilityIds = Array.from(
+      new Set(activeStylists.map((s) => s.facilityId).filter((id): id is string => id !== null)),
+    )
+    if (facilityIds.length === 0) {
+      return Response.json({ data: { alertsSent: 0 } })
+    }
 
     const [allDocs, allFacilityAdmins, facilityRows] = await Promise.all([
       db.query.complianceDocuments.findMany({
@@ -99,6 +104,7 @@ export async function GET(request: NextRequest) {
 
     for (const stylist of activeStylists) {
       const seen = new Set<string>()
+      if (!stylist.facilityId) continue
       const facility = facilityById.get(stylist.facilityId)
       if (!facility) continue
 

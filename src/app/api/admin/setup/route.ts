@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, facilityUsers, services, residents, stylists, profiles } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { generateStylistCode } from '@/lib/stylist-code'
 
 export async function POST() {
   try {
@@ -137,11 +138,15 @@ export async function POST() {
 
     // Seed stylist
     console.log('[setup] Seeding stylist')
-    await db.insert(stylists).values({
-      facilityId: facility.id,
-      name: 'Maria Garcia',
-      color: '#0D7377',
-    }).onConflictDoNothing()
+    await db.transaction(async (tx) => {
+      const stylistCode = await generateStylistCode(tx)
+      await tx.insert(stylists).values({
+        facilityId: facility.id,
+        stylistCode,
+        name: 'Maria Garcia',
+        color: '#0D7377',
+      }).onConflictDoNothing()
+    })
     console.log('[setup] Stylist seeded')
 
     console.log('[setup] Setup complete!')

@@ -229,6 +229,16 @@ Tailwind CSS 4, Vercel
 - Role guards: stylist can only cancel their own open request; admin owns fill/delete transitions; stylist-role GET is always forced to self regardless of query params
 - RLS + `service_role_all` policy on both new tables
 
+### Phase 8.5 SHIPPED (2026-04-14) — Franchise Stylist Directory, ST Codes, Availability-Based Portal Booking
+- Schema: `stylists.facility_id` is now NULLABLE; added `stylists.franchise_id` (nullable FK → `franchises.id`); added `stylists.stylist_code` (NOT NULL, UNIQUE, `^ST\d{3,}$`, backfilled `ST001`+ in `created_at` order); replaced `coverage_requests.requested_date` with `start_date` + `end_date` (CHECK `end_date >= start_date`)
+- Helper: `src/lib/stylist-code.ts` → `generateStylistCode(tx)` with `pg_advisory_xact_lock(9191)` for race-safe serial generation inside a `db.transaction()`; `getUserFranchise()` added to `src/lib/get-facility-id.ts`
+- Portal flow overhaul: removed client-side stylist picker. Flow is service → date → time → confirm. Stylist assigned server-side by `resolveAvailableStylists()` + least-load picker in `src/lib/portal-assignment.ts`
+- New APIs: `POST /api/stylists/import` (CSV/XLSX, 200-row cap); `GET /api/coverage/substitutes?date=` (two groups — facility + franchise pool); `GET /api/portal/[token]/available-days?month=YYYY-MM`
+- Rewritten API: `GET /api/portal/[token]/available-times` consults `stylist_availability` and returns only slots with ≥1 candidate; `POST /api/portal/[token]/book` no longer requires `stylistId` and picks the least-loaded available stylist; 409 when none
+- Coverage updates: POST/PUT/GET use `startDate`+`endDate`; overlap-based duplicate detection; email templates (`buildCoverageRequestEmailHtml`, `buildCoverageFilledEmailHtml`) render `Jun 3 – Jun 7` or single date
+- UI: new `/stylists/directory` page (admin, franchise-scoped) with search, filter pills, inline Add Stylist, CSV/XLSX import modal; Directory nav link in sidebar between Stylists and Services; Stylist Detail gains ST code (read-only for facility admin, editable for master admin) + Facility Assignment dropdown (franchise facilities + "Unassigned"); Dashboard Coverage Queue picker now shows two `<optgroup>` groups ("This Facility" / "Franchise Pool") with `{name} ({stylistCode})` options; My Account time-off form is a date-range with two `<input type="date">`
+- GET /api/stylists gains `?scope=facility|franchise|all` so every stylist-listing call makes its scope choice explicit (pool rows are silently excluded by `eq(facilityId, X)`)
+
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
 - Add `region_id` to `facilities` and `stylists` tables
@@ -336,11 +346,11 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 8 (Availability & Coverage) shipped (2026-04-14). Next steps:
+Phase 8.5 (Franchise Stylist Directory + Auto-Assign Portal) shipped (2026-04-14). Next steps:
 1. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs; confirm weekly availability in My Account.
-4. Phase 9: Territory / Region Management — `regions` table, `region_id` on facilities + stylists, Regions tab in /super-admin, region filter across all list/report views.
+3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs; confirm weekly availability in My Account. Pilot the new portal flow with 1–2 POAs before rolling out broadly.
+4. Phase 9: Territory / Region Management — reserved, do not assume scope until explicitly briefed.
 
 ---
 

@@ -64,7 +64,9 @@ export interface Resident {
 
 export interface Stylist {
   id: string
-  facilityId: string
+  stylistCode: string
+  facilityId: string | null
+  franchiseId: string | null
   name: string
   color: string
   commissionPercent: number
@@ -78,6 +80,13 @@ export interface Stylist {
   backgroundCheckVerified: boolean
   createdAt: Date | null
   updatedAt: Date | null
+}
+
+export interface SubstituteOption {
+  id: string
+  name: string
+  stylistCode: string
+  type: 'facility' | 'franchise'
 }
 
 export type ComplianceDocumentType =
@@ -203,7 +212,8 @@ export interface CoverageRequest {
   id: string
   facilityId: string
   stylistId: string
-  requestedDate: string
+  startDate: string
+  endDate: string
   reason: string | null
   status: CoverageRequestStatus
   substituteStylistId: string | null

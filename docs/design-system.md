@@ -883,3 +883,20 @@ When `active === false`, both time inputs get `opacity-50` and are visually disa
 
 ### Coverage Queue card (Phase 8)
 Admin dashboard right-rail card placed **above** the residents/services/stylists tabs, with `id="coverage-queue"`. Hidden entirely when the queue is empty to preserve vertical space for the panel + stats footer below. Wrapper: `shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm`. Row anatomy: stylist name (font-semibold, truncate) + formatted date label (`Short, MMM D`) + reason (2-line clamp, muted) + substitute `<select>` + burgundy Assign button (`bg-[#8B2E4A] hover:bg-[#72253C]`, disabled until substitute picked). List scrolls within `max-h-[320px] overflow-y-auto divide-y divide-stone-100`. Assignment optimistically removes the row from local state without `router.refresh()`.
+
+
+### Directory list row (Phase 8.5)
+Stylist Directory page (`/stylists/directory`) list-row anatomy — burgundy-palette compact rows for franchise admin scanning. Each row is a `<Link>` with `flex items-center gap-3 px-5 py-3.5 hover:bg-stone-50`:
+1. **ST code** (`font-mono text-xs text-stone-500 w-16 shrink-0`) — left-aligned, fixed width for alignment across rows
+2. **Color dot** (`w-3 h-3 rounded-full`, `style={{ backgroundColor: s.color }}`)
+3. **Name** (`text-sm font-semibold text-stone-900 flex-1 truncate`)
+4. **Facility badge** (`text-xs px-2 py-0.5 rounded-md`) — `bg-stone-100 text-stone-600` when assigned, **`bg-rose-50 text-[#8B2E4A]`** reading "Franchise Pool" when unassigned
+5. Commission % (hidden below sm breakpoint), chevron
+
+Filter pills above the list live inside a single `rounded-xl border border-stone-200` shell; the active pill uses `bg-[#8B2E4A] text-white`, inactive uses `text-stone-600 hover:bg-stone-50`. Search input is full-width `rounded-xl` with `focus:ring-2 focus:ring-rose-100`.
+
+### Grouped substitute picker (Phase 8.5)
+Coverage Queue rows now lazy-fetch `/api/coverage/substitutes?date={request.startDate}` on mount and render a `<select>` with two `<optgroup>` blocks — "This Facility" + "Franchise Pool". Each `<option>` shows `{name} ({stylistCode})` so admins can eyeball the ST code. When one group is empty the `<optgroup>` is omitted rather than rendered with no children. The Assign button stays disabled until a substitute is picked.
+
+### Date-range time-off form (Phase 8.5)
+My Account Time Off inline form now has two `<input type="date">` inputs in a `grid grid-cols-2 gap-3`: Start date and End date. Both use `min={todayStr}`; the End input's `min` is `coverageStartDate || todayStr`. When the user picks a start date that's after the current end, the end auto-bumps to match. Submit button disabled until both dates are filled; an inline client-side check ensures `end >= start` (server enforces via Zod `.refine` too). List rows below format as `{start === end ? formatCoverageDate(start) : `${formatCoverageDate(start)} – ${formatCoverageDate(end)}`}`.

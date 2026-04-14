@@ -8,7 +8,7 @@ import {
 } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sendEmail, buildCoverageRequestEmailHtml } from '@/lib/email'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, lte, gte } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
@@ -16,10 +16,15 @@ export const dynamic = 'force-dynamic'
 
 const STATUS_VALUES = ['open', 'filled', 'cancelled'] as const
 
-const createSchema = z.object({
-  requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  reason: z.string().max(2000).optional(),
-})
+const createSchema = z
+  .object({
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    reason: z.string().max(2000).optional(),
+  })
+  .refine((d) => d.endDate >= d.startDate, {
+    message: 'endDate must be on or after startDate',
+  })
 
 function todayUTCDateStr(): string {
   const d = new Date()
@@ -76,7 +81,7 @@ export async function GET(request: NextRequest) {
         stylist: { columns: { id: true, name: true } },
         substituteStylist: { columns: { id: true, name: true } },
       },
-      orderBy: [asc(coverageRequests.requestedDate), asc(coverageRequests.createdAt)],
+      orderBy: [asc(coverageRequests.startDate), asc(coverageRequests.createdAt)],
     })
 
     return Response.json({ data: { requests } })
@@ -104,13 +109,12 @@ export async function POST(request: NextRequest) {
     }
 
     const stylist = await db.query.stylists.findFirst({
-      where: and(
-        eq(stylists.id, profile.stylistId),
-        eq(stylists.facilityId, facilityUser.facilityId)
-      ),
-      columns: { id: true, name: true },
+      where: eq(stylists.id, profile.stylistId),
+      columns: { id: true, name: true, facilityId: true },
     })
-    if (!stylist) return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!stylist || stylist.facilityId !== facilityUser.facilityId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
@@ -118,20 +122,22 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: parsed.error.issues[0]?.message ?? 'Invalid body' }, { status: 422 })
     }
 
-    if (parsed.data.requestedDate < todayUTCDateStr()) {
-      return Response.json({ error: 'requestedDate must be today or later' }, { status: 422 })
+    if (parsed.data.startDate < todayUTCDateStr()) {
+      return Response.json({ error: 'startDate must be today or later' }, { status: 422 })
     }
 
+    // Overlap-based duplicate check: new.startDate <= existing.endDate AND new.endDate >= existing.startDate
     const existingOpen = await db.query.coverageRequests.findFirst({
       where: and(
         eq(coverageRequests.stylistId, stylist.id),
-        eq(coverageRequests.requestedDate, parsed.data.requestedDate),
-        eq(coverageRequests.status, 'open')
+        eq(coverageRequests.status, 'open'),
+        lte(coverageRequests.startDate, parsed.data.endDate),
+        gte(coverageRequests.endDate, parsed.data.startDate),
       ),
     })
     if (existingOpen) {
       return Response.json(
-        { error: 'You already have an open request for that date' },
+        { error: 'You already have an open request overlapping that date range' },
         { status: 409 }
       )
     }
@@ -141,7 +147,8 @@ export async function POST(request: NextRequest) {
       .values({
         facilityId: facilityUser.facilityId,
         stylistId: stylist.id,
-        requestedDate: parsed.data.requestedDate,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
         reason: parsed.data.reason ?? null,
       })
       .returning()
@@ -166,12 +173,17 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
     const html = buildCoverageRequestEmailHtml({
       stylistName: stylist.name,
-      requestedDate: parsed.data.requestedDate,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
       reason: parsed.data.reason ?? null,
       facilityName: facility?.name ?? 'Facility',
       dashboardUrl: `${appUrl}/dashboard`,
     })
-    const subject = `Coverage request: ${stylist.name} needs ${parsed.data.requestedDate}`
+    const rangeLabel =
+      parsed.data.startDate === parsed.data.endDate
+        ? parsed.data.startDate
+        : `${parsed.data.startDate} – ${parsed.data.endDate}`
+    const subject = `Coverage request: ${stylist.name} needs ${rangeLabel}`
     for (const to of targets) {
       sendEmail({ to, subject, html }).catch((err) =>
         console.error('[coverage POST] send failed:', err)

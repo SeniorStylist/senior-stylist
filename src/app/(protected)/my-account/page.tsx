@@ -109,7 +109,7 @@ export default async function MyAccountPage() {
           eq(coverageRequests.stylistId, stylist.id),
           eq(coverageRequests.facilityId, facilityUser.facilityId)
         ),
-        orderBy: (t, { asc }) => [asc(t.requestedDate)],
+        orderBy: (t, { asc }) => [asc(t.startDate)],
       })
     }
   }

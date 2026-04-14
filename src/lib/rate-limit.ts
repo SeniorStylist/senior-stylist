@@ -8,6 +8,7 @@ type Bucket =
   | 'parsePdf'
   | 'sendPortalLink'
   | 'invites'
+  | 'import'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -16,6 +17,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   parsePdf: { tokens: 20, window: '1 h' },
   sendPortalLink: { tokens: 10, window: '1 h' },
   invites: { tokens: 30, window: '1 h' },
+  import: { tokens: 10, window: '1 h' },
 }
 
 let redis: Redis | null = null

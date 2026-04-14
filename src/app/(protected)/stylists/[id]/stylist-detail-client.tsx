@@ -106,6 +106,8 @@ interface StylistDetailClientProps {
   complianceDocuments: ComplianceDocumentWithUrl[]
   availability: StylistAvailability[]
   isAdmin: boolean
+  isMasterAdmin?: boolean
+  franchiseFacilities?: Array<{ id: string; name: string }>
 }
 
 export function StylistDetailClient({
@@ -115,6 +117,8 @@ export function StylistDetailClient({
   complianceDocuments,
   availability,
   isAdmin,
+  isMasterAdmin = false,
+  franchiseFacilities = [],
 }: StylistDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -131,11 +135,15 @@ export function StylistDetailClient({
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
+  const [stylistCode, setStylistCode] = useState(initialStylist.stylistCode)
+  const [facilityId, setFacilityId] = useState<string | null>(initialStylist.facilityId)
 
   const licenseDirty =
     licenseNumber !== (stylist.licenseNumber ?? '') ||
     licenseType !== (stylist.licenseType ?? '') ||
     licenseExpiresAt !== (stylist.licenseExpiresAt ?? '')
+  const codeDirty = stylistCode !== stylist.stylistCode
+  const facilityDirty = facilityId !== stylist.facilityId
 
   const handleVerify = async (docId: string, verified: boolean) => {
     setVerifyingId(docId)
@@ -153,24 +161,37 @@ export function StylistDetailClient({
     }
   }
 
-  const isDirty = name !== stylist.name || color !== stylist.color || commissionPercent !== stylist.commissionPercent || licenseDirty
+  const isDirty =
+    name !== stylist.name ||
+    color !== stylist.color ||
+    commissionPercent !== stylist.commissionPercent ||
+    licenseDirty ||
+    codeDirty ||
+    facilityDirty
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
+    if (codeDirty && !/^ST\d{3,}$/.test(stylistCode.trim())) {
+      setError('Stylist code must match ST### (e.g. ST001)')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
+      const body: Record<string, unknown> = {
+        name: name.trim(),
+        color,
+        commissionPercent,
+        licenseNumber: licenseNumber.trim() || null,
+        licenseType: licenseType.trim() || null,
+        licenseExpiresAt: licenseExpiresAt || null,
+      }
+      if (codeDirty) body.stylistCode = stylistCode.trim()
+      if (facilityDirty) body.facilityId = facilityId
       const res = await fetch(`/api/stylists/${stylist.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          color,
-          commissionPercent,
-          licenseNumber: licenseNumber.trim() || null,
-          licenseType: licenseType.trim() || null,
-          licenseExpiresAt: licenseExpiresAt || null,
-        }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (res.ok) {
@@ -290,6 +311,42 @@ export function StylistDetailClient({
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
               />
             </div>
+
+            <div>
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
+                Stylist code
+              </label>
+              {isMasterAdmin ? (
+                <input
+                  value={stylistCode}
+                  onChange={(e) => setStylistCode(e.target.value.toUpperCase())}
+                  placeholder="ST###"
+                  className="w-32 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                />
+              ) : (
+                <span className="text-sm font-mono text-stone-700">{stylist.stylistCode}</span>
+              )}
+            </div>
+
+            {franchiseFacilities.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
+                  Facility assignment
+                </label>
+                <select
+                  value={facilityId ?? ''}
+                  onChange={(e) => setFacilityId(e.target.value || null)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                >
+                  <option value="">Unassigned (franchise pool)</option>
+                  {franchiseFacilities.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">

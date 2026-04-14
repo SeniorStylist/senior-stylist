@@ -1,8 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, stylists, complianceDocuments, stylistAvailability } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import {
+  bookings,
+  stylists,
+  complianceDocuments,
+  stylistAvailability,
+  facilities,
+  franchiseFacilities,
+} from '@/db/schema'
+import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
 import { eq, and, gte, lte, ne, desc } from 'drizzle-orm'
@@ -25,13 +32,23 @@ export default async function StylistDetailPage({
   if (!facilityUser) redirect('/dashboard')
 
   try {
+  const franchise = await getUserFranchise(user.id)
   const stylist = await db.query.stylists.findFirst({
-    where: and(
-      eq(stylists.id, id),
-      eq(stylists.facilityId, facilityUser.facilityId)
-    ),
+    where: eq(stylists.id, id),
   })
   if (!stylist) notFound()
+
+  // Allow if stylist belongs to caller's facility, OR franchise-pool stylist in caller's franchise
+  const sameFacility = stylist.facilityId === facilityUser.facilityId
+  const franchisePoolInFranchise =
+    !!franchise && stylist.facilityId === null && stylist.franchiseId === franchise.franchiseId
+  const sameFranchiseFacility =
+    !!franchise &&
+    stylist.facilityId !== null &&
+    franchise.facilityIds.includes(stylist.facilityId)
+  if (!sameFacility && !franchisePoolInFranchise && !sameFranchiseFacility) {
+    notFound()
+  }
 
   const now = new Date()
   const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
@@ -138,6 +155,18 @@ export default async function StylistDetailPage({
     })
   )
 
+  const franchiseFacilityOptions = franchise
+    ? await db
+        .select({ id: facilities.id, name: facilities.name })
+        .from(facilities)
+        .innerJoin(franchiseFacilities, eq(franchiseFacilities.facilityId, facilities.id))
+        .where(eq(franchiseFacilities.franchiseId, franchise.franchiseId))
+        .orderBy(facilities.name)
+    : []
+
+  const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  const isMasterAdmin = !!superAdminEmail && user.email === superAdminEmail
+
   return (
     <StylistDetailClient
       stylist={JSON.parse(JSON.stringify(sanitizeStylist(stylist)))}
@@ -146,6 +175,8 @@ export default async function StylistDetailPage({
       complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
       availability={JSON.parse(JSON.stringify(availability))}
       isAdmin={facilityUser.role === 'admin'}
+      isMasterAdmin={isMasterAdmin}
+      franchiseFacilities={JSON.parse(JSON.stringify(franchiseFacilityOptions))}
     />
   )
   } catch (err) {

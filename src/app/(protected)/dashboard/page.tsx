@@ -104,7 +104,7 @@ export default async function DashboardPage() {
               eq(coverageRequests.status, 'open')
             ),
             with: { stylist: { columns: { id: true, name: true } } },
-            orderBy: (t, { asc }) => [asc(t.requestedDate), asc(t.createdAt)],
+            orderBy: (t, { asc }) => [asc(t.startDate), asc(t.createdAt)],
           })
         : Promise.resolve([]),
     ])

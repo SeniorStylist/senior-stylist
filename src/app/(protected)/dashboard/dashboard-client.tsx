@@ -638,7 +638,6 @@ export function DashboardClient({
 
 function CoverageQueueRow({
   request,
-  stylists,
   onAssigned,
 }: {
   request: CoverageRequest
@@ -648,11 +647,31 @@ function CoverageQueueRow({
   const [substituteId, setSubstituteId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [facilityPool, setFacilityPool] = useState<Array<{ id: string; name: string; stylistCode: string }>>([])
+  const [franchisePool, setFranchisePool] = useState<Array<{ id: string; name: string; stylistCode: string }>>([])
+
+  useEffect(() => {
+    fetch(`/api/coverage/substitutes?date=${request.startDate}`)
+      .then((r) => r.json())
+      .then((j) => {
+        setFacilityPool(j?.data?.facilityStylists ?? [])
+        setFranchisePool(j?.data?.franchiseStylists ?? [])
+      })
+      .catch(() => {})
+  }, [request.startDate])
 
   const dateLabel = (() => {
-    const [y, m, d] = request.requestedDate.split('-').map((v) => Number(v))
-    const dt = new Date(y, m - 1, d)
-    return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    const fmt = (iso: string) => {
+      const [y, m, d] = iso.split('-').map((v) => Number(v))
+      const dt = new Date(y, m - 1, d)
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+    if (request.startDate === request.endDate) {
+      const [y, m, d] = request.startDate.split('-').map((v) => Number(v))
+      const dt = new Date(y, m - 1, d)
+      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    }
+    return `${fmt(request.startDate)} – ${fmt(request.endDate)}`
   })()
 
   async function handleAssign() {
@@ -699,11 +718,24 @@ function CoverageQueueRow({
           disabled={saving}
         >
           <option value="">Pick substitute…</option>
-          {stylists.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
+          {facilityPool.length > 0 && (
+            <optgroup label="This Facility">
+              {facilityPool.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.stylistCode})
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {franchisePool.length > 0 && (
+            <optgroup label="Franchise Pool">
+              {franchisePool.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.stylistCode})
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
         <button
           type="button"

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { coverageRequests, profiles, stylists } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { sendEmail, buildCoverageFilledEmailHtml } from '@/lib/email'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -16,10 +16,24 @@ const updateSchema = z
     status: z.enum(STATUS_VALUES).optional(),
     substituteStylistId: z.string().uuid().nullable().optional(),
     reason: z.string().max(2000).nullable().optional(),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })
   .refine(
-    (v) => v.status !== undefined || v.substituteStylistId !== undefined || v.reason !== undefined,
-    { message: 'At least one field is required' }
+    (v) =>
+      v.status !== undefined ||
+      v.substituteStylistId !== undefined ||
+      v.reason !== undefined ||
+      v.startDate !== undefined ||
+      v.endDate !== undefined,
+    { message: 'At least one field is required' },
+  )
+  .refine(
+    (v) => {
+      if (v.startDate && v.endDate) return v.endDate >= v.startDate
+      return true
+    },
+    { message: 'endDate must be on or after startDate' },
   )
 
 export async function PUT(
@@ -86,6 +100,8 @@ export async function PUT(
     if (parsed.data.substituteStylistId !== undefined) {
       updates.substituteStylistId = parsed.data.substituteStylistId
     }
+    if (parsed.data.startDate !== undefined) updates.startDate = parsed.data.startDate
+    if (parsed.data.endDate !== undefined) updates.endDate = parsed.data.endDate
 
     let fireFilledEmail = false
     let substituteName: string | null = null
@@ -101,14 +117,20 @@ export async function PUT(
           return Response.json({ error: 'Substitute cannot be the requester' }, { status: 422 })
         }
         const sub = await db.query.stylists.findFirst({
-          where: and(
-            eq(stylists.id, subId),
-            eq(stylists.facilityId, facilityUser.facilityId),
-            eq(stylists.active, true)
-          ),
-          columns: { id: true, name: true },
+          where: and(eq(stylists.id, subId), eq(stylists.active, true)),
+          columns: { id: true, name: true, facilityId: true, franchiseId: true },
         })
         if (!sub) return Response.json({ error: 'Substitute not found' }, { status: 422 })
+        // Accept if in facility OR in same franchise pool (facilityId null + franchiseId matches)
+        const callerFranchise = await getUserFranchise(user.id)
+        const isFacilityMatch = sub.facilityId === facilityUser.facilityId
+        const isFranchisePool =
+          sub.facilityId === null &&
+          !!callerFranchise &&
+          sub.franchiseId === callerFranchise.franchiseId
+        if (!isFacilityMatch && !isFranchisePool) {
+          return Response.json({ error: 'Substitute not in facility or franchise' }, { status: 422 })
+        }
         updates.substituteStylistId = sub.id
         updates.assignedBy = user.id
         updates.assignedAt = new Date()
@@ -145,10 +167,15 @@ export async function PUT(
           const html = buildCoverageFilledEmailHtml({
             stylistName: requester.name,
             substituteName,
-            requestedDate: updated.requestedDate,
+            startDate: updated.startDate,
+            endDate: updated.endDate,
             facilityName: facility?.name ?? 'Facility',
           })
-          const subject = `Coverage confirmed for ${updated.requestedDate}`
+          const rangeLabel =
+            updated.startDate === updated.endDate
+              ? updated.startDate
+              : `${updated.startDate} – ${updated.endDate}`
+          const subject = `Coverage confirmed for ${rangeLabel}`
           sendEmail({ to: requesterProfile.email, subject, html }).catch((err) =>
             console.error('[coverage PUT] send failed:', err)
           )

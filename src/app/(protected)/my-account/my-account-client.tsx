@@ -154,7 +154,8 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [availabilitySavedMsg, setAvailabilitySavedMsg] = useState<string | null>(null)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
   const [coverageOpen, setCoverageOpen] = useState(false)
-  const [coverageDate, setCoverageDate] = useState('')
+  const [coverageStartDate, setCoverageStartDate] = useState('')
+  const [coverageEndDate, setCoverageEndDate] = useState('')
   const [coverageReason, setCoverageReason] = useState('')
   const [coverageSubmitting, setCoverageSubmitting] = useState(false)
   const [coverageError, setCoverageError] = useState<string | null>(null)
@@ -200,7 +201,11 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   }
 
   const handleCreateCoverage = async () => {
-    if (!coverageDate) return
+    if (!coverageStartDate || !coverageEndDate) return
+    if (coverageEndDate < coverageStartDate) {
+      setCoverageError('End date must be on or after start date')
+      return
+    }
     setCoverageSubmitting(true)
     setCoverageError(null)
     try {
@@ -208,7 +213,8 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requestedDate: coverageDate,
+          startDate: coverageStartDate,
+          endDate: coverageEndDate,
           reason: coverageReason.trim() || undefined,
         }),
       })
@@ -217,7 +223,8 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
         setCoverageError(typeof json.error === 'string' ? json.error : 'Failed to submit')
       } else {
         setCoverageOpen(false)
-        setCoverageDate('')
+        setCoverageStartDate('')
+        setCoverageEndDate('')
         setCoverageReason('')
         setCoverageSavedMsg('Request submitted')
         setTimeout(() => setCoverageSavedMsg(null), 3000)
@@ -760,16 +767,33 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
 
           {coverageOpen && (
             <div className="mb-4 p-4 rounded-xl bg-rose-50 border border-rose-100 space-y-3">
-              <div>
-                <label className="text-xs font-medium text-stone-600 block mb-1">Date</label>
-                <input
-                  type="date"
-                  required
-                  min={todayStr}
-                  value={coverageDate}
-                  onChange={(e) => setCoverageDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-stone-600 block mb-1">Start date</label>
+                  <input
+                    type="date"
+                    required
+                    min={todayStr}
+                    value={coverageStartDate}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setCoverageStartDate(v)
+                      if (coverageEndDate && coverageEndDate < v) setCoverageEndDate(v)
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-stone-600 block mb-1">End date</label>
+                  <input
+                    type="date"
+                    required
+                    min={coverageStartDate || todayStr}
+                    value={coverageEndDate}
+                    onChange={(e) => setCoverageEndDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-medium text-stone-600 block mb-1">Reason (optional)</label>
@@ -785,7 +809,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateCoverage}
-                  disabled={!coverageDate || coverageSubmitting}
+                  disabled={!coverageStartDate || !coverageEndDate || coverageSubmitting}
                   className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
                   style={{ backgroundColor: '#8B2E4A' }}
                 >
@@ -794,7 +818,8 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                 <button
                   onClick={() => {
                     setCoverageOpen(false)
-                    setCoverageDate('')
+                    setCoverageStartDate('')
+                    setCoverageEndDate('')
                     setCoverageReason('')
                     setCoverageError(null)
                   }}
@@ -821,7 +846,9 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-stone-900">
-                      {formatCoverageDate(r.requestedDate)}
+                      {r.startDate === r.endDate
+                        ? formatCoverageDate(r.startDate)
+                        : `${formatCoverageDate(r.startDate)} – ${formatCoverageDate(r.endDate)}`}
                     </p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {coverageStatusBadge(r.status)}

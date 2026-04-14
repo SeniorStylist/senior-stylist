@@ -6,6 +6,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, ilike } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
+import { generateStylistCode } from '@/lib/stylist-code'
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -119,11 +120,15 @@ export async function PUT(
           .set({ commissionPercent, updatedAt: new Date() })
           .where(eq(stylists.id, existingStylist.id))
       } else {
-        await db.insert(stylists).values({
-          facilityId: assignFacilityId,
-          name: accessRequest.fullName,
-          commissionPercent,
-          active: true,
+        await db.transaction(async (tx) => {
+          const stylistCode = await generateStylistCode(tx)
+          await tx.insert(stylists).values({
+            facilityId: assignFacilityId,
+            stylistCode,
+            name: accessRequest.fullName!,
+            commissionPercent,
+            active: true,
+          })
         })
       }
     }

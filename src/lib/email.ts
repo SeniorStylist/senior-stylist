@@ -103,14 +103,21 @@ export function buildComplianceAlertEmailHtml(params: {
 </html>`.trim()
 }
 
+function formatDateRange(startDate: string, endDate: string): string {
+  if (startDate === endDate) return startDate
+  return `${startDate} – ${endDate}`
+}
+
 export function buildCoverageRequestEmailHtml(params: {
   stylistName: string
-  requestedDate: string
+  startDate: string
+  endDate: string
   reason: string | null
   facilityName: string
   dashboardUrl: string
 }): string {
-  const { stylistName, requestedDate, reason, facilityName, dashboardUrl } = params
+  const { stylistName, startDate, endDate, reason, facilityName, dashboardUrl } = params
+  const rangeLabel = formatDateRange(startDate, endDate)
   const reasonRow = reason
     ? `<tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Reason</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${reason}</td></tr>`
     : ''
@@ -125,11 +132,11 @@ export function buildCoverageRequestEmailHtml(params: {
     </div>
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
-        <strong>${stylistName}</strong> has requested time off and needs coverage for <strong>${requestedDate}</strong>.
+        <strong>${stylistName}</strong> has requested time off and needs coverage for <strong>${rangeLabel}</strong>.
       </p>
       <table style="width:100%;border-collapse:collapse;">
         <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Stylist</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${stylistName}</td></tr>
-        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Date</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${requestedDate}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Dates</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${rangeLabel}</td></tr>
         ${reasonRow}
         <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Status</td><td style="padding:10px 0;color:#B45309;font-size:14px;font-weight:700;">Open</td></tr>
       </table>
@@ -146,10 +153,12 @@ export function buildCoverageRequestEmailHtml(params: {
 export function buildCoverageFilledEmailHtml(params: {
   stylistName: string
   substituteName: string
-  requestedDate: string
+  startDate: string
+  endDate: string
   facilityName: string
 }): string {
-  const { stylistName, substituteName, requestedDate, facilityName } = params
+  const { stylistName, substituteName, startDate, endDate, facilityName } = params
+  const rangeLabel = formatDateRange(startDate, endDate)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>
@@ -161,10 +170,10 @@ export function buildCoverageFilledEmailHtml(params: {
     </div>
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
-        Hi ${stylistName}, your time-off request for <strong>${requestedDate}</strong> has been covered.
+        Hi ${stylistName}, your time-off request for <strong>${rangeLabel}</strong> has been covered.
       </p>
       <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Date</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${requestedDate}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Dates</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${rangeLabel}</td></tr>
         <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Substitute</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${substituteName}</td></tr>
         <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Status</td><td style="padding:10px 0;color:#047857;font-size:14px;font-weight:700;">Filled</td></tr>
       </table>
