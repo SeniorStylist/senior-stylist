@@ -48,7 +48,7 @@ export function NavigationProgress() {
         left: 0,
         width: `${width}%`,
         height: '2px',
-        backgroundColor: '#0D7377',
+        backgroundColor: '#8B2E4A',
         zIndex: 9999,
         transition: width === 100 ? 'width 150ms ease-out, opacity 200ms ease-out' : 'width 300ms ease-out',
         opacity: width === 100 ? 0 : 1,

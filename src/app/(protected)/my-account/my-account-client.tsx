@@ -98,11 +98,11 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
     return (
       <div className="p-4 md:p-8 max-w-2xl mx-auto">
         {welcomeBanner && (
-          <div className="mb-4 bg-teal-50 border border-teal-200 rounded-2xl p-4 flex items-start gap-3">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" className="shrink-0 mt-0.5">
+          <div className="mb-4 bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2" className="shrink-0 mt-0.5">
               <polyline points="20 6 9 17 4 12" />
             </svg>
-            <p className="text-sm text-teal-800">{welcomeBanner}</p>
+            <p className="text-sm text-rose-800">{welcomeBanner}</p>
           </div>
         )}
         <h1
@@ -137,7 +137,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                   onClick={handleLink}
                   disabled={!selectedStylistId || linking}
                   className="w-full px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                 >
                   {linking ? 'Linking…' : 'Link My Account'}
                 </button>
@@ -157,11 +157,11 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   return (
     <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-5">
       {welcomeBanner && (
-        <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 flex items-start gap-3">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2" className="shrink-0 mt-0.5">
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2" className="shrink-0 mt-0.5">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <p className="text-sm text-teal-800">{welcomeBanner}</p>
+          <p className="text-sm text-rose-800">{welcomeBanner}</p>
         </div>
       )}
       <h1
@@ -205,7 +205,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           Your Earnings This Month
         </p>
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-bold text-[#0D7377]">{formatCents(monthEarningsCents)}</p>
+          <p className="text-3xl font-bold text-[#8B2E4A]">{formatCents(monthEarningsCents)}</p>
           {stylist && (
             <p className="text-sm text-stone-400 mb-1">{stylist.commissionPercent}% commission</p>
           )}

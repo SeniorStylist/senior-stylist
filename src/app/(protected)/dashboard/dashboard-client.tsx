@@ -18,7 +18,7 @@ const CalendarView = dynamic(() => import('@/components/calendar/calendar-view')
   ssr: false,
   loading: () => (
     <div className="h-full flex items-center justify-center">
-      <Spinner className="text-[#0D7377]" />
+      <Spinner className="text-[#8B2E4A]" />
     </div>
   ),
 })
@@ -308,7 +308,7 @@ export function DashboardClient({
           <div className="px-4 space-y-2">
             {loadingBookings && (
               <div className="flex items-center justify-center py-10">
-                <Spinner className="text-[#0D7377]" />
+                <Spinner className="text-[#8B2E4A]" />
               </div>
             )}
             {!loadingBookings && myTodayBookings.length === 0 && (
@@ -322,7 +322,7 @@ export function DashboardClient({
               return (
                 <div key={b.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-[#0D7377] mb-0.5">{time}</p>
+                    <p className="text-xs font-semibold text-[#8B2E4A] mb-0.5">{time}</p>
                     <p className="text-sm font-semibold text-stone-900 truncate">{b.resident?.name ?? '—'}</p>
                     <p className="text-xs text-stone-400 truncate">{b.service?.name ?? '—'}</p>
                   </div>
@@ -354,7 +354,7 @@ export function DashboardClient({
           <div className="px-4 mt-4">
             <button
               onClick={() => setStylistListMode(false)}
-              className="w-full py-3 text-sm font-medium text-[#0D7377] bg-white rounded-2xl border border-stone-200 active:scale-[0.98] active:opacity-70 transition-all duration-75"
+              className="w-full py-3 text-sm font-medium text-[#8B2E4A] bg-white rounded-2xl border border-stone-200 active:scale-[0.98] active:opacity-70 transition-all duration-75"
             >
               View Full Calendar →
             </button>
@@ -429,7 +429,7 @@ export function DashboardClient({
                     className={cn(
                       'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-95',
                       calendarView === view
-                        ? 'bg-[#0D7377] text-white'
+                        ? 'bg-[#8B2E4A] text-white'
                         : 'text-stone-600 hover:bg-stone-100'
                     )}
                   >
@@ -494,7 +494,7 @@ export function DashboardClient({
               className={cn(
                 'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 capitalize active:scale-95',
                 activePanel === tab
-                  ? 'bg-[#0D7377] text-white'
+                  ? 'bg-[#8B2E4A] text-white'
                   : 'text-stone-600 hover:bg-stone-100'
               )}
             >
@@ -546,7 +546,7 @@ export function DashboardClient({
                 </div>
                 {isAdmin && (
                   <div className="text-right">
-                    <p className="text-xl font-bold text-[#0D7377]">{formatCents(todayRevenue)}</p>
+                    <p className="text-xl font-bold text-[#8B2E4A]">{formatCents(todayRevenue)}</p>
                     <p className="text-xs text-stone-400">revenue</p>
                   </div>
                 )}

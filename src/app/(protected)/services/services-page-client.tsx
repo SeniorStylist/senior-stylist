@@ -212,7 +212,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
         <div className="flex items-center gap-2">
         <Link
           href="/services/import"
-          className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#0D7377] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
+          className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -223,7 +223,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
         </Link>
         <button
           onClick={() => setShowAdd((v) => !v)}
-          className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+          className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
           title="Add service"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -243,7 +243,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
             value={addName}
             onChange={(e) => setAddName(e.target.value)}
             placeholder="Service name *"
-            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
           />
           <div className="flex gap-3">
             <div className="flex-1 relative">
@@ -255,13 +255,13 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
               />
             </div>
             <select
               value={addDuration}
               onChange={(e) => setAddDuration(e.target.value)}
-              className="w-28 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+              className="w-28 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} min</option>
@@ -274,7 +274,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
             <select
               value={addPricingType}
               onChange={(e) => setAddPricingType(e.target.value as PricingType)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
             >
               <option value="fixed">Fixed Price</option>
               <option value="addon">Add-on</option>
@@ -294,7 +294,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
               />
             </div>
           )}
@@ -304,20 +304,20 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
               <label className="text-xs font-medium text-stone-500">Pricing Tiers</label>
               {addTiers.map((tier, i) => (
                 <div key={i} className="flex gap-2 items-center">
-                  <input type="number" value={tier.minQty} min={1} onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], minQty: parseInt(e.target.value) || 1 }; setAddTiers(t) }} placeholder="Min" className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#0D7377]" />
+                  <input type="number" value={tier.minQty} min={1} onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], minQty: parseInt(e.target.value) || 1 }; setAddTiers(t) }} placeholder="Min" className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   <span className="text-xs text-stone-400">–</span>
-                  <input type="number" value={tier.maxQty} min={1} onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], maxQty: parseInt(e.target.value) || 1 }; setAddTiers(t) }} placeholder="Max" className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#0D7377]" />
+                  <input type="number" value={tier.maxQty} min={1} onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], maxQty: parseInt(e.target.value) || 1 }; setAddTiers(t) }} placeholder="Max" className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   <span className="text-xs text-stone-400">×</span>
                   <div className="relative flex-1">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-                    <input type="number" value={(tier.unitPriceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], unitPriceCents: dollarsToCents(e.target.value) }; setAddTiers(t) }} className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:border-[#0D7377]" />
+                    <input type="number" value={(tier.unitPriceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], unitPriceCents: dollarsToCents(e.target.value) }; setAddTiers(t) }} className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   </div>
                   {addTiers.length > 1 && (
                     <button onClick={() => setAddTiers(addTiers.filter((_, j) => j !== i))} className="p-1 text-stone-400 hover:text-red-500"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   )}
                 </div>
               ))}
-              <button onClick={() => setAddTiers([...addTiers, { minQty: (addTiers[addTiers.length - 1]?.maxQty ?? 0) + 1, maxQty: (addTiers[addTiers.length - 1]?.maxQty ?? 0) + 10, unitPriceCents: 0 }])} className="text-xs text-[#0D7377] font-medium hover:underline">+ Add tier</button>
+              <button onClick={() => setAddTiers([...addTiers, { minQty: (addTiers[addTiers.length - 1]?.maxQty ?? 0) + 1, maxQty: (addTiers[addTiers.length - 1]?.maxQty ?? 0) + 10, unitPriceCents: 0 }])} className="text-xs text-[#8B2E4A] font-medium hover:underline">+ Add tier</button>
             </div>
           )}
 
@@ -326,17 +326,17 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
               <label className="text-xs font-medium text-stone-500">Options</label>
               {addOptions.map((opt, i) => (
                 <div key={i} className="flex gap-2 items-center">
-                  <input value={opt.name} onChange={(e) => { const o = [...addOptions]; o[i] = { ...o[i], name: e.target.value }; setAddOptions(o) }} placeholder="Option name" className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377]" />
+                  <input value={opt.name} onChange={(e) => { const o = [...addOptions]; o[i] = { ...o[i], name: e.target.value }; setAddOptions(o) }} placeholder="Option name" className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   <div className="relative w-24">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
-                    <input type="number" value={(opt.priceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const o = [...addOptions]; o[i] = { ...o[i], priceCents: dollarsToCents(e.target.value) }; setAddOptions(o) }} className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:border-[#0D7377]" />
+                    <input type="number" value={(opt.priceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const o = [...addOptions]; o[i] = { ...o[i], priceCents: dollarsToCents(e.target.value) }; setAddOptions(o) }} className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   </div>
                   {addOptions.length > 1 && (
                     <button onClick={() => setAddOptions(addOptions.filter((_, j) => j !== i))} className="p-1 text-stone-400 hover:text-red-500"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   )}
                 </div>
               ))}
-              <button onClick={() => setAddOptions([...addOptions, { name: '', priceCents: 0 }])} className="text-xs text-[#0D7377] font-medium hover:underline">+ Add option</button>
+              <button onClick={() => setAddOptions([...addOptions, { name: '', priceCents: 0 }])} className="text-xs text-[#8B2E4A] font-medium hover:underline">+ Add option</button>
             </div>
           )}
 
@@ -368,7 +368,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
           <p className="text-xs text-stone-400 mt-1 mb-4">Add your first service to start booking appointments.</p>
           <button
             onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -395,7 +395,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                     setSelectedIds(new Set(services.map((s) => s.id)))
                   }
                 }}
-                className="rounded accent-[#0D7377] w-3.5 h-3.5"
+                className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
               />
             </div>
             {(['name', 'category', 'duration', 'price'] as const).map((key) => (
@@ -409,7 +409,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                   onClick={() => toggleSort(key)}
                   className={cn(
                     'flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-                    sortKey === key ? 'text-[#0D7377]' : 'text-stone-500 hover:text-stone-700'
+                    sortKey === key ? 'text-[#8B2E4A]' : 'text-stone-500 hover:text-stone-700'
                   )}
                 >
                   {key === 'name' ? 'Service' : key === 'category' ? 'Category' : key === 'duration' ? 'Duration' : 'Price'}
@@ -466,20 +466,20 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
             >
               {editingId === service.id ? (
                 /* Inline edit row */
-                <div className="px-5 py-3 bg-teal-50/60 border-l-2 border-[#0D7377] space-y-3">
+                <div className="px-5 py-3 bg-rose-50/60 border-l-2 border-[#8B2E4A] space-y-3">
                   <div className="grid grid-cols-12 gap-3 items-center">
                     <div className="col-span-5">
                       <input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        className="w-full bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]"
+                        className="w-full bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                       />
                     </div>
                     <div className="col-span-2">
                       <select
                         value={editDuration}
                         onChange={(e) => setEditDuration(e.target.value)}
-                        className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]"
+                        className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                       >
                         {DURATION_OPTIONS.map((d) => (
                           <option key={d} value={d}>{d} min</option>
@@ -494,7 +494,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                           value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)}
                           step="0.01"
-                          className="w-full bg-white border border-stone-200 rounded-lg pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]"
+                          className="w-full bg-white border border-stone-200 rounded-lg pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                         />
                       </div>
                     </div>
@@ -513,7 +513,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                     <select
                       value={editPricingType}
                       onChange={(e) => setEditPricingType(e.target.value as PricingType)}
-                      className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]"
+                      className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                     >
                       <option value="fixed">Fixed</option>
                       <option value="addon">Add-on</option>
@@ -524,7 +524,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                     {editPricingType === 'addon' && (
                       <div className="relative">
                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">+$</span>
-                        <input type="number" value={editAddonAmount} onChange={(e) => setEditAddonAmount(e.target.value)} step="0.01" min="0" placeholder="Add-on" className="w-24 bg-white border border-stone-200 rounded-lg pl-7 pr-2 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]" />
+                        <input type="number" value={editAddonAmount} onChange={(e) => setEditAddonAmount(e.target.value)} step="0.01" min="0" placeholder="Add-on" className="w-24 bg-white border border-stone-200 rounded-lg pl-7 pr-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                       </div>
                     )}
 
@@ -532,18 +532,18 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                       <div className="flex-1 space-y-1.5">
                         {editTiers.map((tier, i) => (
                           <div key={i} className="flex gap-1.5 items-center text-sm">
-                            <input type="number" value={tier.minQty} min={1} onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], minQty: parseInt(e.target.value) || 1 }; setEditTiers(t) }} className="w-14 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#0D7377]" />
+                            <input type="number" value={tier.minQty} min={1} onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], minQty: parseInt(e.target.value) || 1 }; setEditTiers(t) }} className="w-14 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             <span className="text-stone-400">–</span>
-                            <input type="number" value={tier.maxQty} min={1} onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], maxQty: parseInt(e.target.value) || 1 }; setEditTiers(t) }} className="w-14 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#0D7377]" />
+                            <input type="number" value={tier.maxQty} min={1} onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], maxQty: parseInt(e.target.value) || 1 }; setEditTiers(t) }} className="w-14 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             <span className="text-stone-400">×</span>
                             <div className="relative w-20">
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">$</span>
-                              <input type="number" value={(tier.unitPriceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], unitPriceCents: dollarsToCents(e.target.value) }; setEditTiers(t) }} className="w-full bg-white border border-stone-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:border-[#0D7377]" />
+                              <input type="number" value={(tier.unitPriceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], unitPriceCents: dollarsToCents(e.target.value) }; setEditTiers(t) }} className="w-full bg-white border border-stone-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             </div>
                             {editTiers.length > 1 && <button onClick={() => setEditTiers(editTiers.filter((_, j) => j !== i))} className="p-0.5 text-stone-400 hover:text-red-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                           </div>
                         ))}
-                        <button onClick={() => setEditTiers([...editTiers, { minQty: (editTiers[editTiers.length - 1]?.maxQty ?? 0) + 1, maxQty: (editTiers[editTiers.length - 1]?.maxQty ?? 0) + 10, unitPriceCents: 0 }])} className="text-xs text-[#0D7377] font-medium hover:underline">+ Add tier</button>
+                        <button onClick={() => setEditTiers([...editTiers, { minQty: (editTiers[editTiers.length - 1]?.maxQty ?? 0) + 1, maxQty: (editTiers[editTiers.length - 1]?.maxQty ?? 0) + 10, unitPriceCents: 0 }])} className="text-xs text-[#8B2E4A] font-medium hover:underline">+ Add tier</button>
                       </div>
                     )}
 
@@ -551,15 +551,15 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                       <div className="flex-1 space-y-1.5">
                         {editOptions.map((opt, i) => (
                           <div key={i} className="flex gap-1.5 items-center">
-                            <input value={opt.name} onChange={(e) => { const o = [...editOptions]; o[i] = { ...o[i], name: e.target.value }; setEditOptions(o) }} placeholder="Name" className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#0D7377]" />
+                            <input value={opt.name} onChange={(e) => { const o = [...editOptions]; o[i] = { ...o[i], name: e.target.value }; setEditOptions(o) }} placeholder="Name" className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             <div className="relative w-20">
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">$</span>
-                              <input type="number" value={(opt.priceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const o = [...editOptions]; o[i] = { ...o[i], priceCents: dollarsToCents(e.target.value) }; setEditOptions(o) }} className="w-full bg-white border border-stone-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:border-[#0D7377]" />
+                              <input type="number" value={(opt.priceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const o = [...editOptions]; o[i] = { ...o[i], priceCents: dollarsToCents(e.target.value) }; setEditOptions(o) }} className="w-full bg-white border border-stone-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             </div>
                             {editOptions.length > 1 && <button onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))} className="p-0.5 text-stone-400 hover:text-red-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                           </div>
                         ))}
-                        <button onClick={() => setEditOptions([...editOptions, { name: '', priceCents: 0 }])} className="text-xs text-[#0D7377] font-medium hover:underline">+ Add option</button>
+                        <button onClick={() => setEditOptions([...editOptions, { name: '', priceCents: 0 }])} className="text-xs text-[#8B2E4A] font-medium hover:underline">+ Add option</button>
                       </div>
                     )}
                   </div>
@@ -579,7 +579,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
                         })
                       }}
                       className={cn(
-                        'rounded accent-[#0D7377] w-3.5 h-3.5 transition-opacity',
+                        'rounded accent-[#8B2E4A] w-3.5 h-3.5 transition-opacity',
                         selectedIds.size > 0 || hoverId === service.id ? 'opacity-100' : 'opacity-0'
                       )}
                     />

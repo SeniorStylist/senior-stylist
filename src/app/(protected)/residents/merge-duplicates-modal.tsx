@@ -181,13 +181,13 @@ export function MergeDuplicatesModal({
 
           {loading ? (
             <div className="py-16 flex flex-col items-center gap-3">
-              <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+              <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
               <p className="text-sm text-stone-400">Scanning residents…</p>
             </div>
           ) : visiblePairs.length === 0 ? (
             <div className="py-16 flex flex-col items-center gap-3 text-center">
-              <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2">
+              <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
@@ -209,12 +209,12 @@ export function MergeDuplicatesModal({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={cn(
                       'text-xs font-semibold px-2 py-0.5 rounded-full',
-                      pair.score >= 0.8 ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'
+                      pair.score >= 0.8 ? 'bg-rose-100 text-[#8B2E4A]' : 'bg-amber-100 text-amber-700'
                     )}>
                       {Math.round(pair.score * 100)}% match
                     </span>
                     {pair.sameRoom && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-[#8B2E4A]">
                         Same room
                       </span>
                     )}
@@ -231,7 +231,7 @@ export function MergeDuplicatesModal({
                           className={cn(
                             'rounded-xl border p-3 transition-colors',
                             selected
-                              ? 'border-[#0D7377] bg-teal-50/50'
+                              ? 'border-[#8B2E4A] bg-rose-50/50'
                               : 'border-stone-200 bg-stone-50'
                           )}
                         >
@@ -262,7 +262,7 @@ export function MergeDuplicatesModal({
                         className={cn(
                           'flex-1 min-h-[36px] text-xs font-semibold rounded-xl border transition-colors',
                           side === s
-                            ? 'bg-[#0D7377] text-white border-[#0D7377]'
+                            ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]'
                             : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
                         )}
                       >
@@ -286,7 +286,7 @@ export function MergeDuplicatesModal({
                           <input
                             value={editName[key] ?? ''}
                             onChange={(e) => setEditName(prev => ({ ...prev, [key]: e.target.value }))}
-                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                           />
                         </div>
                         <div className="w-24">
@@ -295,14 +295,14 @@ export function MergeDuplicatesModal({
                             value={editRoom[key] ?? ''}
                             onChange={(e) => setEditRoom(prev => ({ ...prev, [key]: e.target.value }))}
                             placeholder="—"
-                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                           />
                         </div>
                       </div>
                       <button
                         onClick={() => handleMerge(pair)}
                         disabled={isMerging || !editName[key]?.trim()}
-                        className="w-full min-h-[40px] bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                        className="w-full min-h-[40px] bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                       >
                         {isMerging ? (
                           <>

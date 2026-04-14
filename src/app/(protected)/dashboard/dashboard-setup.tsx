@@ -30,9 +30,9 @@ export function DashboardSetup() {
 
   if (done) {
     return (
-      <div className="bg-teal-50 border border-teal-200 rounded-2xl p-6 max-w-lg">
-        <h2 className="font-semibold text-teal-900 mb-2">✓ Setup complete!</h2>
-        <p className="text-sm text-teal-700">Facility, residents, services, and stylist created.</p>
+      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 max-w-lg">
+        <h2 className="font-semibold text-stone-900 mb-2">✓ Setup complete!</h2>
+        <p className="text-sm text-[#8B2E4A]">Facility, residents, services, and stylist created.</p>
       </div>
     )
   }
@@ -51,7 +51,7 @@ export function DashboardSetup() {
       <button
         onClick={handleSetup}
         disabled={loading}
-        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0D7377] text-white rounded-xl text-sm font-semibold hover:bg-[#0a5f63] active:scale-95 transition-all duration-150 disabled:opacity-60"
+        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#8B2E4A] text-white rounded-xl text-sm font-semibold hover:bg-[#72253C] active:scale-95 transition-all duration-150 disabled:opacity-60"
       >
         {loading && (
           <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">

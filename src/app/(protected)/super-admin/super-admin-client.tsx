@@ -410,9 +410,9 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 <button
                   onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
                   className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
                 >
                   {showCreateForm ? 'Cancel' : '+ Create Facility'}
                 </button>
@@ -422,9 +422,9 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
               <button
                 onClick={() => { setShowCreateFranchise((v) => !v); setFranchiseFormError(null) }}
                 className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-                style={{ backgroundColor: '#0D7377' }}
+                style={{ backgroundColor: '#8B2E4A' }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
               >
                 {showCreateFranchise ? 'Cancel' : '+ New Franchise'}
               </button>
@@ -438,7 +438,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 onClick={() => setActiveTab(tab)}
                 className={cn(
                   'flex-1 py-1.5 text-xs font-semibold rounded-lg capitalize transition-all duration-150',
-                  activeTab === tab ? 'bg-[#0D7377] text-white' : 'text-stone-600 hover:bg-stone-100'
+                  activeTab === tab ? 'bg-[#8B2E4A] text-white' : 'text-stone-600 hover:bg-stone-100'
                 )}
               >
                 {tab === 'requests' && requestsList.length > 0
@@ -470,7 +470,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   value={formData.name}
                   onChange={(e) => { setFormData((d) => ({ ...d, name: e.target.value })); setCreateError(null) }}
                   className={cn(
-                    'w-full px-3 py-2 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]',
+                    'w-full px-3 py-2 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]',
                     createError ? 'border-red-400' : 'border-stone-200'
                   )}
                   placeholder="Sunrise Senior Living"
@@ -485,7 +485,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   type="text"
                   value={formData.address}
                   onChange={(e) => setFormData((d) => ({ ...d, address: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                   placeholder="123 Main St, City, ST"
                 />
               </div>
@@ -495,7 +495,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   type="text"
                   value={formData.phone}
                   onChange={(e) => setFormData((d) => ({ ...d, phone: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                   placeholder="(555) 123-4567"
                 />
               </div>
@@ -504,7 +504,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 <select
                   value={formData.timezone}
                   onChange={(e) => setFormData((d) => ({ ...d, timezone: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] bg-white"
                 >
                   {TIMEZONES.map((tz) => (
                     <option key={tz.value} value={tz.value}>
@@ -519,9 +519,9 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 type="submit"
                 disabled={creating}
                 className="px-5 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: '#0D7377' }}
+                style={{ backgroundColor: '#8B2E4A' }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
               >
                 {creating ? 'Creating...' : 'Create Facility'}
               </button>
@@ -564,7 +564,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                       <select
                         value={assignFacility[req.id] ?? ''}
                         onChange={(e) => setAssignFacility((prev) => ({ ...prev, [req.id]: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                       >
                         <option value="">Select facility…</option>
                         {activeFacilities.map((f) => (
@@ -577,7 +577,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                       <select
                         value={assignRole[req.id] ?? 'stylist'}
                         onChange={(e) => setAssignRole((prev) => ({ ...prev, [req.id]: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                       >
                         <option value="stylist">Stylist</option>
                         <option value="admin">Admin</option>
@@ -594,7 +594,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                           placeholder="50"
                           value={assignCommission[req.id] ?? ''}
                           onChange={(e) => setAssignCommission((prev) => ({ ...prev, [req.id]: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                         />
                       </div>
                     )}
@@ -611,7 +611,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                       onClick={() => handleRequestAction(req.id, 'approve')}
                       disabled={actioningRequestId === req.id || !assignFacility[req.id]}
                       className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white transition-colors disabled:opacity-50"
-                      style={{ backgroundColor: '#0D7377' }}
+                      style={{ backgroundColor: '#8B2E4A' }}
                     >
                       {actioningRequestId === req.id ? 'Approving…' : 'Approve'}
                     </button>
@@ -666,7 +666,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                         value={editData.name ?? ''}
                         onChange={(e) => { setEditData((d) => ({ ...d, name: e.target.value })); setEditError(null) }}
                         className={cn(
-                          'w-full px-3 py-2 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]',
+                          'w-full px-3 py-2 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]',
                           editError ? 'border-red-400' : 'border-stone-200'
                         )}
                       />
@@ -681,7 +681,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                           type="text"
                           value={editData.address ?? ''}
                           onChange={(e) => setEditData((d) => ({ ...d, address: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                         />
                       </div>
                       <div>
@@ -690,7 +690,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                           type="text"
                           value={editData.phone ?? ''}
                           onChange={(e) => setEditData((d) => ({ ...d, phone: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                         />
                       </div>
                     </div>
@@ -727,7 +727,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                         value={(editData as { contactEmail?: string }).contactEmail ?? ''}
                         onChange={(e) => setEditData((d) => ({ ...d, contactEmail: e.target.value }))}
                         placeholder="admin@facility.com"
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                       />
                     </div>
                   </div>
@@ -742,7 +742,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                       onClick={() => handleSaveEdit(f.id)}
                       disabled={editSaving}
                       className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-50"
-                      style={{ backgroundColor: '#0D7377' }}
+                      style={{ backgroundColor: '#8B2E4A' }}
                     >
                       {editSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -882,9 +882,9 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                         onClick={() => handleEnterFacility(f.id)}
                         disabled={enteringId === f.id}
                         className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white transition-colors disabled:opacity-50"
-                        style={{ backgroundColor: '#0D7377' }}
+                        style={{ backgroundColor: '#8B2E4A' }}
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
                       >
                         {enteringId === f.id ? 'Entering...' : 'Enter as Admin'}
                       </button>
@@ -928,7 +928,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                     value={franchiseForm.name}
                     onChange={(e) => { setFranchiseForm((d) => ({ ...d, name: e.target.value })); setFranchiseFormError(null) }}
                     placeholder="Sunrise Group"
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                   />
                 </div>
                 <div>
@@ -939,7 +939,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                     value={franchiseForm.ownerEmail}
                     onChange={(e) => { setFranchiseForm((d) => ({ ...d, ownerEmail: e.target.value })); setFranchiseFormError(null) }}
                     placeholder="owner@example.com"
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                   />
                 </div>
               </div>
@@ -954,8 +954,8 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                       className={cn(
                         'px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors',
                         franchiseForm.facilityIds.includes(f.id)
-                          ? 'bg-[#0D7377] text-white border-[#0D7377]'
-                          : 'bg-white text-stone-600 border-stone-200 hover:border-[#0D7377]'
+                          ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]'
+                          : 'bg-white text-stone-600 border-stone-200 hover:border-[#8B2E4A]'
                       )}
                     >
                       {f.name}
@@ -974,9 +974,9 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   type="submit"
                   disabled={creatingFranchise || franchiseForm.facilityIds.length === 0}
                   className="px-5 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: '#0D7377' }}
+                  style={{ backgroundColor: '#8B2E4A' }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0D7377')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
                 >
                   {creatingFranchise ? 'Creating...' : 'Create Franchise'}
                 </button>
@@ -1000,7 +1000,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                           type="text"
                           value={franchiseEditForm.name}
                           onChange={(e) => setFranchiseEditForm((d) => ({ ...d, name: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                         />
                       </div>
                       <div>
@@ -1009,7 +1009,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                           type="email"
                           value={franchiseEditForm.ownerEmail}
                           onChange={(e) => setFranchiseEditForm((d) => ({ ...d, ownerEmail: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                         />
                       </div>
                     </div>
@@ -1024,8 +1024,8 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                             className={cn(
                               'px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors',
                               franchiseEditForm.facilityIds.includes(fac.id)
-                                ? 'bg-[#0D7377] text-white border-[#0D7377]'
-                                : 'bg-white text-stone-600 border-stone-200 hover:border-[#0D7377]'
+                                ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]'
+                                : 'bg-white text-stone-600 border-stone-200 hover:border-[#8B2E4A]'
                             )}
                           >
                             {fac.name}
@@ -1047,7 +1047,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                         onClick={() => handleSaveFranchise(f.id)}
                         disabled={savingFranchiseId === f.id}
                         className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white disabled:opacity-50"
-                        style={{ backgroundColor: '#0D7377' }}
+                        style={{ backgroundColor: '#8B2E4A' }}
                       >
                         {savingFranchiseId === f.id ? 'Saving...' : 'Save'}
                       </button>

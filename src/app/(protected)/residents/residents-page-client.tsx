@@ -141,7 +141,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
           <svg
             className={pullRefreshing ? 'animate-spin' : ''}
             style={{ transform: pullRefreshing ? undefined : `rotate(${Math.min(pullProgress / 64, 1) * 360}deg)` }}
-            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2.5"
+            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.5"
           >
             <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
@@ -191,7 +191,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
           </Link>
           <button
             onClick={() => setShowAdd((v) => !v)}
-            className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+            className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
             title="Add resident"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -212,21 +212,21 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder="Full name *"
-            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
           />
           <div className="flex gap-2">
             <input
               value={roomNumber}
               onChange={(e) => setRoomNumber(e.target.value)}
               placeholder="Room #"
-              className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+              className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
             />
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Phone"
-              className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+              className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
             />
           </div>
           <div className="flex gap-2 justify-end">
@@ -247,7 +247,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or room..."
-          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm placeholder:text-stone-400 focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all shadow-sm"
+          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm placeholder:text-stone-400 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all shadow-sm"
         />
       </div>
 
@@ -274,7 +274,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
               <p className="text-xs text-stone-400 mt-1 mb-4">Add your first resident to get started.</p>
               <button
                 onClick={() => setShowAdd(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D7377] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
@@ -302,7 +302,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
                   onClick={() => toggleSort(key)}
                   className={cn(
                     'flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-                    sortKey === key ? 'text-[#0D7377]' : 'text-stone-500 hover:text-stone-700'
+                    sortKey === key ? 'text-[#8B2E4A]' : 'text-stone-500 hover:text-stone-700'
                   )}
                 >
                   {label}
@@ -327,7 +327,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-sm font-medium text-stone-900 truncate">{resident.name}</span>
                   {resident.poaName && (
-                    <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold bg-teal-50 text-teal-700">
+                    <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-[#8B2E4A]">
                       POA
                     </span>
                   )}

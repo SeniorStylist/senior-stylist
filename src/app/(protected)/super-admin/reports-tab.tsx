@@ -162,9 +162,9 @@ export function ReportsTab() {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+            className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
           />
-          {loading && <Spinner className="text-[#0D7377]" />}
+          {loading && <Spinner className="text-[#8B2E4A]" />}
         </div>
         <button
           onClick={handleExport}
@@ -223,7 +223,7 @@ export function ReportsTab() {
                   formatter={(v) => [formatCents(Number(v)), 'Revenue']}
                   contentStyle={{ borderRadius: 12, border: '1px solid #e7e5e4', fontSize: 12 }}
                 />
-                <Bar dataKey="revenue" fill="#0D7377" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="#8B2E4A" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -258,7 +258,7 @@ export function ReportsTab() {
             <button
               onClick={() => handleMarkPaid([...selectedIds])}
               disabled={markingPaid}
-              className="px-3 py-1.5 text-xs font-semibold bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] disabled:opacity-50 transition-all"
+              className="px-3 py-1.5 text-xs font-semibold bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] disabled:opacity-50 transition-all"
             >
               {markingPaid ? 'Marking…' : `Mark ${selectedIds.size} Paid`}
             </button>
@@ -267,7 +267,7 @@ export function ReportsTab() {
 
         {loadingOutstanding ? (
           <div className="flex items-center justify-center py-10">
-            <Spinner className="text-[#0D7377]" />
+            <Spinner className="text-[#8B2E4A]" />
           </div>
         ) : outstanding.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-stone-400">
@@ -287,7 +287,7 @@ export function ReportsTab() {
                       type="checkbox"
                       checked={allSelected}
                       onChange={() => toggleFacility(facilityIds)}
-                      className="w-4 h-4 rounded accent-[#0D7377]"
+                      className="w-4 h-4 rounded accent-[#8B2E4A]"
                     />
                     <p className="text-xs font-semibold text-stone-600">{name}</p>
                   </div>
@@ -296,7 +296,7 @@ export function ReportsTab() {
                     <button
                       onClick={() => handleMarkPaid(facilityIds)}
                       disabled={markingPaid}
-                      className="text-xs font-semibold text-[#0D7377] hover:underline disabled:opacity-40 transition-colors"
+                      className="text-xs font-semibold text-[#8B2E4A] hover:underline disabled:opacity-40 transition-colors"
                     >
                       Mark All Paid
                     </button>
@@ -309,7 +309,7 @@ export function ReportsTab() {
                       type="checkbox"
                       checked={selectedIds.has(b.id)}
                       onChange={() => toggleSelect(b.id)}
-                      className="w-4 h-4 rounded accent-[#0D7377] shrink-0"
+                      className="w-4 h-4 rounded accent-[#8B2E4A] shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-900 truncate">{b.resident.name}</p>
@@ -322,7 +322,7 @@ export function ReportsTab() {
                       <button
                         onClick={() => handleMarkPaid([b.id])}
                         disabled={markingPaid}
-                        className="text-xs font-medium text-[#0D7377] hover:underline disabled:opacity-40 transition-colors"
+                        className="text-xs font-medium text-[#8B2E4A] hover:underline disabled:opacity-40 transition-colors"
                       >
                         Paid
                       </button>

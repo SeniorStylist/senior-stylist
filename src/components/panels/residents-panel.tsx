@@ -86,12 +86,12 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
           />
           {isAdmin && (
             <button
               onClick={() => setShowAdd((v) => !v)}
-              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
               title="Add resident"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -112,7 +112,7 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
               onChange={(e) => setName(e.target.value)}
               placeholder="Full name *"
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
             />
             <div className="flex gap-2">
               <input
@@ -120,14 +120,14 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
                 value={roomNumber}
                 onChange={(e) => setRoomNumber(e.target.value)}
                 placeholder="Room #"
-                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
               />
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Phone"
-                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
               />
             </div>
             <div className="flex gap-2 justify-end">
@@ -156,7 +156,7 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
               key={resident.id}
               onClick={() => router.push(`/residents/${resident.id}`)}
               className={`w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-stone-50 active:bg-stone-100 transition-colors border-b border-stone-50 last:border-0 ${
-                newlyAddedId === resident.id ? 'bg-teal-50' : ''
+                newlyAddedId === resident.id ? 'bg-rose-50' : ''
               }`}
             >
               <Avatar name={resident.name} size="sm" />

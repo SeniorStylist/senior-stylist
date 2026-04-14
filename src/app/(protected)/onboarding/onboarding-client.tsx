@@ -202,7 +202,7 @@ export default function OnboardingClient() {
 
   // Step 3 — Stylist
   const [stylistName, setStylistName] = useState('')
-  const [stylistColor, setStylistColor] = useState('#0D7377')
+  const [stylistColor, setStylistColor] = useState('#8B2E4A')
   const [commission, setCommission] = useState('0')
   const [step3Loading, setStep3Loading] = useState(false)
   const [step3Error, setStep3Error] = useState<string | null>(null)
@@ -426,11 +426,11 @@ export default function OnboardingClient() {
   }
 
   // ── Shared style classes ───────────────────────────────────────────
-  const inputClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all'
-  const selectClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] transition-all'
+  const inputClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all'
+  const selectClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] transition-all'
   const ctaClass = 'w-full py-3.5 rounded-2xl bg-[#8B2E4A] text-white font-semibold text-base active:scale-[0.98] transition-all shadow-sm disabled:opacity-50'
   const skipClass = 'w-full text-sm text-stone-400 hover:text-stone-600 transition-colors py-1'
-  const optionCardClass = 'w-full p-4 rounded-2xl border-2 border-stone-200 hover:border-[#0D7377] text-left transition-all cursor-pointer'
+  const optionCardClass = 'w-full p-4 rounded-2xl border-2 border-stone-200 hover:border-[#8B2E4A] text-left transition-all cursor-pointer'
 
   // ─────────────────────────────────────────────────────────────────
   return (
@@ -503,7 +503,7 @@ export default function OnboardingClient() {
             {step === 2 && (
               <div className="space-y-5">
                 <div>
-                  <p className="text-xs font-semibold text-[#0D7377] uppercase tracking-wide mb-1">Step 1 of 4</p>
+                  <p className="text-xs font-semibold text-[#8B2E4A] uppercase tracking-wide mb-1">Step 1 of 4</p>
                   <h2 className="text-xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
                     Your Facility
                   </h2>
@@ -551,7 +551,7 @@ export default function OnboardingClient() {
             {step === 3 && (
               <div className="space-y-5">
                 <div>
-                  <p className="text-xs font-semibold text-[#0D7377] uppercase tracking-wide mb-1">Step 2 of 4</p>
+                  <p className="text-xs font-semibold text-[#8B2E4A] uppercase tracking-wide mb-1">Step 2 of 4</p>
                   <h2 className="text-xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
                     Add Your First Stylist
                   </h2>
@@ -601,12 +601,12 @@ export default function OnboardingClient() {
             {step === 4 && (
               <div className="space-y-5">
                 <div>
-                  <p className="text-xs font-semibold text-[#0D7377] uppercase tracking-wide mb-1">Step 3 of 4</p>
+                  <p className="text-xs font-semibold text-[#8B2E4A] uppercase tracking-wide mb-1">Step 3 of 4</p>
                   <h2 className="text-xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
                     Add Your Services
                   </h2>
                   {servicesAdded > 0 && (
-                    <p className="text-xs text-teal-600 font-medium mt-1">
+                    <p className="text-xs text-rose-600 font-medium mt-1">
                       {servicesAdded} service{servicesAdded !== 1 ? 's' : ''} added
                     </p>
                   )}
@@ -656,7 +656,7 @@ export default function OnboardingClient() {
                       <button
                         onClick={handleAddService}
                         disabled={step4Loading}
-                        className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 text-stone-500 hover:border-[#0D7377] hover:text-[#0D7377] text-sm font-medium transition-all disabled:opacity-50"
+                        className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 text-stone-500 hover:border-[#8B2E4A] hover:text-[#8B2E4A] text-sm font-medium transition-all disabled:opacity-50"
                       >
                         {step4Loading ? 'Adding…' : '+ Add this service'}
                       </button>
@@ -682,7 +682,7 @@ export default function OnboardingClient() {
                     {/* Upload zone */}
                     {!importRows.length && !importSaved && (
                       <div className="space-y-3">
-                        <label className="block border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] transition-all">
+                        <label className="block border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#8B2E4A] transition-all">
                           <input
                             type="file"
                             accept=".pdf,.csv,.xlsx,.xls"
@@ -767,12 +767,12 @@ export default function OnboardingClient() {
             {step === 5 && (
               <div className="space-y-5">
                 <div>
-                  <p className="text-xs font-semibold text-[#0D7377] uppercase tracking-wide mb-1">Step 4 of 4</p>
+                  <p className="text-xs font-semibold text-[#8B2E4A] uppercase tracking-wide mb-1">Step 4 of 4</p>
                   <h2 className="text-xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
                     Add Residents
                   </h2>
                   {residentsAdded > 0 && (
-                    <p className="text-xs text-teal-600 font-medium mt-1">
+                    <p className="text-xs text-rose-600 font-medium mt-1">
                       {residentsAdded} resident{residentsAdded !== 1 ? 's' : ''} added
                     </p>
                   )}
@@ -816,7 +816,7 @@ export default function OnboardingClient() {
                       <button
                         onClick={handleAddResident}
                         disabled={step5Loading}
-                        className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 text-stone-500 hover:border-[#0D7377] hover:text-[#0D7377] text-sm font-medium transition-all disabled:opacity-50"
+                        className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 text-stone-500 hover:border-[#8B2E4A] hover:text-[#8B2E4A] text-sm font-medium transition-all disabled:opacity-50"
                       >
                         {step5Loading ? 'Adding…' : '+ Add this resident'}
                       </button>
@@ -842,7 +842,7 @@ export default function OnboardingClient() {
                     {/* Upload zone */}
                     {!residentRows.length && !residentImportSaved && (
                       <div className="space-y-3">
-                        <label className="block border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] transition-all">
+                        <label className="block border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#8B2E4A] transition-all">
                           <input
                             type="file"
                             accept=".csv,.xlsx,.xls"

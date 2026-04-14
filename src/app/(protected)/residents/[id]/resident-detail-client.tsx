@@ -242,7 +242,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                   />
                 </div>
                 <div>
@@ -250,7 +250,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   <input
                     value={roomNumber}
                     onChange={(e) => setRoomNumber(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                   />
                 </div>
                 <div>
@@ -259,7 +259,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                   />
                 </div>
                 <div>
@@ -268,7 +268,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all resize-none"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all resize-none"
                   />
                 </div>
                 {facilityServices.length > 0 && (
@@ -277,7 +277,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     <select
                       value={defaultServiceId}
                       onChange={(e) => setDefaultServiceId(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] transition-all"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] transition-all"
                     >
                       <option value="">No preference</option>
                       {facilityServices.map((s) => (
@@ -295,7 +295,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                       <input
                         value={poaName}
                         onChange={(e) => setPoaName(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                       />
                     </div>
                     <div>
@@ -304,7 +304,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                         type="email"
                         value={poaEmail}
                         onChange={(e) => setPoaEmail(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                       />
                     </div>
                     <div>
@@ -313,7 +313,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                         type="tel"
                         value={poaPhone}
                         onChange={(e) => setPoaPhone(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                       />
                     </div>
                     <div>
@@ -321,7 +321,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                       <select
                         value={poaPaymentMethod}
                         onChange={(e) => setPoaPaymentMethod(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] transition-all"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] transition-all"
                       >
                         <option value="">Not specified</option>
                         <option value="cash">Cash</option>
@@ -340,7 +340,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                         type="checkbox"
                         checked={poaNotificationsEnabled}
                         onChange={e => setPoaNotificationsEnabled(e.target.checked)}
-                        className="h-4 w-4 rounded accent-[#0D7377]"
+                        className="h-4 w-4 rounded accent-[#8B2E4A]"
                       />
                     </div>
                   </div>
@@ -358,7 +358,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                 {preferredServiceName && (
                   <div>
                     <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Preferred Service</p>
-                    <span className="inline-flex items-center bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                    <span className="inline-flex items-center bg-rose-50 text-[#8B2E4A] px-2 py-0.5 rounded-full text-xs font-medium">
                       Prefers: {preferredServiceName}
                     </span>
                   </div>
@@ -371,7 +371,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                 )}
                 {(resident.poaName || resident.poaEmail || resident.poaPhone || resident.poaPaymentMethod) && (
                   <div className="pt-2 border-t border-stone-100">
-                    <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">Power of Attorney</p>
+                    <p className="text-xs font-semibold text-[#8B2E4A] uppercase tracking-wide mb-2">Power of Attorney</p>
                     <InfoRow label="Name" value={resident.poaName ?? undefined} />
                     <InfoRow label="Email" value={resident.poaEmail ?? undefined} />
                     {resident.poaEmail && (
@@ -421,7 +421,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   <button
                     onClick={handleSendPortalLink}
                     disabled={sendingLink}
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl text-xs font-medium border border-[#0D7377] text-[#0D7377] hover:bg-teal-50 transition-colors disabled:opacity-40 min-h-[44px]"
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl text-xs font-medium border border-[#8B2E4A] text-[#8B2E4A] hover:bg-rose-50 transition-colors disabled:opacity-40 min-h-[44px]"
                   >
                     {sendingLink ? 'Sending…' : linkSent ? 'Sent!' : 'Send portal link'}
                   </button>

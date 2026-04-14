@@ -110,7 +110,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
           <div className="flex justify-end">
             <button
               onClick={() => setShowAdd((v) => !v)}
-              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
               title="Add service"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -129,7 +129,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
               value={addName}
               onChange={(e) => setAddName(e.target.value)}
               placeholder="Service name *"
-              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
             />
             <div className="flex gap-2">
               <div className="flex-1 relative">
@@ -141,13 +141,13 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
                   placeholder="0.00"
                   step="0.01"
                   min="0"
-                  className="w-full bg-white border border-stone-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+                  className="w-full bg-white border border-stone-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
                 />
               </div>
               <select
                 value={addDuration}
                 onChange={(e) => setAddDuration(e.target.value)}
-                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
               >
                 {DURATION_OPTIONS.map((d) => (
                   <option key={d} value={d}>
@@ -184,7 +184,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
             >
               {editingId === service.id ? (
                 /* Inline edit form */
-                <div className="px-4 py-3 bg-teal-50/60 border-l-2 border-[#0D7377]">
+                <div className="px-4 py-3 bg-rose-50/60 border-l-2 border-[#8B2E4A]">
                   <p className="text-xs font-semibold text-stone-700 mb-2 truncate">{service.name}</p>
                   <div className="flex gap-2 items-center mb-2">
                     <div className="flex items-center gap-1 flex-1">
@@ -194,13 +194,13 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
                         value={editPrice}
                         onChange={(e) => setEditPrice(e.target.value)}
                         step="0.01"
-                        className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]"
+                        className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                       />
                     </div>
                     <select
                       value={editDuration}
                       onChange={(e) => setEditDuration(e.target.value)}
-                      className="w-20 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#0D7377]"
+                      className="w-20 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                     >
                       {DURATION_OPTIONS.map((d) => (
                         <option key={d} value={d}>

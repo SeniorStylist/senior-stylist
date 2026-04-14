@@ -473,7 +473,7 @@ export function LogClient({
               {formatLogDate(date)}
             </h1>
             {loading && (
-              <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin shrink-0" />
+              <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin shrink-0" />
             )}
           </div>
           <p className="text-xs text-stone-400 mt-0.5">
@@ -496,7 +496,7 @@ export function LogClient({
       {/* Pull-to-refresh indicator */}
       {pullRefreshing && (
         <div className="flex justify-center pb-3">
-          <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+          <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
         </div>
       )}
 
@@ -565,7 +565,7 @@ export function LogClient({
                 setTimeout(() => setWiResidentDropOpen(false), 150)
               }}
               placeholder="Search resident..."
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
             />
             {wiResidentDropOpen && (
               <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
@@ -581,14 +581,14 @@ export function LogClient({
                       value={wiCreateName}
                       onChange={(e) => setWiCreateName(e.target.value)}
                       placeholder="Full name *"
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                     />
                     <input
                       tabIndex={0}
                       value={wiCreateRoom}
                       onChange={(e) => setWiCreateRoom(e.target.value)}
                       placeholder="Room number (optional)"
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                     />
                     <div className="flex gap-2 pt-1">
                       <button
@@ -635,7 +635,7 @@ export function LogClient({
                             setWiCreating(false)
                           }
                         }}
-                        className="flex-1 min-h-[44px] text-sm font-semibold bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] disabled:opacity-50 transition-colors"
+                        className="flex-1 min-h-[44px] text-sm font-semibold bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] disabled:opacity-50 transition-colors"
                       >
                         {wiCreating ? 'Creating…' : 'Create & Select'}
                       </button>
@@ -669,7 +669,7 @@ export function LogClient({
                           setWiCreateError(null)
                           setWiCreateOpen(true)
                         }}
-                        className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#0D7377] border-t border-stone-100 hover:bg-teal-50 transition-colors flex items-center gap-2"
+                        className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#8B2E4A] border-t border-stone-100 hover:bg-rose-50 transition-colors flex items-center gap-2"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -687,7 +687,7 @@ export function LogClient({
                       setWiCreateError(null)
                       setWiCreateOpen(true)
                     }}
-                    className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#0D7377] hover:bg-teal-50 transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3.5 py-2.5 min-h-[44px] text-sm font-medium text-[#8B2E4A] hover:bg-rose-50 transition-colors flex items-center gap-2"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -707,7 +707,7 @@ export function LogClient({
             <select
               value={wiServiceId}
               onChange={(e) => setWiServiceId(e.target.value)}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             >
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -718,7 +718,7 @@ export function LogClient({
             <select
               value={wiStylistId}
               onChange={(e) => setWiStylistId(e.target.value)}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             >
               {stylists.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -732,7 +732,7 @@ export function LogClient({
               type="time"
               value={wiTime}
               onChange={(e) => setWiTime(e.target.value)}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] transition-all"
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             />
           </div>
 
@@ -747,7 +747,7 @@ export function LogClient({
                     onChange={() => setWiAddonServiceIds((prev) =>
                       prev.includes(svc.id) ? prev.filter((x) => x !== svc.id) : [...prev, svc.id]
                     )}
-                    className="rounded accent-[#0D7377] w-4 h-4 shrink-0"
+                    className="rounded accent-[#8B2E4A] w-4 h-4 shrink-0"
                   />
                   <span className="text-sm text-stone-700 flex-1">{svc.name}</span>
                   <span className="text-sm text-amber-700">+{formatCents(svc.addonAmountCents ?? 0)}</span>
@@ -774,7 +774,7 @@ export function LogClient({
           {isToday && (
             <button
               onClick={() => setShowWalkIn(true)}
-              className="mt-3 text-sm text-[#0D7377] font-medium hover:underline"
+              className="mt-3 text-sm text-[#8B2E4A] font-medium hover:underline"
             >
               Add a walk-in
             </button>
@@ -936,7 +936,7 @@ export function LogClient({
                                 min="0"
                                 value={editPrice}
                                 onChange={(e) => setEditPrice(e.target.value)}
-                                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-stone-900 focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100"
+                                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
                               />
                             </div>
                             <textarea
@@ -944,13 +944,13 @@ export function LogClient({
                               onChange={(e) => setEditNotes(e.target.value)}
                               placeholder="Notes..."
                               rows={2}
-                              className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 resize-none"
+                              className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 resize-none"
                             />
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={saveEditBooking}
                                 disabled={savingEdit}
-                                className="text-xs font-semibold text-white bg-[#0D7377] hover:bg-[#0a5c5f] px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                                className="text-xs font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
                               >
                                 {savingEdit ? 'Saving...' : 'Save'}
                               </button>
@@ -975,7 +975,7 @@ export function LogClient({
                               )}
                             </p>
                             {booking.notes === 'Walk-in' && (
-                              <span className="inline-block mt-0.5 text-xs font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">
+                              <span className="inline-block mt-0.5 text-xs font-medium text-[#8B2E4A] bg-rose-50 px-1.5 py-0.5 rounded-md">
                                 Walk-in
                               </span>
                             )}
@@ -995,7 +995,7 @@ export function LogClient({
                         {canEdit && !isEditing && (
                           <button
                             onClick={() => startEditBooking(booking)}
-                            className="text-stone-400 hover:text-[#0D7377] p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                            className="text-stone-400 hover:text-[#8B2E4A] p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
                             title="Edit price & notes"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1075,14 +1075,14 @@ export function LogClient({
                   onChange={(e) => setNotes((prev) => ({ ...prev, [stylist.id]: e.target.value }))}
                   placeholder="Day notes (optional)..."
                   rows={2}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all resize-none"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all resize-none"
                 />
                 {notes[stylist.id] && (
                   <div className="flex justify-end mt-1.5">
                     <button
                       onClick={() => saveNotes(stylist.id)}
                       disabled={savingNotesId === stylist.id}
-                      className="text-xs text-[#0D7377] font-medium hover:underline disabled:opacity-40"
+                      className="text-xs text-[#8B2E4A] font-medium hover:underline disabled:opacity-40"
                     >
                       {savingNotesId === stylist.id ? 'Saving...' : 'Save notes'}
                     </button>
@@ -1138,7 +1138,7 @@ export function LogClient({
           </button>
           <button
             onClick={() => setShowWalkIn(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold"
+            className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -1165,7 +1165,7 @@ export function LogClient({
           </button>
           <button
             onClick={() => setShowWalkIn(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-[#0D7377] text-white rounded-2xl px-4 py-3 hover:bg-[#0a5f63] active:scale-95 transition-all text-sm font-semibold"
+            className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />

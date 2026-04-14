@@ -72,7 +72,7 @@ interface InvoiceData {
 type SortKey = 'date' | 'price'
 type SortDir = 'asc' | 'desc'
 
-const BAR_COLORS = ['#0D7377', '#14D9C4', '#0a8f94', '#18b5a4', '#067073', '#1fc4b0']
+const BAR_COLORS = ['#8B2E4A', '#C4687A', '#0a8f94', '#18b5a4', '#067073', '#1fc4b0']
 
 const STATUS_STYLES: Record<string, string> = {
   completed: 'bg-teal-50 text-teal-700',
@@ -189,7 +189,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
           type="month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+          className="text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
         />
       </div>
 
@@ -201,7 +201,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
             className={cn(
               'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
               activeTab === 'analytics'
-                ? 'border-[#0D7377] text-[#0D7377]'
+                ? 'border-[#8B2E4A] text-[#8B2E4A]'
                 : 'border-transparent text-stone-500 hover:text-stone-700'
             )}
           >
@@ -212,7 +212,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
             className={cn(
               'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
               activeTab === 'invoice'
-                ? 'border-[#0D7377] text-[#0D7377]'
+                ? 'border-[#8B2E4A] text-[#8B2E4A]'
                 : 'border-transparent text-stone-500 hover:text-stone-700'
             )}
           >
@@ -248,7 +248,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
               <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">
                 Total Revenue
               </p>
-              <p className="text-3xl font-bold text-[#0D7377]">
+              <p className="text-3xl font-bold text-[#8B2E4A]">
                 {formatCents(data.totalRevenueCents)}
               </p>
             </div>
@@ -352,7 +352,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
                           day: 'numeric',
                         })}
                       </p>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-xs font-semibold">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 text-[#8B2E4A] text-xs font-semibold">
                         {d.count} appt{d.count !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -375,12 +375,12 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
                     <div className="col-span-4 text-sm font-medium text-stone-800">{c.name}</div>
                     <div className="col-span-3 text-sm text-stone-500">{formatCents(c.revenueCents)} revenue</div>
                     <div className="col-span-2 text-sm text-stone-500">{c.commissionPercent}%</div>
-                    <div className="col-span-3 text-sm font-bold text-[#0D7377]">{formatCents(c.commissionCents)}</div>
+                    <div className="col-span-3 text-sm font-bold text-[#8B2E4A]">{formatCents(c.commissionCents)}</div>
                   </div>
                 ))}
                 <div className="grid grid-cols-12 gap-2 items-center px-5 py-3 bg-stone-50">
                   <div className="col-span-9 text-sm font-semibold text-stone-600">Total commissions</div>
-                  <div className="col-span-3 text-sm font-bold text-[#0D7377]">
+                  <div className="col-span-3 text-sm font-bold text-[#8B2E4A]">
                     {formatCents(data.commissions.reduce((sum, c) => sum + c.commissionCents, 0))}
                   </div>
                 </div>
@@ -403,7 +403,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
               >
                 Date
                 {sortKey === 'date' && (
-                  <span className="text-[#0D7377]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  <span className="text-[#8B2E4A]">{sortDir === 'asc' ? '↑' : '↓'}</span>
                 )}
               </button>
               <div className="col-span-3 text-xs font-semibold text-stone-500 uppercase tracking-wide">
@@ -421,7 +421,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
               >
                 Price
                 {sortKey === 'price' && (
-                  <span className="text-[#0D7377]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  <span className="text-[#8B2E4A]">{sortDir === 'asc' ? '↑' : '↓'}</span>
                 )}
               </button>
               <div className="col-span-1 text-xs font-semibold text-stone-500 uppercase tracking-wide">
@@ -494,7 +494,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
                 href={`/invoice/${facilityId}?month=${month}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-xl text-sm font-semibold border border-[#0D7377] text-[#0D7377] hover:bg-teal-50 transition-all"
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-[#8B2E4A] text-[#8B2E4A] hover:bg-rose-50 transition-all"
               >
                 Generate Invoice
               </a>
@@ -510,7 +510,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
                 onClick={handleMarkAllPaid}
                 disabled={markingPaid}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-                style={{ backgroundColor: '#0D7377' }}
+                style={{ backgroundColor: '#8B2E4A' }}
               >
                 {markingPaid ? 'Marking…' : 'Mark All Paid'}
               </button>
@@ -519,7 +519,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
 
           {invoiceLoading && (
             <div className="flex items-center justify-center py-16">
-              <Spinner className="text-[#0D7377]" />
+              <Spinner className="text-[#8B2E4A]" />
             </div>
           )}
 
@@ -575,7 +575,7 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
                 })}
                 <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 py-4 flex justify-between items-center">
                   <span className="text-sm font-semibold text-stone-600">Grand Total</span>
-                  <span className="text-2xl font-bold text-[#0D7377]">{formatCents(grandTotal)}</span>
+                  <span className="text-2xl font-bold text-[#8B2E4A]">{formatCents(grandTotal)}</span>
                 </div>
               </div>
             )

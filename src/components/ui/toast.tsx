@@ -64,7 +64,7 @@ export function useToast() {
 const TYPE_STYLES: Record<ToastType, string> = {
   success: 'bg-emerald-600 text-white',
   error: 'bg-red-600 text-white',
-  info: 'bg-[#0D7377] text-white',
+  info: 'bg-[#8B2E4A] text-white',
 }
 
 const TYPE_ICONS: Record<ToastType, React.ReactNode> = {

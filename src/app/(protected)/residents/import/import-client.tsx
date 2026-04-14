@@ -245,7 +245,7 @@ export function ImportClient() {
             {i > 0 && <div className="w-8 h-px bg-stone-200" />}
             <div className={cn(
               'flex items-center gap-1.5 text-xs font-medium',
-              step === s ? 'text-[#0D7377]' : (
+              step === s ? 'text-[#8B2E4A]' : (
                 (s === 'preview' && (step === 'importing' || step === 'done')) ||
                 (s === 'upload' && step !== 'upload')
                   ? 'text-stone-400'
@@ -255,7 +255,7 @@ export function ImportClient() {
               <div className={cn(
                 'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold',
                 step === s
-                  ? 'bg-[#0D7377] text-white'
+                  ? 'bg-[#8B2E4A] text-white'
                   : (
                     (s === 'preview' && (step === 'importing' || step === 'done')) ||
                     (s === 'upload' && step !== 'upload')
@@ -283,12 +283,12 @@ export function ImportClient() {
             className={cn(
               'relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-12 cursor-pointer transition-all',
               dragging
-                ? 'border-[#0D7377] bg-teal-50'
+                ? 'border-[#8B2E4A] bg-rose-50'
                 : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
             )}
           >
             <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#e6faf9' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.8">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="1.8">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/>
                 <line x1="12" y1="3" x2="12" y2="15"/>
@@ -391,7 +391,7 @@ export function ImportClient() {
                   type="checkbox"
                   checked={rows.filter((r) => !r.error).every((r) => r.include)}
                   onChange={toggleAll}
-                  className="rounded accent-[#0D7377] w-3.5 h-3.5"
+                  className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
                 />
               </div>
               <div className="col-span-5">Name</div>
@@ -416,7 +416,7 @@ export function ImportClient() {
                       checked={row.include}
                       disabled={!!row.error}
                       onChange={() => toggleRow(row.id)}
-                      className="rounded accent-[#0D7377] w-3.5 h-3.5"
+                      className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
                     />
                   </div>
                   <div className="col-span-5">
@@ -428,7 +428,7 @@ export function ImportClient() {
                         'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 transition-colors',
                         row.error
                           ? 'border-orange-300 text-orange-700 placeholder:text-orange-300'
-                          : 'border-transparent hover:border-stone-200 focus:border-[#0D7377] text-stone-800'
+                          : 'border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-stone-800'
                       )}
                     />
                   </div>
@@ -437,7 +437,7 @@ export function ImportClient() {
                       value={row.roomNumber}
                       onChange={(e) => updateRoom(row.id, e.target.value)}
                       placeholder="—"
-                      className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#0D7377] text-sm text-stone-600 focus:outline-none py-0.5 transition-colors"
+                      className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-sm text-stone-600 focus:outline-none py-0.5 transition-colors"
                     />
                   </div>
                   <div className="col-span-2">
@@ -463,7 +463,7 @@ export function ImportClient() {
               onClick={handleImport}
               disabled={selectedCount === 0}
               className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 active:scale-95"
-              style={{ backgroundColor: '#0D7377' }}
+              style={{ backgroundColor: '#8B2E4A' }}
             >
               Import {selectedCount > 0 ? selectedCount : ''} resident{selectedCount !== 1 ? 's' : ''}
             </button>
@@ -474,7 +474,7 @@ export function ImportClient() {
       {/* ── Step: Importing ── */}
       {step === 'importing' && (
         <div className="flex flex-col items-center justify-center py-24 gap-5">
-          <div className="w-12 h-12 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+          <div className="w-12 h-12 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
           <div className="text-center">
             <p className="text-sm font-semibold text-stone-700">Importing residents…</p>
             <p className="text-xs text-stone-400 mt-1">{importProgress}% complete</p>
@@ -482,7 +482,7 @@ export function ImportClient() {
           <div className="w-48 h-1.5 rounded-full bg-stone-100 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${importProgress}%`, backgroundColor: '#0D7377' }}
+              style={{ width: `${importProgress}%`, backgroundColor: '#8B2E4A' }}
             />
           </div>
         </div>
@@ -492,7 +492,7 @@ export function ImportClient() {
       {step === 'done' && result && (
         <div className="flex flex-col items-center justify-center py-16 gap-6 text-center">
           <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6faf9' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="2.2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.2">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
@@ -506,7 +506,7 @@ export function ImportClient() {
 
           <div className="flex gap-4">
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-8 py-5 text-center">
-              <p className="text-3xl font-bold text-[#0D7377]">{result.created}</p>
+              <p className="text-3xl font-bold text-[#8B2E4A]">{result.created}</p>
               <p className="text-xs text-stone-500 mt-1 font-medium uppercase tracking-wide">Added</p>
             </div>
             {result.skipped > 0 && (
@@ -532,7 +532,7 @@ export function ImportClient() {
             <button
               onClick={() => router.push('/residents')}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all active:scale-95"
-              style={{ backgroundColor: '#0D7377' }}
+              style={{ backgroundColor: '#8B2E4A' }}
             >
               View residents →
             </button>

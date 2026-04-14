@@ -76,7 +76,7 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
           <div className="flex justify-end">
             <button
               onClick={() => setShowAdd((v) => !v)}
-              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#0D7377] text-white rounded-xl hover:bg-[#0a5f63] active:scale-95 transition-all"
+              className="w-11 h-11 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
               title="Add stylist"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -96,7 +96,7 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
               placeholder="Full name *"
-              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0D7377] focus:ring-1 focus:ring-teal-100 transition-all"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
             />
             {/* Color picker */}
             <div>

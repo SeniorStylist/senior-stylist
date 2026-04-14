@@ -42,7 +42,7 @@ export function NativeSelect({ value, onChange, options, placeholder, className 
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 ${className ?? ''}`}
+      className={`w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 ${className ?? ''}`}
     >
       {placeholder && <option value="">{placeholder}</option>}
       {options.map((o) => (

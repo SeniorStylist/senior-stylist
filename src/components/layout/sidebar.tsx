@@ -162,10 +162,10 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
       {/* Logo / Facility name */}
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(20, 217, 196, 0.2)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(139, 46, 74, 0.2)' }}>
             <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
-              <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#14D9C4" opacity="0.4"/>
-              <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#14D9C4"/>
+              <path d="M14 4C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4z" fill="#C4687A" opacity="0.4"/>
+              <path d="M14 8c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="#C4687A"/>
             </svg>
           </div>
           <div className="flex-1 min-w-0">
@@ -205,7 +205,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
                     key={f.id}
                     onClick={() => handleSelectFacility(f.id)}
                     className="w-full text-left px-3 py-2 text-xs transition-colors"
-                    style={{ color: f.name === facilityName ? '#14D9C4' : 'rgba(255,255,255,0.7)' }}
+                    style={{ color: f.name === facilityName ? '#C4687A' : 'rgba(255,255,255,0.7)' }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
@@ -217,7 +217,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
                     href="/settings?tab=new-facility"
                     onClick={() => setSwitcherOpen(false)}
                     className="text-xs"
-                    style={{ color: '#14D9C4' }}
+                    style={{ color: '#C4687A' }}
                   >
                     + Add facility
                   </Link>
@@ -231,7 +231,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
             <Link
               href="/settings?tab=new-facility"
               className="text-xs"
-              style={{ color: 'rgba(20,217,196,0.6)' }}
+              style={{ color: 'rgba(196,104,122,0.6)' }}
             >
               + Add facility
             </Link>
@@ -257,7 +257,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
                     : 'text-white/60 hover:bg-white/10 hover:text-white/90'
                 )}
               >
-                <span className={cn(isActive ? 'text-[#14D9C4]' : 'text-white/50')}>
+                <span className={cn(isActive ? 'text-[#C4687A]' : 'text-white/50')}>
                   {item.icon}
                 </span>
                 {item.label}
@@ -278,7 +278,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
                 : 'text-white/60 hover:bg-white/10 hover:text-white/90'
             )}
           >
-            <span className={cn(pathname === '/super-admin' ? 'text-[#14D9C4]' : 'text-white/50')}>
+            <span className={cn(pathname === '/super-admin' ? 'text-[#C4687A]' : 'text-white/50')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
@@ -299,7 +299,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-            style={{ backgroundColor: 'rgba(20, 217, 196, 0.2)', color: '#14D9C4' }}
+            style={{ backgroundColor: 'rgba(139, 46, 74, 0.2)', color: '#C4687A' }}
           >
             {userInitials}
           </div>

@@ -458,7 +458,7 @@ export function SettingsClient({
             className={cn(
               'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
               activeTab === tab.id
-                ? 'border-[#0D7377] text-[#0D7377]'
+                ? 'border-[#8B2E4A] text-[#8B2E4A]'
                 : 'border-transparent text-stone-500 hover:text-stone-700'
             )}
           >
@@ -482,7 +482,7 @@ export function SettingsClient({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={!isAdmin}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
 
@@ -493,7 +493,7 @@ export function SettingsClient({
               onChange={(e) => setAddress(e.target.value)}
               disabled={!isAdmin}
               placeholder="123 Main St, City, State"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
 
@@ -504,7 +504,7 @@ export function SettingsClient({
               onChange={(e) => setPhone(e.target.value)}
               disabled={!isAdmin}
               placeholder="(555) 000-0000"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
 
@@ -514,7 +514,7 @@ export function SettingsClient({
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
               disabled={!isAdmin}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
@@ -528,7 +528,7 @@ export function SettingsClient({
               value={paymentType}
               onChange={(e) => setPaymentType(e.target.value)}
               disabled={!isAdmin}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             >
               <option value="facility">Facility Pays (facility covers all services)</option>
               <option value="ip">Individual Pay (residents pay at time of service)</option>
@@ -551,7 +551,7 @@ export function SettingsClient({
                     )}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-75 active:scale-95 disabled:opacity-50 ${
                       workingDays.includes(day)
-                        ? 'bg-[#0D7377] text-white'
+                        ? 'bg-[#8B2E4A] text-white'
                         : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
                     }`}
                   >
@@ -566,7 +566,7 @@ export function SettingsClient({
                     value={workingStart}
                     onChange={(e) => setWorkingStart(e.target.value)}
                     disabled={!isAdmin}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
                   >
                     {Array.from({ length: 32 }, (_, i) => {
                       const totalMins = 360 + i * 30
@@ -584,7 +584,7 @@ export function SettingsClient({
                     value={workingEnd}
                     onChange={(e) => setWorkingEnd(e.target.value)}
                     disabled={!isAdmin}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
                   >
                     {Array.from({ length: 32 }, (_, i) => {
                       const totalMins = 360 + i * 30
@@ -610,7 +610,7 @@ export function SettingsClient({
               onChange={(e) => setContactEmail(e.target.value)}
               disabled={!isAdmin}
               placeholder="admin@yourfacility.com"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
             <p className="text-[11px] text-stone-400 mt-1">
               Shown on the &ldquo;Request access&rdquo; button for users waiting for an invite.
@@ -624,7 +624,7 @@ export function SettingsClient({
               onClick={handleSaveGeneral}
               disabled={!generalDirty || saving}
               className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-              style={{ backgroundColor: '#0D7377' }}
+              style={{ backgroundColor: '#8B2E4A' }}
             >
               {saving ? 'Saving…' : saved ? 'Saved!' : 'Save changes'}
             </button>
@@ -642,7 +642,7 @@ export function SettingsClient({
               onChange={(e) => setCalendarId(e.target.value)}
               disabled={!isAdmin}
               placeholder="your-calendar@group.calendar.google.com"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] disabled:opacity-50 disabled:bg-stone-50 font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50 font-mono"
             />
             <p className="text-xs text-stone-400 mt-1.5">
               Find this in Google Calendar → Settings → your calendar → Calendar ID.
@@ -666,7 +666,7 @@ export function SettingsClient({
               onClick={handleSaveCalendar}
               disabled={!calDirty || savingCal}
               className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-              style={{ backgroundColor: '#0D7377' }}
+              style={{ backgroundColor: '#8B2E4A' }}
             >
               {savingCal ? 'Saving…' : savedCal ? 'Saved!' : 'Save'}
             </button>
@@ -704,7 +704,7 @@ export function SettingsClient({
                 >
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                    style={{ backgroundColor: '#e6faf9', color: '#0D7377' }}
+                    style={{ backgroundColor: '#fdf2f4', color: '#8B2E4A' }}
                   >
                     {initials}
                   </div>
@@ -721,7 +721,7 @@ export function SettingsClient({
                     className={cn(
                       'text-xs font-medium px-2 py-0.5 rounded-full',
                       cu.role === 'admin'
-                        ? 'bg-[#e6faf9] text-[#0D7377]'
+                        ? 'bg-[#fdf2f4] text-[#8B2E4A]'
                         : 'bg-stone-100 text-stone-500'
                     )}
                   >
@@ -801,7 +801,7 @@ export function SettingsClient({
               <select
                 value={inviteFacilityId}
                 onChange={(e) => setInviteFacilityId(e.target.value)}
-                className="w-48 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                className="w-48 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
               >
                 {facilitiesList.length === 0 && <option value="">Loading…</option>}
                 {facilitiesList.map((f) => (
@@ -815,12 +815,12 @@ export function SettingsClient({
               onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendInvite()}
               placeholder="colleague@example.com"
-              className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="w-32 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="w-32 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
             >
               <option value="admin">Admin</option>
               <option value="stylist">Stylist</option>
@@ -831,7 +831,7 @@ export function SettingsClient({
               onClick={handleSendInvite}
               disabled={sendingInvite || !inviteEmail.trim() || (isSuperAdmin && !inviteFacilityId)}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
-              style={{ backgroundColor: '#0D7377' }}
+              style={{ backgroundColor: '#8B2E4A' }}
             >
               {sendingInvite ? 'Sending…' : 'Send Invite'}
             </button>
@@ -858,7 +858,7 @@ export function SettingsClient({
                           className={cn(
                             'ml-2 text-xs font-medium px-2 py-0.5 rounded-full',
                             invite.inviteRole === 'admin'
-                              ? 'bg-[#e6faf9] text-[#0D7377]'
+                              ? 'bg-[#fdf2f4] text-[#8B2E4A]'
                               : invite.inviteRole === 'viewer'
                                 ? 'bg-amber-50 text-amber-700'
                                 : 'bg-stone-100 text-stone-500'
@@ -882,7 +882,7 @@ export function SettingsClient({
                       <button
                         onClick={() => handleResendInvite(invite.id)}
                         disabled={resendingId === invite.id}
-                        className="text-xs text-[#0D7377] hover:text-[#0a5f63] font-medium px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors disabled:opacity-40"
+                        className="text-xs text-[#8B2E4A] hover:text-[#72253C] font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors disabled:opacity-40"
                       >
                         {resendingId === invite.id ? 'Sending…' : resendSuccess === invite.id ? 'Sent!' : 'Resend'}
                       </button>
@@ -892,7 +892,7 @@ export function SettingsClient({
                           setInviteEmail(invite.email)
                           setInviteRole(invite.inviteRole || 'stylist')
                         }}
-                        className="text-xs text-[#0D7377] hover:text-[#0a5f63] font-medium px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"
+                        className="text-xs text-[#8B2E4A] hover:text-[#72253C] font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors"
                       >
                         Re-invite
                       </button>
@@ -934,7 +934,7 @@ export function SettingsClient({
                           className={cn(
                             'ml-2 text-xs font-medium px-2 py-0.5 rounded-full',
                             invite.inviteRole === 'admin'
-                              ? 'bg-[#e6faf9] text-[#0D7377]'
+                              ? 'bg-[#fdf2f4] text-[#8B2E4A]'
                               : invite.inviteRole === 'viewer'
                                 ? 'bg-amber-50 text-amber-700'
                                 : 'bg-stone-100 text-stone-500'
@@ -973,7 +973,7 @@ export function SettingsClient({
               value={stripePublishableKey}
               onChange={(e) => setStripePublishableKey(e.target.value)}
               placeholder="pk_live_…"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] font-mono"
             />
           </div>
           <div>
@@ -983,7 +983,7 @@ export function SettingsClient({
               value={stripeSecretKey}
               onChange={(e) => setStripeSecretKey(e.target.value)}
               placeholder="sk_live_…"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377] font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] font-mono"
             />
           </div>
           {stripeError && <p className="text-red-600 text-xs">{stripeError}</p>}
@@ -991,7 +991,7 @@ export function SettingsClient({
             onClick={handleSaveStripe}
             disabled={savingStripe}
             className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-            style={{ backgroundColor: '#0D7377' }}
+            style={{ backgroundColor: '#8B2E4A' }}
           >
             {savedStripe ? 'Saved!' : savingStripe ? 'Saving…' : 'Save Keys'}
           </button>
@@ -1009,7 +1009,7 @@ export function SettingsClient({
 
           {!requestsLoaded ? (
             <div className="py-8 flex justify-center">
-              <div className="w-5 h-5 border-2 border-stone-200 border-t-[#0D7377] rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-stone-200 border-t-[#8B2E4A] rounded-full animate-spin" />
             </div>
           ) : requestsList.length === 0 ? (
             <div className="py-10 text-center">
@@ -1086,7 +1086,7 @@ export function SettingsClient({
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Sunrise Senior Living"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
             />
           </div>
 
@@ -1096,7 +1096,7 @@ export function SettingsClient({
               value={newAddress}
               onChange={(e) => setNewAddress(e.target.value)}
               placeholder="123 Main St, City, State"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
             />
           </div>
 
@@ -1106,7 +1106,7 @@ export function SettingsClient({
               value={newPhone}
               onChange={(e) => setNewPhone(e.target.value)}
               placeholder="(555) 000-0000"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
             />
           </div>
 
@@ -1115,7 +1115,7 @@ export function SettingsClient({
             <select
               value={newTimezone}
               onChange={(e) => setNewTimezone(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
@@ -1129,7 +1129,7 @@ export function SettingsClient({
             onClick={handleCreateFacility}
             disabled={!newName.trim() || creatingFacility}
             className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-            style={{ backgroundColor: '#0D7377' }}
+            style={{ backgroundColor: '#8B2E4A' }}
           >
             {creatingFacility ? 'Creating…' : 'Create Facility'}
           </button>

@@ -21,7 +21,7 @@ export function QuickBookFAB({ onOpen }: QuickBookFABProps) {
       onClick={handleClick}
       aria-label="Quick book appointment"
       className={cn(
-        'md:hidden fixed right-5 w-14 h-14 rounded-full bg-[#0D7377] text-white',
+        'md:hidden fixed right-5 w-14 h-14 rounded-full bg-[#8B2E4A] text-white',
         'shadow-lg flex items-center justify-center active:scale-95 transition-transform z-40',
         bounce && 'animate-fab-bounce'
       )}

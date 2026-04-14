@@ -494,14 +494,14 @@ export function OcrImportModal({
                 {/* Animated icon */}
                 <div className="relative">
                   <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="animate-pulse">
-                    <rect x="9" y="5" width="30" height="38" rx="4" fill="#0D7377" opacity="0.1" />
-                    <path d="M9 9a4 4 0 014-4h18l10 10v28a4 4 0 01-4 4H13a4 4 0 01-4-4V9z" stroke="#0D7377" strokeWidth="2" fill="none" />
-                    <path d="M31 5v9a1 1 0 001 1h9" stroke="#0D7377" strokeWidth="2" />
-                    <line x1="16" y1="23" x2="36" y2="23" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="16" y1="29" x2="36" y2="29" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="16" y1="35" x2="26" y2="35" stroke="#0D7377" strokeWidth="2" strokeLinecap="round" />
+                    <rect x="9" y="5" width="30" height="38" rx="4" fill="#8B2E4A" opacity="0.1" />
+                    <path d="M9 9a4 4 0 014-4h18l10 10v28a4 4 0 01-4 4H13a4 4 0 01-4-4V9z" stroke="#8B2E4A" strokeWidth="2" fill="none" />
+                    <path d="M31 5v9a1 1 0 001 1h9" stroke="#8B2E4A" strokeWidth="2" />
+                    <line x1="16" y1="23" x2="36" y2="23" stroke="#8B2E4A" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="16" y1="29" x2="36" y2="29" stroke="#8B2E4A" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="16" y1="35" x2="26" y2="35" stroke="#8B2E4A" strokeWidth="2" strokeLinecap="round" />
                   </svg>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#0D7377" className="absolute -top-1 -right-2 animate-bounce" style={{ animationDuration: '1.2s' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#8B2E4A" className="absolute -top-1 -right-2 animate-bounce" style={{ animationDuration: '1.2s' }}>
                     <path d="M12 2l1.8 3.6L18 7l-3 2.9.7 4.1L12 12l-3.7 2 .7-4.1L6 7l4.2-1.4z" />
                   </svg>
                 </div>
@@ -520,7 +520,7 @@ export function OcrImportModal({
                 <div className="w-full max-w-xs space-y-1.5">
                   <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#0D7377] rounded-full transition-all duration-700 ease-out"
+                      className="h-full bg-[#8B2E4A] rounded-full transition-all duration-700 ease-out"
                       style={{ width: `${progressPct}%` }}
                     />
                   </div>
@@ -531,10 +531,10 @@ export function OcrImportModal({
           })() : (
             <div className="px-5 py-4 space-y-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
               <div
-                className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#0D7377] hover:bg-teal-50/30 transition-colors"
+                className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#8B2E4A] hover:bg-rose-50/30 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5" className="mx-auto mb-3">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="1.5" className="mx-auto mb-3">
                   <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
                   <circle cx="12" cy="13" r="4" />
                 </svg>
@@ -587,12 +587,12 @@ export function OcrImportModal({
                       ) : previews[i] === '' ? (
                         /* Still rendering — show spinner */
                         <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-center">
-                          <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+                          <div className="w-5 h-5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
                         </div>
                       ) : (
                         /* Error or non-PDF — show PDF icon */
                         <div className="w-20 h-20 rounded-xl border border-stone-200 bg-stone-50 flex flex-col items-center justify-center gap-1">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D7377" strokeWidth="1.5">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="1.5">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                             <polyline points="14 2 14 8 20 8" />
                             <line x1="9" y1="15" x2="15" y2="15" />
@@ -629,7 +629,7 @@ export function OcrImportModal({
                       className={cn(
                         'px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors shrink-0',
                         activeTab === i
-                          ? 'bg-[#0D7377] text-white'
+                          ? 'bg-[#8B2E4A] text-white'
                           : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                       )}
                     >
@@ -675,7 +675,7 @@ export function OcrImportModal({
                           ) : sourcePreview === '' ? (
                             /* Full-res render still in progress */
                             <div className="w-full h-32 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-center">
-                              <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-[#0D7377] animate-spin" />
+                              <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
                             </div>
                           ) : null}
                         </div>
@@ -690,7 +690,7 @@ export function OcrImportModal({
                           type="date"
                           value={sheet.date}
                           onChange={(e) => updateSheet(activeTab, { date: e.target.value })}
-                          className="min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]"
+                          className="min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
                         />
                       </div>
                       <div className="flex-1 min-w-[180px]">
@@ -699,7 +699,7 @@ export function OcrImportModal({
                           value={sheet.stylistId ?? ''}
                           onChange={(e) => updateSheet(activeTab, { stylistId: e.target.value || null })}
                           className={cn(
-                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0D7377]/30 focus:border-[#0D7377]',
+                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]',
                             !sheet.stylistId ? 'border-red-300' : 'border-stone-200'
                           )}
                         >
@@ -739,7 +739,7 @@ export function OcrImportModal({
                                   type="checkbox"
                                   checked={entry.include}
                                   onChange={(e) => updateEntry(activeTab, ei, { include: e.target.checked })}
-                                  className="w-4 h-4 accent-[#0D7377] shrink-0"
+                                  className="w-4 h-4 accent-[#8B2E4A] shrink-0"
                                 />
                                 <span className="text-xs font-medium text-stone-700 flex-1 truncate">
                                   {entry.residentName}
@@ -789,7 +789,7 @@ export function OcrImportModal({
                                       })
                                     }}
                                     placeholder="Type or pick…"
-                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                   />
                                   <datalist id={`residents-${activeTab}-${ei}`}>
                                     {residents.map(r => (
@@ -812,7 +812,7 @@ export function OcrImportModal({
                                       onChange={(e) =>
                                         updateEntry(activeTab, ei, { roomNumber: e.target.value || null })
                                       }
-                                      className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                      className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                     />
                                   </div>
                                 ) : (
@@ -841,7 +841,7 @@ export function OcrImportModal({
                                             updateEntry(activeTab, ei, { serviceId: val, serviceName: svc?.name ?? entry.serviceName })
                                           }
                                         }}
-                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                       >
                                         <option value="">— select service —</option>
                                         {cats.length <= 1
@@ -883,7 +883,7 @@ export function OcrImportModal({
                                         priceCents: isNaN(val) ? null : Math.round(val * 100),
                                       })
                                     }}
-                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                   />
                                   <p className="text-[10px] text-stone-400 mt-0.5">from sheet</p>
                                 </div>
@@ -901,7 +901,7 @@ export function OcrImportModal({
                                         additionalServiceIds: [...entry.additionalServiceIds, null],
                                       })
                                     }
-                                    className="text-[11px] text-[#0D7377] font-medium hover:underline"
+                                    className="text-[11px] text-[#8B2E4A] font-medium hover:underline"
                                   >
                                     + add service
                                   </button>
@@ -911,7 +911,7 @@ export function OcrImportModal({
                                   return (
                                     <div key={ai} className="space-y-1">
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-[#0D7377] border border-teal-100 font-medium shrink-0">
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-[#8B2E4A] border border-rose-100 font-medium shrink-0">
                                           + add-on
                                         </span>
                                         <select
@@ -936,7 +936,7 @@ export function OcrImportModal({
                                               additionalServiceIds: newIds,
                                             })
                                           }}
-                                          className="flex-1 min-h-[36px] text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#0D7377]"
+                                          className="flex-1 min-h-[36px] text-xs border border-stone-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                         >
                                           <option value="">— select service —</option>
                                           {services.map(s => (
@@ -978,7 +978,7 @@ export function OcrImportModal({
                                   placeholder="optional"
                                   value={entry.notes ?? ''}
                                   onChange={(e) => updateEntry(activeTab, ei, { notes: e.target.value || null })}
-                                  className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#0D7377]"
+                                  className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                 />
                               </div>
                             </div>
@@ -1038,7 +1038,7 @@ export function OcrImportModal({
               <button
                 onClick={handleScan}
                 disabled={files.length === 0 || scanning}
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {scanning ? (
                   <>
@@ -1062,7 +1062,7 @@ export function OcrImportModal({
               <button
                 onClick={() => setStep('confirm')}
                 disabled={totalIncluded === 0}
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40"
               >
                 Review {totalIncluded} Booking{totalIncluded !== 1 ? 's' : ''}
               </button>
@@ -1079,7 +1079,7 @@ export function OcrImportModal({
               <button
                 onClick={handleImport}
                 disabled={importing || summary.bookings === 0}
-                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#0D7377] text-white text-sm font-semibold hover:bg-[#0a5f63] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {importing ? (
                   <>

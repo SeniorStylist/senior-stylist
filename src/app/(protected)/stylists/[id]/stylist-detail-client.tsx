@@ -140,38 +140,38 @@ export function StylistDetailClient({
 
       {/* Commission earnings this month */}
       {stylist.commissionPercent > 0 && (
-        <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 mb-6">
+        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-teal-900">Commission This Month</p>
-            <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-semibold">
+            <p className="text-sm font-semibold text-stone-900">Commission This Month</p>
+            <span className="text-xs bg-rose-100 text-[#8B2E4A] px-2 py-0.5 rounded-full font-semibold">
               {stylist.commissionPercent}%
             </span>
           </div>
           <div className="flex items-end gap-4 mb-3">
             <div>
-              <p className="text-xs text-teal-600 mb-0.5">Revenue</p>
-              <p className="text-2xl font-bold text-teal-800">{formatCents(stats.monthRevenue)}</p>
+              <p className="text-xs text-rose-600 mb-0.5">Revenue</p>
+              <p className="text-2xl font-bold text-rose-800">{formatCents(stats.monthRevenue)}</p>
             </div>
-            <div className="mb-1 text-teal-400">×</div>
+            <div className="mb-1 text-rose-400">×</div>
             <div>
-              <p className="text-xs text-teal-600 mb-0.5">Rate</p>
-              <p className="text-2xl font-bold text-teal-800">{stylist.commissionPercent}%</p>
+              <p className="text-xs text-rose-600 mb-0.5">Rate</p>
+              <p className="text-2xl font-bold text-rose-800">{stylist.commissionPercent}%</p>
             </div>
-            <div className="mb-1 text-teal-400">=</div>
+            <div className="mb-1 text-rose-400">=</div>
             <div>
-              <p className="text-xs text-teal-600 mb-0.5">Commission</p>
-              <p className="text-2xl font-bold text-[#0D7377]">
+              <p className="text-xs text-rose-600 mb-0.5">Commission</p>
+              <p className="text-2xl font-bold text-[#8B2E4A]">
                 {formatCents(Math.round(stats.monthRevenue * stylist.commissionPercent / 100))}
               </p>
             </div>
           </div>
           {stats.serviceBreakdown.length > 0 && (
-            <div className="border-t border-teal-200 pt-3 space-y-1.5">
-              <p className="text-xs font-semibold text-teal-700 mb-2">By service</p>
+            <div className="border-t border-rose-200 pt-3 space-y-1.5">
+              <p className="text-xs font-semibold text-[#8B2E4A] mb-2">By service</p>
               {stats.serviceBreakdown.map((row) => (
                 <div key={row.serviceName} className="flex items-center justify-between text-xs">
-                  <span className="text-teal-700">{row.serviceName} ({row.count})</span>
-                  <span className="font-semibold text-teal-800">{formatCents(row.commissionCents)}</span>
+                  <span className="text-[#8B2E4A]">{row.serviceName} ({row.count})</span>
+                  <span className="font-semibold text-rose-800">{formatCents(row.commissionCents)}</span>
                 </div>
               ))}
             </div>
@@ -194,7 +194,7 @@ export function StylistDetailClient({
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
               />
             </div>
 
@@ -210,7 +210,7 @@ export function StylistDetailClient({
                     max={100}
                     value={commissionInput}
                     onChange={(e) => setCommissionInput(e.target.value)}
-                    className="w-20 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#0D7377] focus:ring-2 focus:ring-teal-100 transition-all"
+                    className="w-20 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
                     autoFocus
                   />
                   <span className="text-sm text-stone-400">%</span>
@@ -222,7 +222,7 @@ export function StylistDetailClient({
                       setCommissionInput(String(val))
                       setEditingCommission(false)
                     }}
-                    className="text-xs text-teal-700 font-semibold hover:text-teal-800"
+                    className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800"
                   >
                     Set
                   </button>
@@ -243,7 +243,7 @@ export function StylistDetailClient({
                   <span className="text-sm font-semibold text-stone-900">
                     {commissionPercent}%
                   </span>
-                  <span className="text-xs text-stone-400 group-hover:text-[#0D7377] transition-colors">
+                  <span className="text-xs text-stone-400 group-hover:text-[#8B2E4A] transition-colors">
                     (click to edit)
                   </span>
                 </button>

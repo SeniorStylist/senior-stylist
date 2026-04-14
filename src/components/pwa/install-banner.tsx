@@ -53,7 +53,7 @@ export default function InstallBanner() {
   if (!show) return null
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-30 rounded-2xl bg-[#0D7377] text-white shadow-lg p-4 flex items-center gap-3">
+    <div className="fixed bottom-20 left-4 right-4 z-30 rounded-2xl bg-[#8B2E4A] text-white shadow-lg p-4 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold leading-tight">Install Senior Stylist</p>
         {isIOS ? (
@@ -67,7 +67,7 @@ export default function InstallBanner() {
       {!isIOS && (
         <button
           onClick={handleInstall}
-          className="shrink-0 text-xs font-semibold bg-white text-[#0D7377] px-3 py-1.5 rounded-xl"
+          className="shrink-0 text-xs font-semibold bg-white text-[#8B2E4A] px-3 py-1.5 rounded-xl"
         >
           Add to Home Screen
         </button>
