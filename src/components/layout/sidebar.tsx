@@ -163,9 +163,7 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
       {/* Logo / Facility name */}
       <div className="px-5 py-5 border-b border-white/10">
         <Link href="/dashboard" className="block">
-          <div className="bg-white/95 px-2 py-1.5 rounded-xl inline-block">
-            <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={40} className="block" />
-          </div>
+          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} style={{ filter: 'brightness(0) invert(1)' }} />
         </Link>
         {facilityName && !showSwitcher && (
           <div className="text-xs leading-tight mt-1 truncate px-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
