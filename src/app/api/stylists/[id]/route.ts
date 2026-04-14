@@ -6,11 +6,17 @@ import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
+const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   color: z.string().max(20).optional(),
   commissionPercent: z.number().int().min(0).max(100).optional(),
   active: z.boolean().optional(),
+  licenseNumber: z.string().max(100).nullable().optional(),
+  licenseType: z.string().max(100).nullable().optional(),
+  licenseExpiresAt: dateString.nullable().optional(),
+  insuranceExpiresAt: dateString.nullable().optional(),
 })
 
 export async function GET(

@@ -201,6 +201,20 @@
 - `buildBookingConfirmationEmailHtml()` in `src/lib/email.ts` — teal-header HTML email with Resident/Service/Stylist/Date/Time/Price table + "View in Portal" button. `bookedBy: 'staff' | 'portal'` controls the footer note. Fires from both `POST /api/bookings` (staff) and `POST /api/portal/[token]/book` (portal) when `poaEmail` + `portalToken` are set. Always fire-and-forget `.catch(console.error)`.
 - Bookkeeper CSV export: `GET /api/export/bookkeeper?month=YYYY-MM` — admin-only, completed bookings only, facility timezone for date formatting. Columns: Date, Resident Name, Room #, Service, Stylist, Duration (min), Price, Payment Status, Payment Method (`resident.poaPaymentMethod`), Notes. "Bookkeeper CSV" `<a>` link in Reports invoice tab action bar alongside Generate Invoice + Mark All Paid.
 
+### Compliance Documents (Phase 7)
+- **Storage uploads go through `/api/compliance/upload` only** — multipart POST, server validates 10MB/PDF|JPEG|PNG, uploads to private `compliance-docs` bucket via service-role client. Service-role key NEVER touches the browser.
+- **`compliance_documents.file_url` stores the storage PATH** (`{facilityId}/{stylistId}/{documentType}-{timestamp}.{ext}`), not a URL. `GET /api/compliance?stylistId=` regenerates a signed URL (1-hour TTL) per row on every read — signed URLs are never persisted.
+- **Verify = admin only** (`PUT /api/compliance/[id]/verify`). Runs inside `db.transaction()` when mirroring to stylist columns: `license` → `licenseExpiresAt`; `insurance` → `insuranceVerified=true` + `insuranceExpiresAt`; `background_check` → `backgroundCheckVerified=true`. Unverify (`/unverify`) clears `verified`/`verifiedBy`/`verifiedAt` but does NOT roll back the stylist mirror columns — admin edits explicitly if needed.
+- **Delete permission**: admin any; stylist role only on their own docs AND only while `verified = false`.
+- **Status helper** `computeComplianceStatus(stylist, docs)` in `src/lib/compliance.ts` — required types are license + insurance. red = expired or required-type missing/unverified; amber = ≤60d OR any unverified doc; green = all good + >30d; none = no signals. Dot colors: green `bg-emerald-500`, amber `bg-amber-400`, red `bg-red-500`, none = no dot.
+- **Doc type palette** (badges in My Account + Stylist Detail): license `bg-blue-50 text-blue-700`, insurance `bg-purple-50 text-purple-700`, w9 `bg-stone-100 text-stone-700`, contractor_agreement `bg-stone-100 text-stone-700`, background_check `bg-emerald-50 text-emerald-700`.
+
+### Cron Routes
+- **Vercel cron auth pattern**: every route under `/api/cron/*` MUST check `request.headers.get('authorization') === \`Bearer \${process.env.CRON_SECRET}\`` and 401 otherwise. Vercel injects this header automatically when `CRON_SECRET` is set as a project env var.
+- **Middleware bypass**: `src/middleware.ts` already includes `pathname.startsWith('/api/cron')` in the public-route check — new cron routes need no further middleware work.
+- **Schedule registration**: add the route to `vercel.json` → `crons[]` with `{ path, schedule }`. Current schedule: `/api/cron/compliance-alerts` at `0 9 * * *` (09:00 UTC daily). Cron routes set `export const maxDuration = 60` + `export const dynamic = 'force-dynamic'`.
+- **Compliance alert rule**: send when `expiresAt` (doc or stylist column) is exactly 30 or 60 days from today (UTC), verified docs only. Emails to facility admins (`facilityUsers.role = 'admin'` joined to profiles for email), fallback to `NEXT_PUBLIC_ADMIN_EMAIL`. All `sendEmail()` calls fire-and-forget.
+
 ### File Structure Conventions
 - Server components in page.tsx, client logic in [name]-client.tsx
 - Shared utilities in src/lib/utils.ts

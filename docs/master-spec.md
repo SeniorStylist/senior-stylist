@@ -157,6 +157,9 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`name`**, **`color`** (default `#0D7377`), **`commission_percent`** (int, default 0)
 - **`google_calendar_id`** (text, nullable) — personal Google Calendar ID after OAuth connect
 - **`google_refresh_token`** (text, nullable) — OAuth refresh token; cleared on disconnect
+- **`license_number`** (text, nullable), **`license_type`** (text, nullable), **`license_expires_at`** (date, nullable) — compliance mirrors, populated when admin verifies a license doc
+- **`insurance_verified`** (boolean, NOT NULL, default false), **`insurance_expires_at`** (date, nullable) — populated when admin verifies an insurance doc
+- **`background_check_verified`** (boolean, NOT NULL, default false)
 - **`active`**, timestamps
 
 ### `services`
@@ -227,6 +230,25 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `created_at` | Timestamp; rows older than 10 minutes are treated as expired |
 
 Used by `/api/auth/google-calendar/connect` + `/callback` to bind the OAuth callback to the authenticated user and prevent CSRF. Row is deleted atomically on successful callback.
+
+### `compliance_documents`
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `stylist_id` | FK → `stylists.id` NOT NULL |
+| `facility_id` | FK → `facilities.id` NOT NULL — all queries scope to this |
+| `document_type` | `text` NOT NULL: `license` \| `insurance` \| `w9` \| `contractor_agreement` \| `background_check` |
+| `file_url` | `text` NOT NULL — **Supabase Storage PATH** (`{facilityId}/{stylistId}/{type}-{ts}.{ext}`), NOT a URL; signed URLs regenerate per GET |
+| `file_name` | `text` NOT NULL — original filename shown in UI |
+| `expires_at` | `date`, nullable — required for license/insurance, ignored for tax/agreement docs |
+| `verified` | `boolean` NOT NULL, default false |
+| `verified_by` | FK → `profiles.id`, nullable — admin who verified |
+| `verified_at` | `timestamp`, nullable |
+| `uploaded_at` | `timestamp` NOT NULL, default now |
+| `created_at` | `timestamp`, default now |
+
+Storage bucket: **`compliance-docs`** — private (`public=false`), `fileSizeLimit: 10485760` (10 MB), `allowedMimeTypes: ['application/pdf','image/jpeg','image/png']`. All reads/writes go through service-role API routes — the service-role key never reaches the browser.
 
 ### Declared relations
 
@@ -457,6 +479,12 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `POST /api/access-requests` | **Public** | Submit access request; facilityId optional (null = global queue). Idempotent by email. Fires admin notification email to `NEXT_PUBLIC_ADMIN_EMAIL`. |
 | `GET /api/access-requests` | **Facility admin** | Pending requests already assigned to their facility |
 | `PUT /api/access-requests/[id]` | **Facility admin OR super admin** | Approve (with facilityId, role, optional commissionPercent) or deny. Approve provisions facilityUsers row + optional stylist record + fires approval email to requester. |
+| `POST /api/compliance/upload` | Authenticated; admin or stylist-owner | Multipart upload (`file`, `stylistId`, `documentType`, `expiresAt?`). Caps: 10 MB, PDF/JPEG/PNG. Uploads to private `compliance-docs` bucket at `{facilityId}/{stylistId}/{type}-{ts}.{ext}` and inserts the row with `file_url = path`. |
+| `GET /api/compliance?stylistId=` | Authenticated; admin any, stylist self only | Facility-scoped docs list. Generates a fresh **signed URL (1 h TTL)** per row; signed URLs are never persisted. |
+| `DELETE /api/compliance/[id]` | Admin OR (stylist-owner AND unverified) | Removes the storage object, then the DB row. |
+| `PUT /api/compliance/[id]/verify` | **Admin** | Sets `verified=true`, `verified_by`, `verified_at`. In one `db.transaction()` mirrors to stylist columns: `license` → `license_expires_at`; `insurance` → `insurance_verified=true` + `insurance_expires_at`; `background_check` → `background_check_verified=true`. |
+| `PUT /api/compliance/[id]/unverify` | **Admin** | Clears `verified`/`verified_by`/`verified_at`. Does NOT roll back stylist mirror columns. |
+| `GET /api/cron/compliance-alerts` | **Vercel Cron** (`Bearer CRON_SECRET`) | Daily at 09:00 UTC via `vercel.json`. Emails facility admins when any verified doc or stylist license/insurance `expires_at` is exactly **today+30** or **today+60**. Fallback recipient: `NEXT_PUBLIC_ADMIN_EMAIL`. All `sendEmail()` fire-and-forget. Returns `{ data: { alertsSent } }`. |
 
 ---
 
@@ -500,8 +528,8 @@ Note: the Drizzle schema includes fields not mirrored on every TypeScript interf
 
 ## Planned phases (schema preview)
 
-### Phase 7 — Compliance & Document Management
-New table `compliance_documents`: `stylist_id` FK, `document_type` text (license|insurance|w9|contractor_agreement|background_check), `file_url`, `file_name`, `expires_at`, `verified` boolean, `uploaded_at`. New columns on `stylists`: `license_number`, `license_type`, `license_expires_at`, `insurance_verified`, `insurance_expires_at`, `background_check_verified`. RLS: service_role_all + authenticated SELECT scoped to facility_id join.
+### Phase 7 — Compliance & Document Management (SHIPPED 2026-04-14)
+See the `compliance_documents` schema section above and the `/api/compliance/*` + `/api/cron/compliance-alerts` rows in the API directory. Admin UI lives on Stylist Detail (verify/unverify + license edits); stylist-facing UI lives on My Account (upload/view/delete own unverified docs). `computeComplianceStatus()` helper in `src/lib/compliance.ts` drives the dot on the Stylists list. Uploads proxy through the API — the service-role key is never exposed to the browser.
 
 ### Phase 8 — Workforce Availability & Coverage
 New table `stylist_availability`: `stylist_id`, `day_of_week` (0–6), `start_time`, `end_time`, `active`. New table `coverage_requests`: `facility_id`, `stylist_id`, `requested_date`, `reason`, `status` (open|filled|cancelled), `substitute_stylist_id` nullable FK → stylists.

@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/portal') ||
     pathname.startsWith('/api/portal') ||
     pathname.startsWith('/api/auth/google-calendar/callback') ||
+    pathname.startsWith('/api/cron') ||
     pathname.startsWith('/invoice')
 
   if (!user && !isPublic) {

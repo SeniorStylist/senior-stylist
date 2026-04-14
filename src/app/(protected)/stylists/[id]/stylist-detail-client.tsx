@@ -5,9 +5,25 @@ import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
-import type { Stylist, Service, Resident } from '@/types'
+import type { Stylist, Service, Resident, ComplianceDocumentWithUrl, ComplianceDocumentType } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+
+const DOC_TYPE_LABEL: Record<ComplianceDocumentType, string> = {
+  license: 'License',
+  insurance: 'Insurance',
+  w9: 'W-9',
+  contractor_agreement: 'Contractor Agreement',
+  background_check: 'Background Check',
+}
+
+const DOC_TYPE_BADGE: Record<ComplianceDocumentType, string> = {
+  license: 'bg-blue-50 text-blue-700',
+  insurance: 'bg-purple-50 text-purple-700',
+  w9: 'bg-stone-100 text-stone-600',
+  contractor_agreement: 'bg-stone-100 text-stone-600',
+  background_check: 'bg-emerald-50 text-emerald-700',
+}
 
 const PRESET_COLORS = [
   '#0D7377',
@@ -48,12 +64,16 @@ interface StylistDetailClientProps {
     monthRevenue: number
     serviceBreakdown: ServiceBreakdown[]
   }
+  complianceDocuments: ComplianceDocumentWithUrl[]
+  isAdmin: boolean
 }
 
 export function StylistDetailClient({
   stylist: initialStylist,
   upcomingBookings,
   stats,
+  complianceDocuments,
+  isAdmin,
 }: StylistDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -61,13 +81,38 @@ export function StylistDetailClient({
   const [name, setName] = useState(initialStylist.name)
   const [color, setColor] = useState(initialStylist.color)
   const [commissionPercent, setCommissionPercent] = useState(initialStylist.commissionPercent)
+  const [licenseNumber, setLicenseNumber] = useState(initialStylist.licenseNumber ?? '')
+  const [licenseType, setLicenseType] = useState(initialStylist.licenseType ?? '')
+  const [licenseExpiresAt, setLicenseExpiresAt] = useState(initialStylist.licenseExpiresAt ?? '')
   const [editingCommission, setEditingCommission] = useState(false)
   const [commissionInput, setCommissionInput] = useState(String(initialStylist.commissionPercent))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [verifyingId, setVerifyingId] = useState<string | null>(null)
 
-  const isDirty = name !== stylist.name || color !== stylist.color || commissionPercent !== stylist.commissionPercent
+  const licenseDirty =
+    licenseNumber !== (stylist.licenseNumber ?? '') ||
+    licenseType !== (stylist.licenseType ?? '') ||
+    licenseExpiresAt !== (stylist.licenseExpiresAt ?? '')
+
+  const handleVerify = async (docId: string, verified: boolean) => {
+    setVerifyingId(docId)
+    try {
+      const path = verified ? 'unverify' : 'verify'
+      const res = await fetch(`/api/compliance/${docId}/${path}`, { method: 'PUT' })
+      if (res.ok) {
+        toast(verified ? 'Unverified' : 'Verified', 'success')
+        router.refresh()
+      } else {
+        toast('Failed', 'error')
+      }
+    } finally {
+      setVerifyingId(null)
+    }
+  }
+
+  const isDirty = name !== stylist.name || color !== stylist.color || commissionPercent !== stylist.commissionPercent || licenseDirty
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
@@ -77,7 +122,14 @@ export function StylistDetailClient({
       const res = await fetch(`/api/stylists/${stylist.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), color, commissionPercent }),
+        body: JSON.stringify({
+          name: name.trim(),
+          color,
+          commissionPercent,
+          licenseNumber: licenseNumber.trim() || null,
+          licenseType: licenseType.trim() || null,
+          licenseExpiresAt: licenseExpiresAt || null,
+        }),
       })
       const json = await res.json()
       if (res.ok) {
@@ -283,6 +335,52 @@ export function StylistDetailClient({
               </div>
             )}
 
+            {isAdmin && (
+              <div className="pt-4 border-t border-stone-100 space-y-3">
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">License</p>
+                <div>
+                  <label className="text-[11px] text-stone-500 block mb-1">Number</label>
+                  <input
+                    value={licenseNumber}
+                    onChange={(e) => setLicenseNumber(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    placeholder="e.g. 123456"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-stone-500 block mb-1">Type</label>
+                  <input
+                    value={licenseType}
+                    onChange={(e) => setLicenseType(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    placeholder="e.g. Cosmetology"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-stone-500 block mb-1">Expires</label>
+                  <input
+                    type="date"
+                    value={licenseExpiresAt}
+                    onChange={(e) => setLicenseExpiresAt(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${stylist.insuranceVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                    {stylist.insuranceVerified ? 'Insurance verified' : 'Insurance unverified'}
+                  </span>
+                  {stylist.insuranceExpiresAt && (
+                    <span className="text-[11px] text-stone-500">until {stylist.insuranceExpiresAt}</span>
+                  )}
+                </div>
+                <div>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${stylist.backgroundCheckVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                    {stylist.backgroundCheckVerified ? 'Background check verified' : 'Background check pending'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {error && <p className="text-xs text-red-600">{error}</p>}
 
             <Button
@@ -297,7 +395,68 @@ export function StylistDetailClient({
         </div>
 
         {/* Upcoming schedule */}
-        <div className="col-span-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
+        <div className="col-span-3 space-y-5">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+          <div className="px-5 py-4 border-b border-stone-100">
+            <h2 className="text-sm font-semibold text-stone-900">Compliance documents</h2>
+            <p className="text-xs text-stone-500 mt-0.5">Licensing, insurance, and agreements</p>
+          </div>
+          {complianceDocuments.length === 0 ? (
+            <p className="text-sm text-stone-400 px-5 py-6">No documents uploaded.</p>
+          ) : (
+            <ul className="divide-y divide-stone-50">
+              {complianceDocuments.map((doc) => {
+                const type = doc.documentType as ComplianceDocumentType
+                return (
+                  <li key={doc.id} className="flex items-center gap-3 px-5 py-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-stone-400 shrink-0">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <a
+                        href={doc.signedUrl ?? '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-stone-900 hover:text-[#8B2E4A] truncate block"
+                      >
+                        {doc.fileName}
+                      </a>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${DOC_TYPE_BADGE[type]}`}>
+                          {DOC_TYPE_LABEL[type]}
+                        </span>
+                        <span className="text-[11px] text-stone-500">
+                          {doc.expiresAt ? `Expires ${doc.expiresAt}` : '—'}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${doc.verified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          {doc.verified ? 'Verified' : 'Pending Review'}
+                        </span>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleVerify(doc.id, doc.verified)}
+                        disabled={verifyingId === doc.id}
+                        className={cn(
+                          'shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50',
+                          doc.verified
+                            ? 'text-stone-600 border-stone-200 hover:bg-stone-50'
+                            : 'text-white border-transparent'
+                        )}
+                        style={!doc.verified ? { backgroundColor: '#8B2E4A' } : undefined}
+                      >
+                        {verifyingId === doc.id ? '…' : doc.verified ? 'Unverify' : 'Verify'}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
           <div className="px-5 py-4 border-b border-stone-100">
             <h2 className="text-sm font-semibold text-stone-900">Upcoming appointments</h2>
             <p className="text-xs text-stone-500 mt-0.5">Next 14 days</p>
@@ -351,6 +510,7 @@ export function StylistDetailClient({
               })}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

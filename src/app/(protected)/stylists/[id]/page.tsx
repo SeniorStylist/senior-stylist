@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, stylists } from '@/db/schema'
+import { bookings, stylists, complianceDocuments } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
-import { eq, and, gte, lte, ne } from 'drizzle-orm'
+import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
+import { eq, and, gte, lte, ne, desc } from 'drizzle-orm'
 import { StylistDetailClient } from './stylist-detail-client'
 
 export default async function StylistDetailPage({
@@ -112,11 +113,30 @@ export default async function StylistDetailPage({
     serviceBreakdown,
   }
 
+  const docs = await db.query.complianceDocuments.findMany({
+    where: and(
+      eq(complianceDocuments.stylistId, id),
+      eq(complianceDocuments.facilityId, facilityUser.facilityId)
+    ),
+    orderBy: [desc(complianceDocuments.uploadedAt)],
+  })
+  const storage = createStorageClient()
+  const complianceDocs = await Promise.all(
+    docs.map(async (d) => {
+      const { data } = await storage.storage
+        .from(COMPLIANCE_BUCKET)
+        .createSignedUrl(d.fileUrl, 3600)
+      return { ...d, signedUrl: data?.signedUrl ?? null }
+    })
+  )
+
   return (
     <StylistDetailClient
       stylist={JSON.parse(JSON.stringify(sanitizeStylist(stylist)))}
       upcomingBookings={JSON.parse(JSON.stringify(upcomingBookings))}
       stats={stats}
+      complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
+      isAdmin={facilityUser.role === 'admin'}
     />
   )
   } catch (err) {

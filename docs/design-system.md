@@ -781,13 +781,27 @@ const res = await fetch('/api/access-requests', {
 
 ## Upcoming UI patterns (Phases 7–14)
 
-### Compliance badge (Phase 7)
-Three-state colored dot/badge on stylist list rows:
-- **Green** — all required documents verified and not expiring within 30 days
-- **Amber** — at least one document expires within 60 days, or unverified
-- **Red** — at least one document expired or missing
+### Compliance badge (Phase 7 SHIPPED 2026-04-14)
+Four-state compliance status computed by `computeComplianceStatus(stylist, docs)` in `src/lib/compliance.ts`:
+- **Green** (`bg-emerald-500`) — required docs (license + insurance) verified, all expiries >30 days, no unverified docs
+- **Amber** (`bg-amber-400`) — any required doc expires within 60 days OR any unverified doc present
+- **Red** (`bg-red-500`) — any doc expired OR a required type missing / unverified
+- **None** — no signals at all; render nothing (no dot)
 
-Use inline SVG dot (`w-2 h-2 rounded-full`) with `bg-emerald-500` / `bg-amber-400` / `bg-red-500`. Never use Tailwind `text-` color classes for status dots — always `bg-` to ensure color-blind distinction.
+Dot placement: `w-2 h-2 rounded-full shrink-0` next to the stylist calendar-color swatch on the Stylists list, with a `title={complianceStatusLabel(status)}` tooltip. Never use Tailwind `text-*` for status dots — always `bg-*` to ensure color-blind distinction.
+
+### Compliance document type badges (Phase 7)
+Small uppercase pills inside the My Account + Stylist Detail document lists, rendered via inline `<span>` (not the `Badge` component, so they stay inside a grid row):
+
+| Type | Classes | Label |
+|------|---------|-------|
+| `license` | `bg-blue-50 text-blue-700` | License |
+| `insurance` | `bg-purple-50 text-purple-700` | Insurance |
+| `w9` | `bg-stone-100 text-stone-700` | W-9 |
+| `contractor_agreement` | `bg-stone-100 text-stone-700` | Contractor Agreement |
+| `background_check` | `bg-emerald-50 text-emerald-700` | Background Check |
+
+Verified state chip next to the badge: `bg-emerald-50 text-emerald-700` "Verified" vs `bg-amber-50 text-amber-700` "Pending review". Each row has the original filename rendered as a `<a>` to the 1-hour signed URL (opens in a new tab), the doc-type badge, expiry text (or `—`), verified chip, and a delete icon (two-step inline confirm). Upload form is inline (not modal) with type `<select>`, file input, and an expiry `<input type="date">` shown only when the type is `license` or `insurance`.
 
 ### Coverage request status chips (Phase 8)
 Reuse the existing `Badge` component: `open` → amber, `filled` → emerald, `cancelled` → stone.

@@ -100,8 +100,33 @@ export const stylists = pgTable('stylists', {
   active: boolean('active').default(true).notNull(),
   googleCalendarId: text('google_calendar_id'),
   googleRefreshToken: text('google_refresh_token'),
+  licenseNumber: text('license_number'),
+  licenseType: text('license_type'),
+  licenseExpiresAt: date('license_expires_at'),
+  insuranceVerified: boolean('insurance_verified').default(false).notNull(),
+  insuranceExpiresAt: date('insurance_expires_at'),
+  backgroundCheckVerified: boolean('background_check_verified').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export const complianceDocuments = pgTable('compliance_documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  stylistId: uuid('stylist_id')
+    .references(() => stylists.id)
+    .notNull(),
+  facilityId: uuid('facility_id')
+    .references(() => facilities.id)
+    .notNull(),
+  documentType: text('document_type').notNull(),
+  fileUrl: text('file_url').notNull(),
+  fileName: text('file_name').notNull(),
+  expiresAt: date('expires_at'),
+  verified: boolean('verified').default(false).notNull(),
+  verifiedBy: uuid('verified_by').references(() => profiles.id),
+  verifiedAt: timestamp('verified_at'),
+  uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
 })
 
 export const services = pgTable('services', {
@@ -267,6 +292,22 @@ export const residentsRelations = relations(residents, ({ many }) => ({
 export const stylistsRelations = relations(stylists, ({ many }) => ({
   bookings: many(bookings),
   logEntries: many(logEntries),
+  complianceDocuments: many(complianceDocuments),
+}))
+
+export const complianceDocumentsRelations = relations(complianceDocuments, ({ one }) => ({
+  stylist: one(stylists, {
+    fields: [complianceDocuments.stylistId],
+    references: [stylists.id],
+  }),
+  facility: one(facilities, {
+    fields: [complianceDocuments.facilityId],
+    references: [facilities.id],
+  }),
+  verifiedByProfile: one(profiles, {
+    fields: [complianceDocuments.verifiedBy],
+    references: [profiles.id],
+  }),
 }))
 
 export const servicesRelations = relations(services, ({ many }) => ({

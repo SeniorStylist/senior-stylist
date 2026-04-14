@@ -70,8 +70,40 @@ export interface Stylist {
   commissionPercent: number
   active: boolean
   googleCalendarId: string | null
+  licenseNumber: string | null
+  licenseType: string | null
+  licenseExpiresAt: string | null
+  insuranceVerified: boolean
+  insuranceExpiresAt: string | null
+  backgroundCheckVerified: boolean
   createdAt: Date | null
   updatedAt: Date | null
+}
+
+export type ComplianceDocumentType =
+  | 'license'
+  | 'insurance'
+  | 'w9'
+  | 'contractor_agreement'
+  | 'background_check'
+
+export interface ComplianceDocument {
+  id: string
+  stylistId: string
+  facilityId: string
+  documentType: ComplianceDocumentType
+  fileUrl: string
+  fileName: string
+  expiresAt: string | null
+  verified: boolean
+  verifiedBy: string | null
+  verifiedAt: Date | null
+  uploadedAt: Date
+  createdAt: Date | null
+}
+
+export interface ComplianceDocumentWithUrl extends ComplianceDocument {
+  signedUrl: string | null
 }
 
 export interface Service {

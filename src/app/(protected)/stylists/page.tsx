@@ -1,11 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { stylists } from '@/db/schema'
+import { stylists, complianceDocuments } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
+import { computeComplianceStatus, complianceStatusLabel } from '@/lib/compliance'
+
+const STATUS_COLOR: Record<'green' | 'amber' | 'red', string> = {
+  green: 'bg-emerald-500',
+  amber: 'bg-amber-400',
+  red: 'bg-red-500',
+}
 
 export default async function StylistsPage() {
   const supabase = await createClient()
@@ -26,6 +33,24 @@ export default async function StylistsPage() {
     ),
     orderBy: (t, { asc }) => [asc(t.name)],
   })
+
+  const facilityDocs = await db.query.complianceDocuments.findMany({
+    where: eq(complianceDocuments.facilityId, facilityUser.facilityId),
+    columns: { stylistId: true, documentType: true, expiresAt: true, verified: true },
+  })
+  const docsByStylist = new Map<string, typeof facilityDocs>()
+  for (const d of facilityDocs) {
+    if (!docsByStylist.has(d.stylistId)) docsByStylist.set(d.stylistId, [])
+    docsByStylist.get(d.stylistId)!.push(d)
+  }
+
+  const stylistStatus = new Map<string, ReturnType<typeof computeComplianceStatus>>()
+  for (const s of stylistsList) {
+    stylistStatus.set(
+      s.id,
+      computeComplianceStatus(s, docsByStylist.get(s.id) ?? [])
+    )
+  }
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -62,6 +87,16 @@ export default async function StylistsPage() {
                 style={{ backgroundColor: stylist.color }}
                 title="Calendar color"
               />
+              {(() => {
+                const status = stylistStatus.get(stylist.id) ?? 'none'
+                if (status === 'none') return null
+                return (
+                  <div
+                    className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLOR[status]}`}
+                    title={`Compliance: ${complianceStatusLabel(status)}`}
+                  />
+                )
+              })()}
               <svg
                 width="14"
                 height="14"

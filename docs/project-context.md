@@ -206,13 +206,17 @@ Tailwind CSS 4, Vercel
 - Zod `.max()` caps across all input schemas (name 200, room 50, notes 2000, email 320, color 20, address 500, cents 10_000_000, arrays 20 for tiers/options).
 - RLS verified: every public table has RLS enabled + `service_role_all` policy.
 
-### Phase 7 PLANNED — Compliance & Document Management
-- New table: `compliance_documents` (stylist_id, document_type: license|insurance|w9|contractor_agreement|background_check, file_url, file_name, expires_at, verified, uploaded_at)
+### Phase 7 SHIPPED (2026-04-14) — Compliance & Document Management
+- New table: `compliance_documents` (stylist_id, facility_id, document_type: license|insurance|w9|contractor_agreement|background_check, file_url = storage path, file_name, expires_at, verified, verified_by, verified_at, uploaded_at)
 - New columns on `stylists`: license_number, license_type, license_expires_at, insurance_verified, insurance_expires_at, background_check_verified
-- Stylists upload compliance docs from My Account page
-- Admins verify documents on the Stylists page
-- Compliance badge (green/amber/red) on stylist list rows based on expiry/verification status
-- Expiration alerts at 60 days and 30 days via Resend email to admin
+- Private Supabase Storage bucket `compliance-docs` (10 MB cap, PDF/JPEG/PNG); API proxies all uploads — service-role key never touches the browser
+- Signed URLs are regenerated per GET (1-hour TTL); DB row stores the path, never the signed URL
+- Stylists upload/view/delete (unverified) their own docs from My Account; admins verify/unverify via Stylist Detail
+- Verification reflects into stylist columns (license → licenseExpiresAt, insurance → insuranceVerified + insuranceExpiresAt, background_check → backgroundCheckVerified); unverify does NOT roll these back (manual edit)
+- Compliance badge `computeComplianceStatus()` in `src/lib/compliance.ts` — green/amber/red/none; dot on Stylists list + status chip on Stylist Detail
+- New API routes: `POST /api/compliance/upload`, `GET /api/compliance?stylistId=`, `DELETE /api/compliance/[id]`, `PUT /api/compliance/[id]/verify`, `PUT /api/compliance/[id]/unverify`
+- Extended `PUT /api/stylists/[id]` Zod schema with license/insurance date fields
+- Daily cron `GET /api/cron/compliance-alerts` at 09:00 UTC — Bearer `CRON_SECRET`; emails facility admins (or `NEXT_PUBLIC_ADMIN_EMAIL` fallback) when any verified compliance doc or stylist license/insurance expiry date falls exactly 30 or 60 days from today; `vercel.json` registers the schedule; middleware bypass added for `/api/cron/*`
 
 ### Phase 8 PLANNED — Workforce Availability & Coverage
 - New table: `stylist_availability` (stylist_id, day_of_week, start_time, end_time, active)
@@ -329,10 +333,11 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Security Hardening shipped (2026-04-14) — full audit remediation across 7 grouped commits. App is now safe to onboard real facilities. Next steps:
-1. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-2. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards.
-3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts.
+Phase 7 (Compliance) shipped (2026-04-14). Next steps:
+1. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
+2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
+3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs for each.
+4. Phase 8: Workforce Availability & Coverage — stylist_availability table, coverage_requests table, time-off from My Account, needs-coverage calendar flag, admin coverage queue, email alerts.
 
 ---
 

@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { profiles, stylists, bookings } from '@/db/schema'
-import { eq, and, gte, lte } from 'drizzle-orm'
+import { profiles, stylists, bookings, complianceDocuments } from '@/db/schema'
+import { eq, and, gte, lte, desc } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
+import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
 import { MyAccountClient } from './my-account-client'
 
 export default async function MyAccountPage() {
@@ -22,6 +23,7 @@ export default async function MyAccountPage() {
   let stylist = null
   let weekBookings: any[] = []
   let monthEarningsCents = 0
+  let complianceDocs: Array<Record<string, unknown>> = []
 
   if (profile?.stylistId) {
     stylist = await db.query.stylists.findFirst({
@@ -67,6 +69,23 @@ export default async function MyAccountPage() {
         const price = b.priceCents ?? 0
         return sum + Math.round(price * (stylist!.commissionPercent / 100))
       }, 0)
+
+      const docs = await db.query.complianceDocuments.findMany({
+        where: and(
+          eq(complianceDocuments.stylistId, stylist.id),
+          eq(complianceDocuments.facilityId, facilityUser.facilityId)
+        ),
+        orderBy: [desc(complianceDocuments.uploadedAt)],
+      })
+      const storage = createStorageClient()
+      complianceDocs = await Promise.all(
+        docs.map(async (d) => {
+          const { data } = await storage.storage
+            .from(COMPLIANCE_BUCKET)
+            .createSignedUrl(d.fileUrl, 3600)
+          return { ...d, signedUrl: data?.signedUrl ?? null }
+        })
+      )
     }
   }
 
@@ -85,6 +104,8 @@ export default async function MyAccountPage() {
       linked={!!profile?.stylistId}
       facilityStylists={JSON.parse(JSON.stringify(sanitizeStylists(facilityStylists)))}
       googleCalendarConnected={!!(stylist?.googleCalendarId)}
+      complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
+      stylistId={profile?.stylistId ?? null}
     />
   )
 }
