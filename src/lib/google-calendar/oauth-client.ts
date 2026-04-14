@@ -46,16 +46,10 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   if (!tokens.refresh_token) throw new Error('No refresh token returned — ensure prompt=consent was set')
   if (!tokens.access_token) throw new Error('No access token returned')
 
-  oauth2Client.setCredentials(tokens)
-  const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
-  const list = await calendar.calendarList.list()
-  const primary = (list.data.items ?? []).find((c) => c.primary === true)
-  if (!primary?.id) throw new Error('Could not find primary calendar')
-
   return {
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
-    calendarId: primary.id,
+    calendarId: 'primary',
   }
 }
 
