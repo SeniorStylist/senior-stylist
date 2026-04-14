@@ -164,6 +164,13 @@ Tailwind CSS 4, Vercel
 - Color picker palettes and DB defaults retain `#0D7377` (user-owned data)
 - 43 files changed, zero TypeScript errors
 
+### Portal Service Picker Auto-Collapse SHIPPED (2026-04-14)
+- `pickerOpen: Record<number, boolean>` state per service slot in `portal-client.tsx`
+- After tapping a service card (single-row mode), card list collapses after 150ms to compact rose-50 summary row: color dot + name + price + "Change" link
+- Tapping "Change" re-opens the full card grid for that slot
+- Multiple service rows stay open (no auto-collapse when `totalRows > 1`)
+- `pickerOpen` reset to `{}` on `startBooking()`
+
 ### Logo Integration + Sidebar Rebrand SHIPPED (2026-04-14)
 - `--color-sidebar` updated to `#1C0A12` (dark warm burgundy, replaces `#0D2B2E` dark teal)
 - Logo image at `/public/Seniorstylistlogo.jpg` — replaces all SVG placeholder branding

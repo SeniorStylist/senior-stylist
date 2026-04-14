@@ -833,6 +833,17 @@ Inline SVG rose outline in the portal header, positioned `absolute right:-8px to
 - Entry/auth pages (onboarding, invite/accept, unauthorized) → burgundy CTAs, rose selected states
 - `src/components/ui/button.tsx` → still teal `#0D7377` (admin-wide component, not changed)
 
+### Service picker — collapsed summary row pattern
+After a service is selected in single-row mode, the full card grid collapses to a compact row:
+```
+bg-rose-50 border border-rose-200 rounded-xl px-4 py-3
+  color dot (w-2.5 h-2.5) + service name (font-semibold truncate) + price (text-xs text-stone-500)
+  "Change" link → text-xs font-medium text-[#8B2E4A] (right side)
+```
+State: `pickerOpen: Record<number, boolean>` — `false` = collapsed, `true`/undefined = open.
+Collapse triggers in `setServiceAt()` via 150ms `setTimeout` when `totalRows <= 1`.
+Reset to `{}` on `startBooking()`.
+
 ### Status badge colors in portal
 The `STATUS_STYLES` record in portal-client.tsx uses semantic colors (not brand colors):
 - `completed`: `bg-teal-50 text-teal-700` — keep as-is (teal is semantic for "done" status here, not brand)
