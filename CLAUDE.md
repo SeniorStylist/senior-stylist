@@ -50,8 +50,8 @@
 ### UI / Design
 - Design system: stone colors, rounded-2xl cards
 - **Brand palette (from seniorstylist.com marketing site):** primary `#8B2E4A` (burgundy), hover `#72253C`, portal bg `#FDF8F8` (warm blush), accent `#C4687A` (rose)
-- **Portal (`src/app/(resident)/`) uses BURGUNDY palette** — `#8B2E4A` buttons/borders, `bg-rose-50` selected states, `border-rose-200` banners, `accent-[#8B2E4A]` checkboxes
-- **Admin app still uses teal `#0D7377`** for most components (`button.tsx`, `input.tsx`, calendar, booking modal, etc.). Do NOT globally replace `#0D7377` — only portal + entry pages (onboarding, invite, unauthorized) use burgundy
+- **Entire app uses BURGUNDY palette** — `#8B2E4A` primary, `#72253C` hover, `#C4687A` accent. `bg-rose-50` for tinted backgrounds, `border-rose-100/200` for borders, `focus:ring-rose-100` for focus rings, `accent-[#8B2E4A]` for checkboxes. Exception: `completed` status badges remain `bg-teal-50 text-teal-700` (semantic color, intentional).
+- **Admin app now uses burgundy `#8B2E4A`** everywhere — full brand migration complete. All components (`button.tsx`, `input.tsx`, calendar, booking modal, sidebar active states, panels, UI primitives, email templates) use `#8B2E4A`. Do NOT add new teal `#0D7377` anywhere in the app.
 - Portal layout header: `style={{ backgroundColor: '#8B2E4A' }}` with inline floral SVG rose accent (`rgba(255,255,255,0.15)` stroke, `80×96px`, positioned absolute top-right)
 - `--color-primary` CSS variable in globals.css is now `#8B2E4A` — affects FullCalendar toolbar buttons only (all component-level teal is hardcoded `bg-[#0D7377]`, not the CSS variable)
 - Fonts: DM Serif Display (headings), DM Sans (body)

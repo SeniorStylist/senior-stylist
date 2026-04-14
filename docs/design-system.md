@@ -32,7 +32,9 @@ Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The 
 - Portal background: `#FDF8F8` (warm blush)
 - Accent: `#C4687A` (softer rose — secondary elements)
 
-**Important:** The internal admin app still uses `#0D7377` teal in `button.tsx`, `input.tsx`, `select.tsx`, `toast.tsx`, and many admin-specific components. Only the portal and entry-point pages (onboarding, invite, unauthorized) use the burgundy palette. Do NOT do a global find/replace of `#0D7377` — it would break the admin UI.
+**Full brand migration complete (2026-04-14):** The entire admin app now uses the burgundy palette. `button.tsx`, `input.tsx`, `select.tsx`, `toast.tsx`, booking modal, panels, sidebar active states, and all email templates use `#8B2E4A`. Do NOT add new `#0D7377` teal anywhere — the brand color is burgundy app-wide.
+
+**Exception:** `completed` status badges remain `bg-teal-50 text-teal-700` (semantic color — intentional). User-owned color data (service/stylist color picker palette arrays, DB defaults, calendar event fallbacks) also retain `#0D7377`.
 
 **FullCalendar hover:** `#72253C`; active: `#5c1e2e`; highlight tint: `rgba(139, 46, 74, 0.1)`.
 

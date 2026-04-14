@@ -158,6 +158,12 @@ Tailwind CSS 4, Vercel
 - `GET /api/export/bookkeeper?month=YYYY-MM` — admin-only CSV with Date, Resident, Room, Service, Stylist, Duration, Price, Payment Status, Payment Method, Notes; respects facility timezone
 - "Bookkeeper CSV" button in Reports invoice tab action bar
 
+### Full Brand Migration SHIPPED (2026-04-14)
+- All admin app components now use burgundy `#8B2E4A` — `button.tsx`, `input.tsx`, `select.tsx`, `toast.tsx`, booking modal, sidebar active states (`#C4687A`), panels, UI primitives, email templates, manifest theme_color
+- `completed` status badges remain `bg-teal-50 text-teal-700` (semantic)
+- Color picker palettes and DB defaults retain `#0D7377` (user-owned data)
+- 43 files changed, zero TypeScript errors
+
 ### Phase 6 PLANNED
 - Per-stylist Google Calendar integration
   - Add `calendar_id` column to `stylists` table
