@@ -13,6 +13,15 @@ export async function GET(
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.portalToken, token),
+      columns: {
+        id: true,
+        facilityId: true,
+        name: true,
+        roomNumber: true,
+        poaName: true,
+        poaEmail: true,
+        poaNotificationsEnabled: true,
+      },
     })
 
     if (!resident) {
@@ -23,6 +32,7 @@ export async function GET(
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, resident.facilityId),
+      columns: { paymentType: true },
     })
 
     const stylistCols = {
@@ -33,6 +43,40 @@ export async function GET(
       active: true,
     } as const
 
+    const serviceCols = {
+      id: true,
+      name: true,
+      color: true,
+      durationMinutes: true,
+      priceCents: true,
+      pricingType: true,
+      addonAmountCents: true,
+      pricingTiers: true,
+      pricingOptions: true,
+    } as const
+
+    const bookingCols = {
+      id: true,
+      facilityId: true,
+      residentId: true,
+      stylistId: true,
+      serviceId: true,
+      serviceIds: true,
+      serviceNames: true,
+      startTime: true,
+      endTime: true,
+      durationMinutes: true,
+      totalDurationMinutes: true,
+      priceCents: true,
+      status: true,
+      paymentStatus: true,
+      selectedQuantity: true,
+      selectedOption: true,
+      addonServiceIds: true,
+      addonTotalCents: true,
+      notes: true,
+    } as const
+
     const [upcomingBookings, pastBookings] = await Promise.all([
       db.query.bookings.findMany({
         where: (b, { and, eq: eqFn, gte: gteFn, ne: neFn }) =>
@@ -41,13 +85,15 @@ export async function GET(
             gteFn(b.startTime, now),
             neFn(b.status, 'cancelled')
           ),
-        with: { service: true, stylist: { columns: stylistCols } },
+        columns: bookingCols,
+        with: { service: { columns: serviceCols }, stylist: { columns: stylistCols } },
         orderBy: (t, { asc }) => [asc(t.startTime)],
       }),
       db.query.bookings.findMany({
         where: (b, { and, eq: eqFn, lt: ltFn }) =>
           and(eqFn(b.residentId, resident.id), ltFn(b.startTime, now)),
-        with: { service: true, stylist: { columns: stylistCols } },
+        columns: bookingCols,
+        with: { service: { columns: serviceCols }, stylist: { columns: stylistCols } },
         orderBy: (t, { desc }) => [desc(t.startTime)],
         limit: 10,
       }),

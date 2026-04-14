@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, facilities, profiles, facilityUsers } from '@/db/schema'
+import { invites, facilities, profiles, facilityUsers, franchises, franchiseFacilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, desc, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -32,10 +32,34 @@ export async function POST(request: NextRequest) {
     } else {
       const facilityUser = await getUserFacility(user.id)
       if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-      if (facilityUser.role !== 'admin') {
+
+      if (facilityUser.role === 'super_admin') {
+        // Franchise owner — allow inviting only to facilities inside their franchise
+        const targetFacilityId =
+          (typeof body.facilityId === 'string' && body.facilityId) || facilityUser.facilityId
+
+        const ownedFranchise = await db.query.franchises.findFirst({
+          where: eq(franchises.ownerUserId, user.id),
+          columns: { id: true },
+        })
+        if (!ownedFranchise) {
+          return Response.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        const covers = await db.query.franchiseFacilities.findFirst({
+          where: and(
+            eq(franchiseFacilities.franchiseId, ownedFranchise.id),
+            eq(franchiseFacilities.facilityId, targetFacilityId)
+          ),
+        })
+        if (!covers) {
+          return Response.json({ error: 'Facility not in your franchise' }, { status: 403 })
+        }
+        facilityId = targetFacilityId
+      } else if (facilityUser.role !== 'admin') {
         return Response.json({ error: 'Admin access required' }, { status: 403 })
+      } else {
+        facilityId = facilityUser.facilityId
       }
-      facilityId = facilityUser.facilityId
     }
     if (!email || typeof email !== 'string') {
       return Response.json({ error: 'Email is required' }, { status: 422 })

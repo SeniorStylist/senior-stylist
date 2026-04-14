@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { profiles, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, ne } from 'drizzle-orm'
 
 export async function PUT(request: NextRequest) {
   try {
@@ -24,6 +24,14 @@ export async function PUT(request: NextRequest) {
       where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityUser.facilityId)),
     })
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+
+    // Reject if the stylist is already linked to a different user (prevents takeover)
+    const existingLink = await db.query.profiles.findFirst({
+      where: and(eq(profiles.stylistId, stylistId), ne(profiles.id, user.id)),
+    })
+    if (existingLink) {
+      return Response.json({ error: 'This stylist is already linked to another user' }, { status: 409 })
+    }
 
     await db.update(profiles).set({ stylistId, updatedAt: new Date() }).where(eq(profiles.id, user.id))
 

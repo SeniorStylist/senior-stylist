@@ -12,6 +12,7 @@ export async function GET(
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.portalToken, token),
+      columns: { id: true, facilityId: true },
     })
 
     if (!resident) {
@@ -20,6 +21,19 @@ export async function GET(
 
     const data = await db.query.services.findMany({
       where: and(eq(services.facilityId, resident.facilityId), eq(services.active, true)),
+      columns: {
+        id: true,
+        name: true,
+        color: true,
+        category: true,
+        durationMinutes: true,
+        priceCents: true,
+        pricingType: true,
+        addonAmountCents: true,
+        pricingTiers: true,
+        pricingOptions: true,
+        active: true,
+      },
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

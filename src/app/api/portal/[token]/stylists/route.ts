@@ -12,6 +12,7 @@ export async function GET(
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.portalToken, token),
+      columns: { id: true, facilityId: true },
     })
 
     if (!resident) {

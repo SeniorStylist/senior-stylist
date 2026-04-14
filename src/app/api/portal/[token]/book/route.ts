@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { residents, bookings, services, facilities, stylists } from '@/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
@@ -43,8 +43,17 @@ export async function POST(
     const allServiceIds = parsed.data.serviceIds ?? [parsed.data.serviceId!]
     const primaryServiceId = allServiceIds[0]
 
+    // Ensure the stylist belongs to this resident's facility
+    const stylistInFacility = await db.query.stylists.findFirst({
+      where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, resident.facilityId)),
+      columns: { id: true },
+    })
+    if (!stylistInFacility) {
+      return Response.json({ error: 'Stylist not found' }, { status: 404 })
+    }
+
     const primaryService = await db.query.services.findFirst({
-      where: eq(services.id, primaryServiceId),
+      where: and(eq(services.id, primaryServiceId), eq(services.facilityId, resident.facilityId)),
     })
 
     if (!primaryService) {
@@ -61,8 +70,14 @@ export async function POST(
     let addonTotalCents = 0
     if (addonServiceIds.length > 0) {
       const addonSvcs = await db.query.services.findMany({
-        where: inArray(services.id, addonServiceIds),
+        where: and(
+          inArray(services.id, addonServiceIds),
+          eq(services.facilityId, resident.facilityId)
+        ),
       })
+      if (addonSvcs.length !== addonServiceIds.length) {
+        return Response.json({ error: 'Invalid add-on service' }, { status: 400 })
+      }
       addonTotalCents = addonSvcs.reduce((sum, s) => sum + (s.addonAmountCents ?? s.priceCents ?? 0), 0)
     }
 
@@ -70,9 +85,16 @@ export async function POST(
     let additionalPriceCents = 0
     let additionalDurationMinutes = 0
     if (allServiceIds.length > 1) {
+      const additionalIds = allServiceIds.slice(1)
       const additionalSvcs = await db.query.services.findMany({
-        where: inArray(services.id, allServiceIds.slice(1)),
+        where: and(
+          inArray(services.id, additionalIds),
+          eq(services.facilityId, resident.facilityId)
+        ),
       })
+      if (additionalSvcs.length !== additionalIds.length) {
+        return Response.json({ error: 'Invalid service' }, { status: 400 })
+      }
       additionalPriceCents = additionalSvcs.reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
       additionalDurationMinutes = additionalSvcs.reduce((sum, s) => sum + s.durationMinutes, 0)
     }

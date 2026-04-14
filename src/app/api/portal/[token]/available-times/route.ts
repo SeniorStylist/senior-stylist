@@ -18,6 +18,7 @@ export async function GET(
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.portalToken, token),
+      columns: { id: true, facilityId: true },
     })
 
     if (!resident) {
@@ -34,6 +35,7 @@ export async function GET(
         gte(bookings.startTime, dayStart),
         lt(bookings.startTime, dayEnd)
       ),
+      columns: { startTime: true },
     })
 
     const takenSlots = bookedAppointments.map((b) => {

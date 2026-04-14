@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { residents, services, facilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
@@ -18,6 +18,7 @@ export async function POST(
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.portalToken, token),
+      columns: { id: true, facilityId: true },
     })
 
     if (!resident) {
@@ -33,8 +34,14 @@ export async function POST(
     const { bookingId, serviceId } = parsed.data
 
     const [service, facility] = await Promise.all([
-      db.query.services.findFirst({ where: eq(services.id, serviceId) }),
-      db.query.facilities.findFirst({ where: eq(facilities.id, resident.facilityId) }),
+      db.query.services.findFirst({
+        where: and(eq(services.id, serviceId), eq(services.facilityId, resident.facilityId)),
+        columns: { id: true, name: true, priceCents: true },
+      }),
+      db.query.facilities.findFirst({
+        where: eq(facilities.id, resident.facilityId),
+        columns: { id: true, stripeSecretKey: true },
+      }),
     ])
 
     if (!service) {
