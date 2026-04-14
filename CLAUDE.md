@@ -39,6 +39,19 @@
 - Every API route must scope to facilityId via getUserFacility()
 - Return { data: ... } on success, { error: "message" } on failure
 - Always wrap DB queries in try/catch — never let a DB error crash a page
+- Mutation routes (POST/PUT/DELETE) on shared-state resources (stylists, services, OCR/parse-pdf) MUST add `if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })`. Stylist-role users can only mutate their own bookings/profile.
+- Every Zod input schema needs `.max()` caps: names 200, room 50, notes/description 2000, email 320, color 20, address 500, cents 10_000_000, tier/option arrays 20, additionalServices 20, timezone 100. Without caps, attackers can waste DB space / bandwidth.
+- Rate-limit all public or expensive routes via `src/lib/rate-limit.ts` — `checkRateLimit(bucket, identifier)` + `rateLimitResponse(retryAfter)`. Buckets: `signup` 5/hr/IP, `portalBook` 10/hr/token, `ocr` 20/hr/user, `parsePdf` 20/hr/user, `sendPortalLink` 10/hr/user, `invites` 30/hr/user. No-ops when UPSTASH_REDIS_REST_URL/TOKEN are unset — set them in Vercel for production protection.
+- Portal routes (`/api/portal/[token]/*`) MUST use explicit `columns:` whitelists on every `db.query.*` call, and MUST verify every `stylistId`/`serviceId`/`addonServiceIds` belongs to the resident's facility before accepting input. Never trust client-supplied IDs.
+
+### Security / Payload Hygiene
+- **Server → client payloads MUST be sanitized.** Use `src/lib/sanitize.ts` helpers at every boundary:
+  - `sanitizeStylist(row)` — drops `googleRefreshToken`
+  - `sanitizeFacility(row)` — drops `stripeSecretKey`, adds `hasStripeSecret: boolean`
+  - `toClientJson(value)` — recursive replacer that strips sensitive keys anywhere in nested shapes. Use in place of `JSON.parse(JSON.stringify(x))` for anything with stylists/facilities embedded.
+- Stripe secret is write-only in the Settings UI — server never sends it; client shows a masked placeholder + "Stored securely — enter a new key to replace" when `hasStripeSecret`.
+- **OAuth CSRF pattern** (Google Calendar connect/callback): `oauth_states` table stores a nonce bound to `user_id` + `stylist_id`. `/api/auth/google-calendar/connect` requires admin, generates `crypto.randomUUID()` nonce, inserts row, passes `state=nonce` to Google. `/api/auth/google-calendar/callback` requires the same authenticated user, looks up the row, enforces 10-min TTL, verifies stylist still in caller's facility, deletes row atomically after use. Never trust raw `Buffer.from(state,'base64')` as a stylist id.
+- `next.config.ts` sets response headers: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (camera/mic/geo all off — file-picker `capture="environment"` works without it), HSTS 1yr, Content-Security-Policy (default-src 'self', allowlists for Supabase/Google/Upstash/Vercel Insights, unsafe-inline styles for Tailwind, frame-ancestors 'none').
 
 ### Database Connection
 - Use the pooler URL (port 5432, session mode) for DATABASE_URL

@@ -53,6 +53,8 @@ Tailwind CSS 4, Vercel
 | RESEND_API_KEY | Transactional email | resend.com |
 | GEMINI_API_KEY | OCR log sheet scanning | aistudio.google.com |
 | STRIPE_SECRET_KEY | Resident portal payments | stripe.com |
+| UPSTASH_REDIS_REST_URL | Rate limiting (optional — no-op if unset) | upstash.com |
+| UPSTASH_REDIS_REST_TOKEN | Rate limiting (optional) | upstash.com |
 
 ---
 
@@ -192,6 +194,18 @@ Tailwind CSS 4, Vercel
   - Admin UI: show connected/disconnected status per stylist on
     Stylists page
 
+### Security Hardening SHIPPED (2026-04-14)
+- Full pre-onboarding audit fixes shipped in 7 grouped commits (C1–C7, M1, M3–M5, M7–M8, L1, L3–L5).
+- `src/lib/sanitize.ts` — `sanitizeStylist`, `sanitizeFacility`, `toClientJson`: strip `googleRefreshToken` + `stripeSecretKey` at server→client boundary (applied in dashboard, settings, my-account, bookings, log, residents, facility routes).
+- OAuth CSRF: new `oauth_states` table (`nonce pk`, `user_id`, `stylist_id`, `created_at`). Google Calendar connect/callback now require authenticated admin, nonce-bound state, 10-min TTL, post-success atomic delete. Old `Buffer.from(state,'base64')` → stylistId pattern removed.
+- Admin guards on all privileged mutation routes: `/api/stylists*` POST/PUT/DELETE, `/api/services*` POST/PUT/DELETE, `/api/services/parse-pdf`, `/api/log/ocr`, `/api/log/ocr/import`.
+- Upload caps: OCR 10MB/file + 20 files max; parse-pdf 50MB max.
+- Security headers in `next.config.ts`: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (camera/mic/geo all off), HSTS 1yr, Content-Security-Policy.
+- Facility scoping: `/api/profile` rejects stylist takeover; `/api/invites` super_admin role verifies franchise coverage via `franchise_facilities`; `/api/portal/[token]/*` routes have explicit column whitelists on every `db.query.*` call and validate `stylistId`/`serviceId`/addons belong to the resident's facility.
+- Rate limiting via `src/lib/rate-limit.ts` (Upstash Redis, no-op when env vars missing): signup 5/hr/IP, portalBook 10/hr/token, ocr 20/hr/user, parsePdf 20/hr/user, sendPortalLink 10/hr/user, invites 30/hr/user.
+- Zod `.max()` caps across all input schemas (name 200, room 50, notes 2000, email 320, color 20, address 500, cents 10_000_000, arrays 20 for tiers/options).
+- RLS verified: every public table has RLS enabled + `service_role_all` policy.
+
 ### Phase 7 PLANNED — Compliance & Document Management
 - New table: `compliance_documents` (stylist_id, document_type: license|insurance|w9|contractor_agreement|background_check, file_url, file_name, expires_at, verified, uploaded_at)
 - New columns on `stylists`: license_number, license_type, license_expires_at, insurance_verified, insurance_expires_at, background_check_verified
@@ -315,9 +329,10 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 6 shipped (2026-04-14) — per-stylist Google Calendar OAuth live. Next steps:
-1. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards
-2. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts
+Security Hardening shipped (2026-04-14) — full audit remediation across 7 grouped commits. App is now safe to onboard real facilities. Next steps:
+1. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
+2. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards.
+3. Phase 7: Compliance & Document Management — compliance_documents table, stylist license/insurance columns, upload UI in My Account, verify UI in Stylists page, expiry alerts.
 
 ---
 

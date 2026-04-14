@@ -216,6 +216,18 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `user_id` | Optional FK → `profiles.id` — the Supabase auth UID at submission time |
 | `created_at`, `updated_at` | Timestamps |
 
+### `oauth_states`
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `nonce` | `text` unique — random UUID passed as `state` to Google OAuth |
+| `user_id` | FK → `profiles.id` — caller who initiated the connect flow |
+| `stylist_id` | FK → `stylists.id` — target stylist for the Google Calendar link |
+| `created_at` | Timestamp; rows older than 10 minutes are treated as expired |
+
+Used by `/api/auth/google-calendar/connect` + `/callback` to bind the OAuth callback to the authenticated user and prevent CSRF. Row is deleted atomically on successful callback.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -308,7 +320,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 
 ### Row Level Security (RLS)
 
-RLS is **enabled on all 10 tables** as of March 2026. Each table has a single `service_role_all` policy:
+RLS is **enabled on all 13 tables** (including `oauth_states`, `franchises`, `franchise_facilities`) as of April 2026. Each table has a single `service_role_all` policy:
 
 ```sql
 CREATE POLICY "service_role_all" ON <table>
@@ -327,10 +339,65 @@ CREATE POLICY "service_role_all" ON <table>
 | `log_entries` | ✓ | service_role_all |
 | `invites` | ✓ | service_role_all + authenticated_own_invites (SELECT, `email = auth.jwt()->>'email'`) |
 | `access_requests` | ✓ | service_role_all |
+| `oauth_states` | ✓ | service_role_all |
+| `franchises` | ✓ | service_role_all + owner_select |
+| `franchise_facilities` | ✓ | service_role_all + owner_select |
 
 **Why this works without breaking queries:** All server-side Drizzle queries run with `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS automatically. The anon key (used only for Supabase Auth client-side) has no direct table access — **except** for `facility_users` and `invites`, which have scoped `authenticated` SELECT policies so that middleware can query them.
 
 **New table checklist:** Any new table must have `ALTER TABLE x ENABLE ROW LEVEL SECURITY` + the `service_role_all` policy added immediately after creation. If middleware needs to query the table, also add a scoped `authenticated` SELECT policy.
+
+### Payload sanitization (server → client)
+
+`src/lib/sanitize.ts` exports the helpers used at every server→client boundary to strip secrets:
+
+- `sanitizeStylist(row)` — drops `googleRefreshToken`.
+- `sanitizeFacility(row)` — drops `stripeSecretKey`, adds derived `hasStripeSecret: boolean`.
+- `toClientJson(value)` — recursive JSON replacer that nukes `googleRefreshToken` and `stripeSecretKey` anywhere in nested shapes. Use it in place of `JSON.parse(JSON.stringify(x))` whenever a payload contains embedded stylist or facility objects.
+
+Applied in: `/(protected)/dashboard/page.tsx`, `/(protected)/settings/page.tsx`, `/(protected)/log/page.tsx`, `/(protected)/residents/[id]/page.tsx`, `/(protected)/my-account/page.tsx`, `/(protected)/stylists/[id]/page.tsx`, `/api/facility`, `/api/bookings`, `/api/bookings/[id]`, `/api/log`. Settings UI treats `stripeSecretKey` as write-only — server never sends it; client renders a masked placeholder plus "Stored securely" confirmation when `hasStripeSecret` is true.
+
+### OAuth CSRF (Google Calendar)
+
+`oauth_states` table: `{ nonce text pk, user_id uuid, stylist_id uuid, created_at timestamp }`. Flow:
+
+1. `GET /api/auth/google-calendar/connect` — requires authenticated admin, validates target `stylistId` belongs to the caller's facility, generates `crypto.randomUUID()` nonce, inserts `oauth_states` row, passes `state=nonce` to Google.
+2. `GET /api/auth/google-calendar/callback` — requires same authenticated user, looks up the state row by nonce, rejects if missing / >10 min old / `user_id` mismatch / stylist no longer in caller's facility, persists tokens, atomically deletes the state row.
+
+The old `Buffer.from(state,'base64')` pattern (where any attacker could forge a stylist id) is removed.
+
+### Response headers (`next.config.ts`)
+
+Applied to all routes via `headers()`:
+
+- `X-Frame-Options: DENY` — clickjacking defense.
+- `X-Content-Type-Options: nosniff`.
+- `Referrer-Policy: strict-origin-when-cross-origin`.
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()` — all off; mobile OCR upload uses `<input capture="environment">` which is a file-picker and does not require camera permission.
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — 1-year HSTS.
+- `Content-Security-Policy` — `default-src 'self'`, allowlists for Supabase, Google APIs, Upstash, Vercel Insights, Gemini, cdnjs (pdfjs worker); `'unsafe-inline'` for styles (Tailwind); `frame-ancestors 'none'`.
+
+### Rate limiting (`src/lib/rate-limit.ts`)
+
+Upstash Redis sliding-window limiter behind `checkRateLimit(bucket, identifier)` + `rateLimitResponse(retryAfter)` helpers. No-op when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset (e.g. local dev) — always sets them in Vercel production.
+
+| Bucket | Limit | Scope | Applied to |
+|---|---|---|---|
+| `signup` | 5 / hour | client IP | `POST /api/access-requests` |
+| `portalBook` | 10 / hour | portal token | `POST /api/portal/[token]/book` |
+| `ocr` | 20 / hour | user id | `POST /api/log/ocr` |
+| `parsePdf` | 20 / hour | user id | `POST /api/services/parse-pdf` |
+| `sendPortalLink` | 10 / hour | user id | `POST /api/residents/[id]/send-portal-link` |
+| `invites` | 30 / hour | user id | `POST /api/invites` |
+
+### Upload caps
+
+- `/api/log/ocr` — reject if `files.length > 20` or any `file.size > 10MB`.
+- `/api/services/parse-pdf` — reject if `file.size > 50MB`.
+
+### Input validation (Zod caps)
+
+Every input schema includes `.max()` caps to bound payload size: name/residentName/serviceName 200, roomNumber 50, notes/description 2000, email 320, color 20, address 500, timezone 100, cents 10_000_000, duration 1440 (24h), tier/option arrays 20, additionalServices 20. Cap recommendations in `CLAUDE.md` "API Routes" section.
 
 ---
 
