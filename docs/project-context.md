@@ -164,6 +164,13 @@ Tailwind CSS 4, Vercel
 - Color picker palettes and DB defaults retain `#0D7377` (user-owned data)
 - 43 files changed, zero TypeScript errors
 
+### Logo Integration + Sidebar Rebrand SHIPPED (2026-04-14)
+- `--color-sidebar` updated to `#1C0A12` (dark warm burgundy, replaces `#0D2B2E` dark teal)
+- Logo image at `/public/Seniorstylistlogo.jpg` — replaces all SVG placeholder branding
+- Sidebar: white-card `<Link>` wrapper around `<Image>` (white bg preserves scissor detail on dark)
+- Portal header: `<Image filter:invert>` linked to `https://seniorstylist.com` (white on burgundy)
+- Login, invite-accept, unauthorized: `<Image>` on white background, no filter
+
 ### Phase 6 PLANNED
 - Per-stylist Google Calendar integration
   - Add `calendar_id` column to `stylists` table

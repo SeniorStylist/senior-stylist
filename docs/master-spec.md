@@ -245,7 +245,7 @@ Authenticated app shell: sidebar (`Sidebar`), mobile nav, toast provider (`layou
 |------|---------|
 | `/portal/[token]` | Resident portal UI (`portal-client.tsx`): services, stylists, booking slots, Stripe checkout when `payment_type` is `ip` or `hybrid` |
 
-Layout: branded header “Senior Stylist — Resident Portal” (`layout.tsx`).
+Layout: branded header with `<Image>` logo (filter:invert for white on burgundy) + floral SVG accent (`layout.tsx`). Logo links to `https://seniorstylist.com`.
 
 ### Other notable app routes (not under those groups)
 

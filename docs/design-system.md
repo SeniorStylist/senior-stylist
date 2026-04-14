@@ -13,7 +13,7 @@ All tokens are CSS custom properties declared in `src/app/globals.css`.
 | Token | Value | Usage |
 |---|---|---|
 | `--color-bg` | `#F7F6F2` | App page background (warm off-white) |
-| `--color-sidebar` | `#0D2B2E` | Sidebar background (dark teal — do NOT change) |
+| `--color-sidebar` | `#1C0A12` | Sidebar background (very dark burgundy — matches brand) |
 | `--color-primary` | `#8B2E4A` | Buttons, active states, focus rings, FullCalendar toolbar |
 | `--color-primary-light` | `#C4687A` | Softer rose accent |
 | `--color-brand-hover` | `#72253C` | Hover state for primary burgundy |
@@ -33,6 +33,11 @@ Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The 
 - Accent: `#C4687A` (softer rose — secondary elements)
 
 **Full brand migration complete (2026-04-14):** The entire admin app now uses the burgundy palette. `button.tsx`, `input.tsx`, `select.tsx`, `toast.tsx`, booking modal, panels, sidebar active states, and all email templates use `#8B2E4A`. Do NOT add new `#0D7377` teal anywhere — the brand color is burgundy app-wide.
+
+**Logo integration complete (2026-04-14):** Logo image at `/public/Seniorstylistlogo.jpg`. Use `<Image>` from `next/image`. Three placement strategies:
+- **Sidebar** (`sidebar.tsx`): wrap in `<Link href="/dashboard">` + `bg-white/95 px-2 py-1.5 rounded-xl` white card so gray scissor detail stays visible on dark `#1C0A12` background
+- **Portal header** (`(resident)/layout.tsx`): `style={{ filter: 'brightness(0) invert(1)' }}` on `<Image>` to render all logo colors white on `#8B2E4A` header; wrap in `<a href="https://seniorstylist.com" target="_blank">`
+- **White-background pages** (login, invite-accept, unauthorized): show logo naturally, no filter, no wrapper needed
 
 **Exception:** `completed` status badges remain `bg-teal-50 text-teal-700` (semantic color — intentional). User-owned color data (service/stylist color picker palette arrays, DB defaults, calendar event fallbacks) also retain `#0D7377`.
 
