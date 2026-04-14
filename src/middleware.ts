@@ -40,6 +40,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/invite/accept') ||
     pathname.startsWith('/portal') ||
     pathname.startsWith('/api/portal') ||
+    pathname.startsWith('/api/auth/google-calendar/callback') ||
     pathname.startsWith('/invoice')
 
   if (!user && !isPublic) {

@@ -10,6 +10,7 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
 } from '@/lib/google-calendar/sync'
+import { updateStylistCalendarEvent, deleteStylistCalendarEvent } from '@/lib/google-calendar/oauth-client'
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 
@@ -353,6 +354,37 @@ export async function PUT(
         .where(eq(bookings.id, id))
     }
 
+    // Per-stylist calendar sync — fire-and-forget
+    if (updated.googleEventId) {
+      db.query.stylists.findFirst({ where: eq(stylists.id, updated.stylistId) })
+        .then(stl => {
+          if (stl?.googleRefreshToken && stl?.googleCalendarId) {
+            return db.query.bookings.findFirst({
+              where: eq(bookings.id, id),
+              with: { resident: true, service: true },
+            }).then(bwr => {
+              if (!bwr) return
+              return updateStylistCalendarEvent(stl.googleRefreshToken!, stl.googleCalendarId!, updated.googleEventId!, {
+                id: updated.id,
+                startTime: updated.startTime,
+                endTime: updated.endTime,
+                priceCents: updated.priceCents,
+                notes: updated.notes ?? null,
+                residentName: bwr.resident?.name ?? '',
+                stylistName: stl.name,
+                serviceName: bwr.service?.name ?? '',
+                servicePriceCents: bwr.service?.priceCents ?? 0,
+                facilityId: updated.facilityId,
+                residentId: updated.residentId,
+                stylistId: updated.stylistId,
+                serviceId: updated.serviceId ?? '',
+              })
+            })
+          }
+        })
+        .catch(err => console.error('Stylist calendar sync failed:', err))
+    }
+
     // Return final booking with relations
     const data = await db.query.bookings.findFirst({
       where: eq(bookings.id, id),
@@ -416,6 +448,17 @@ export async function DELETE(
         .update(bookings)
         .set({ syncError: errorMessage, updatedAt: new Date() })
         .where(eq(bookings.id, id))
+    }
+
+    // Per-stylist calendar sync — fire-and-forget
+    if (existing.googleEventId) {
+      db.query.stylists.findFirst({ where: eq(stylists.id, existing.stylistId) })
+        .then(stl => {
+          if (stl?.googleRefreshToken && stl?.googleCalendarId) {
+            return deleteStylistCalendarEvent(stl.googleRefreshToken!, stl.googleCalendarId!, existing.googleEventId!)
+          }
+        })
+        .catch(err => console.error('Stylist calendar sync failed:', err))
     }
 
     revalidateTag('bookings', {})

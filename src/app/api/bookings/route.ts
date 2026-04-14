@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
+import { createStylistCalendarEvent } from '@/lib/google-calendar/oauth-client'
 import { Resend } from 'resend'
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
@@ -237,6 +238,25 @@ export async function POST(request: NextRequest) {
       } catch {
         // ignore — booking was created, just couldn't record sync error
       }
+    }
+
+    // Per-stylist calendar sync — fire-and-forget
+    if (stylist.googleRefreshToken && stylist.googleCalendarId) {
+      createStylistCalendarEvent(stylist.googleRefreshToken, stylist.googleCalendarId, {
+        id: booking.id,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        priceCents: booking.priceCents,
+        notes: booking.notes,
+        residentName: resident.name,
+        stylistName: stylist.name,
+        serviceName: service.name,
+        servicePriceCents: service.priceCents,
+        facilityId: booking.facilityId,
+        residentId: booking.residentId,
+        stylistId: booking.stylistId,
+        serviceId: booking.serviceId ?? service.id,
+      }).catch(err => console.error('Stylist calendar sync failed:', err))
     }
 
     // Fetch final booking with relations

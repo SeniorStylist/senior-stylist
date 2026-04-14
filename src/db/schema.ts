@@ -98,6 +98,8 @@ export const stylists = pgTable('stylists', {
   color: text('color').default('#0D7377').notNull(),
   commissionPercent: integer('commission_percent').default(0).notNull(),
   active: boolean('active').default(true).notNull(),
+  googleCalendarId: text('google_calendar_id'),
+  googleRefreshToken: text('google_refresh_token'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

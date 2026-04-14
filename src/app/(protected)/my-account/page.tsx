@@ -83,6 +83,7 @@ export default async function MyAccountPage() {
       monthEarningsCents={monthEarningsCents}
       linked={!!profile?.stylistId}
       facilityStylists={JSON.parse(JSON.stringify(facilityStylists))}
+      googleCalendarConnected={!!(stylist?.googleCalendarId)}
     />
   )
 }

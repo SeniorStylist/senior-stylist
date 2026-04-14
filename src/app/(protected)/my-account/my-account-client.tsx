@@ -22,6 +22,7 @@ interface MyAccountClientProps {
   monthEarningsCents: number
   linked: boolean
   facilityStylists: Stylist[]
+  googleCalendarConnected: boolean
 }
 
 function groupByDay(bookings: WeekBooking[]) {
@@ -50,13 +51,16 @@ function statusBadge(status: string) {
   )
 }
 
-export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists }: MyAccountClientProps) {
+export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected }: MyAccountClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')
   const [linking, setLinking] = useState(false)
   const [linkError, setLinkError] = useState<string | null>(null)
   const [welcomeBanner, setWelcomeBanner] = useState<string | null>(null)
+  const [calendarBanner, setCalendarBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
     if (searchParams.get('welcome') === '1') {
@@ -65,11 +69,36 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           ? `Welcome! Your account is linked to ${stylist.name}.`
           : 'Welcome! Link your stylist profile in the section below.'
       )
-      // Remove query param from URL without reload
+      window.history.replaceState({}, '', '/my-account')
+    }
+    const calendarParam = searchParams.get('calendar')
+    if (calendarParam === 'connected') {
+      setCalendarBanner({ type: 'success', message: 'Google Calendar connected! Your bookings will now sync automatically.' })
+      window.history.replaceState({}, '', '/my-account')
+    } else if (calendarParam === 'error') {
+      setCalendarBanner({ type: 'error', message: 'Failed to connect Google Calendar. Please try again.' })
       window.history.replaceState({}, '', '/my-account')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true)
+    try {
+      const res = await fetch('/api/auth/google-calendar/disconnect', { method: 'POST' })
+      if (res.ok) {
+        router.refresh()
+      } else {
+        setCalendarBanner({ type: 'error', message: 'Failed to disconnect. Please try again.' })
+        setConfirmDisconnect(false)
+      }
+    } catch {
+      setCalendarBanner({ type: 'error', message: 'Failed to disconnect. Please try again.' })
+      setConfirmDisconnect(false)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
 
   const handleLink = async () => {
     if (!selectedStylistId) return
@@ -171,6 +200,19 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
         My Account
       </h1>
 
+      {/* Calendar banner */}
+      {calendarBanner && (
+        <div className={`rounded-2xl p-4 flex items-start gap-3 ${calendarBanner.type === 'success' ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={calendarBanner.type === 'success' ? '#059669' : '#dc2626'} strokeWidth="2" className="shrink-0 mt-0.5">
+            {calendarBanner.type === 'success'
+              ? <polyline points="20 6 9 17 4 12" />
+              : <><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>
+            }
+          </svg>
+          <p className={`text-sm ${calendarBanner.type === 'success' ? 'text-emerald-800' : 'text-red-800'}`}>{calendarBanner.message}</p>
+        </div>
+      )}
+
       {/* Profile card */}
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
         <div className="flex items-center gap-4">
@@ -211,6 +253,61 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           )}
         </div>
         <p className="text-xs text-stone-400 mt-1">Based on completed appointments</p>
+      </div>
+
+      {/* Google Calendar card */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Google Calendar</p>
+          {googleCalendarConnected && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Connected
+            </span>
+          )}
+        </div>
+        {googleCalendarConnected ? (
+          <>
+            <p className="text-sm text-stone-500 mb-4">Your bookings sync to your personal Google Calendar.</p>
+            {!confirmDisconnect ? (
+              <button
+                onClick={() => setConfirmDisconnect(true)}
+                className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                  className="text-sm font-medium text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-xl disabled:opacity-50 transition-colors"
+                >
+                  {disconnecting ? 'Disconnecting…' : 'Yes, disconnect'}
+                </button>
+                <button
+                  onClick={() => setConfirmDisconnect(false)}
+                  className="text-sm text-stone-500 hover:text-stone-700 px-3 py-1.5 rounded-xl border border-stone-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-stone-500 mb-4">Sync your bookings to your personal Google Calendar.</p>
+            <a
+              href="/api/auth/google-calendar/connect"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              Connect Google Calendar
+            </a>
+          </>
+        )}
       </div>
 
       {/* Schedule card */}

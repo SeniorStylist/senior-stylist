@@ -69,6 +69,8 @@ export interface Stylist {
   color: string
   commissionPercent: number
   active: boolean
+  googleCalendarId: string | null
+  googleRefreshToken: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
