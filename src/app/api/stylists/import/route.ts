@@ -11,7 +11,7 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 300
 
 const MAX_ROWS = 200
 
@@ -166,36 +166,61 @@ interface GeminiScheduleEntry {
   days: string[]
 }
 
-async function parseScheduleWithGemini(scheduleText: string): Promise<GeminiScheduleEntry[] | null> {
+/**
+ * Send ALL schedule texts in a single Gemini request, indexed by position.
+ * Returns a map from index → parsed entries (or empty array on parse failure for that row).
+ * Returns null if the entire call fails — callers should fall back to raw scheduleNotes.
+ */
+async function batchParseSchedulesWithGemini(
+  schedules: { index: number; text: string }[]
+): Promise<Map<number, GeminiScheduleEntry[]> | null> {
   const key = process.env.GEMINI_API_KEY
-  if (!key) return null
+  if (!key || schedules.length === 0) return null
+
+  const schedulesBlock = schedules
+    .map(({ index, text }) => `${index}: ${text}`)
+    .join('\n')
+
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
     const body = {
       contents: [{
         parts: [{
-          text: `You are parsing a stylist scheduling string into structured JSON.
-Extract every facility name and its associated days of the week.
+          text: `Parse each of these stylist schedule strings into structured JSON.
+Return a JSON object where each key is the index (as a string) and the value is an array of {facility, days[]} objects.
 Normalize day names to full English: "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday".
-If a day range like "Tuesdays and Thursdays" is mentioned, split into separate days.
+Split day ranges like "Tuesdays and Thursdays" into separate days.
 Ignore notes like "starting 9/23", "every other", "fill in", "available".
-Return ONLY a JSON array with no markdown, no explanation:
-[{"facility": "Facility Name", "days": ["Monday", "Tuesday"]}]
-If nothing can be parsed, return: []
+If a schedule cannot be parsed, use an empty array [].
+Return ONLY valid JSON with no markdown, no explanation:
+{"0": [{"facility": "Name", "days": ["Monday"]}], "1": [], ...}
 
-Schedule text: ${scheduleText}`,
+Schedules:
+${schedulesBlock}`,
         }]
       }]
     }
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
     if (!res.ok) return null
+
     const data = await res.json()
-    const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    return JSON.parse(text.trim()) as GeminiScheduleEntry[]
+    const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+
+    // Strip any accidental markdown fences
+    const cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
+    const parsed = JSON.parse(cleaned) as Record<string, GeminiScheduleEntry[]>
+
+    const result = new Map<number, GeminiScheduleEntry[]>()
+    for (const [k, v] of Object.entries(parsed)) {
+      const idx = parseInt(k, 10)
+      if (!isNaN(idx) && Array.isArray(v)) result.set(idx, v)
+    }
+    return result
   } catch {
     return null
   }
@@ -322,12 +347,13 @@ export async function POST(request: NextRequest) {
       validRows.push({ index: i + 2, row, resolvedFacilityId })
     }
 
-    // Fire all Gemini calls in parallel before entering the transaction
-    const geminiResults = await Promise.allSettled(
-      validRows.map(({ row }) =>
-        row.schedule ? parseScheduleWithGemini(row.schedule) : Promise.resolve(null)
-      )
-    )
+    // Batch all schedule texts into a single Gemini call before the transaction
+    const schedulesToParse = validRows
+      .map(({ row }, vi) => (row.schedule ? { index: vi, text: row.schedule } : null))
+      .filter((x): x is { index: number; text: string } => x !== null)
+
+    // geminiMap: vi → parsed entries. null = entire batch call failed (fall back to raw notes)
+    const geminiMap = await batchParseSchedulesWithGemini(schedulesToParse)
 
     const result = await db.transaction(async (tx) => {
       let imported = 0
@@ -348,17 +374,22 @@ export async function POST(request: NextRequest) {
             if (match.length) existing = match[0]
           }
 
-          // Build schedule notes from Gemini parse
+          // Build schedule notes from Gemini batch parse
           let scheduleNotes: string | null = null
-          const geminiResult = geminiResults[vi]
           let parsedSchedule: GeminiScheduleEntry[] | null = null
 
           if (row.schedule) {
-            if (geminiResult.status === 'fulfilled' && Array.isArray(geminiResult.value)) {
-              parsedSchedule = geminiResult.value
-            } else {
-              // Fallback: store raw text
+            if (geminiMap === null) {
+              // Entire batch call failed — store raw text for all rows
               scheduleNotes = row.schedule
+            } else {
+              const entries = geminiMap.get(vi)
+              if (entries && entries.length > 0) {
+                parsedSchedule = entries
+              } else {
+                // Gemini returned [] for this row — store raw text
+                scheduleNotes = row.schedule
+              }
             }
           }
 
