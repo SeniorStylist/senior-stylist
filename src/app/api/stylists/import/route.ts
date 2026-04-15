@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { stylists, facilities, stylistAvailability } from '@/db/schema'
+import { stylists, facilities, stylistAvailability, franchises, franchiseFacilities } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -337,7 +337,67 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: `File exceeds ${MAX_ROWS} rows` }, { status: 422 })
     }
 
-    const franchise = await getUserFranchise(user.id)
+    let franchise = await getUserFranchise(user.id)
+
+    // Fallback for master admin in "Viewing as" mode: getUserFranchise may return null
+    // because the super admin email doesn't have a matching facility_users row for every
+    // franchise facility. Query franchises directly and use the first one.
+    if (!franchise) {
+      const isMasterAdmin =
+        process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+        user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
+      if (isMasterAdmin) {
+        // Find the franchise that owns the current facility
+        const franchiseMembership = await db
+          .select({
+            franchiseId: franchiseFacilities.franchiseId,
+            franchiseName: franchises.name,
+          })
+          .from(franchiseFacilities)
+          .innerJoin(franchises, eq(franchises.id, franchiseFacilities.franchiseId))
+          .where(eq(franchiseFacilities.facilityId, facilityUser.facilityId))
+          .limit(1)
+
+        if (franchiseMembership.length > 0) {
+          const { franchiseId: fid, franchiseName } = franchiseMembership[0]
+          const siblingRows = await db
+            .select({ facilityId: franchiseFacilities.facilityId })
+            .from(franchiseFacilities)
+            .where(eq(franchiseFacilities.franchiseId, fid))
+          franchise = {
+            franchiseId: fid,
+            franchiseName,
+            facilityIds: siblingRows.map((r) => r.facilityId),
+          }
+        } else {
+          // Last resort: use the first franchise in the DB
+          const firstFranchise = await db
+            .select({ id: franchises.id, name: franchises.name })
+            .from(franchises)
+            .limit(1)
+          if (firstFranchise.length > 0) {
+            const fid = firstFranchise[0].id
+            const siblingRows = await db
+              .select({ facilityId: franchiseFacilities.facilityId })
+              .from(franchiseFacilities)
+              .where(eq(franchiseFacilities.franchiseId, fid))
+            franchise = {
+              franchiseId: fid,
+              franchiseName: firstFranchise[0].name,
+              facilityIds: siblingRows.map((r) => r.facilityId),
+            }
+          }
+        }
+      }
+    }
+
+    if (!franchise) {
+      console.warn(
+        `[import] franchiseId is null for user=${user.id} facility=${facilityUser.facilityId} — stylists will be imported without franchise association`,
+      )
+    }
+
     const allowedFacilityIds = franchise?.facilityIds ?? [facilityUser.facilityId]
     const franchiseId = franchise?.franchiseId ?? null
 
