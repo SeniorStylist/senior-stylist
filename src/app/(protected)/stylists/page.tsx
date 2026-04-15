@@ -80,7 +80,14 @@ export default async function StylistsPage() {
             >
               <Avatar name={stylist.name} color={stylist.color} size="md" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-stone-900">{stylist.name}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-stone-900">{stylist.name}</p>
+                  {stylist.licenseState && (
+                    <span className="text-[10px] font-semibold text-stone-500 px-1.5 py-0.5 rounded bg-stone-100 shrink-0">
+                      {stylist.licenseState.split(',').map((s) => s.trim()).join(' • ')}
+                    </span>
+                  )}
+                </div>
               </div>
               <div
                 className="w-3 h-3 rounded-full shrink-0"

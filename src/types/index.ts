@@ -78,6 +78,12 @@ export interface Stylist {
   insuranceVerified: boolean
   insuranceExpiresAt: string | null
   backgroundCheckVerified: boolean
+  email: string | null
+  phone: string | null
+  address: string | null
+  paymentMethod: string | null
+  licenseState: string | null
+  scheduleNotes: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }

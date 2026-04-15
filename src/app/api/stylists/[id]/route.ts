@@ -16,11 +16,17 @@ const updateSchema = z.object({
   active: z.boolean().optional(),
   licenseNumber: z.string().max(100).nullable().optional(),
   licenseType: z.string().max(100).nullable().optional(),
+  licenseState: z.string().max(200).nullable().optional(),
   licenseExpiresAt: dateString.nullable().optional(),
   insuranceExpiresAt: dateString.nullable().optional(),
   facilityId: z.string().uuid().nullable().optional(),
   franchiseId: z.string().uuid().nullable().optional(),
   stylistCode: z.string().regex(/^ST\d{3,}$/).optional(),
+  email: z.string().email().max(320).nullable().optional(),
+  phone: z.string().max(50).nullable().optional(),
+  address: z.string().max(500).nullable().optional(),
+  paymentMethod: z.string().max(50).nullable().optional(),
+  scheduleNotes: z.string().max(2000).nullable().optional(),
 })
 
 function isMasterAdmin(email: string | null | undefined) {

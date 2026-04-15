@@ -106,6 +106,12 @@ export const stylists = pgTable('stylists', {
   insuranceVerified: boolean('insurance_verified').default(false).notNull(),
   insuranceExpiresAt: date('insurance_expires_at'),
   backgroundCheckVerified: boolean('background_check_verified').default(false).notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  paymentMethod: text('payment_method'),
+  licenseState: text('license_state'),
+  scheduleNotes: text('schedule_notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

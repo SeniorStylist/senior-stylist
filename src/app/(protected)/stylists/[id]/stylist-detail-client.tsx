@@ -128,6 +128,7 @@ export function StylistDetailClient({
   const [commissionPercent, setCommissionPercent] = useState(initialStylist.commissionPercent)
   const [licenseNumber, setLicenseNumber] = useState(initialStylist.licenseNumber ?? '')
   const [licenseType, setLicenseType] = useState(initialStylist.licenseType ?? '')
+  const [licenseState, setLicenseState] = useState(initialStylist.licenseState ?? '')
   const [licenseExpiresAt, setLicenseExpiresAt] = useState(initialStylist.licenseExpiresAt ?? '')
   const [editingCommission, setEditingCommission] = useState(false)
   const [commissionInput, setCommissionInput] = useState(String(initialStylist.commissionPercent))
@@ -141,6 +142,7 @@ export function StylistDetailClient({
   const licenseDirty =
     licenseNumber !== (stylist.licenseNumber ?? '') ||
     licenseType !== (stylist.licenseType ?? '') ||
+    licenseState !== (stylist.licenseState ?? '') ||
     licenseExpiresAt !== (stylist.licenseExpiresAt ?? '')
   const codeDirty = stylistCode !== stylist.stylistCode
   const facilityDirty = facilityId !== stylist.facilityId
@@ -184,6 +186,7 @@ export function StylistDetailClient({
         commissionPercent,
         licenseNumber: licenseNumber.trim() || null,
         licenseType: licenseType.trim() || null,
+        licenseState: licenseState.trim() || null,
         licenseExpiresAt: licenseExpiresAt || null,
       }
       if (codeDirty) body.stylistCode = stylistCode.trim()
@@ -455,6 +458,15 @@ export function StylistDetailClient({
                   />
                 </div>
                 <div>
+                  <label className="text-[11px] text-stone-500 block mb-1">Licensed In</label>
+                  <input
+                    value={licenseState}
+                    onChange={(e) => setLicenseState(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    placeholder="e.g. MD, VA"
+                  />
+                </div>
+                <div>
                   <label className="text-[11px] text-stone-500 block mb-1">Expires</label>
                   <input
                     type="date"
@@ -476,6 +488,34 @@ export function StylistDetailClient({
                     {stylist.backgroundCheckVerified ? 'Background check verified' : 'Background check pending'}
                   </span>
                 </div>
+              </div>
+            )}
+
+            {isAdmin && (stylist.phone || stylist.address || stylist.paymentMethod) && (
+              <div className="pt-4 border-t border-stone-100 space-y-2">
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Contact</p>
+                {stylist.phone && (
+                  <div>
+                    <span className="text-[11px] text-stone-500 block mb-0.5">Phone</span>
+                    <a href={`tel:${stylist.phone}`} className="text-sm text-[#8B2E4A] hover:underline">
+                      {stylist.phone}
+                    </a>
+                  </div>
+                )}
+                {stylist.address && (
+                  <div>
+                    <span className="text-[11px] text-stone-500 block mb-0.5">Address</span>
+                    <p className="text-sm text-stone-600">{stylist.address}</p>
+                  </div>
+                )}
+                {stylist.paymentMethod && (
+                  <div>
+                    <span className="text-[11px] text-stone-500 block mb-0.5">Payment</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 text-stone-700">
+                      {stylist.paymentMethod}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -567,6 +607,14 @@ export function StylistDetailClient({
               return lines.map((line) => <p key={line}>{line}</p>)
             })()}
           </div>
+          {stylist.scheduleNotes && (
+            <div className="px-5 pb-4">
+              <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide mb-1">
+                Schedule notes (unmatched facilities)
+              </p>
+              <p className="text-xs text-stone-500 italic">{stylist.scheduleNotes}</p>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">

@@ -21,6 +21,8 @@ type Filter = 'all' | 'assigned' | 'unassigned'
 interface ImportResult {
   imported: number
   updated: number
+  availabilityCreated: number
+  scheduleNotes: number
   errors: Array<{ row: number; message: string }>
 }
 
@@ -286,12 +288,23 @@ export function DirectoryClient({
             <div className="mb-3 p-3 rounded-xl bg-white border border-stone-200">
               <p className="text-sm text-stone-800">
                 <span className="font-semibold text-emerald-700">{importResult.imported}</span> imported,{' '}
-                <span className="font-semibold">{importResult.updated}</span> updated,{' '}
-                <span className={`font-semibold ${importResult.errors.length ? 'text-red-600' : 'text-stone-500'}`}>
-                  {importResult.errors.length}
-                </span>{' '}
-                errors
+                <span className="font-semibold">{importResult.updated}</span> updated
               </p>
+              {importResult.availabilityCreated > 0 && (
+                <p className="text-xs text-stone-600 mt-0.5">
+                  {importResult.availabilityCreated} availability schedule{importResult.availabilityCreated !== 1 ? 's' : ''} created
+                </p>
+              )}
+              {importResult.scheduleNotes > 0 && (
+                <p className="text-xs text-amber-700 mt-0.5">
+                  {importResult.scheduleNotes} schedule note{importResult.scheduleNotes !== 1 ? 's' : ''} saved (facility not matched)
+                </p>
+              )}
+              {importResult.errors.length > 0 && (
+                <p className="text-xs text-red-600 mt-0.5">
+                  <span className="font-semibold">{importResult.errors.length}</span> error{importResult.errors.length !== 1 ? 's' : ''}
+                </p>
+              )}
               {importResult.errors.length > 0 && (
                 <details className="mt-2">
                   <summary className="text-xs text-stone-600 cursor-pointer">View errors</summary>

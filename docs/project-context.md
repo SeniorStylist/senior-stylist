@@ -239,6 +239,19 @@ Tailwind CSS 4, Vercel
 - UI: new `/stylists/directory` page (admin, franchise-scoped) with search, filter pills, inline Add Stylist, CSV/XLSX import modal; Directory nav link in sidebar between Stylists and Services; Stylist Detail gains ST code (read-only for facility admin, editable for master admin) + Facility Assignment dropdown (franchise facilities + "Unassigned"); Dashboard Coverage Queue picker now shows two `<optgroup>` groups ("This Facility" / "Franchise Pool") with `{name} ({stylistCode})` options; My Account time-off form is a date-range with two `<input type="date">`
 - GET /api/stylists gains `?scope=facility|franchise|all` so every stylist-listing call makes its scope choice explicit (pool rows are silently excluded by `eq(facilityId, X)`)
 
+### Stylist Import Enhancement SHIPPED (2026-04-15) — Bookkeeping CSV Support
+- 6 new nullable columns on `stylists`: `email`, `phone`, `address`, `payment_method`, `license_state`, `schedule_notes`
+- `license_state` is a separate field from `license_type` — stores which state(s) the stylist is licensed in (e.g. `MD, VA`); labeled "Licensed In" in the detail page
+- Import route overhauled (`src/app/api/stylists/import/route.ts`): FNAME+LNAME column mapping, `%PD` commission parsing (strip %, parse float, round/clamp), address + ZIP combine, SKIP_HEADERS for bank/SSN fields
+- Gemini 2.5 Flash SCHEDULE column parsing: text-only request, returns `[{facility, days[]}]`, `Promise.allSettled()` for parallel pre-transaction calls; fallback to raw text in `scheduleNotes` on failure
+- Facility fuzzy matching: exact → substring (either direction) → longest match win; unmatched → `scheduleNotes`
+- `stylistAvailability` rows inserted via `onConflictDoNothing()` with day-level conflict detection (first matched facility wins, duplicate day stored in `scheduleNotes`)
+- Response shape: `{ imported, updated, availabilityCreated, scheduleNotes, errors }`
+- PUT `/api/stylists/[id]` `updateSchema` extended with all 6 new fields
+- Stylist detail (`stylist-detail-client.tsx`): "Licensed In" field added to License section (editable); phone/address/paymentMethod shown in Contact section; `scheduleNotes` shown below Availability card as italic muted note
+- Stylists list (`stylists/page.tsx`): `licenseState` badge renders as `"MD • VA"` after the stylist name (subtle, `bg-stone-100`)
+- Directory import result display (`directory-client.tsx`): shows `availabilityCreated` + `scheduleNotes` counts alongside imported/updated
+
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
 - Add `region_id` to `facilities` and `stylists` tables
@@ -346,12 +359,14 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 8.5 shipped + sidebar nav bug fixed (2026-04-15). Next steps:
-1. Verify `lisag@seniorstylist.com` can log in and see the full admin sidebar.
-2. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
-3. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs; confirm weekly availability in My Account. Pilot the new portal flow with 1–2 POAs before rolling out broadly.
-5. Phase 9: Territory / Region Management — reserved, do not assume scope until explicitly briefed.
+Bookkeeping CSV import shipped (2026-04-15). Next steps:
+1. Upload the real bookkeeping CSV (~198 stylists) via Directory → Import. Verify: imported count ~198, ST codes assigned, commissions parsed, availability rows created, schedule notes logged for unmatched facilities.
+2. Open a stylist detail — verify License section shows "Licensed In" editable field; Contact section shows phone/address/payment; schedule notes appear if any unmatched facilities.
+3. Check Stylists list — confirm `"MD • VA"` badge shows next to stylist name where `licenseState` is set.
+4. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
+5. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
+6. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists, upload compliance docs, confirm weekly availability.
+7. Phase 9: Territory / Region Management — reserved, do not assume scope until explicitly briefed.
 
 ---
 
