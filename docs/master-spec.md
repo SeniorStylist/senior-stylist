@@ -168,13 +168,14 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`schedule_notes`** (text, nullable) — unmatched facility schedules from CSV import or Gemini parse fallback; shown in Stylist Detail below Availability card
 - **`status`** (text, NOT NULL, default `'active'`, Phase 9) — lifecycle status; CHECK constraint `status IN ('active','inactive','on_leave','terminated')`. Separate from `active` (soft-delete). UI will render as a status badge in Prompt 2+.
 - **`specialties`** (jsonb NOT NULL DEFAULT `[]`, Phase 9) — string tag list, e.g. `["color", "cut", "perm"]`
+- **`last_invite_sent_at`** (timestamptz nullable, Phase 9 Prompt 4) — timestamp of the last successful Supabase Admin invite email sent from Stylist Detail. Used to enforce the 24h rate limit in `POST /api/stylists/[id]/invite`. Updated server-side after a successful invite; never trusted from client.
 - **`active`**, timestamps
 
 ### `stylist_facility_assignments` (Phase 9)
 
 Per-facility assignment rows for multi-facility stylists with optional per-facility commission override. A stylist may have N rows (one per facility they work at). Backfill of existing `stylists.facility_id` + `stylists.commission_percent` into this table is an explicit separate step — Prompt 1 only creates the schema.
 
-**Phase 9 Prompt 3 made this the authoritative facility-scope mechanism** — `stylists.facility_id` is deprecated. Every facility-scoped stylist query (API routes, portal flows, coverage substitutes, compliance cron, booking guard, stylists list page, directory) joins `stylist_facility_assignments` with `active=true` and filters `stylists.status='active'` on booking surfaces. `stylists.facility_id` is retained as the franchise-pool marker (`IS NULL AND franchise_id = F`) and as a legacy-data fallback in the compliance cron.
+**Phase 9 Prompt 3 made this the authoritative facility-scope mechanism** — `stylists.facility_id` is deprecated. Every facility-scoped stylist query (API routes, portal flows, coverage substitutes, compliance cron, booking guard, stylists list page, directory) joins `stylist_facility_assignments` with `active=true` and filters `stylists.status='active'` on booking surfaces. `stylists.facility_id` is retained as the franchise-pool marker (`IS NULL AND franchise_id = F`) and as a legacy-data fallback in the compliance cron. **Phase 9 Prompt 4**: backfill script seeded assignment rows from `stylists.facility_id` (2 rows inserted, `ON CONFLICT DO NOTHING`).
 
 | Column | Notes |
 |--------|-------|
@@ -514,6 +515,7 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `PUT /api/stylists/[id]/assignments/[assignmentId]` | **Admin** | Update `commissionPercent` (nullable) and/or `active` on a specific assignment row. Verifies stylist + assignment are in caller's franchise scope. |
 | `GET/POST /api/stylists/[id]/notes` | **Admin** | List admin-only notes (with joined `authorEmail`), ordered newest-first / create note. `authorUserId` is always server-derived from the authenticated user — never trusted from body. |
 | `DELETE /api/stylists/[id]/notes/[noteId]` | **Admin** | Hard delete a note. Verifies note belongs to the given stylist and caller has franchise scope. |
+| `POST /api/stylists/[id]/invite` | **Admin** | Send a Supabase magic-link invite to the stylist's email. Guards: email must exist (400), no linked profile (409), franchise scope (403), 24h rate limit (429). Uses `supabaseAdmin.auth.admin.inviteUserByEmail` with `redirectTo = APP_URL/invite/accept`. Updates `stylists.last_invite_sent_at` server-side after success. Returns `{ data: { invited: true } }`. |
 | `POST /api/stylists/import` | **Admin** | CSV/XLSX stylist import (200 row cap). Bookkeeping CSV columns: FNAME/LNAME (or name), ST code (or id/stcode/code), %PD/commission, How PD, License ST, SCHEDULE, email, phone, address, ZIP, licenseNumber, licenseType, licenseExpires. Silently skips bank/SSN fields. Gemini 2.5 Flash parses SCHEDULE column → availability rows (onConflictDoNothing). Returns `{ data: { imported, updated, availabilityCreated, scheduleNotes, errors } }` |
 | `GET/POST /api/services` | Authenticated | List/create services. POST accepts `pricingType`, `addonAmountCents`, `pricingTiers`, `pricingOptions` with `.refine()` validation |
 | `GET/PUT/DELETE /api/services/[id]` | Authenticated | Single service. PUT accepts same pricing fields as POST |

@@ -142,6 +142,8 @@ interface StylistDetailClientProps {
   franchiseFacilities?: Array<{ id: string; name: string }>
   assignments?: AssignmentRow[]
   notes?: NoteRow[]
+  hasLinkedAccount?: boolean
+  lastInviteSentAt?: string | null
 }
 
 export function StylistDetailClient({
@@ -155,6 +157,8 @@ export function StylistDetailClient({
   franchiseFacilities = [],
   assignments: initialAssignments = [],
   notes: initialNotes = [],
+  hasLinkedAccount = false,
+  lastInviteSentAt = null,
 }: StylistDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -191,6 +195,7 @@ export function StylistDetailClient({
   const [notes, setNotes] = useState<NoteRow[]>(initialNotes)
   const [newNoteBody, setNewNoteBody] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   const licenseDirty =
     licenseNumber !== (stylist.licenseNumber ?? '') ||
@@ -465,6 +470,64 @@ export function StylistDetailClient({
                 </button>
               )}
             </div>
+
+            {stylist.email && isAdmin && (
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
+                  Email
+                </label>
+                <p className="text-sm text-stone-700 mb-2 break-all">{stylist.email}</p>
+                {hasLinkedAccount ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Account linked
+                  </span>
+                ) : (() => {
+                  const hoursSince = lastInviteSentAt
+                    ? (Date.now() - new Date(lastInviteSentAt).getTime()) / 3_600_000
+                    : null
+                  if (hoursSince !== null && hoursSince < 24) {
+                    return (
+                      <p className="text-xs text-stone-400">
+                        Invite sent {Math.floor(hoursSince)}h ago
+                      </p>
+                    )
+                  }
+                  return (
+                    <button
+                      type="button"
+                      disabled={inviteStatus === 'sending'}
+                      onClick={async () => {
+                        setInviteStatus('sending')
+                        setError(null)
+                        try {
+                          const res = await fetch(`/api/stylists/${stylist.id}/invite`, { method: 'POST' })
+                          if (res.ok) {
+                            setInviteStatus('sent')
+                          } else {
+                            const body = await res.json().catch(() => ({}))
+                            setError(typeof body.error === 'string' ? body.error : 'Failed to send invite')
+                            setInviteStatus('error')
+                          }
+                        } catch {
+                          setError('Failed to send invite')
+                          setInviteStatus('error')
+                        }
+                      }}
+                      className="text-xs font-medium text-[#8B2E4A] hover:text-[#72253C] underline underline-offset-2 disabled:opacity-50 transition-colors"
+                    >
+                      {inviteStatus === 'sending'
+                        ? 'Sending…'
+                        : inviteStatus === 'sent'
+                          ? 'Invite sent ✓'
+                          : 'Send account invite →'}
+                    </button>
+                  )
+                })()}
+              </div>
+            )}
 
             {isAdmin && (
               <div>

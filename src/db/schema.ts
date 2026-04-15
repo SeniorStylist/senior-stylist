@@ -114,6 +114,7 @@ export const stylists = pgTable('stylists', {
   scheduleNotes: text('schedule_notes'),
   status: text('status').default('active').notNull(),
   specialties: jsonb('specialties').$type<string[]>().default([]).notNull(),
+  lastInviteSentAt: timestamp('last_invite_sent_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

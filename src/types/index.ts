@@ -92,6 +92,7 @@ export interface Stylist {
   scheduleNotes: string | null
   status: StylistStatus
   specialties: string[]
+  lastInviteSentAt?: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }

@@ -202,6 +202,12 @@ export default async function StylistDetailPage({
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   const isMasterAdmin = !!superAdminEmail && user.email === superAdminEmail
 
+  const linkedProfile = await db.query.profiles.findFirst({
+    where: eq(profiles.stylistId, id),
+    columns: { id: true },
+  })
+  const hasLinkedAccount = !!linkedProfile
+
   return (
     <StylistDetailClient
       stylist={JSON.parse(JSON.stringify(sanitizeStylist(stylist)))}
@@ -214,6 +220,8 @@ export default async function StylistDetailPage({
       franchiseFacilities={JSON.parse(JSON.stringify(franchiseFacilityOptions))}
       assignments={JSON.parse(JSON.stringify(assignments))}
       notes={JSON.parse(JSON.stringify(notes))}
+      hasLinkedAccount={hasLinkedAccount}
+      lastInviteSentAt={stylist.lastInviteSentAt ? String(stylist.lastInviteSentAt) : null}
     />
   )
   } catch (err) {

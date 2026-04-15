@@ -8,6 +8,8 @@ import {
   complianceDocuments,
   stylistAvailability,
   coverageRequests,
+  stylistFacilityAssignments,
+  facilities,
 } from '@/db/schema'
 import { eq, and, gte, lte, desc } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
@@ -33,6 +35,7 @@ export default async function MyAccountPage() {
   let complianceDocs: Array<Record<string, unknown>> = []
   let availabilityRows: Array<Record<string, unknown>> = []
   let coverageRows: Array<Record<string, unknown>> = []
+  let stylistAssignments: Array<{ facilityId: string; facilityName: string; active: boolean }> = []
 
   if (profile?.stylistId) {
     stylist = await db.query.stylists.findFirst({
@@ -111,6 +114,21 @@ export default async function MyAccountPage() {
         ),
         orderBy: (t, { asc }) => [asc(t.startDate)],
       })
+
+      stylistAssignments = await db
+        .select({
+          facilityId: stylistFacilityAssignments.facilityId,
+          facilityName: facilities.name,
+          active: stylistFacilityAssignments.active,
+        })
+        .from(stylistFacilityAssignments)
+        .innerJoin(facilities, eq(facilities.id, stylistFacilityAssignments.facilityId))
+        .where(
+          and(
+            eq(stylistFacilityAssignments.stylistId, stylist.id),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+        )
     }
   }
 
@@ -133,6 +151,7 @@ export default async function MyAccountPage() {
       availability={JSON.parse(JSON.stringify(availabilityRows))}
       coverageRequests={JSON.parse(JSON.stringify(coverageRows))}
       stylistId={profile?.stylistId ?? null}
+      stylistAssignments={JSON.parse(JSON.stringify(stylistAssignments))}
     />
   )
 }

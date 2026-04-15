@@ -58,6 +58,14 @@ export interface BookingWithRelations {
 type PanelTab = 'residents' | 'services' | 'stylists'
 type CalendarViewType = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
 
+interface WorkingTodayRow {
+  id: string
+  name: string
+  color: string
+  startTime: string
+  endTime: string
+}
+
 interface DashboardClientProps {
   facilityId: string
   facility: Facility
@@ -70,6 +78,15 @@ interface DashboardClientProps {
   pendingRequestsCount?: number
   profileStylistId?: string | null
   openCoverageRequests?: CoverageRequest[]
+  workingToday?: WorkingTodayRow[]
+  workingTomorrow?: Array<{ name: string }>
+}
+
+function formatHHMM(t: string): string {
+  const [h, m] = t.split(':').map(Number)
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const hour = h % 12 || 12
+  return `${hour}:${m.toString().padStart(2, '0')}${ampm}`
 }
 
 export function DashboardClient({
@@ -84,6 +101,8 @@ export function DashboardClient({
   pendingRequestsCount = 0,
   profileStylistId = null,
   openCoverageRequests = [],
+  workingToday = [],
+  workingTomorrow = [],
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -504,6 +523,40 @@ export function DashboardClient({
 
       {/* ── Right panel — hidden on mobile ── */}
       <div className="hidden md:flex w-[300px] shrink-0 flex-col h-screen p-4 pl-0 gap-3">
+        {/* Who's Working Today (admin only) */}
+        {isAdmin && (workingToday.length > 0 || workingTomorrow.length > 0) && (
+          <div className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
+            <div className="px-4 py-3 border-b border-stone-100">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                Who&apos;s Working Today
+              </p>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {workingToday.length > 0 ? (
+                workingToday.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    <span className="font-medium text-stone-800 flex-1 min-w-0 truncate">{s.name}</span>
+                    <span className="text-stone-400 text-xs shrink-0">
+                      {formatHHMM(s.startTime)}–{formatHHMM(s.endTime)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-stone-400 italic">No stylists scheduled today</p>
+              )}
+              {workingTomorrow.length > 0 && (
+                <p className="text-xs text-stone-400 pt-1.5 border-t border-stone-50">
+                  <span className="font-medium">Tomorrow:</span>{' '}
+                  {workingTomorrow.map((s) => s.name).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         {/* Coverage Queue (admin only) */}
         {isAdmin && coverageQueue.length > 0 && (
           <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">

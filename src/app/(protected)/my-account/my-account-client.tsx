@@ -21,6 +21,12 @@ interface WeekBooking {
   service: { name: string }
 }
 
+interface StylistAssignment {
+  facilityId: string
+  facilityName: string
+  active: boolean
+}
+
 interface MyAccountClientProps {
   user: { email: string; fullName: string | null }
   stylist: Stylist | null
@@ -33,6 +39,14 @@ interface MyAccountClientProps {
   availability: StylistAvailability[]
   coverageRequests: CoverageRequest[]
   stylistId: string | null
+  stylistAssignments?: StylistAssignment[]
+}
+
+function formatHHMM(t: string): string {
+  const [h, m] = t.split(':').map(Number)
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const hour = h % 12 || 12
+  return `${hour}:${m.toString().padStart(2, '0')}${ampm}`
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -43,6 +57,7 @@ type DayRow = {
   active: boolean
   startTime: string
   endTime: string
+  facilityId?: string
 }
 
 function seedDays(rows: StylistAvailability[]): DayRow[] {
@@ -55,6 +70,7 @@ function seedDays(rows: StylistAvailability[]): DayRow[] {
         active: existing.active,
         startTime: existing.startTime,
         endTime: existing.endTime,
+        facilityId: existing.facilityId,
       }
     }
     return {
@@ -132,7 +148,7 @@ function statusBadge(status: string) {
   )
 }
 
-export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId }: MyAccountClientProps) {
+export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId, stylistAssignments = [] }: MyAccountClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')
@@ -153,6 +169,10 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [savingAvailability, setSavingAvailability] = useState(false)
   const [availabilitySavedMsg, setAvailabilitySavedMsg] = useState<string | null>(null)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
+  const [editingDayOfWeek, setEditingDayOfWeek] = useState<number | null>(null)
+  const [editStartTime, setEditStartTime] = useState('')
+  const [editEndTime, setEditEndTime] = useState('')
+  const [savingDay, setSavingDay] = useState(false)
   const [coverageOpen, setCoverageOpen] = useState(false)
   const [coverageStartDate, setCoverageStartDate] = useState('')
   const [coverageEndDate, setCoverageEndDate] = useState('')
@@ -197,6 +217,39 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
       setAvailabilityError('Failed to save')
     } finally {
       setSavingAvailability(false)
+    }
+  }
+
+  const handleSaveSingleDay = async (dow: number) => {
+    if (!stylistId) return
+    if (editStartTime >= editEndTime) {
+      setAvailabilityError(`${DAY_LABELS[dow]} start time must be before end time`)
+      return
+    }
+    setAvailabilityError(null)
+    setSavingDay(true)
+    const updatedDays = days.map((d) =>
+      d.dayOfWeek === dow ? { ...d, startTime: editStartTime, endTime: editEndTime, active: true } : d
+    )
+    try {
+      const res = await fetch('/api/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stylistId, availability: updatedDays }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setAvailabilityError(typeof json.error === 'string' ? json.error : 'Failed to save')
+      } else {
+        setDays(updatedDays)
+        setEditingDayOfWeek(null)
+        setAvailabilitySavedMsg('Hours updated')
+        setTimeout(() => setAvailabilitySavedMsg(null), 3000)
+      }
+    } catch {
+      setAvailabilityError('Failed to save')
+    } finally {
+      setSavingDay(false)
     }
   }
 
@@ -676,69 +729,87 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
 
       {linked && stylistId && (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">
-              Weekly Availability
-            </p>
-            <button
-              onClick={handleSaveAvailability}
-              disabled={savingAvailability}
-              className="text-xs font-medium px-2.5 py-1 rounded-lg text-white disabled:opacity-50 transition-colors"
-              style={{ backgroundColor: '#8B2E4A' }}
-            >
-              {savingAvailability ? 'Saving…' : 'Save changes'}
-            </button>
-          </div>
-          <ul className="space-y-1">
-            {days.map((d) => (
-              <li
-                key={d.dayOfWeek}
-                className="flex items-center gap-3 min-h-[44px] px-2 rounded-xl hover:bg-stone-50"
-              >
-                <input
-                  type="checkbox"
-                  checked={d.active}
-                  onChange={(e) =>
-                    setDays((prev) =>
-                      prev.map((row) =>
-                        row.dayOfWeek === d.dayOfWeek ? { ...row, active: e.target.checked } : row
-                      )
-                    )
-                  }
-                  className="w-4 h-4 accent-[#8B2E4A]"
-                />
-                <span className="text-sm font-medium text-stone-700 w-10 shrink-0">
-                  {DAY_LABELS[d.dayOfWeek]}
-                </span>
-                <input
-                  type="time"
-                  value={d.startTime}
-                  disabled={!d.active}
-                  onChange={(e) =>
-                    setDays((prev) =>
-                      prev.map((row) =>
-                        row.dayOfWeek === d.dayOfWeek ? { ...row, startTime: e.target.value } : row
-                      )
-                    )
-                  }
-                  className={`px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 ${!d.active ? 'opacity-50' : ''}`}
-                />
-                <span className="text-xs text-stone-400">to</span>
-                <input
-                  type="time"
-                  value={d.endTime}
-                  disabled={!d.active}
-                  onChange={(e) =>
-                    setDays((prev) =>
-                      prev.map((row) =>
-                        row.dayOfWeek === d.dayOfWeek ? { ...row, endTime: e.target.value } : row
-                      )
-                    )
-                  }
-                  className={`px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 ${!d.active ? 'opacity-50' : ''}`}
-                />
-              </li>
-            ))}
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-4">
+            Your Schedule
+          </p>
+          <ul className="divide-y divide-stone-50">
+            {[1, 2, 3, 4, 5, 6, 0].map((dow) => {
+              const avail = days.find((d) => d.dayOfWeek === dow && d.active)
+              const facilityName = avail
+                ? (stylistAssignments.find((a) => a.facilityId === avail.facilityId)?.facilityName ?? '')
+                : ''
+              const isEditing = editingDayOfWeek === dow
+              return (
+                <li key={dow} className="py-2.5 min-h-[44px]">
+                  {isEditing ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-stone-700 w-10 shrink-0">
+                        {DAY_LABELS[dow]}
+                      </span>
+                      <input
+                        type="time"
+                        value={editStartTime}
+                        onChange={(e) => setEditStartTime(e.target.value)}
+                        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      />
+                      <span className="text-xs text-stone-400">to</span>
+                      <input
+                        type="time"
+                        value={editEndTime}
+                        onChange={(e) => setEditEndTime(e.target.value)}
+                        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                      />
+                      <button
+                        type="button"
+                        disabled={savingDay}
+                        onClick={() => handleSaveSingleDay(dow)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-lg text-white disabled:opacity-50 transition-colors"
+                        style={{ backgroundColor: '#8B2E4A' }}
+                      >
+                        {savingDay ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEditingDayOfWeek(null); setAvailabilityError(null) }}
+                        className="text-xs text-stone-500 hover:text-stone-700 px-1.5 py-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-stone-700 w-10 shrink-0">
+                        {DAY_LABELS[dow]}
+                      </span>
+                      {avail ? (
+                        <>
+                          {facilityName && (
+                            <span className="text-xs text-stone-500 flex-1 min-w-0 truncate">{facilityName}</span>
+                          )}
+                          <span className="text-sm text-stone-700 shrink-0">
+                            {formatHHMM(avail.startTime)} – {formatHHMM(avail.endTime)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDayOfWeek(dow)
+                              setEditStartTime(avail.startTime)
+                              setEditEndTime(avail.endTime)
+                              setAvailabilityError(null)
+                            }}
+                            className="text-xs font-medium text-[#8B2E4A] hover:text-[#72253C] shrink-0 ml-auto"
+                          >
+                            Edit hours
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-sm text-stone-400 italic">— not scheduled</span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
           {availabilityError && (
             <p className="mt-3 text-xs text-red-600">{availabilityError}</p>

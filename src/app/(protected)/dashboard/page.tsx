@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests } from '@/db/schema'
+import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
-    const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests] = await Promise.all([
+    const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
       }),
@@ -107,6 +107,66 @@ export default async function DashboardPage() {
             orderBy: (t, { asc }) => [asc(t.startDate), asc(t.createdAt)],
           })
         : Promise.resolve([]),
+      facilityUser.role === 'admin'
+        ? (async () => {
+            const today = new Date()
+            const dow = today.getDay()
+            const tomorrow = (dow + 1) % 7
+            const [todayRows, tomorrowRows] = await Promise.all([
+              db
+                .select({
+                  id: stylists.id,
+                  name: stylists.name,
+                  color: stylists.color,
+                  startTime: stylistAvailability.startTime,
+                  endTime: stylistAvailability.endTime,
+                })
+                .from(stylists)
+                .innerJoin(
+                  stylistFacilityAssignments,
+                  and(
+                    eq(stylistFacilityAssignments.stylistId, stylists.id),
+                    eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+                    eq(stylistFacilityAssignments.active, true),
+                  ),
+                )
+                .innerJoin(
+                  stylistAvailability,
+                  and(
+                    eq(stylistAvailability.stylistId, stylists.id),
+                    eq(stylistAvailability.facilityId, facilityUser.facilityId),
+                    eq(stylistAvailability.dayOfWeek, dow),
+                    eq(stylistAvailability.active, true),
+                  ),
+                )
+                .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
+                .orderBy(stylistAvailability.startTime),
+              db
+                .select({ name: stylists.name })
+                .from(stylists)
+                .innerJoin(
+                  stylistFacilityAssignments,
+                  and(
+                    eq(stylistFacilityAssignments.stylistId, stylists.id),
+                    eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+                    eq(stylistFacilityAssignments.active, true),
+                  ),
+                )
+                .innerJoin(
+                  stylistAvailability,
+                  and(
+                    eq(stylistAvailability.stylistId, stylists.id),
+                    eq(stylistAvailability.facilityId, facilityUser.facilityId),
+                    eq(stylistAvailability.dayOfWeek, tomorrow),
+                    eq(stylistAvailability.active, true),
+                  ),
+                )
+                .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
+                .orderBy(stylists.name),
+            ])
+            return { today: todayRows, tomorrow: tomorrowRows }
+          })()
+        : Promise.resolve({ today: [] as Array<{ id: string; name: string; color: string; startTime: string; endTime: string }>, tomorrow: [] as Array<{ name: string }> }),
     ])
 
     if (!facility) redirect('/login')
@@ -137,6 +197,8 @@ export default async function DashboardPage() {
           pendingRequestsCount={pendingRequests.length}
           profileStylistId={profileStylistId}
           openCoverageRequests={JSON.parse(JSON.stringify(openCoverageRequests))}
+          workingToday={JSON.parse(JSON.stringify(working.today))}
+          workingTomorrow={JSON.parse(JSON.stringify(working.tomorrow))}
         />
       </>
     )

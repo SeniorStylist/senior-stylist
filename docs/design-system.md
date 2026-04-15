@@ -909,6 +909,44 @@ Pill class: `text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0`. The `/st
 
 **Add Stylist inline form (Phase 9 Prompt 3 fix):** wrapped in `<form onSubmit={e => { e.preventDefault(); handleAdd() }}>` so Enter submits from any input. Submit button is `type="submit"`, Cancel is `type="button"`. The ST code input has no `pattern=` attribute — HTML-native `pattern` silently blocks submit without user feedback when mismatched, and Zod already validates server-side. Name input gets `autoFocus`.
 
+### Who's Working Today card (Phase 9 Prompt 4)
+Admin-only right-rail card on `/dashboard`, rendered above the Coverage Queue card. Hidden when both today and tomorrow lists are empty. Structure:
+
+```
+WHO'S WORKING TODAY                  ← px-4 py-3 border-b, text-xs font-semibold text-stone-500 uppercase tracking-wide
+──────────────────────────────
+● Sierra M.   9:00am–5:00pm          ← color dot (w-2.5 h-2.5 rounded-full, inline style backgroundColor) + name (font-medium flex-1 truncate) + time (text-xs text-stone-400 shrink-0)
+──────────────────────────────
+Tomorrow: Sierra M., Senait E.        ← text-xs text-stone-400, border-t border-stone-50, "Tomorrow:" in font-medium
+```
+
+Empty state: `"No stylists scheduled today"` in `text-sm text-stone-400 italic`. Time format uses `formatHHMM(t)` (file-local helper in `dashboard-client.tsx`): `"09:00"` → `"9:00am"`. Do NOT use `formatTime()` from utils.ts for HH:MM strings.
+
+### My Account "Your Schedule" (Phase 9 Prompt 4)
+Replaces the flat 7-day availability checkbox grid. Display order: Mon→Tue→Wed→Thu→Fri→Sat→Sun (dayOfWeek `[1,2,3,4,5,6,0]`). Each day row:
+
+- **Has active availability row**: `facilityName` (text-xs text-stone-500 flex-1 truncate) + formatted hours (text-sm text-stone-700) + `[Edit hours]` button (text-xs text-[#8B2E4A] hover:text-[#72253C] ml-auto)
+- **No active availability row**: `— not scheduled` (text-sm text-stone-400 italic)
+- **Editing state**: two `<input type="time">` side-by-side + Save button (burgundy, disabled during save) + Cancel text button
+
+Save sends the full 7-day array to existing `PUT /api/availability` (full-week atomic replace — no API change). `DayRow` state type includes `facilityId?: string` so the facility name can be looked up from the `stylistAssignments` prop. `formatHHMM()` used for display.
+
+### Stylist Detail — email display + invite button (Phase 9 Prompt 4)
+Below the Commission % field in the info card, when `stylist.email` is set and caller `isAdmin`:
+
+```
+EMAIL                                    ← text-xs font-semibold text-stone-500 uppercase tracking-wide
+senait@example.com                       ← text-sm text-stone-700 break-all
+
+[Send account invite →]                 ← text-xs font-medium text-[#8B2E4A] underline, when no linked account + no recent invite
+[Sending…]                              ← disabled state
+[Invite sent ✓]                         ← after success (inviteStatus='sent')
+Invite sent 3h ago                      ← text-xs text-stone-400, when lastInviteSentAt < 24h
+✓ Account linked                        ← text-xs text-emerald-600 font-medium with checkmark SVG, when hasLinkedAccount
+```
+
+State: `inviteStatus: 'idle'|'sending'|'sent'|'error'` in StylistDetailClient. Errors surface via existing `setError()`. The `hasLinkedAccount` boolean and `lastInviteSentAt` string are fetched in `page.tsx` and passed as props.
+
 ### Grouped substitute picker (Phase 8.5)
 Coverage Queue rows now lazy-fetch `/api/coverage/substitutes?date={request.startDate}` on mount and render a `<select>` with two `<optgroup>` blocks — "This Facility" + "Franchise Pool". Each `<option>` shows `{name} ({stylistCode})` so admins can eyeball the ST code. When one group is empty the `<optgroup>` is omitted rather than rendered with no children. The Assign button stays disabled until a substitute is picked.
 
