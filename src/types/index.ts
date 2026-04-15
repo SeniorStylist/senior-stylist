@@ -14,6 +14,7 @@ export interface PricingOption {
 export type UserRole = 'admin' | 'stylist' | 'viewer'
 export type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 export type FacilityUserRole = 'admin' | 'stylist' | 'viewer'
+export type StylistStatus = 'active' | 'inactive' | 'on_leave' | 'terminated'
 
 export interface Profile {
   id: string
@@ -89,8 +90,29 @@ export interface Stylist {
   paymentMethod: string | null
   licenseState: string | null
   scheduleNotes: string | null
+  status: StylistStatus
+  specialties: string[]
   createdAt: Date | null
   updatedAt: Date | null
+}
+
+export interface StylistFacilityAssignment {
+  id: string
+  stylistId: string
+  facilityId: string
+  commissionPercent: number | null
+  active: boolean
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface StylistNote {
+  id: string
+  stylistId: string
+  authorUserId: string
+  body: string
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 export interface SubstituteOption {

@@ -305,6 +305,7 @@ Tailwind CSS 4, Vercel
 ## 6. CURRENT STATUS
 
 ### Working
+- Phase 9 schema foundation (2026-04-15): added `stylists.status` (`active|inactive|on_leave|terminated`, CHECK constraint) + `stylists.specialties` (jsonb `string[]`, default `[]`). Created `stylist_facility_assignments` (per-facility commission override; `commission_percent` nullable = "use stylist default"; UNIQUE on `(stylist_id, facility_id)`) and `stylist_notes` (admin-only internal notes; `body` + `author_user_id → profiles.id`). Both new tables have RLS + `service_role_all` policies. Swapped `stylist_availability` UNIQUE from `(stylist_id, day_of_week)` → `(stylist_id, facility_id, day_of_week)` so a stylist can have per-facility hours for the same weekday. Added `src/lib/stylist-commission.ts` (`resolveCommission()` pure helper — `!= null` check so `0` is a valid override). Schema, types, relations, helper only — no API routes, no UI, no backfill. Prompt 2+ will add those.
 - PDF parser → Gemini vision (2026-04-12): replaced pdfjs-dist alternating-chunks regex parser with a direct Gemini 2.5 Flash PDF vision call. Gemini receives the raw PDF as base64 application/pdf inlineData and returns a structured JSON array. Reason: text extraction silently drops sections on PDFs with non-standard internal layouts (Symphony Manor first section was always missing). No frontend changes needed — response shape unchanged.
 - Pricing UI fixes (2026-04-12): addon $0 bug fixed; tiered stepper (44px − / qty / + buttons) with live tier hint; booking modal price breakdown shows `(qty × $X/ea)` for tiered, `— OptionName` for multi_option, amber `text-amber-700` for addon checklist lines.
 - Category + pricing display fixes (2026-04-13): `category` column added to services table; bulk import now persists category; services list shows category sub-label under name; `formatPricingLabel()` fixed for addon (now shows `+$15.00` not `$0.00 + $15.00`); booking modal service selector cleaned up to `"Service · $X.00"` format.
@@ -362,14 +363,12 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Bookkeeping CSV import shipped (2026-04-15). Next steps:
-1. Upload the real bookkeeping CSV (~198 stylists) via Directory → Import. Verify: imported count ~198, ST codes assigned, commissions parsed, availability rows created, schedule notes logged for unmatched facilities.
-2. Open a stylist detail — verify License section shows "Licensed In" editable field; Contact section shows phone/address/payment; schedule notes appear if any unmatched facilities.
-3. Check Stylists list — confirm `"MD • VA"` badge shows next to stylist name where `licenseState` is set.
-4. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
-5. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-6. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists, upload compliance docs, confirm weekly availability.
-7. Phase 9: Territory / Region Management — reserved, do not assume scope until explicitly briefed.
+Phase 9 schema foundation shipped (2026-04-15). Next steps:
+1. **Phase 9 Prompt 2** — API routes + UI for the new schema: `GET/POST /api/stylists/[id]/assignments` (list + upsert per-facility assignment), `PATCH /api/stylists/[id]/assignments/[assignmentId]`, `GET/POST /api/stylists/[id]/notes`, `DELETE /api/stylists/[id]/notes/[noteId]`, plus `status` + `specialties` on `PUT /api/stylists/[id]`. Stylist Detail UI: status badge + dropdown, specialties chips editor, Assignments tab with per-facility rows + commission override field, Notes section (admin-only).
+2. **Backfill** — one-off script that creates a `stylist_facility_assignments` row for every existing `stylists.facility_id` (not null) + populates `commission_percent` from `stylists.commission_percent`. Delete after running.
+3. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
+4. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
+5. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists, upload compliance docs, confirm weekly availability.
 
 ---
 

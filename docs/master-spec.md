@@ -166,7 +166,35 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`background_check_verified`** (boolean, NOT NULL, default false)
 - **`email`** (text, nullable), **`phones`** (jsonb NOT NULL DEFAULT `[]`, type `Array<{label: string, number: string}>` — replaced `phone text`), **`address`** (text, nullable), **`payment_method`** (text, nullable) — contact/admin info imported from bookkeeping CSV; phones are fully editable in Stylist Detail with label dropdown; address/paymentMethod display-only in Contact section
 - **`schedule_notes`** (text, nullable) — unmatched facility schedules from CSV import or Gemini parse fallback; shown in Stylist Detail below Availability card
+- **`status`** (text, NOT NULL, default `'active'`, Phase 9) — lifecycle status; CHECK constraint `status IN ('active','inactive','on_leave','terminated')`. Separate from `active` (soft-delete). UI will render as a status badge in Prompt 2+.
+- **`specialties`** (jsonb NOT NULL DEFAULT `[]`, Phase 9) — string tag list, e.g. `["color", "cut", "perm"]`
 - **`active`**, timestamps
+
+### `stylist_facility_assignments` (Phase 9)
+
+Per-facility assignment rows for multi-facility stylists with optional per-facility commission override. A stylist may have N rows (one per facility they work at). Backfill of existing `stylists.facility_id` + `stylists.commission_percent` into this table is an explicit separate step — Prompt 1 only creates the schema.
+
+| Column | Notes |
+|--------|-------|
+| `id` | PK `uuid`, default random |
+| `stylist_id` | FK → `stylists.id` ON DELETE CASCADE |
+| `facility_id` | FK → `facilities.id` ON DELETE CASCADE |
+| `commission_percent` | `integer`, **nullable** — `NULL` means "use `stylists.commission_percent` default". Zero is a valid explicit override. Resolved via `resolveCommission()` in `src/lib/stylist-commission.ts`. |
+| `active` | Boolean NOT NULL default true |
+| `created_at`, `updated_at` | Timestamps |
+| Unique | `(stylist_id, facility_id)` |
+
+### `stylist_notes` (Phase 9)
+
+Admin-only internal notes attached to a stylist. Never exposed via portal or stylist-role routes. Hard delete is fine (no `active` column) — notes are mutable operational data.
+
+| Column | Notes |
+|--------|-------|
+| `id` | PK `uuid`, default random |
+| `stylist_id` | FK → `stylists.id` ON DELETE CASCADE |
+| `author_user_id` | FK → `profiles.id` — admin who wrote the note |
+| `body` | `text` NOT NULL |
+| `created_at`, `updated_at` | Timestamps |
 
 ### `services`
 
@@ -269,7 +297,7 @@ Storage bucket: **`compliance-docs`** — private (`public=false`), `fileSizeLim
 | `active` | `boolean` NOT NULL, default true — inactive rows represent checked-off days and are kept for a stable 7-day response |
 | `created_at` / `updated_at` | `timestamp`, default now |
 
-Constraint: `UNIQUE(stylist_id, day_of_week)`. Writes replace the full week atomically inside `db.transaction()` — never a partial upsert.
+Constraint: `UNIQUE(stylist_id, facility_id, day_of_week)` (Phase 9 — was `(stylist_id, day_of_week)`). Lets a stylist declare different hours on the same day-of-week at different facilities. Writes replace the full week atomically inside `db.transaction()` — never a partial upsert.
 
 ### `coverage_requests`
 

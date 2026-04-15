@@ -112,6 +112,44 @@ export const stylists = pgTable('stylists', {
   paymentMethod: text('payment_method'),
   licenseState: text('license_state'),
   scheduleNotes: text('schedule_notes'),
+  status: text('status').default('active').notNull(),
+  specialties: jsonb('specialties').$type<string[]>().default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export const stylistFacilityAssignments = pgTable(
+  'stylist_facility_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stylistId: uuid('stylist_id')
+      .references(() => stylists.id, { onDelete: 'cascade' })
+      .notNull(),
+    facilityId: uuid('facility_id')
+      .references(() => facilities.id, { onDelete: 'cascade' })
+      .notNull(),
+    commissionPercent: integer('commission_percent'),
+    active: boolean('active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (t) => ({
+    uniqueStylistFacility: unique('stylist_facility_assignments_stylist_facility_unique').on(
+      t.stylistId,
+      t.facilityId,
+    ),
+  }),
+)
+
+export const stylistNotes = pgTable('stylist_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  stylistId: uuid('stylist_id')
+    .references(() => stylists.id, { onDelete: 'cascade' })
+    .notNull(),
+  authorUserId: uuid('author_user_id')
+    .references(() => profiles.id)
+    .notNull(),
+  body: text('body').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -153,7 +191,11 @@ export const stylistAvailability = pgTable(
     updatedAt: timestamp('updated_at').defaultNow(),
   },
   (t) => ({
-    uniqueStylistDay: unique().on(t.stylistId, t.dayOfWeek),
+    uniqueStylistFacilityDay: unique('stylist_availability_stylist_facility_day_unique').on(
+      t.stylistId,
+      t.facilityId,
+      t.dayOfWeek,
+    ),
   })
 )
 
@@ -351,6 +393,33 @@ export const stylistsRelations = relations(stylists, ({ one, many }) => ({
   availability: many(stylistAvailability),
   coverageRequests: many(coverageRequests, { relationName: 'coverage_stylist' }),
   coveringRequests: many(coverageRequests, { relationName: 'coverage_substitute' }),
+  assignments: many(stylistFacilityAssignments),
+  notes: many(stylistNotes),
+}))
+
+export const stylistFacilityAssignmentsRelations = relations(
+  stylistFacilityAssignments,
+  ({ one }) => ({
+    stylist: one(stylists, {
+      fields: [stylistFacilityAssignments.stylistId],
+      references: [stylists.id],
+    }),
+    facility: one(facilities, {
+      fields: [stylistFacilityAssignments.facilityId],
+      references: [facilities.id],
+    }),
+  }),
+)
+
+export const stylistNotesRelations = relations(stylistNotes, ({ one }) => ({
+  stylist: one(stylists, {
+    fields: [stylistNotes.stylistId],
+    references: [stylists.id],
+  }),
+  author: one(profiles, {
+    fields: [stylistNotes.authorUserId],
+    references: [profiles.id],
+  }),
 }))
 
 export const stylistAvailabilityRelations = relations(stylistAvailability, ({ one }) => ({
@@ -413,6 +482,7 @@ export const facilitiesRelations = relations(facilities, ({ many }) => ({
   logEntries: many(logEntries),
   invites: many(invites),
   franchiseFacilities: many(franchiseFacilities),
+  stylistAssignments: many(stylistFacilityAssignments),
 }))
 
 export const invitesRelations = relations(invites, ({ one }) => ({

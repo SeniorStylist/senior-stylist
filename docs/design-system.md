@@ -806,6 +806,12 @@ Verified state chip next to the badge: `bg-emerald-50 text-emerald-700` "Verifie
 ### Coverage request status chips (Phase 8)
 Reuse the existing `Badge` component: `open` → amber, `filled` → emerald, `cancelled` → stone.
 
+### Stylist status + specialties + assignments + notes (Phase 9 — schema shipped, UI in Prompt 2+)
+- **Status badge** (next to stylist name on list + detail): `active` → emerald, `on_leave` → amber, `inactive` → stone, `terminated` → red. Admin-only dropdown edits `status` via `PUT /api/stylists/[id]`.
+- **Specialties chips**: small rose-50 pills (`bg-rose-50 text-rose-700`), editable on Stylist Detail — `+ Add` opens an inline text input, ✕ removes. Persisted as `string[]` via `PUT /api/stylists/[id]`.
+- **Assignments tab** on Stylist Detail: list of per-facility rows (facility name, commission override input, active toggle). Empty commission field = "inherit stylist default" rendered as ghost placeholder showing the default percent. `resolveCommission(stylistDefault, assignment)` is the source of truth everywhere a commission is displayed or used to compute payout — never inline math.
+- **Notes section** (admin-only): stacked list of author-name + timestamp + body; `+ Add note` textarea at the top. Never surfaced to stylist-role or portal views.
+
 ### Region hierarchy breadcrumb (Phase 9)
 `Master Admin > Franchise Name > Region Name > Facility Name` — render as `text-xs text-stone-400` with `›` separators. Clickable segments navigate to the respective admin view.
 
