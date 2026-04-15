@@ -240,15 +240,16 @@ Tailwind CSS 4, Vercel
 - GET /api/stylists gains `?scope=facility|franchise|all` so every stylist-listing call makes its scope choice explicit (pool rows are silently excluded by `eq(facilityId, X)`)
 
 ### Stylist Import Enhancement SHIPPED (2026-04-15) — Bookkeeping CSV Support
-- 6 new nullable columns on `stylists`: `email`, `phone`, `address`, `payment_method`, `license_state`, `schedule_notes`
+- 6 new nullable columns on `stylists`: `email`, `phones` (jsonb, was `phone text`), `address`, `payment_method`, `license_state`, `schedule_notes`
+- `phones` is `jsonb NOT NULL DEFAULT '[]'` storing `Array<{label: string, number: string}>` — replaced single `phone text` column; supports "443-910-1610 or 410-555-0123" parsing into two entries
 - `license_state` is a separate field from `license_type` — stores which state(s) the stylist is licensed in (e.g. `MD, VA`); labeled "Licensed In" in the detail page
-- Import route overhauled (`src/app/api/stylists/import/route.ts`): FNAME+LNAME column mapping, `%PD` commission parsing (strip %, parse float, round/clamp), address + ZIP combine, SKIP_HEADERS for bank/SSN fields
-- Gemini 2.5 Flash SCHEDULE column parsing: text-only request, returns `[{facility, days[]}]`, `Promise.allSettled()` for parallel pre-transaction calls; fallback to raw text in `scheduleNotes` on failure
+- Import route overhauled (`src/app/api/stylists/import/route.ts`): FNAME+LNAME column mapping, `%PD` commission parsing (strip %, parse float, round/clamp), address + ZIP combine, SKIP_HEADERS for bank/SSN fields; `parsePhones()` splits on "or", "or alternate", "/", "&"; lenient validation: bad email/ST code dropped silently (only name is a hard fail); batched single Gemini call for all SCHEDULE rows (no per-row calls); `maxDuration = 300`; real header row detection (skips leading garbage rows like bookkeeping CSV preamble)
+- Gemini 2.5 Flash SCHEDULE column parsing: single batched request with indexed schedule texts, returns `{"0": [{facility, days[]}], ...}`; fallback to raw text in `scheduleNotes` on failure
 - Facility fuzzy matching: exact → substring (either direction) → longest match win; unmatched → `scheduleNotes`
 - `stylistAvailability` rows inserted via `onConflictDoNothing()` with day-level conflict detection (first matched facility wins, duplicate day stored in `scheduleNotes`)
 - Response shape: `{ imported, updated, availabilityCreated, scheduleNotes, errors }`
-- PUT `/api/stylists/[id]` `updateSchema` extended with all 6 new fields
-- Stylist detail (`stylist-detail-client.tsx`): "Licensed In" field added to License section (editable); phone/address/paymentMethod shown in Contact section; `scheduleNotes` shown below Availability card as italic muted note
+- PUT `/api/stylists/[id]` `updateSchema` extended with all fields including `phones: array({label,number}).max(10)`
+- Stylist detail (`stylist-detail-client.tsx`): "Licensed In" field added to License section (editable); **editable Phone numbers section** with label dropdown (mobile/office/home/work/fax/custom) + number input + remove button + "+ Add" button (admin-only); Contact section (address + paymentMethod display, phone removed); `scheduleNotes` shown below Availability card as italic muted note
 - Stylists list (`stylists/page.tsx`): `licenseState` badge renders as `"MD • VA"` after the stylist name (subtle, `bg-stone-100`)
 - Directory import result display (`directory-client.tsx`): shows `availabilityCreated` + `scheduleNotes` counts alongside imported/updated
 

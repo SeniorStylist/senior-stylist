@@ -72,17 +72,29 @@ const rowSchema = z.object({
   licenseNumber: z.string().max(200).optional(),
   licenseType: z.string().max(100).optional(),
   licenseExpiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  email: z.string().email().max(320).optional(),
-  phone: z.string().max(50).optional(),
+  // email: pre-validated for format before Zod, Zod just caps length
+  email: z.string().max(320).optional(),
   address: z.string().max(500).optional(),
   schedule: z.string().max(2000).optional(),
   facilityName: z.string().max(200).optional(),
 })
 
-type ParsedRow = z.infer<typeof rowSchema> & { derivedName?: string }
+type ParsedRow = z.infer<typeof rowSchema> & {
+  derivedName?: string
+  phonesRaw?: Array<{ label: string; number: string }>
+}
 
 function normalizeHeader(s: string): string {
   return String(s || '').toLowerCase().replace(/[\s_%]/g, '').replace(/_/g, '')
+}
+
+/** Parse a raw phone string — handles "or", "or alternate", "/" separators */
+function parsePhones(raw: string): Array<{ label: string; number: string }> {
+  const parts = raw
+    .split(/\s+or\s+alternate\s*|\s+or\s+|\s*\/\s*|\s*&\s*/i)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return parts.map((p) => ({ label: 'mobile', number: p.slice(0, 50) }))
 }
 
 function mapRow(raw: Record<string, unknown>): {
@@ -97,8 +109,11 @@ function mapRow(raw: Record<string, unknown>): {
     byHeader[nh] = String(v).trim()
   }
 
-  // ST code mapping
-  const stylistCode = byHeader.id ?? byHeader.stcode ?? byHeader.stylistcode ?? byHeader.code
+  // ST code mapping — drop silently if wrong format (auto-generate instead)
+  let stylistCode: string | undefined = byHeader.id ?? byHeader.stcode ?? byHeader.stylistcode ?? byHeader.code
+  if (stylistCode && !/^ST\d{3,}$/.test(stylistCode)) {
+    stylistCode = undefined
+  }
 
   // Name handling: FNAME+LNAME or name
   const firstName = byHeader.fname ?? byHeader.firstname
@@ -131,6 +146,15 @@ function mapRow(raw: Record<string, unknown>): {
     address = zip
   }
 
+  // Email: drop silently if invalid format
+  let email: string | undefined = byHeader.email
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    email = undefined
+  }
+
+  // Phone: parse raw string into structured array (not part of Zod schema)
+  const phonesRaw = byHeader.phone ? parsePhones(byHeader.phone) : undefined
+
   const candidate: Record<string, unknown> = {
     name: nameField,
     stylistCode,
@@ -145,8 +169,7 @@ function mapRow(raw: Record<string, unknown>): {
       byHeader.licenseexpireson ??
       byHeader.licenseexpiresdate ??
       byHeader.licenseexpiresat,
-    email: byHeader.email,
-    phone: byHeader.phone,
+    email,
     address,
     schedule: byHeader.schedule,
     facilityName: byHeader.facility ?? byHeader.facilityname,
@@ -158,7 +181,7 @@ function mapRow(raw: Record<string, unknown>): {
   if (!parsed.success) {
     return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
   }
-  return { value: { ...parsed.data, derivedName } }
+  return { value: { ...parsed.data, derivedName, phonesRaw } }
 }
 
 interface GeminiScheduleEntry {
@@ -404,7 +427,7 @@ export async function POST(request: NextRequest) {
             ...(row.licenseState !== undefined ? { licenseState: row.licenseState } : {}),
             ...(row.licenseExpiresAt !== undefined ? { licenseExpiresAt: row.licenseExpiresAt } : {}),
             ...(row.email !== undefined ? { email: row.email } : {}),
-            ...(row.phone !== undefined ? { phone: row.phone } : {}),
+            ...(row.phonesRaw?.length ? { phones: row.phonesRaw } : {}),
             ...(row.address !== undefined ? { address: row.address } : {}),
             ...(row.paymentMethod !== undefined ? { paymentMethod: row.paymentMethod } : {}),
           }

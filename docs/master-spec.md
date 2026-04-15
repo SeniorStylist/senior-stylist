@@ -164,7 +164,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`license_state`** (text, nullable) — which state(s) the stylist is licensed in (e.g. `"MD, VA"`); separate from `license_type`; editable in Stylist Detail "Licensed In" field; shown as `"MD • VA"` badge on the Stylists list
 - **`insurance_verified`** (boolean, NOT NULL, default false), **`insurance_expires_at`** (date, nullable) — populated when admin verifies an insurance doc
 - **`background_check_verified`** (boolean, NOT NULL, default false)
-- **`email`** (text, nullable), **`phone`** (text, nullable), **`address`** (text, nullable), **`payment_method`** (text, nullable) — contact/admin info imported from bookkeeping CSV; display-only in Stylist Detail Contact section
+- **`email`** (text, nullable), **`phones`** (jsonb NOT NULL DEFAULT `[]`, type `Array<{label: string, number: string}>` — replaced `phone text`), **`address`** (text, nullable), **`payment_method`** (text, nullable) — contact/admin info imported from bookkeeping CSV; phones are fully editable in Stylist Detail with label dropdown; address/paymentMethod display-only in Contact section
 - **`schedule_notes`** (text, nullable) — unmatched facility schedules from CSV import or Gemini parse fallback; shown in Stylist Detail below Availability card
 - **`active`**, timestamps
 

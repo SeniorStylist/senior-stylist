@@ -23,7 +23,7 @@ const updateSchema = z.object({
   franchiseId: z.string().uuid().nullable().optional(),
   stylistCode: z.string().regex(/^ST\d{3,}$/).optional(),
   email: z.string().email().max(320).nullable().optional(),
-  phone: z.string().max(50).nullable().optional(),
+  phones: z.array(z.object({ label: z.string().max(50), number: z.string().max(50) })).max(10).optional(),
   address: z.string().max(500).nullable().optional(),
   paymentMethod: z.string().max(50).nullable().optional(),
   scheduleNotes: z.string().max(2000).nullable().optional(),

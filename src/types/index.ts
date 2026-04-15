@@ -62,6 +62,11 @@ export interface Resident {
   updatedAt: Date | null
 }
 
+export interface StylistPhone {
+  label: string
+  number: string
+}
+
 export interface Stylist {
   id: string
   stylistCode: string
@@ -79,7 +84,7 @@ export interface Stylist {
   insuranceExpiresAt: string | null
   backgroundCheckVerified: boolean
   email: string | null
-  phone: string | null
+  phones: StylistPhone[]
   address: string | null
   paymentMethod: string | null
   licenseState: string | null

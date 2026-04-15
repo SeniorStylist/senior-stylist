@@ -107,7 +107,7 @@ export const stylists = pgTable('stylists', {
   insuranceExpiresAt: date('insurance_expires_at'),
   backgroundCheckVerified: boolean('background_check_verified').default(false).notNull(),
   email: text('email'),
-  phone: text('phone'),
+  phones: jsonb('phones').$type<Array<{ label: string; number: string }>>().default([]).notNull(),
   address: text('address'),
   paymentMethod: text('payment_method'),
   licenseState: text('license_state'),

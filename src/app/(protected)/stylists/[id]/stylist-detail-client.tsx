@@ -64,6 +64,9 @@ function summarizeAvailability(rows: StylistAvailability[]): string[] {
   return groups
 }
 
+const PHONE_LABELS = ['mobile', 'office', 'home', 'work', 'fax', 'custom'] as const
+type PhoneLabelOption = typeof PHONE_LABELS[number]
+
 const PRESET_COLORS = [
   '#0D7377',
   '#7C3AED',
@@ -138,6 +141,9 @@ export function StylistDetailClient({
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
   const [stylistCode, setStylistCode] = useState(initialStylist.stylistCode)
   const [facilityId, setFacilityId] = useState<string | null>(initialStylist.facilityId)
+  const [phones, setPhones] = useState<Array<{ label: string; number: string }>>(
+    initialStylist.phones ?? []
+  )
 
   const licenseDirty =
     licenseNumber !== (stylist.licenseNumber ?? '') ||
@@ -146,6 +152,7 @@ export function StylistDetailClient({
     licenseExpiresAt !== (stylist.licenseExpiresAt ?? '')
   const codeDirty = stylistCode !== stylist.stylistCode
   const facilityDirty = facilityId !== stylist.facilityId
+  const phonesDirty = JSON.stringify(phones) !== JSON.stringify(stylist.phones ?? [])
 
   const handleVerify = async (docId: string, verified: boolean) => {
     setVerifyingId(docId)
@@ -169,7 +176,8 @@ export function StylistDetailClient({
     commissionPercent !== stylist.commissionPercent ||
     licenseDirty ||
     codeDirty ||
-    facilityDirty
+    facilityDirty ||
+    phonesDirty
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
@@ -188,6 +196,7 @@ export function StylistDetailClient({
         licenseType: licenseType.trim() || null,
         licenseState: licenseState.trim() || null,
         licenseExpiresAt: licenseExpiresAt || null,
+        phones,
       }
       if (codeDirty) body.stylistCode = stylistCode.trim()
       if (facilityDirty) body.facilityId = facilityId
@@ -491,17 +500,91 @@ export function StylistDetailClient({
               </div>
             )}
 
-            {isAdmin && (stylist.phone || stylist.address || stylist.paymentMethod) && (
+            {isAdmin && (
               <div className="pt-4 border-t border-stone-100 space-y-2">
-                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Contact</p>
-                {stylist.phone && (
-                  <div>
-                    <span className="text-[11px] text-stone-500 block mb-0.5">Phone</span>
-                    <a href={`tel:${stylist.phone}`} className="text-sm text-[#8B2E4A] hover:underline">
-                      {stylist.phone}
-                    </a>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Phone numbers</p>
+                  <button
+                    type="button"
+                    onClick={() => setPhones((prev) => [...prev, { label: 'mobile', number: '' }])}
+                    className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800 transition-colors"
+                  >
+                    + Add
+                  </button>
+                </div>
+                {phones.length === 0 ? (
+                  <p className="text-xs text-stone-400 italic">No phone numbers</p>
+                ) : (
+                  <div className="space-y-2">
+                    {phones.map((ph, idx) => {
+                      const isCustom = !(PHONE_LABELS as readonly string[]).slice(0, -1).includes(ph.label)
+                      const selectValue = isCustom ? 'custom' : (ph.label as PhoneLabelOption)
+                      return (
+                        <div key={idx} className="flex gap-1.5 items-center">
+                          <select
+                            value={selectValue}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setPhones((prev) => {
+                                const next = [...prev]
+                                next[idx] = { ...next[idx], label: val === 'custom' ? '' : val }
+                                return next
+                              })
+                            }}
+                            className="w-24 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                          >
+                            {PHONE_LABELS.map((l) => (
+                              <option key={l} value={l}>{l}</option>
+                            ))}
+                          </select>
+                          {isCustom && (
+                            <input
+                              value={ph.label}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setPhones((prev) => {
+                                  const next = [...prev]
+                                  next[idx] = { ...next[idx], label: val }
+                                  return next
+                                })
+                              }}
+                              placeholder="label"
+                              className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                            />
+                          )}
+                          <input
+                            value={ph.number}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setPhones((prev) => {
+                                const next = [...prev]
+                                next[idx] = { ...next[idx], number: val }
+                                return next
+                              })
+                            }}
+                            placeholder="555-000-0000"
+                            className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPhones((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-stone-300 hover:text-red-400 transition-colors p-1 shrink-0"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {isAdmin && (stylist.address || stylist.paymentMethod) && (
+              <div className="pt-4 border-t border-stone-100 space-y-2">
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Contact</p>
                 {stylist.address && (
                   <div>
                     <span className="text-[11px] text-stone-500 block mb-0.5">Address</span>
