@@ -51,6 +51,8 @@ export function DirectoryClient({
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deletingBulk, setDeletingBulk] = useState(false)
+  const [sortKey, setSortKey] = useState<'code' | 'name' | 'facility' | 'commission'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const [addOpen, setAddOpen] = useState(false)
   const [addName, setAddName] = useState('')
@@ -88,6 +90,35 @@ export function DirectoryClient({
       )
     })
   }, [stylists, filter, statusFilter, search])
+
+  function handleSort(key: typeof sortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (sortKey === 'code') {
+        const cmp = (a.stylistCode ?? '').localeCompare(b.stylistCode ?? '', undefined, { sensitivity: 'base' })
+        return sortDir === 'asc' ? cmp : -cmp
+      } else if (sortKey === 'name') {
+        const cmp = (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' })
+        return sortDir === 'asc' ? cmp : -cmp
+      } else if (sortKey === 'facility') {
+        const aVal = facilityById.get(a.facilityId ?? '') ?? 'Franchise Pool'
+        const bVal = facilityById.get(b.facilityId ?? '') ?? 'Franchise Pool'
+        const cmp = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' })
+        return sortDir === 'asc' ? cmp : -cmp
+      } else {
+        const diff = (a.commissionPercent ?? 0) - (b.commissionPercent ?? 0)
+        return sortDir === 'asc' ? diff : -diff
+      }
+    })
+  }, [filtered, sortKey, sortDir, facilityById])
 
   // Keep selectAll checkbox indeterminate state in sync
   const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
@@ -492,7 +523,35 @@ export function DirectoryClient({
             </span>
           </div>
 
-          {filtered.map((s) => {
+          {/* Sort header */}
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-stone-100 bg-stone-50/50">
+            <div className="w-5 shrink-0" />
+            {(
+              [
+                { key: 'code', label: 'ST Code', className: 'w-14 shrink-0' },
+                { key: 'name', label: 'Name', className: 'flex-1 min-w-0' },
+                { key: 'facility', label: 'Facility', className: 'w-32 shrink-0' },
+                { key: 'commission', label: 'Commission', className: 'w-24 shrink-0 text-right' },
+              ] as const
+            ).map((col) => (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => handleSort(col.key)}
+                className={`${col.className} text-xs font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-1 hover:text-stone-700 transition-colors`}
+              >
+                {col.label}
+                {sortKey === col.key ? (
+                  <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                ) : (
+                  <span className="text-[10px] text-stone-300">↕</span>
+                )}
+              </button>
+            ))}
+            <div className="w-8 shrink-0" /> {/* delete button spacer */}
+          </div>
+
+          {sorted.map((s) => {
             const facility = s.facilityId ? facilityById.get(s.facilityId) : null
             const isSelected = selected.has(s.id)
             return (
