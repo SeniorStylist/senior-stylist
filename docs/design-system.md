@@ -807,7 +807,7 @@ Verified state chip next to the badge: `bg-emerald-50 text-emerald-700` "Verifie
 Reuse the existing `Badge` component: `open` → amber, `filled` → emerald, `cancelled` → stone.
 
 ### Stylist status + specialties + assignments + notes (Phase 9 — schema shipped, UI in Prompt 2+)
-- **Status badge** (next to stylist name on list + detail): `active` → emerald, `on_leave` → amber, `inactive` → stone, `terminated` → red. Admin-only dropdown edits `status` via `PUT /api/stylists/[id]`.
+- **Status badge** (next to stylist name on list + detail): `active` → emerald, `on_leave` → amber, `inactive` → stone, `terminated` → red. Admin-only dropdown edits `status` via `PUT /api/stylists/[id]`. Status dot pattern: `<span className={cn('w-2 h-2 rounded-full shrink-0', statusDot(status))} />` inline with the select. `statusDot()` maps `active → bg-emerald-500`, `on_leave → bg-amber-400`, else `bg-stone-400`.
 - **Specialties chips**: small rose-50 pills (`bg-rose-50 text-rose-700`), editable on Stylist Detail — `+ Add` opens an inline text input, ✕ removes. Persisted as `string[]` via `PUT /api/stylists/[id]`.
 - **Assignments tab** on Stylist Detail: list of per-facility rows (facility name, commission override input, active toggle). Empty commission field = "inherit stylist default" rendered as ghost placeholder showing the default percent. `resolveCommission(stylistDefault, assignment)` is the source of truth everywhere a commission is displayed or used to compute payout — never inline math.
 - **Notes section** (admin-only): stacked list of author-name + timestamp + body; `+ Add note` textarea at the top. Never surfaced to stylist-role or portal views.

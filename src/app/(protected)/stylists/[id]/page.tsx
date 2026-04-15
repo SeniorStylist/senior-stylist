@@ -6,8 +6,11 @@ import {
   stylists,
   complianceDocuments,
   stylistAvailability,
+  stylistFacilityAssignments,
+  stylistNotes,
   facilities,
   franchiseFacilities,
+  profiles,
 } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
@@ -164,6 +167,38 @@ export default async function StylistDetailPage({
         .orderBy(facilities.name)
     : []
 
+  const [assignments, notes] = await Promise.all([
+    db
+      .select({
+        id: stylistFacilityAssignments.id,
+        stylistId: stylistFacilityAssignments.stylistId,
+        facilityId: stylistFacilityAssignments.facilityId,
+        facilityName: facilities.name,
+        commissionPercent: stylistFacilityAssignments.commissionPercent,
+        active: stylistFacilityAssignments.active,
+        createdAt: stylistFacilityAssignments.createdAt,
+        updatedAt: stylistFacilityAssignments.updatedAt,
+      })
+      .from(stylistFacilityAssignments)
+      .innerJoin(facilities, eq(facilities.id, stylistFacilityAssignments.facilityId))
+      .where(eq(stylistFacilityAssignments.stylistId, id))
+      .orderBy(facilities.name),
+    db
+      .select({
+        id: stylistNotes.id,
+        stylistId: stylistNotes.stylistId,
+        authorUserId: stylistNotes.authorUserId,
+        body: stylistNotes.body,
+        createdAt: stylistNotes.createdAt,
+        updatedAt: stylistNotes.updatedAt,
+        authorEmail: profiles.email,
+      })
+      .from(stylistNotes)
+      .innerJoin(profiles, eq(profiles.id, stylistNotes.authorUserId))
+      .where(eq(stylistNotes.stylistId, id))
+      .orderBy(desc(stylistNotes.createdAt)),
+  ])
+
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   const isMasterAdmin = !!superAdminEmail && user.email === superAdminEmail
 
@@ -177,6 +212,8 @@ export default async function StylistDetailPage({
       isAdmin={facilityUser.role === 'admin'}
       isMasterAdmin={isMasterAdmin}
       franchiseFacilities={JSON.parse(JSON.stringify(franchiseFacilityOptions))}
+      assignments={JSON.parse(JSON.stringify(assignments))}
+      notes={JSON.parse(JSON.stringify(notes))}
     />
   )
   } catch (err) {

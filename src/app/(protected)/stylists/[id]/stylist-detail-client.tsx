@@ -5,7 +5,18 @@ import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
-import type { Stylist, Service, Resident, ComplianceDocumentWithUrl, ComplianceDocumentType, StylistAvailability } from '@/types'
+import type {
+  Stylist,
+  Service,
+  Resident,
+  ComplianceDocumentWithUrl,
+  ComplianceDocumentType,
+  StylistAvailability,
+  StylistFacilityAssignment,
+  StylistNote,
+  StylistStatus,
+} from '@/types'
+import { resolveCommission } from '@/lib/stylist-commission'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 
@@ -95,6 +106,24 @@ interface ServiceBreakdown {
   commissionCents: number
 }
 
+type AssignmentRow = StylistFacilityAssignment & { facilityName: string }
+type NoteRow = StylistNote & { authorEmail: string | null }
+
+const STATUS_OPTIONS: { value: StylistStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'on_leave', label: 'On Leave' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'terminated', label: 'Terminated' },
+]
+
+function statusDot(s: StylistStatus) {
+  if (s === 'active') return 'bg-emerald-500'
+  if (s === 'on_leave') return 'bg-amber-400'
+  return 'bg-stone-400'
+}
+
+const PRESET_SPECIALTIES = ['Hair', 'Nails', 'Skincare']
+
 interface StylistDetailClientProps {
   stylist: Stylist
   upcomingBookings: UpcomingBooking[]
@@ -111,6 +140,8 @@ interface StylistDetailClientProps {
   isAdmin: boolean
   isMasterAdmin?: boolean
   franchiseFacilities?: Array<{ id: string; name: string }>
+  assignments?: AssignmentRow[]
+  notes?: NoteRow[]
 }
 
 export function StylistDetailClient({
@@ -122,6 +153,8 @@ export function StylistDetailClient({
   isAdmin,
   isMasterAdmin = false,
   franchiseFacilities = [],
+  assignments: initialAssignments = [],
+  notes: initialNotes = [],
 }: StylistDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -144,6 +177,20 @@ export function StylistDetailClient({
   const [phones, setPhones] = useState<Array<{ label: string; number: string }>>(
     initialStylist.phones ?? []
   )
+  const [status, setStatus] = useState<StylistStatus>(initialStylist.status ?? 'active')
+  const [specialties, setSpecialties] = useState<string[]>(initialStylist.specialties ?? [])
+  const [addingSpecialty, setAddingSpecialty] = useState(false)
+  const [newSpecialtyInput, setNewSpecialtyInput] = useState('')
+  const [assignments, setAssignments] = useState<AssignmentRow[]>(initialAssignments)
+  const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null)
+  const [editCommissionInput, setEditCommissionInput] = useState('')
+  const [addingAssignment, setAddingAssignment] = useState(false)
+  const [newAssignmentFacilityId, setNewAssignmentFacilityId] = useState('')
+  const [newAssignmentCommission, setNewAssignmentCommission] = useState('')
+  const [savingAssignment, setSavingAssignment] = useState(false)
+  const [notes, setNotes] = useState<NoteRow[]>(initialNotes)
+  const [newNoteBody, setNewNoteBody] = useState('')
+  const [addingNote, setAddingNote] = useState(false)
 
   const licenseDirty =
     licenseNumber !== (stylist.licenseNumber ?? '') ||
@@ -153,6 +200,9 @@ export function StylistDetailClient({
   const codeDirty = stylistCode !== stylist.stylistCode
   const facilityDirty = facilityId !== stylist.facilityId
   const phonesDirty = JSON.stringify(phones) !== JSON.stringify(stylist.phones ?? [])
+  const statusDirty = status !== (stylist.status ?? 'active')
+  const specialtiesDirty =
+    JSON.stringify(specialties) !== JSON.stringify(stylist.specialties ?? [])
 
   const handleVerify = async (docId: string, verified: boolean) => {
     setVerifyingId(docId)
@@ -177,7 +227,9 @@ export function StylistDetailClient({
     licenseDirty ||
     codeDirty ||
     facilityDirty ||
-    phonesDirty
+    phonesDirty ||
+    statusDirty ||
+    specialtiesDirty
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
@@ -197,6 +249,8 @@ export function StylistDetailClient({
         licenseState: licenseState.trim() || null,
         licenseExpiresAt: licenseExpiresAt || null,
         phones,
+        status,
+        specialties,
       }
       if (codeDirty) body.stylistCode = stylistCode.trim()
       if (facilityDirty) body.facilityId = facilityId
@@ -412,6 +466,112 @@ export function StylistDetailClient({
               )}
             </div>
 
+            {isAdmin && (
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
+                  Status
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className={cn('w-2 h-2 rounded-full shrink-0', statusDot(status))} />
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as StylistStatus)}
+                    className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                  >
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                    Specialties
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {specialties.map((s) => (
+                    <span
+                      key={s}
+                      className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full text-xs font-medium"
+                    >
+                      {s}
+                      <button
+                        type="button"
+                        onClick={() => setSpecialties((prev) => prev.filter((x) => x !== s))}
+                        className="text-rose-400 hover:text-rose-700 transition-colors"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                  {PRESET_SPECIALTIES.filter((p) => !specialties.includes(p)).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setSpecialties((prev) => [...prev, p])}
+                      className="inline-flex items-center bg-stone-100 text-stone-500 hover:bg-rose-50 hover:text-rose-700 px-2 py-0.5 rounded-full text-xs font-medium transition-colors"
+                    >
+                      + {p}
+                    </button>
+                  ))}
+                </div>
+                {addingSpecialty ? (
+                  <div className="flex gap-1.5 items-center">
+                    <input
+                      autoFocus
+                      value={newSpecialtyInput}
+                      onChange={(e) => setNewSpecialtyInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newSpecialtyInput.trim()) {
+                          const val = newSpecialtyInput.trim()
+                          if (!specialties.includes(val)) setSpecialties((prev) => [...prev, val])
+                          setNewSpecialtyInput('')
+                          setAddingSpecialty(false)
+                        }
+                        if (e.key === 'Escape') { setNewSpecialtyInput(''); setAddingSpecialty(false) }
+                      }}
+                      placeholder="Custom specialty"
+                      className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = newSpecialtyInput.trim()
+                        if (val && !specialties.includes(val)) setSpecialties((prev) => [...prev, val])
+                        setNewSpecialtyInput('')
+                        setAddingSpecialty(false)
+                      }}
+                      className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setNewSpecialtyInput(''); setAddingSpecialty(false) }}
+                      className="text-xs text-stone-400 hover:text-stone-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingSpecialty(true)}
+                    className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800 transition-colors"
+                  >
+                    + Custom
+                  </button>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-2">
                 Calendar color
@@ -615,8 +775,277 @@ export function StylistDetailClient({
           </div>
         </div>
 
-        {/* Upcoming schedule */}
+        {/* Right column */}
         <div className="col-span-3 space-y-5">
+
+        {/* Facility Assignments */}
+        {isAdmin && (
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+            <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-stone-900">Facility Assignments</h2>
+            </div>
+            <div className="divide-y divide-stone-50">
+              {assignments.length === 0 && !addingAssignment && (
+                <p className="text-sm text-stone-400 px-5 py-4">No assignments yet.</p>
+              )}
+              {assignments.map((row) => (
+                <div key={row.id} className="px-5 py-3">
+                  {editingAssignmentId === row.id ? (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-medium text-stone-700 flex-1">{row.facilityName}</span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={editCommissionInput}
+                          onChange={(e) => setEditCommissionInput(e.target.value)}
+                          placeholder="Default"
+                          className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                        />
+                        <span className="text-xs text-stone-400">%</span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingAssignment}
+                        onClick={async () => {
+                          setSavingAssignment(true)
+                          const val = editCommissionInput === '' ? null : Math.max(0, Math.min(100, parseInt(editCommissionInput) || 0))
+                          const res = await fetch(`/api/stylists/${stylist.id}/assignments/${row.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ commissionPercent: val, active: row.active }),
+                          })
+                          const json = await res.json()
+                          setSavingAssignment(false)
+                          if (res.ok) {
+                            setAssignments((prev) => prev.map((a) => a.id === row.id ? json.data.assignment : a))
+                            setEditingAssignmentId(null)
+                          } else {
+                            toast(json.error ?? 'Failed to save', 'error')
+                          }
+                        }}
+                        className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800 disabled:opacity-50"
+                      >
+                        {savingAssignment ? '…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingAssignmentId(null)}
+                        className="text-xs text-stone-400 hover:text-stone-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-stone-700 flex-1 truncate">{row.facilityName}</span>
+                      <span className="text-xs text-stone-500">
+                        {row.commissionPercent != null
+                          ? `${row.commissionPercent}%`
+                          : `Default (${resolveCommission(stylist.commissionPercent, row)}%)`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await fetch(`/api/stylists/${stylist.id}/assignments/${row.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ active: !row.active }),
+                          })
+                          const json = await res.json()
+                          if (res.ok) {
+                            setAssignments((prev) => prev.map((a) => a.id === row.id ? json.data.assignment : a))
+                          } else {
+                            toast(json.error ?? 'Failed', 'error')
+                          }
+                        }}
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors',
+                          row.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                        )}
+                      >
+                        <span className={cn('w-1.5 h-1.5 rounded-full', row.active ? 'bg-emerald-500' : 'bg-stone-400')} />
+                        {row.active ? 'Active' : 'Inactive'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAssignmentId(row.id)
+                          setEditCommissionInput(row.commissionPercent != null ? String(row.commissionPercent) : '')
+                        }}
+                        className="text-xs text-stone-400 hover:text-[#8B2E4A] transition-colors font-medium"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {addingAssignment && (() => {
+                const assignedIds = new Set(assignments.map((a) => a.facilityId))
+                const available = franchiseFacilities.filter((f) => !assignedIds.has(f.id))
+                return (
+                  <div className="px-5 py-3 flex items-center gap-3 flex-wrap bg-stone-50 rounded-b-2xl">
+                    <select
+                      value={newAssignmentFacilityId}
+                      onChange={(e) => setNewAssignmentFacilityId(e.target.value)}
+                      className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                    >
+                      <option value="">Select facility…</option>
+                      {available.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={newAssignmentCommission}
+                        onChange={(e) => setNewAssignmentCommission(e.target.value)}
+                        placeholder="Default"
+                        className="w-20 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                      />
+                      <span className="text-xs text-stone-400">%</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!newAssignmentFacilityId || savingAssignment}
+                      onClick={async () => {
+                        if (!newAssignmentFacilityId) return
+                        setSavingAssignment(true)
+                        const commission = newAssignmentCommission === '' ? null : parseInt(newAssignmentCommission) || null
+                        const res = await fetch(`/api/stylists/${stylist.id}/assignments`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ facilityId: newAssignmentFacilityId, commissionPercent: commission }),
+                        })
+                        const json = await res.json()
+                        setSavingAssignment(false)
+                        if (res.ok) {
+                          setAssignments((prev) => {
+                            const exists = prev.find((a) => a.id === json.data.assignment.id)
+                            if (exists) return prev.map((a) => a.id === json.data.assignment.id ? json.data.assignment : a)
+                            return [...prev, json.data.assignment]
+                          })
+                          setAddingAssignment(false)
+                          setNewAssignmentFacilityId('')
+                          setNewAssignmentCommission('')
+                        } else {
+                          toast(json.error ?? 'Failed to add', 'error')
+                        }
+                      }}
+                      className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800 disabled:opacity-40 transition-colors"
+                    >
+                      {savingAssignment ? '…' : 'Add'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAddingAssignment(false); setNewAssignmentFacilityId(''); setNewAssignmentCommission('') }}
+                      className="text-xs text-stone-400 hover:text-stone-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )
+              })()}
+            </div>
+            {franchiseFacilities.length > 0 && !addingAssignment && (
+              <div className="px-5 py-3 border-t border-stone-50">
+                <button
+                  type="button"
+                  onClick={() => { setAddingAssignment(true); setNewAssignmentFacilityId(''); setNewAssignmentCommission('') }}
+                  className="text-xs text-[#8B2E4A] font-semibold hover:text-rose-800 transition-colors"
+                >
+                  + Add assignment
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Admin Notes */}
+        {isAdmin && (
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+            <div className="px-5 py-4 border-b border-stone-100">
+              <h2 className="text-sm font-semibold text-stone-900">Admin Notes</h2>
+              <p className="text-xs text-stone-500 mt-0.5">Internal only — never visible to stylists</p>
+            </div>
+            <div className="px-5 py-4">
+              <div className="flex gap-2 mb-5">
+                <textarea
+                  value={newNoteBody}
+                  onChange={(e) => setNewNoteBody(e.target.value)}
+                  placeholder="Add a note…"
+                  rows={3}
+                  maxLength={5000}
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all resize-none"
+                />
+                <button
+                  type="button"
+                  disabled={!newNoteBody.trim() || addingNote}
+                  onClick={async () => {
+                    if (!newNoteBody.trim()) return
+                    setAddingNote(true)
+                    const res = await fetch(`/api/stylists/${stylist.id}/notes`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ body: newNoteBody.trim() }),
+                    })
+                    const json = await res.json()
+                    setAddingNote(false)
+                    if (res.ok) {
+                      setNotes((prev) => [json.data.note, ...prev])
+                      setNewNoteBody('')
+                    } else {
+                      toast(json.error ?? 'Failed to add note', 'error')
+                    }
+                  }}
+                  className="shrink-0 self-start px-3 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-40 transition-colors"
+                  style={{ backgroundColor: '#8B2E4A' }}
+                >
+                  {addingNote ? '…' : 'Add Note'}
+                </button>
+              </div>
+              {notes.length === 0 ? (
+                <p className="text-sm text-stone-400 text-center py-2">No notes yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {notes.map((note) => (
+                    <div key={note.id} className="border-t border-stone-100 pt-3 first:border-0 first:pt-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[11px] text-stone-400">
+                          {note.createdAt
+                            ? new Date(note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : '—'}
+                          {' · '}
+                          {note.authorEmail ?? 'Unknown'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const res = await fetch(`/api/stylists/${stylist.id}/notes/${note.id}`, { method: 'DELETE' })
+                            if (res.ok) {
+                              setNotes((prev) => prev.filter((n) => n.id !== note.id))
+                            } else {
+                              toast('Failed to delete', 'error')
+                            }
+                          }}
+                          className="text-stone-300 hover:text-red-400 transition-colors shrink-0"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" />
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-sm text-stone-700 mt-1 whitespace-pre-wrap">{note.body}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
           <div className="px-5 py-4 border-b border-stone-100">
             <h2 className="text-sm font-semibold text-stone-900">Compliance documents</h2>

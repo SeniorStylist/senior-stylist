@@ -27,6 +27,8 @@ const updateSchema = z.object({
   address: z.string().max(500).nullable().optional(),
   paymentMethod: z.string().max(50).nullable().optional(),
   scheduleNotes: z.string().max(2000).nullable().optional(),
+  status: z.enum(['active', 'inactive', 'on_leave', 'terminated']).optional(),
+  specialties: z.array(z.string().max(50)).max(20).optional(),
 })
 
 function isMasterAdmin(email: string | null | undefined) {
