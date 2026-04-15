@@ -51,6 +51,7 @@ export function DirectoryClient({
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deletingBulk, setDeletingBulk] = useState(false)
+  const [dupMode, setDupMode] = useState(false)
   const [sortKey, setSortKey] = useState<'code' | 'name' | 'facility' | 'commission'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -77,6 +78,43 @@ export function DirectoryClient({
     return m
   }, [franchiseFacilities])
 
+  const dupInfo = useMemo(() => {
+    const nameCounts = new Map<string, string[]>()
+    const codeCounts = new Map<string, string[]>()
+
+    for (const s of stylists) {
+      const normName = s.name.trim().toLowerCase()
+      nameCounts.set(normName, [...(nameCounts.get(normName) ?? []), s.id])
+      const code = (s.stylistCode ?? '').trim().toLowerCase()
+      codeCounts.set(code, [...(codeCounts.get(code) ?? []), s.id])
+    }
+
+    const dupNameIds = new Set<string>()
+    const nameSelectIds = new Set<string>()
+    let dupNameCount = 0
+    for (const ids of nameCounts.values()) {
+      if (ids.length > 1) {
+        dupNameCount++
+        ids.forEach((id) => dupNameIds.add(id))
+        ids.slice(1).forEach((id) => nameSelectIds.add(id))
+      }
+    }
+
+    const dupCodeIds = new Set<string>()
+    const codeSelectIds = new Set<string>()
+    let dupCodeCount = 0
+    for (const ids of codeCounts.values()) {
+      if (ids.length > 1) {
+        dupCodeCount++
+        ids.forEach((id) => dupCodeIds.add(id))
+        ids.slice(1).forEach((id) => codeSelectIds.add(id))
+      }
+    }
+
+    const dupSelectIds = new Set([...nameSelectIds, ...codeSelectIds])
+    return { dupNameIds, dupCodeIds, dupSelectIds, dupNameCount, dupCodeCount }
+  }, [stylists])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return stylists.filter((s) => {
@@ -90,6 +128,16 @@ export function DirectoryClient({
       )
     })
   }, [stylists, filter, statusFilter, search])
+
+  function handleFindDuplicates() {
+    if (dupMode) {
+      setDupMode(false)
+      setSelected(new Set())
+    } else {
+      setDupMode(true)
+      setSelected(new Set(dupInfo.dupSelectIds))
+    }
+  }
 
   function handleSort(key: typeof sortKey) {
     if (sortKey === key) {
@@ -269,6 +317,17 @@ export function DirectoryClient({
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleFindDuplicates}
+            className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
+              dupMode
+                ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                : 'border-stone-200 text-stone-700 hover:bg-stone-50'
+            }`}
+          >
+            {dupMode ? 'Clear' : 'Find Duplicates'}
+          </button>
           <button
             onClick={() => setImportOpen(true)}
             className="px-3 py-2 rounded-xl text-sm font-medium border border-stone-200 text-stone-700 hover:bg-stone-50 transition-colors"
@@ -498,6 +557,22 @@ export function DirectoryClient({
         </div>
       )}
 
+      {dupMode && (
+        <div
+          className={`mb-4 px-4 py-3 rounded-xl text-sm border ${
+            dupInfo.dupCodeCount > 0
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : dupInfo.dupNameCount > 0
+              ? 'bg-amber-50 border-amber-200 text-amber-700'
+              : 'bg-stone-50 border-stone-200 text-stone-600'
+          }`}
+        >
+          {dupInfo.dupNameCount === 0 && dupInfo.dupCodeCount === 0
+            ? 'No duplicates found.'
+            : `${dupInfo.dupNameCount} duplicate name${dupInfo.dupNameCount !== 1 ? 's' : ''}, ${dupInfo.dupCodeCount} duplicate ST code${dupInfo.dupCodeCount !== 1 ? 's' : ''} found — ${dupInfo.dupSelectIds.size} selected for deletion`}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
           <p className="text-stone-400 text-sm">No stylists match this filter.</p>
@@ -558,7 +633,13 @@ export function DirectoryClient({
               <div
                 key={s.id}
                 className={`flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors ${
-                  isSelected ? 'bg-rose-50' : 'hover:bg-stone-50'
+                  dupMode && dupInfo.dupCodeIds.has(s.id)
+                    ? 'bg-red-50'
+                    : dupMode && dupInfo.dupNameIds.has(s.id)
+                    ? 'bg-amber-50'
+                    : isSelected
+                    ? 'bg-rose-50'
+                    : 'hover:bg-stone-50'
                 }`}
               >
                 {/* Checkbox */}
