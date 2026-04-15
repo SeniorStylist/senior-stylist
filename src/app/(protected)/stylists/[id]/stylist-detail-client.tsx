@@ -195,6 +195,7 @@ export function StylistDetailClient({
   const [notes, setNotes] = useState<NoteRow[]>(initialNotes)
   const [newNoteBody, setNewNoteBody] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+  const [email, setEmail] = useState(initialStylist.email ?? '')
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   const licenseDirty =
@@ -229,6 +230,7 @@ export function StylistDetailClient({
     name !== stylist.name ||
     color !== stylist.color ||
     commissionPercent !== stylist.commissionPercent ||
+    email !== (stylist.email ?? '') ||
     licenseDirty ||
     codeDirty ||
     facilityDirty ||
@@ -249,6 +251,7 @@ export function StylistDetailClient({
         name: name.trim(),
         color,
         commissionPercent,
+        email: email.trim() || null,
         licenseNumber: licenseNumber.trim() || null,
         licenseType: licenseType.trim() || null,
         licenseState: licenseState.trim() || null,
@@ -471,13 +474,23 @@ export function StylistDetailClient({
               )}
             </div>
 
-            {stylist.email && isAdmin && (
+            {isAdmin && (
               <div>
                 <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
                   Email
                 </label>
-                <p className="text-sm text-stone-700 mb-2 break-all">{stylist.email}</p>
-                {hasLinkedAccount ? (
+                {stylist.email ? (
+                  <p className="text-sm text-stone-700 mb-2 break-all">{stylist.email}</p>
+                ) : (
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Add email address"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 mb-2"
+                  />
+                )}
+                {stylist.email && (hasLinkedAccount ? (
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -525,7 +538,7 @@ export function StylistDetailClient({
                           : 'Send account invite →'}
                     </button>
                   )
-                })()}
+                })())}
               </div>
             )}
 
