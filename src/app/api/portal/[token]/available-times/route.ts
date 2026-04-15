@@ -1,5 +1,10 @@
 import { db } from '@/db'
-import { residents, stylists, stylistAvailability } from '@/db/schema'
+import {
+  residents,
+  stylists,
+  stylistAvailability,
+  stylistFacilityAssignments,
+} from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { resolveAvailableStylists } from '@/lib/portal-assignment'
@@ -48,7 +53,15 @@ export async function GET(
     const facStylists = await db
       .select({ id: stylists.id })
       .from(stylists)
-      .where(and(eq(stylists.facilityId, resident.facilityId), eq(stylists.active, true)))
+      .innerJoin(
+        stylistFacilityAssignments,
+        and(
+          eq(stylistFacilityAssignments.stylistId, stylists.id),
+          eq(stylistFacilityAssignments.facilityId, resident.facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
     if (!facStylists.length) {
       return Response.json({ data: { availableSlots: [], bookedSlots: [] } })
     }
@@ -63,6 +76,7 @@ export async function GET(
       .where(
         and(
           inArray(stylistAvailability.stylistId, stylistIds),
+          eq(stylistAvailability.facilityId, resident.facilityId),
           eq(stylistAvailability.dayOfWeek, dow),
           eq(stylistAvailability.active, true),
         ),

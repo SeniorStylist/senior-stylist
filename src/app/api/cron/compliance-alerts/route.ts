@@ -1,5 +1,12 @@
 import { db } from '@/db'
-import { stylists, facilities, facilityUsers, profiles, complianceDocuments } from '@/db/schema'
+import {
+  stylists,
+  facilities,
+  facilityUsers,
+  profiles,
+  complianceDocuments,
+  stylistFacilityAssignments,
+} from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildComplianceAlertEmailHtml } from '@/lib/email'
@@ -48,9 +55,36 @@ export async function GET(request: NextRequest) {
     }
 
     const stylistIds = activeStylists.map((s) => s.id)
-    const facilityIds = Array.from(
-      new Set(activeStylists.map((s) => s.facilityId).filter((id): id is string => id !== null)),
-    )
+
+    // Load active facility assignments for this stylist set → stylistId -> facilityId[]
+    const assignmentRows = await db
+      .select({
+        stylistId: stylistFacilityAssignments.stylistId,
+        facilityId: stylistFacilityAssignments.facilityId,
+      })
+      .from(stylistFacilityAssignments)
+      .where(
+        and(
+          inArray(stylistFacilityAssignments.stylistId, stylistIds),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+    const facilitiesByStylist = new Map<string, string[]>()
+    for (const row of assignmentRows) {
+      if (!facilitiesByStylist.has(row.stylistId)) facilitiesByStylist.set(row.stylistId, [])
+      facilitiesByStylist.get(row.stylistId)!.push(row.facilityId)
+    }
+
+    const facilityIdSet = new Set<string>()
+    for (const ids of facilitiesByStylist.values()) for (const id of ids) facilityIdSet.add(id)
+    // Legacy fallback: include stylists.facility_id for rows not yet assigned anywhere.
+    for (const s of activeStylists) {
+      if (!facilitiesByStylist.has(s.id) && s.facilityId) {
+        facilitiesByStylist.set(s.id, [s.facilityId])
+        facilityIdSet.add(s.facilityId)
+      }
+    }
+    const facilityIds = Array.from(facilityIdSet)
     if (facilityIds.length === 0) {
       return Response.json({ data: { alertsSent: 0 } })
     }
@@ -103,10 +137,10 @@ export async function GET(request: NextRequest) {
     const alerts: Alert[] = []
 
     for (const stylist of activeStylists) {
+      const assignedFacilityIds = facilitiesByStylist.get(stylist.id) ?? []
+      if (assignedFacilityIds.length === 0) continue
+
       const seen = new Set<string>()
-      if (!stylist.facilityId) continue
-      const facility = facilityById.get(stylist.facilityId)
-      if (!facility) continue
 
       const pushIfDue = (typeKey: string, expiresAtStr: string | null) => {
         if (!expiresAtStr) return
@@ -117,14 +151,20 @@ export async function GET(request: NextRequest) {
         const dedupeKey = `${typeKey}:${expiresAtStr}`
         if (seen.has(dedupeKey)) return
         seen.add(dedupeKey)
-        alerts.push({
-          stylistName: stylist.name,
-          documentTypeLabel: DOC_TYPE_LABEL[typeKey] ?? typeKey,
-          daysRemaining: days,
-          expiresAt: expiresAtStr,
-          facility,
-          stylistId: stylist.id,
-        })
+
+        // Fan out one alert per assigned facility so each facility's admins are notified.
+        for (const fid of assignedFacilityIds) {
+          const facility = facilityById.get(fid)
+          if (!facility) continue
+          alerts.push({
+            stylistName: stylist.name,
+            documentTypeLabel: DOC_TYPE_LABEL[typeKey] ?? typeKey,
+            daysRemaining: days,
+            expiresAt: expiresAtStr,
+            facility,
+            stylistId: stylist.id,
+          })
+        }
       }
 
       const docs = docsByStylist.get(stylist.id) ?? []

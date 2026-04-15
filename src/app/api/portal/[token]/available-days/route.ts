@@ -1,5 +1,11 @@
 import { db } from '@/db'
-import { residents, stylists, stylistAvailability, coverageRequests } from '@/db/schema'
+import {
+  residents,
+  stylists,
+  stylistAvailability,
+  stylistFacilityAssignments,
+  coverageRequests,
+} from '@/db/schema'
 import { and, eq, inArray, lte, gte } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
@@ -35,7 +41,15 @@ export async function GET(
     const facStylists = await db
       .select({ id: stylists.id })
       .from(stylists)
-      .where(and(eq(stylists.facilityId, resident.facilityId), eq(stylists.active, true)))
+      .innerJoin(
+        stylistFacilityAssignments,
+        and(
+          eq(stylistFacilityAssignments.stylistId, stylists.id),
+          eq(stylistFacilityAssignments.facilityId, resident.facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
 
     if (!facStylists.length) {
       return Response.json({ data: { availableDates: [] } })
@@ -51,6 +65,7 @@ export async function GET(
       .where(
         and(
           inArray(stylistAvailability.stylistId, stylistIds),
+          eq(stylistAvailability.facilityId, resident.facilityId),
           eq(stylistAvailability.active, true),
         ),
       )

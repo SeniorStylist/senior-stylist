@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, facilities, residents, stylists, services } from '@/db/schema'
+import {
+  bookings,
+  facilities,
+  residents,
+  stylists,
+  services,
+  stylistFacilityAssignments,
+} from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, gte, lte, lt, gt, or, inArray } from 'drizzle-orm'
 import { z } from 'zod'
@@ -108,11 +115,33 @@ export async function POST(request: NextRequest) {
     })
     if (!resident) return Response.json({ error: 'Resident not found' }, { status: 404 })
 
-    // Verify stylist belongs to this facility
+    // Verify stylist exists, is active, and has an active assignment to this facility
     const stylist = await db.query.stylists.findFirst({
-      where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityId)),
+      where: and(
+        eq(stylists.id, stylistId),
+        eq(stylists.active, true),
+        eq(stylists.status, 'active'),
+      ),
     })
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+
+    const [assignment] = await db
+      .select({ id: stylistFacilityAssignments.id })
+      .from(stylistFacilityAssignments)
+      .where(
+        and(
+          eq(stylistFacilityAssignments.stylistId, stylistId),
+          eq(stylistFacilityAssignments.facilityId, facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .limit(1)
+    if (!assignment) {
+      return Response.json(
+        { error: 'Stylist is not assigned to this facility' },
+        { status: 404 },
+      )
+    }
 
     // Fetch all primary services in one query (single inArray, guarded .length > 0)
     const primarySvcRows = await db.query.services.findMany({

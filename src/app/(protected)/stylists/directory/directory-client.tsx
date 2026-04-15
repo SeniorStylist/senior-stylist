@@ -18,6 +18,16 @@ interface DirectoryClientProps {
 }
 
 type Filter = 'all' | 'assigned' | 'unassigned'
+type StatusFilter = 'all' | 'active' | 'on_leave' | 'inactive' | 'terminated'
+
+const STATUS_BADGE: Record<
+  Exclude<StatusFilter, 'all' | 'active'>,
+  { label: string; className: string }
+> = {
+  on_leave: { label: 'On leave', className: 'bg-amber-50 text-amber-700' },
+  inactive: { label: 'Inactive', className: 'bg-stone-100 text-stone-600' },
+  terminated: { label: 'Terminated', className: 'bg-stone-200 text-stone-600' },
+}
 
 interface ImportResult {
   imported: number
@@ -37,6 +47,7 @@ export function DirectoryClient({
   const [stylists, setStylists] = useState<Stylist[]>(initialStylists)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deletingBulk, setDeletingBulk] = useState(false)
@@ -69,13 +80,14 @@ export function DirectoryClient({
     return stylists.filter((s) => {
       if (filter === 'assigned' && !s.facilityId) return false
       if (filter === 'unassigned' && s.facilityId) return false
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false
       if (!q) return true
       return (
         s.name.toLowerCase().includes(q) ||
         s.stylistCode.toLowerCase().includes(q)
       )
     })
-  }, [stylists, filter, search])
+  }, [stylists, filter, statusFilter, search])
 
   // Keep selectAll checkbox indeterminate state in sync
   const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
@@ -264,15 +276,46 @@ export function DirectoryClient({
             </button>
           ))}
         </div>
+        <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white">
+          {(
+            [
+              ['all', 'All'],
+              ['active', 'Active'],
+              ['on_leave', 'On Leave'],
+              ['inactive', 'Inactive'],
+            ] as Array<[StatusFilter, string]>
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => {
+                setStatusFilter(k)
+                setSelected(new Set())
+              }}
+              className={`px-3 py-2 text-xs font-medium transition-colors ${
+                statusFilter === k ? 'text-white' : 'text-stone-600 hover:bg-stone-50'
+              }`}
+              style={statusFilter === k ? { backgroundColor: '#8B2E4A' } : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {addOpen && (
-        <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-100">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleAdd()
+          }}
+          className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-100"
+        >
           <p className="text-sm font-semibold text-stone-900 mb-3">Add Stylist</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-stone-600 block mb-1">Name *</label>
               <input
+                autoFocus
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
                 maxLength={200}
@@ -287,7 +330,6 @@ export function DirectoryClient({
                 value={addCode}
                 onChange={(e) => setAddCode(e.target.value.toUpperCase())}
                 placeholder="ST###"
-                pattern="^ST\d{3,}$"
                 className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-rose-100"
               />
             </div>
@@ -330,7 +372,7 @@ export function DirectoryClient({
           {addError && <p className="text-xs text-red-600 mt-2">{addError}</p>}
           <div className="flex gap-2 mt-3">
             <button
-              onClick={handleAdd}
+              type="submit"
               disabled={!addName.trim() || addSubmitting}
               className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
               style={{ backgroundColor: '#8B2E4A' }}
@@ -338,6 +380,7 @@ export function DirectoryClient({
               {addSubmitting ? 'Adding…' : 'Add'}
             </button>
             <button
+              type="button"
               onClick={() => {
                 setAddOpen(false)
                 setAddError(null)
@@ -347,7 +390,7 @@ export function DirectoryClient({
               Cancel
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {importOpen && (
@@ -488,6 +531,15 @@ export function DirectoryClient({
                   <span className="text-sm font-semibold text-stone-900 flex-1 min-w-0 truncate">
                     {s.name}
                   </span>
+                  {s.status !== 'active' && STATUS_BADGE[s.status as keyof typeof STATUS_BADGE] && (
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                        STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].className
+                      }`}
+                    >
+                      {STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].label}
+                    </span>
+                  )}
                   {facility ? (
                     <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 shrink-0">
                       {facility}

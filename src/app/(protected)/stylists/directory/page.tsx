@@ -1,9 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { stylists, facilities, franchiseFacilities } from '@/db/schema'
+import {
+  stylists,
+  facilities,
+  franchiseFacilities,
+  stylistFacilityAssignments,
+} from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
-import { and, eq, inArray, or, isNull } from 'drizzle-orm'
+import { and, eq, inArray, notInArray } from 'drizzle-orm'
 import { sanitizeStylists } from '@/lib/sanitize'
 import { DirectoryClient } from './directory-client'
 
@@ -37,19 +42,42 @@ export default async function StylistDirectoryPage() {
     )
   }
 
-  const [stylistsList, franchiseFacilitiesList] = await Promise.all([
-    db.query.stylists.findMany({
-      where: and(
+  const franchiseFacilityIds = franchise.facilityIds ?? []
+
+  // Stylists with an active assignment at any facility in the franchise.
+  const assignedRows = franchiseFacilityIds.length
+    ? await db
+        .selectDistinct({ id: stylistFacilityAssignments.stylistId })
+        .from(stylistFacilityAssignments)
+        .where(
+          and(
+            inArray(stylistFacilityAssignments.facilityId, franchiseFacilityIds),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+        )
+    : []
+  const assignedIds = assignedRows.map((r) => r.id)
+
+  // Unassigned pool: stylists in this franchise with no active assignment anywhere in it.
+  const poolWhere = assignedIds.length
+    ? and(
+        eq(stylists.franchiseId, franchise.franchiseId),
         eq(stylists.active, true),
-        or(
-          eq(stylists.franchiseId, franchise.franchiseId),
-          franchise.facilityIds.length > 0
-            ? and(isNull(stylists.franchiseId), inArray(stylists.facilityId, franchise.facilityIds))
-            : undefined,
-        ),
-      ),
-      orderBy: (t, { asc }) => [asc(t.name)],
-    }),
+        notInArray(stylists.id, assignedIds),
+      )
+    : and(eq(stylists.franchiseId, franchise.franchiseId), eq(stylists.active, true))
+  const poolRows = await db.select({ id: stylists.id }).from(stylists).where(poolWhere)
+  const poolIds = poolRows.map((r) => r.id)
+
+  const allowedIds = Array.from(new Set([...assignedIds, ...poolIds]))
+
+  const [stylistsList, franchiseFacilitiesList] = await Promise.all([
+    allowedIds.length
+      ? db.query.stylists.findMany({
+          where: and(inArray(stylists.id, allowedIds), eq(stylists.active, true)),
+          orderBy: (t, { asc }) => [asc(t.name)],
+        })
+      : Promise.resolve([]),
     db
       .select({ id: facilities.id, name: facilities.name })
       .from(facilities)

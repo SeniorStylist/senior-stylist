@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { stylists, complianceDocuments } from '@/db/schema'
+import { stylists, complianceDocuments, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
 import { computeComplianceStatus, complianceStatusLabel } from '@/lib/compliance'
@@ -26,13 +26,27 @@ export default async function StylistsPage() {
   if (facilityUser.role !== 'admin') redirect('/dashboard')
 
   try {
-  const stylistsList = await db.query.stylists.findMany({
-    where: and(
-      eq(stylists.facilityId, facilityUser.facilityId),
-      eq(stylists.active, true)
-    ),
-    orderBy: (t, { asc }) => [asc(t.name)],
-  })
+  const assigned = await db
+    .select({ id: stylistFacilityAssignments.stylistId })
+    .from(stylistFacilityAssignments)
+    .where(
+      and(
+        eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+        eq(stylistFacilityAssignments.active, true),
+      ),
+    )
+  const assignedIds = assigned.map((r) => r.id)
+
+  const stylistsList = assignedIds.length
+    ? await db.query.stylists.findMany({
+        where: and(
+          inArray(stylists.id, assignedIds),
+          eq(stylists.active, true),
+          eq(stylists.status, 'active'),
+        ),
+        orderBy: (t, { asc }) => [asc(t.name)],
+      })
+    : []
 
   const facilityDocs = await db.query.complianceDocuments.findMany({
     where: eq(complianceDocuments.facilityId, facilityUser.facilityId),
@@ -88,6 +102,18 @@ export default async function StylistsPage() {
                     </span>
                   )}
                 </div>
+                {stylist.specialties && stylist.specialties.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {stylist.specialties.map((s) => (
+                      <span
+                        key={s}
+                        className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full text-xs font-medium"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div
                 className="w-3 h-3 rounded-full shrink-0"

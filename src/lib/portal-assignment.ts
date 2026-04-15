@@ -1,5 +1,11 @@
 import { db } from '@/db'
-import { stylists, stylistAvailability, coverageRequests, bookings } from '@/db/schema'
+import {
+  stylists,
+  stylistAvailability,
+  stylistFacilityAssignments,
+  coverageRequests,
+  bookings,
+} from '@/db/schema'
 import { and, eq, inArray, gte, lte, lt, gt, ne, isNotNull } from 'drizzle-orm'
 
 export interface AvailableStylist {
@@ -39,7 +45,15 @@ export async function resolveAvailableStylists(opts: {
   const facStylists = await db
     .select({ id: stylists.id, name: stylists.name })
     .from(stylists)
-    .where(and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)))
+    .innerJoin(
+      stylistFacilityAssignments,
+      and(
+        eq(stylistFacilityAssignments.stylistId, stylists.id),
+        eq(stylistFacilityAssignments.facilityId, facilityId),
+        eq(stylistFacilityAssignments.active, true),
+      ),
+    )
+    .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
 
   if (!facStylists.length) return []
   const stylistIds = facStylists.map((s) => s.id)
@@ -50,6 +64,7 @@ export async function resolveAvailableStylists(opts: {
     .where(
       and(
         inArray(stylistAvailability.stylistId, stylistIds),
+        eq(stylistAvailability.facilityId, facilityId),
         eq(stylistAvailability.dayOfWeek, dow),
         eq(stylistAvailability.active, true),
         lte(stylistAvailability.startTime, startHM),

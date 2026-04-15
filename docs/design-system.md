@@ -901,6 +901,14 @@ Stylist Directory page (`/stylists/directory`) list-row anatomy — burgundy-pal
 
 Filter pills above the list live inside a single `rounded-xl border border-stone-200` shell; the active pill uses `bg-[#8B2E4A] text-white`, inactive uses `text-stone-600 hover:bg-stone-50`. Search input is full-width `rounded-xl` with `focus:ring-2 focus:ring-rose-100`.
 
+**Status filter + row badge (Phase 9 Prompt 3):** a second pill group sits beside the assigned/unassigned pills with values "All / Active / On Leave / Inactive" — same shell styling. Each row renders an inline status pill next to the name when `stylist.status !== 'active'`:
+- `on_leave` → `bg-amber-50 text-amber-700`, label "On leave"
+- `inactive` → `bg-stone-100 text-stone-600`, label "Inactive"
+- `terminated` → `bg-stone-200 text-stone-600`, label "Terminated"
+Pill class: `text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0`. The `/stylists` booking-surface page filters to `status='active'` and never shows badges.
+
+**Add Stylist inline form (Phase 9 Prompt 3 fix):** wrapped in `<form onSubmit={e => { e.preventDefault(); handleAdd() }}>` so Enter submits from any input. Submit button is `type="submit"`, Cancel is `type="button"`. The ST code input has no `pattern=` attribute — HTML-native `pattern` silently blocks submit without user feedback when mismatched, and Zod already validates server-side. Name input gets `autoFocus`.
+
 ### Grouped substitute picker (Phase 8.5)
 Coverage Queue rows now lazy-fetch `/api/coverage/substitutes?date={request.startDate}` on mount and render a `<select>` with two `<optgroup>` blocks — "This Facility" + "Franchise Pool". Each `<option>` shows `{name} ({stylistCode})` so admins can eyeball the ST code. When one group is empty the `<optgroup>` is omitted rather than rendered with no children. The Assign button stays disabled until a substitute is picked.
 

@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { coverageRequests, stylistAvailability, stylists } from '@/db/schema'
+import {
+  coverageRequests,
+  stylistAvailability,
+  stylists,
+  stylistFacilityAssignments,
+} from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { and, eq, lte, gte, inArray, isNull } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -40,19 +45,23 @@ export async function GET(request: NextRequest) {
       })
       .from(stylists)
       .innerJoin(
+        stylistFacilityAssignments,
+        and(
+          eq(stylistFacilityAssignments.stylistId, stylists.id),
+          eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .innerJoin(
         stylistAvailability,
         and(
           eq(stylistAvailability.stylistId, stylists.id),
+          eq(stylistAvailability.facilityId, facilityUser.facilityId),
           eq(stylistAvailability.dayOfWeek, dayOfWeek),
           eq(stylistAvailability.active, true),
         ),
       )
-      .where(
-        and(
-          eq(stylists.facilityId, facilityUser.facilityId),
-          eq(stylists.active, true),
-        ),
-      )
+      .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
 
     const facilityIds = facilityStylists.map((s) => s.id)
     const onCoverage = facilityIds.length

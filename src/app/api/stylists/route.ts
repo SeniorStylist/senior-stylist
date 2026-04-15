@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { stylists, franchiseFacilities } from '@/db/schema'
+import { stylists, franchiseFacilities, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
-import { eq, and, or, isNull } from 'drizzle-orm'
+import { eq, and, isNull, inArray, notInArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     const isAdmin = master || facilityUser?.role === 'admin'
     const facilityId = facilityUser?.facilityId
 
-    let whereClause
+    let whereClause: SQL<unknown> | undefined
     if (master) {
       if (franchiseIdParam) {
         whereClause = and(eq(stylists.franchiseId, franchiseIdParam), eq(stylists.active, true))
@@ -51,7 +51,22 @@ export async function GET(request: NextRequest) {
         whereClause = eq(stylists.active, true)
       }
     } else if (scope === 'facility') {
-      whereClause = and(eq(stylists.facilityId, facilityId!), eq(stylists.active, true))
+      const assigned = await db
+        .select({ id: stylistFacilityAssignments.stylistId })
+        .from(stylistFacilityAssignments)
+        .where(
+          and(
+            eq(stylistFacilityAssignments.facilityId, facilityId!),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+        )
+      const allowedIds = assigned.map((r) => r.id)
+      if (allowedIds.length === 0) return Response.json({ data: [] })
+      whereClause = and(
+        inArray(stylists.id, allowedIds),
+        eq(stylists.active, true),
+        eq(stylists.status, 'active'),
+      )
     } else if (scope === 'franchise') {
       const franchise = await getUserFranchise(user.id)
       if (!franchise) return Response.json({ data: [] })
@@ -61,18 +76,52 @@ export async function GET(request: NextRequest) {
         eq(stylists.active, true),
       )
     } else {
-      // scope === 'all' → this facility + franchise-pool stylists belonging to the franchise
+      // scope === 'all' → every stylist in the caller's franchise:
+      //  (A) active assignment at ANY facility in the franchise, OR
+      //  (B) no active assignment anywhere AND franchiseId = franchise (unassigned pool).
       const franchise = await getUserFranchise(user.id)
-      if (franchise) {
-        whereClause = and(
-          or(
-            eq(stylists.facilityId, facilityId!),
-            and(eq(stylists.franchiseId, franchise.franchiseId), isNull(stylists.facilityId)),
-          ),
-          eq(stylists.active, true),
-        )
+      if (!franchise) {
+        // No franchise → fall back to facility scope.
+        const assigned = await db
+          .select({ id: stylistFacilityAssignments.stylistId })
+          .from(stylistFacilityAssignments)
+          .where(
+            and(
+              eq(stylistFacilityAssignments.facilityId, facilityId!),
+              eq(stylistFacilityAssignments.active, true),
+            ),
+          )
+        const allowedIds = assigned.map((r) => r.id)
+        if (allowedIds.length === 0) return Response.json({ data: [] })
+        whereClause = and(inArray(stylists.id, allowedIds), eq(stylists.active, true))
       } else {
-        whereClause = and(eq(stylists.facilityId, facilityId!), eq(stylists.active, true))
+        const franchiseFacilityIds = franchise.facilityIds ?? []
+        const assignedRows = franchiseFacilityIds.length
+          ? await db
+              .selectDistinct({ id: stylistFacilityAssignments.stylistId })
+              .from(stylistFacilityAssignments)
+              .where(
+                and(
+                  inArray(stylistFacilityAssignments.facilityId, franchiseFacilityIds),
+                  eq(stylistFacilityAssignments.active, true),
+                ),
+              )
+          : []
+        const assignedIds = assignedRows.map((r) => r.id)
+
+        const poolWhere = assignedIds.length
+          ? and(
+              eq(stylists.franchiseId, franchise.franchiseId),
+              eq(stylists.active, true),
+              notInArray(stylists.id, assignedIds),
+            )
+          : and(eq(stylists.franchiseId, franchise.franchiseId), eq(stylists.active, true))
+        const poolRows = await db.select({ id: stylists.id }).from(stylists).where(poolWhere)
+        const poolIds = poolRows.map((r) => r.id)
+
+        const allowedIds = Array.from(new Set([...assignedIds, ...poolIds]))
+        if (allowedIds.length === 0) return Response.json({ data: [] })
+        whereClause = and(inArray(stylists.id, allowedIds), eq(stylists.active, true))
       }
     }
 
