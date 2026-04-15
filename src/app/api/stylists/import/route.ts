@@ -356,7 +356,7 @@ export async function POST(request: NextRequest) {
         continue
       }
       const row = mapped.value
-      let resolvedFacilityId: string | null = facilityUser.facilityId
+      let resolvedFacilityId: string | null = null  // franchise pool by default
       if (row.facilityName) {
         const match = facilityRows.find(
           (f) => f.name.toLowerCase().trim() === row.facilityName!.toLowerCase().trim()

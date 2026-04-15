@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Stylist } from '@/types'
+import { useToast } from '@/components/ui/toast'
 
 interface FacilityOption {
   id: string
@@ -32,9 +33,13 @@ export function DirectoryClient({
   franchiseName,
 }: DirectoryClientProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [stylists, setStylists] = useState<Stylist[]>(initialStylists)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deletingBulk, setDeletingBulk] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
   const [addName, setAddName] = useState('')
@@ -51,6 +56,7 @@ export function DirectoryClient({
   const [importError, setImportError] = useState<string | null>(null)
   const [importSubmitting, setImportSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const selectAllRef = useRef<HTMLInputElement | null>(null)
 
   const facilityById = useMemo(() => {
     const m = new Map<string, string>()
@@ -70,6 +76,38 @@ export function DirectoryClient({
       )
     })
   }, [stylists, filter, search])
+
+  // Keep selectAll checkbox indeterminate state in sync
+  const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
+  const someSelected = filtered.some((s) => selected.has(s.id))
+  if (selectAllRef.current) {
+    selectAllRef.current.indeterminate = someSelected && !allVisibleSelected
+  }
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        filtered.forEach((s) => next.delete(s.id))
+        return next
+      })
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        filtered.forEach((s) => next.add(s.id))
+        return next
+      })
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const handleAdd = async () => {
     if (!addName.trim()) return
@@ -131,8 +169,50 @@ export function DirectoryClient({
     }
   }
 
+  const handleDeleteSingle = async (id: string, name: string) => {
+    if (!window.confirm(`Delete ${name}?`)) return
+    const res = await fetch(`/api/stylists/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setStylists((prev) => prev.filter((s) => s.id !== id))
+      setSelected((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    } else {
+      toast('Failed to delete', 'error')
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (!window.confirm(`Delete ${ids.length} stylist${ids.length !== 1 ? 's' : ''}?`)) return
+    setDeletingBulk(true)
+    try {
+      const res = await fetch('/api/stylists/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const deletedSet = new Set(ids)
+        setStylists((prev) => prev.filter((s) => !deletedSet.has(s.id)))
+        setSelected(new Set())
+        toast(`${json.data?.deleted ?? ids.length} deleted`, 'success')
+      } else {
+        toast(typeof json.error === 'string' ? json.error : 'Delete failed', 'error')
+      }
+    } catch {
+      toast('Delete failed', 'error')
+    } finally {
+      setDeletingBulk(false)
+    }
+  }
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto pb-32">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1
@@ -166,7 +246,7 @@ export function DirectoryClient({
         <input
           type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setSelected(new Set()) }}
           placeholder="Search by name or ST code"
           className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
         />
@@ -174,7 +254,7 @@ export function DirectoryClient({
           {(['all', 'assigned', 'unassigned'] as Filter[]).map((k) => (
             <button
               key={k}
-              onClick={() => setFilter(k)}
+              onClick={() => { setFilter(k); setSelected(new Set()) }}
               className={`px-3 py-2 text-xs font-medium capitalize transition-colors ${
                 filter === k ? 'text-white' : 'text-stone-600 hover:bg-stone-50'
               }`}
@@ -350,51 +430,124 @@ export function DirectoryClient({
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          {/* Select-all header */}
+          <div className="flex items-center gap-3 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
+            <input
+              type="checkbox"
+              ref={(el) => {
+                selectAllRef.current = el
+                if (el) el.indeterminate = someSelected && !allVisibleSelected
+              }}
+              checked={allVisibleSelected}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded accent-[#8B2E4A] shrink-0 cursor-pointer"
+            />
+            <span className="text-xs text-stone-500 font-medium">
+              {someSelected
+                ? `${selected.size} selected`
+                : `${filtered.length} stylist${filtered.length !== 1 ? 's' : ''}`}
+            </span>
+          </div>
+
           {filtered.map((s) => {
             const facility = s.facilityId ? facilityById.get(s.facilityId) : null
+            const isSelected = selected.has(s.id)
             return (
-              <Link
+              <div
                 key={s.id}
-                href={`/stylists/${s.id}`}
-                className="flex items-center gap-3 px-5 py-3.5 hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
+                className={`flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors ${
+                  isSelected ? 'bg-rose-50' : 'hover:bg-stone-50'
+                }`}
               >
-                <span className="font-mono text-xs text-stone-500 w-16 shrink-0">
-                  {s.stylistCode}
-                </span>
-                <span
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: s.color }}
-                  title="Calendar color"
+                {/* Checkbox */}
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelect(s.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded accent-[#8B2E4A] shrink-0 cursor-pointer"
                 />
-                <span className="text-sm font-semibold text-stone-900 flex-1 min-w-0 truncate">
-                  {s.name}
-                </span>
-                {facility ? (
-                  <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 shrink-0">
-                    {facility}
-                  </span>
-                ) : (
-                  <span className="text-xs px-2 py-0.5 rounded-md bg-rose-50 text-[#8B2E4A] shrink-0">
-                    Franchise Pool
-                  </span>
-                )}
-                <span className="text-xs text-stone-500 shrink-0 hidden sm:inline">
-                  {s.commissionPercent}%
-                </span>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-stone-300 shrink-0"
+
+                {/* Row content — clickable link */}
+                <Link
+                  href={`/stylists/${s.id}`}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                  onClick={(e) => {
+                    // Don't navigate if clicking within the row but the checkbox was just used
+                    if (isSelected) e.stopPropagation()
+                  }}
                 >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </Link>
+                  <span className="font-mono text-xs text-stone-500 w-14 shrink-0">
+                    {s.stylistCode}
+                  </span>
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: s.color }}
+                    title="Calendar color"
+                  />
+                  <span className="text-sm font-semibold text-stone-900 flex-1 min-w-0 truncate">
+                    {s.name}
+                  </span>
+                  {facility ? (
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 shrink-0">
+                      {facility}
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-rose-50 text-[#8B2E4A] shrink-0">
+                      Franchise Pool
+                    </span>
+                  )}
+                  <span className="text-xs text-stone-500 shrink-0 hidden sm:inline">
+                    {s.commissionPercent}%
+                  </span>
+                </Link>
+
+                {/* Delete button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleDeleteSingle(s.id, s.name)
+                  }}
+                  className="p-1.5 text-stone-300 hover:text-red-500 transition-colors shrink-0 rounded-lg hover:bg-red-50"
+                  title="Delete stylist"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </button>
+              </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Floating bulk action bar */}
+      {selected.size > 0 && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
+        >
+          <span className="text-sm font-medium text-stone-700">
+            {selected.size} selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={deletingBulk}
+            className="px-3 py-1.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors"
+          >
+            {deletingBulk ? 'Deleting…' : 'Delete selected'}
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="px-3 py-1.5 rounded-xl text-sm text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors"
+          >
+            Clear
+          </button>
         </div>
       )}
     </div>

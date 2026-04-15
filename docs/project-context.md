@@ -252,6 +252,8 @@ Tailwind CSS 4, Vercel
 - Stylist detail (`stylist-detail-client.tsx`): "Licensed In" field added to License section (editable); **editable Phone numbers section** with label dropdown (mobile/office/home/work/fax/custom) + number input + remove button + "+ Add" button (admin-only); Contact section (address + paymentMethod display, phone removed); `scheduleNotes` shown below Availability card as italic muted note
 - Stylists list (`stylists/page.tsx`): `licenseState` badge renders as `"MD • VA"` after the stylist name (subtle, `bg-stone-100`)
 - Directory import result display (`directory-client.tsx`): shows `availabilityCreated` + `scheduleNotes` counts alongside imported/updated
+- Import default changed to franchise pool: `resolvedFacilityId = null` when no `facilityName` column; stylists land in franchise pool instead of being pinned to admin's current facility
+- Directory bulk delete: multi-select checkboxes, select-all header, floating action bar, per-row trash icon; `POST /api/stylists/bulk-delete` (soft-delete, franchise-scope verified)
 
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
