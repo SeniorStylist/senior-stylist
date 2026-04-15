@@ -46,7 +46,8 @@
 - **`franchises`** table: `id`, `name`, `owner_user_id` (FK → `profiles`), timestamps.
 - **`franchise_facilities`** join table: `franchise_id` + `facility_id` composite PK, CASCADE on both FKs.
 - When a franchise is created/updated, `facilityUsers` rows are upserted for the franchise owner with `role = ‘super_admin’` on all included facilities.
-- **`layout.tsx`** detects `super_admin` role and filters the facility switcher to only show facilities in the user’s franchise.
+- **`layout.tsx`** detects `super_admin` role (raw DB value) and filters the facility switcher to only show facilities in the user’s franchise. It then normalizes `activeRole` from `’super_admin’` to `’admin’` before passing to Sidebar/MobileNav.
+- **`getUserFacility()` in `src/lib/get-facility-id.ts`** normalizes `’super_admin’` → `’admin’` at read time via a `normalizeRole()` helper. This means all page guards (`role !== ‘admin’`) and API guards automatically treat franchise owners as admins without per-call-site changes. The Super Admin page is gated by `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` email match, not role — normalization does not affect that access.
 - **API routes**: `GET /api/super-admin/franchises`, `POST /api/super-admin/franchises`, `PUT /api/super-admin/franchises/[id]`, `DELETE /api/super-admin/franchises/[id]` — all guarded by `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`.
 - **Master admin UI**: `/super-admin` page has a Franchises section with create, edit (inline), delete (confirm) flows.
 

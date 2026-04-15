@@ -60,7 +60,8 @@ export default async function ProtectedLayout({
     const selectedId = cookieStore.get('selected_facility_id')?.value
     const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
     facilityName = active?.name
-    activeRole = active?.role ?? 'admin'
+    const rawRole = active?.role ?? 'admin'
+    activeRole = rawRole === 'super_admin' ? 'admin' : rawRole
   } catch (err) {
     // DB might not be set up yet — that's OK
     console.error('[layout] Failed to load facility data:', err)

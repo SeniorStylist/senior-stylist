@@ -4,6 +4,16 @@ import { facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 /**
+ * Normalize 'super_admin' → 'admin' so page guards and API guards
+ * work uniformly for franchise owners without touching every call site.
+ * The Super Admin page/link is gated by NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+ * (email match), not by role, so this normalization is safe.
+ */
+function normalizeRole<T extends { role: string }>(fu: T): T {
+  return fu.role === 'super_admin' ? { ...fu, role: 'admin' } : fu
+}
+
+/**
  * Returns the facilityUser row for the current user, respecting the
  * `selected_facility_id` cookie for multi-facility accounts.
  * Falls back to the first facility if no cookie is set or if the
@@ -21,12 +31,13 @@ export async function getUserFacility(userId: string) {
           eq(facilityUsers.facilityId, selected)
         ),
       })
-      if (fu) return fu
+      if (fu) return normalizeRole(fu)
     }
 
-    return await db.query.facilityUsers.findFirst({
+    const row = await db.query.facilityUsers.findFirst({
       where: eq(facilityUsers.userId, userId),
     })
+    return row ? normalizeRole(row) : null
   } catch (err) {
     console.error('[getUserFacility] DB error:', err)
     return null

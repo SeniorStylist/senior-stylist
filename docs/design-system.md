@@ -900,3 +900,6 @@ Coverage Queue rows now lazy-fetch `/api/coverage/substitutes?date={request.star
 
 ### Date-range time-off form (Phase 8.5)
 My Account Time Off inline form now has two `<input type="date">` inputs in a `grid grid-cols-2 gap-3`: Start date and End date. Both use `min={todayStr}`; the End input's `min` is `coverageStartDate || todayStr`. When the user picks a start date that's after the current end, the end auto-bumps to match. Submit button disabled until both dates are filled; an inline client-side check ensures `end >= start` (server enforces via Zod `.refine` too). List rows below format as `{start === end ? formatCoverageDate(start) : `${formatCoverageDate(start)} – ${formatCoverageDate(end)}`}`.
+
+### Franchise owner (super_admin) nav (bug fix 2026-04-15)
+Franchise owners have `facility_users.role = 'super_admin'` in the DB. `NavRole` in sidebar.tsx and mobile-nav.tsx only lists `'admin' | 'stylist' | 'viewer'`, so a raw `'super_admin'` value produces an empty sidebar. **Fix**: `getUserFacility()` normalizes `'super_admin'` → `'admin'` at read time; `layout.tsx` does the same normalization for `activeRole`. The sidebar and mobile nav do not need to change. Do NOT add `'super_admin'` to `NavRole` or navItem roles arrays — that would require updating every page guard and API guard. Normalize at the source instead.

@@ -346,11 +346,12 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 8.5 (Franchise Stylist Directory + Auto-Assign Portal) shipped (2026-04-14). Next steps:
-1. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
-2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-3. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs; confirm weekly availability in My Account. Pilot the new portal flow with 1–2 POAs before rolling out broadly.
-4. Phase 9: Territory / Region Management — reserved, do not assume scope until explicitly briefed.
+Phase 8.5 shipped + sidebar nav bug fixed (2026-04-15). Next steps:
+1. Verify `lisag@seniorstylist.com` can log in and see the full admin sidebar.
+2. Set `CRON_SECRET` in Vercel (generate with `openssl rand -hex 32`) so the daily compliance cron authenticates.
+3. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
+4. Onboard Symphony Manor + Sunrise Bethesda — invite real stylists Sierra, Mariah Owens, Senait Edwards; upload initial license + insurance docs; confirm weekly availability in My Account. Pilot the new portal flow with 1–2 POAs before rolling out broadly.
+5. Phase 9: Territory / Region Management — reserved, do not assume scope until explicitly briefed.
 
 ---
 
