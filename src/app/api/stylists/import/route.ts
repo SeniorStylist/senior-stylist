@@ -15,6 +15,41 @@ export const maxDuration = 60
 
 const MAX_ROWS = 200
 
+// Column names that indicate a row is the real header row
+const HEADER_SIGNALS = ['lname', 'fname', 'id', 'name', 'stcode', 'stylistcode', '%pd', 'schedule']
+
+function isHeaderRow(row: unknown[]): boolean {
+  const cells = row.map((c) => String(c ?? '').toLowerCase().trim())
+  return HEADER_SIGNALS.some((sig) => cells.includes(sig))
+}
+
+/**
+ * Scan the first 5 rows of raw (no-header) parsed data for the real header row.
+ * Returns { headers: string[], dataRows: unknown[][] } — headers derived from the
+ * detected row; dataRows = everything after it.
+ */
+function detectHeaderRow(rows: unknown[][]): { headers: string[]; dataRows: unknown[][] } | null {
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    if (isHeaderRow(rows[i])) {
+      return {
+        headers: (rows[i] as unknown[]).map((c) => String(c ?? '').trim()),
+        dataRows: rows.slice(i + 1),
+      }
+    }
+  }
+  return null
+}
+
+function rawRowsToRecords(headers: string[], dataRows: unknown[][]): Record<string, unknown>[] {
+  return dataRows.map((row) => {
+    const rec: Record<string, unknown> = {}
+    headers.forEach((h, idx) => {
+      if (h) rec[h] = (row as unknown[])[idx] ?? ''
+    })
+    return rec
+  })
+}
+
 // Fields to silently skip (never store)
 const SKIP_HEADERS = new Set([
   'bankact', 'bankaccount', 'bankrout', 'bankrouting', 'bankname',
@@ -216,14 +251,35 @@ export async function POST(request: NextRequest) {
     if (isXlsx) {
       const wb = XLSX.read(buffer, { type: 'buffer' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      records = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      // Parse as array of arrays so we can detect the real header row
+      const rawRows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+      const detected = detectHeaderRow(rawRows)
+      if (detected) {
+        records = rawRowsToRecords(detected.headers, detected.dataRows.filter((r) =>
+          (r as unknown[]).some((c) => String(c ?? '').trim() !== '')
+        ))
+      } else {
+        // Fallback: let xlsx auto-detect headers normally
+        records = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      }
     } else {
       const text = buffer.toString('utf-8')
-      const parsed = Papa.parse<Record<string, unknown>>(text, {
-        header: true,
+      // Parse without headers first so we can detect the real header row
+      const rawParsed = Papa.parse<unknown[]>(text, {
+        header: false,
         skipEmptyLines: true,
       })
-      records = parsed.data
+      const detected = detectHeaderRow(rawParsed.data)
+      if (detected) {
+        records = rawRowsToRecords(detected.headers, detected.dataRows)
+      } else {
+        // Fallback: re-parse with header: true (first row is the header)
+        const parsed = Papa.parse<Record<string, unknown>>(text, {
+          header: true,
+          skipEmptyLines: true,
+        })
+        records = parsed.data
+      }
     }
 
     if (records.length === 0) {
