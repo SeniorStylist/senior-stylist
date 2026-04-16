@@ -33,6 +33,47 @@ function formatAppliedDate(d: string): string {
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+const METRO_ALIASES: Record<string, string[]> = {
+  washington: ['arlington', 'bethesda', 'alexandria', 'mclean', 'tysons', 'reston', 'herndon', 'fairfax', 'silver spring', 'rockville', 'gaithersburg', 'germantown', 'potomac', 'chevy chase', 'college park', 'laurel', 'bowie', 'annapolis', 'waldorf', 'fredericksburg'],
+  baltimore: ['towson', 'columbia', 'ellicott city', 'catonsville', 'dundalk', 'essex', 'parkville', 'perry hall', 'bel air', 'glen burnie', 'pasadena', 'severn', 'millersville', 'hanover', 'odenton', 'annapolis'],
+  annapolis: ['severn', 'arnold', 'millersville', 'odenton', 'crofton', 'gambrills', 'glen burnie', 'pasadena'],
+  richmond: ['henrico', 'chesterfield', 'midlothian', 'mechanicsville', 'glen allen', 'short pump'],
+  norfolk: ['virginia beach', 'chesapeake', 'portsmouth', 'suffolk', 'hampton', 'newport news'],
+  philadelphia: ['camden', 'cherry hill', 'king of prussia', 'wilmington', 'chester', 'norristown'],
+  minneapolis: ['st paul', 'bloomington', 'eden prairie', 'plymouth', 'minnetonka', 'edina', 'burnsville', 'st louis park', 'golden valley'],
+}
+
+function fuzzyField(text: string, query: string): boolean {
+  if (text.includes(query)) return true
+  let ti = 0
+  let matched = 0
+  for (let qi = 0; qi < query.length; qi++) {
+    while (ti < text.length && text[ti] !== query[qi]) ti++
+    if (ti < text.length) { matched++; ti++ }
+  }
+  return matched / query.length >= 0.8
+}
+
+function metroTerms(query: string): string[] {
+  const terms = new Set<string>([query])
+  if (METRO_ALIASES[query]) METRO_ALIASES[query].forEach((t) => terms.add(t))
+  for (const [metro, aliases] of Object.entries(METRO_ALIASES)) {
+    if (aliases.some((a) => a === query || query.includes(a) || a.includes(query))) {
+      terms.add(metro)
+      aliases.forEach((t) => terms.add(t))
+    }
+  }
+  return Array.from(terms)
+}
+
+function appMatchesSearch(a: Applicant, q: string): boolean {
+  const name = a.name.toLowerCase()
+  const email = (a.email ?? '').toLowerCase()
+  if (fuzzyField(name, q) || fuzzyField(email, q)) return true
+  const loc = (a.location ?? '').toLowerCase()
+  return metroTerms(q).some((t) => loc.includes(t))
+}
+
 type Filter = 'all' | 'assigned' | 'unassigned'
 type StatusFilter = 'all' | 'active' | 'on_leave' | 'inactive' | 'terminated'
 
@@ -83,6 +124,8 @@ export function DirectoryClient({
   const [importingCSV, setImportingCSV] = useState(false)
   const [importBanner, setImportBanner] = useState<{ imported: number; skipped: number } | null>(null)
   const appFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [appSortKey, setAppSortKey] = useState<'name' | 'date' | 'status'>('date')
+  const [appSortDir, setAppSortDir] = useState<'asc' | 'desc'>('desc')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const [addOpen, setAddOpen] = useState(false)
@@ -163,16 +206,19 @@ export function DirectoryClient({
 
   const filteredApplicants = useMemo(() => {
     const q = appSearch.trim().toLowerCase()
-    return appApplicants.filter((a) => {
+    const filtered = appApplicants.filter((a) => {
       if (appStatusFilter !== 'all' && a.status !== appStatusFilter) return false
       if (!q) return true
-      return (
-        a.name.toLowerCase().includes(q) ||
-        (a.email?.toLowerCase().includes(q) ?? false) ||
-        (a.location?.toLowerCase().includes(q) ?? false)
-      )
+      return appMatchesSearch(a, q)
     })
-  }, [appApplicants, appSearch, appStatusFilter])
+    return [...filtered].sort((a, b) => {
+      let cmp = 0
+      if (appSortKey === 'name') cmp = a.name.localeCompare(b.name)
+      else if (appSortKey === 'date') cmp = (a.appliedDate ?? '').localeCompare(b.appliedDate ?? '')
+      else if (appSortKey === 'status') cmp = a.status.localeCompare(b.status)
+      return appSortDir === 'asc' ? cmp : -cmp
+    })
+  }, [appApplicants, appSearch, appStatusFilter, appSortKey, appSortDir])
 
   function handleAppExpand(a: Applicant) {
     if (expandedId === a.id) {
@@ -269,6 +315,15 @@ export function DirectoryClient({
     } else {
       setSortKey(key)
       setSortDir('asc')
+    }
+  }
+
+  function handleAppSort(key: typeof appSortKey) {
+    if (appSortKey === key) {
+      setAppSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setAppSortKey(key)
+      setAppSortDir('asc')
     }
   }
 
@@ -945,10 +1000,38 @@ export function DirectoryClient({
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+              {/* Sort header */}
+              <div className="grid grid-cols-[1fr_120px_100px_32px] px-4 py-2 border-b border-stone-100 bg-stone-50/50">
+                {(
+                  [
+                    { key: 'name', label: 'Name' },
+                    { key: 'date', label: 'Date Applied' },
+                    { key: 'status', label: 'Status' },
+                  ] as const
+                ).map((col) => (
+                  <button
+                    key={col.key}
+                    type="button"
+                    onClick={() => handleAppSort(col.key)}
+                    className="flex items-center gap-1 text-xs font-semibold text-stone-400 uppercase tracking-wide hover:text-stone-600 transition-colors text-left"
+                  >
+                    {col.label}
+                    {appSortKey === col.key ? (
+                      <span className="text-[10px]">{appSortDir === 'asc' ? '↑' : '↓'}</span>
+                    ) : (
+                      <span className="text-[10px] text-stone-300">↕</span>
+                    )}
+                  </button>
+                ))}
+                <div />
+              </div>
               {filteredApplicants.map((a) => (
                 <div key={a.id} className="border-b border-stone-50 last:border-0">
                   {/* Summary row */}
-                  <div className="flex items-center gap-3 px-4 py-3.5">
+                  <div
+                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+                    onClick={() => handleAppExpand(a)}
+                  >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-stone-900">{a.name}</p>
                       {a.location && (
@@ -970,7 +1053,7 @@ export function DirectoryClient({
                     </span>
                     <select
                       value={a.status}
-                      onChange={(e) => handleAppStatusChange(a.id, e.target.value as ApplicantStatus)}
+                      onChange={(e) => { e.stopPropagation(); handleAppStatusChange(a.id, e.target.value as ApplicantStatus) }}
                       onClick={(e) => e.stopPropagation()}
                       className="text-xs border border-stone-200 rounded-lg px-2 py-1 bg-white text-stone-600 shrink-0 capitalize"
                     >
@@ -978,11 +1061,9 @@ export function DirectoryClient({
                         <option key={s} value={s} className="capitalize">{s}</option>
                       ))}
                     </select>
-                    <button
-                      type="button"
-                      onClick={() => handleAppExpand(a)}
-                      className="p-1.5 text-stone-400 hover:text-stone-600 shrink-0 transition-colors"
-                      title={expandedId === a.id ? 'Collapse' : 'Expand'}
+                    <span
+                      className="p-1.5 text-stone-400 shrink-0"
+                      aria-hidden="true"
                     >
                       <svg
                         width="14"
@@ -995,7 +1076,7 @@ export function DirectoryClient({
                       >
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
-                    </button>
+                    </span>
                   </div>
 
                   {/* Expanded detail panel */}
@@ -1005,8 +1086,14 @@ export function DirectoryClient({
                         {a.email && (
                           <div>
                             <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Email</p>
-                            <p className="text-sm text-stone-700 break-all flex items-center gap-1.5">
-                              {a.email}
+                            <p className="text-sm break-all flex items-center gap-1.5">
+                              <a
+                                href={`mailto:${a.email}`}
+                                className="text-[#8B2E4A] underline underline-offset-2 hover:text-[#72253C]"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {a.email}
+                              </a>
                               {a.isIndeedEmail && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500 shrink-0">via Indeed</span>
                               )}
