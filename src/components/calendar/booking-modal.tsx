@@ -137,8 +137,7 @@ export function BookingModal({
       setResidentSearch(booking.resident?.name ?? '')
     } else {
       setSelectedResidentId('')
-      const defaultPrimary = primaryServiceCandidates[0]?.id ?? services[0]?.id ?? ''
-      setSelectedServiceIds(defaultPrimary ? [defaultPrimary] : [])
+      setSelectedServiceIds([])
       setSelectedAddonServiceIds([])
       setSelectedStylistId(stylists[0]?.id ?? '')
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart) : '')

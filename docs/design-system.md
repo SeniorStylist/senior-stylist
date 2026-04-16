@@ -998,11 +998,22 @@ Directory page gains a segmented control at the top: `flex rounded-xl border bor
 
 ### Smart default service selection (booking modal + walk-in form, 2026-04-16)
 
-**Booking modal**: when a resident is selected in create mode, `mostUsedServiceId` is read from the resident object (computed at page load). If set, the primary service selector is pre-populated. If null (new resident with no booking history), the selector shows placeholder / "Select a service" — no auto-select.
+**Booking modal**: `selectedServiceIds` is initialized to `[]` in create mode — do NOT use `primaryServiceCandidates[0]` or `services[0]`. When a resident is selected, a `useEffect` pre-selects `mostUsedServiceId` if the resident has booking history. New residents (null `mostUsedServiceId`) get no auto-selection.
 
-**Walk-in form** (`log-client.tsx`): initial `wiServiceId` state is `''` (empty — NOT the first service alphabetically). Same useEffect reads `mostUsedServiceId` on resident selection.
+**Walk-in form** (`log-client.tsx`): both the initial `wiServiceId` state (`useState('')`) AND the post-submission reset (`setWiServiceId('')`) use empty string. Never reset to `services[0]?.id`.
 
 `mostUsedServiceId` is NOT stored in the DB — it is computed by `getMostUsedServiceIds(facilityId)` in `src/lib/resident-service-usage.ts` at page-load time in `dashboard/page.tsx` and `log/page.tsx`, then merged onto each resident via `map()` before passing to the client.
+
+### Portal multi-service booking (fully implemented)
+
+The portal (`src/app/(resident)/portal/[token]/portal-client.tsx`) supports multi-service selection:
+- `selectedServiceIds: string[]` array — starts empty on `startBooking()`
+- First selection: card grid showing all non-addon services grouped by category; tapping a card calls `setServiceAt(0, id)` and auto-collapses to a compact summary row after 150ms (single row only)
+- "+ Add another service" dashed button appears when `selectedServiceIds.length > 0` and no slot is empty and more services remain; appends `''` to the array, showing the full card grid for that slot with an "Additional Service" label + "Remove" button
+- Addon checklist: appears below the primary service when selected; checkboxes with `accent-[#8B2E4A]`; 44px min-height tap targets
+- Live price breakdown: primary + additional services + addon lines; `text-amber-700` for addons; Total + Duration footer
+- `handleBook` sends `{ serviceIds, addonServiceIds, selectedQuantity?, selectedOption? }` — never `serviceId` (singular)
+- `POST /api/portal/[token]/book` fully handles `serviceIds[]` + `addonServiceIds[]` — no API changes were needed
 
 ### Services page sort default
 

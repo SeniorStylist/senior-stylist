@@ -277,6 +277,9 @@ Tailwind CSS 4, Vercel
 - **Services default sort**: `sortKey` default changed from `'name'` to `'category'`; server `orderBy` is `[asc(category), asc(name)]`; section headers visible on page load
 - **Stylist directory sort**: server uses `split_part(name, ' ', array_length(...))` to sort by last name; client `sorted` useMemo does `name.split(' ').pop()` for the same comparator
 - **Debug log removed**: `console.log('[StylistsPage] facilityUser.facilityId:...')` removed from `src/app/(protected)/stylists/page.tsx`
+- **Booking modal create-mode service default fixed**: removed `primaryServiceCandidates[0]` auto-select — `selectedServiceIds` initializes to `[]`; `mostUsedServiceId` useEffect handles history-based pre-selection only
+- **Walk-in form reset fixed**: post-submission reset now sets `wiServiceId('')` (was `services[0]?.id`) — service selector returns to placeholder after booking
+- **Portal multi-service confirmed fully implemented**: `selectedServiceIds: string[]`, card picker, "+ Add another service" button, addon checklist, `POST /api/portal/[token]/book` accepts `serviceIds[]` — no code changes needed
 
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)

@@ -353,7 +353,7 @@ Authenticated app shell: sidebar (`Sidebar`), mobile nav, toast provider (`layou
 
 Layout: branded header with `<Image>` logo (filter:invert for white on burgundy) + floral SVG accent (`layout.tsx`). Logo links to `https://seniorstylist.com`.
 
-Portal service picker (`portal-client.tsx`): card-based, grouped by category, tiered stepper, multi-option pills/select, add-on checklist, live price breakdown, multi-service. Auto-collapses to compact summary row after selection when single row; "Change" link reopens. `pickerOpen: Record<number, boolean>` state.
+Portal service picker (`portal-client.tsx`): card-based multi-service picker, grouped by category. `selectedServiceIds: string[]` — starts empty, no auto-selection. After first pick: compact summary row with "Change" link; "+ Add another service" dashed button. Addon checklist (44px targets). Live price breakdown. `handleBook` sends `serviceIds[]` + `addonServiceIds[]`. `POST /api/portal/[token]/book` accepts `serviceIds[]` + `addonServiceIds[]` + `selectedQuantity` + `selectedOption`. Server resolves total price and duration, stores `serviceIds`, `addonServiceIds`, `addonTotalCents`. `pickerOpen: Record<number, boolean>` controls collapsed/expanded per slot.
 
 ### Other notable app routes (not under those groups)
 

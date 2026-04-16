@@ -423,7 +423,7 @@ export function LogClient({
         setShowWalkIn(false)
         setWiResidentSearch('')
         setWiResidentId('')
-        setWiServiceId(services[0]?.id ?? '')
+        setWiServiceId('')
         setWiAddonServiceIds([])
         setWiTime(roundToNearest30(new Date()))
         setLocalNewResidents([])
