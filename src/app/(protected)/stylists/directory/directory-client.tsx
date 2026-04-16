@@ -18,13 +18,6 @@ interface DirectoryClientProps {
   initialApplicants: Applicant[]
 }
 
-const APP_STATUS_BADGE: Record<ApplicantStatus, string> = {
-  new: 'bg-stone-100 text-stone-600',
-  reviewing: 'bg-blue-50 text-blue-700',
-  contacting: 'bg-amber-50 text-amber-700',
-  hired: 'bg-emerald-50 text-emerald-700',
-  rejected: 'bg-red-50 text-red-600',
-}
 
 const APP_STATUS_LABELS: ApplicantStatus[] = ['new', 'reviewing', 'contacting', 'hired', 'rejected']
 
@@ -1070,10 +1063,7 @@ export function DirectoryClient({
                     <span className="text-xs text-stone-400 truncate pr-2">
                       {a.appliedDate ? formatAppliedDate(a.appliedDate) : <span className="text-stone-300">—</span>}
                     </span>
-                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 capitalize ${APP_STATUS_BADGE[a.status]}`}>
-                        {a.status}
-                      </span>
+                    <div onClick={(e) => e.stopPropagation()}>
                       <select
                         value={a.status}
                         onChange={(e) => { e.stopPropagation(); handleAppStatusChange(a.id, e.target.value as ApplicantStatus) }}
