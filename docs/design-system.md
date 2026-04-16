@@ -964,3 +964,32 @@ After the stylist name on the Stylists list (`/stylists`), a subtle badge render
 
 ### Franchise owner (super_admin) nav (bug fix 2026-04-15)
 Franchise owners have `facility_users.role = 'super_admin'` in the DB. `NavRole` in sidebar.tsx and mobile-nav.tsx only lists `'admin' | 'stylist' | 'viewer'`, so a raw `'super_admin'` value produces an empty sidebar. **Fix**: `getUserFacility()` normalizes `'super_admin'` → `'admin'` at read time; `layout.tsx` does the same normalization for `activeRole`. The sidebar and mobile nav do not need to change. Do NOT add `'super_admin'` to `NavRole` or navItem roles arrays — that would require updating every page guard and API guard. Normalize at the source instead.
+
+### Applicant Pipeline — Directory tab switcher (Phase 9.5, 2026-04-16)
+Directory page gains a segmented control at the top: `flex rounded-xl border border-stone-200 overflow-hidden bg-white w-fit mb-6`. Two buttons: "Stylists" and "Applicants". Active tab: `text-white` with `style={{ backgroundColor: '#8B2E4A' }}`. Inactive tab: `text-stone-600 hover:bg-stone-50`. The Applicants button shows a `•N` count pill when there are applicants (invisible when 0). Entire existing Stylists content wrapped in `{activeTab === 'stylists' && (<>...</>)}`. Floating bulk-action bar stays outside both tab conditions (driven by `selected.size > 0` which only applies in Stylists mode).
+
+### Applicant Pipeline — Applicants tab (Phase 9.5, 2026-04-16)
+**Toolbar row** (`flex flex-wrap gap-3 items-center mb-4`): search input (rounded-xl, stone border), status filter pills (All/New/Reviewing/Contacting/Hired/Rejected with live counts — same pill pattern as Directory scope filter), "Import CSV" button (burgundy `#8B2E4A`), hidden `<input type="file" accept=".csv">` via ref.
+
+**Import result banner**: `bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3` — "Imported N new applicants, M already existed." with ✕ dismiss button.
+
+**Empty state**: `bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center` — "No applicants yet. Import a CSV from Indeed to get started." (text-stone-400 text-sm).
+
+**Applicant row** (inside `bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden`): `flex items-center gap-3 px-4 py-3.5 border-b border-stone-50 last:border-0`. Left-to-right: name+location stack (flex-1), applied date (text-xs text-stone-400 shrink-0), job title (truncate max-w-[140px]), status badge pill, inline status `<select>` (text-xs rounded-lg), expand chevron button.
+
+**Status badge palette** (`APP_STATUS_BADGE` record):
+- `new` → `bg-stone-100 text-stone-600`
+- `reviewing` → `bg-blue-50 text-blue-700`
+- `contacting` → `bg-amber-50 text-amber-700`
+- `hired` → `bg-emerald-50 text-emerald-700`
+- `rejected` → `bg-red-50 text-red-600`
+
+Badges use `text-[10px] font-semibold px-1.5 py-0.5 rounded` (smaller than status-pill filter buttons).
+
+**Expanded detail panel** (`px-4 pb-4 pt-2 bg-stone-50 border-b border-stone-100`): two-column grid for contact fields (email with "via Indeed" amber pill when `isIndeedEmail`, phone). Experience/education/qualifications as labeled sections. Notes as full-width `<textarea>` (border-stone-200 rounded-xl, auto-saves on `onBlur` if changed). "Promote to Stylist →" button (burgundy, hidden when `status === 'rejected'`). On promote success: "Promoted! View stylist profile →" link (emerald text, `Link` from next/link).
+
+**`formatAppliedDate(d: string): string`** — parses `'YYYY-MM-DD'` as `new Date(d + 'T00:00:00')` (avoids UTC timezone shift) → `toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })` → `"Apr 12, 2025"`.
+
+**Inline status dropdown** updates local state optimistically (no spinner) and fires `PUT /api/applicants/[id]` in the background — same fire-and-forget pattern as other lightweight inline mutations.
+
+**Notes auto-save on blur** only fires a `PUT` when `expandedNotes !== (applicant.notes ?? '')` — avoids spurious network requests when the field was never changed.

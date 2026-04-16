@@ -6,9 +6,10 @@ import {
   facilities,
   franchiseFacilities,
   stylistFacilityAssignments,
+  applicants as applicantsTable,
 } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
-import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { sanitizeStylists } from '@/lib/sanitize'
 import { DirectoryClient } from './directory-client'
 
@@ -71,7 +72,7 @@ export default async function StylistDirectoryPage() {
 
   const allowedIds = Array.from(new Set([...assignedIds, ...poolIds]))
 
-  const [stylistsList, franchiseFacilitiesList] = await Promise.all([
+  const [stylistsList, franchiseFacilitiesList, applicantsList] = await Promise.all([
     allowedIds.length
       ? db.query.stylists.findMany({
           where: and(inArray(stylists.id, allowedIds), eq(stylists.active, true)),
@@ -84,6 +85,16 @@ export default async function StylistDirectoryPage() {
       .innerJoin(franchiseFacilities, eq(franchiseFacilities.facilityId, facilities.id))
       .where(eq(franchiseFacilities.franchiseId, franchise.franchiseId))
       .orderBy(facilities.name),
+    db
+      .select()
+      .from(applicantsTable)
+      .where(
+        and(
+          eq(applicantsTable.franchiseId, franchise.franchiseId),
+          eq(applicantsTable.active, true),
+        ),
+      )
+      .orderBy(desc(applicantsTable.appliedDate)),
   ])
 
   return (
@@ -91,6 +102,7 @@ export default async function StylistDirectoryPage() {
       initialStylists={JSON.parse(JSON.stringify(sanitizeStylists(stylistsList)))}
       franchiseFacilities={JSON.parse(JSON.stringify(franchiseFacilitiesList))}
       franchiseName={franchise.franchiseName}
+      initialApplicants={JSON.parse(JSON.stringify(applicantsList))}
     />
   )
 }

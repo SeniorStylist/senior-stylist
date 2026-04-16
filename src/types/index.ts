@@ -240,6 +240,30 @@ export interface StylistAvailability {
   updatedAt?: string | null
 }
 
+export type ApplicantStatus = 'new' | 'reviewing' | 'contacting' | 'hired' | 'rejected'
+
+export interface Applicant {
+  id: string
+  franchiseId: string | null
+  name: string
+  email: string | null
+  phone: string | null
+  location: string | null
+  appliedDate: string | null
+  jobTitle: string | null
+  jobLocation: string | null
+  relevantExperience: string | null
+  education: string | null
+  source: string | null
+  isIndeedEmail: boolean
+  qualifications: Array<{ question: string; answer: string; match: string }>
+  status: ApplicantStatus
+  notes: string | null
+  active: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
 export type CoverageRequestStatus = 'open' | 'filled' | 'cancelled'
 
 export interface CoverageRequest {

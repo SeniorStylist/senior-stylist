@@ -354,6 +354,31 @@ export const franchiseFacilities = pgTable(
   })
 )
 
+export const applicants = pgTable('applicants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  franchiseId: uuid('franchise_id').references(() => franchises.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  location: text('location'),
+  appliedDate: date('applied_date'),
+  jobTitle: text('job_title'),
+  jobLocation: text('job_location'),
+  relevantExperience: text('relevant_experience'),
+  education: text('education'),
+  source: text('source'),
+  isIndeedEmail: boolean('is_indeed_email').default(false).notNull(),
+  qualifications: jsonb('qualifications')
+    .$type<Array<{ question: string; answer: string; match: string }>>()
+    .default([])
+    .notNull(),
+  status: text('status').default('new').notNull(),
+  notes: text('notes'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
@@ -526,6 +551,7 @@ export const franchisesRelations = relations(franchises, ({ one, many }) => ({
   }),
   franchiseFacilities: many(franchiseFacilities),
   stylists: many(stylists),
+  applicants: many(applicants),
 }))
 
 export const franchiseFacilitiesRelations = relations(franchiseFacilities, ({ one }) => ({
@@ -536,5 +562,12 @@ export const franchiseFacilitiesRelations = relations(franchiseFacilities, ({ on
   facility: one(facilities, {
     fields: [franchiseFacilities.facilityId],
     references: [facilities.id],
+  }),
+}))
+
+export const applicantsRelations = relations(applicants, ({ one }) => ({
+  franchise: one(franchises, {
+    fields: [applicants.franchiseId],
+    references: [franchises.id],
   }),
 }))

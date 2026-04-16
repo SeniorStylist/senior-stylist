@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { Stylist } from '@/types'
+import type { Applicant, ApplicantStatus, Stylist } from '@/types'
 import { useToast } from '@/components/ui/toast'
 
 interface FacilityOption {
@@ -15,6 +15,22 @@ interface DirectoryClientProps {
   initialStylists: Stylist[]
   franchiseFacilities: FacilityOption[]
   franchiseName: string
+  initialApplicants: Applicant[]
+}
+
+const APP_STATUS_BADGE: Record<ApplicantStatus, string> = {
+  new: 'bg-stone-100 text-stone-600',
+  reviewing: 'bg-blue-50 text-blue-700',
+  contacting: 'bg-amber-50 text-amber-700',
+  hired: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-600',
+}
+
+const APP_STATUS_LABELS: ApplicantStatus[] = ['new', 'reviewing', 'contacting', 'hired', 'rejected']
+
+function formatAppliedDate(d: string): string {
+  const dt = new Date(d + 'T00:00:00')
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 type Filter = 'all' | 'assigned' | 'unassigned'
@@ -41,6 +57,7 @@ export function DirectoryClient({
   initialStylists,
   franchiseFacilities,
   franchiseName,
+  initialApplicants,
 }: DirectoryClientProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -53,6 +70,19 @@ export function DirectoryClient({
   const [deletingBulk, setDeletingBulk] = useState(false)
   const [dupMode, setDupMode] = useState(false)
   const [sortKey, setSortKey] = useState<'code' | 'name' | 'facility' | 'commission'>('name')
+
+  // Applicant pipeline state
+  const [activeTab, setActiveTab] = useState<'stylists' | 'applicants'>('stylists')
+  const [appApplicants, setAppApplicants] = useState<Applicant[]>(initialApplicants)
+  const [appSearch, setAppSearch] = useState('')
+  const [appStatusFilter, setAppStatusFilter] = useState<ApplicantStatus | 'all'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedNotes, setExpandedNotes] = useState('')
+  const [promotingId, setPromotingId] = useState<string | null>(null)
+  const [promotedResult, setPromotedResult] = useState<Record<string, string>>({})
+  const [importingCSV, setImportingCSV] = useState(false)
+  const [importBanner, setImportBanner] = useState<{ imported: number; skipped: number } | null>(null)
+  const appFileInputRef = useRef<HTMLInputElement | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const [addOpen, setAddOpen] = useState(false)
@@ -128,6 +158,100 @@ export function DirectoryClient({
       )
     })
   }, [stylists, filter, statusFilter, search])
+
+  // ─── Applicant pipeline handlers ─────────────────────────────────────────
+
+  const filteredApplicants = useMemo(() => {
+    const q = appSearch.trim().toLowerCase()
+    return appApplicants.filter((a) => {
+      if (appStatusFilter !== 'all' && a.status !== appStatusFilter) return false
+      if (!q) return true
+      return (
+        a.name.toLowerCase().includes(q) ||
+        (a.email?.toLowerCase().includes(q) ?? false) ||
+        (a.location?.toLowerCase().includes(q) ?? false)
+      )
+    })
+  }, [appApplicants, appSearch, appStatusFilter])
+
+  function handleAppExpand(a: Applicant) {
+    if (expandedId === a.id) {
+      setExpandedId(null)
+      setExpandedNotes('')
+    } else {
+      setExpandedId(a.id)
+      setExpandedNotes(a.notes ?? '')
+    }
+  }
+
+  async function handleAppStatusChange(id: string, status: ApplicantStatus) {
+    setAppApplicants((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
+    await fetch(`/api/applicants/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+  }
+
+  async function handleNotesBlur(a: Applicant) {
+    if (expandedNotes === (a.notes ?? '')) return
+    const res = await fetch(`/api/applicants/${a.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: expandedNotes }),
+    })
+    if (res.ok) {
+      setAppApplicants((prev) => prev.map((x) => (x.id === a.id ? { ...x, notes: expandedNotes } : x)))
+    }
+  }
+
+  async function handlePromote(id: string) {
+    setPromotingId(id)
+    try {
+      const res = await fetch(`/api/applicants/${id}/promote`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPromotedResult((prev) => ({ ...prev, [id]: json.data.stylistId }))
+        setAppApplicants((prev) => prev.filter((a) => a.id !== id))
+        toast('Promoted to stylist!', 'success')
+      } else {
+        toast(typeof json.error === 'string' ? json.error : 'Promote failed', 'error')
+      }
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setPromotingId(null)
+    }
+  }
+
+  async function handleAppImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportingCSV(true)
+    setImportBanner(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/applicants/import', { method: 'POST', body: fd })
+      const json = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setImportBanner({ imported: json.data.imported, skipped: json.data.skipped })
+        const refresh = await fetch('/api/applicants')
+        const rj = await refresh.json().catch(() => ({}))
+        if (rj.data?.applicants) setAppApplicants(rj.data.applicants)
+        toast(`Imported ${json.data.imported} applicant${json.data.imported !== 1 ? 's' : ''}`, 'success')
+      } else {
+        toast(typeof json.error === 'string' ? json.error : 'Import failed', 'error')
+      }
+    } catch {
+      toast('Import failed', 'error')
+    } finally {
+      setImportingCSV(false)
+      if (appFileInputRef.current) appFileInputRef.current.value = ''
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   function handleFindDuplicates() {
     if (dupMode) {
@@ -304,6 +428,31 @@ export function DirectoryClient({
 
   return (
     <div className="p-6 max-w-5xl mx-auto pb-32">
+      {/* Tab switcher */}
+      <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white w-fit mb-6">
+        {(['stylists', 'applicants'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              activeTab === tab ? 'text-white' : 'text-stone-600 hover:bg-stone-50'
+            }`}
+            style={activeTab === tab ? { backgroundColor: '#8B2E4A' } : undefined}
+          >
+            {tab === 'stylists' ? 'Stylists' : 'Applicants'}
+            {tab === 'applicants' && appApplicants.length > 0 && (
+              <span className={`text-xs font-semibold ${activeTab === 'applicants' ? 'text-white/80' : 'text-stone-400'}`}>
+                •{appApplicants.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Stylists tab ─────────────────────────────────────────────────── */}
+      {activeTab === 'stylists' && (
+      <>
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1
@@ -715,6 +864,247 @@ export function DirectoryClient({
               </div>
             )
           })}
+        </div>
+      )}
+
+      </>
+      )}
+
+      {/* ─── Applicants tab ───────────────────────────────────────────────── */}
+      {activeTab === 'applicants' && (
+        <div>
+          {/* Toolbar */}
+          <div className="mb-4 flex flex-wrap gap-3 items-center">
+            <input
+              type="search"
+              value={appSearch}
+              onChange={(e) => setAppSearch(e.target.value)}
+              placeholder="Search by name, email, or location"
+              className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+            />
+            <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white">
+              <button
+                type="button"
+                onClick={() => setAppStatusFilter('all')}
+                className={`px-3 py-2 text-xs font-medium transition-colors ${appStatusFilter === 'all' ? 'text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+                style={appStatusFilter === 'all' ? { backgroundColor: '#8B2E4A' } : undefined}
+              >
+                All{' '}
+                <span className="opacity-60">({appApplicants.length})</span>
+              </button>
+              {APP_STATUS_LABELS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setAppStatusFilter(s)}
+                  className={`px-3 py-2 text-xs font-medium capitalize transition-colors ${appStatusFilter === s ? 'text-white' : 'text-stone-600 hover:bg-stone-50'}`}
+                  style={appStatusFilter === s ? { backgroundColor: '#8B2E4A' } : undefined}
+                >
+                  {s}{' '}
+                  <span className="opacity-60">({appApplicants.filter((a) => a.status === s).length})</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => appFileInputRef.current?.click()}
+              disabled={importingCSV}
+              className="px-3 py-2 rounded-xl text-sm font-medium border border-stone-200 text-stone-700 hover:bg-stone-50 transition-colors disabled:opacity-50"
+            >
+              {importingCSV ? 'Importing…' : 'Import CSV'}
+            </button>
+            <input
+              ref={appFileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleAppImport}
+            />
+          </div>
+
+          {/* Import result banner */}
+          {importBanner && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm flex items-center justify-between">
+              <span>
+                Imported{' '}
+                <span className="font-semibold">{importBanner.imported}</span> new applicant{importBanner.imported !== 1 ? 's' : ''},{' '}
+                <span className="font-semibold">{importBanner.skipped}</span> already existed.
+              </span>
+              <button type="button" onClick={() => setImportBanner(null)} className="ml-4 text-emerald-500 hover:text-emerald-700 text-lg leading-none">✕</button>
+            </div>
+          )}
+
+          {/* List */}
+          {filteredApplicants.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
+              <p className="text-stone-400 text-sm">
+                {appApplicants.length === 0
+                  ? 'No applicants yet. Import a CSV from Indeed to get started.'
+                  : 'No applicants match this filter.'}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+              {filteredApplicants.map((a) => (
+                <div key={a.id} className="border-b border-stone-50 last:border-0">
+                  {/* Summary row */}
+                  <div className="flex items-center gap-3 px-4 py-3.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-stone-900">{a.name}</p>
+                      {a.location && (
+                        <p className="text-xs text-stone-400 mt-0.5">{a.location}</p>
+                      )}
+                    </div>
+                    {a.appliedDate && (
+                      <span className="text-xs text-stone-400 shrink-0 hidden sm:inline">
+                        {formatAppliedDate(a.appliedDate)}
+                      </span>
+                    )}
+                    {a.jobTitle && (
+                      <span className="text-xs text-stone-500 truncate max-w-[140px] shrink-0 hidden md:inline">
+                        {a.jobTitle}
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 capitalize ${APP_STATUS_BADGE[a.status]}`}>
+                      {a.status}
+                    </span>
+                    <select
+                      value={a.status}
+                      onChange={(e) => handleAppStatusChange(a.id, e.target.value as ApplicantStatus)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs border border-stone-200 rounded-lg px-2 py-1 bg-white text-stone-600 shrink-0 capitalize"
+                    >
+                      {APP_STATUS_LABELS.map((s) => (
+                        <option key={s} value={s} className="capitalize">{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleAppExpand(a)}
+                      className="p-1.5 text-stone-400 hover:text-stone-600 shrink-0 transition-colors"
+                      title={expandedId === a.id ? 'Collapse' : 'Expand'}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className={`transition-transform ${expandedId === a.id ? 'rotate-180' : ''}`}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Expanded detail panel */}
+                  {expandedId === a.id && (
+                    <div className="px-4 pb-5 pt-1 bg-stone-50 border-t border-stone-100 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {a.email && (
+                          <div>
+                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Email</p>
+                            <p className="text-sm text-stone-700 break-all flex items-center gap-1.5">
+                              {a.email}
+                              {a.isIndeedEmail && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500 shrink-0">via Indeed</span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                        {a.phone && (
+                          <div>
+                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Phone</p>
+                            <p className="text-sm text-stone-700">{a.phone}</p>
+                          </div>
+                        )}
+                        {a.jobTitle && (
+                          <div>
+                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Job Title</p>
+                            <p className="text-sm text-stone-700">{a.jobTitle}</p>
+                          </div>
+                        )}
+                        {a.jobLocation && (
+                          <div>
+                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Job Location</p>
+                            <p className="text-sm text-stone-700">{a.jobLocation}</p>
+                          </div>
+                        )}
+                        {a.education && (
+                          <div>
+                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Education</p>
+                            <p className="text-sm text-stone-700">{a.education}</p>
+                          </div>
+                        )}
+                        {a.source && (
+                          <div>
+                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Source</p>
+                            <p className="text-sm text-stone-700">{a.source}</p>
+                          </div>
+                        )}
+                      </div>
+                      {a.relevantExperience && (
+                        <div>
+                          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Experience</p>
+                          <p className="text-sm text-stone-700 whitespace-pre-line">{a.relevantExperience}</p>
+                        </div>
+                      )}
+                      {a.qualifications.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1.5">Qualifications</p>
+                          <div className="space-y-1.5">
+                            {a.qualifications.map((q, i) => (
+                              <div key={i} className="text-sm">
+                                <span className="text-stone-600 font-medium">{q.question}: </span>
+                                <span className="text-stone-700">{q.answer}</span>
+                                {q.match && (
+                                  <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded font-semibold ${q.match.toLowerCase() === 'yes' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                                    {q.match}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Notes</p>
+                        <textarea
+                          value={expandedNotes}
+                          onChange={(e) => setExpandedNotes(e.target.value)}
+                          onBlur={() => handleNotesBlur(a)}
+                          placeholder="Add internal notes…"
+                          rows={3}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-100"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 pt-1">
+                        {promotedResult[a.id] ? (
+                          <Link
+                            href={`/stylists/${promotedResult[a.id]}`}
+                            className="text-sm font-medium text-emerald-700 underline underline-offset-2"
+                          >
+                            Promoted! View stylist profile →
+                          </Link>
+                        ) : a.status !== 'rejected' && (
+                          <button
+                            type="button"
+                            onClick={() => handlePromote(a.id)}
+                            disabled={promotingId === a.id}
+                            className="px-3 py-1.5 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
+                            style={{ backgroundColor: '#8B2E4A' }}
+                          >
+                            {promotingId === a.id ? 'Promoting…' : 'Promote to Stylist →'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

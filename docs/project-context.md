@@ -255,6 +255,20 @@ Tailwind CSS 4, Vercel
 - Import default changed to franchise pool: `resolvedFacilityId = null` when no `facilityName` column; stylists land in franchise pool instead of being pinned to admin's current facility
 - Directory bulk delete: multi-select checkboxes, select-all header, floating action bar, per-row trash icon; `POST /api/stylists/bulk-delete` (soft-delete, franchise-scope verified)
 
+### Phase 9.5 SHIPPED (2026-04-16) — Applicant Pipeline
+- New table: `applicants` (id, franchise_id FK, name, email, phone, location, applied_date date, job_title, job_location, relevant_experience, education, source, is_indeed_email boolean, qualifications jsonb `[{question,answer,match}]`, status CHECK(new/reviewing/contacting/hired/rejected), notes, active boolean, timestamps). RLS enabled with service_role_all policy. Indexes on franchise_id, status, email.
+- Schema: `src/db/schema.ts` → `applicants` table + `applicantsRelations`; `franchisesRelations` extended with `applicants: many(applicants)`
+- Types: `ApplicantStatus`, `Applicant` interface added to `src/types/index.ts`
+- API routes:
+  - `GET /api/applicants?status=all|new|reviewing|contacting|hired|rejected` — franchise-scoped, admin-only
+  - `POST /api/applicants/import` — Indeed CSV import, 2000-row cap, PapaParse, column mapping (name/email/phone/candidate location/date/job title/job location/relevant experience/education/source/status/qualification 1–4 + answer + match), dedup by email OR name+appliedDate (checks all rows including inactive), batch insert in chunks of 200 with onConflictDoNothing, returns `{imported, skipped, errors}`; `maxDuration=60`
+  - `PUT /api/applicants/[id]` — update status/notes/email/phone; `DELETE /api/applicants/[id]` — soft delete (active=false)
+  - `POST /api/applicants/[id]/promote` — inside db.transaction(): generateStylistCode(tx) + insert stylist (name/email/phones/franchiseId/status='active'/commissionPercent=0/color='#8B2E4A') + set applicant status='hired'+active=false; returns `{stylistId}`
+- Directory page restructure: `page.tsx` fetches applicants in Promise.all, passes `initialApplicants` prop. `directory-client.tsx` gains tab switcher at top (Stylists / Applicants •N pill). Stylists tab: pixel-perfect unchanged. Applicants tab: search, status filter pills (All/New/Reviewing/Contacting/Hired/Rejected with counts), Import CSV button, result banner. Applicant rows: name+location, applied date, job title, status badge + inline select, expand chevron → detail panel with email/phone/experience/education/qualifications Q&A + notes textarea (auto-saves on blur) + "Promote to Stylist →" button (hidden if rejected). On promote success: "Promoted! View stylist profile →" link; row removed from list.
+- Idempotency: re-importing the same CSV never creates duplicates (dedup against all franchise applicants including inactive)
+- Status date parsing: M/D/YYYY and YYYY-MM-DD both supported; unrecognized → null
+- isIndeedEmail: auto-set when email ends with @indeedemail.com; never manually settable
+
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
 - Add `region_id` to `facilities` and `stylists` tables
@@ -366,7 +380,7 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 9 complete (all 4 prompts shipped 2026-04-15). Next steps:
+Phase 9.5 (Applicant Pipeline) complete (shipped 2026-04-16). Next steps:
 1. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
 3. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability. Use the new "Send account invite →" button on each Stylist Detail page once email is on file.
