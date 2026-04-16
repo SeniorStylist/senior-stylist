@@ -36,6 +36,7 @@ export default async function StylistsPage() {
       ),
     )
   const assignedIds = assigned.map((r) => r.id)
+  console.log('[StylistsPage] facilityUser.facilityId:', facilityUser.facilityId, '| assignedIds:', assignedIds)
 
   const stylistsList = assignedIds.length
     ? await db.query.stylists.findMany({
