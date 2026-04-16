@@ -344,7 +344,9 @@ export function DirectoryClient({
         const cmp = (a.stylistCode ?? '').localeCompare(b.stylistCode ?? '', undefined, { sensitivity: 'base' })
         return sortDir === 'asc' ? cmp : -cmp
       } else if (sortKey === 'name') {
-        const cmp = (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' })
+        const aLast = (a.name ?? '').split(' ').pop() ?? ''
+        const bLast = (b.name ?? '').split(' ').pop() ?? ''
+        const cmp = aLast.localeCompare(bLast, undefined, { sensitivity: 'base' })
         return sortDir === 'asc' ? cmp : -cmp
       } else if (sortKey === 'facility') {
         const aVal = facilityById.get(a.facilityId ?? '') ?? 'Franchise Pool'
@@ -1158,7 +1160,6 @@ export function DirectoryClient({
                             {a.qualifications.map((q, i) => (
                               <div key={i} className="text-sm">
                                 <span className="text-stone-600 font-medium">{q.question}: </span>
-                                <span className="text-stone-700">{q.answer}</span>
                                 {q.match && (
                                   <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded font-semibold ${q.match.toLowerCase() === 'yes' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
                                     {q.match}

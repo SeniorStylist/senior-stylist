@@ -9,7 +9,7 @@ import {
   applicants as applicantsTable,
 } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
-import { and, desc, eq, inArray, notInArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { sanitizeStylists } from '@/lib/sanitize'
 import { DirectoryClient } from './directory-client'
 
@@ -76,7 +76,9 @@ export default async function StylistDirectoryPage() {
     allowedIds.length
       ? db.query.stylists.findMany({
           where: and(inArray(stylists.id, allowedIds), eq(stylists.active, true)),
-          orderBy: (t, { asc }) => [asc(t.name)],
+          orderBy: (t) => [
+            asc(sql`split_part(${t.name}, ' ', array_length(string_to_array(${t.name}, ' '), 1))`),
+          ],
         })
       : Promise.resolve([]),
     db

@@ -23,7 +23,7 @@ export default async function ServicesPage() {
       eq(services.facilityId, facilityUser.facilityId),
       eq(services.active, true)
     ),
-    orderBy: (t, { asc }) => [asc(t.name)],
+    orderBy: (t, { asc }) => [asc(t.category), asc(t.name)],
   })
 
   return (
