@@ -170,6 +170,8 @@ export function StylistDetailClient({
   const [licenseType, setLicenseType] = useState(initialStylist.licenseType ?? '')
   const [licenseState, setLicenseState] = useState(initialStylist.licenseState ?? '')
   const [licenseExpiresAt, setLicenseExpiresAt] = useState(initialStylist.licenseExpiresAt ?? '')
+  const [address, setAddress] = useState(initialStylist.address ?? '')
+  const [paymentMethod, setPaymentMethod] = useState(initialStylist.paymentMethod ?? '')
   const [editingCommission, setEditingCommission] = useState(false)
   const [commissionInput, setCommissionInput] = useState(String(initialStylist.commissionPercent))
   const [saving, setSaving] = useState(false)
@@ -236,7 +238,9 @@ export function StylistDetailClient({
     facilityDirty ||
     phonesDirty ||
     statusDirty ||
-    specialtiesDirty
+    specialtiesDirty ||
+    address !== (stylist.address ?? '') ||
+    paymentMethod !== (stylist.paymentMethod ?? '')
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
@@ -259,6 +263,8 @@ export function StylistDetailClient({
         phones,
         status,
         specialties,
+        address: address.trim() || null,
+        paymentMethod: paymentMethod || null,
       }
       if (codeDirty) body.stylistCode = stylistCode.trim()
       if (facilityDirty) body.facilityId = facilityId
@@ -818,23 +824,33 @@ export function StylistDetailClient({
               </div>
             )}
 
-            {isAdmin && (stylist.address || stylist.paymentMethod) && (
+            {isAdmin && (
               <div className="pt-4 border-t border-stone-100 space-y-2">
                 <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Contact</p>
-                {stylist.address && (
-                  <div>
-                    <span className="text-[11px] text-stone-500 block mb-0.5">Address</span>
-                    <p className="text-sm text-stone-600">{stylist.address}</p>
-                  </div>
-                )}
-                {stylist.paymentMethod && (
-                  <div>
-                    <span className="text-[11px] text-stone-500 block mb-0.5">Payment</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 text-stone-700">
-                      {stylist.paymentMethod}
-                    </span>
-                  </div>
-                )}
+                <div>
+                  <span className="text-[11px] text-stone-500 block mb-0.5">Address</span>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="123 Main St, City, State"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-stone-500 block mb-0.5">Payment Method</span>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                  >
+                    <option value="">— select —</option>
+                    <option value="Commission">Commission</option>
+                    <option value="Hourly">Hourly</option>
+                    <option value="Flat Rate">Flat Rate</option>
+                    <option value="Booth Rental">Booth Rental</option>
+                  </select>
+                </div>
               </div>
             )}
 
