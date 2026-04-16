@@ -53,6 +53,7 @@ export interface Resident {
   notes: string | null
   portalToken: string | null
   defaultServiceId: string | null
+  mostUsedServiceId?: string | null
   poaName: string | null
   poaEmail: string | null
   poaPhone: string | null

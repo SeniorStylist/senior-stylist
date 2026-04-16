@@ -5,6 +5,7 @@ import { facilities, residents, stylists, services, invites, accessRequests, pro
 import { eq, and } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
+import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
 
@@ -171,6 +172,12 @@ export default async function DashboardPage() {
 
     if (!facility) redirect('/login')
 
+    const mostUsedMap = await getMostUsedServiceIds(facilityUser.facilityId)
+    const residentsWithUsage = residentsList.map((r) => ({
+      ...r,
+      mostUsedServiceId: mostUsedMap.get(r.id) ?? null,
+    }))
+
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isSuperAdminActingAsFacility =
       superAdminEmail &&
@@ -188,7 +195,7 @@ export default async function DashboardPage() {
         <DashboardClient
           facilityId={facilityUser.facilityId}
           facility={toClientJson(sanitizeFacility(facility))}
-          initialResidents={JSON.parse(JSON.stringify(residentsList))}
+          initialResidents={JSON.parse(JSON.stringify(residentsWithUsage))}
           initialStylists={JSON.parse(JSON.stringify(sanitizeStylists(stylistsList)))}
           initialServices={JSON.parse(JSON.stringify(servicesList))}
           isAdmin={facilityUser.role === 'admin'}

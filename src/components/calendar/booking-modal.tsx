@@ -184,12 +184,12 @@ export function BookingModal({
     }
   }, [open, isMobile])
 
-  // When resident changes (create mode), pre-select their default service if it exists
+  // When resident changes (create mode), pre-select their most-used service if they have history
   useEffect(() => {
     if (mode !== 'create' || !selectedResidentId) return
     const resident = allResidents.find((r) => r.id === selectedResidentId)
-    if (!resident?.defaultServiceId) return
-    const svc = primaryServiceCandidates.find((s) => s.id === resident.defaultServiceId)
+    if (!resident?.mostUsedServiceId) return
+    const svc = primaryServiceCandidates.find((s) => s.id === resident.mostUsedServiceId)
     if (svc) setSelectedServiceIds([svc.id])
   }, [selectedResidentId, mode, residents, localNewResidents]) // eslint-disable-line react-hooks/exhaustive-deps
 

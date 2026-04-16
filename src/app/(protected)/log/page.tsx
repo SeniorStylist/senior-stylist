@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { bookings, logEntries, residents, stylists, services, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { toClientJson } from '@/lib/sanitize'
+import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { LogClient } from './log-client'
 
@@ -66,12 +67,18 @@ export default async function LogPage() {
     }),
   ])
 
+  const mostUsedMap = await getMostUsedServiceIds(facilityId)
+  const residentsWithUsage = residentsList.map((r) => ({
+    ...r,
+    mostUsedServiceId: mostUsedMap.get(r.id) ?? null,
+  }))
+
   return (
     <LogClient
       initialDate={today}
       initialBookings={toClientJson(todayBookings)}
       initialLogEntries={toClientJson(todayLogEntries)}
-      residents={toClientJson(residentsList)}
+      residents={toClientJson(residentsWithUsage)}
       stylists={toClientJson(stylistsList)}
       services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}

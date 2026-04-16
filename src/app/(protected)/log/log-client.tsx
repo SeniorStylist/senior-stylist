@@ -174,7 +174,7 @@ export function LogClient({
   const [wiResidentSearch, setWiResidentSearch] = useState('')
   const [wiResidentDropOpen, setWiResidentDropOpen] = useState(false)
   const [wiResidentId, setWiResidentId] = useState('')
-  const [wiServiceId, setWiServiceId] = useState(services[0]?.id ?? '')
+  const [wiServiceId, setWiServiceId] = useState('')
   const [wiStylistId, setWiStylistId] = useState(stylists[0]?.id ?? '')
   const [wiTime, setWiTime] = useState(() => roundToNearest30(new Date()))
   const [wiAddonServiceIds, setWiAddonServiceIds] = useState<string[]>([])
@@ -187,12 +187,12 @@ export function LogClient({
   const [wiCreateError, setWiCreateError] = useState<string | null>(null)
   const [localNewResidents, setLocalNewResidents] = useState<Resident[]>([])
 
-  // Auto-select resident's default service in walk-in form
+  // Auto-select resident's most-used service in walk-in form
   useEffect(() => {
     if (!wiResidentId) return
     const resident = [...residents, ...localNewResidents].find((r) => r.id === wiResidentId)
-    if (!resident?.defaultServiceId) return
-    const svc = services.find((s) => s.id === resident.defaultServiceId && s.pricingType !== 'addon')
+    if (!resident?.mostUsedServiceId) return
+    const svc = services.find((s) => s.id === resident.mostUsedServiceId && s.pricingType !== 'addon')
     if (svc) setWiServiceId(svc.id)
   }, [wiResidentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
