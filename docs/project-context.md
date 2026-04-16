@@ -269,6 +269,15 @@ Tailwind CSS 4, Vercel
 - Status date parsing: M/D/YYYY and YYYY-MM-DD both supported; unrecognized → null
 - isIndeedEmail: auto-set when email ends with @indeedemail.com; never manually settable
 
+### Post-9.5 UX Polish SHIPPED (2026-04-16)
+- **Applicant row redesign**: converted from flex to 6-column grid `grid-cols-[1fr_140px_120px_100px_100px_32px]`; added Location and Job as sortable columns; removed duplicate status badge pill — only inline `<select>` remains; entire row is click-to-expand; chevron is `<span aria-hidden>`; `APP_STATUS_BADGE` constant removed
+- **Qualifications display**: removed duplicate plain-text answer span — each Q&A shows only `Question: [Badge]`
+- **Stylist Detail — editable Contact fields**: address (text input) and paymentMethod (`<select>`: Commission/Hourly/Flat Rate/Booth Rental) now fully editable; always visible for admins; wired into `isDirty` + `handleSave → PUT /api/stylists/[id]`
+- **Smart service default in booking modal**: new `src/lib/resident-service-usage.ts` → `getMostUsedServiceIds(facilityId)` queries non-cancelled bookings grouped by `(residentId, serviceId)`, picks top per resident; merged onto residents as `mostUsedServiceId` in `dashboard/page.tsx` + `log/page.tsx`; booking modal and walk-in form use `mostUsedServiceId` (not `defaultServiceId`); new residents get empty placeholder (no auto-select); `mostUsedServiceId?: string | null` added to `Resident` interface
+- **Services default sort**: `sortKey` default changed from `'name'` to `'category'`; server `orderBy` is `[asc(category), asc(name)]`; section headers visible on page load
+- **Stylist directory sort**: server uses `split_part(name, ' ', array_length(...))` to sort by last name; client `sorted` useMemo does `name.split(' ').pop()` for the same comparator
+- **Debug log removed**: `console.log('[StylistsPage] facilityUser.facilityId:...')` removed from `src/app/(protected)/stylists/page.tsx`
+
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
 - Add `region_id` to `facilities` and `stylists` tables
@@ -380,11 +389,12 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 9.5 (Applicant Pipeline) complete (shipped 2026-04-16). Next steps:
+Phase 9.5 (Applicant Pipeline) + post-9.5 UX polish complete (shipped 2026-04-16). Next steps:
 1. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-3. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability. Use the new "Send account invite →" button on each Stylist Detail page once email is on file.
-4. Begin Phase 10 — Payroll Operations.
+3. Investigate and fix why `/stylists` page shows no stylists for Lisa despite active stylists in the DB. Likely: `getUserFacility()` returning wrong facilityId when viewing via super-admin switcher (cookie-based lookup may fall back to first `facility_users` row, which could be a different facility).
+4. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability. Use the new "Send account invite →" button on each Stylist Detail page once email is on file.
+5. Begin Phase 10 — Payroll Operations.
 
 ---
 

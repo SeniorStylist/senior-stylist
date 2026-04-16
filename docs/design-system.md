@@ -959,7 +959,7 @@ After the stylist name on the Stylists list (`/stylists`), a subtle badge render
 ### Stylist Detail — License + Contact + Schedule notes (bookkeeping CSV import, 2026-04-15)
 - **License section**: four fields — Number, Type, **Licensed In** (= `licenseState`, editable input, placeholder "e.g. MD, VA"), Expires. Licensed In is the third field.
 - **Phone numbers section** (above Contact, admin-only, fully editable): shown always for admins. Header row: "Phone numbers" label (`text-xs font-semibold text-stone-500 uppercase tracking-wide`) + inline `+ Add` button top-right (`text-xs text-[#8B2E4A] font-semibold`). Placeholder "No phone numbers" (`text-xs text-stone-400 italic`) when empty. Each phone row: label `<select>` (24w, options: mobile/office/home/work/fax/custom) + optional custom label text input when `select=custom` (20w) + number text input (flex-1) + ✕ remove button. All inputs use `bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs`. Stored label: if not in the standard set (all options except 'custom'), show 'custom' in select and the actual label in the text input. Saves via `phones` array in PUT `/api/stylists/[id]`. Zod: `.array(z.object({label:z.string().max(50), number:z.string().max(50)})).max(10)`.
-- **Contact section** (below phone numbers, admin-only, display-only): shown when address or paymentMethod is set (phone removed — now in Phone numbers section). Address as `text-sm text-stone-600`. Payment method as a `bg-stone-100 text-stone-700` pill badge. Section label: "Contact" (`text-xs font-semibold text-stone-500 uppercase tracking-wide`).
+- **Contact section** (below phone numbers, admin-only, **always visible for admins**): Address as an `<input type="text">` with placeholder "123 Main St, City, State". Payment method as a `<select>` dropdown with options: Commission / Hourly / Flat Rate / Booth Rental (empty default "— select —"). Both use the standard field class: `w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all`. Both wired into `isDirty` and the single `handleSave → PUT /api/stylists/[id]` call.
 - **Schedule notes** (below Availability card): shown when `stylist.scheduleNotes` is set. Label: "Schedule notes (unmatched facilities)" (`text-[11px] font-semibold text-stone-400 uppercase tracking-wide`). Note text: `text-xs text-stone-500 italic`. Renders inside the Availability card's bottom padding area (not a separate card).
 
 ### Franchise owner (super_admin) nav (bug fix 2026-04-15)
@@ -975,16 +975,16 @@ Directory page gains a segmented control at the top: `flex rounded-xl border bor
 
 **Empty state**: `bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center` — "No applicants yet. Import a CSV from Indeed to get started." (text-stone-400 text-sm).
 
-**Applicant row** (inside `bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden`): `flex items-center gap-3 px-4 py-3.5 border-b border-stone-50 last:border-0`. Left-to-right: name+location stack (flex-1), applied date (text-xs text-stone-400 shrink-0), job title (truncate max-w-[140px]), status badge pill, inline status `<select>` (text-xs rounded-lg), expand chevron button.
+**Applicant row** — **grid layout** `grid-cols-[1fr_140px_120px_100px_100px_32px]` matching a sortable header row above it. Columns: name+location stack (flex-1), applied date, location, job title, inline status `<select>` (text-xs rounded-lg), expand chevron `<span>`. Entire row is `cursor-pointer` and expands/collapses on click. The `<select>` uses `e.stopPropagation()` on `onClick` and `onChange`. Chevron is a `<span aria-hidden>` (not a button). The row does NOT show a separate status badge pill — only the `<select>` controls status.
 
-**Status badge palette** (`APP_STATUS_BADGE` record):
+**Sort header** above the applicant list: same `grid-cols-[1fr_140px_120px_100px_100px_32px]`. Five sortable columns (Name, Date Applied, Location, Job, Status) each with ↑↓ arrow when active. Default sort: Date Applied descending.
+
+**Status filter pills** use inline Tailwind classes per status (not a named constant):
 - `new` → `bg-stone-100 text-stone-600`
 - `reviewing` → `bg-blue-50 text-blue-700`
 - `contacting` → `bg-amber-50 text-amber-700`
 - `hired` → `bg-emerald-50 text-emerald-700`
 - `rejected` → `bg-red-50 text-red-600`
-
-Badges use `text-[10px] font-semibold px-1.5 py-0.5 rounded` (smaller than status-pill filter buttons).
 
 **Expanded detail panel** (`px-4 pb-4 pt-2 bg-stone-50 border-b border-stone-100`): two-column grid for contact fields (email with "via Indeed" amber pill when `isIndeedEmail`, phone). Experience/education/qualifications as labeled sections. Notes as full-width `<textarea>` (border-stone-200 rounded-xl, auto-saves on `onBlur` if changed). "Promote to Stylist →" button (burgundy, hidden when `status === 'rejected'`). On promote success: "Promoted! View stylist profile →" link (emerald text, `Link` from next/link).
 
@@ -993,3 +993,23 @@ Badges use `text-[10px] font-semibold px-1.5 py-0.5 rounded` (smaller than statu
 **Inline status dropdown** updates local state optimistically (no spinner) and fires `PUT /api/applicants/[id]` in the background — same fire-and-forget pattern as other lightweight inline mutations.
 
 **Notes auto-save on blur** only fires a `PUT` when `expandedNotes !== (applicant.notes ?? '')` — avoids spurious network requests when the field was never changed.
+
+**Qualifications Q&A display** — each item shows `Question: [Badge]` with NO plain-text answer echo. The answer is shown only as a badge (e.g. `[Yes]`), not as duplicate text before the badge.
+
+### Smart default service selection (booking modal + walk-in form, 2026-04-16)
+
+**Booking modal**: when a resident is selected in create mode, `mostUsedServiceId` is read from the resident object (computed at page load). If set, the primary service selector is pre-populated. If null (new resident with no booking history), the selector shows placeholder / "Select a service" — no auto-select.
+
+**Walk-in form** (`log-client.tsx`): initial `wiServiceId` state is `''` (empty — NOT the first service alphabetically). Same useEffect reads `mostUsedServiceId` on resident selection.
+
+`mostUsedServiceId` is NOT stored in the DB — it is computed by `getMostUsedServiceIds(facilityId)` in `src/lib/resident-service-usage.ts` at page-load time in `dashboard/page.tsx` and `log/page.tsx`, then merged onto each resident via `map()` before passing to the client.
+
+### Services page sort default
+
+Default `sortKey` is `'category'` (was `'name'`). The server-side `orderBy` is `[asc(t.category), asc(t.name)]` — `NULL` categories sort last in Postgres ASC. Section headers between categories only render when `sortKey === 'category'`.
+
+### Stylist directory — last name sort
+
+Stylists are sorted by last name (last word in `name`) at two levels:
+- **Server**: `split_part(name, ' ', array_length(string_to_array(name, ' '), 1))` Postgres expression in `findMany orderBy`
+- **Client** (`sorted` useMemo, `sortKey === 'name'` branch): `name.split(' ').pop() ?? ''` for the `localeCompare` comparator
