@@ -969,7 +969,9 @@ Franchise owners have `facility_users.role = 'super_admin'` in the DB. `NavRole`
 Directory page gains a segmented control at the top: `flex rounded-xl border border-stone-200 overflow-hidden bg-white w-fit mb-6`. Two buttons: "Stylists" and "Applicants". Active tab: `text-white` with `style={{ backgroundColor: '#8B2E4A' }}`. Inactive tab: `text-stone-600 hover:bg-stone-50`. The Applicants button shows a `•N` count pill when there are applicants (invisible when 0). Entire existing Stylists content wrapped in `{activeTab === 'stylists' && (<>...</>)}`. Floating bulk-action bar stays outside both tab conditions (driven by `selected.size > 0` which only applies in Stylists mode).
 
 ### Applicant Pipeline — Applicants tab (Phase 9.5, 2026-04-16)
-**Toolbar row** (`flex flex-wrap gap-3 items-center mb-4`): search input (rounded-xl, stone border), status filter pills (All/New/Reviewing/Contacting/Hired/Rejected with live counts — same pill pattern as Directory scope filter), "Import CSV" button (burgundy `#8B2E4A`), hidden `<input type="file" accept=".csv">` via ref.
+**Toolbar row** (`flex flex-wrap gap-3 items-center mb-4`): search input (rounded-xl, stone border, placeholder "Search by name, email, location, or ZIP"), optional radius `<select>` (appears only when search is exactly 5 digits; options 5/10/15/25/50 miles; `appRadiusMiles` state default 15), status filter pills (All/New/Reviewing/Contacting/Hired/Rejected with live counts — same pill pattern as Directory scope filter), "Import CSV" button (burgundy `#8B2E4A`), hidden `<input type="file" accept=".csv">` via ref.
+
+**ZIP radius search**: When `appSearch.trim()` matches `/^\d{5}$/`, `filteredApplicants` useMemo calls `getZipsWithinMiles(q, appRadiusMiles)` once to produce `nearbyZips: string[]`, then passes it into `appMatchesSearch(a, q, nearbyZips)`. Inside that function, `extractZip(a.location ?? '')` pulls the first `\b\d{5}\b` from the applicant's location string and checks membership in `nearbyZips`. If no ZIP is in scope the function falls through to the normal fuzzy/metro match. Static table lives in `src/lib/zip-coords.ts`.
 
 **Import result banner**: `bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3` — "Imported N new applicants, M already existed." with ✕ dismiss button.
 
@@ -1021,6 +1023,20 @@ Default `sortKey` is `'category'` (was `'name'`). The server-side `orderBy` is `
 
 ### Stylist directory — last name sort
 
-Stylists are sorted by last name (last word in `name`) at two levels:
-- **Server**: `split_part(name, ' ', array_length(string_to_array(name, ' '), 1))` Postgres expression in `findMany orderBy`
+Stylists are sorted by last name (last word in `name`) entirely on the client:
+- **No server `orderBy`** — `directory/page.tsx` does NOT pass `orderBy` to `findMany`. The SQL `split_part` expression was removed.
 - **Client** (`sorted` useMemo, `sortKey === 'name'` branch): `name.split(' ').pop() ?? ''` for the `localeCompare` comparator
+- Sort header label is **"Last Name"** (not "Name").
+
+### Stylist directory — bulk action bar
+
+Floating bar appears when `selected.size > 0`. Structure: `fixed left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg max-w-[calc(100vw-32px)]`. Bottom: `calc(env(safe-area-inset-bottom) + 80px)`.
+
+Three sibling edit controls — only one may be non-empty at a time (changing one auto-clears the other two via `onChange`):
+1. `<select>` — Set Status (Active / Inactive / On Leave / Terminated)
+2. `<select>` — Set Facility (franchiseFacilities prop options)
+3. `<input type="number" min=0 max=100>` — Set Commission %
+
+**Apply** button (burgundy `#8B2E4A`) — disabled when all three controls are empty or `applyingBulk`. Calls `handleBulkUpdate` → `POST /api/stylists/bulk-update` → optimistic local state update → toast. No `router.refresh()`.
+
+**Delete** button (red-500) and **Clear** button unchanged.

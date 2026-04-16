@@ -3,8 +3,9 @@
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { Applicant, ApplicantStatus, Stylist } from '@/types'
+import type { Applicant, ApplicantStatus, Stylist, StylistStatus } from '@/types'
 import { useToast } from '@/components/ui/toast'
+import { getZipsWithinMiles, extractZip } from '@/lib/zip-coords'
 
 interface FacilityOption {
   id: string
@@ -59,7 +60,11 @@ function metroTerms(query: string): string[] {
   return Array.from(terms)
 }
 
-function appMatchesSearch(a: Applicant, q: string): boolean {
+function appMatchesSearch(a: Applicant, q: string, nearbyZips: string[] | null): boolean {
+  if (nearbyZips) {
+    const applicantZip = extractZip(a.location ?? '')
+    if (applicantZip && nearbyZips.includes(applicantZip)) return true
+  }
   const name = a.name.toLowerCase()
   const email = (a.email ?? '').toLowerCase()
   if (fuzzyField(name, q) || fuzzyField(email, q)) return true
@@ -102,6 +107,10 @@ export function DirectoryClient({
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deletingBulk, setDeletingBulk] = useState(false)
+  const [bulkStatusValue, setBulkStatusValue] = useState<StylistStatus | ''>('')
+  const [bulkFacilityId, setBulkFacilityId] = useState('')
+  const [bulkCommission, setBulkCommission] = useState('')
+  const [applyingBulk, setApplyingBulk] = useState(false)
   const [dupMode, setDupMode] = useState(false)
   const [sortKey, setSortKey] = useState<'code' | 'name' | 'facility' | 'commission'>('name')
 
@@ -109,6 +118,7 @@ export function DirectoryClient({
   const [activeTab, setActiveTab] = useState<'stylists' | 'applicants'>('stylists')
   const [appApplicants, setAppApplicants] = useState<Applicant[]>(initialApplicants)
   const [appSearch, setAppSearch] = useState('')
+  const [appRadiusMiles, setAppRadiusMiles] = useState(15)
   const [appStatusFilter, setAppStatusFilter] = useState<ApplicantStatus | 'all'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedNotes, setExpandedNotes] = useState('')
@@ -199,10 +209,12 @@ export function DirectoryClient({
 
   const filteredApplicants = useMemo(() => {
     const q = appSearch.trim().toLowerCase()
+    const isZip = /^\d{5}$/.test(q)
+    const nearbyZips = isZip ? getZipsWithinMiles(q, appRadiusMiles) : null
     const filtered = appApplicants.filter((a) => {
       if (appStatusFilter !== 'all' && a.status !== appStatusFilter) return false
       if (!q) return true
-      return appMatchesSearch(a, q)
+      return appMatchesSearch(a, q, nearbyZips)
     })
     return [...filtered].sort((a, b) => {
       let cmp = 0
@@ -229,7 +241,7 @@ export function DirectoryClient({
       }
       return appSortDir === 'asc' ? cmp : -cmp
     })
-  }, [appApplicants, appSearch, appStatusFilter, appSortKey, appSortDir])
+  }, [appApplicants, appSearch, appStatusFilter, appSortKey, appSortDir, appRadiusMiles])
 
   function handleAppExpand(a: Applicant) {
     if (expandedId === a.id) {
@@ -491,6 +503,46 @@ export function DirectoryClient({
       toast('Delete failed', 'error')
     } finally {
       setDeletingBulk(false)
+    }
+  }
+
+  const handleBulkUpdate = async () => {
+    if (!bulkStatusValue && !bulkFacilityId && bulkCommission === '') return
+    setApplyingBulk(true)
+    try {
+      const body: Record<string, unknown> = { ids: Array.from(selected) }
+      if (bulkStatusValue) body.status = bulkStatusValue
+      if (bulkFacilityId) body.facilityId = bulkFacilityId
+      if (bulkCommission !== '') body.commissionPercent = Number(bulkCommission)
+      const res = await fetch('/api/stylists/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(typeof json.error === 'string' ? json.error : 'Update failed', 'error')
+        return
+      }
+      setStylists((prev) =>
+        prev.map((s) => {
+          if (!selected.has(s.id)) return s
+          const updates: Partial<Stylist> = {}
+          if (bulkStatusValue) updates.status = bulkStatusValue as StylistStatus
+          if (bulkFacilityId) updates.facilityId = bulkFacilityId
+          if (bulkCommission !== '') updates.commissionPercent = Number(bulkCommission)
+          return { ...s, ...updates }
+        }),
+      )
+      setSelected(new Set())
+      setBulkStatusValue('')
+      setBulkFacilityId('')
+      setBulkCommission('')
+      toast(`Updated ${json.data?.updated ?? selected.size} stylist(s)`, 'success')
+    } catch {
+      toast('Update failed', 'error')
+    } finally {
+      setApplyingBulk(false)
     }
   }
 
@@ -821,7 +873,7 @@ export function DirectoryClient({
             {(
               [
                 { key: 'code', label: 'ST Code', className: 'w-14 shrink-0' },
-                { key: 'name', label: 'Name', className: 'flex-1 min-w-0' },
+                { key: 'name', label: 'Last Name', className: 'flex-1 min-w-0' },
                 { key: 'facility', label: 'Facility', className: 'w-32 shrink-0' },
                 { key: 'commission', label: 'Commission', className: 'w-24 shrink-0 text-right' },
               ] as const
@@ -947,9 +999,22 @@ export function DirectoryClient({
               type="search"
               value={appSearch}
               onChange={(e) => setAppSearch(e.target.value)}
-              placeholder="Search by name, email, or location"
+              placeholder="Search by name, email, location, or ZIP"
               className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
             />
+            {/^\d{5}$/.test(appSearch.trim()) && (
+              <select
+                value={appRadiusMiles}
+                onChange={(e) => setAppRadiusMiles(Number(e.target.value))}
+                className="h-9 rounded-xl border border-stone-200 text-sm px-2 text-stone-700 bg-white shrink-0"
+              >
+                <option value={5}>5 miles</option>
+                <option value={10}>10 miles</option>
+                <option value={15}>15 miles</option>
+                <option value={25}>25 miles</option>
+                <option value={50}>50 miles</option>
+              </select>
+            )}
             <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white">
               <button
                 type="button"
@@ -1213,19 +1278,75 @@ export function DirectoryClient({
       {/* Floating bulk action bar */}
       {selected.size > 0 && (
         <div
-          className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg"
+          className="fixed left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg max-w-[calc(100vw-32px)]"
           style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
         >
-          <span className="text-sm font-medium text-stone-700">
+          <span className="text-sm font-medium text-stone-700 shrink-0">
             {selected.size} selected
           </span>
+
+          <select
+            value={bulkStatusValue}
+            onChange={(e) => {
+              setBulkStatusValue(e.target.value as StylistStatus | '')
+              setBulkFacilityId('')
+              setBulkCommission('')
+            }}
+            className="h-8 rounded-lg border border-stone-200 text-sm px-2 text-stone-700 bg-white"
+          >
+            <option value="">Set status…</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="on_leave">On Leave</option>
+            <option value="terminated">Terminated</option>
+          </select>
+
+          <select
+            value={bulkFacilityId}
+            onChange={(e) => {
+              setBulkFacilityId(e.target.value)
+              setBulkStatusValue('')
+              setBulkCommission('')
+            }}
+            className="h-8 rounded-lg border border-stone-200 text-sm px-2 text-stone-700 bg-white"
+          >
+            <option value="">Set facility…</option>
+            {franchiseFacilities.map((f) => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+
+          <input
+            type="number"
+            min={0}
+            max={100}
+            placeholder="Set commission %"
+            value={bulkCommission}
+            onChange={(e) => {
+              setBulkCommission(e.target.value)
+              setBulkStatusValue('')
+              setBulkFacilityId('')
+            }}
+            className="h-8 w-36 rounded-lg border border-stone-200 text-sm px-2 text-stone-700"
+          />
+
+          <button
+            onClick={handleBulkUpdate}
+            disabled={applyingBulk || (!bulkStatusValue && !bulkFacilityId && bulkCommission === '')}
+            className="px-3 py-1.5 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
+            style={{ backgroundColor: '#8B2E4A' }}
+          >
+            {applyingBulk ? 'Applying…' : 'Apply'}
+          </button>
+
           <button
             onClick={handleBulkDelete}
             disabled={deletingBulk}
             className="px-3 py-1.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors"
           >
-            {deletingBulk ? 'Deleting…' : 'Delete selected'}
+            {deletingBulk ? 'Deleting…' : 'Delete'}
           </button>
+
           <button
             onClick={() => setSelected(new Set())}
             className="px-3 py-1.5 rounded-xl text-sm text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors"

@@ -392,7 +392,7 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 9.5 (Applicant Pipeline) + post-9.5 UX polish complete (shipped 2026-04-16). Next steps:
+Phase 9.5 (Applicant Pipeline) + Directory UX polish + Applicant ZIP radius search complete (shipped 2026-04-16). Next steps:
 1. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
 3. Investigate and fix why `/stylists` page shows no stylists for Lisa despite active stylists in the DB. Likely: `getUserFacility()` returning wrong facilityId when viewing via super-admin switcher (cookie-based lookup may fall back to first `facility_users` row, which could be a different facility).
