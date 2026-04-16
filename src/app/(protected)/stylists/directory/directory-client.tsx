@@ -124,7 +124,7 @@ export function DirectoryClient({
   const [importingCSV, setImportingCSV] = useState(false)
   const [importBanner, setImportBanner] = useState<{ imported: number; skipped: number } | null>(null)
   const appFileInputRef = useRef<HTMLInputElement | null>(null)
-  const [appSortKey, setAppSortKey] = useState<'name' | 'date' | 'status'>('date')
+  const [appSortKey, setAppSortKey] = useState<'name' | 'location' | 'job' | 'date' | 'status'>('date')
   const [appSortDir, setAppSortDir] = useState<'asc' | 'desc'>('desc')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -213,9 +213,27 @@ export function DirectoryClient({
     })
     return [...filtered].sort((a, b) => {
       let cmp = 0
-      if (appSortKey === 'name') cmp = a.name.localeCompare(b.name)
-      else if (appSortKey === 'date') cmp = (a.appliedDate ?? '').localeCompare(b.appliedDate ?? '')
-      else if (appSortKey === 'status') cmp = a.status.localeCompare(b.status)
+      if (appSortKey === 'name') {
+        cmp = a.name.localeCompare(b.name)
+      } else if (appSortKey === 'location') {
+        const aLoc = a.location ?? ''
+        const bLoc = b.location ?? ''
+        if (!aLoc && !bLoc) cmp = 0
+        else if (!aLoc) return 1  // nulls always last
+        else if (!bLoc) return -1
+        else cmp = aLoc.localeCompare(bLoc)
+      } else if (appSortKey === 'job') {
+        const aJob = a.jobTitle ?? ''
+        const bJob = b.jobTitle ?? ''
+        if (!aJob && !bJob) cmp = 0
+        else if (!aJob) return 1  // nulls always last
+        else if (!bJob) return -1
+        else cmp = aJob.localeCompare(bJob)
+      } else if (appSortKey === 'date') {
+        cmp = (a.appliedDate ?? '').localeCompare(b.appliedDate ?? '')
+      } else if (appSortKey === 'status') {
+        cmp = a.status.localeCompare(b.status)
+      }
       return appSortDir === 'asc' ? cmp : -cmp
     })
   }, [appApplicants, appSearch, appStatusFilter, appSortKey, appSortDir])
@@ -1001,10 +1019,12 @@ export function DirectoryClient({
           ) : (
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
               {/* Sort header */}
-              <div className="grid grid-cols-[1fr_120px_100px_32px] px-4 py-2 border-b border-stone-100 bg-stone-50/50">
+              <div className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] px-4 py-2 border-b border-stone-100 bg-stone-50/50">
                 {(
                   [
                     { key: 'name', label: 'Name' },
+                    { key: 'location', label: 'Location' },
+                    { key: 'job', label: 'Job Applied For' },
                     { key: 'date', label: 'Date Applied' },
                     { key: 'status', label: 'Status' },
                   ] as const
@@ -1029,40 +1049,44 @@ export function DirectoryClient({
                 <div key={a.id} className="border-b border-stone-50 last:border-0">
                   {/* Summary row */}
                   <div
-                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+                    className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"
                     onClick={() => handleAppExpand(a)}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-stone-900">{a.name}</p>
-                      {a.location && (
-                        <p className="text-xs text-stone-400 mt-0.5">{a.location}</p>
-                      )}
+                    <div className="min-w-0 pr-2">
+                      <p className="text-sm font-semibold text-stone-900 truncate">{a.name}</p>
                     </div>
-                    {a.appliedDate && (
-                      <span className="text-xs text-stone-400 shrink-0 hidden sm:inline">
-                        {formatAppliedDate(a.appliedDate)}
-                      </span>
-                    )}
-                    {a.jobTitle && (
-                      <span className="text-xs text-stone-500 truncate max-w-[140px] shrink-0 hidden md:inline">
-                        {a.jobTitle}
-                      </span>
-                    )}
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 capitalize ${APP_STATUS_BADGE[a.status]}`}>
-                      {a.status}
-                    </span>
-                    <select
-                      value={a.status}
-                      onChange={(e) => { e.stopPropagation(); handleAppStatusChange(a.id, e.target.value as ApplicantStatus) }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-xs border border-stone-200 rounded-lg px-2 py-1 bg-white text-stone-600 shrink-0 capitalize"
-                    >
-                      {APP_STATUS_LABELS.map((s) => (
-                        <option key={s} value={s} className="capitalize">{s}</option>
-                      ))}
-                    </select>
                     <span
-                      className="p-1.5 text-stone-400 shrink-0"
+                      className="text-xs text-stone-500 truncate pr-2"
+                      title={a.location ?? undefined}
+                    >
+                      {a.location ?? <span className="text-stone-300">—</span>}
+                    </span>
+                    <span
+                      className="text-xs text-stone-500 truncate pr-2"
+                      title={a.jobTitle ?? undefined}
+                    >
+                      {a.jobTitle ?? <span className="text-stone-300">—</span>}
+                    </span>
+                    <span className="text-xs text-stone-400 truncate pr-2">
+                      {a.appliedDate ? formatAppliedDate(a.appliedDate) : <span className="text-stone-300">—</span>}
+                    </span>
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 capitalize ${APP_STATUS_BADGE[a.status]}`}>
+                        {a.status}
+                      </span>
+                      <select
+                        value={a.status}
+                        onChange={(e) => { e.stopPropagation(); handleAppStatusChange(a.id, e.target.value as ApplicantStatus) }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs border border-stone-200 rounded-lg px-1.5 py-0.5 bg-white text-stone-600 capitalize"
+                      >
+                        {APP_STATUS_LABELS.map((s) => (
+                          <option key={s} value={s} className="capitalize">{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <span
+                      className="p-1.5 text-stone-400 justify-self-end"
                       aria-hidden="true"
                     >
                       <svg
