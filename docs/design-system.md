@@ -311,7 +311,7 @@ Adds `shadow-sm` and uses white background by default:
 
 ### Category Grouping in Native Selects
 
-Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`, sorted alphabetical with "Other" last. Skip the grouping wrapper when `groups.length <= 1` — a single-group `<optgroup>` adds visual noise without segmentation value.
+Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`, sorted **Z→A descending** (matches the services page default), with "Other" always last. Skip the grouping wrapper when `groups.length <= 1` — a single-group `<optgroup>` adds visual noise without segmentation value. **Within each category group**, services are pre-sorted by `pricingTypePriority` (fixed/multi_option = 0, tiered = 1, addon = 2) then alphabetically by name — so standard services appear first, tiered second, add-ons last. Apply this sort to the `options` array before calling `groupByCategory`.
 
 ```tsx
 <select>

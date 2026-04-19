@@ -85,11 +85,14 @@ export function BookingModal({
 
   // Split services: primaries (non-addon) pickable in the multi-service list; addons are a separate checklist
   const primaryServiceCandidates = services.filter((s) => s.pricingType !== 'addon')
-  const addonServices = services.filter(
-    (s) => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id)
-  )
+  const addonServices = services
+    .filter((s) => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
-  // Group services by `category`. "Other" (nullish) sorts last; other categories alphabetical.
+  // Pricing type sort priority: regular/fixed first, tiered second, addon last
+  const pricingTypePriority = (pt: string) => pt === 'addon' ? 2 : pt === 'tiered' ? 1 : 0
+
+  // Group services by `category`. "Other" (nullish) sorts last; other categories Z→A (descending).
   const groupByCategory = <T extends { category?: string | null }>(items: T[]): Array<[string, T[]]> => {
     const groups = new Map<string, T[]>()
     for (const s of items) {
@@ -100,7 +103,7 @@ export function BookingModal({
     return [...groups.entries()].sort(([a], [b]) => {
       if (a === 'Other') return 1
       if (b === 'Other') return -1
-      return a.localeCompare(b)
+      return b.localeCompare(a) // Z→A: Shampoo before Perms before Nail before Color before Aesthetics
     })
   }
 
@@ -629,9 +632,14 @@ export function BookingModal({
             Services <span className="text-red-400">*</span>
           </label>
           {selectedServiceIds.map((svcId, idx) => {
-            const availableOptions = primaryServiceCandidates.filter(
-              (s) => s.id === svcId || !selectedServiceIds.includes(s.id)
-            )
+            const availableOptions = primaryServiceCandidates
+              .filter((s) => s.id === svcId || !selectedServiceIds.includes(s.id))
+              .sort((a, b) => {
+                const pa = pricingTypePriority(a.pricingType)
+                const pb = pricingTypePriority(b.pricingType)
+                if (pa !== pb) return pa - pb
+                return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+              })
             return (
               <div key={idx} className="flex items-center gap-2">
                 <select
