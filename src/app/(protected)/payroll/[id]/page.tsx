@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { payPeriods } from '@/db/schema'
+import { facilities, payPeriods } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { toClientJson } from '@/lib/sanitize'
@@ -43,10 +43,23 @@ export default async function PayrollDetailPage({
   const { items: _drop, ...period } = row
   void _drop
 
+  const facility = await db.query.facilities.findFirst({
+    where: eq(facilities.id, facilityUser.facilityId),
+    columns: {
+      qbAccessToken: true,
+      qbRefreshToken: true,
+      qbExpenseAccountId: true,
+    },
+  })
+  const hasQuickBooks = !!(facility?.qbAccessToken && facility?.qbRefreshToken)
+  const hasExpenseAccount = !!facility?.qbExpenseAccountId
+
   return (
     <PayrollDetailClient
       period={toClientJson(period)}
       initialItems={toClientJson(items)}
+      hasQuickBooks={hasQuickBooks}
+      hasExpenseAccount={hasExpenseAccount}
     />
   )
 }

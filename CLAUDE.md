@@ -283,6 +283,22 @@
 - **CSV export** (`GET /api/pay-periods/[id]/export`): admin-only, rate-limited, `maxDuration = 60`. Columns: Stylist Name, ST Code, Facility, Pay Type, Gross Revenue, Commission Rate, Commission Amount, Hours Worked, Hourly Rate, Flat Amount, Deductions, Net Pay, Notes. Dollars to 2 decimals; rate as `55%`; total row appended. Filename `payroll-{start}-{end}.csv`. Reuse the `escapeCsv` pattern from the bookkeeper export.
 - **Item PUT validation**: verify `item.payPeriodId === route [id]` (defense against ID shuffling); reject when period paid; Zod caps: `hoursWorked >= 0`, `hourlyRateCents 0..10_000_000`, `flatAmountCents 0..10_000_000`, notes max 2000.
 
+### QuickBooks (Phase 10B)
+- **QB tokens are sensitive** — `qbAccessToken` and `qbRefreshToken` are in `SENSITIVE_KEYS` (sanitize.ts). `sanitizeFacility()` drops both, surfaces `hasQuickBooks: boolean` alongside `hasStripeSecret`. Server never returns tokens to the client.
+- **Always call `refreshQBToken(facilityId)` before any QB fetch** — never read `facilities.qb_access_token` directly in a route handler. The helper refreshes 5min before expiry and dedupes concurrent refreshes per-facility via in-memory `Map<facilityId, Promise<string>>`. Use `qbGet(facilityId, path)` / `qbPost(facilityId, path, body)` which handle this automatically.
+- **401 retry**: `qbFetch` clears the cached expiry and retries exactly once on 401, then throws. Never loop.
+- **Sparse update pattern**: QB mutations that update an existing entity require `{Id, SyncToken, sparse: true}` — always GET the entity first to capture a fresh SyncToken, then POST the delta.
+- **One Bill per stylist per pay period** — QB Bills have exactly one VendorRef. `stylist_pay_items.qb_bill_id` + `qb_bill_sync_token` track the per-item Bill; `pay_periods.qb_synced_at` is the aggregate last-push timestamp; `pay_periods.qb_sync_error` summarizes failures.
+- **Expense account is mandatory** — `facilities.qb_expense_account_id` is required before Bill sync. UI blocks sync with 412 until admin picks one from `/api/quickbooks/accounts`.
+- **Portal-level OAuth is per-facility** — `oauth_states.stylist_id` is now nullable; `facility_id` was added to the same table. Exactly one of (stylistId, facilityId) is populated per row. Google Calendar flow still populates stylistId; QB flow populates facilityId. The google-calendar callback now guards `if (!stateRow.stylistId) throw` since the column is nullable.
+- **Rate limit**: `quickbooksSync` bucket 15/hr/user on all QB POST routes + `/api/quickbooks/accounts`. `maxDuration = 60` + `dynamic = 'force-dynamic'` on every QB route (vendor sync and bill sync can make 20+ API calls).
+- **Revoke on disconnect** — POST `developer.api.intuit.com/v2/oauth2/tokens/revoke` fire-and-forget in addition to clearing DB columns. Helper `revokeQBToken()` in `src/lib/quickbooks.ts`.
+- **`POST /api/quickbooks/sync-bill/[periodId]` auto-syncs vendors inline** for any stylist whose pay item has `netPayCents > 0` but no `qbVendorId` — reuses `syncVendorsForFacility(facilityId, filterStylistIds)` exported from the sync-vendors route. Period must be `processing` or `paid` (not `open`).
+- **Payment status sync** (`POST /api/quickbooks/sync-status/[periodId]`) fetches all Bills for the period and, if every `Balance === 0` and status ≠ paid, flips the period to `paid` + `revalidateTag('pay-periods', {})`.
+- **UI gate**: payroll QB panel is hidden when `facility.hasQuickBooks === false` OR `period.status === 'open'`. Settings integration card lives in the Integrations tab — `?qb=connected` / `?qb=error&reason=…` URL params trigger toasts once and clear themselves via `replaceState`.
+- **CSP** `connect-src` includes `https://quickbooks.api.intuit.com https://oauth.platform.intuit.com https://appcenter.intuit.com https://developer.api.intuit.com` (server-side fetch isn't subject to browser CSP, but extend anyway for future client widgets).
+- Env: `QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET` in Vercel (server-only, no `NEXT_PUBLIC_*`).
+
 ### Phase 9.5 — Applicant Pipeline
 - **`applicants` table** has RLS enabled + `service_role_all` policy — same as every other table. Indexes on `franchise_id`, `status`, `email`.
 - **Franchise scope**: all applicant queries filter by `franchiseId` (not `facilityId`) — applicants belong to a franchise, not a single facility. Use `getUserFranchise()` in every applicant route.
@@ -320,7 +336,7 @@ These phases are locked and must not be re-ordered or re-scoped without explicit
 - **Phase 11** — Incident & Issue Tracking: issues table (severity: low|medium|high, type: cancellation|complaint|safety|…), "Report Issue" on booking cards + log rows, high severity → email + red banner.
 - **Phase 12** — Advanced KPI Dashboard: no schema changes, new metrics (cancellation rate, avg ticket, utilization, concentration risk, MoM/YoY), region filtering, weekly email digest, PDF export.
 - **Phase 13** — Facility Contact Portal: facility_contact role, service_change_requests table (add_day|cancel_day|…), restricted nav (Schedule read-only, Visit Summaries, Invoices, Submit Request).
-- **Phase 14** — QuickBooks Online Integration: QB OAuth per facility in Settings, quickbooks_sync_log table, push invoices + payroll to QB, sync payment status back, error log with retry, CSV export as fallback.
+- **Phase 14** — QuickBooks polish (rescoped): core QuickBooks Online integration (OAuth per facility, Vendor sync, payroll Bill push, payment status pull back) shipped as **Phase 10B** on 2026-04-20. Remaining Phase 14 polish: `quickbooks_sync_log` audit table, automated retry-with-backoff worker for transient failures, optional invoice push for non-Stripe facilities.
 
 ## Reference Files
 - docs/master-spec.md — full architecture reference

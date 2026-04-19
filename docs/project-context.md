@@ -55,6 +55,9 @@ Tailwind CSS 4, Vercel
 | STRIPE_SECRET_KEY | Resident portal payments | stripe.com |
 | UPSTASH_REDIS_REST_URL | Rate limiting (optional — no-op if unset) | upstash.com |
 | UPSTASH_REDIS_REST_TOKEN | Rate limiting (optional) | upstash.com |
+| QUICKBOOKS_CLIENT_ID | QB Online OAuth2 client ID (Phase 10B) | developer.intuit.com |
+| QUICKBOOKS_CLIENT_SECRET | QB Online OAuth2 client secret (Phase 10B) | developer.intuit.com |
+| CRON_SECRET | Vercel cron auth (compliance alerts) | `openssl rand -hex 32` |
 
 ---
 
@@ -305,11 +308,20 @@ Tailwind CSS 4, Vercel
 - Helper: `src/lib/payroll.ts` (`computeNetPay`, `NetPayInputs`); net pay recomputed inside `db.transaction()` on every mutation
 - `revalidateTag('pay-periods', {})` on every mutation
 
+### Phase 10B SHIPPED (2026-04-20) — QuickBooks Online Integration
+- Rescoped from Phase 14 per user direction. Per-facility OAuth2 connect → stylists sync as QB Vendors → pay periods push as one QB Bill per stylist → payment status pulls back to auto-flip period to `paid` when every Bill's `Balance === 0`.
+- Schema (one-off migration): `facilities` gains `qb_realm_id`, `qb_access_token`, `qb_refresh_token`, `qb_token_expires_at`, `qb_expense_account_id`. `stylists.qb_vendor_id`. `pay_periods.qb_synced_at` + `qb_sync_error`. `stylist_pay_items.qb_bill_id` + `qb_bill_sync_token` + `qb_sync_error`. `oauth_states.stylist_id` relaxed to nullable + new `facility_id` column so one table backs both Google Calendar (stylist-level) and QuickBooks (facility-level) OAuth CSRF state.
+- Helper `src/lib/quickbooks.ts` — OAuth URL builder, code exchange, `refreshQBToken(facilityId)` (5-min pre-expiry refresh + in-memory `Map<facilityId, Promise<string>>` dedup), `qbGet` / `qbPost` (Bearer + 401-retry-once), `revokeQBToken`.
+- 7 API routes under `src/app/api/quickbooks/`: `connect`, `callback`, `disconnect`, `accounts` (expense account picker), `sync-vendors` (exports `syncVendorsForFacility` for inline reuse), `sync-bill/[periodId]` (auto-calls vendor sync for any stylist missing mapping), `sync-status/[periodId]` (flips period to paid when all Bills zero-balance). Rate-limited under new `quickbooksSync` bucket (15/hr/user). `maxDuration=60` + `dynamic='force-dynamic'` on all routes.
+- Sanitize — `qbAccessToken` + `qbRefreshToken` added to `SENSITIVE_KEYS`; `sanitizeFacility()` drops both and surfaces `hasQuickBooks: boolean`. CSP `connect-src` extended with all four Intuit hosts.
+- UI — Settings → Integrations tab gains a Connected-state card (realm ID, expense account `<select>` populated from `/api/quickbooks/accounts`, Sync Vendors button, two-click Disconnect). `?qb=connected` / `?qb=error&reason=…` URL params trigger one-shot toasts that `replaceState` to clear themselves. Payroll detail (`/payroll/[id]`) gains a QB panel between the paid banner and items grid, gated on `hasQuickBooks && status !== 'open'`: Push / Re-push / Sync Payment Status / Retry Sync buttons + per-stylist error listing.
+- Env vars: `QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET` (server-only, no `NEXT_PUBLIC_*`). Not yet set in Vercel — see Immediate Next Fix.
+
 ### Phase 10B+ PLANNED — Payroll extensions (pending)
 - Recurring pay period auto-creation (cron-driven monthly rollover)
 - Payroll email notifications to stylists
 - Stylist self-service pay-period viewing (`/my-account` surface)
-- QuickBooks-compatible payroll push (pairs with Phase 14)
+- `quickbooks_sync_log` audit-trail table + automated retry-with-backoff worker for transient QB failures (rescoped from legacy Phase 14 polish)
 
 ### Phase 11 PLANNED — Incident & Issue Tracking
 - New table: `issues` (facility_id, stylist_id nullable, booking_id nullable, reported_by, issue_type: cancellation|complaint|safety|access_problem|payment_issue|supply_issue|staff_behavior|other, severity: low|medium|high, description, action_taken, assigned_to, status: open|in_progress|resolved, resolved_at)
@@ -332,20 +344,18 @@ Tailwind CSS 4, Vercel
 - Restricted nav: Schedule (read-only), Visit Summaries, Invoices, Submit Request
 - Cannot see residents, other facilities, or stylist details
 
-### Phase 14 PLANNED — QuickBooks Online Integration
-- New columns on `facilities`: quickbooks_realm_id, quickbooks_access_token, quickbooks_refresh_token, quickbooks_token_expires_at
-- New table: `quickbooks_sync_log` (facility_id, entity_type: invoice|payroll, entity_id, qb_id, status: synced|failed, error, synced_at)
-- OAuth connection per facility in Settings → Integrations tab
-- Push invoices and payroll entries to QuickBooks Online
-- Sync payment status back from QB
-- Sync error log with retry button
-- CSV export remains as fallback for non-QB facilities
+### Phase 14 PLANNED — QuickBooks polish (rescoped)
+- Core QuickBooks Online integration shipped as **Phase 10B** (2026-04-20). Remaining Phase 14 polish items:
+  - `quickbooks_sync_log` audit-trail table (facility_id, entity_type, entity_id, qb_id, status, error, synced_at) for full retry history visibility
+  - Automated retry-with-backoff worker for transient QB failures (currently surfaced as per-stylist errors in the UI for manual retry)
+  - Invoice push (beyond payroll Bills) — optional; facilities using Stripe Checkout may not need QB invoicing
 
 ---
 
 ## 6. CURRENT STATUS
 
 ### Working
+- Phase 10B — QuickBooks Online integration shipped (2026-04-20): per-facility OAuth2 connect + disconnect + revoke, Vendor sync (create-or-sparse-update with `SyncToken`), one Bill per stylist per pay period (auto-inline vendor sync for any stylist missing `qbVendorId`), payment status sync that flips `pay_periods.status = 'paid'` when every Bill's `Balance === 0`. Schema: facilities +5 cols, stylists +1, pay_periods +2, stylist_pay_items +3, oauth_states `stylist_id` relaxed to nullable + new `facility_id` column. Helper `src/lib/quickbooks.ts` centralizes token refresh (5-min skew + in-memory dedup Map) and `qbGet`/`qbPost` (401 retry-once). 7 new routes under `/api/quickbooks/` (connect, callback, disconnect, accounts, sync-vendors, sync-bill/[periodId], sync-status/[periodId]) — all `maxDuration=60`, `dynamic='force-dynamic'`, rate-limited under new `quickbooksSync` bucket (15/hr). CSP `connect-src` extended with all four intuit.com hosts. Sanitize: `qbAccessToken`/`qbRefreshToken` added to `SENSITIVE_KEYS`; `sanitizeFacility()` surfaces `hasQuickBooks: boolean`. UI: Settings → Integrations card (Connect / Connected with realm ID + Expense account `<select>` + Sync Vendors + two-click Disconnect, handles `?qb=connected`/`?qb=error&reason=…` URL params with one-shot toast + `replaceState`). Payroll detail QB panel gated on `hasQuickBooks && status !== 'open'` with Push / Re-push / Sync Payment Status / Retry Sync buttons + per-stylist error listing. Env: `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` still need to be set in Vercel before end-to-end testing — see Immediate Next Fix.
 - Phase 10A — Payroll engine shipped (2026-04-19): three tables (`pay_periods`, `stylist_pay_items`, `pay_deductions`) with RLS + `service_role_all`. `POST /api/pay-periods` creates a period and auto-generates pay items from completed bookings via `resolveCommission()`, inside a single `db.transaction()` (assignments+stylists join, bookings aggregate `[start, endExclusive)`, null priceCents → 0). Admin UI at `/payroll` (list + New Pay Period modal with in-modal "Calculating payroll…" spinner) and `/payroll/[id]` (expandable rows, pay-type switching commission/hourly/flat, inline deductions add/delete, live net-pay preview via local `computeNetPay`, forward-only status transitions with two-click confirm on "Mark Paid", CSV export). `paid` status locks all edits. `computeNetPay()` helper in `src/lib/payroll.ts`; recomputed on every item PUT + deduction POST/DELETE inside `db.transaction()`. Rate limits: `payPeriodCreate` 10/hr, `payrollExport` 20/hr. `maxDuration = 60` on POST + export. Every mutation calls `revalidateTag('pay-periods', {})`. Sidebar + mobile-nav gain admin-only "Payroll" entry after Reports. DNS: `noreply@seniorstylist.com` confirmed live via `send.seniorstylist.com` (mailed-by) + `seniorstylist.com` (signed-by).
 - PDF import loading overlay + smooth progress bar (2026-04-19): `import-client.tsx` now shows a `fixed inset-0 bg-black/40 backdrop-blur-sm z-50` overlay with a centered `rounded-2xl` white panel during PDF parsing. Two-phase progress bar: 0% → 70% over 2s (`cubic-bezier(0.4, 0, 0.2, 1)`) when parse starts, then → 100% over 0.4s on Gemini response. 50ms `setTimeout` before the first phase transition forces the browser to paint the bar at 0% before animating. CSV/Excel files skip the overlay entirely (client-side parse is instant). Overlay disappears after 400ms hold at 100% then preview table renders.
 - Remove all service auto-selection in create mode (2026-04-19): full audit found two remaining auto-selection paths. (1) `booking-modal.tsx` `addAnotherService` was pushing `firstFree.id` (first primary candidate) into `selectedServiceIds` — now pushes `''` (empty slot) so the dropdown's placeholder renders and admin must pick manually. Added `selectedServiceIds.some((id) => !id)` guard in `handleSubmit` to reject partially-filled rows. (2) `log-client.tsx` had a `useEffect` auto-setting `wiServiceId` to `resident.mostUsedServiceId` on resident change — removed entirely. `wiServiceId` only gets a value via the `<select onChange>`. Portal's `mostUsedServiceId` pre-selection stays.
@@ -412,12 +422,16 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 10A — Payroll engine shipped (2026-04-19). Next steps:
-1. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates.
-2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
-3. Investigate and fix why `/stylists` page shows no stylists for Lisa despite active stylists in the DB. Likely: `getUserFacility()` returning wrong facilityId when viewing via super-admin switcher (cookie-based lookup may fall back to first `facility_users` row, which could be a different facility).
-4. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability. Use the new "Send account invite →" button on each Stylist Detail page once email is on file.
-5. Begin Phase 10 — Payroll Operations.
+Phase 10B — QuickBooks Online integration shipped (2026-04-20). Manual config still required before end-to-end Bill sync works in production:
+
+1. **Create the Intuit developer app** at https://developer.intuit.com → new app → scope `com.intuit.quickbooks.accounting` → register redirect URIs `http://localhost:3000/api/quickbooks/callback` (dev) and `https://senior-stylist.vercel.app/api/quickbooks/callback` (prod).
+2. Set `QUICKBOOKS_CLIENT_ID` and `QUICKBOOKS_CLIENT_SECRET` in Vercel env (production + preview + development). These are server-only — no `NEXT_PUBLIC_*`.
+3. First-time admin walkthrough: Settings → Integrations → Connect QuickBooks → authorize in Intuit → back in Settings pick the Expense account (required; sync-bill returns 412 otherwise).
+4. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates — still outstanding from Phase 7.
+5. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op (including the new `quickbooksSync` bucket).
+6. Investigate and fix why `/stylists` page shows no stylists for Lisa despite active stylists in the DB. Likely: `getUserFacility()` returning wrong facilityId when viewing via super-admin switcher.
+7. Onboard Symphony Manor + Sunrise Bethesda — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
+8. Phase 10B+ backlog: payroll email notifications, stylist self-service pay-period viewing, recurring pay period auto-creation, `quickbooks_sync_log` audit table + automated retry-with-backoff (rescoped from legacy Phase 14).
 
 ---
 

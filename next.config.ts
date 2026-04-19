@@ -6,7 +6,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.supabase.co https://*.googleapis.com https://accounts.google.com https://*.vercel-insights.com https://generativelanguage.googleapis.com",
+  "connect-src 'self' https://*.supabase.co https://*.googleapis.com https://accounts.google.com https://*.vercel-insights.com https://generativelanguage.googleapis.com https://quickbooks.api.intuit.com https://oauth.platform.intuit.com https://appcenter.intuit.com https://developer.api.intuit.com",
   "frame-src 'self' https://accounts.google.com",
   "worker-src 'self' blob:",
   "object-src 'none'",

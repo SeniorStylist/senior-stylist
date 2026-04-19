@@ -1109,3 +1109,37 @@ Three sibling edit controls — only one may be non-empty at a time (changing on
 **Apply** button (burgundy `#8B2E4A`) — disabled when all three controls are empty or `applyingBulk`. Calls `handleBulkUpdate` → `POST /api/stylists/bulk-update` → optimistic local state update → toast. No `router.refresh()`.
 
 **Delete** button (red-500) and **Clear** button unchanged.
+
+### Integration connection card (Stripe + QuickBooks)
+
+Shared card pattern for third-party service connections in Settings → Integrations tab. Both Stripe and QuickBooks Online use the exact same structural rhythm:
+
+- Container: `rounded-2xl border border-stone-200 bg-white p-5`
+- Header row: flex, title `font-serif text-lg text-stone-900` + optional `✓ Connected` pill when active (`bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-semibold px-2 py-0.5`)
+- Body: one-line description in `text-sm text-stone-600` when disconnected; compact details (realm ID in `font-mono text-xs`, form selects, action row) when connected
+- Primary action button: burgundy `bg-[#8B2E4A] hover:bg-[#72253C] text-white rounded-xl px-4 py-2`
+- Secondary actions: stone outline `border border-stone-200 rounded-xl px-3 py-2 text-stone-700 hover:bg-stone-50`
+
+**Connect flow**: primary action is a plain `<a href="/api/<integration>/connect">` (full-page redirect — OAuth providers require it, cannot run in a modal). After the provider redirects back, handle `?<integration>=connected` / `?<integration>=error&reason=…` URL params on mount: show an emerald/red toast, then `window.history.replaceState` to strip the query so the toast doesn't re-fire on re-render.
+
+### Two-click disconnect confirm
+
+Used anywhere an action is destructive + reversible-by-restart (Remove Access on the Team tab, Disconnect on Integration cards). Pattern:
+
+- State: `const [confirm, setConfirm] = useState(false)`
+- First click shows the red "Disconnect" label
+- Second click (within ~3s or until the mouse leaves) fires the mutation
+- `onMouseLeave={() => setConfirm(false)}` cancels the armed state so the user can back out without refreshing
+- While `confirming`: swap copy to `"Disconnect? Yes"` (red) + keep a `"No"` ghost next to it; `text-red-600` and bold weight differentiate from the idle state
+
+Never use a modal `window.confirm()` — the two-click pattern keeps the action inline and mobile-friendly.
+
+### "Push to QuickBooks" button — three states
+
+Used on `/payroll/[id]` when `hasQuickBooks && period.status !== 'open'`:
+
+- **Idle** (never pushed, or re-push after a status change): primary burgundy pill, label `Push to QuickBooks` or `Re-push`.
+- **Pending** (mutation in flight): same pill, disabled, label swaps to `Pushing…`, no spinner icon (keep it flat — the disabled state is enough signal on a button this prominent).
+- **Error with retry**: below the idle button, a red banner `rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700` listing the per-stylist failures as `<stylistName>: <message>` lines, with a `[Retry Sync]` text-button (red, underlined-on-hover) that re-runs the same `sync-bill` mutation. Success clears the banner on the next push.
+
+Synced state (all stylists OK) shows a muted `Synced to QuickBooks <relative-date>` caption + `[Sync Payment Status]` secondary button. Optimistic local state toggles the status badge on a successful status-sync response; `router.refresh()` on success re-hydrates the underlying period row.

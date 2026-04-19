@@ -22,6 +22,7 @@ const updateSchema = z.object({
     endTime: z.string().max(10),
   }).optional(),
   contactEmail: z.string().email().max(320).optional().nullable(),
+  qbExpenseAccountId: z.string().max(100).optional().nullable(),
 })
 
 export async function GET() {

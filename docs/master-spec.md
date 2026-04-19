@@ -132,6 +132,11 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `working_hours` | `jsonb`, nullable — `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }`; null = default 08:00–18:00; set via Settings → General; bounds booking time slots |
 | `contact_email` | Optional text — facility-specific reply-to for access request emails; falls back to first admin's email |
 | `service_category_order` | `jsonb`, nullable `string[]` — per-facility category display order. Captured on PDF import (`/api/services/bulk`): categories are extracted in order of first appearance on the uploaded rows (excluding empty + "Other"), merged with the existing order (existing entries retain their position; new ones appended). `null` = fall back to Z→A alphabetical at display time. Consumed via `src/lib/service-sort.ts` helpers (`buildCategoryPriority`, `sortCategoryGroups`, `sortServicesWithinCategory`) in booking modal, portal, services page, log walk-in form. |
+| `qb_realm_id` | `text`, nullable (Phase 10B) — QuickBooks Online company ID from OAuth callback |
+| `qb_access_token` | `text`, nullable (Phase 10B) — QB OAuth access token; sensitive, never returned to client |
+| `qb_refresh_token` | `text`, nullable (Phase 10B) — QB OAuth refresh token; sensitive, never returned to client |
+| `qb_token_expires_at` | `timestamptz`, nullable (Phase 10B) — expiry of `qb_access_token`; helper refreshes 5min before |
+| `qb_expense_account_id` | `text`, nullable (Phase 10B) — admin-selected QB Expense Account ID used as `AccountRef` on every pushed Bill line |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -170,6 +175,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 - **`status`** (text, NOT NULL, default `'active'`, Phase 9) — lifecycle status; CHECK constraint `status IN ('active','inactive','on_leave','terminated')`. Separate from `active` (soft-delete). UI will render as a status badge in Prompt 2+.
 - **`specialties`** (jsonb NOT NULL DEFAULT `[]`, Phase 9) — string tag list, e.g. `["color", "cut", "perm"]`
 - **`last_invite_sent_at`** (timestamptz nullable, Phase 9 Prompt 4) — timestamp of the last successful Supabase Admin invite email sent from Stylist Detail. Used to enforce the 24h rate limit in `POST /api/stylists/[id]/invite`. Updated server-side after a successful invite; never trusted from client.
+- **`qb_vendor_id`** (text, nullable, Phase 10B) — QuickBooks Vendor ID mapping. Set on first Vendor sync or inline when pushing a Bill for a stylist with no mapping. Null = never synced to QB.
 - **`active`**, timestamps
 
 ### `stylist_facility_assignments` (Phase 9)
@@ -262,12 +268,13 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 | Column | Notes |
 |--------|--------|
 | `id` | PK `uuid`, default random |
-| `nonce` | `text` unique — random UUID passed as `state` to Google OAuth |
+| `nonce` | `text` unique — random UUID passed as `state` to OAuth provider |
 | `user_id` | FK → `profiles.id` — caller who initiated the connect flow |
-| `stylist_id` | FK → `stylists.id` — target stylist for the Google Calendar link |
+| `stylist_id` | FK → `stylists.id`, **NULLABLE** (Phase 10B) — populated on Google Calendar flow; null on QuickBooks flow |
+| `facility_id` | FK → `facilities.id`, nullable (Phase 10B) — populated on QuickBooks flow; null on Google Calendar flow |
 | `created_at` | Timestamp; rows older than 10 minutes are treated as expired |
 
-Used by `/api/auth/google-calendar/connect` + `/callback` to bind the OAuth callback to the authenticated user and prevent CSRF. Row is deleted atomically on successful callback.
+Used by both `/api/auth/google-calendar/*` (populates `stylist_id`) and `/api/quickbooks/*` (populates `facility_id`) to bind OAuth callbacks to the authenticated user and prevent CSRF. Exactly one of `stylist_id` / `facility_id` is populated per row. Row is deleted atomically on successful callback. The google-calendar callback guards `if (!stateRow.stylistId) throw` since the column is now nullable.
 
 ### `compliance_documents`
 
@@ -333,6 +340,8 @@ Two Drizzle relations to `stylists` via named `relationName`: `coverage_stylist`
 | `status` | `text` NOT NULL, default `open`, CHECK `IN (open, processing, paid)` — paid locks all edits |
 | `notes` | `text`, nullable |
 | `created_by` | FK → `profiles.id`, nullable |
+| `qb_synced_at` | `timestamptz`, nullable (Phase 10B) — aggregate "last Bill push" timestamp for the period; set after any `sync-bill` run with ≥1 success |
+| `qb_sync_error` | `text`, nullable (Phase 10B) — aggregate error summary when the most recent sync-bill run had at least one failure |
 | `created_at` / `updated_at` | `timestamp`, default now |
 
 ### `stylist_pay_items` (Phase 10A)
@@ -352,6 +361,9 @@ Two Drizzle relations to `stylists` via named `relationName`: `coverage_stylist`
 | `flat_amount_cents` | `integer`, nullable |
 | `net_pay_cents` | `integer` NOT NULL, default 0 — recomputed on every mutation |
 | `notes` | `text`, nullable |
+| `qb_bill_id` | `text`, nullable (Phase 10B) — QuickBooks Bill ID when pushed (one Bill per stylist per period) |
+| `qb_bill_sync_token` | `text`, nullable (Phase 10B) — captured from QB on create; needed for sparse updates |
+| `qb_sync_error` | `text`, nullable (Phase 10B) — last error message if the most recent push failed for this item; cleared on next success |
 | `created_at` / `updated_at` | `timestamp`, default now |
 
 Constraint: `UNIQUE(pay_period_id, stylist_id)` (named `stylist_pay_items_period_stylist_unique`).
@@ -625,6 +637,13 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `DELETE /api/coverage/[id]` | Admin any; stylist-owner only when `status='open'` | Hard delete — coverage requests are transient. |
 | `GET /api/coverage/substitutes?date=YYYY-MM-DD` | **Admin** | Returns `{ data: { facilityStylists, franchiseStylists } }` — both lists are `{ id, name, stylistCode }`. Facility pool = active stylists at caller's facility with availability on that day-of-week, not themselves on coverage that date. Franchise pool = active stylists with `facilityId IS NULL AND franchiseId = caller's franchise`. |
 | `GET /api/cron/compliance-alerts` | **Vercel Cron** (`Bearer CRON_SECRET`) | Daily at 09:00 UTC via `vercel.json`. Emails facility admins when any verified doc or stylist license/insurance `expires_at` is exactly **today+30** or **today+60**. Fallback recipient: `NEXT_PUBLIC_ADMIN_EMAIL`. All `sendEmail()` fire-and-forget. Returns `{ data: { alertsSent } }`. |
+| `GET /api/quickbooks/connect` | **Admin** (Phase 10B) | Inserts `oauth_states` row with `userId` + `facilityId` (no `stylistId`) and redirects to Intuit authorize URL with base64-encoded nonce as `state`. |
+| `GET /api/quickbooks/callback` | Authenticated (Intuit redirect) | Validates `state` against `oauth_states` (userId match, facilityId present, 10-min TTL), exchanges `code` via `exchangeQBCode()`, stores `qb_realm_id` + tokens + `qb_token_expires_at` on the facility, deletes state row. Redirects `/settings?qb=connected#integrations` or `?qb=error&reason=…`. |
+| `POST /api/quickbooks/disconnect` | **Admin** (Phase 10B) | Clears all QB columns (`qb_realm_id`, tokens, expiry, `qb_expense_account_id`). Fire-and-forget `revokeQBToken()` against Intuit's revoke endpoint. |
+| `GET /api/quickbooks/accounts` | **Admin**, rate-limited `quickbooksSync` | Queries QB for active Expense accounts; returns sorted `{ id, name, accountType, accountSubType }[]` for the Settings picker. `maxDuration=60`. |
+| `POST /api/quickbooks/sync-vendors` | **Admin**, rate-limited `quickbooksSync` | Creates or sparse-updates QB Vendors for every active assigned stylist in the facility. Never fails the whole batch — returns `{ created, updated, skipped, errors: [{ stylistId, message }] }`. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for reuse. `maxDuration=60`. |
+| `POST /api/quickbooks/sync-bill/[periodId]` | **Admin**, rate-limited `quickbooksSync` | Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor mapping. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item + aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', {})`. `maxDuration=60`. |
+| `POST /api/quickbooks/sync-status/[periodId]` | **Admin**, rate-limited `quickbooksSync` | GETs each `/bill/<qbBillId>` for items with a Bill. When every Balance === 0 and status ≠ paid, flips the period to `paid` + `revalidateTag('pay-periods', {})`. Returns `{ items, periodStatus, periodUpdated }`. |
 
 ---
 
@@ -713,8 +732,38 @@ Three tables: `pay_periods`, `stylist_pay_items`, `pay_deductions` (see DB schem
 - `GET /api/pay-periods/[id]/export` — rate-limited `payrollExport` (20/hr). CSV with dollar-formatted columns + total row. `maxDuration=60`
 Helper: `src/lib/payroll.ts` (`computeNetPay`, `NetPayInputs`). Net pay = `max(0, base − Σ deductions)`. `paid` locks all item/deduction mutations. Every mutation calls `revalidateTag('pay-periods', {})`.
 
+### Phase 10B — QuickBooks Online Integration (SHIPPED 2026-04-20)
+Per-facility OAuth2 connection, stylists mapped to QB Vendors, pay periods pushed as one QB Bill per stylist, payment status pulled back to auto-flip periods to `paid` when every Bill's `Balance === 0`.
+
+**Schema** — see the new columns on `facilities` (5 QB cols incl. `qb_expense_account_id`), `stylists` (`qb_vendor_id`), `pay_periods` (`qb_synced_at`, `qb_sync_error`), `stylist_pay_items` (`qb_bill_id`, `qb_bill_sync_token`, `qb_sync_error`), and `oauth_states` (relaxed `stylist_id` + new `facility_id`) documented above. No new tables.
+
+**Helper** — `src/lib/quickbooks.ts` centralizes OAuth + API calls:
+- `getQBAuthUrl(state, redirectUri)`, `exchangeQBCode(code, redirectUri)`, `refreshQBToken(facilityId)`, `qbGet<T>(facilityId, path)`, `qbPost<T>(facilityId, path, body)`, `revokeQBToken(refreshToken)`.
+- Refresh runs 5 min before expiry; concurrent refreshes deduped via an in-memory `Map<facilityId, Promise<string>>`.
+- `qbFetch` retries once on 401 by clearing cached expiry.
+- Never read `facilities.qb_access_token` directly — always go through the helper.
+
+**API routes under `src/app/api/quickbooks/`**:
+- `GET /connect` — admin-only. Inserts `oauth_states` row with `userId` + `facilityId`, redirects to Intuit authorize URL with nonce state.
+- `GET /callback` — Intuit redirect target. Validates state (userId match, facilityId present, 10-min TTL), exchanges code, stores tokens + `qb_realm_id`, deletes state row. Redirects `/settings?qb=connected#integrations` or `?qb=error&reason=…`.
+- `POST /disconnect` — admin-only. Clears all QB columns on the facility. Fire-and-forget revoke against `developer.api.intuit.com/v2/oauth2/tokens/revoke`.
+- `GET /accounts` — admin-only, rate-limited. Lists active Expense accounts for the Settings picker.
+- `POST /sync-vendors` — admin-only, rate-limited, `maxDuration=60`. Creates or sparse-updates QB Vendors for every active assigned stylist; never fails the batch on a per-stylist error. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for inline reuse by sync-bill.
+- `POST /sync-bill/[periodId]` — admin-only, rate-limited, `maxDuration=60`. Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item and aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', {})`.
+- `POST /sync-status/[periodId]` — admin-only, rate-limited. GETs each `/bill/<qbBillId>`; when all balances are zero and status ≠ paid, flips period to `paid` + `revalidateTag('pay-periods', {})`.
+
+**Rate limit** — `quickbooksSync` bucket 15/hr/user (`src/lib/rate-limit.ts`).
+
+**CSP** — `next.config.ts` `connect-src` extended with `https://quickbooks.api.intuit.com https://oauth.platform.intuit.com https://appcenter.intuit.com https://developer.api.intuit.com`.
+
+**Sanitize** — `SENSITIVE_KEYS` adds `qbAccessToken` + `qbRefreshToken`. `sanitizeFacility()` drops both and surfaces `hasQuickBooks: boolean` on `PublicFacility`.
+
+**UI** — Settings → Integrations tab shows a Connect / Connected card (expense account picker, Sync Vendors, two-click Disconnect, `?qb=connected` / `?qb=error&reason=…` toast handling). Payroll detail (`/payroll/[id]`) shows a QB panel gated on `hasQuickBooks && period.status !== 'open'` with Push / Re-push / Sync Payment Status / Retry Sync buttons and per-stylist error listing.
+
+**Env** — `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` (server-only; no `NEXT_PUBLIC_*`).
+
 ### Phase 10B+ — Payroll extensions (pending)
-Recurring pay period auto-creation, payroll emails to stylists, QuickBooks push, and stylist self-service payroll viewing all deferred to Phase 10B+.
+Recurring pay period auto-creation, payroll emails to stylists, QuickBooks error log table + automated retry with backoff (rescoped from legacy Phase 14), and stylist self-service payroll viewing.
 
 ### Phase 11 — Incident & Issue Tracking
 New table `issues`: `facility_id`, `stylist_id` nullable, `booking_id` nullable, `reported_by` (user_id), `issue_type` text, `severity` (low|medium|high), `description`, `action_taken`, `assigned_to` nullable, `status` (open|in_progress|resolved), `resolved_at`.
@@ -725,8 +774,8 @@ No schema changes. New computed metrics in existing report endpoints plus a new 
 ### Phase 13 — Facility Contact Portal
 New role `facility_contact` in `facility_users.role`. New table `service_change_requests`: `facility_id`, `submitted_by` (user_id), `request_type` text, `requested_date`, `notes`, `status` (pending|approved|denied).
 
-### Phase 14 — QuickBooks Online Integration
-New columns on `facilities`: `quickbooks_realm_id`, `quickbooks_access_token`, `quickbooks_refresh_token`, `quickbooks_token_expires_at`. New table `quickbooks_sync_log`: `facility_id`, `entity_type` (invoice|payroll), `entity_id`, `qb_id`, `status` (synced|failed), `error`, `synced_at`.
+### Phase 14 — QuickBooks polish (pending)
+Core QuickBooks Online integration shipped as **Phase 10B** (see above) — rescoped forward from the legacy Phase 14 slot. Remaining polish items deferred: a `quickbooks_sync_log` table (per-entity audit trail with retry history) and an automated retry-with-backoff worker for transient QB failures. Core OAuth / Vendor sync / Bill push / payment-status pull already live.
 
 ---
 

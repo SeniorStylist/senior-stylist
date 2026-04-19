@@ -35,6 +35,11 @@ export const facilities = pgTable('facilities', {
   paymentType: text('payment_type').default('facility').notNull(),
   stripePublishableKey: text('stripe_publishable_key'),
   stripeSecretKey: text('stripe_secret_key'),
+  qbRealmId: text('qb_realm_id'),
+  qbAccessToken: text('qb_access_token'),
+  qbRefreshToken: text('qb_refresh_token'),
+  qbTokenExpiresAt: timestamp('qb_token_expires_at', { withTimezone: true }),
+  qbExpenseAccountId: text('qb_expense_account_id'),
   workingHours: jsonb('working_hours').$type<{
     days: string[]
     startTime: string
@@ -117,6 +122,7 @@ export const stylists = pgTable('stylists', {
   status: text('status').default('active').notNull(),
   specialties: jsonb('specialties').$type<string[]>().default([]).notNull(),
   lastInviteSentAt: timestamp('last_invite_sent_at'),
+  qbVendorId: text('qb_vendor_id'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -329,7 +335,8 @@ export const logEntries = pgTable(
 export const oauthStates = pgTable('oauth_states', {
   nonce: text('nonce').primaryKey(),
   userId: uuid('user_id').notNull(),
-  stylistId: uuid('stylist_id').notNull(),
+  stylistId: uuid('stylist_id'),
+  facilityId: uuid('facility_id').references(() => facilities.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -391,6 +398,8 @@ export const payPeriods = pgTable('pay_periods', {
   status: text('status').default('open').notNull(),
   notes: text('notes'),
   createdBy: uuid('created_by').references(() => profiles.id),
+  qbSyncedAt: timestamp('qb_synced_at', { withTimezone: true }),
+  qbSyncError: text('qb_sync_error'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -413,6 +422,9 @@ export const stylistPayItems = pgTable(
     flatAmountCents: integer('flat_amount_cents'),
     netPayCents: integer('net_pay_cents').default(0).notNull(),
     notes: text('notes'),
+    qbBillId: text('qb_bill_id'),
+    qbBillSyncToken: text('qb_bill_sync_token'),
+    qbSyncError: text('qb_sync_error'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

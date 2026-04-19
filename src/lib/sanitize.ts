@@ -13,16 +13,25 @@ export function sanitizeStylists(stylists: StylistRow[]): Stylist[] {
   return stylists.map(sanitizeStylist)
 }
 
-export type PublicFacility = Omit<Facility, 'stripeSecretKey'> & { hasStripeSecret: boolean }
+export type PublicFacility = Omit<Facility, 'stripeSecretKey' | 'qbAccessToken' | 'qbRefreshToken'> & {
+  hasStripeSecret: boolean
+  hasQuickBooks: boolean
+}
 
 export function sanitizeFacility(facility: FacilityRow): PublicFacility {
-  const { stripeSecretKey, ...rest } = facility
-  return { ...(rest as Omit<Facility, 'stripeSecretKey'>), hasStripeSecret: !!stripeSecretKey }
+  const { stripeSecretKey, qbAccessToken, qbRefreshToken, ...rest } = facility
+  return {
+    ...(rest as Omit<Facility, 'stripeSecretKey' | 'qbAccessToken' | 'qbRefreshToken'>),
+    hasStripeSecret: !!stripeSecretKey,
+    hasQuickBooks: !!(qbAccessToken && qbRefreshToken),
+  }
 }
 
 const SENSITIVE_KEYS = new Set([
   'googleRefreshToken',
   'stripeSecretKey',
+  'qbAccessToken',
+  'qbRefreshToken',
 ])
 
 // Recursively strips server-only secrets from any value before it crosses the

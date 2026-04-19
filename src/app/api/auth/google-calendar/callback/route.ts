@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       await db.delete(oauthStates).where(eq(oauthStates.nonce, nonce))
       throw new Error('State expired')
     }
+    if (!stateRow.stylistId) throw new Error('State missing stylist id')
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) throw new Error('No facility')

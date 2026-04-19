@@ -37,6 +37,9 @@ interface DetailItem {
   flatAmountCents: number | null
   netPayCents: number
   notes: string | null
+  qbBillId: string | null
+  qbBillSyncToken: string | null
+  qbSyncError: string | null
   stylist: DetailStylist
   deductions: DetailDeduction[]
 }
@@ -49,6 +52,8 @@ interface DetailPeriod {
   endDate: string
   status: string
   notes: string | null
+  qbSyncedAt: string | null
+  qbSyncError: string | null
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -80,9 +85,13 @@ function formatRange(start: string, end: string): string {
 export function PayrollDetailClient({
   period,
   initialItems,
+  hasQuickBooks,
+  hasExpenseAccount,
 }: {
   period: DetailPeriod
   initialItems: DetailItem[]
+  hasQuickBooks: boolean
+  hasExpenseAccount: boolean
 }) {
   const router = useRouter()
   const [currentStatus, setCurrentStatus] = useState(period.status)
@@ -92,6 +101,66 @@ export function PayrollDetailClient({
   const [confirmPaid, setConfirmPaid] = useState(false)
   const [advancingStatus, setAdvancingStatus] = useState(false)
   const [addingDeductionForId, setAddingDeductionForId] = useState<string | null>(null)
+  const [qbSyncedAt, setQbSyncedAt] = useState<string | null>(period.qbSyncedAt)
+  const [qbPushing, setQbPushing] = useState(false)
+  const [qbStatusPolling, setQbStatusPolling] = useState(false)
+  const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+  const showQbToast = (kind: 'ok' | 'err', text: string) => {
+    setQbToast({ kind, text })
+    setTimeout(() => setQbToast(null), 5000)
+  }
+
+  const anySynced = items.some((it) => it.qbBillId)
+  const anyQbError = items.some((it) => it.qbSyncError)
+
+  const handlePushToQb = async () => {
+    if (qbPushing) return
+    setQbPushing(true)
+    try {
+      const res = await fetch(`/api/quickbooks/sync-bill/${period.id}`, { method: 'POST' })
+      const j = await res.json()
+      if (!res.ok) {
+        showQbToast('err', typeof j.error === 'string' ? j.error : 'Push failed')
+        return
+      }
+      const { synced, failed } = j.data
+      if (failed > 0) {
+        showQbToast('err', `Pushed ${synced}, ${failed} failed — see details below`)
+      } else {
+        showQbToast('ok', `Pushed ${synced} Bill(s) to QuickBooks`)
+      }
+      setQbSyncedAt(new Date().toISOString())
+      router.refresh()
+    } finally {
+      setQbPushing(false)
+    }
+  }
+
+  const handleSyncStatus = async () => {
+    if (qbStatusPolling) return
+    setQbStatusPolling(true)
+    try {
+      const res = await fetch(`/api/quickbooks/sync-status/${period.id}`, { method: 'POST' })
+      const j = await res.json()
+      if (!res.ok) {
+        showQbToast('err', typeof j.error === 'string' ? j.error : 'Status sync failed')
+        return
+      }
+      if (j.data.periodUpdated) {
+        showQbToast('ok', 'All Bills paid in QBO — period marked paid')
+        setCurrentStatus('paid')
+      } else {
+        const outstanding = (j.data.items as Array<{ qbBalance: number }>).reduce(
+          (s, i) => s + i.qbBalance,
+          0,
+        )
+        showQbToast('ok', `QBO checked — outstanding balance $${outstanding.toFixed(2)}`)
+      }
+    } finally {
+      setQbStatusPolling(false)
+    }
+  }
 
   const isPaid = currentStatus === 'paid'
   const totalNet = useMemo(() => items.reduce((s, it) => s + it.netPayCents, 0), [items])
@@ -186,6 +255,85 @@ export function PayrollDetailClient({
       {isPaid && (
         <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 mb-4 text-sm text-emerald-800">
           This pay period is marked as paid and locked — no further edits allowed.
+        </div>
+      )}
+
+      {hasQuickBooks && currentStatus !== 'open' && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 md:p-5 mb-4">
+          {qbToast && (
+            <div
+              className={`mb-3 px-3 py-2 rounded-xl text-sm font-medium ${
+                qbToast.kind === 'ok'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                  : 'bg-red-50 border border-red-200 text-red-700'
+              }`}
+            >
+              {qbToast.text}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-stone-800">QuickBooks Online</h3>
+              {qbSyncedAt ? (
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Last synced {format(new Date(qbSyncedAt), "MMM d, yyyy 'at' h:mm a")}
+                </p>
+              ) : (
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Not yet pushed to QuickBooks.
+                </p>
+              )}
+              {!hasExpenseAccount && (
+                <p className="text-xs text-red-600 mt-1">
+                  Select a QuickBooks expense account in Settings → Integrations before pushing.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {!anySynced ? (
+                <button
+                  onClick={handlePushToQb}
+                  disabled={qbPushing || !hasExpenseAccount}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
+                  style={{ backgroundColor: '#8B2E4A' }}
+                >
+                  {qbPushing ? 'Pushing…' : 'Push to QuickBooks'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSyncStatus}
+                    disabled={qbStatusPolling}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
+                  >
+                    {qbStatusPolling ? 'Checking…' : 'Sync Payment Status'}
+                  </button>
+                  <button
+                    onClick={handlePushToQb}
+                    disabled={qbPushing || !hasExpenseAccount}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
+                    style={{ backgroundColor: '#8B2E4A' }}
+                  >
+                    {qbPushing ? 'Re-pushing…' : anyQbError ? 'Retry Sync' : 'Re-push'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {anyQbError && (
+            <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-3">
+              <p className="text-xs font-semibold text-red-700 mb-1">Sync errors</p>
+              <ul className="text-xs text-red-700 space-y-0.5">
+                {items
+                  .filter((it) => it.qbSyncError)
+                  .map((it) => (
+                    <li key={it.id}>
+                      <span className="font-medium">{it.stylist.name}:</span> {it.qbSyncError}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

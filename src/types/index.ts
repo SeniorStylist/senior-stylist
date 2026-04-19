@@ -37,6 +37,11 @@ export interface Facility {
   paymentType: string
   stripePublishableKey: string | null
   stripeSecretKey: string | null
+  qbRealmId: string | null
+  qbAccessToken: string | null
+  qbRefreshToken: string | null
+  qbTokenExpiresAt: string | null
+  qbExpenseAccountId: string | null
   workingHours: { days: string[]; startTime: string; endTime: string } | null
   contactEmail: string | null
   serviceCategoryOrder: string[] | null
@@ -95,6 +100,7 @@ export interface Stylist {
   status: StylistStatus
   specialties: string[]
   lastInviteSentAt?: string | null
+  qbVendorId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -281,6 +287,8 @@ export interface PayPeriod {
   status: PayPeriodStatus
   notes: string | null
   createdBy: string | null
+  qbSyncedAt: string | null
+  qbSyncError: string | null
   createdAt: string
   updatedAt: string
 }
@@ -299,6 +307,9 @@ export interface StylistPayItem {
   flatAmountCents: number | null
   netPayCents: number
   notes: string | null
+  qbBillId: string | null
+  qbBillSyncToken: string | null
+  qbSyncError: string | null
   createdAt: string
   updatedAt: string
 }
