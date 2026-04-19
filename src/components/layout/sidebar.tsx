@@ -140,17 +140,19 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
 interface FacilityOption {
   id: string
   name: string
+  facilityCode?: string | null
   role: string
 }
 
 interface SidebarProps {
   user: User
   facilityName?: string
+  facilityCode?: string | null
   allFacilities?: FacilityOption[]
   role?: string
 }
 
-export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin' }: SidebarProps) {
+export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin' }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -191,8 +193,15 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
           <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} style={{ filter: 'brightness(0) invert(1)' }} />
         </Link>
         {facilityName && !showSwitcher && (
-          <div className="text-xs leading-tight mt-1 truncate px-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
-            {facilityName}
+          <div className="flex items-center mt-1 px-1">
+            {facilityCode && (
+              <span className="inline-flex items-center rounded-md bg-white/10 text-white/50 text-xs font-mono px-1.5 py-0.5 mr-1.5 shrink-0">
+                {facilityCode}
+              </span>
+            )}
+            <div className="text-xs leading-tight truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              {facilityName}
+            </div>
           </div>
         )}
 
@@ -205,7 +214,14 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
               className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}
             >
-              <span className="truncate">{facilityName ?? 'Select facility'}</span>
+              <span className="flex items-center gap-1.5 min-w-0 truncate">
+                {facilityCode && (
+                  <span className="inline-flex items-center rounded-md bg-white/10 text-white/50 text-xs font-mono px-1.5 py-0.5 shrink-0">
+                    {facilityCode}
+                  </span>
+                )}
+                <span className="truncate">{facilityName ?? 'Select facility'}</span>
+              </span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -225,7 +241,14 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    {f.name}
+                    <div className="flex items-center gap-1.5">
+                      {f.facilityCode && (
+                        <span className="inline-flex items-center rounded-md bg-white/10 text-white/50 text-xs font-mono px-1.5 py-0.5 shrink-0">
+                          {f.facilityCode}
+                        </span>
+                      )}
+                      <span className="truncate">{f.name}</span>
+                    </div>
                   </button>
                 ))}
                 <div className="border-t border-white/10 px-3 py-2">

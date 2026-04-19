@@ -119,6 +119,7 @@ export async function POST(request: Request) {
             .update(facilities)
             .set({
               name,
+              facilityCode: qbId,
               ...(address ? { address } : {}),
               ...(phone ? { phone } : {}),
               ...(contactEmail ? { contactEmail } : {}),
@@ -136,6 +137,7 @@ export async function POST(request: Request) {
               phone,
               contactEmail,
               qbCustomerId: qbId,
+              facilityCode: qbId,
               active: true,
             })
             .returning({ id: facilities.id })

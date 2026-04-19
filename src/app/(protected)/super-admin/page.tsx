@@ -8,6 +8,7 @@ import { SuperAdminClient } from './super-admin-client'
 interface FacilityInfo {
   id: string
   name: string
+  facilityCode: string | null
   address: string | null
   phone: string | null
   timezone: string
@@ -76,6 +77,7 @@ export default async function SuperAdminPage() {
       return {
         id: f.id,
         name: f.name,
+        facilityCode: f.facilityCode ?? null,
         address: f.address,
         phone: f.phone,
         timezone: f.timezone,

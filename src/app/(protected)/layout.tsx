@@ -24,7 +24,8 @@ export default async function ProtectedLayout({
 
   // Load all facilities this user belongs to
   let facilityName: string | undefined
-  let allFacilities: { id: string; name: string; role: string }[] = []
+  let facilityCode: string | null = null
+  let allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[] = []
   let activeRole: string = 'admin'
 
   try {
@@ -39,6 +40,7 @@ export default async function ProtectedLayout({
       .map((fu) => ({
         id: fu.facilityId,
         name: fu.facility!.name,
+        facilityCode: fu.facility!.facilityCode ?? null,
         role: fu.role,
       }))
 
@@ -60,6 +62,7 @@ export default async function ProtectedLayout({
     const selectedId = cookieStore.get('selected_facility_id')?.value
     const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
     facilityName = active?.name
+    facilityCode = active?.facilityCode ?? null
     const rawRole = active?.role ?? 'admin'
     activeRole = rawRole === 'super_admin' ? 'admin' : rawRole
   } catch (err) {
@@ -71,7 +74,7 @@ export default async function ProtectedLayout({
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} allFacilities={allFacilities} role={activeRole} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} />
       </div>
       <main className="main-content flex-1 min-w-0 overflow-auto">
         <ToastProvider>{children}</ToastProvider>

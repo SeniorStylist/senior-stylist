@@ -46,6 +46,7 @@ export interface Facility {
   contactEmail: string | null
   serviceCategoryOrder: string[] | null
   qbCustomerId?: string | null
+  facilityCode?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

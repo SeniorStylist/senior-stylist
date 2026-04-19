@@ -559,7 +559,14 @@ export function SettingsClient({
       >
         Settings
       </h1>
-      <p className="text-stone-500 text-sm mb-6">{facility.name}</p>
+      <p className="text-stone-500 text-sm mb-6 flex items-center gap-2">
+        {facility.facilityCode && (
+          <span className="inline-flex items-center rounded-md bg-stone-100 text-stone-500 text-xs font-mono px-1.5 py-0.5">
+            {facility.facilityCode}
+          </span>
+        )}
+        {facility.name}
+      </p>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-stone-200">
@@ -601,6 +608,18 @@ export function SettingsClient({
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
+
+          {facility.facilityCode && (
+            <div>
+              <label className="block text-xs font-semibold text-stone-600 mb-1.5">Facility Code</label>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center rounded-xl bg-stone-100 text-stone-700 text-sm font-mono px-3 py-2 border border-stone-200">
+                  {facility.facilityCode}
+                </span>
+                <span className="text-xs text-stone-400">Assigned on QB import — cross-system identifier</span>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-stone-600 mb-1.5">Address</label>
