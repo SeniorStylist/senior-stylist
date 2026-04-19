@@ -278,9 +278,20 @@ export async function POST(request: Request) {
       }
     }
 
-    // Batch insert new residents
-    for (const residentChunk of chunk(toInsertResidents, 100)) {
-      const values = residentChunk.map((r) => ({
+    // Deduplicate toInsertResidents by qbCustomerId — QB export can repeat the same customer ID
+    const residentDedupeMap = new Map<string, ParsedResident>()
+    for (const r of toInsertResidents) residentDedupeMap.set(r.qbCustomerId, r)
+    const dedupedInsertResidents = Array.from(residentDedupeMap.values())
+
+    // Batch insert new residents (chunks of 50 to stay within Postgres bind-param limits)
+    for (const residentChunk of chunk(dedupedInsertResidents, 50)) {
+      // Within-chunk dedup by (name, facilityId) — prevents "affect row a second time" when two
+      // QB residents share a name at the same facility (different qbCustomerIds, same name+facility)
+      const chunkDedupeMap = new Map<string, ParsedResident>()
+      for (const r of residentChunk) chunkDedupeMap.set(`${r.name}__${r.facilityId}`, r)
+      const safeChunk = Array.from(chunkDedupeMap.values())
+
+      const values = safeChunk.map((r) => ({
         facilityId: r.facilityId,
         name: r.name,
         roomNumber: r.room,
@@ -294,24 +305,27 @@ export async function POST(request: Request) {
         active: true,
       }))
 
+      // Conflict target is qbCustomerId (the true unique key from QB) — not (name, facilityId)
+      // which would silently merge two different residents who share a name at the same facility
       await db
         .insert(residents)
         .values(values)
         .onConflictDoUpdate({
-          target: [residents.name, residents.facilityId],
+          target: residents.qbCustomerId,
+          targetWhere: sql`${residents.qbCustomerId} IS NOT NULL`,
           set: {
-            qbCustomerId: sql`excluded.qb_customer_id`,
+            name: sql`excluded.name`,
+            roomNumber: sql`excluded.room_number`,
             poaName: sql`COALESCE(excluded.poa_name, ${residents.poaName})`,
             poaAddress: sql`COALESCE(excluded.poa_address, ${residents.poaAddress})`,
             poaCity: sql`COALESCE(excluded.poa_city, ${residents.poaCity})`,
             poaEmail: sql`COALESCE(excluded.poa_email, ${residents.poaEmail})`,
             poaPhone: sql`COALESCE(excluded.poa_phone, ${residents.poaPhone})`,
-            roomNumber: sql`COALESCE(excluded.room_number, ${residents.roomNumber})`,
             updatedAt: new Date(),
           },
         })
 
-      stats.residents.created += residentChunk.length
+      stats.residents.created += safeChunk.length
     }
 
     // Update existing residents in parallel chunks
