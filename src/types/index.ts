@@ -45,6 +45,7 @@ export interface Facility {
   workingHours: { days: string[]; startTime: string; endTime: string } | null
   contactEmail: string | null
   serviceCategoryOrder: string[] | null
+  qbCustomerId?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -65,6 +66,7 @@ export interface Resident {
   poaPhone: string | null
   poaPaymentMethod: string | null
   poaNotificationsEnabled: boolean
+  qbCustomerId?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
