@@ -187,6 +187,12 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 `StatusBadge` maps booking statuses (`confirmed`, `completed`, `cancelled`, `no_show`, `pending`) to badge variants automatically.
 
+**Payroll status badges** (inline, not using Badge component, shown in pay period list + detail header):
+- Open: `bg-teal-50 text-teal-700`
+- Processing: `bg-amber-50 text-amber-700`
+- Paid: `bg-emerald-50 text-emerald-700`
+- Pill shape: `inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold`. Once status is `paid`, all inline-edit controls on `/payroll/[id]` disable and deduction mutations 403.
+
 **POA notification status badge** (inline, not using Badge component, shown in resident detail display mode next to POA email):
 - Enabled: `bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-medium` — "Confirmations on"
 - Disabled: `bg-stone-100 text-stone-500 text-xs px-2 py-0.5 rounded-full font-medium` — "Confirmations off"
@@ -377,6 +383,34 @@ Edit/archive icons appear only on `onMouseEnter` via a `hoverId` state — not s
 1. First click: shows "Archive? Yes / No" inline
 2. Second click on "Yes": executes the action
 3. Mouse leave cancels the confirm state
+
+### Expandable Row with Inline Edit (payroll detail)
+
+Pattern: one row per item with `expandedId: string | null` state (see `payroll-detail-client.tsx` + `directory-client.tsx` for the applicant variant). Clicking the row toggles `expandedId`; the expanded body renders below the same row inside the list container (NOT a separate modal). Row grid columns are desktop-only (`md:grid md:grid-cols-[...]`); mobile collapses to stacked rows. Expand chevron rotates via `rotate-90` when active.
+
+Expanded body contains a pay-type selector (`<select>`) with conditional inputs (commission = read-only; hourly = hours + hourly-rate; flat = flat amount), a Deductions sub-section (list + ✕ delete per row + "+ Add Deduction" inline form), a live net-pay preview computed locally via `computeNetPay()`, and a Save button that PUTs and updates local state optimistically. All inputs disable when period `status === 'paid'`.
+
+### Async-operation modal with loading state (pay period create)
+
+For modals whose submit triggers an expensive server op (pay period creation scans months of bookings), show an in-modal loading state replacing the form body:
+
+```tsx
+<Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Pay Period">
+  {submitting ? (
+    <div className="p-8 flex flex-col items-center gap-4">
+      <svg className="animate-spin h-8 w-8 text-[#8B2E4A]" .../>
+      <div className="text-sm font-medium">Calculating payroll...</div>
+      <div className="text-xs text-stone-500 text-center max-w-xs">
+        Scanning completed bookings and computing commission for each stylist.
+      </div>
+    </div>
+  ) : (
+    // …form…
+  )}
+</Modal>
+```
+
+The `onClose` guard (`!submitting && setModalOpen(false)`) prevents the user closing the modal mid-request. Same conceptual pattern as the OCR `scanning` overlay but lives inside `<Modal>` rather than replacing the whole screen.
 
 ### Inline Edit Row
 

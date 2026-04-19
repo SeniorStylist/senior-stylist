@@ -7,6 +7,7 @@ import {
   timestamp,
   date,
   jsonb,
+  numeric,
   primaryKey,
   unique,
 } from 'drizzle-orm/pg-core'
@@ -380,6 +381,63 @@ export const applicants = pgTable('applicants', {
   updatedAt: timestamp('updated_at').defaultNow(),
 })
 
+export const payPeriods = pgTable('pay_periods', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  franchiseId: uuid('franchise_id').references((): AnyPgColumn => franchises.id),
+  periodType: text('period_type').default('monthly').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  status: text('status').default('open').notNull(),
+  notes: text('notes'),
+  createdBy: uuid('created_by').references(() => profiles.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const stylistPayItems = pgTable(
+  'stylist_pay_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    payPeriodId: uuid('pay_period_id')
+      .references(() => payPeriods.id, { onDelete: 'cascade' })
+      .notNull(),
+    stylistId: uuid('stylist_id').references(() => stylists.id).notNull(),
+    facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+    payType: text('pay_type').default('commission').notNull(),
+    grossRevenueCents: integer('gross_revenue_cents').default(0).notNull(),
+    commissionRate: integer('commission_rate').default(0).notNull(),
+    commissionAmountCents: integer('commission_amount_cents').default(0).notNull(),
+    hoursWorked: numeric('hours_worked', { precision: 6, scale: 2 }),
+    hourlyRateCents: integer('hourly_rate_cents'),
+    flatAmountCents: integer('flat_amount_cents'),
+    netPayCents: integer('net_pay_cents').default(0).notNull(),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    uniquePeriodStylist: unique('stylist_pay_items_period_stylist_unique').on(
+      t.payPeriodId,
+      t.stylistId,
+    ),
+  }),
+)
+
+export const payDeductions = pgTable('pay_deductions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  payItemId: uuid('pay_item_id')
+    .references(() => stylistPayItems.id, { onDelete: 'cascade' })
+    .notNull(),
+  stylistId: uuid('stylist_id').references(() => stylists.id).notNull(),
+  payPeriodId: uuid('pay_period_id').references(() => payPeriods.id).notNull(),
+  deductionType: text('deduction_type').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  note: text('note'),
+  createdBy: uuid('created_by').references(() => profiles.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
@@ -570,5 +628,36 @@ export const applicantsRelations = relations(applicants, ({ one }) => ({
   franchise: one(franchises, {
     fields: [applicants.franchiseId],
     references: [franchises.id],
+  }),
+}))
+
+export const payPeriodsRelations = relations(payPeriods, ({ one, many }) => ({
+  facility: one(facilities, {
+    fields: [payPeriods.facilityId],
+    references: [facilities.id],
+  }),
+  items: many(stylistPayItems),
+}))
+
+export const stylistPayItemsRelations = relations(stylistPayItems, ({ one, many }) => ({
+  payPeriod: one(payPeriods, {
+    fields: [stylistPayItems.payPeriodId],
+    references: [payPeriods.id],
+  }),
+  stylist: one(stylists, {
+    fields: [stylistPayItems.stylistId],
+    references: [stylists.id],
+  }),
+  facility: one(facilities, {
+    fields: [stylistPayItems.facilityId],
+    references: [facilities.id],
+  }),
+  deductions: many(payDeductions),
+}))
+
+export const payDeductionsRelations = relations(payDeductions, ({ one }) => ({
+  payItem: one(stylistPayItems, {
+    fields: [payDeductions.payItemId],
+    references: [stylistPayItems.id],
   }),
 }))

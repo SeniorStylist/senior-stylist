@@ -296,13 +296,20 @@ Tailwind CSS 4, Vercel
 - Region filter on all list and report views
 - Hierarchy: Master Admin → Franchise → Region → Facility
 
-### Phase 10 PLANNED — Payroll Operations
-- New table: `payroll_periods` (start_date, end_date, status: draft|approved|paid)
-- New table: `payroll_entries` (payroll_period_id, stylist_id, gross_revenue_cents, commission_cents, tips_cents, adjustments_cents, total_pay_cents, booking_ids text[], approved)
-- Auto-calculates from completed bookings using stylists.commission_percent
-- Admin approval workflow before marking a period paid
-- QuickBooks-compatible payroll CSV export
-- Payroll history on stylist detail page
+### Phase 10A SHIPPED (2026-04-19) — Payroll Engine
+- Three tables: `pay_periods`, `stylist_pay_items`, `pay_deductions` (RLS + `service_role_all`)
+- 8 API routes under `src/app/api/pay-periods/` (admin-only; rate-limited create/export; `maxDuration=60` on POST + export)
+- `POST /api/pay-periods` auto-generates pay items from completed bookings via `resolveCommission()`
+- Admin UI: `/payroll` list + `/payroll/[id]` detail (expandable rows, pay-type switching, inline deductions, forward-only status transitions, CSV export)
+- `paid` status locks the period (all item/deduction mutations 403)
+- Helper: `src/lib/payroll.ts` (`computeNetPay`, `NetPayInputs`); net pay recomputed inside `db.transaction()` on every mutation
+- `revalidateTag('pay-periods', {})` on every mutation
+
+### Phase 10B+ PLANNED — Payroll extensions (pending)
+- Recurring pay period auto-creation (cron-driven monthly rollover)
+- Payroll email notifications to stylists
+- Stylist self-service pay-period viewing (`/my-account` surface)
+- QuickBooks-compatible payroll push (pairs with Phase 14)
 
 ### Phase 11 PLANNED — Incident & Issue Tracking
 - New table: `issues` (facility_id, stylist_id nullable, booking_id nullable, reported_by, issue_type: cancellation|complaint|safety|access_problem|payment_issue|supply_issue|staff_behavior|other, severity: low|medium|high, description, action_taken, assigned_to, status: open|in_progress|resolved, resolved_at)
@@ -339,6 +346,7 @@ Tailwind CSS 4, Vercel
 ## 6. CURRENT STATUS
 
 ### Working
+- Phase 10A — Payroll engine shipped (2026-04-19): three tables (`pay_periods`, `stylist_pay_items`, `pay_deductions`) with RLS + `service_role_all`. `POST /api/pay-periods` creates a period and auto-generates pay items from completed bookings via `resolveCommission()`, inside a single `db.transaction()` (assignments+stylists join, bookings aggregate `[start, endExclusive)`, null priceCents → 0). Admin UI at `/payroll` (list + New Pay Period modal with in-modal "Calculating payroll…" spinner) and `/payroll/[id]` (expandable rows, pay-type switching commission/hourly/flat, inline deductions add/delete, live net-pay preview via local `computeNetPay`, forward-only status transitions with two-click confirm on "Mark Paid", CSV export). `paid` status locks all edits. `computeNetPay()` helper in `src/lib/payroll.ts`; recomputed on every item PUT + deduction POST/DELETE inside `db.transaction()`. Rate limits: `payPeriodCreate` 10/hr, `payrollExport` 20/hr. `maxDuration = 60` on POST + export. Every mutation calls `revalidateTag('pay-periods', {})`. Sidebar + mobile-nav gain admin-only "Payroll" entry after Reports. DNS: `noreply@seniorstylist.com` confirmed live via `send.seniorstylist.com` (mailed-by) + `seniorstylist.com` (signed-by).
 - PDF import loading overlay + smooth progress bar (2026-04-19): `import-client.tsx` now shows a `fixed inset-0 bg-black/40 backdrop-blur-sm z-50` overlay with a centered `rounded-2xl` white panel during PDF parsing. Two-phase progress bar: 0% → 70% over 2s (`cubic-bezier(0.4, 0, 0.2, 1)`) when parse starts, then → 100% over 0.4s on Gemini response. 50ms `setTimeout` before the first phase transition forces the browser to paint the bar at 0% before animating. CSV/Excel files skip the overlay entirely (client-side parse is instant). Overlay disappears after 400ms hold at 100% then preview table renders.
 - Remove all service auto-selection in create mode (2026-04-19): full audit found two remaining auto-selection paths. (1) `booking-modal.tsx` `addAnotherService` was pushing `firstFree.id` (first primary candidate) into `selectedServiceIds` — now pushes `''` (empty slot) so the dropdown's placeholder renders and admin must pick manually. Added `selectedServiceIds.some((id) => !id)` guard in `handleSubmit` to reject partially-filled rows. (2) `log-client.tsx` had a `useEffect` auto-setting `wiServiceId` to `resident.mostUsedServiceId` on resident change — removed entirely. `wiServiceId` only gets a value via the `<select onChange>`. Portal's `mostUsedServiceId` pre-selection stays.
 - Services page within-category sort fix (2026-04-19): `services-page-client.tsx` category branch now calls `sortServicesWithinCategory(list)` instead of plain `localeCompare` — add-on services correctly appear last within each section, consistent with booking-modal and portal.
@@ -404,7 +412,7 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Dynamic per-facility service category order complete (shipped 2026-04-19). Next steps:
+Phase 10A — Payroll engine shipped (2026-04-19). Next steps:
 1. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
 3. Investigate and fix why `/stylists` page shows no stylists for Lisa despite active stylists in the DB. Likely: `getUserFacility()` returning wrong facilityId when viewing via super-admin switcher (cookie-based lookup may fall back to first `facility_users` row, which could be a different facility).

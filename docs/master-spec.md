@@ -321,6 +321,57 @@ Constraint: `UNIQUE(stylist_id, facility_id, day_of_week)` (Phase 9 — was `(st
 
 Two Drizzle relations to `stylists` via named `relationName`: `coverage_stylist` (requester) + `coverage_substitute` (assigned substitute). POST derives `stylistId` from the caller's `profiles.stylistId` — never trusted from body.
 
+### `pay_periods` (Phase 10A)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `facility_id` | FK → `facilities.id` NOT NULL |
+| `franchise_id` | FK → `franchises.id`, nullable |
+| `period_type` | `text` NOT NULL, default `monthly`, CHECK `IN (weekly, biweekly, monthly)` |
+| `start_date` / `end_date` | `date` NOT NULL |
+| `status` | `text` NOT NULL, default `open`, CHECK `IN (open, processing, paid)` — paid locks all edits |
+| `notes` | `text`, nullable |
+| `created_by` | FK → `profiles.id`, nullable |
+| `created_at` / `updated_at` | `timestamp`, default now |
+
+### `stylist_pay_items` (Phase 10A)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `pay_period_id` | FK → `pay_periods.id` ON DELETE CASCADE, NOT NULL |
+| `stylist_id` | FK → `stylists.id` NOT NULL |
+| `facility_id` | FK → `facilities.id` NOT NULL |
+| `pay_type` | `text` NOT NULL, default `commission`, CHECK `IN (commission, hourly, flat)` |
+| `gross_revenue_cents` | `integer` NOT NULL, default 0 |
+| `commission_rate` | `integer` NOT NULL, default 0 — % |
+| `commission_amount_cents` | `integer` NOT NULL, default 0 |
+| `hours_worked` | `numeric(6,2)`, nullable — returned as **string** by Drizzle |
+| `hourly_rate_cents` | `integer`, nullable |
+| `flat_amount_cents` | `integer`, nullable |
+| `net_pay_cents` | `integer` NOT NULL, default 0 — recomputed on every mutation |
+| `notes` | `text`, nullable |
+| `created_at` / `updated_at` | `timestamp`, default now |
+
+Constraint: `UNIQUE(pay_period_id, stylist_id)` (named `stylist_pay_items_period_stylist_unique`).
+
+### `pay_deductions` (Phase 10A)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `pay_item_id` | FK → `stylist_pay_items.id` ON DELETE CASCADE, NOT NULL |
+| `stylist_id` | FK → `stylists.id` NOT NULL |
+| `pay_period_id` | FK → `pay_periods.id` NOT NULL |
+| `deduction_type` | `text` NOT NULL, CHECK `IN (cash_kept, supplies, advance, other)` |
+| `amount_cents` | `integer` NOT NULL |
+| `note` | `text`, nullable |
+| `created_by` | FK → `profiles.id`, nullable |
+| `created_at` | `timestamp`, default now |
+
+Net pay is always `max(0, base − Σ deductions)` where base = commissionAmountCents | `round(hoursWorked × hourlyRateCents)` | flatAmountCents. Helper: `computeNetPay()` in `src/lib/payroll.ts`. Recompute inside a single `db.transaction()` on every item PUT, deduction POST, deduction DELETE.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -344,6 +395,8 @@ Authenticated app shell: sidebar (`Sidebar`), mobile nav, toast provider (`layou
 | `/services` | Service catalog |
 | `/log` | Daily log (bookings + per-stylist notes, finalize / walk-in) |
 | `/reports` | **Admin-only** (redirect for others) — monthly analytics |
+| `/payroll` | **Admin-only** — pay period list + New Pay Period modal |
+| `/payroll/[id]` | **Admin-only** — pay period detail with expandable rows, inline deductions, status transitions, CSV export |
 | `/settings` | Facility settings, users, invites (admin-only sections gated in client) |
 
 ### `(resident)` — `src/app/(resident)/`
@@ -648,8 +701,20 @@ Directory page (`/stylists/directory`): `page.tsx` fetches applicants in `Promis
 ### Phase 9 — Territory / Region Management
 New table `regions`: `id` uuid PK, `name`, `franchise_id` nullable FK → franchises, `active`. Add `region_id` nullable FK to `facilities` and `stylists`. Hierarchy: Master Admin → Franchise → Region → Facility.
 
-### Phase 10 — Payroll Operations
-New table `payroll_periods`: `start_date`, `end_date`, `status` (draft|approved|paid), `facility_id`. New table `payroll_entries`: `payroll_period_id` FK, `stylist_id` FK, `gross_revenue_cents`, `commission_cents`, `tips_cents`, `adjustments_cents`, `total_pay_cents`, `booking_ids text[]`, `approved` boolean.
+### Phase 10A — Payroll Engine (SHIPPED 2026-04-19)
+Three tables: `pay_periods`, `stylist_pay_items`, `pay_deductions` (see DB schema above). Admin-only UI at `/payroll` (list) + `/payroll/[id]` (detail). APIs under `src/app/api/pay-periods/`:
+- `GET /api/pay-periods` — list periods with stylist count + total payout
+- `POST /api/pay-periods` — rate-limited `payPeriodCreate` (10/hr). `maxDuration=60`. In `db.transaction()`: insert period, fetch active assignments+stylists, sum completed bookings `[start, endExclusive)`, resolve commission via `resolveCommission()`, batch-insert items with `netPayCents = commissionAmountCents`
+- `GET /api/pay-periods/[id]` — period + items (sanitized stylists + deductions)
+- `PUT /api/pay-periods/[id]` — forward-only status + notes/periodType; rejects edits when paid
+- `PUT /api/pay-periods/[id]/items/[itemId]` — updates pay-type/hours/rate/flat/notes; re-fetches deductions and persists `netPayCents` via `computeNetPay()`; rejects when paid
+- `POST /api/pay-periods/[id]/items/[itemId]/deductions` — inserts deduction + recomputes net pay; rejects when paid
+- `DELETE /api/pay-periods/[id]/items/[itemId]/deductions/[deductionId]` — deletes + recomputes; rejects when paid
+- `GET /api/pay-periods/[id]/export` — rate-limited `payrollExport` (20/hr). CSV with dollar-formatted columns + total row. `maxDuration=60`
+Helper: `src/lib/payroll.ts` (`computeNetPay`, `NetPayInputs`). Net pay = `max(0, base − Σ deductions)`. `paid` locks all item/deduction mutations. Every mutation calls `revalidateTag('pay-periods', {})`.
+
+### Phase 10B+ — Payroll extensions (pending)
+Recurring pay period auto-creation, payroll emails to stylists, QuickBooks push, and stylist self-service payroll viewing all deferred to Phase 10B+.
 
 ### Phase 11 — Incident & Issue Tracking
 New table `issues`: `facility_id`, `stylist_id` nullable, `booking_id` nullable, `reported_by` (user_id), `issue_type` text, `severity` (low|medium|high), `description`, `action_taken`, `assigned_to` nullable, `status` (open|in_progress|resolved), `resolved_at`.

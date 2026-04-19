@@ -266,6 +266,55 @@ export interface Applicant {
   updatedAt: string | null
 }
 
+export type PayPeriodType = 'weekly' | 'biweekly' | 'monthly'
+export type PayPeriodStatus = 'open' | 'processing' | 'paid'
+export type PayType = 'commission' | 'hourly' | 'flat'
+export type DeductionType = 'cash_kept' | 'supplies' | 'advance' | 'other'
+
+export interface PayPeriod {
+  id: string
+  facilityId: string
+  franchiseId: string | null
+  periodType: PayPeriodType
+  startDate: string
+  endDate: string
+  status: PayPeriodStatus
+  notes: string | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StylistPayItem {
+  id: string
+  payPeriodId: string
+  stylistId: string
+  facilityId: string
+  payType: PayType
+  grossRevenueCents: number
+  commissionRate: number
+  commissionAmountCents: number
+  hoursWorked: string | null
+  hourlyRateCents: number | null
+  flatAmountCents: number | null
+  netPayCents: number
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PayDeduction {
+  id: string
+  payItemId: string
+  stylistId: string
+  payPeriodId: string
+  deductionType: DeductionType
+  amountCents: number
+  note: string | null
+  createdBy: string | null
+  createdAt: string
+}
+
 export type CoverageRequestStatus = 'open' | 'filled' | 'cancelled'
 
 export interface CoverageRequest {

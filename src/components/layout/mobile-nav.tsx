@@ -72,6 +72,18 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
     ),
   },
   {
+    href: '/payroll',
+    label: 'Payroll',
+    roles: ['admin'],
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="5" width="20" height="14" rx="2"/>
+        <line x1="2" y1="10" x2="22" y2="10"/>
+        <circle cx="8" cy="15" r="1.5"/>
+      </svg>
+    ),
+  },
+  {
     href: '/settings',
     label: 'Settings',
     roles: ['admin'],
