@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { services } from '@/db/schema'
+import { services, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
@@ -64,6 +65,32 @@ export async function POST(request: NextRequest) {
       .values(values)
       .onConflictDoNothing()
       .returning()
+
+    try {
+      const importOrder: string[] = []
+      const seen = new Set<string>()
+      for (const r of parsed.data.rows) {
+        const c = r.category?.trim()
+        if (!c || c === 'Other' || seen.has(c)) continue
+        seen.add(c)
+        importOrder.push(c)
+      }
+      if (importOrder.length > 0) {
+        const facility = await db.query.facilities.findFirst({
+          where: eq(facilities.id, facilityId),
+          columns: { serviceCategoryOrder: true },
+        })
+        const existing = facility?.serviceCategoryOrder ?? []
+        const existingSet = new Set(existing)
+        const merged = [...existing, ...importOrder.filter((c) => !existingSet.has(c))]
+        await db
+          .update(facilities)
+          .set({ serviceCategoryOrder: merged })
+          .where(eq(facilities.id, facilityId))
+      }
+    } catch (orderErr) {
+      console.error('POST /api/services/bulk category-order update failed:', orderErr)
+    }
 
     return Response.json({
       data: {

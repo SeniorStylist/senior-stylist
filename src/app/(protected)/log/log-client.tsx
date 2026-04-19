@@ -5,6 +5,11 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
 import { formatPricingLabel } from '@/lib/pricing'
+import {
+  buildCategoryPriority,
+  sortCategoryGroups,
+  sortServicesWithinCategory,
+} from '@/lib/service-sort'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
@@ -50,6 +55,7 @@ interface LogClientProps {
   stylists: Stylist[]
   services: Service[]
   stylistFilter?: string | null
+  serviceCategoryOrder?: string[] | null
 }
 
 // Round a date to nearest 30 min
@@ -97,7 +103,9 @@ export function LogClient({
   stylists,
   services,
   stylistFilter,
+  serviceCategoryOrder,
 }: LogClientProps) {
+  const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
   const [date, setDate] = useState(initialDate)
   const [bookings, setBookings] = useState(initialBookings)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
@@ -709,11 +717,35 @@ export function LogClient({
               onChange={(e) => setWiServiceId(e.target.value)}
               className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             >
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} · {formatPricingLabel(s)}
-                </option>
-              ))}
+              <option value="">Select a service</option>
+              {(() => {
+                const grouped = new Map<string, Service[]>()
+                for (const s of services) {
+                  const key = s.category?.trim() || 'Other'
+                  if (!grouped.has(key)) grouped.set(key, [])
+                  grouped.get(key)!.push(s)
+                }
+                const orderedGroups = sortCategoryGroups(
+                  [...grouped.entries()],
+                  wiServiceCategoryPriority,
+                )
+                if (orderedGroups.length <= 1) {
+                  return sortServicesWithinCategory(services).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} · {formatPricingLabel(s)}
+                    </option>
+                  ))
+                }
+                return orderedGroups.map(([category, list]) => (
+                  <optgroup key={category} label={category}>
+                    {sortServicesWithinCategory(list).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} · {formatPricingLabel(s)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
+              })()}
             </select>
             <select
               value={wiStylistId}

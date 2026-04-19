@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { formatCents } from '@/lib/utils'
 import { resolvePrice, formatPricingLabel } from '@/lib/pricing'
+import {
+  buildCategoryPriority,
+  sortCategoryGroups,
+  sortServicesWithinCategory,
+} from '@/lib/service-sort'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Resident, Stylist, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
@@ -25,6 +30,7 @@ interface BookingModalProps {
   onBookingChange: (booking: BookingWithRelations) => void
   onBookingDeleted: (bookingId: string) => void
   isAdmin?: boolean
+  serviceCategoryOrder?: string[] | null
 }
 
 function formatDateTimeLocal(date: Date | string): string {
@@ -46,6 +52,7 @@ export function BookingModal({
   onBookingChange,
   onBookingDeleted,
   isAdmin,
+  serviceCategoryOrder,
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -85,14 +92,14 @@ export function BookingModal({
 
   // Split services: primaries (non-addon) pickable in the multi-service list; addons are a separate checklist
   const primaryServiceCandidates = services.filter((s) => s.pricingType !== 'addon')
-  const addonServices = services
-    .filter((s) => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  const addonServices = sortServicesWithinCategory(
+    services.filter((s) => s.pricingType === 'addon' && !selectedServiceIds.includes(s.id))
+  )
 
-  // Pricing type sort priority: regular/fixed first, tiered second, addon last
-  const pricingTypePriority = (pt: string) => pt === 'addon' ? 2 : pt === 'tiered' ? 1 : 0
+  const categoryPriority = buildCategoryPriority(serviceCategoryOrder)
 
-  // Group services by `category`. "Other" (nullish) sorts last; other categories Z→A (descending).
+  // Group services by `category`. "Other" (nullish) sorts last; otherwise follow per-facility
+  // serviceCategoryOrder if present, else fall back to Z→A alphabetical.
   const groupByCategory = <T extends { category?: string | null }>(items: T[]): Array<[string, T[]]> => {
     const groups = new Map<string, T[]>()
     for (const s of items) {
@@ -100,11 +107,7 @@ export function BookingModal({
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(s)
     }
-    return [...groups.entries()].sort(([a], [b]) => {
-      if (a === 'Other') return 1
-      if (b === 'Other') return -1
-      return b.localeCompare(a) // Z→A: Shampoo before Perms before Nail before Color before Aesthetics
-    })
+    return sortCategoryGroups([...groups.entries()], categoryPriority)
   }
 
   // Selected primary services in order
@@ -185,15 +188,6 @@ export function BookingModal({
       el = el.parentElement
     }
   }, [open, isMobile])
-
-  // When resident changes (create mode), pre-select their most-used service if they have history
-  useEffect(() => {
-    if (mode !== 'create' || !selectedResidentId) return
-    const resident = allResidents.find((r) => r.id === selectedResidentId)
-    if (!resident?.mostUsedServiceId) return
-    const svc = primaryServiceCandidates.find((s) => s.id === resident.mostUsedServiceId)
-    if (svc) setSelectedServiceIds([svc.id])
-  }, [selectedResidentId, mode, residents, localNewResidents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset pricing inputs when the PRIMARY service changes
   useEffect(() => {
@@ -632,14 +626,11 @@ export function BookingModal({
             Services <span className="text-red-400">*</span>
           </label>
           {selectedServiceIds.map((svcId, idx) => {
-            const availableOptions = primaryServiceCandidates
-              .filter((s) => s.id === svcId || !selectedServiceIds.includes(s.id))
-              .sort((a, b) => {
-                const pa = pricingTypePriority(a.pricingType)
-                const pb = pricingTypePriority(b.pricingType)
-                if (pa !== pb) return pa - pb
-                return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-              })
+            const availableOptions = sortServicesWithinCategory(
+              primaryServiceCandidates.filter(
+                (s) => s.id === svcId || !selectedServiceIds.includes(s.id)
+              )
+            )
             return (
               <div key={idx} className="flex items-center gap-2">
                 <select

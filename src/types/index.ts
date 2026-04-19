@@ -39,6 +39,7 @@ export interface Facility {
   stripeSecretKey: string | null
   workingHours: { days: string[]; startTime: string; endTime: string } | null
   contactEmail: string | null
+  serviceCategoryOrder: string[] | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

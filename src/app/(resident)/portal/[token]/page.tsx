@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { bookings, residents } from '@/db/schema'
+import { bookings, residents, facilities } from '@/db/schema'
 import { and, count, eq, isNotNull, ne } from 'drizzle-orm'
 import { PortalClient } from './portal-client'
 
@@ -32,17 +32,23 @@ export default async function PortalPage({
     )
   }
 
-  const serviceUsageRows = await db
-    .select({ serviceId: bookings.serviceId, cnt: count() })
-    .from(bookings)
-    .where(
-      and(
-        eq(bookings.residentId, resident.id),
-        ne(bookings.status, 'cancelled'),
-        isNotNull(bookings.serviceId),
+  const [serviceUsageRows, facility] = await Promise.all([
+    db
+      .select({ serviceId: bookings.serviceId, cnt: count() })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.residentId, resident.id),
+          ne(bookings.status, 'cancelled'),
+          isNotNull(bookings.serviceId),
+        )
       )
-    )
-    .groupBy(bookings.serviceId)
+      .groupBy(bookings.serviceId),
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, resident.facilityId),
+      columns: { serviceCategoryOrder: true },
+    }),
+  ])
 
   let mostUsedServiceId: string | null = null
   let maxCnt = 0
@@ -63,6 +69,7 @@ export default async function PortalPage({
       poaEmail={resident.poaEmail}
       poaNotificationsEnabled={resident.poaNotificationsEnabled}
       mostUsedServiceId={mostUsedServiceId}
+      serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
     />
   )
 }

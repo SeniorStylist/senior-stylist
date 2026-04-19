@@ -131,6 +131,7 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `stripe_secret_key` | Optional text — per-facility Stripe secret key (falls back to env var) |
 | `working_hours` | `jsonb`, nullable — `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }`; null = default 08:00–18:00; set via Settings → General; bounds booking time slots |
 | `contact_email` | Optional text — facility-specific reply-to for access request emails; falls back to first admin's email |
+| `service_category_order` | `jsonb`, nullable `string[]` — per-facility category display order. Captured on PDF import (`/api/services/bulk`): categories are extracted in order of first appearance on the uploaded rows (excluding empty + "Other"), merged with the existing order (existing entries retain their position; new ones appended). `null` = fall back to Z→A alphabetical at display time. Consumed via `src/lib/service-sort.ts` helpers (`buildCategoryPriority`, `sortCategoryGroups`, `sortServicesWithinCategory`) in booking modal, portal, services page, log walk-in form. |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 

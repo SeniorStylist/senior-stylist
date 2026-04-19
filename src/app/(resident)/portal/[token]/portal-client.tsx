@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react'
 import { formatCents } from '@/lib/utils'
 import { formatPricingLabel, resolvePrice } from '@/lib/pricing'
+import {
+  buildCategoryPriority,
+  sortCategoryGroups,
+  sortServicesWithinCategory,
+} from '@/lib/service-sort'
 import type { PricingTier, PricingOption } from '@/types'
 
 interface ServiceData {
@@ -57,6 +62,7 @@ interface PortalClientProps {
   poaEmail?: string | null
   poaNotificationsEnabled?: boolean | null
   mostUsedServiceId?: string | null
+  serviceCategoryOrder?: string[] | null
 }
 
 function formatDateTime(dateStr: string) {
@@ -108,21 +114,20 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function groupByCategory<T extends { category?: string | null }>(items: T[]): Array<[string, T[]]> {
-  const groups = new Map<string, T[]>()
-  for (const item of items) {
-    const key = item.category?.trim() || 'Other'
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(item)
-  }
-  return [...groups.entries()].sort(([a], [b]) => {
-    if (a === 'Other') return 1
-    if (b === 'Other') return -1
-    return a.localeCompare(b)
-  })
-}
+export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail, poaNotificationsEnabled, mostUsedServiceId, serviceCategoryOrder }: PortalClientProps) {
+  const categoryPriority = buildCategoryPriority(serviceCategoryOrder)
 
-export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail, poaNotificationsEnabled, mostUsedServiceId }: PortalClientProps) {
+  const groupByCategory = <T extends { category?: string | null; name: string; pricingType: string }>(items: T[]): Array<[string, T[]]> => {
+    const groups = new Map<string, T[]>()
+    for (const item of items) {
+      const key = item.category?.trim() || 'Other'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(item)
+    }
+    const sorted = sortCategoryGroups([...groups.entries()], categoryPriority)
+    return sorted.map(([cat, list]) => [cat, sortServicesWithinCategory(list)] as [string, T[]])
+  }
+
   const [data, setData] = useState<PortalData | null>(null)
   const [loading, setLoading] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(poaNotificationsEnabled !== false)

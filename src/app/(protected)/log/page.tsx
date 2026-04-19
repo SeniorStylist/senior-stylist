@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, logEntries, residents, stylists, services, profiles } from '@/db/schema'
+import { bookings, logEntries, residents, stylists, services, profiles, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
@@ -37,6 +37,7 @@ export default async function LogPage() {
     residentsList,
     stylistsList,
     servicesList,
+    facility,
   ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
@@ -65,6 +66,10 @@ export default async function LogPage() {
       where: and(eq(services.facilityId, facilityId), eq(services.active, true)),
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { serviceCategoryOrder: true },
+    }),
   ])
 
   const mostUsedMap = await getMostUsedServiceIds(facilityId)
@@ -82,6 +87,7 @@ export default async function LogPage() {
       stylists={toClientJson(stylistsList)}
       services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}
+      serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
     />
   )
   } catch (err) {

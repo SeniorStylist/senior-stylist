@@ -683,6 +683,7 @@ export function DashboardClient({
         onBookingChange={handleBookingChange}
         onBookingDeleted={handleBookingDeleted}
         isAdmin={isAdmin}
+        serviceCategoryOrder={facility.serviceCategoryOrder}
       />
     </div>
     </ErrorBoundary>

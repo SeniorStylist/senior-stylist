@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
 import { formatPricingLabel } from '@/lib/pricing'
+import { buildCategoryPriority, sortCategoryGroups } from '@/lib/service-sort'
 import type { Service, PricingType, PricingTier, PricingOption } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -13,9 +14,11 @@ const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
 
 interface ServicesPageClientProps {
   services: Service[]
+  serviceCategoryOrder?: string[] | null
 }
 
-export function ServicesPageClient({ services: initialServices }: ServicesPageClientProps) {
+export function ServicesPageClient({ services: initialServices, serviceCategoryOrder }: ServicesPageClientProps) {
+  const categoryPriority = buildCategoryPriority(serviceCategoryOrder)
   const { toast } = useToast()
   const [services, setServices] = useState(initialServices)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -423,22 +426,28 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
           </div>
 
           {(() => {
-            const sorted = [...services].sort((a, b) => {
-              let cmp = 0
-              if (sortKey === 'name') {
-                cmp = a.name.localeCompare(b.name)
-              } else if (sortKey === 'category') {
-                const ca = a.category?.trim() || 'zzzOther'
-                const cb = b.category?.trim() || 'zzzOther'
-                cmp = ca.localeCompare(cb)
-                if (cmp === 0) cmp = a.name.localeCompare(b.name)
-              } else if (sortKey === 'duration') {
-                cmp = a.durationMinutes - b.durationMinutes
-              } else if (sortKey === 'price') {
-                cmp = sortablePrice(a) - sortablePrice(b)
+            let sorted: Service[]
+            if (sortKey === 'category') {
+              const grouped = new Map<string, Service[]>()
+              for (const s of services) {
+                const key = s.category?.trim() || 'Other'
+                if (!grouped.has(key)) grouped.set(key, [])
+                grouped.get(key)!.push(s)
               }
-              return sortDir === 'asc' ? cmp : -cmp
-            })
+              const orderedGroups = sortCategoryGroups([...grouped.entries()], categoryPriority)
+              if (sortDir === 'asc') orderedGroups.reverse()
+              sorted = orderedGroups.flatMap(([, list]) =>
+                [...list].sort((a, b) => a.name.localeCompare(b.name)),
+              )
+            } else {
+              sorted = [...services].sort((a, b) => {
+                let cmp = 0
+                if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+                else if (sortKey === 'duration') cmp = a.durationMinutes - b.durationMinutes
+                else if (sortKey === 'price') cmp = sortablePrice(a) - sortablePrice(b)
+                return sortDir === 'asc' ? cmp : -cmp
+              })
+            }
             let lastCategory: string | null = null
             const nodes: ReactNode[] = []
             for (const service of sorted) {

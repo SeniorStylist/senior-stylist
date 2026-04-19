@@ -40,6 +40,7 @@ export const facilities = pgTable('facilities', {
     endTime: string
   }>(),
   contactEmail: text('contact_email'),
+  serviceCategoryOrder: jsonb('service_category_order').$type<string[]>(),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

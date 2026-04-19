@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { services } from '@/db/schema'
+import { services, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { ServicesPageClient } from './services-page-client'
@@ -18,16 +18,25 @@ export default async function ServicesPage() {
   if (facilityUser.role !== 'admin') redirect('/dashboard')
 
   try {
-  const servicesList = await db.query.services.findMany({
-    where: and(
-      eq(services.facilityId, facilityUser.facilityId),
-      eq(services.active, true)
-    ),
-    orderBy: (t, { asc, desc }) => [desc(t.category), asc(t.name)],
-  })
+  const [servicesList, facility] = await Promise.all([
+    db.query.services.findMany({
+      where: and(
+        eq(services.facilityId, facilityUser.facilityId),
+        eq(services.active, true)
+      ),
+      orderBy: (t, { asc, desc }) => [desc(t.category), asc(t.name)],
+    }),
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityUser.facilityId),
+      columns: { serviceCategoryOrder: true },
+    }),
+  ])
 
   return (
-    <ServicesPageClient services={JSON.parse(JSON.stringify(servicesList))} />
+    <ServicesPageClient
+      services={JSON.parse(JSON.stringify(servicesList))}
+      serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
+    />
   )
   } catch (err) {
     console.error('[ServicesPage] DB error:', err)

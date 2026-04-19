@@ -311,7 +311,7 @@ Adds `shadow-sm` and uses white background by default:
 
 ### Category Grouping in Native Selects
 
-Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`, sorted **Z→A descending** (matches the services page default), with "Other" always last. Skip the grouping wrapper when `groups.length <= 1` — a single-group `<optgroup>` adds visual noise without segmentation value. **Within each category group**, services are pre-sorted by `pricingTypePriority` (fixed/multi_option = 0, tiered = 1, addon = 2) then alphabetically by name — so standard services appear first, tiered second, add-ons last. Apply this sort to the `options` array before calling `groupByCategory`.
+Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`. Section order follows the per-facility `facilities.service_category_order` (captured on PDF import) when it exists; when absent or empty, categories fall back to **Z→A descending** alphabetical. "Other" always sorts last. Skip the grouping wrapper when `groups.length <= 1`. Within each group, services are pre-sorted by `pricingTypePriority` (fixed/multi_option = 0, tiered = 1, addon = 2) then alphabetically by name — so standard services appear first, tiered second, add-ons last. All three sort primitives live in `src/lib/service-sort.ts` (`buildCategoryPriority`, `sortCategoryGroups`, `sortServicesWithinCategory`) and are shared by booking modal, portal picker, services page, and log walk-in form — no site should re-implement its own category sort.
 
 ```tsx
 <select>
