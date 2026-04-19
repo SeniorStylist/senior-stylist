@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
 import { formatPricingLabel } from '@/lib/pricing'
-import { buildCategoryPriority, sortCategoryGroups } from '@/lib/service-sort'
+import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Service, PricingType, PricingTier, PricingOption } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -436,9 +436,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
               }
               const orderedGroups = sortCategoryGroups([...grouped.entries()], categoryPriority)
               if (sortDir === 'asc') orderedGroups.reverse()
-              sorted = orderedGroups.flatMap(([, list]) =>
-                [...list].sort((a, b) => a.name.localeCompare(b.name)),
-              )
+              sorted = orderedGroups.flatMap(([, list]) => sortServicesWithinCategory(list))
             } else {
               sorted = [...services].sort((a, b) => {
                 let cmp = 0
