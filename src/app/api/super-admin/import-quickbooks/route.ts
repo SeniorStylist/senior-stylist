@@ -60,19 +60,27 @@ export async function POST(request: Request) {
     // Parse all rows first — no DB
     const facilityRows: Array<{ qbId: string; name: string; row: Record<string, string> }> = []
     const residentRows: Array<{ facilityQbId: string; qbCustomerId: string; rest: string; row: Record<string, string> }> = []
+    const warnings: string[] = []
 
     for (const row of rows) {
       const nameVal = (row['Name'] ?? row['name'] ?? '').trim()
       if (!nameVal) continue
 
-      const facilityMatch = FACILITY_REGEX.exec(nameVal)
-      if (facilityMatch) {
-        facilityRows.push({ qbId: facilityMatch[1], name: facilityMatch[2].trim(), row })
+      // A valid facility row must match F### - Name AND must not contain a colon
+      // (colon indicates a resident sub-row like "F165:Last, First - Room")
+      const isFacilityRow = FACILITY_REGEX.test(nameVal) && !nameVal.includes(':')
+      const isResidentRow = RESIDENT_REGEX.test(nameVal)
+
+      if (!isFacilityRow && !isResidentRow) {
+        warnings.push(`Skipped unrecognized row: ${nameVal.slice(0, 80)}`)
         continue
       }
 
-      const residentMatch = RESIDENT_REGEX.exec(nameVal)
-      if (residentMatch) {
+      if (isFacilityRow) {
+        const facilityMatch = FACILITY_REGEX.exec(nameVal)!
+        facilityRows.push({ qbId: facilityMatch[1], name: facilityMatch[2].trim(), row })
+      } else {
+        const residentMatch = RESIDENT_REGEX.exec(nameVal)!
         residentRows.push({
           facilityQbId: residentMatch[1],
           qbCustomerId: nameVal,
@@ -82,7 +90,12 @@ export async function POST(request: Request) {
       }
     }
 
-    const warnings: string[] = []
+    // Deduplicate facilityRows by qbId — keep last occurrence
+    // QB exports sometimes list the same F-code twice with different names
+    const dedupFacilityMap = new Map<string, typeof facilityRows[0]>()
+    for (const f of facilityRows) dedupFacilityMap.set(f.qbId, f)
+    const dedupedFacilityRows = Array.from(dedupFacilityMap.values())
+
     const stats = {
       facilities: { created: 0, updated: 0 },
       residents: { created: 0, updated: 0, skipped: 0 },
@@ -104,7 +117,7 @@ export async function POST(request: Request) {
     // ── Facilities ──────────────────────────────────────────────────────────
 
     // Bulk fetch existing facilities by qbCustomerId
-    const allFacilityQbIds = facilityRows.map((f) => f.qbId)
+    const allFacilityQbIds = dedupedFacilityRows.map((f) => f.qbId)
     const existingFacilityRows = allFacilityQbIds.length > 0
       ? await db.query.facilities.findMany({
           where: inArray(facilities.qbCustomerId, allFacilityQbIds),
@@ -113,8 +126,8 @@ export async function POST(request: Request) {
       : []
     const existingFacilityMap = new Map(existingFacilityRows.map((r) => [r.qbCustomerId!, r.id]))
 
-    const toInsertFacilities = facilityRows.filter((f) => !existingFacilityMap.has(f.qbId))
-    const toUpdateFacilities = facilityRows.filter((f) => existingFacilityMap.has(f.qbId))
+    const toInsertFacilities = dedupedFacilityRows.filter((f) => !existingFacilityMap.has(f.qbId))
+    const toUpdateFacilities = dedupedFacilityRows.filter((f) => existingFacilityMap.has(f.qbId))
 
     // Batch insert new facilities
     const newFacilityUserRows: Array<{ userId: string; facilityId: string; role: 'admin' }> = []

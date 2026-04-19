@@ -35,11 +35,12 @@ export function ImportQuickbooksClient() {
         method: 'POST',
         body: formData,
       })
+      const text = await res.text().catch(() => '')
       let json: { data?: ImportResult; error?: string } = {}
       try {
-        json = await res.json()
+        json = JSON.parse(text)
       } catch {
-        throw new Error(res.status === 504 ? 'Import timed out — try a smaller file or contact support' : `Server error (${res.status})`)
+        throw new Error(text.slice(0, 200) || `Server error (${res.status})`)
       }
       if (!res.ok) throw new Error(json.error ?? 'Import failed')
 
