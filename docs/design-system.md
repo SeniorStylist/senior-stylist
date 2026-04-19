@@ -468,6 +468,39 @@ When a long async operation replaces step content (e.g. OCR scanning in `ocr-imp
 
 Tip rotation: `useEffect` keyed on the `scanning` flag; 3s interval fades out (`tipVisible=false`) → 400ms delay increments index → fades in. Progress bar: regex parse the progress string → `(X/Y)*100` capped at 90, default 5 when empty.
 
+### Full-page async operation overlay (e.g. PDF import parse)
+
+When a slow async operation (Gemini API call, large upload) runs from a page — not a modal — use a `fixed inset-0` overlay so the user can't interact with the underlying page while waiting. Pattern (`import-client.tsx`):
+
+```tsx
+{parsing && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div className="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center gap-4 mx-4 w-full max-w-xs">
+      <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center">
+        <svg ...icon... stroke="#8B2E4A" />
+      </div>
+      <div className="text-center">
+        <p className="text-sm font-semibold text-stone-800">Importing services...</p>
+        <p className="text-xs text-stone-400 mt-1">Analyzing your price sheet</p>
+      </div>
+      <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#8B2E4A]"
+          style={{
+            width: `${progress}%`,
+            transition: progress === 70 ? 'width 2s cubic-bezier(0.4, 0, 0.2, 1)' : 'width 0.4s ease-out',
+          }}
+        />
+      </div>
+    </div>
+  </div>
+)}
+```
+
+**Two-phase progress animation**: on start, `setProgress(0)` then `setTimeout(() => setProgress(70), 50)` — the 50ms delay forces the browser to paint the bar at 0% before the 2s phase-1 animation begins (without delay, React batches both updates and the animation never plays). On response: `setProgress(100)`, then `await new Promise(r => setTimeout(r, 400))` so the user sees 100% briefly before the overlay disappears. `transition` switches from `'width 2s cubic-bezier(0.4, 0, 0.2, 1)'` (phase 1, slow/eased) to `'width 0.4s ease-out'` (phase 2, quick snap) based on whether `progress === 70`.
+
+State: `parsing: boolean` + `progress: number (0–100)`. Set `parsing=false` in `finally` so errors also dismiss the overlay.
+
 ### OCR review service fields — `<select>` with fuzzy pre-select
 
 Service fields in the OCR review step (`ocr-import-modal.tsx`) use `<select>` dropdowns (NOT free-text inputs) so users always pick from existing services. Pattern:

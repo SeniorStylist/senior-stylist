@@ -201,6 +201,8 @@ export function ImportClient() {
   const [importError, setImportError] = useState<string | null>(null)
   const [duplicates, setDuplicates] = useState<DuplicateRow[]>([])
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+  const [parsing, setParsing] = useState(false)
+  const [progress, setProgress] = useState(0)
 
   const selectedCount = rows.filter((r) => r.include && r.error !== 'Missing name').length
   const errorCount = rows.filter((r) => r.error === 'Missing name').length
@@ -210,12 +212,24 @@ export function ImportClient() {
   const handleFile = useCallback(async (file: File) => {
     setParseError(null)
     setFileName(file.name)
+    const isPdf = file.name.split('.').pop()?.toLowerCase() === 'pdf'
+    if (isPdf) {
+      setParsing(true)
+      setProgress(0)
+      setTimeout(() => setProgress(70), 50)
+    }
     try {
       const parsed = await parseFile(file)
+      if (isPdf) {
+        setProgress(100)
+        await new Promise((r) => setTimeout(r, 400))
+      }
       setRows(parsed)
       setStep('preview')
     } catch (err) {
       setParseError(err instanceof Error ? err.message : 'Failed to parse file')
+    } finally {
+      if (isPdf) setParsing(false)
     }
   }, [])
 
@@ -821,6 +835,34 @@ export function ImportClient() {
               >
                 Continue Import
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PDF parse loading overlay ── */}
+      {parsing && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center gap-4 mx-4 w-full max-w-xs">
+            <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="1.8">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-stone-800">Importing services...</p>
+              <p className="text-xs text-stone-400 mt-1">Analyzing your price sheet</p>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#8B2E4A]"
+                style={{
+                  width: `${progress}%`,
+                  transition: progress === 70 ? 'width 2s cubic-bezier(0.4, 0, 0.2, 1)' : 'width 0.4s ease-out',
+                }}
+              />
             </div>
           </div>
         </div>
