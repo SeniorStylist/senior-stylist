@@ -239,9 +239,7 @@ export function BookingModal({
   const removeServiceAt = (index: number) =>
     setSelectedServiceIds((prev) => prev.filter((_, i) => i !== index))
   const addAnotherService = () => {
-    // Pick the first primary candidate NOT already selected
-    const firstFree = primaryServiceCandidates.find((s) => !selectedServiceIds.includes(s.id))
-    if (firstFree) setSelectedServiceIds((prev) => [...prev, firstFree.id])
+    setSelectedServiceIds((prev) => [...prev, ''])
   }
 
   // Cmd+Enter to submit
@@ -255,7 +253,13 @@ export function BookingModal({
   }, [open, selectedResidentId, selectedServiceIds, selectedStylistId, startTime, notes])
 
   const handleSubmit = async () => {
-    if (!selectedResidentId || selectedServiceIds.length === 0 || !selectedStylistId || !startTime) {
+    if (
+      !selectedResidentId ||
+      selectedServiceIds.length === 0 ||
+      selectedServiceIds.some((id) => !id) ||
+      !selectedStylistId ||
+      !startTime
+    ) {
       setError('Please fill in all required fields.')
       return
     }

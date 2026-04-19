@@ -195,15 +195,6 @@ export function LogClient({
   const [wiCreateError, setWiCreateError] = useState<string | null>(null)
   const [localNewResidents, setLocalNewResidents] = useState<Resident[]>([])
 
-  // Auto-select resident's most-used service in walk-in form
-  useEffect(() => {
-    if (!wiResidentId) return
-    const resident = [...residents, ...localNewResidents].find((r) => r.id === wiResidentId)
-    if (!resident?.mostUsedServiceId) return
-    const svc = services.find((s) => s.id === resident.mostUsedServiceId && s.pricingType !== 'addon')
-    if (svc) setWiServiceId(svc.id)
-  }, [wiResidentId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // OCR import modal
   const [ocrOpen, setOcrOpen] = useState(false)
 
