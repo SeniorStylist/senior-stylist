@@ -353,7 +353,9 @@ Authenticated app shell: sidebar (`Sidebar`), mobile nav, toast provider (`layou
 
 Layout: branded header with `<Image>` logo (filter:invert for white on burgundy) + floral SVG accent (`layout.tsx`). Logo links to `https://seniorstylist.com`.
 
-Portal service picker (`portal-client.tsx`): card-based multi-service picker, grouped by category. `selectedServiceIds: string[]` — starts empty, no auto-selection. After first pick: compact summary row with "Change" link; "+ Add another service" dashed button. Addon checklist (44px targets). Live price breakdown. `handleBook` sends `serviceIds[]` + `addonServiceIds[]`. `POST /api/portal/[token]/book` accepts `serviceIds[]` + `addonServiceIds[]` + `selectedQuantity` + `selectedOption`. Server resolves total price and duration, stores `serviceIds`, `addonServiceIds`, `addonTotalCents`. `pickerOpen: Record<number, boolean>` controls collapsed/expanded per slot.
+Portal service picker (`portal-client.tsx`): card-based multi-service picker, grouped by category. `selectedServiceIds: string[]` — pre-selects `mostUsedServiceId` (non-addon, passed from `page.tsx` via booking history query) when history exists; otherwise starts empty. After first pick: compact summary row with "Change" link; "+ Add another service" dashed button (`min-h-[56px]`, capped at `Math.min(4, nonAddonServices.length)`). Addon checklist (44px targets). Live price breakdown. `handleBook` sends `serviceIds[]` + `addonServiceIds[]`. `POST /api/portal/[token]/book` accepts `serviceIds[]` + `addonServiceIds[]` + `selectedQuantity` + `selectedOption`. Server resolves total price and duration, stores `serviceIds`, `addonServiceIds`, `addonTotalCents`. `pickerOpen: Record<number, boolean>` controls collapsed/expanded per slot.
+
+`portal/[token]/page.tsx` queries `bookings` for the resident (grouped by `serviceId`, `status != 'cancelled'`) to compute `mostUsedServiceId: string | null` and passes it as a prop to `PortalClient`. No new DB column — computed inline on each page load.
 
 ### Other notable app routes (not under those groups)
 

@@ -1,6 +1,6 @@
 import { db } from '@/db'
-import { residents } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { bookings, residents } from '@/db/schema'
+import { and, count, eq, isNotNull, ne } from 'drizzle-orm'
 import { PortalClient } from './portal-client'
 
 export default async function PortalPage({
@@ -32,6 +32,28 @@ export default async function PortalPage({
     )
   }
 
+  const serviceUsageRows = await db
+    .select({ serviceId: bookings.serviceId, cnt: count() })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.residentId, resident.id),
+        ne(bookings.status, 'cancelled'),
+        isNotNull(bookings.serviceId),
+      )
+    )
+    .groupBy(bookings.serviceId)
+
+  let mostUsedServiceId: string | null = null
+  let maxCnt = 0
+  for (const r of serviceUsageRows) {
+    const c = Number(r.cnt)
+    if (r.serviceId && c > maxCnt) {
+      maxCnt = c
+      mostUsedServiceId = r.serviceId
+    }
+  }
+
   return (
     <PortalClient
       token={token}
@@ -40,6 +62,7 @@ export default async function PortalPage({
       poaName={resident.poaName}
       poaEmail={resident.poaEmail}
       poaNotificationsEnabled={resident.poaNotificationsEnabled}
+      mostUsedServiceId={mostUsedServiceId}
     />
   )
 }

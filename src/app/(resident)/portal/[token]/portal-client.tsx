@@ -56,6 +56,7 @@ interface PortalClientProps {
   poaName?: string | null
   poaEmail?: string | null
   poaNotificationsEnabled?: boolean | null
+  mostUsedServiceId?: string | null
 }
 
 function formatDateTime(dateStr: string) {
@@ -121,7 +122,7 @@ function groupByCategory<T extends { category?: string | null }>(items: T[]): Ar
   })
 }
 
-export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail, poaNotificationsEnabled }: PortalClientProps) {
+export function PortalClient({ token, residentName, roomNumber, poaName, poaEmail, poaNotificationsEnabled, mostUsedServiceId }: PortalClientProps) {
   const [data, setData] = useState<PortalData | null>(null)
   const [loading, setLoading] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(poaNotificationsEnabled !== false)
@@ -262,7 +263,13 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
 
     const svcRes = await fetch(`/api/portal/${token}/services`)
     const svcJson = await svcRes.json()
-    if (svcJson.data) setServices(svcJson.data)
+    if (svcJson.data) {
+      setServices(svcJson.data)
+      if (mostUsedServiceId) {
+        const exists = (svcJson.data as ServiceData[]).some(s => s.id === mostUsedServiceId && s.pricingType !== 'addon')
+        if (exists) setSelectedServiceIds([mostUsedServiceId])
+      }
+    }
 
     fetchAvailableDays(today.slice(0, 7))
   }
@@ -695,10 +702,10 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                 )}
 
                 {/* + Add another service */}
-                {selectedServiceIds.length > 0 && !selectedServiceIds.includes('') && selectedServiceIds.length < nonAddonServices.length && (
+                {selectedServiceIds.length > 0 && !selectedServiceIds.includes('') && selectedServiceIds.length < Math.min(4, nonAddonServices.length) && (
                   <button
                     onClick={() => setSelectedServiceIds(prev => [...prev, ''])}
-                    className="w-full py-2.5 rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:text-stone-700 hover:border-stone-400 transition-colors"
+                    className="w-full min-h-[56px] rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:text-stone-700 hover:border-stone-400 transition-colors"
                   >
                     + Add another service
                   </button>

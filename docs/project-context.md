@@ -280,6 +280,11 @@ Tailwind CSS 4, Vercel
 - **Booking modal create-mode service default fixed**: removed `primaryServiceCandidates[0]` auto-select — `selectedServiceIds` initializes to `[]`; `mostUsedServiceId` useEffect handles history-based pre-selection only
 - **Walk-in form reset fixed**: post-submission reset now sets `wiServiceId('')` (was `services[0]?.id`) — service selector returns to placeholder after booking
 - **Portal multi-service confirmed fully implemented**: `selectedServiceIds: string[]`, card picker, "+ Add another service" button, addon checklist, `POST /api/portal/[token]/book` accepts `serviceIds[]` — no code changes needed
+- **Portal mostUsedServiceId pre-selection**: `portal/[token]/page.tsx` queries booking history for the resident (grouped by `serviceId`, filtered `status != 'cancelled'`), computes `mostUsedServiceId`, passes as prop to `PortalClient`; `startBooking()` pre-selects it when the service still exists and is non-addon; new residents with no history stay empty
+- **Portal "+ Add another service" capped at 4**: changed `< nonAddonServices.length` → `< Math.min(4, nonAddonServices.length)`; button touch target increased to `min-h-[56px]`
+- **Directory last-name sort**: server `orderBy` removed (was `split_part` SQL); client `sorted` useMemo uses `.name.split(' ').pop()` comparator; header label changed "Name" → "Last Name"
+- **Directory bulk update**: `POST /api/stylists/bulk-update` — admin-only; sets status, facilityId (with `stylistFacilityAssignments` upsert in transaction), or commissionPercent; floating bar has Status/Facility/Commission controls; optimistic local state update
+- **Applicant ZIP radius search**: `src/lib/zip-coords.ts` static table (~1200 ZIPs, DC/MD/VA/MN); `getZipsWithinMiles(zip, miles)` + `extractZip(location)`; toolbar radius `<select>` appears when search is 5 digits; `filteredApplicants` computes nearbyZips once per useMemo
 
 ### Phase 9 PLANNED — Territory / Region Management
 - New table: `regions` (id, name, franchise_id nullable, active)
@@ -392,7 +397,7 @@ Tailwind CSS 4, Vercel
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 9.5 (Applicant Pipeline) + Directory UX polish + Applicant ZIP radius search complete (shipped 2026-04-16). Next steps:
+Phase 9.5 (Applicant Pipeline) + Directory UX polish + Applicant ZIP radius search + Portal pre-selection + Portal multi-service polish complete (shipped 2026-04-16). Next steps:
 1. Set `CRON_SECRET` in Vercel (`openssl rand -hex 32`) so the daily compliance cron authenticates.
 2. (optional) Provision Upstash Redis and set UPSTASH_REDIS_REST_URL/TOKEN in Vercel — without them the rate limiter is a no-op.
 3. Investigate and fix why `/stylists` page shows no stylists for Lisa despite active stylists in the DB. Likely: `getUserFacility()` returning wrong facilityId when viewing via super-admin switcher (cookie-based lookup may fall back to first `facility_users` row, which could be a different facility).

@@ -1009,9 +1009,10 @@ Directory page gains a segmented control at the top: `flex rounded-xl border bor
 ### Portal multi-service booking (fully implemented)
 
 The portal (`src/app/(resident)/portal/[token]/portal-client.tsx`) supports multi-service selection:
-- `selectedServiceIds: string[]` array — starts empty on `startBooking()`
+- `selectedServiceIds: string[]` array — pre-selects `mostUsedServiceId` prop on `startBooking()` if the service still exists and is non-addon; otherwise starts empty
+- `mostUsedServiceId` prop is computed in `portal/[token]/page.tsx` by querying the resident's non-cancelled bookings grouped by serviceId; passed as `mostUsedServiceId?: string | null`
 - First selection: card grid showing all non-addon services grouped by category; tapping a card calls `setServiceAt(0, id)` and auto-collapses to a compact summary row after 150ms (single row only)
-- "+ Add another service" dashed button appears when `selectedServiceIds.length > 0` and no slot is empty and more services remain; appends `''` to the array, showing the full card grid for that slot with an "Additional Service" label + "Remove" button
+- "+ Add another service" dashed button: `min-h-[56px]` touch target (senior-friendly), capped at `Math.min(4, nonAddonServices.length)` total slots; appends `''` to the array, showing the full card grid for that slot with an "Additional Service" label + "Remove" button
 - Addon checklist: appears below the primary service when selected; checkboxes with `accent-[#8B2E4A]`; 44px min-height tap targets
 - Live price breakdown: primary + additional services + addon lines; `text-amber-700` for addons; Total + Duration footer
 - `handleBook` sends `{ serviceIds, addonServiceIds, selectedQuantity?, selectedOption? }` — never `serviceId` (singular)
