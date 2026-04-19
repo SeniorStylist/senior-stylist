@@ -345,6 +345,27 @@ export function Sidebar({ user, facilityName, allFacilities = [], role = 'admin'
           </svg>
           Sign out
         </button>
+        <div className="mt-3 flex items-center justify-center gap-3 px-3">
+          <a
+            href="/privacy"
+            className="text-xs transition-colors"
+            style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
+          >
+            Privacy
+          </a>
+          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+          <a
+            href="/terms"
+            className="text-xs transition-colors"
+            style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
+          >
+            Terms
+          </a>
+        </div>
       </div>
     </aside>
   )

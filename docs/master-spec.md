@@ -423,6 +423,17 @@ Portal service picker (`portal-client.tsx`): card-based multi-service picker, gr
 
 `portal/[token]/page.tsx` queries `bookings` for the resident (grouped by `serviceId`, `status != 'cancelled'`) to compute `mostUsedServiceId: string | null` and passes it as a prop to `PortalClient`. No new DB column — computed inline on each page load.
 
+### `(public)` — `src/app/(public)/`
+
+Auth-free static pages. No sidebar, no mobile nav, no auth check.
+
+| Path | Purpose |
+|------|---------|
+| `/privacy` | Privacy Policy (public) |
+| `/terms` | Terms of Service & EULA (public) |
+
+Layout (`layout.tsx`): burgundy `#8B2E4A` header with white-inverted logo linking to `seniorstylist.com`, `max-w-3xl mx-auto px-6 py-12` main, footer with Privacy/Terms cross-links and copyright. Both pages are static server components with `export const metadata` for SEO titles.
+
 ### Other notable app routes (not under those groups)
 
 | Path | Purpose |

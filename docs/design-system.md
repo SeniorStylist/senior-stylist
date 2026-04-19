@@ -1143,3 +1143,18 @@ Used on `/payroll/[id]` when `hasQuickBooks && period.status !== 'open'`:
 - **Error with retry**: below the idle button, a red banner `rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700` listing the per-stylist failures as `<stylistName>: <message>` lines, with a `[Retry Sync]` text-button (red, underlined-on-hover) that re-runs the same `sync-bill` mutation. Success clears the banner on the next push.
 
 Synced state (all stylists OK) shows a muted `Synced to QuickBooks <relative-date>` caption + `[Sync Payment Status]` secondary button. Optimistic local state toggles the status badge on a successful status-sync response; `router.refresh()` on success re-hydrates the underlying period row.
+
+### Public legal pages (`(public)` route group)
+
+Used for `/privacy` and `/terms` — static server components with no auth.
+
+- **Container**: `max-w-3xl mx-auto px-6 py-12` inside `min-h-screen` with `backgroundColor: '#F7F6F2'`
+- **Header**: same burgundy `#8B2E4A` header with white-inverted logo as the portal — no auth elements, no sidebar
+- **`<h1>`**: DM Serif Display (`fontFamily: 'var(--font-dm-serif)'`), `text-4xl`, color `#8B2E4A`
+- **`<h2>` per section**: `text-xl font-semibold text-stone-800`
+- **`<p>` body copy**: `text-stone-600 leading-relaxed`
+- **Section spacing**: `space-y-10` between top-level `<section>` elements; `space-y-3` within each section
+- **Inline links** (email, cross-refs): `text-[#8B2E4A] hover:underline`
+- **Footer**: `border-t border-stone-200 mt-16 py-8`, flex centered with Privacy/Terms cross-links and copyright
+
+**Sidebar footer links** (Privacy · Terms below sign-out): `color: rgba(255,255,255,0.25)`, transitions to `rgba(255,255,255,0.5)` on hover, `text-xs`, `<a>` tags (not `<Link>`). Separator dot at `rgba(255,255,255,0.15)`. Wrapped in `flex items-center justify-center gap-3 px-3 mt-3`.

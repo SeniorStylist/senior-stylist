@@ -42,7 +42,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/portal') ||
     pathname.startsWith('/api/auth/google-calendar/callback') ||
     pathname.startsWith('/api/cron') ||
-    pathname.startsWith('/invoice')
+    pathname.startsWith('/invoice') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/terms')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
