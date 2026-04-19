@@ -609,6 +609,16 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                   )
                 })()}
 
+                {/* + Add another service */}
+                {selectedServiceIds.length > 0 && !selectedServiceIds.includes('') && selectedServiceIds.length < Math.min(4, nonAddonServices.length) && (
+                  <button
+                    onClick={() => setSelectedServiceIds(prev => [...prev, ''])}
+                    className="w-full min-h-[56px] rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:text-stone-700 hover:border-stone-400 transition-colors"
+                  >
+                    + Add another service
+                  </button>
+                )}
+
                 {/* Add-on checklist */}
                 {primaryService && addonServices.length > 0 && (
                   <div className="space-y-2">
@@ -699,16 +709,6 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                       <span>{totalDurationMinutes} min</span>
                     </div>
                   </div>
-                )}
-
-                {/* + Add another service */}
-                {selectedServiceIds.length > 0 && !selectedServiceIds.includes('') && selectedServiceIds.length < Math.min(4, nonAddonServices.length) && (
-                  <button
-                    onClick={() => setSelectedServiceIds(prev => [...prev, ''])}
-                    className="w-full min-h-[56px] rounded-xl border border-dashed border-stone-300 text-sm text-stone-500 hover:text-stone-700 hover:border-stone-400 transition-colors"
-                  >
-                    + Add another service
-                  </button>
                 )}
 
                 {/* Continue */}

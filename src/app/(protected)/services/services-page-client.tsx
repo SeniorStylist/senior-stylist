@@ -50,7 +50,7 @@ export function ServicesPageClient({ services: initialServices }: ServicesPageCl
   const [bulkUpdating, setBulkUpdating] = useState(false)
 
   const [sortKey, setSortKey] = useState<'name' | 'category' | 'duration' | 'price'>('category')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     else { setSortKey(key); setSortDir('asc') }

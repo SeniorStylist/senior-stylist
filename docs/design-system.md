@@ -1012,15 +1012,16 @@ The portal (`src/app/(resident)/portal/[token]/portal-client.tsx`) supports mult
 - `selectedServiceIds: string[]` array — pre-selects `mostUsedServiceId` prop on `startBooking()` if the service still exists and is non-addon; otherwise starts empty
 - `mostUsedServiceId` prop is computed in `portal/[token]/page.tsx` by querying the resident's non-cancelled bookings grouped by serviceId; passed as `mostUsedServiceId?: string | null`
 - First selection: card grid showing all non-addon services grouped by category; tapping a card calls `setServiceAt(0, id)` and auto-collapses to a compact summary row after 150ms (single row only)
-- "+ Add another service" dashed button: `min-h-[56px]` touch target (senior-friendly), capped at `Math.min(4, nonAddonServices.length)` total slots; appends `''` to the array, showing the full card grid for that slot with an "Additional Service" label + "Remove" button
-- Addon checklist: appears below the primary service when selected; checkboxes with `accent-[#8B2E4A]`; 44px min-height tap targets
+- **Section order after first selection**: (1) selected service summary row(s), (2) tiered stepper / multi-option picker, (3) "+ Add another service" dashed button, (4) addon checklist, (5) price breakdown, (6) Continue button
+- "+ Add another service" dashed button: `min-h-[56px]` touch target (senior-friendly), capped at `Math.min(4, nonAddonServices.length)` total slots; appends `''` to the array, showing the full card grid for that slot with an "Additional Service" label + "Remove" button; positioned **before** the addon checklist so users add all primary services first
+- Addon checklist: appears below the "+ Add another service" button; checkboxes with `accent-[#8B2E4A]`; 44px min-height tap targets
 - Live price breakdown: primary + additional services + addon lines; `text-amber-700` for addons; Total + Duration footer
 - `handleBook` sends `{ serviceIds, addonServiceIds, selectedQuantity?, selectedOption? }` — never `serviceId` (singular)
 - `POST /api/portal/[token]/book` fully handles `serviceIds[]` + `addonServiceIds[]` — no API changes were needed
 
 ### Services page sort default
 
-Default `sortKey` is `'category'` (was `'name'`). The server-side `orderBy` is `[asc(t.category), asc(t.name)]` — `NULL` categories sort last in Postgres ASC. Section headers between categories only render when `sortKey === 'category'`.
+Default `sortKey` is `'category'`, default `sortDir` is `'desc'` (Z→A, so Nail Services before Hair before Color). The server-side `orderBy` uses the callback form `(t, { asc, desc }) => [desc(t.category), asc(t.name)]`. Section headers between categories only render when `sortKey === 'category'`.
 
 ### Stylist directory — last name sort
 

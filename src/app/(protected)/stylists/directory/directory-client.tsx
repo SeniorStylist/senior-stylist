@@ -79,9 +79,9 @@ const STATUS_BADGE: Record<
   Exclude<StatusFilter, 'all' | 'active'>,
   { label: string; className: string }
 > = {
-  on_leave: { label: 'On leave', className: 'bg-amber-50 text-amber-700' },
-  inactive: { label: 'Inactive', className: 'bg-stone-100 text-stone-600' },
-  terminated: { label: 'Terminated', className: 'bg-stone-200 text-stone-600' },
+  on_leave: { label: 'On Leave', className: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  inactive: { label: 'Inactive', className: 'bg-stone-100 text-stone-500 border border-stone-200' },
+  terminated: { label: 'Terminated', className: 'bg-red-50 text-red-600 border border-red-200' },
 }
 
 interface ImportResult {
@@ -112,7 +112,7 @@ export function DirectoryClient({
   const [bulkCommission, setBulkCommission] = useState('')
   const [applyingBulk, setApplyingBulk] = useState(false)
   const [dupMode, setDupMode] = useState(false)
-  const [sortKey, setSortKey] = useState<'code' | 'name' | 'facility' | 'commission'>('name')
+  const [sortKey, setSortKey] = useState<'code' | 'name' | 'facility' | 'commission' | 'status'>('name')
 
   // Applicant pipeline state
   const [activeTab, setActiveTab] = useState<'stylists' | 'applicants'>('stylists')
@@ -364,6 +364,9 @@ export function DirectoryClient({
         const aVal = facilityById.get(a.facilityId ?? '') ?? 'Franchise Pool'
         const bVal = facilityById.get(b.facilityId ?? '') ?? 'Franchise Pool'
         const cmp = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' })
+        return sortDir === 'asc' ? cmp : -cmp
+      } else if (sortKey === 'status') {
+        const cmp = (a.status ?? 'active').localeCompare(b.status ?? 'active', undefined, { sensitivity: 'base' })
         return sortDir === 'asc' ? cmp : -cmp
       } else {
         const diff = (a.commissionPercent ?? 0) - (b.commissionPercent ?? 0)
@@ -874,6 +877,7 @@ export function DirectoryClient({
               [
                 { key: 'code', label: 'ST Code', className: 'w-14 shrink-0' },
                 { key: 'name', label: 'Last Name', className: 'flex-1 min-w-0' },
+                { key: 'status', label: 'Status', className: 'w-20 shrink-0' },
                 { key: 'facility', label: 'Facility', className: 'w-32 shrink-0' },
                 { key: 'commission', label: 'Commission', className: 'w-24 shrink-0 text-right' },
               ] as const
@@ -940,15 +944,17 @@ export function DirectoryClient({
                   <span className="text-sm font-semibold text-stone-900 flex-1 min-w-0 truncate">
                     {s.name}
                   </span>
-                  {s.status !== 'active' && STATUS_BADGE[s.status as keyof typeof STATUS_BADGE] && (
-                    <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                        STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].className
-                      }`}
-                    >
-                      {STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].label}
-                    </span>
-                  )}
+                  <span className="w-20 shrink-0 flex items-center">
+                    {s.status !== 'active' && STATUS_BADGE[s.status as keyof typeof STATUS_BADGE] && (
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].className
+                        }`}
+                      >
+                        {STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].label}
+                      </span>
+                    )}
+                  </span>
                   {facility ? (
                     <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 shrink-0">
                       {facility}
