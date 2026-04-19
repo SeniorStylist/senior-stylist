@@ -1,6 +1,7 @@
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { decryptToken, encryptToken } from '@/lib/token-crypto'
 
 const QB_BASE = 'https://quickbooks.api.intuit.com'
 const QB_AUTH = 'https://appcenter.intuit.com/connect/oauth2'
@@ -84,12 +85,12 @@ async function doRefresh(facilityId: string): Promise<string> {
 
   const expiresAt = facility.qbTokenExpiresAt ? facility.qbTokenExpiresAt.getTime() : 0
   if (facility.qbAccessToken && expiresAt - REFRESH_SKEW_MS > Date.now()) {
-    return facility.qbAccessToken
+    return decryptToken(facility.qbAccessToken)
   }
 
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
-    refresh_token: facility.qbRefreshToken,
+    refresh_token: decryptToken(facility.qbRefreshToken),
   })
   const res = await fetch(QB_TOKEN, {
     method: 'POST',
@@ -113,8 +114,8 @@ async function doRefresh(facilityId: string): Promise<string> {
   await db
     .update(facilities)
     .set({
-      qbAccessToken: data.access_token,
-      qbRefreshToken: data.refresh_token,
+      qbAccessToken: encryptToken(data.access_token),
+      qbRefreshToken: encryptToken(data.refresh_token),
       qbTokenExpiresAt: newExpires,
       updatedAt: new Date(),
     })
@@ -192,7 +193,7 @@ export function qbPost<T = unknown>(
   return qbFetch<T>(facilityId, 'POST', path, body)
 }
 
-export async function revokeQBToken(refreshToken: string): Promise<void> {
+export async function revokeQBToken(encryptedRefreshToken: string): Promise<void> {
   await fetch(QB_REVOKE, {
     method: 'POST',
     headers: {
@@ -200,6 +201,6 @@ export async function revokeQBToken(refreshToken: string): Promise<void> {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ token: refreshToken }),
+    body: JSON.stringify({ token: decryptToken(encryptedRefreshToken) }),
   })
 }

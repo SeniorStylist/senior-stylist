@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { exchangeQBCode } from '@/lib/quickbooks'
+import { encryptToken } from '@/lib/token-crypto'
 
 const STATE_TTL_MS = 10 * 60 * 1000
 
@@ -43,8 +44,8 @@ export async function GET(request: NextRequest) {
       .update(facilities)
       .set({
         qbRealmId: realmId,
-        qbAccessToken: tokens.accessToken,
-        qbRefreshToken: tokens.refreshToken,
+        qbAccessToken: encryptToken(tokens.accessToken),
+        qbRefreshToken: encryptToken(tokens.refreshToken),
         qbTokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
         updatedAt: new Date(),
       })

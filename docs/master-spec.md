@@ -133,8 +133,8 @@ Many other authenticated routes only require a valid **facility user** and **do 
 | `contact_email` | Optional text — facility-specific reply-to for access request emails; falls back to first admin's email |
 | `service_category_order` | `jsonb`, nullable `string[]` — per-facility category display order. Captured on PDF import (`/api/services/bulk`): categories are extracted in order of first appearance on the uploaded rows (excluding empty + "Other"), merged with the existing order (existing entries retain their position; new ones appended). `null` = fall back to Z→A alphabetical at display time. Consumed via `src/lib/service-sort.ts` helpers (`buildCategoryPriority`, `sortCategoryGroups`, `sortServicesWithinCategory`) in booking modal, portal, services page, log walk-in form. |
 | `qb_realm_id` | `text`, nullable (Phase 10B) — QuickBooks Online company ID from OAuth callback |
-| `qb_access_token` | `text`, nullable (Phase 10B) — QB OAuth access token; sensitive, never returned to client |
-| `qb_refresh_token` | `text`, nullable (Phase 10B) — QB OAuth refresh token; sensitive, never returned to client |
+| `qb_access_token` | `text`, nullable (Phase 10B) — QB OAuth access token; stored as **AES-256-GCM ciphertext** (via `src/lib/token-crypto.ts`); never returned to client |
+| `qb_refresh_token` | `text`, nullable (Phase 10B) — QB OAuth refresh token; stored as **AES-256-GCM ciphertext**; never returned to client |
 | `qb_token_expires_at` | `timestamptz`, nullable (Phase 10B) — expiry of `qb_access_token`; helper refreshes 5min before |
 | `qb_expense_account_id` | `text`, nullable (Phase 10B) — admin-selected QB Expense Account ID used as `AccountRef` on every pushed Bill line |
 | `active` | Boolean, default true |
@@ -771,7 +771,7 @@ Per-facility OAuth2 connection, stylists mapped to QB Vendors, pay periods pushe
 
 **UI** — Settings → Integrations tab shows a Connect / Connected card (expense account picker, Sync Vendors, two-click Disconnect, `?qb=connected` / `?qb=error&reason=…` toast handling). Payroll detail (`/payroll/[id]`) shows a QB panel gated on `hasQuickBooks && period.status !== 'open'` with Push / Re-push / Sync Payment Status / Retry Sync buttons and per-stylist error listing.
 
-**Env** — `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` (server-only; no `NEXT_PUBLIC_*`).
+**Env** — `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` + `QB_TOKEN_SECRET` (all server-only; no `NEXT_PUBLIC_*`). `QB_TOKEN_SECRET` is a 32-byte hex key used for AES-256-GCM token encryption; generate with `openssl rand -hex 32`.
 
 ### Phase 10B+ — Payroll extensions (pending)
 Recurring pay period auto-creation, payroll emails to stylists, QuickBooks error log table + automated retry with backoff (rescoped from legacy Phase 14), and stylist self-service payroll viewing.
