@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, facilityUsers, franchiseFacilities, franchises, profiles } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import * as XLSX from 'xlsx'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { randomUUID } from 'crypto'
@@ -34,6 +34,12 @@ function parseResidentName(rest: string): { name: string; room: string | null } 
   return { name: namePart.trim(), room }
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size))
+  return chunks
+}
+
 export async function POST(request: Request) {
   try {
     const user = await getSuperAdmin()
@@ -51,7 +57,7 @@ export async function POST(request: Request) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' })
 
-    // Separate into facility rows and resident rows
+    // Parse all rows first — no DB
     const facilityRows: Array<{ qbId: string; name: string; row: Record<string, string> }> = []
     const residentRows: Array<{ facilityQbId: string; qbCustomerId: string; rest: string; row: Record<string, string> }> = []
 
@@ -82,24 +88,40 @@ export async function POST(request: Request) {
       residents: { created: 0, updated: 0, skipped: 0 },
     }
 
-    await db.transaction(async (tx) => {
-      // Find master admin profile + franchise
-      const profile = await tx.query.profiles.findFirst({
-        where: eq(profiles.email, user.email!),
-        columns: { id: true },
-      })
-      if (!profile) throw new Error('Master admin profile not found')
+    // Find master admin profile + franchise
+    const profile = await db.query.profiles.findFirst({
+      where: eq(profiles.email, user.email!),
+      columns: { id: true },
+    })
+    if (!profile) throw new Error('Master admin profile not found')
 
-      const franchise = await tx.query.franchises.findFirst({
-        where: eq(franchises.ownerUserId, profile.id),
-        columns: { id: true },
-      })
-      const franchiseId = franchise?.id ?? null
+    const franchise = await db.query.franchises.findFirst({
+      where: eq(franchises.ownerUserId, profile.id),
+      columns: { id: true },
+    })
+    const franchiseId = franchise?.id ?? null
 
-      // First pass: facilities
-      const facilityMap = new Map<string, string>() // qbCustomerId → facilityId
+    // ── Facilities ──────────────────────────────────────────────────────────
 
-      for (const { qbId, name, row } of facilityRows) {
+    // Bulk fetch existing facilities by qbCustomerId
+    const allFacilityQbIds = facilityRows.map((f) => f.qbId)
+    const existingFacilityRows = allFacilityQbIds.length > 0
+      ? await db.query.facilities.findMany({
+          where: inArray(facilities.qbCustomerId, allFacilityQbIds),
+          columns: { id: true, qbCustomerId: true },
+        })
+      : []
+    const existingFacilityMap = new Map(existingFacilityRows.map((r) => [r.qbCustomerId!, r.id]))
+
+    const toInsertFacilities = facilityRows.filter((f) => !existingFacilityMap.has(f.qbId))
+    const toUpdateFacilities = facilityRows.filter((f) => existingFacilityMap.has(f.qbId))
+
+    // Batch insert new facilities
+    const newFacilityUserRows: Array<{ userId: string; facilityId: string; role: 'admin' }> = []
+    const newFranchiseFacilityRows: Array<{ franchiseId: string; facilityId: string }> = []
+
+    for (const facilityChunk of chunk(toInsertFacilities, 50)) {
+      const values = facilityChunk.map(({ qbId, name, row }) => {
         const street = (row['Street Address'] ?? row['street_address'] ?? '').trim()
         const city = (row['City'] ?? row['city'] ?? '').trim()
         const state = (row['State'] ?? row['state'] ?? '').trim()
@@ -108,104 +130,182 @@ export async function POST(request: Request) {
         const contactEmail = (row['Email'] ?? row['email'] ?? '').trim() || null
         const addressParts = [street, city, state, zip].filter(Boolean)
         const address = addressParts.length > 0 ? addressParts.join(', ') : null
+        return { name, address, phone, contactEmail, qbCustomerId: qbId, facilityCode: qbId, active: true }
+      })
 
-        const existing = await tx.query.facilities.findFirst({
-          where: eq(facilities.qbCustomerId, qbId),
-          columns: { id: true },
+      const inserted = await db.insert(facilities).values(values).returning({ id: facilities.id })
+
+      inserted.forEach(({ id }) => {
+        newFacilityUserRows.push({ userId: profile.id, facilityId: id, role: 'admin' })
+        if (franchiseId) newFranchiseFacilityRows.push({ franchiseId, facilityId: id })
+      })
+
+      stats.facilities.created += inserted.length
+    }
+
+    // Batch insert facilityUsers + franchiseFacilities for new facilities
+    if (newFacilityUserRows.length > 0) {
+      await db.insert(facilityUsers).values(newFacilityUserRows).onConflictDoNothing()
+    }
+    if (newFranchiseFacilityRows.length > 0) {
+      await db.insert(franchiseFacilities).values(newFranchiseFacilityRows).onConflictDoNothing()
+    }
+
+    // Update existing facilities
+    for (const { qbId, name, row } of toUpdateFacilities) {
+      const facilityId = existingFacilityMap.get(qbId)!
+      const street = (row['Street Address'] ?? row['street_address'] ?? '').trim()
+      const city = (row['City'] ?? row['city'] ?? '').trim()
+      const state = (row['State'] ?? row['state'] ?? '').trim()
+      const zip = (row['Zip'] ?? row['zip'] ?? '').trim()
+      const phone = (row['Phone'] ?? row['phone'] ?? '').trim() || null
+      const contactEmail = (row['Email'] ?? row['email'] ?? '').trim() || null
+      const addressParts = [street, city, state, zip].filter(Boolean)
+      const address = addressParts.length > 0 ? addressParts.join(', ') : null
+
+      await db
+        .update(facilities)
+        .set({
+          name,
+          facilityCode: qbId,
+          ...(address ? { address } : {}),
+          ...(phone ? { phone } : {}),
+          ...(contactEmail ? { contactEmail } : {}),
+          updatedAt: new Date(),
         })
+        .where(eq(facilities.id, facilityId))
 
-        if (existing) {
-          await tx
-            .update(facilities)
-            .set({
-              name,
-              facilityCode: qbId,
-              ...(address ? { address } : {}),
-              ...(phone ? { phone } : {}),
-              ...(contactEmail ? { contactEmail } : {}),
-              updatedAt: new Date(),
-            })
-            .where(eq(facilities.id, existing.id))
-          facilityMap.set(qbId, existing.id)
-          stats.facilities.updated++
+      stats.facilities.updated++
+    }
+
+    // Re-query all facilities to build complete qbId → facilityId map (includes newly inserted rows)
+    const allFacilityRows = allFacilityQbIds.length > 0
+      ? await db.query.facilities.findMany({
+          where: inArray(facilities.qbCustomerId, allFacilityQbIds),
+          columns: { id: true, qbCustomerId: true },
+        })
+      : []
+    const facilityIdMap = new Map(allFacilityRows.map((r) => [r.qbCustomerId!, r.id]))
+
+    // ── Residents ───────────────────────────────────────────────────────────
+
+    // Filter out residents whose facility wasn't found
+    const validResidentRows: typeof residentRows = []
+    for (const r of residentRows) {
+      if (!facilityIdMap.has(r.facilityQbId)) {
+        warnings.push(`Skipped resident ${r.qbCustomerId} — no matching facility ${r.facilityQbId}`)
+        stats.residents.skipped++
+      } else {
+        validResidentRows.push(r)
+      }
+    }
+
+    // Bulk fetch existing residents by qbCustomerId
+    const allResidentQbIds = validResidentRows.map((r) => r.qbCustomerId)
+    const existingResidentRows = allResidentQbIds.length > 0
+      ? await db.query.residents.findMany({
+          where: inArray(residents.qbCustomerId, allResidentQbIds),
+          columns: { id: true, qbCustomerId: true },
+        })
+      : []
+    const existingResidentMap = new Map(existingResidentRows.map((r) => [r.qbCustomerId!, r.id]))
+
+    // Parse resident data
+    type ParsedResident = {
+      facilityId: string
+      name: string
+      room: string | null
+      poaName: string | null
+      poaAddress: string | null
+      poaCity: string | null
+      poaEmail: string | null
+      poaPhone: string | null
+      qbCustomerId: string
+    }
+
+    const toInsertResidents: ParsedResident[] = []
+    const toUpdateResidents: Array<{ id: string } & ParsedResident> = []
+
+    for (const { facilityQbId, qbCustomerId, rest, row } of validResidentRows) {
+      const facilityId = facilityIdMap.get(facilityQbId)!
+      const { name, room } = parseResidentName(rest)
+      if (!name) {
+        warnings.push(`Skipped resident ${qbCustomerId} — could not parse name`)
+        stats.residents.skipped++
+        continue
+      }
+
+      const rawAddress = (row['Street Address'] ?? '').trim()
+      let poaName: string | null = null
+      let poaAddress: string | null = null
+
+      if (rawAddress) {
+        const lines = rawAddress.split('\n').map((l: string) => l.trim()).filter(Boolean)
+        const firstLine = lines[0] ?? ''
+        const secondLine = lines[1] ?? ''
+        if (/^c\/o\s+/i.test(firstLine)) {
+          poaName = firstLine.replace(/^c\/o\s+/i, '').trim() || null
+          poaAddress = secondLine || null
         } else {
-          const [newFacility] = await tx
-            .insert(facilities)
-            .values({
-              name,
-              address,
-              phone,
-              contactEmail,
-              qbCustomerId: qbId,
-              facilityCode: qbId,
-              active: true,
-            })
-            .returning({ id: facilities.id })
-
-          // Add master admin as facility admin
-          await tx.insert(facilityUsers).values({
-            userId: profile.id,
-            facilityId: newFacility.id,
-            role: 'admin',
-          }).onConflictDoNothing()
-
-          // Link to franchise
-          if (franchiseId) {
-            await tx.insert(franchiseFacilities).values({
-              franchiseId,
-              facilityId: newFacility.id,
-            }).onConflictDoNothing()
-          }
-
-          facilityMap.set(qbId, newFacility.id)
-          stats.facilities.created++
+          poaAddress = lines.join(', ') || null
         }
       }
 
-      // Second pass: residents
-      for (const { facilityQbId, qbCustomerId, rest, row } of residentRows) {
-        const facilityId = facilityMap.get(facilityQbId)
-        if (!facilityId) {
-          warnings.push(`Skipped resident ${qbCustomerId} — no matching facility ${facilityQbId}`)
-          stats.residents.skipped++
-          continue
-        }
+      const poaCity = (row['City'] ?? '').trim() || null
+      const poaEmail = (row['Email'] ?? '').trim() || null
+      const poaPhone = (row['Phone'] ?? '').trim() || null
 
-        const { name, room } = parseResidentName(rest)
-        if (!name) {
-          warnings.push(`Skipped resident ${qbCustomerId} — could not parse name`)
-          stats.residents.skipped++
-          continue
-        }
+      const parsed = { facilityId, name, room, poaName, poaAddress, poaCity, poaEmail, poaPhone, qbCustomerId }
 
-        const rawAddress = (row['Street Address'] ?? '').trim()
-        let poaName: string | null = null
-        let poaAddress: string | null = null
+      const existingId = existingResidentMap.get(qbCustomerId)
+      if (existingId) {
+        toUpdateResidents.push({ id: existingId, ...parsed })
+      } else {
+        toInsertResidents.push(parsed)
+      }
+    }
 
-        if (rawAddress) {
-          const lines = rawAddress.split('\n').map((l: string) => l.trim()).filter(Boolean)
-          const firstLine = lines[0] ?? ''
-          const secondLine = lines[1] ?? ''
+    // Batch insert new residents
+    for (const residentChunk of chunk(toInsertResidents, 100)) {
+      const values = residentChunk.map((r) => ({
+        facilityId: r.facilityId,
+        name: r.name,
+        roomNumber: r.room,
+        poaName: r.poaName,
+        poaAddress: r.poaAddress,
+        poaCity: r.poaCity,
+        poaEmail: r.poaEmail,
+        poaPhone: r.poaPhone,
+        qbCustomerId: r.qbCustomerId,
+        portalToken: randomUUID(),
+        active: true,
+      }))
 
-          if (/^c\/o\s+/i.test(firstLine)) {
-            poaName = firstLine.replace(/^c\/o\s+/i, '').trim() || null
-            poaAddress = secondLine || null
-          } else {
-            poaAddress = lines.join(', ') || null
-          }
-        }
-
-        const poaCity = (row['City'] ?? '').trim() || null
-        const poaEmail = (row['Email'] ?? '').trim() || null
-        const poaPhone = (row['Phone'] ?? '').trim() || null
-
-        const existing = await tx.query.residents.findFirst({
-          where: eq(residents.qbCustomerId, qbCustomerId),
-          columns: { id: true },
+      await db
+        .insert(residents)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [residents.name, residents.facilityId],
+          set: {
+            qbCustomerId: sql`excluded.qb_customer_id`,
+            poaName: sql`COALESCE(excluded.poa_name, ${residents.poaName})`,
+            poaAddress: sql`COALESCE(excluded.poa_address, ${residents.poaAddress})`,
+            poaCity: sql`COALESCE(excluded.poa_city, ${residents.poaCity})`,
+            poaEmail: sql`COALESCE(excluded.poa_email, ${residents.poaEmail})`,
+            poaPhone: sql`COALESCE(excluded.poa_phone, ${residents.poaPhone})`,
+            roomNumber: sql`COALESCE(excluded.room_number, ${residents.roomNumber})`,
+            updatedAt: new Date(),
+          },
         })
 
-        if (existing) {
-          await tx
+      stats.residents.created += residentChunk.length
+    }
+
+    // Update existing residents in parallel chunks
+    for (const updateChunk of chunk(toUpdateResidents, 50)) {
+      await Promise.all(
+        updateChunk.map(({ id, name, room, poaName, poaAddress, poaCity, poaEmail, poaPhone }) =>
+          db
             .update(residents)
             .set({
               name,
@@ -217,42 +317,11 @@ export async function POST(request: Request) {
               ...(poaPhone ? { poaPhone } : {}),
               updatedAt: new Date(),
             })
-            .where(eq(residents.id, existing.id))
-          stats.residents.updated++
-        } else {
-          // Use onConflictDoUpdate so existing manual-entry residents get linked
-          await tx
-            .insert(residents)
-            .values({
-              facilityId,
-              name,
-              roomNumber: room,
-              poaName,
-              poaAddress,
-              poaCity,
-              poaEmail,
-              poaPhone,
-              qbCustomerId,
-              portalToken: randomUUID(),
-              active: true,
-            })
-            .onConflictDoUpdate({
-              target: [residents.name, residents.facilityId],
-              set: {
-                qbCustomerId,
-                ...(poaName ? { poaName } : {}),
-                ...(poaAddress ? { poaAddress } : {}),
-                ...(poaCity ? { poaCity } : {}),
-                ...(poaEmail ? { poaEmail } : {}),
-                ...(poaPhone ? { poaPhone } : {}),
-                ...(room ? { roomNumber: room } : {}),
-                updatedAt: new Date(),
-              },
-            })
-          stats.residents.created++
-        }
-      }
-    })
+            .where(eq(residents.id, id))
+        )
+      )
+      stats.residents.updated += updateChunk.length
+    }
 
     return Response.json({ data: { ...stats, warnings } })
   } catch (err) {
