@@ -102,6 +102,21 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  const isSensitivePage =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/payroll') ||
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/residents') ||
+    pathname.startsWith('/stylists') ||
+    pathname.startsWith('/reports') ||
+    pathname.startsWith('/log') ||
+    pathname.startsWith('/directory')
+
+  if (user && isSensitivePage) {
+    supabaseResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    supabaseResponse.headers.set('Pragma', 'no-cache')
+  }
+
   return supabaseResponse
 }
 
