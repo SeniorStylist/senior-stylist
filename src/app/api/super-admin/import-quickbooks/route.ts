@@ -176,8 +176,26 @@ export async function POST(request: Request) {
           continue
         }
 
-        const poaEmail = (row['Email'] ?? row['email'] ?? '').trim() || null
-        const poaPhone = (row['Phone'] ?? row['phone'] ?? '').trim() || null
+        const rawAddress = (row['Street Address'] ?? '').trim()
+        let poaName: string | null = null
+        let poaAddress: string | null = null
+
+        if (rawAddress) {
+          const lines = rawAddress.split('\n').map((l: string) => l.trim()).filter(Boolean)
+          const firstLine = lines[0] ?? ''
+          const secondLine = lines[1] ?? ''
+
+          if (/^c\/o\s+/i.test(firstLine)) {
+            poaName = firstLine.replace(/^c\/o\s+/i, '').trim() || null
+            poaAddress = secondLine || null
+          } else {
+            poaAddress = lines.join(', ') || null
+          }
+        }
+
+        const poaCity = (row['City'] ?? '').trim() || null
+        const poaEmail = (row['Email'] ?? '').trim() || null
+        const poaPhone = (row['Phone'] ?? '').trim() || null
 
         const existing = await tx.query.residents.findFirst({
           where: eq(residents.qbCustomerId, qbCustomerId),
@@ -190,6 +208,9 @@ export async function POST(request: Request) {
             .set({
               name,
               ...(room ? { roomNumber: room } : {}),
+              ...(poaName ? { poaName } : {}),
+              ...(poaAddress ? { poaAddress } : {}),
+              ...(poaCity ? { poaCity } : {}),
               ...(poaEmail ? { poaEmail } : {}),
               ...(poaPhone ? { poaPhone } : {}),
               updatedAt: new Date(),
@@ -204,6 +225,9 @@ export async function POST(request: Request) {
               facilityId,
               name,
               roomNumber: room,
+              poaName,
+              poaAddress,
+              poaCity,
               poaEmail,
               poaPhone,
               qbCustomerId,
@@ -214,6 +238,9 @@ export async function POST(request: Request) {
               target: [residents.name, residents.facilityId],
               set: {
                 qbCustomerId,
+                ...(poaName ? { poaName } : {}),
+                ...(poaAddress ? { poaAddress } : {}),
+                ...(poaCity ? { poaCity } : {}),
                 ...(poaEmail ? { poaEmail } : {}),
                 ...(poaPhone ? { poaPhone } : {}),
                 ...(room ? { roomNumber: room } : {}),

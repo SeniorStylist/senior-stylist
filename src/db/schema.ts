@@ -87,6 +87,8 @@ export const residents = pgTable(
     poaEmail: text('poa_email'),
     poaPhone: text('poa_phone'),
     poaPaymentMethod: text('poa_payment_method'),
+    poaAddress: text('poa_address'),
+    poaCity: text('poa_city'),
     poaNotificationsEnabled: boolean('poa_notifications_enabled').default(true).notNull(),
     qbCustomerId: text('qb_customer_id'),
     active: boolean('active').default(true).notNull(),

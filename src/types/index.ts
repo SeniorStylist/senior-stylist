@@ -65,6 +65,8 @@ export interface Resident {
   poaEmail: string | null
   poaPhone: string | null
   poaPaymentMethod: string | null
+  poaAddress?: string | null
+  poaCity?: string | null
   poaNotificationsEnabled: boolean
   qbCustomerId?: string | null
   active: boolean
