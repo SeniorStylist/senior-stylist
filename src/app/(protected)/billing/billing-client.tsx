@@ -384,13 +384,13 @@ export function BillingClient({
         />
       )}
 
-      {showScanModal && summary && (
+      {showScanModal && (
         <ScanCheckModal
           open={showScanModal}
           facilityId={facilityId}
-          facilityPaymentType={summary.facility.paymentType ?? null}
+          facilityPaymentType={summary?.facility.paymentType ?? null}
           facilities={facilityOptions}
-          residents={summary.residents}
+          residents={summary?.residents ?? []}
           isMaster={isMaster}
           resolveFromUnresolvedId={scanResolveData?.id}
           resolveFromUnresolvedData={scanResolveData?.data}
@@ -517,7 +517,7 @@ export function BillingClient({
       ) : null}
 
       {isMaster && facilityOptions.length > 1 ? (
-        <div className="mb-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <select
             value={facilityId}
             onChange={(e) => setFacilityId(e.target.value)}
@@ -529,6 +529,31 @@ export function BillingClient({
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={() => { setScanResolveData(null); setShowScanModal(true) }}
+            className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            Scan Check
+          </button>
+        </div>
+      ) : !isMaster ? (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => { setScanResolveData(null); setShowScanModal(true) }}
+            className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            Scan Check
+          </button>
         </div>
       ) : null}
 
