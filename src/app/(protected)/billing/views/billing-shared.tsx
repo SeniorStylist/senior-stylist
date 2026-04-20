@@ -58,9 +58,15 @@ export interface BillingSummary {
   payments: BillingPayment[]
 }
 
+const USD = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 export function formatDollars(cents: number): string {
-  const sign = cents < 0 ? '-' : ''
-  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`
+  return USD.format((cents ?? 0) / 100)
 }
 
 export function revShareLabel(type: string | null | undefined): string {

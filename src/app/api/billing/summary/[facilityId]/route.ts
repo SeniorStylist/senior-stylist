@@ -1,14 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, gte, lte } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ facilityId: string }> }
 ) {
   const { facilityId } = await params
@@ -32,6 +34,28 @@ export async function GET(
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
   }
+
+  const fromParam = req.nextUrl.searchParams.get('from')
+  const toParam = req.nextUrl.searchParams.get('to')
+  const hasRange = !!(fromParam && toParam)
+  if (hasRange && (!ISO_DATE.test(fromParam!) || !ISO_DATE.test(toParam!))) {
+    return Response.json({ error: 'Invalid date range' }, { status: 400 })
+  }
+
+  const invoiceWhere = hasRange
+    ? and(
+        eq(qbInvoices.facilityId, facilityId),
+        gte(qbInvoices.invoiceDate, fromParam!),
+        lte(qbInvoices.invoiceDate, toParam!)
+      )
+    : eq(qbInvoices.facilityId, facilityId)
+  const paymentWhere = hasRange
+    ? and(
+        eq(qbPayments.facilityId, facilityId),
+        gte(qbPayments.paymentDate, fromParam!),
+        lte(qbPayments.paymentDate, toParam!)
+      )
+    : eq(qbPayments.facilityId, facilityId)
 
   try {
     const [facility, residentList, invoices, payments] = await Promise.all([
@@ -62,11 +86,11 @@ export async function GET(
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
       db.query.qbInvoices.findMany({
-        where: eq(qbInvoices.facilityId, facilityId),
+        where: invoiceWhere,
         orderBy: [desc(qbInvoices.invoiceDate)],
       }),
       db.query.qbPayments.findMany({
-        where: eq(qbPayments.facilityId, facilityId),
+        where: paymentWhere,
         orderBy: [desc(qbPayments.paymentDate)],
       }),
     ])

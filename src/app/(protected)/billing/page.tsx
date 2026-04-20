@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
@@ -43,10 +44,12 @@ export default async function BillingPage() {
   }
 
   return (
-    <BillingClient
-      initialFacilityId={initialFacilityId}
-      facilityOptions={facilityOptions}
-      isMaster={isMaster}
-    />
+    <Suspense fallback={null}>
+      <BillingClient
+        initialFacilityId={initialFacilityId}
+        facilityOptions={facilityOptions}
+        isMaster={isMaster}
+      />
+    </Suspense>
   )
 }

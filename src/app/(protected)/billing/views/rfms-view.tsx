@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import {
   BillingFacility,
   BillingInvoice,
@@ -66,25 +67,41 @@ export function RFMSView({
                 Memo / Invoice Ref
               </div>
             </div>
-            {payments.map((p) => (
-              <div
-                key={p.id}
-                className="md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1 px-5 py-3 border-b border-stone-50 last:border-0"
-              >
-                <div className="md:col-span-2 text-sm text-stone-700">
-                  {formatInvoiceDate(p.paymentDate)}
-                </div>
-                <div className="md:col-span-3 text-sm text-stone-900 font-medium">
-                  {p.checkNum ?? <span className="text-stone-400">—</span>}
-                </div>
-                <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
-                  {formatDollars(p.amountCents)}
-                </div>
-                <div className="md:col-span-5 text-sm text-stone-500 truncate">
-                  {p.memo ?? p.invoiceRef ?? <span className="text-stone-400">—</span>}
-                </div>
-              </div>
-            ))}
+            {(() => {
+              let lastYear: number | null = null
+              return payments.map((p) => {
+                const year = new Date(`${p.paymentDate}T00:00:00`).getFullYear()
+                const showYear = !Number.isNaN(year) && year !== lastYear
+                if (showYear) lastYear = year
+                return (
+                  <Fragment key={p.id}>
+                    {showYear && (
+                      <div className="px-5 pt-4 pb-1 border-b border-stone-50">
+                        <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">
+                          {year}
+                        </span>
+                      </div>
+                    )}
+                    <div className="md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1 px-5 py-3 border-b border-stone-50 last:border-0">
+                      <div className="md:col-span-2 text-sm text-stone-700">
+                        {formatInvoiceDate(p.paymentDate)}
+                      </div>
+                      <div className="md:col-span-3 text-sm text-stone-900 font-medium">
+                        {p.checkNum ?? <span className="text-stone-400">—</span>}
+                      </div>
+                      <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
+                        {formatDollars(p.amountCents)}
+                      </div>
+                      <div className="md:col-span-5 text-sm text-stone-500 truncate">
+                        {p.memo ?? p.invoiceRef ?? (
+                          <span className="text-stone-400">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </Fragment>
+                )
+              })
+            })()}
           </>
         )}
       </ExpandableSection>

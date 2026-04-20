@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   BillingSummary,
   DisabledActionButton,
@@ -11,15 +12,43 @@ import {
 import { IPView } from './views/ip-view'
 import { RFMSView } from './views/rfms-view'
 import { HybridView } from './views/hybrid-view'
+import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
 import {
   btnBase,
   btnHubInteractive,
   cardHover,
+  modalEnter,
   successFlash,
   transitionBase,
 } from '@/lib/animations'
+
+type Period = 'month' | 'year' | 'custom' | 'all'
+interface DateRange {
+  from: string
+  to: string
+}
+
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate()
+  ).padStart(2, '0')}`
+}
+
+function currentMonthRange(): DateRange {
+  const now = new Date()
+  const from = new Date(now.getFullYear(), now.getMonth(), 1)
+  return { from: toISODate(from), to: toISODate(now) }
+}
+
+function currentYearRange(): DateRange {
+  const now = new Date()
+  const from = new Date(now.getFullYear(), 0, 1)
+  return { from: toISODate(from), to: toISODate(now) }
+}
+
+const ALL_TIME_RANGE: DateRange = { from: '2000-01-01', to: '2099-12-31' }
 
 interface FacilityOption {
   id: string
@@ -50,7 +79,12 @@ export function BillingClient({
   facilityOptions: FacilityOption[]
   isMaster: boolean
 }) {
-  const [facilityId, setFacilityId] = useState(initialFacilityId)
+  const searchParams = useSearchParams()
+  const [facilityId, setFacilityId] = useState<string>(() => {
+    const q = searchParams?.get('facility')
+    if (q && facilityOptions.some((f) => f.id === q)) return q
+    return initialFacilityId
+  })
   const [refreshKey, setRefreshKey] = useState(0)
   const [summary, setSummary] = useState<BillingSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,6 +99,14 @@ export function BillingClient({
 
   const [pendingRevShare, setPendingRevShare] = useState<string | null>(null)
   const [revShareSaving, setRevShareSaving] = useState(false)
+
+  const [activePeriod, setActivePeriod] = useState<Period>('month')
+  const [dateRange, setDateRange] = useState<DateRange>(() => currentMonthRange())
+  const [customOpen, setCustomOpen] = useState(false)
+  const [tempFrom, setTempFrom] = useState('')
+  const [tempTo, setTempTo] = useState('')
+
+  const [panelType, setPanelType] = useState<PanelType | null>(null)
 
   const { toast } = useToast()
 
@@ -102,7 +144,11 @@ export function BillingClient({
     setLoading(true)
     setError(null)
     setPendingRevShare(null)
-    fetch(`/api/billing/summary/${facilityId}`)
+    const qs = new URLSearchParams({
+      from: dateRange.from,
+      to: dateRange.to,
+    }).toString()
+    fetch(`/api/billing/summary/${facilityId}?${qs}`)
       .then(async (r) => {
         if (!r.ok) {
           const body = await r.json().catch(() => ({}))
@@ -125,7 +171,7 @@ export function BillingClient({
     return () => {
       cancelled = true
     }
-  }, [facilityId, refreshKey])
+  }, [facilityId, refreshKey, dateRange.from, dateRange.to])
 
   const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
@@ -133,9 +179,12 @@ export function BillingClient({
     if (!summary) return { billed: 0, received: 0, outstanding: 0 }
     const billed = (summary.invoices ?? []).reduce((s, i) => s + (i.amountCents ?? 0), 0)
     const received = (summary.payments ?? []).reduce((s, p) => s + (p.amountCents ?? 0), 0)
-    const outstanding = summary.facility.qbOutstandingBalanceCents ?? 0
+    const outstanding =
+      activePeriod === 'all'
+        ? summary.facility.qbOutstandingBalanceCents ?? 0
+        : (summary.invoices ?? []).reduce((s, i) => s + (i.openBalanceCents ?? 0), 0)
     return { billed, received, outstanding }
-  }, [summary])
+  }, [summary, activePeriod])
 
   const billedAnimated = useCountUp(totals.billed)
   const receivedAnimated = useCountUp(totals.received)
@@ -153,6 +202,31 @@ export function BillingClient({
   const currentRevShare = summary?.facility.qbRevShareType ?? 'we_deduct'
   const effectiveRevShare = pendingRevShare ?? currentRevShare
   const revShareDirty = pendingRevShare !== null && pendingRevShare !== currentRevShare
+
+  function handlePeriod(p: Period) {
+    setActivePeriod(p)
+    setCustomOpen(p === 'custom')
+    if (p === 'month') setDateRange(currentMonthRange())
+    else if (p === 'year') setDateRange(currentYearRange())
+    else if (p === 'all') setDateRange(ALL_TIME_RANGE)
+    else if (p === 'custom') {
+      setTempFrom(dateRange.from)
+      setTempTo(dateRange.to)
+    }
+  }
+
+  function applyCustom() {
+    if (!tempFrom || !tempTo) {
+      toast('Pick a From and To date', 'error')
+      return
+    }
+    if (tempFrom > tempTo) {
+      toast('Invalid range: From must be before To', 'error')
+      return
+    }
+    setDateRange({ from: tempFrom, to: tempTo })
+    setCustomOpen(false)
+  }
 
   async function handleSendStatement(force = false) {
     if (!summary) return
@@ -247,6 +321,17 @@ export function BillingClient({
         />
       )}
 
+      {panelType && (
+        <CrossFacilityPanel
+          type={panelType}
+          onClose={() => setPanelType(null)}
+          onSelectFacility={(id) => {
+            setFacilityId(id)
+            setPanelType(null)
+          }}
+        />
+      )}
+
       <h1
         className="text-2xl md:text-3xl text-stone-900 mb-6"
         style={{ fontFamily: 'DM Serif Display, serif' }}
@@ -265,8 +350,10 @@ export function BillingClient({
             </>
           ) : crossSummary ? (
             <>
-              <div
-                className={`bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
+              <button
+                type="button"
+                onClick={() => setPanelType('outstanding')}
+                className={`${btnBase} text-left w-full bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
                   Total Outstanding
@@ -280,9 +367,11 @@ export function BillingClient({
                 >
                   {formatDollars(crossOutstandingAnimated)}
                 </div>
-              </div>
-              <div
-                className={`bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-4 ${cardHover}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelType('collected')}
+                className={`${btnBase} text-left w-full bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
                   Collected This Month
@@ -290,9 +379,11 @@ export function BillingClient({
                 <div className="text-xl font-bold text-emerald-800">
                   {formatDollars(crossCollectedAnimated)}
                 </div>
-              </div>
-              <div
-                className={`bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelType('invoiced')}
+                className={`${btnBase} text-left w-full bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
                   Invoiced This Month
@@ -300,9 +391,11 @@ export function BillingClient({
                 <div className="text-xl font-bold text-stone-900">
                   {formatDollars(crossInvoicedAnimated)}
                 </div>
-              </div>
-              <div
-                className={`bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelType('overdue')}
+                className={`${btnBase} text-left w-full bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
                   Facilities Overdue
@@ -316,7 +409,7 @@ export function BillingClient({
                 >
                   {crossOverdueAnimated}
                 </div>
-              </div>
+              </button>
             </>
           ) : null}
         </div>
@@ -439,6 +532,73 @@ export function BillingClient({
                 highlight={totals.outstanding > 0 ? 'amber' : 'default'}
               />
             </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {(['month', 'year', 'custom', 'all'] as const).map((p) => {
+                const label =
+                  p === 'month'
+                    ? 'Month'
+                    : p === 'year'
+                      ? 'Year'
+                      : p === 'custom'
+                        ? 'Custom'
+                        : 'All'
+                const active = activePeriod === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => handlePeriod(p)}
+                    className={`${btnHubInteractive} rounded-full px-3 py-1 text-xs font-semibold ${
+                      active
+                        ? 'bg-[#8B2E4A] text-white'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+              {activePeriod !== 'all' ? (
+                <span className="text-xs text-stone-400 ml-1">
+                  {dateRange.from} → {dateRange.to}
+                </span>
+              ) : null}
+            </div>
+
+            {customOpen && activePeriod === 'custom' ? (
+              <div
+                className={`${modalEnter} mt-3 inline-block bg-white border border-stone-200 rounded-2xl shadow-lg p-4`}
+              >
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="text-xs font-semibold text-stone-500">
+                    From
+                    <input
+                      type="date"
+                      value={tempFrom}
+                      onChange={(e) => setTempFrom(e.target.value)}
+                      className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-stone-500">
+                    To
+                    <input
+                      type="date"
+                      value={tempTo}
+                      onChange={(e) => setTempTo(e.target.value)}
+                      className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={applyCustom}
+                    className={`${btnBase} bg-[#8B2E4A] text-white rounded-xl px-4 py-1.5 text-sm font-semibold hover:bg-[#72253C]`}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {showRevShareRow ? (
               <div className="mt-5 pt-5 border-t border-stone-100">

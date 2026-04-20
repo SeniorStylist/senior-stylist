@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   BillingFacility,
   BillingInvoice,
@@ -14,6 +14,10 @@ import {
   formatShortDate,
 } from './billing-shared'
 import { ExpandableSection } from './expandable-section'
+import { transitionBase } from '@/lib/animations'
+
+type SortKey = 'name' | 'room' | 'lastService' | 'billed' | 'outstanding'
+type SortDir = 'asc' | 'desc'
 
 export function IPView({
   facility,
@@ -38,9 +42,84 @@ export function IPView({
     lastSentAt: string
   } | null>(null)
 
+  const [sortKey, setSortKey] = useState<SortKey>('outstanding')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
   const eligibleCount = residents.filter(
     (r) => r.poaEmail && (r.qbOutstandingBalanceCents ?? 0) > 0
   ).length
+
+  const sortedRows = useMemo(() => {
+    const rows = residents.map((r) => ({ r, t: computeResidentTotals(r, invoices) }))
+    const cmp = (a: (typeof rows)[0], b: (typeof rows)[0]): number => {
+      let x: string | number | null
+      let y: string | number | null
+      switch (sortKey) {
+        case 'name':
+          x = a.r.name
+          y = b.r.name
+          break
+        case 'room':
+          x = a.r.roomNumber
+          y = b.r.roomNumber
+          break
+        case 'lastService':
+          x = a.t.lastServiceDate
+          y = b.t.lastServiceDate
+          break
+        case 'billed':
+          x = a.t.billedCents
+          y = b.t.billedCents
+          break
+        case 'outstanding':
+          x = a.t.outstandingCents
+          y = b.t.outstandingCents
+          break
+      }
+      if (x == null && y == null) return 0
+      if (x == null) return 1
+      if (y == null) return -1
+      const dir = sortDir === 'asc' ? 1 : -1
+      if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir
+      return (
+        String(x).localeCompare(String(y), undefined, { numeric: sortKey === 'room' }) * dir
+      )
+    }
+    return rows.sort(cmp)
+  }, [residents, invoices, sortKey, sortDir])
+
+  function handleSort(k: SortKey) {
+    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(k)
+      setSortDir('desc')
+    }
+  }
+
+  function SortHeader({
+    label,
+    k,
+    align = 'left',
+  }: {
+    label: string
+    k: SortKey
+    align?: 'left' | 'right'
+  }) {
+    const isActive = sortKey === k
+    const arrow = !isActive ? '↕' : sortDir === 'asc' ? '↑' : '↓'
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(k)}
+        className={`${transitionBase} text-xs font-semibold text-stone-500 uppercase tracking-wide inline-flex items-center gap-1 hover:text-stone-700 ${
+          align === 'right' ? 'justify-end w-full' : ''
+        }`}
+      >
+        {label}
+        <span className={isActive ? 'text-stone-700' : 'text-stone-300'}>{arrow}</span>
+      </button>
+    )
+  }
 
   async function handleSendAll() {
     if (
@@ -147,31 +226,30 @@ export function IPView({
             </div>
 
             <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
-              <div className="col-span-3 text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Resident
+              <div className="col-span-3">
+                <SortHeader label="Resident" k="name" />
               </div>
-              <div className="col-span-1 text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Room
+              <div className="col-span-1">
+                <SortHeader label="Room" k="room" />
               </div>
-              <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Last Service
+              <div className="col-span-2">
+                <SortHeader label="Last Service" k="lastService" />
               </div>
-              <div className="col-span-1 text-xs font-semibold text-stone-500 uppercase tracking-wide text-right">
-                Billed
+              <div className="col-span-1 text-right">
+                <SortHeader label="Billed" k="billed" align="right" />
               </div>
               <div className="col-span-1 text-xs font-semibold text-stone-500 uppercase tracking-wide text-right">
                 Paid
               </div>
-              <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide text-right">
-                Outstanding
+              <div className="col-span-2 text-right">
+                <SortHeader label="Outstanding" k="outstanding" align="right" />
               </div>
               <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide text-right">
                 Last Sent
               </div>
             </div>
 
-            {residents.map((r) => {
-              const t = computeResidentTotals(r, invoices)
+            {sortedRows.map(({ r, t }) => {
               const outstandingClass =
                 t.outstandingCents > 0
                   ? 'text-sm font-semibold text-amber-700 text-right'
