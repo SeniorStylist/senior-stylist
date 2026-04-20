@@ -292,7 +292,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems
           .filter((item) => item.roles.includes(role as NavRole))
           .map((item) => {
@@ -326,6 +326,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         <div className="px-3 pb-2">
           <Link
             href="/super-admin"
+            prefetch={true}
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
               pathname === '/super-admin'
