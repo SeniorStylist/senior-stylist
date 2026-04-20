@@ -76,7 +76,7 @@ export default async function SuperAdminPage() {
 
       return {
         id: f.id,
-        name: f.name,
+        name: f.name ?? '',
         facilityCode: f.facilityCode ?? null,
         address: f.address,
         phone: f.phone,

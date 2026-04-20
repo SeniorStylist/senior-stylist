@@ -766,7 +766,9 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                             {f.facilityCode}
                           </span>
                         )}
-                        <span className="truncate">{f.name}</span>
+                        <span className="truncate">
+                          {f.name || <span className="italic text-stone-400">Unnamed Facility</span>}
+                        </span>
                       </h3>
                       {f.adminEmail && (
                         <p className="text-xs text-stone-400 mt-0.5 truncate">{f.adminEmail}</p>
@@ -824,7 +826,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                         /* Active: Deactivate button */
                         deactivatingId === f.id ? (
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-stone-500">Deactivate {f.name.split(' ')[0]}?</span>
+                            <span className="text-[11px] text-stone-500">Deactivate {(f.name || 'this facility').split(' ')[0]}?</span>
                             <button
                               onClick={() => handleToggleActive(f, false)}
                               disabled={togglingId === f.id}
