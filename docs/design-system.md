@@ -1158,3 +1158,19 @@ Used for `/privacy` and `/terms` — static server components with no auth.
 - **Footer**: `border-t border-stone-200 mt-16 py-8`, flex centered with Privacy/Terms cross-links and copyright
 
 **Sidebar footer links** (Privacy · Terms below sign-out): `color: rgba(255,255,255,0.25)`, transitions to `rgba(255,255,255,0.5)` on hover, `text-xs`, `<a>` tags (not `<Link>`). Separator dot at `rgba(255,255,255,0.15)`. Wrapped in `flex items-center justify-center gap-3 px-3 mt-3`.
+
+### Billing AR Dashboard (`/billing`)
+
+Read-only admin dashboard shipped in Phase 11B. Three views branch on `facilities.payment_type`.
+
+- **Page shell**: `p-4 md:p-8 max-w-6xl mx-auto`; heading `text-2xl md:text-3xl` inline `style={{ fontFamily: 'DM Serif Display, serif' }}`; subtitle shows facility name + monospace `facilityCode` badge (`bg-stone-100 text-stone-500 font-mono text-[11px] px-1.5 py-0.5 rounded-md`).
+- **Master-admin facility `<select>`**: right of header when `isMaster && facilityOptions.length > 1`. Rose focus ring (`focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100`). Options labeled `"{facilityCode} · {name}"` when code exists.
+- **Totals card** (`bg-white rounded-2xl border border-stone-100 shadow-sm p-5`): three `<StatCard>` tiles in `grid-cols-1 md:grid-cols-3 gap-3` — Total Billed / Total Received / Outstanding. `<StatCard highlight="amber">` flips the background to `bg-amber-50` and value text to `text-amber-700 font-bold text-xl` when outstanding > 0. Rev-share note appears below as muted `text-xs text-stone-500` only for RFMS/hybrid/legacy-facility payment types.
+- **Disabled action buttons** (`<DisabledActionButton>`): burgundy `bg-[#8B2E4A] text-white` at `opacity-40 cursor-not-allowed` with `disabled` attribute and `title` tooltip explaining the future phase. Always rendered above the primary view and on the RFMS checks card.
+- **IP view**: 12-col grid table — Resident(3) / Room(1) / Last Service(2) / Billed(1) / Paid(1) / Outstanding(2) / Last Sent(2). Outstanding > $0 in `text-amber-700 font-semibold`; $0 in `text-stone-500`. Row uses `md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-50 last:border-0` — stacks vertically on mobile. Empty state: "No residents set up for this facility yet."
+- **RFMS view**: rose-50 rev-share note card (`bg-rose-50 border border-rose-100 text-rose-900 px-4 py-3 rounded-2xl`) + Checks Received table (Date / Check# / Amount / Memo-or-Invoice-Ref, 2/3/2/5 cols) + Per-Resident Breakdown table (Resident(4) / Room(1) / Last Service(2) / Billed(2) / Outstanding(3)). Each table sits in its own card with a header row.
+- **Hybrid view**: two stacked `<section>` blocks (IP Residents + RFMS Residents), each with its own outstanding total inline in the heading. RFMS section gets its own 3-tile mini StatCard row (Resident count / Check count / Outstanding) before the RFMS view renders. Filters: IP = `residentPaymentType === 'ip'`; RFMS = everything else. Invoices/payments partitioned by `residentId` into each section (null-residentId invoices/payments flow into RFMS).
+- **Loading skeleton**: two stacked `animate-pulse bg-stone-100 rounded-2xl` blocks (h-24 above h-64).
+- **Empty state**: single card "No billing data yet. Import historical data from the Super Admin panel." when `invoices.length + payments.length === 0`.
+
+Sidebar nav entry lives between Reports and Payroll, admin-only, inline SVG (receipt with `$` glyph). No mobile-nav entry — the 5-icon bottom bar is full.

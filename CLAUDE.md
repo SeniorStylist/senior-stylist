@@ -315,21 +315,26 @@
 - **UI**: `/super-admin/import-billing-history` (3-state: upload → loading → results). Two separate `<input type="file" accept=".csv">` pickers (one for invoices, one for transactions). Import button disabled when both null. Results show 4 stats: invoices processed, payments processed, facilities with open balance, residents with open balance. "Import Billing History" link in super-admin header. Rate limit: `billingImport` 5/hr.
 - **CSV metadata rows**: QB exports have 4 metadata rows before actual headers (title, company, date range, blank). Strip them by scanning for the real header line before passing to PapaParse. Invoice List: `lines.findIndex(l => l.trimStart().startsWith('Date,'))`. Transaction List: `lines.findIndex(l => l.includes(',Date,') && l.includes('Transaction type'))`.
 
-### Phase 11B — AR Dashboard (`/billing`) [PLANNED — Opus]
-- **Route**: `/billing` — protected, admin+ only
-- **Role-gated views**:
-  - `master_admin` → all facilities across all franchises, full totals
-  - `franchise_head` (Phase 12) → their franchise's facilities only
-  - `facility_admin` → their facility only, no switcher shown
-  - `stylist` → no billing access
-  - `resident` → resident portal only, not this dashboard
-- **Three views based on `facilities.payment_type`**:
-  - **IP view**: per-resident table — name, room, last service date, total billed, total paid, outstanding, last statement sent + channel. Each resident pays their own invoice.
-  - **RFMS view**: facility-level consolidated. Multiple checks may arrive per period (not one). Facility may deduct rev share themselves before paying (`qb_rev_share_type = facility_deducts`) or Senior Stylist deducts (`we_deduct`). Shows: total billed, sum of all checks received, outstanding = billed minus received, per-resident coverage breakdown, each individual check with date/check#/amount, rev share handling note.
-  - **Hybrid view**: split panel — IP residents section + RFMS residents section, separate outstanding totals for each.
-- **All views show**: last statement sent date + channel, Send Statement button (11C), Send via QB button (11F), `qb_rev_share_type` label
-- **Data source**: `qb_invoices` + `qb_payments` tables, `qb_outstanding_balance_cents` on facilities/residents
-- **Sidebar nav**: new "Billing" entry for admin+ roles, positioned after Reports
+### Phase 11B — AR Dashboard (`/billing`) [SHIPPED 2026-04-20]
+- **Route**: `/billing` (under `(protected)` route group — NOT `(dashboard)`). Admin+ only; stylists/viewers redirect to `/dashboard`.
+- **Role scope**:
+  - `master_admin` (via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`) — facility `<select>` across all active facilities, switches data on change
+  - `facility_admin` — locked to their own facility, no switcher rendered
+  - stylist / viewer / other — redirect to `/dashboard`
+- **API**: `GET /api/billing/summary/[facilityId]` — admin-guarded, enforces caller facility === requested facility for non-master, returns `{ data: { facility, residents, invoices, payments } }`. Every Drizzle query uses an explicit `columns:` whitelist — no tokens/secrets can leak (`qbAccessToken`, `qbRefreshToken`, `stripeSecretKey` are never selected).
+- **View branching on `facilities.payment_type`** (in `billing-client.tsx`):
+  - `'ip'` → `<IPView>` — per-resident 12-col grid: Resident / Room / Last Service / Billed / Paid / Outstanding / Last Sent
+  - `'rfms'` or legacy `'facility'` → `<RFMSView>` — rev-share note card + Checks Received table (date / check# / amount / memo) + per-resident breakdown (resident/room/last service/billed/outstanding)
+  - `'hybrid'` → `<HybridView>` — split panel. IP section: `residents.filter(r => r.residentPaymentType === 'ip')`. RFMS section: everything else (including `null`). Each section computes its own outstanding from filtered residents.
+- **Shared helpers** (`src/app/(protected)/billing/views/billing-shared.tsx`): interfaces (`BillingFacility`, `BillingResident`, `BillingInvoice`, `BillingPayment`, `BillingSummary`, `ResidentTotals`), `formatDollars`, `formatInvoiceDate`, `formatShortDate`, `formatSentVia`, `revShareLabel`, `computeResidentTotals(resident, invoices)` (billed = SUM invoice.amountCents for this residentId; outstanding = resident.qbOutstandingBalanceCents; paid = billed − outstanding; lastServiceDate = MAX invoiceDate; lastSentAt/Via from the most recent invoice with `lastSentAt != null`), `DisabledActionButton`, `StatCard`.
+- **Totals card**: Total Billed = SUM invoice.amountCents; Total Received = SUM payment.amountCents; Outstanding = `facility.qbOutstandingBalanceCents`. Outstanding > 0 uses `<StatCard highlight="amber">` (bg-amber-50 + text-amber-700); = 0 uses default stone palette.
+- **Rev-share note**: only rendered when paymentType is `rfms`/`facility`/`hybrid`. Uses `revShareLabel(facility.qbRevShareType)`: `facility_deducts` → "Facility deducts revenue share before paying"; anything else → "Senior Stylist deducts revenue share".
+- **Action buttons**: `<DisabledActionButton>` pair (Send Statement title="Available in Phase 11C", Send via QB title="Available after QB production approval") — burgundy bg, `opacity-40 cursor-not-allowed`, `disabled` attribute. Rendered above the main view.
+- **Loading state**: two `animate-pulse bg-stone-100 rounded-2xl` skeletons (h-24 + h-64).
+- **Empty state**: `summary.invoices.length + summary.payments.length === 0` → card with "No billing data yet. Import historical data from the Super Admin panel."
+- **Sidebar nav**: Billing entry inserted **between Reports and Payroll** in `src/components/layout/sidebar.tsx` (admin-only). Inline SVG icon (document with dollar glyph, 16×16, strokeWidth 2). **Mobile-nav intentionally NOT updated** — the 5-icon bar is already full and `/payroll`, `/reports`, `/settings` are also absent from mobile.
+- **Design tokens**: burgundy `#8B2E4A` primary (NOT `#0D7377` teal — CLAUDE.md rule), focus ring `ring-rose-100`, card shell `bg-white rounded-2xl border border-stone-100 shadow-sm`, page padding `p-4 md:p-8 max-w-6xl mx-auto`, heading `text-2xl md:text-3xl` inline `style={{ fontFamily: 'DM Serif Display, serif' }}`.
+- **No mutations, no schema changes, no rate-limit changes** — read-only dashboard only.
 
 ### Phase 11C — Statement & Reminder Emails [PLANNED — Sonnet]
 - **Two send channels**, never auto-duplicate:

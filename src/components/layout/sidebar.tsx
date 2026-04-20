@@ -113,6 +113,19 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
     ),
   },
   {
+    href: '/billing',
+    label: 'Billing',
+    roles: ['admin'],
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <path d="M12 11v6"/>
+        <path d="M9.5 13.5h4a1.5 1.5 0 010 3h-4"/>
+      </svg>
+    ),
+  },
+  {
     href: '/payroll',
     label: 'Payroll',
     roles: ['admin'],

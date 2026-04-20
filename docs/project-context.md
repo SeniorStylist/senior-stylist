@@ -332,8 +332,8 @@ Tailwind CSS 4, Vercel
 - Stylist self-service pay-period viewing (`/my-account` surface)
 - `quickbooks_sync_log` audit-trail table + automated retry-with-backoff worker for transient QB failures (rescoped from legacy Phase 14 polish)
 
-### Phase 11B — AR Dashboard (PLANNED — Opus)
-Three payment-type views (IP/RFMS/hybrid), role-gated, new /billing route, Billing sidebar nav entry.
+### Phase 11B — AR Dashboard (SHIPPED 2026-04-20)
+`/billing` route shipped with three payment-type views (IP/RFMS/hybrid, legacy `'facility'` → RFMS). Master admin sees facility selector across all active facilities; facility admin locked to their own. `GET /api/billing/summary/[facilityId]` returns facility+residents+invoices+payments with column whitelists. IP view: per-resident 12-col grid (resident/room/last service/billed/paid/outstanding/last sent+channel). RFMS view: rev-share note + checks-received table + per-resident breakdown. Hybrid view: split panel filtered by `residents.resident_payment_type`. Disabled placeholder buttons for Send Statement (11C) + Send via QB (11F). Sidebar nav entry inserted between Reports and Payroll (admin-only). Burgundy palette, no schema changes, no mutations.
 
 ### Phase 11C — Statement & Reminder Emails (PLANNED — Sonnet)
 Two-channel send (Resend + QB), dedup protection, billingSend rate limit bucket.

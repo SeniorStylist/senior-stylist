@@ -40,6 +40,18 @@ export default async function SuperAdminPage() {
   const [allFacilities, pendingRequests, activeFacilitiesList, franchiseList] = await Promise.all([
     db.query.facilities.findMany({
       orderBy: (t, { desc }) => [desc(t.createdAt)],
+      columns: {
+        id: true,
+        name: true,
+        facilityCode: true,
+        address: true,
+        phone: true,
+        timezone: true,
+        paymentType: true,
+        contactEmail: true,
+        active: true,
+        createdAt: true,
+      },
     }),
     db.query.accessRequests.findMany({
       where: (t) => eq(t.status, 'pending'),
