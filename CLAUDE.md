@@ -329,19 +329,25 @@
 - **Shared helpers** (`src/app/(protected)/billing/views/billing-shared.tsx`): interfaces (`BillingFacility`, `BillingResident`, `BillingInvoice`, `BillingPayment`, `BillingSummary`, `ResidentTotals`), `formatDollars`, `formatInvoiceDate`, `formatShortDate`, `formatSentVia`, `revShareLabel`, `computeResidentTotals(resident, invoices)` (billed = SUM invoice.amountCents for this residentId; outstanding = resident.qbOutstandingBalanceCents; paid = billed − outstanding; lastServiceDate = MAX invoiceDate; lastSentAt/Via from the most recent invoice with `lastSentAt != null`), `DisabledActionButton`, `StatCard`.
 - **Totals card**: Total Billed = SUM invoice.amountCents; Total Received = SUM payment.amountCents; Outstanding = `facility.qbOutstandingBalanceCents`. Outstanding > 0 uses `<StatCard highlight="amber">` (bg-amber-50 + text-amber-700); = 0 uses default stone palette.
 - **Rev-share note**: only rendered when paymentType is `rfms`/`facility`/`hybrid`. Uses `revShareLabel(facility.qbRevShareType)`: `facility_deducts` → "Facility deducts revenue share before paying"; anything else → "Senior Stylist deducts revenue share".
-- **Action buttons**: `<DisabledActionButton>` pair (Send Statement title="Available in Phase 11C", Send via QB title="Available after QB production approval") — burgundy bg, `opacity-40 cursor-not-allowed`, `disabled` attribute. Rendered above the main view.
+- **Action buttons**: "Send Statement" is now a real active button wired in `billing-client.tsx` (Phase 11C). "Send via QB" remains `<DisabledActionButton>` ("Available after QB production approval"). Rendered above the main view.
 - **Loading state**: two `animate-pulse bg-stone-100 rounded-2xl` skeletons (h-24 + h-64).
 - **Empty state**: `summary.invoices.length + summary.payments.length === 0` → card with "No billing data yet. Import historical data from the Super Admin panel."
 - **Sidebar nav**: Billing entry inserted **between Reports and Payroll** in `src/components/layout/sidebar.tsx` (admin-only). Inline SVG icon (document with dollar glyph, 16×16, strokeWidth 2). **Mobile-nav intentionally NOT updated** — the 5-icon bar is already full and `/payroll`, `/reports`, `/settings` are also absent from mobile.
 - **Design tokens**: burgundy `#8B2E4A` primary (NOT `#0D7377` teal — CLAUDE.md rule), focus ring `ring-rose-100`, card shell `bg-white rounded-2xl border border-stone-100 shadow-sm`, page padding `p-4 md:p-8 max-w-6xl mx-auto`, heading `text-2xl md:text-3xl` inline `style={{ fontFamily: 'DM Serif Display, serif' }}`.
 - **No mutations, no schema changes, no rate-limit changes** — read-only dashboard only.
 
-### Phase 11C — Statement & Reminder Emails [PLANNED — Sonnet]
-- **Two send channels**, never auto-duplicate:
-  - **Resend path**: `POST /api/billing/send-statement/[facilityId]` — HTML email via `noreply@seniorstylist.com`. Facility statements: payment type breakdown, per-resident list, rev share calc, outstanding total, payment history. Resident reminders: "you have $X outstanding" + invoice history. Records `last_sent_at` + `sent_via = 'resend'` on invoice.
-  - **QB path** (requires 11F production approval): `POST /api/billing/send-via-qb/[invoiceId]` — calls QB Invoice Send API. Records `last_sent_at` + `sent_via = 'quickbooks'`.
-- **Dedup protection**: if `last_sent_at` within 7 days from either channel → warning before resend. Both buttons always visible. Never auto-send from both channels.
-- **Rate limit**: add `billingSend` bucket 20/hr to `src/lib/rate-limit.ts`
+### Phase 11C — Statement & Reminder Emails [SHIPPED 2026-04-20]
+- **Three API routes** under `src/app/api/billing/send-statement/`:
+  - `POST facility/[facilityId]` — facility-level statement email to `contactEmail`; requires admin or isMaster
+  - `POST resident/[residentId]` — per-resident reminder to `poaEmail`; verifies `resident.facilityId` ownership
+  - `POST facility/[facilityId]/all-residents` — batch sends to all residents with `qbOutstandingBalanceCents > 0` AND `poaEmail`; sequential (not parallel) to avoid Resend rate limits; `maxDuration=60`
+- **Dedup pattern**: query `max(lastSentAt)` on `qbInvoices` for the scope; if within 7 days AND `!force` → return `{ warning: true, lastSentAt }` at HTTP 200; client re-POSTs with `{ force: true }` to bypass. `SendDedupModal` in `billing-shared.tsx` (stone overlay, Cancel + "Send Anyway").
+- **Email templates** in `src/lib/email.ts`: `buildFacilityStatementHtml` (3-tile billed/received/outstanding + resident table + payment history + rev-share note + footer `pmt@seniorstylist.com · 443-450-3344`) and `buildResidentStatementHtml` (outstanding callout amber/green + invoice history). Both use inline styles only — no @react-email.
+- **`await sendEmail()`** (NOT fire-and-forget) — `lastSentAt` + `sentVia = 'resend'` only updated after confirmed send.
+- **`billingSend` rate-limit bucket**: 20/hr in `src/lib/rate-limit.ts`.
+- **`BillingFacility`** extended: `contactEmail: string | null`, `address: string | null`. **`BillingResident`** extended: `poaEmail: string | null`. Both fields added to billing summary route column whitelists.
+- **UI wiring**: billing-client.tsx global "Send Statement" button wired (shows inline email input when no `contactEmail`; dedup modal on warning; `refreshKey` increment forces re-fetch after send). IP view: "Send All (N)" header button (confirm before batch) + per-row Send/Resend buttons (hidden when no `poaEmail`). RFMS view: duplicate "Send Statement" removed (billing-client global covers it; "Send via QB" stays disabled).
+- **QB path** ("Send via QB") stays disabled — pending 11F production approval.
 
 ### Phase 11D — Check Scanning [PLANNED — Opus]
 - **Entry point**: "Scan Check" button on billing page → upload modal (camera on mobile, file picker on desktop)

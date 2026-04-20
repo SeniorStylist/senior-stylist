@@ -16,11 +16,13 @@ export function HybridView({
   residents,
   invoices,
   payments,
+  onRefresh,
 }: {
   facility: BillingFacility
   residents: BillingResident[]
   invoices: BillingInvoice[]
   payments: BillingPayment[]
+  onRefresh: () => void
 }) {
   const ipResidents = residents.filter((r) => r.residentPaymentType === 'ip')
   const rfmsResidents = residents.filter(
@@ -65,7 +67,7 @@ export function HybridView({
             </span>
           </div>
         </div>
-        <IPView residents={ipResidents} invoices={ipInvoices} />
+        <IPView facility={facility} residents={ipResidents} invoices={ipInvoices} onRefresh={onRefresh} />
       </section>
 
       <section>

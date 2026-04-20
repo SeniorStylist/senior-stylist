@@ -34,13 +34,10 @@ export function RFMSView({
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100">
           <h3 className="text-sm font-semibold text-stone-700">Checks received</h3>
-          <div className="flex items-center gap-2">
-            <DisabledActionButton label="Send Statement" title="Available in Phase 11C" />
-            <DisabledActionButton
-              label="Send via QB"
-              title="Available after QB production approval"
-            />
-          </div>
+          <DisabledActionButton
+            label="Send via QB"
+            title="Available after QB production approval"
+          />
         </div>
 
         {payments.length === 0 ? (

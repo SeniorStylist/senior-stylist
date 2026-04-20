@@ -103,6 +103,253 @@ export function buildComplianceAlertEmailHtml(params: {
 </html>`.trim()
 }
 
+function fmtCents(cents: number): string {
+  const sign = cents < 0 ? '-' : ''
+  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`
+}
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const EMAIL_FOOTER = `<div style="padding:16px 32px 28px;border-top:1px solid #F5F5F4;margin-top:8px;">
+      <p style="margin:0;font-size:12px;color:#A8A29E;">Questions? <a href="mailto:pmt@seniorstylist.com" style="color:#8B2E4A;text-decoration:none;">pmt@seniorstylist.com</a> · 443-450-3344</p>
+    </div>`
+
+export function buildFacilityStatementHtml(params: {
+  facilityName: string
+  facilityCode: string | null
+  address: string | null
+  outstandingCents: number
+  paymentType: string
+  revShareType: string | null
+  invoices: Array<{
+    residentId: string | null
+    invoiceNum: string
+    invoiceDate: string
+    amountCents: number
+    openBalanceCents: number
+    status: string
+  }>
+  residents: Array<{
+    id: string
+    name: string
+    roomNumber: string | null
+    qbOutstandingBalanceCents: number | null
+  }>
+  payments: Array<{
+    paymentDate: string
+    checkNum: string | null
+    amountCents: number
+    memo: string | null
+    invoiceRef: string | null
+  }>
+}): string {
+  const { facilityName, facilityCode, address, outstandingCents, invoices, residents, payments, revShareType } = params
+
+  const totalBilled = invoices.reduce((s, i) => s + (i.amountCents ?? 0), 0)
+  const totalReceived = payments.reduce((s, p) => s + (p.amountCents ?? 0), 0)
+
+  const codeSpan = facilityCode
+    ? `<span style="display:inline-block;margin-left:8px;background:rgba(255,255,255,0.15);color:#F5E6EA;font-size:11px;font-family:monospace;padding:2px 6px;border-radius:4px;">${facilityCode}</span>`
+    : ''
+  const addressLine = address
+    ? `<p style="margin:6px 0 0;color:#F5E6EA;font-size:12px;">${address}</p>`
+    : ''
+
+  const outstandingStyle = outstandingCents > 0 ? 'background:#FFFBEB;' : 'background:#F5F5F4;'
+  const outstandingValueStyle = outstandingCents > 0 ? 'color:#B45309;' : 'color:#1C1917;'
+
+  const revShareNote = revShareType === 'facility_deducts'
+    ? '<p style="margin:16px 0 0;font-size:12px;color:#78716C;">Facility deducts revenue share before payment.</p>'
+    : '<p style="margin:16px 0 0;font-size:12px;color:#78716C;">Senior Stylist deducts revenue share.</p>'
+
+  const residentRows = residents
+    .filter((r) => {
+      const mine = invoices.filter((i) => i.residentId === r.id)
+      return mine.length > 0 || (r.qbOutstandingBalanceCents ?? 0) > 0
+    })
+    .map((r) => {
+      const mine = invoices.filter((i) => i.residentId === r.id)
+      const billed = mine.reduce((s, i) => s + (i.amountCents ?? 0), 0)
+      const outstanding = r.qbOutstandingBalanceCents ?? 0
+      const outStyle = outstanding > 0 ? 'color:#B45309;font-weight:700;' : 'color:#57534E;'
+      return `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;">${r.name}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;">${r.roomNumber ?? '—'}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;text-align:right;">${fmtCents(billed)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;font-size:13px;text-align:right;${outStyle}">${fmtCents(outstanding)}</td>
+      </tr>`
+    })
+    .join('')
+
+  const paymentRows = payments
+    .slice(0, 15)
+    .map(
+      (p) => `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;">${fmtDate(p.paymentDate)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;">${p.checkNum ?? '—'}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;font-weight:600;text-align:right;">${fmtCents(p.amountCents)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:12px;max-width:160px;overflow:hidden;">${p.memo ?? p.invoiceRef ?? '—'}</td>
+      </tr>`
+    )
+    .join('')
+
+  const residentsSection = residentRows
+    ? `<div style="margin-top:24px;">
+        <h2 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#1C1917;text-transform:uppercase;letter-spacing:0.05em;">Resident Summary</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="border-bottom:2px solid #E7E5E4;">
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Resident</th>
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Room</th>
+            <th style="padding:6px 0;text-align:right;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Billed</th>
+            <th style="padding:6px 0;text-align:right;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Outstanding</th>
+          </tr>
+          ${residentRows}
+        </table>
+      </div>`
+    : ''
+
+  const paymentsSection = paymentRows
+    ? `<div style="margin-top:24px;">
+        <h2 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#1C1917;text-transform:uppercase;letter-spacing:0.05em;">Recent Payments</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="border-bottom:2px solid #E7E5E4;">
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Date</th>
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Check #</th>
+            <th style="padding:6px 0;text-align:right;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Amount</th>
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Memo</th>
+          </tr>
+          ${paymentRows}
+        </table>
+      </div>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Statement of Account${codeSpan}</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:14px;font-weight:600;">${facilityName}</p>
+      ${addressLine}
+    </div>
+    <div style="padding:24px 32px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="width:33%;padding:12px;background:#F5F5F4;border-radius:8px;text-align:center;vertical-align:top;">
+            <div style="color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Total Billed</div>
+            <div style="color:#1C1917;font-size:18px;font-weight:700;margin-top:4px;">${fmtCents(totalBilled)}</div>
+          </td>
+          <td style="width:8px;"></td>
+          <td style="width:33%;padding:12px;background:#F5F5F4;border-radius:8px;text-align:center;vertical-align:top;">
+            <div style="color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Total Received</div>
+            <div style="color:#1C1917;font-size:18px;font-weight:700;margin-top:4px;">${fmtCents(totalReceived)}</div>
+          </td>
+          <td style="width:8px;"></td>
+          <td style="width:33%;padding:12px;${outstandingStyle}border-radius:8px;text-align:center;vertical-align:top;">
+            <div style="color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Outstanding</div>
+            <div style="${outstandingValueStyle}font-size:18px;font-weight:700;margin-top:4px;">${fmtCents(outstandingCents)}</div>
+          </td>
+        </tr>
+      </table>
+      ${revShareNote}
+      ${residentsSection}
+      ${paymentsSection}
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+export function buildResidentStatementHtml(params: {
+  residentName: string
+  roomNumber: string | null
+  facilityName: string
+  outstandingCents: number
+  invoices: Array<{
+    invoiceNum: string
+    invoiceDate: string
+    amountCents: number
+    openBalanceCents: number
+    status: string
+  }>
+  poaName?: string | null
+}): string {
+  const { residentName, roomNumber, facilityName, outstandingCents, invoices, poaName } = params
+
+  const greeting = poaName ? `Dear ${poaName},` : 'Dear Resident Family,'
+  const outstandingCallout = outstandingCents > 0
+    ? `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#78716C;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Outstanding Balance</p>
+        <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#B45309;">${fmtCents(outstandingCents)}</p>
+      </div>`
+    : `<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#15803D;font-weight:600;">Account is current — no outstanding balance.</p>
+      </div>`
+
+  const invoiceRows = invoices
+    .slice(0, 20)
+    .map((i) => {
+      const statusStyle = i.status === 'paid'
+        ? 'color:#15803D;font-weight:600;'
+        : i.openBalanceCents > 0
+        ? 'color:#B45309;font-weight:600;'
+        : 'color:#78716C;'
+      const statusLabel = i.status === 'paid' ? 'Paid' : i.status === 'credit' ? 'Credit' : i.status === 'partial' ? 'Partial' : 'Open'
+      return `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;">${fmtDate(i.invoiceDate)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;">${i.invoiceNum}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;text-align:right;">${fmtCents(i.amountCents)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #F5F5F4;text-align:right;font-size:13px;${statusStyle}">${statusLabel}</td>
+      </tr>`
+    })
+    .join('')
+
+  const invoicesSection = invoiceRows
+    ? `<div style="margin-top:8px;">
+        <h2 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#1C1917;text-transform:uppercase;letter-spacing:0.05em;">Invoice History</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="border-bottom:2px solid #E7E5E4;">
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Date</th>
+            <th style="padding:6px 0;text-align:left;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Invoice #</th>
+            <th style="padding:6px 0;text-align:right;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Amount</th>
+            <th style="padding:6px 0;text-align:right;font-size:11px;font-weight:600;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;">Status</th>
+          </tr>
+          ${invoiceRows}
+        </table>
+      </div>`
+    : '<p style="font-size:13px;color:#A8A29E;">No invoices on record.</p>'
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Billing Reminder</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;color:#1C1917;font-size:14px;line-height:1.6;">${greeting}</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <tr><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:40%;">Resident</td><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${residentName}</td></tr>
+        ${roomNumber ? `<tr><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Room</td><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${roomNumber}</td></tr>` : ''}
+      </table>
+      ${outstandingCallout}
+      ${invoicesSection}
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 function formatDateRange(startDate: string, endDate: string): string {
   if (startDate === endDate) return startDate
   return `${startDate} – ${endDate}`

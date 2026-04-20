@@ -5,6 +5,8 @@ export interface BillingFacility {
   paymentType: string
   qbOutstandingBalanceCents: number | null
   qbRevShareType: string | null
+  contactEmail: string | null
+  address: string | null
 }
 
 export interface BillingResident {
@@ -14,6 +16,7 @@ export interface BillingResident {
   residentPaymentType: string | null
   qbOutstandingBalanceCents: number | null
   qbCustomerId: string | null
+  poaEmail: string | null
 }
 
 export interface BillingInvoice {
@@ -83,6 +86,47 @@ export function formatSentVia(sentVia: string | null | undefined): string {
   if (sentVia === 'quickbooks') return 'via QB'
   if (sentVia === 'resend' || sentVia === 'email') return 'via email'
   return sentVia ?? ''
+}
+
+export function SendDedupModal({
+  lastSentAt,
+  onConfirm,
+  onCancel,
+}: {
+  lastSentAt: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const d = new Date(lastSentAt)
+  const dateLabel = Number.isNaN(d.getTime())
+    ? lastSentAt
+    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        <h3 className="text-base font-semibold text-stone-900 mb-2">Already sent recently</h3>
+        <p className="text-sm text-stone-600 mb-5">
+          A statement was last sent on <strong>{dateLabel}</strong>. Send again?
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl border border-stone-200 text-sm text-stone-700 hover:bg-stone-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C]"
+          >
+            Send Anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function DisabledActionButton({

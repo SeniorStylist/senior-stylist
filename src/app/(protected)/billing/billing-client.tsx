@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BillingSummary,
   DisabledActionButton,
+  SendDedupModal,
   StatCard,
   formatDollars,
   revShareLabel,
@@ -28,9 +29,15 @@ export function BillingClient({
   isMaster: boolean
 }) {
   const [facilityId, setFacilityId] = useState(initialFacilityId)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [summary, setSummary] = useState<BillingSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Send Statement state
+  const [sendLoading, setSendLoading] = useState(false)
+  const [sendWarning, setSendWarning] = useState<{ lastSentAt: string } | null>(null)
+  const [sendEmailOverride, setSendEmailOverride] = useState('')
 
   useEffect(() => {
     if (!facilityId) {
@@ -63,7 +70,9 @@ export function BillingClient({
     return () => {
       cancelled = true
     }
-  }, [facilityId])
+  }, [facilityId, refreshKey])
+
+  const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   const totals = useMemo(() => {
     if (!summary) return { billed: 0, received: 0, outstanding: 0 }
@@ -76,6 +85,35 @@ export function BillingClient({
   const paymentType = summary?.facility.paymentType ?? null
   const showRevShareNote =
     paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid'
+
+  async function handleSendStatement(force = false) {
+    if (!summary) return
+    const to = summary.facility.contactEmail ?? sendEmailOverride
+    if (!to) return
+    setSendLoading(true)
+    setSendWarning(null)
+    try {
+      const res = await fetch(`/api/billing/send-statement/facility/${facilityId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, force }),
+      })
+      const body = await res.json()
+      if (body.warning) {
+        setSendWarning({ lastSentAt: body.lastSentAt })
+        return
+      }
+      if (!res.ok) {
+        alert(body?.error ?? 'Failed to send')
+        return
+      }
+      handleRefresh()
+    } catch {
+      alert('Network error — please try again.')
+    } finally {
+      setSendLoading(false)
+    }
+  }
 
   if (!facilityId) {
     return (
@@ -93,8 +131,22 @@ export function BillingClient({
     )
   }
 
+  const contactEmail = summary?.facility.contactEmail ?? null
+  const sendToEmail = contactEmail ?? sendEmailOverride
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      {sendWarning && (
+        <SendDedupModal
+          lastSentAt={sendWarning.lastSentAt}
+          onConfirm={() => {
+            setSendWarning(null)
+            handleSendStatement(true)
+          }}
+          onCancel={() => setSendWarning(null)}
+        />
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <div>
           <h1
@@ -165,8 +217,25 @@ export function BillingClient({
             ) : null}
           </div>
 
-          <div className="flex items-center justify-end gap-2 mb-4">
-            <DisabledActionButton label="Send Statement" title="Available in Phase 11C" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2 mb-4">
+            {!contactEmail ? (
+              <input
+                type="email"
+                value={sendEmailOverride}
+                onChange={(e) => setSendEmailOverride(e.target.value)}
+                placeholder="Recipient email…"
+                className="rounded-xl border border-stone-200 px-3 py-1.5 text-sm text-stone-900 w-56 focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none"
+              />
+            ) : null}
+            <button
+              type="button"
+              disabled={sendLoading || !sendToEmail}
+              onClick={() => handleSendStatement(false)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-40 disabled:cursor-not-allowed"
+              title={!sendToEmail ? 'Enter a recipient email above' : undefined}
+            >
+              {sendLoading ? 'Sending…' : 'Send Statement'}
+            </button>
             <DisabledActionButton
               label="Send via QB"
               title="Available after QB production approval"
@@ -174,13 +243,19 @@ export function BillingClient({
           </div>
 
           {paymentType === 'ip' ? (
-            <IPView residents={summary.residents} invoices={summary.invoices} />
+            <IPView
+              facility={summary.facility}
+              residents={summary.residents}
+              invoices={summary.invoices}
+              onRefresh={handleRefresh}
+            />
           ) : paymentType === 'hybrid' ? (
             <HybridView
               facility={summary.facility}
               residents={summary.residents}
               invoices={summary.invoices}
               payments={summary.payments}
+              onRefresh={handleRefresh}
             />
           ) : (
             <RFMSView

@@ -44,6 +44,8 @@ export async function GET(
           paymentType: true,
           qbOutstandingBalanceCents: true,
           qbRevShareType: true,
+          contactEmail: true,
+          address: true,
         },
       }),
       db.query.residents.findMany({
@@ -55,6 +57,7 @@ export async function GET(
           residentPaymentType: true,
           qbOutstandingBalanceCents: true,
           qbCustomerId: true,
+          poaEmail: true,
         },
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
