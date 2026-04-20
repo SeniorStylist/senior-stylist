@@ -95,10 +95,7 @@ export const residents = pgTable(
     active: boolean('active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
-  },
-  (t) => ({
-    uniqueNameFacility: unique().on(t.name, t.facilityId),
-  })
+  }
 )
 
 export const stylists = pgTable('stylists', {
