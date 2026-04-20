@@ -43,6 +43,13 @@ interface InvoiceMatch {
   remainingCents: number
 }
 
+export interface InvoiceLine {
+  ref: string | null
+  invoiceDate: string | null
+  amountCents: number
+  confidence: Confidence
+}
+
 export interface ScanResult {
   imageUrl: string | null
   storagePath: string | null
@@ -62,6 +69,7 @@ export interface ScanResult {
   facilityMatch: FacilityMatch
   residentMatches: ResidentMatchLine[]
   invoiceMatch: InvoiceMatch
+  invoiceLines: InvoiceLine[]
   rawOcrJson: Record<string, unknown>
   overallConfidence: Confidence
 }
@@ -84,6 +92,11 @@ function confidenceBadge(conf: MatchConfidence): string {
   if (conf === 'medium') return 'bg-amber-50 text-amber-700 border-amber-200'
   if (conf === 'low') return 'bg-red-50 text-red-700 border-red-200'
   return 'bg-stone-100 text-stone-500 border-stone-200'
+}
+
+function formatInvoiceLineDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function parseDollarsToCents(raw: string): number {
@@ -226,7 +239,16 @@ export function ScanCheckModal({
     [cashEnabled, cashInput],
   )
   const linesTotal = useMemo(() => lines.reduce((s, l) => s + (l.amountCents || 0), 0), [lines])
-  const totalMatches = lines.length === 0 || linesTotal + cashCents === amountCents
+  const linesSumForValidation = useMemo(() => {
+    if (
+      result?.documentType === 'RFMS_REMITTANCE_SLIP' &&
+      (result?.invoiceLines?.length ?? 0) > 0
+    ) {
+      return result!.invoiceLines.reduce((s, l) => s + l.amountCents, 0)
+    }
+    return linesTotal
+  }, [result, linesTotal])
+  const totalMatches = lines.length === 0 || linesSumForValidation + cashCents === amountCents
   const hasUnmatchedLine = lines.some((l) => !l.residentId)
 
   const isRFMSLike = facilityPaymentType === 'rfms' || facilityPaymentType === 'facility' || facilityPaymentType === 'hybrid'
@@ -252,6 +274,8 @@ export function ScanCheckModal({
         matchedInvoiceIds: result?.invoiceMatch.matchedInvoiceIds ?? [],
         invoiceMatchConfidence: result?.invoiceMatch.confidence ?? 'none',
         unresolvedId: resolveFromUnresolvedId,
+        documentType: result?.documentType,
+        invoiceLines: result?.invoiceLines ?? [],
       }
 
       if (mode === 'resolve') {
@@ -650,6 +674,47 @@ export function ScanCheckModal({
                 No matching invoice — payment will be recorded without invoice decrement.
               </div>
             )}
+
+            {/* Invoice Lines (remittance slip) */}
+            {(result.invoiceLines?.length ?? 0) > 0 && (() => {
+              const invoiceLines = result.invoiceLines!
+              const lineTotal = invoiceLines.reduce((s, l) => s + l.amountCents, 0)
+              const matches = lineTotal === (result.extracted?.amountCents.value ?? 0)
+              return (
+                <div className="mt-4 bg-stone-50 rounded-2xl p-4 border border-stone-100">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
+                    Invoice Lines
+                  </p>
+                  <div className="grid grid-cols-[auto_1fr_auto] gap-x-4 text-xs text-stone-400 font-semibold uppercase tracking-wide mb-1.5">
+                    <span>Ref #</span>
+                    <span>Date</span>
+                    <span>Amount</span>
+                  </div>
+                  {invoiceLines.map((line, i) => (
+                    <div
+                      key={i}
+                      className={`grid grid-cols-[auto_1fr_auto] gap-x-4 py-1 text-sm rounded ${line.confidence === 'low' ? 'bg-amber-50' : ''}`}
+                    >
+                      <span className="text-stone-700 font-mono text-xs">{line.ref ?? '—'}</span>
+                      <span className="text-stone-700">
+                        {line.invoiceDate ? formatInvoiceLineDate(line.invoiceDate) : '—'}
+                      </span>
+                      <span className="text-stone-900 font-medium tabular-nums">
+                        {formatDollars(line.amountCents)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="border-t border-stone-200 mt-2 pt-2 flex items-center justify-between text-sm">
+                    <span className="text-stone-500 font-semibold">Total</span>
+                    <span
+                      className={`font-bold tabular-nums ${matches ? 'text-emerald-700' : 'text-red-600'}`}
+                    >
+                      {formatDollars(lineTotal)} {matches ? '✓' : '≠ check amount'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Totals invariant */}
             {!totalMatches && lines.length > 0 && (

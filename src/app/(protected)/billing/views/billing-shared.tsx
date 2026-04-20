@@ -36,6 +36,12 @@ export interface BillingInvoice {
   sentVia: string | null
 }
 
+export type RemittanceLine = {
+  ref: string | null
+  invoiceDate: string | null
+  amountCents: number
+}
+
 export interface BillingPayment {
   id: string
   facilityId: string
@@ -49,6 +55,15 @@ export interface BillingPayment {
   invoiceRef: string | null
   paymentType: string | null
   recordedVia: string
+  residentBreakdown?:
+    | Array<{
+        name: string
+        residentId: string | null
+        amountCents: number
+        matchConfidence: string
+      }>
+    | { type: 'remittance_lines'; lines: RemittanceLine[] }
+    | null
 }
 
 export interface BillingSummary {

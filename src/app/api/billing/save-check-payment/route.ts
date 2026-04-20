@@ -85,6 +85,20 @@ const BaseSchema = z.object({
 
   // Snapshot for save_unresolved and for posterity on resolved records
   extracted: ExtractedSchema,
+
+  // Remittance slip invoice line breakdown
+  documentType: z.string().max(50).optional(),
+  invoiceLines: z
+    .array(
+      z.object({
+        ref: z.string().max(200).nullable(),
+        invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+        amountCents: z.number().int().min(0).max(10_000_000),
+        confidence: z.enum(['high', 'medium', 'low']),
+      }),
+    )
+    .max(100)
+    .optional(),
 })
 
 type SaveBody = z.infer<typeof BaseSchema>
@@ -251,6 +265,36 @@ export async function POST(request: NextRequest) {
       // 2. Facility-level RFMS / hybrid-RFMS row with jsonb breakdown
       if (body.residentBreakdown && body.residentBreakdown.length > 0) {
         const rfmsTotal = sumLines(body.residentBreakdown)
+        const isRemittance =
+          body.documentType === 'RFMS_REMITTANCE_SLIP' &&
+          body.invoiceLines &&
+          body.invoiceLines.length > 0
+        const breakdown = isRemittance
+          ? {
+              type: 'remittance_lines' as const,
+              lines: body.invoiceLines!.map((l) => ({
+                ref: l.ref,
+                invoiceDate: l.invoiceDate,
+                amountCents: l.amountCents,
+              })),
+            }
+          : body.residentBreakdown.map((l) => ({
+              name: l.name,
+              residentId: l.residentId,
+              amountCents: l.amountCents,
+              matchConfidence: l.matchConfidence,
+            }))
+        const effectiveMemo =
+          body.memo ||
+          (isRemittance
+            ? (() => {
+                const dates = body
+                  .invoiceLines!.filter((l) => l.invoiceDate)
+                  .map((l) => l.invoiceDate!.slice(5).replace('-', '/'))
+                const ck = body.checkNum ? ` — Check #${body.checkNum}` : ''
+                return `${body.invoiceLines!.length} invoice${body.invoiceLines!.length === 1 ? '' : 's'}: ${dates.join(', ')}${ck}`
+              })()
+            : null)
         const [row] = await tx
           .insert(qbPayments)
           .values({
@@ -261,18 +305,13 @@ export async function POST(request: NextRequest) {
             checkDate: body.checkDate ?? null,
             paymentDate: body.paymentDate,
             amountCents: rfmsTotal,
-            memo: body.memo ?? null,
+            memo: effectiveMemo ?? null,
             invoiceRef: body.invoiceRef ?? null,
             paymentType: body.paymentType ?? null,
             paymentMethod: body.paymentMethod,
             recordedVia: 'check_scan',
             checkImageUrl: body.storagePath ?? null,
-            residentBreakdown: body.residentBreakdown.map((l) => ({
-              name: l.name,
-              residentId: l.residentId,
-              amountCents: l.amountCents,
-              matchConfidence: l.matchConfidence,
-            })),
+            residentBreakdown: breakdown,
           })
           .returning({ id: qbPayments.id })
         if (row?.id) inserted.push(row.id)
@@ -289,6 +328,31 @@ export async function POST(request: NextRequest) {
         (!body.residentBreakdown || body.residentBreakdown.length === 0) &&
         body.amountCents > 0
       ) {
+        const isRemittanceLump =
+          body.documentType === 'RFMS_REMITTANCE_SLIP' &&
+          body.invoiceLines &&
+          body.invoiceLines.length > 0
+        const lumpBreakdown = isRemittanceLump
+          ? {
+              type: 'remittance_lines' as const,
+              lines: body.invoiceLines!.map((l) => ({
+                ref: l.ref,
+                invoiceDate: l.invoiceDate,
+                amountCents: l.amountCents,
+              })),
+            }
+          : undefined
+        const lumpMemo =
+          body.memo ||
+          (isRemittanceLump
+            ? (() => {
+                const dates = body
+                  .invoiceLines!.filter((l) => l.invoiceDate)
+                  .map((l) => l.invoiceDate!.slice(5).replace('-', '/'))
+                const ck = body.checkNum ? ` — Check #${body.checkNum}` : ''
+                return `${body.invoiceLines!.length} invoice${body.invoiceLines!.length === 1 ? '' : 's'}: ${dates.join(', ')}${ck}`
+              })()
+            : null)
         const [row] = await tx
           .insert(qbPayments)
           .values({
@@ -299,12 +363,13 @@ export async function POST(request: NextRequest) {
             checkDate: body.checkDate ?? null,
             paymentDate: body.paymentDate,
             amountCents: body.amountCents,
-            memo: body.memo ?? null,
+            memo: lumpMemo ?? null,
             invoiceRef: body.invoiceRef ?? null,
             paymentType: body.paymentType ?? null,
             paymentMethod: body.paymentMethod,
             recordedVia: 'check_scan',
             checkImageUrl: body.storagePath ?? null,
+            residentBreakdown: lumpBreakdown,
           })
           .returning({ id: qbPayments.id })
         if (row?.id) inserted.push(row.id)

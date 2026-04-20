@@ -491,12 +491,22 @@ export const qbPayments = pgTable('qb_payments', {
   invoiceRef: text('invoice_ref'),
   paymentType: text('payment_type'),
   paymentMethod: text('payment_method').notNull().default('check'),
-  residentBreakdown: jsonb('resident_breakdown').$type<Array<{
-    name: string
-    residentId: string | null
-    amountCents: number
-    matchConfidence: 'high' | 'medium' | 'low' | 'none'
-  }>>(),
+  residentBreakdown: jsonb('resident_breakdown').$type<
+    | Array<{
+        name: string
+        residentId: string | null
+        amountCents: number
+        matchConfidence: 'high' | 'medium' | 'low' | 'none'
+      }>
+    | {
+        type: 'remittance_lines'
+        lines: Array<{
+          ref: string | null
+          invoiceDate: string | null
+          amountCents: number
+        }>
+      }
+  >(),
   recordedVia: text('recorded_via').notNull().default('manual'),
   checkImageUrl: text('check_image_url'),
   qbPaymentId: text('qb_payment_id'),

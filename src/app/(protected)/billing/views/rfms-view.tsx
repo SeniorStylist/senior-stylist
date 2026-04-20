@@ -1,17 +1,19 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import {
   BillingFacility,
   BillingInvoice,
   BillingPayment,
   BillingResident,
+  RemittanceLine,
   computeResidentTotals,
   formatDollars,
   formatInvoiceDate,
   formatShortDate,
 } from './billing-shared'
 import { ExpandableSection } from './expandable-section'
+import { btnBase, expandTransition } from '@/lib/animations'
 
 export function RFMSView({
   residents,
@@ -31,6 +33,16 @@ export function RFMSView({
   checksDefaultOpen?: boolean
   residentsDefaultOpen?: boolean
 }) {
+  const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null)
+
+  function getRemittanceLines(p: BillingPayment): RemittanceLine[] | null {
+    const bd = p.residentBreakdown
+    if (bd && !Array.isArray(bd) && (bd as { type?: string }).type === 'remittance_lines') {
+      return (bd as { type: string; lines: RemittanceLine[] }).lines
+    }
+    return null
+  }
+
   const totalReceived = payments.reduce((s, p) => s + p.amountCents, 0)
   const outstanding = residents.reduce(
     (s, r) => s + (r.qbOutstandingBalanceCents ?? 0),
@@ -87,7 +99,22 @@ export function RFMSView({
                         {formatInvoiceDate(p.paymentDate)}
                       </div>
                       <div className="md:col-span-3 text-sm text-stone-900 font-medium">
-                        {p.checkNum ?? <span className="text-stone-400">—</span>}
+                        {(() => {
+                          const remLines = getRemittanceLines(p)
+                          return remLines ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCheckId(expandedCheckId === p.id ? null : p.id)
+                              }
+                              className={`${btnBase} text-stone-700 underline decoration-dotted hover:text-stone-900`}
+                            >
+                              {p.checkNum ?? '—'}
+                            </button>
+                          ) : (
+                            p.checkNum ?? <span className="text-stone-400">—</span>
+                          )
+                        })()}
                       </div>
                       <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
                         {formatDollars(p.amountCents)}
@@ -98,6 +125,44 @@ export function RFMSView({
                         )}
                       </div>
                     </div>
+                    {expandedCheckId === p.id && (() => {
+                      const lines = getRemittanceLines(p)!
+                      const lineTotal = lines.reduce((s, l) => s + l.amountCents, 0)
+                      return (
+                        <div className={`${expandTransition} px-5 py-3 bg-stone-50 border-b border-stone-100`}>
+                          <div className="hidden md:grid grid-cols-[6rem_1fr_6rem] gap-x-4 text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">
+                            <span>Ref #</span>
+                            <span>Date</span>
+                            <span className="text-right">Amount</span>
+                          </div>
+                          {lines.map((l, i) => (
+                            <div key={i} className="grid grid-cols-[6rem_1fr_6rem] gap-x-4 py-1 text-sm">
+                              <span className="text-stone-600 font-mono text-xs">{l.ref ?? '—'}</span>
+                              <span className="text-stone-600">
+                                {l.invoiceDate
+                                  ? new Date(`${l.invoiceDate}T00:00:00`).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : '—'}
+                              </span>
+                              <span className="text-stone-800 font-medium text-right tabular-nums">
+                                {formatDollars(l.amountCents)}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="border-t border-stone-200 mt-2 pt-2 flex justify-between text-sm">
+                            <span className="text-stone-500 font-semibold">Total</span>
+                            <span
+                              className={`font-bold tabular-nums ${lineTotal === p.amountCents ? 'text-emerald-700' : 'text-amber-700'}`}
+                            >
+                              {formatDollars(lineTotal)}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </Fragment>
                 )
               })

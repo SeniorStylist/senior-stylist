@@ -389,6 +389,19 @@
 - **`checkScan` rate-limit bucket**: 30/hr/user. Added to `src/lib/rate-limit.ts`.
 - **`qb_unresolved_payments` migration was ADDITIVE.** The original Phase 11A scaffolding columns (`checkNum`, `checkDate`, `totalAmountCents`, `rawResidentName`, `rawAmountCents`, `rawServiceType`, `resolvedToResidentId`) are preserved and marked `// @deprecated 11A scaffolding, unused` in `schema.ts`. Do not remove them without a separate migration; they are nullable and harmless.
 - **Save route returns `{ data: { paymentIds: string[], updatedBalanceCents: number } }`** — `paymentIds` enables future linking back to scanned check images; `updatedBalanceCents` drives optimistic UI updates.
+- **`resident_breakdown` has two shapes**: `ResidentBreakdownLine[]` (RFMS petty cash / IP hybrid) OR `{ type: 'remittance_lines', lines: [{ref, invoiceDate, amountCents}] }` (RFMS remittance slips). Discriminate with `!Array.isArray(bd) && (bd as {type?:string}).type === 'remittance_lines'`. Never assume it is always an array.
+- **`STOP_WORDS` exported from `src/lib/fuzzy.ts`** strips 'llc', 'inc', 'corp', 'dba', 'snf', 'rfms', 'petty', 'cash', 'account', 'operating', 'disbursement', 'at', 'of', 'the', 'and' from all fuzzy comparisons. `normalizeWords` also strips `#` before numbers.
+- **Facility matching order in `scan-check` route**: invoiceRef code → exact name → fuzzy name → word-fragment pass (≥2 shared normalized words → 'medium') → payer address. `isOurAddress` guard skips steps 2–4 when payer address = "2833 smith ave" (our mailing address, not a facility).
+- **`invoiceLines` array in `ScanResult`**: populated for `RFMS_REMITTANCE_SLIP` documents only; always `[]` for other types. Each entry: `{ ref, invoiceDate, amountCents, confidence }`. When saving, remittance invoiceLines are stored as `{ type: 'remittance_lines', lines }` in `resident_breakdown`. Auto-memo generated from invoice dates + check number when no memo provided.
+- **Total-accuracy invariant for remittance**: when `documentType === 'RFMS_REMITTANCE_SLIP'` and `invoiceLines.length > 0`, the invariant uses `invoiceLines.reduce(sum)` instead of `editLines.reduce(sum)`.
+- **Expandable check detail in `rfms-view.tsx`**: Check # cell is a dotted-underline button when `residentBreakdown.type === 'remittance_lines'`. Click toggles an inline expand row (`expandTransition` from `@/lib/animations`) showing ref/date/amount per line + total (emerald when matches `amountCents`, amber otherwise). Only one row expanded at a time (`expandedCheckId` state).
+- **`summary` route `qbPayments` query uses explicit `columns:` whitelist** including `residentBreakdown: true` — added so the remittance line detail reaches the client without exposing sensitive payment columns.
+
+### Phase 11D.5 — Payment Reconciliation [PLANNED — Opus]
+- Match `resident_breakdown.type === 'remittance_lines'` invoice dates against daily log entries for the same facility+date.
+- Confidence scoring: exact date match = high, ±1 day = medium, no log = unmatched.
+- UI: "Reconcile" button on expanded remittance rows; audit trail per facility.
+- Schema: `reconciled_at` + `reconciliation_notes` columns to be added in a future migration.
 
 ### Phase 11E — Resident Portal Isolation [PLANNED — Opus]
 - **Invite link format**: `senior-stylist.vercel.app/portal/[facilityCode]/[portalToken]`

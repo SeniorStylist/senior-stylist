@@ -5,13 +5,21 @@ export const WORD_EXPANSIONS: Record<string, string> = {
   clr: 'color',
 }
 
+export const STOP_WORDS = new Set([
+  'llc', 'inc', 'corp', 'dba', 'snf', 'rfms',
+  'petty', 'cash', 'account', 'operating', 'disbursement',
+  'at', 'of', 'the', 'and',
+])
+
 export function normalizeWords(s: string): string[] {
   return s
     .toLowerCase()
+    .replace(/#/g, ' ')
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
     .map((w) => WORD_EXPANSIONS[w] ?? w)
+    .filter((w) => !STOP_WORDS.has(w))
     .sort()
 }
 

@@ -160,6 +160,7 @@ export function CrossFacilityPanel({
         matchConfidence: l.matchConfidence,
       })),
       invoiceMatch: { confidence: 'none', matchedInvoiceIds: [], totalOpenCents: 0, remainingCents: 0 },
+      invoiceLines: [],
       rawOcrJson: row.rawOcrJson ?? {},
       overallConfidence: row.confidenceOverall ?? 'low',
     }

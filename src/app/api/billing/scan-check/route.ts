@@ -5,7 +5,7 @@ import { facilities, residents, qbInvoices } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { fuzzyBestMatch, fuzzyScore } from '@/lib/fuzzy'
+import { fuzzyBestMatch, fuzzyScore, normalizeWords } from '@/lib/fuzzy'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 
@@ -45,6 +45,13 @@ interface ResidentLine {
   serviceCategory: string | null
 }
 
+interface InvoiceLine {
+  ref: string | null
+  invoiceDate: string | null
+  amountCents: number
+  confidence: Confidence
+}
+
 interface GeminiResult {
   documentType: string
   checkNum: string | null
@@ -56,6 +63,7 @@ interface GeminiResult {
   invoiceDate: string | null
   memo: string | null
   residentLines: ResidentLine[]
+  invoiceLines: InvoiceLine[]
   overallConfidence: Confidence
   unresolvableReason: string | null
   fieldConfidence?: Record<string, Confidence>
@@ -76,6 +84,9 @@ Return ONLY a JSON object with this EXACT shape — no markdown, no prose:
   "memo": string | null,
   "residentLines": [
     { "rawName": string, "amountCents": number, "serviceCategory": string | null }
+  ],
+  "invoiceLines": [
+    { "ref": string | null, "invoiceDate": "YYYY-MM-DD" | null, "amountCents": number, "confidence": "high" | "medium" | "low" }
   ],
   "fieldConfidence": {
     "checkNum": "high" | "medium" | "low",
@@ -102,6 +113,8 @@ Extraction rules:
 - "payerAddress" is the address on the CHECK ITSELF (top-left of most checks), not the "Pay to" address. Leave null if unreadable.
 - "invoiceRef" is any invoice number / reference in the memo line or attached remittance stub. Format varies — preserve verbatim.
 - Service category examples: "BEAUTY SHOP", "BARBER", "SALON", "SERVICES" — null when not shown.
+- "invoiceLines": For REMITTANCE_SLIP documents ONLY — extract each line showing an invoice reference + date + amount. Each entry is one remittance invoice line. Return [] for all other document types. "amountCents" is an INTEGER in cents.
+- Check number location: For RFMS_PETTY_CASH_BREAKDOWN and REMITTANCE_SLIP, the check number may appear in the top-left corner (e.g. "006847"), as a field labeled "Check Number" / "Check #" / "Check No.", or in a footer row near "CHECK AMT" / "CHECK DATE" labels. Scan the ENTIRE document for these patterns, not just the top-right corner. For RFMS_PETTY_CASH_BREAKDOWN the check number is typically in the top-right corner.
 - fieldConfidence: "high" = clearly legible; "medium" = probable but imperfect; "low" = guess.
 - overallConfidence: "high" = you are confident in every important field; "medium" = some low-confidence fields but usable; "low" = many fields unreadable.
 
@@ -228,6 +241,7 @@ export async function POST(request: NextRequest) {
               invoiceMatch: { confidence: 'none', matchedInvoiceIds: [], totalOpenCents: 0, remainingCents: 0 },
               rawOcrJson: { error: errText.slice(0, 500) },
               overallConfidence: 'low',
+              invoiceLines: [],
             },
           },
           { status: 200 },
@@ -253,6 +267,7 @@ export async function POST(request: NextRequest) {
             invoiceMatch: { confidence: 'none', matchedInvoiceIds: [], totalOpenCents: 0, remainingCents: 0 },
             rawOcrJson: {},
             overallConfidence: 'low',
+            invoiceLines: [],
           },
         },
         { status: 200 },
@@ -299,6 +314,7 @@ export async function POST(request: NextRequest) {
           invoiceMatch: { confidence: 'none', matchedInvoiceIds: [], totalOpenCents: 0, remainingCents: 0 },
           rawOcrJson: parsed as unknown as Record<string, unknown>,
           overallConfidence: parsed.overallConfidence ?? 'low',
+          invoiceLines: [],
         },
       })
     }
@@ -317,32 +333,9 @@ export async function POST(request: NextRequest) {
     const payerName = (parsed.payerName ?? '').trim()
     const payerAddr = (parsed.payerAddress ?? '').trim().toLowerCase()
     const invoiceRef = (parsed.invoiceRef ?? '').trim()
+    const isOurAddress = payerAddr.includes(PAYEE_ADDRESS_FRAGMENT)
 
-    // 1. exact name (case-insensitive)
-    if (payerName) {
-      const exactName = activeFacilities.find(
-        (f) => (f.name ?? '').toLowerCase() === payerName.toLowerCase(),
-      )
-      if (exactName) {
-        matchedFacility = { id: exactName.id, name: exactName.name, facilityCode: exactName.facilityCode }
-        facilityConfidence = 'high'
-      }
-    }
-
-    // 2. fuzzy match on name
-    if (!matchedFacility && payerName) {
-      const namedList = activeFacilities
-        .filter((f) => f.name)
-        .map((f) => ({ id: f.id, name: f.name as string, facilityCode: f.facilityCode }))
-      const best = fuzzyBestMatch(namedList, payerName, 0.7)
-      if (best) {
-        matchedFacility = { id: best.id, name: best.name, facilityCode: best.facilityCode }
-        const score = fuzzyScore(payerName, best.name)
-        facilityConfidence = score >= 0.85 ? 'high' : 'medium'
-      }
-    }
-
-    // 3. facility_code from invoiceRef
+    // 1. facility_code from invoiceRef (most reliable — run first regardless of payer address)
     if (!matchedFacility && invoiceRef) {
       const codeMatch = invoiceRef.match(/\bF\d{2,4}\b/i)
       if (codeMatch) {
@@ -357,8 +350,58 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. payer-address substring (skip our own payee address)
-    if (!matchedFacility && payerAddr && !payerAddr.includes(PAYEE_ADDRESS_FRAGMENT)) {
+    // Name-based matching is skipped when the payer address is our own mailing address
+    // (that means the check was sent TO us, so the payer field is not a facility name)
+    if (!matchedFacility && !isOurAddress) {
+      const namedList = activeFacilities
+        .filter((f) => f.name)
+        .map((f) => ({ id: f.id, name: f.name as string, facilityCode: f.facilityCode }))
+
+      // 2. exact name (case-insensitive)
+      if (payerName) {
+        const exactName = namedList.find(
+          (f) => f.name.toLowerCase() === payerName.toLowerCase(),
+        )
+        if (exactName) {
+          matchedFacility = { id: exactName.id, name: exactName.name, facilityCode: exactName.facilityCode }
+          facilityConfidence = 'high'
+        }
+      }
+
+      // 3. fuzzy match on name
+      if (!matchedFacility && payerName) {
+        const best = fuzzyBestMatch(namedList, payerName, 0.7)
+        if (best) {
+          matchedFacility = { id: best.id, name: best.name, facilityCode: best.facilityCode }
+          const score = fuzzyScore(payerName, best.name)
+          facilityConfidence = score >= 0.85 ? 'high' : 'medium'
+        }
+      }
+
+      // 4. word-fragment pass: if ≥2 normalized payer words appear in a facility name
+      if (!matchedFacility && payerName) {
+        const payerWords = normalizeWords(payerName)
+        if (payerWords.length >= 2) {
+          let bestHit: typeof namedList[number] | null = null
+          let bestOverlap = 1 // require at least 2 matches
+          for (const f of namedList) {
+            const fWords = normalizeWords(f.name)
+            const overlap = payerWords.filter((w) => fWords.includes(w)).length
+            if (overlap > bestOverlap) {
+              bestOverlap = overlap
+              bestHit = f
+            }
+          }
+          if (bestHit) {
+            matchedFacility = { id: bestHit.id, name: bestHit.name, facilityCode: bestHit.facilityCode }
+            facilityConfidence = 'medium'
+          }
+        }
+      }
+    }
+
+    // 5. payer-address substring (skip our own payee address)
+    if (!matchedFacility && payerAddr && !isOurAddress) {
       const hit = activeFacilities.find((f) => {
         const fa = (f.address ?? '').toLowerCase()
         return fa.length > 5 && (fa.includes(payerAddr) || payerAddr.includes(fa))
@@ -469,6 +512,12 @@ export async function POST(request: NextRequest) {
         invoiceMatch,
         rawOcrJson: parsed as unknown as Record<string, unknown>,
         overallConfidence: parsed.overallConfidence ?? 'medium',
+        invoiceLines: (parsed.invoiceLines ?? []).map((l) => ({
+          ref: l.ref ?? null,
+          invoiceDate: l.invoiceDate ?? null,
+          amountCents: Number.isFinite(l.amountCents) ? Math.round(l.amountCents) : 0,
+          confidence: l.confidence ?? 'medium',
+        })),
       },
     })
   } catch (err) {

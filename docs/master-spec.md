@@ -904,12 +904,25 @@ End-to-end paper-check intake with Gemini 2.5 Flash OCR + confirmation + unresol
 - `src/app/(protected)/billing/billing-client.tsx` — wires everything together. Imports `ScanCheckModal` + `ScanResult`. New state `showScanModal`, `scanResolveData`, `unresolvedCount` (per-facility for banner), `totalUnresolvedCount` (master all-facility for 5th card). Two new `useEffect` fetches for unresolved counts (re-run on `refreshKey`/`facilityId`). New "Scan Check" button with camera SVG next to Send Statement (stone-100 pill). New amber unresolved banner (`bg-amber-50 border border-amber-200`, `⚠ N unresolved scan(s)` + Review → button that opens the unresolved panel). 5th master-admin card "Unresolved Scans" added to the cross-facility grid (changed from `md:grid-cols-4` to `md:grid-cols-5`; red-tinted `bg-red-50 border-red-100` when count > 0). Modal mount alongside `SendDedupModal` + `CrossFacilityPanel`. `onResolveUnresolved` callback passed to the panel: sets `scanResolveData`, opens the modal, closes the panel.
 - `src/app/(protected)/log/ocr-import-modal.tsx` — local fuzzy definitions removed, now imports from `@/lib/fuzzy`. Zero behavior change.
 
+**Phase 11D.5 fixes shipped alongside**:
+- `src/lib/fuzzy.ts`: added exported `STOP_WORDS` set (llc, inc, corp, dba, snf, rfms, petty, cash, account, operating, disbursement, at, of, the, and). `normalizeWords` now strips `#` chars and filters stop words before comparing.
+- `scan-check` route: facility matching reordered — Step 1 is now invoiceRef code (`/\bF\d{2,4}\b/i`), then exact name, fuzzy name, word-fragment pass (≥2 shared normalized words → confidence 'medium'), payer address. Added `isOurAddress` guard to skip name/address matching when payer address = "2833 smith ave". Gemini prompt updated to extract `invoiceLines` array (REMITTANCE_SLIP only) and scan entire document for check number (not just top-right corner).
+- `save-check-payment` route: accepts `documentType` + `invoiceLines` in Zod body. When `documentType === 'RFMS_REMITTANCE_SLIP'` and `invoiceLines.length > 0`, stores `{ type: 'remittance_lines', lines: [{ref, invoiceDate, amountCents}] }` as `resident_breakdown` instead of the resident-name breakdown. Auto-generates memo listing invoice dates + check number when none provided.
+- `billing-shared.tsx`: exported `RemittanceLine` type; `BillingPayment.residentBreakdown` is now a discriminated union (`ResidentBreakdownLine[]` | `{ type: 'remittance_lines'; lines: RemittanceLine[] }` | null).
+- `scan-check-modal.tsx`: `ScanResult` gains `invoiceLines: InvoiceLine[]`. Step 2 shows Invoice Lines table (ref/date/amount per line, green ✓ or red ≠ total). Totals invariant uses `invoiceLines` sum instead of `editLines` sum when `documentType === 'RFMS_REMITTANCE_SLIP'`. `documentType` + `invoiceLines` sent in save body.
+- `rfms-view.tsx`: Check # cell is conditionally a clickable underline button when remittance_lines exist. Click toggles an expandable inline detail row showing ref/date/amount per invoice line + total row (emerald when matches check amount, amber otherwise).
+- `summary` route: added explicit `columns:` whitelist to `qbPayments.findMany` including `residentBreakdown: true`.
+
 **Key invariants**:
 - `check-images` bucket is PRIVATE. Upload via service-role only; regenerate signed URLs (1-hour TTL) at read time. Never store or expose raw URLs.
 - Total accuracy (`linesTotal + cashCents === amountCents`) MUST pass before save.
 - Invoice decrement is exact-match only. Partial/none leaves invoices untouched (documented limitation — reconciled on next CSV re-import).
 - `qb_unresolved_payments` is the only persistence path for OCR-failed documents. Never silently drop a scan.
 - `src/lib/fuzzy.ts` is the canonical fuzzy-match module. Never re-implement inline.
+- `resident_breakdown` has two shapes: `ResidentBreakdownLine[]` OR `{ type: 'remittance_lines', lines: [...] }`. Discriminate with `!Array.isArray(bd) && bd.type === 'remittance_lines'`.
+
+### Phase 11D.5 — Payment Reconciliation (PLANNED — Opus)
+Match `resident_breakdown.type === 'remittance_lines'` invoice dates against daily log entries for the same facility+date. Confidence scoring: exact date match = high, ±1 day = medium, no log = unmatched. Unmatched lines flagged for review. Reconciliation status fields (`reconciled_at`, `reconciliation_notes`) to be added in a future migration. UI entry point: "Reconcile" button on expanded remittance rows (only when `invoiceDate` lines exist). Audit trail view per facility showing matched/unmatched/pending status.
 
 ### Phase 11E — Resident Portal Isolation (PLANNED — Opus)
 Invite links: `portal/[facilityCode]/[portalToken]` using existing `residents.portal_token`. Facility locked at account creation, no switcher ever. Billing page added to existing services portal as additional tab — same auth context. "Copy invite link" + "Send invite email" buttons on resident records. Cross-facility access → 403.

@@ -91,6 +91,21 @@ export async function GET(
       }),
       db.query.qbPayments.findMany({
         where: paymentWhere,
+        columns: {
+          id: true,
+          facilityId: true,
+          residentId: true,
+          qbCustomerId: true,
+          checkNum: true,
+          checkDate: true,
+          paymentDate: true,
+          amountCents: true,
+          memo: true,
+          invoiceRef: true,
+          paymentType: true,
+          recordedVia: true,
+          residentBreakdown: true,
+        },
         orderBy: [desc(qbPayments.paymentDate)],
       }),
     ])
