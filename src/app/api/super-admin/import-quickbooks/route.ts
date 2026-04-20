@@ -18,8 +18,29 @@ async function getSuperAdmin() {
   return user
 }
 
-const FACILITY_REGEX = /^(F\d+)\s*-\s*(.+)$/
-const RESIDENT_REGEX = /^(F\d+):(.+)$/
+// Facility format A: "F123 - Facility Name"
+const FAC_A = /^(F\d+)\s*-\s*(.+)$/
+// Facility format B: "F223 Sholom Home West" (space-separated, no dash)
+const FAC_B = /^(F\d+)\s+(.+)$/
+// Facility format C: "F127" (standalone code only)
+const FAC_C = /^F\d+$/
+// Resident format A: "F123:Last, First - Room"
+const RES_A = /^F\d+:/
+// Resident format B: "F174 - Facility Name:Last, First - Room"
+const RES_B = /^F\d+\s*-\s*[^:]+:/
+
+function classifyRow(nameVal: string): 'facilityA' | 'facilityB' | 'facilityC' | 'residentA' | 'residentB' | null {
+  // Resident checks first — colon is the definitive marker
+  if (RES_A.test(nameVal)) return 'residentA'
+  if (RES_B.test(nameVal)) return 'residentB'
+  // Facility checks — no colon variants
+  if (!nameVal.includes(':')) {
+    if (FAC_A.test(nameVal)) return 'facilityA'
+    if (FAC_B.test(nameVal)) return 'facilityB'
+    if (FAC_C.test(nameVal)) return 'facilityC'
+  }
+  return null
+}
 
 function parseResidentName(rest: string): { name: string; room: string | null } {
   const lastDash = rest.lastIndexOf(' - ')
@@ -66,27 +87,33 @@ export async function POST(request: Request) {
       const nameVal = (row['Name'] ?? row['name'] ?? '').trim()
       if (!nameVal) continue
 
-      // A valid facility row must match F### - Name AND must not contain a colon
-      // (colon indicates a resident sub-row like "F165:Last, First - Room")
-      const isFacilityRow = FACILITY_REGEX.test(nameVal) && !nameVal.includes(':')
-      const isResidentRow = RESIDENT_REGEX.test(nameVal)
+      const kind = classifyRow(nameVal)
 
-      if (!isFacilityRow && !isResidentRow) {
+      if (kind === null) {
         warnings.push(`Skipped unrecognized row: ${nameVal.slice(0, 80)}`)
         continue
       }
 
-      if (isFacilityRow) {
-        const facilityMatch = FACILITY_REGEX.exec(nameVal)!
-        facilityRows.push({ qbId: facilityMatch[1], name: facilityMatch[2].trim(), row })
+      if (kind === 'facilityA' || kind === 'facilityB' || kind === 'facilityC') {
+        let qbId: string
+        let name: string
+        if (kind === 'facilityA') {
+          const m = FAC_A.exec(nameVal)!
+          qbId = m[1]; name = m[2].trim()
+        } else if (kind === 'facilityB') {
+          const m = FAC_B.exec(nameVal)!
+          qbId = m[1]; name = m[2].trim()
+        } else {
+          // Format C — standalone "F127": insert with empty name, admin can fill in later
+          qbId = nameVal; name = ''
+        }
+        facilityRows.push({ qbId, name, row })
       } else {
-        const residentMatch = RESIDENT_REGEX.exec(nameVal)!
-        residentRows.push({
-          facilityQbId: residentMatch[1],
-          qbCustomerId: nameVal,
-          rest: residentMatch[2],
-          row,
-        })
+        // Resident — extract F### from start, resident portion from after last colon
+        const facilityQbId = /^(F\d+)/.exec(nameVal)![1]
+        const colonIdx = nameVal.lastIndexOf(':')
+        const rest = nameVal.slice(colonIdx + 1).trim()
+        residentRows.push({ facilityQbId, qbCustomerId: nameVal, rest, row })
       }
     }
 
