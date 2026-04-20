@@ -108,6 +108,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/settings') ||
     pathname.startsWith('/residents') ||
     pathname.startsWith('/stylists') ||
+    pathname.startsWith('/analytics') ||
     pathname.startsWith('/reports') ||
     pathname.startsWith('/log') ||
     pathname.startsWith('/directory')

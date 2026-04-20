@@ -101,18 +101,6 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
     ),
   },
   {
-    href: '/reports',
-    label: 'Reports',
-    roles: ['admin'],
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <line x1="18" y1="20" x2="18" y2="10"/>
-        <line x1="12" y1="20" x2="12" y2="4"/>
-        <line x1="6" y1="20" x2="6" y2="14"/>
-      </svg>
-    ),
-  },
-  {
     href: '/billing',
     label: 'Billing',
     roles: ['admin'],
@@ -122,6 +110,18 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
         <polyline points="14 2 14 8 20 8"/>
         <path d="M12 11v6"/>
         <path d="M9.5 13.5h4a1.5 1.5 0 010 3h-4"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/analytics',
+    label: 'Analytics',
+    roles: ['admin'],
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
       </svg>
     ),
   },
@@ -242,28 +242,30 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
 
             {switcherOpen && (
               <div
-                className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg overflow-hidden z-50"
+                className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50 overflow-hidden"
                 style={{ backgroundColor: 'var(--color-sidebar)', border: '1px solid rgba(255,255,255,0.12)' }}
               >
-                {allFacilities.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => handleSelectFacility(f.id)}
-                    className="w-full text-left px-3 py-2 text-xs transition-colors"
-                    style={{ color: f.name === facilityName ? '#C4687A' : 'rgba(255,255,255,0.7)' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      {f.facilityCode && (
-                        <span className="inline-flex items-center rounded-md bg-white/10 text-white/50 text-xs font-mono px-1.5 py-0.5 shrink-0">
-                          {f.facilityCode}
-                        </span>
-                      )}
-                      <span className="truncate">{f.name}</span>
-                    </div>
-                  </button>
-                ))}
+                <div className="max-h-[60vh] overflow-y-auto">
+                  {allFacilities.map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => handleSelectFacility(f.id)}
+                      className="w-full text-left px-3 py-2 text-xs transition-colors"
+                      style={{ color: f.name === facilityName ? '#C4687A' : 'rgba(255,255,255,0.7)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {f.facilityCode && (
+                          <span className="inline-flex items-center rounded-md bg-white/10 text-white/50 text-xs font-mono px-1.5 py-0.5 shrink-0">
+                            {f.facilityCode}
+                          </span>
+                        )}
+                        <span className="truncate">{f.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
                 <div className="border-t border-white/10 px-3 py-2">
                   <Link
                     href="/settings?tab=new-facility"
