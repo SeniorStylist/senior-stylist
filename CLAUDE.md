@@ -313,6 +313,70 @@
   - **Invoice List** (`header: true`): skip non-Invoice rows, skip rows with empty Date. Derive facilityId from Name column — everything before `:` is the F-code. `onConflictDoUpdate` on `(invoice_num, facility_id)`. Status derived: `openBalance === 0 → 'paid'`, `< 0 → 'credit'`, `< amount → 'partial'`, else `'open'`. Dedup within batch by `invoiceNum+facilityId`.
   - **Transaction List** (`header: false`): find header row by scanning for columns containing "Date" and "Transaction type". Track `currentFacilityId` from col0 rows with F-code prefix. Only process `transactionType === 'Payment'` detail rows. `onConflictDoNothing()` without target — relies on natural key index. Extract checkNum from memo via `/(?:CK|CHK|CHECK)\s*#?\s*(\w+)/i`.
 - **UI**: `/super-admin/import-billing-history` (3-state: upload → loading → results). Two separate `<input type="file" accept=".csv">` pickers (one for invoices, one for transactions). Import button disabled when both null. Results show 4 stats: invoices processed, payments processed, facilities with open balance, residents with open balance. "Import Billing History" link in super-admin header. Rate limit: `billingImport` 5/hr.
+- **CSV metadata rows**: QB exports have 4 metadata rows before actual headers (title, company, date range, blank). Strip them by scanning for the real header line before passing to PapaParse. Invoice List: `lines.findIndex(l => l.trimStart().startsWith('Date,'))`. Transaction List: `lines.findIndex(l => l.includes(',Date,') && l.includes('Transaction type'))`.
+
+### Phase 11B — AR Dashboard (`/billing`) [PLANNED — Opus]
+- **Route**: `/billing` — protected, admin+ only
+- **Role-gated views**:
+  - `master_admin` → all facilities across all franchises, full totals
+  - `franchise_head` (Phase 12) → their franchise's facilities only
+  - `facility_admin` → their facility only, no switcher shown
+  - `stylist` → no billing access
+  - `resident` → resident portal only, not this dashboard
+- **Three views based on `facilities.payment_type`**:
+  - **IP view**: per-resident table — name, room, last service date, total billed, total paid, outstanding, last statement sent + channel. Each resident pays their own invoice.
+  - **RFMS view**: facility-level consolidated. Multiple checks may arrive per period (not one). Facility may deduct rev share themselves before paying (`qb_rev_share_type = facility_deducts`) or Senior Stylist deducts (`we_deduct`). Shows: total billed, sum of all checks received, outstanding = billed minus received, per-resident coverage breakdown, each individual check with date/check#/amount, rev share handling note.
+  - **Hybrid view**: split panel — IP residents section + RFMS residents section, separate outstanding totals for each.
+- **All views show**: last statement sent date + channel, Send Statement button (11C), Send via QB button (11F), `qb_rev_share_type` label
+- **Data source**: `qb_invoices` + `qb_payments` tables, `qb_outstanding_balance_cents` on facilities/residents
+- **Sidebar nav**: new "Billing" entry for admin+ roles, positioned after Reports
+
+### Phase 11C — Statement & Reminder Emails [PLANNED — Sonnet]
+- **Two send channels**, never auto-duplicate:
+  - **Resend path**: `POST /api/billing/send-statement/[facilityId]` — HTML email via `noreply@seniorstylist.com`. Facility statements: payment type breakdown, per-resident list, rev share calc, outstanding total, payment history. Resident reminders: "you have $X outstanding" + invoice history. Records `last_sent_at` + `sent_via = 'resend'` on invoice.
+  - **QB path** (requires 11F production approval): `POST /api/billing/send-via-qb/[invoiceId]` — calls QB Invoice Send API. Records `last_sent_at` + `sent_via = 'quickbooks'`.
+- **Dedup protection**: if `last_sent_at` within 7 days from either channel → warning before resend. Both buttons always visible. Never auto-send from both channels.
+- **Rate limit**: add `billingSend` bucket 20/hr to `src/lib/rate-limit.ts`
+
+### Phase 11D — Check Scanning [PLANNED — Opus]
+- **Entry point**: "Scan Check" button on billing page → upload modal (camera on mobile, file picker on desktop)
+- **Storage**: check image uploaded to Supabase storage bucket `check-images`, URL stored on `qb_payments.check_image_url` or `qb_unresolved_payments.check_image_url`
+- **OCR**: Gemini 2.5 Flash via direct fetch to v1beta (same pattern as daily log OCR — no SDK, fold system prompt into text part). Route: `POST /api/billing/scan-check` — multipart/form-data with image + facilityId
+- **Check formats** (Josh will provide more examples before 11D implementation — minimum two formats known):
+  - **IP remittance slip**: extract account#, date, invoice ref (e.g. "1225 F197"), amount, facility name/address. Match to resident via invoice ref → `qb_customer_id` lookup.
+  - **RFMS facility check**: extract facility name (from check header), check#, date, total amount, per-resident rows (LastName FirstName + amount + service type e.g. "BEAUTY SHOP/BARBER"). Fuzzy-match each resident row against `residents` table scoped to that facility.
+- **Total accuracy rule (non-negotiable)**: sum of all matched + unresolved line items MUST equal check total before save is allowed. Block save + show discrepancy if they don't add up.
+- **Confirmation screen**: check image on left, parsed data on right. Each resident row: parsed name → matched resident name (green/yellow/red confidence). Admin corrects mismatches inline. Confirm saves everything at once.
+- **Unresolved rows**: go to `qb_unresolved_payments`, not lost. Still count toward facility outstanding total.
+- **Unresolved queue page**: `/billing/unresolved` — per-facility list, check thumbnail, date, check#, raw name, amount, "Link to Resident" dropdown. Once linked → moves to `qb_payments`.
+- **IMPORTANT**: More check/receipt formats will be provided by Josh in the 11D planning session. Build the OCR pipeline to be extensible — the format detection and field extraction should be modular so new formats can be added without rewriting core logic.
+
+### Phase 11E — Resident Portal Isolation [PLANNED — Opus]
+- **Invite link format**: `senior-stylist.vercel.app/portal/[facilityCode]/[portalToken]`
+  - Uses existing `residents.portal_token` (uuid already on every resident)
+  - No PII in URL — just facility code + token
+  - **Existing resident with account** → link goes directly to their authenticated session
+  - **New resident, no account** → "Create Account" form pre-filled with name from token lookup, facility permanently locked, no switcher ever shown
+- **Portal view** (resident logged in): outstanding balance, invoice history (date/amount/status), total billed/paid. **Connects to existing services booking portal** — billing is an additional page/tab within the same portal auth context, not a separate app.
+- **"Copy invite link" button** on each resident record in the residents list
+- **"Send invite email" button** → sends to `poa_email` via Resend
+- **Access isolation**: `facility_id` locked at account creation. Cross-facility data access → 403. No facility switcher in resident portal ever.
+
+### Phase 11F — QB API Live Sync [PLANNED — Opus]
+- **Requires**: Intuit production credentials approved (email notification from Intuit)
+- **Trigger**: manual sync button per facility on billing page — not automatic
+- **Route**: `POST /api/quickbooks/sync-invoices/[facilityId]` — uses existing `refreshQBToken()` + `qbGet()` pattern
+- **Dedup**: first sync backfills `qb_invoice_id` on CSV-imported records by matching `invoice_num + facility_id`. After backfill, all future conflicts resolved on `qb_invoice_id`.
+- **After sync**: rerun outstanding balance recompute (same two `db.execute(sql\`UPDATE...\`)` correlated subqueries from 11A)
+- **UI**: "Last synced X ago" + manual sync button. Sync errors inline with retry. Until production approved → button hidden or shows "Available after QB production approval".
+
+### Phase 11G — Revenue Share Integration [PLANNED — Opus]
+- **New column**: `facilities.rev_share_percentage` (integer, e.g. 30 = 30%) — separate from existing `payment_type`
+- **Per-invoice calculation**: `stylist_amount_cents = amount_cents - round(amount_cents * rev_share_pct / 100)`, `facility_rev_cents = round(amount_cents * rev_share_pct / 100)`
+- **`qb_rev_share_type` logic**: `we_deduct` → show deduction math inline in billing view; `facility_deducts` → show note "facility deducts rev share before payment"
+- **Outstanding balance split**: billing view shows "Of $X outstanding — $Y stylist portion, $Z facility rev share"
+- **Payroll connection**: new `qb_invoice_id` column on `stylist_pay_items` → links pay period line items to specific invoices
+- **UI**: billing detail view gains rev share column. Payroll detail page gains "Billing" section showing corresponding invoices for each pay item.
 
 ### Phase 9.5 — Applicant Pipeline
 - **`applicants` table** has RLS enabled + `service_role_all` policy — same as every other table. Indexes on `franchise_id`, `status`, `email`.

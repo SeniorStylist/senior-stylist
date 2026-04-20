@@ -844,17 +844,29 @@ After both imports: two raw `db.execute(sql\`UPDATE...\`)` correlated subqueries
 
 **UI** — `/super-admin/import-billing-history` page + client component (same 3-state pattern as QB import). Two file pickers, at least one required. "Import Billing History" link in super-admin header. Rate limit: `billingImport` 5/hr (added to `src/lib/rate-limit.ts`).
 
-### Phase 11 — Incident & Issue Tracking
-New table `issues`: `facility_id`, `stylist_id` nullable, `booking_id` nullable, `reported_by` (user_id), `issue_type` text, `severity` (low|medium|high), `description`, `action_taken`, `assigned_to` nullable, `status` (open|in_progress|resolved), `resolved_at`.
+### Phase 11B — AR Dashboard (PLANNED — Opus)
+Route `/billing`. Role-gated: master_admin all facilities, franchise_head their franchise (Phase 12), facility_admin their facility only. Three views based on `facilities.payment_type`: IP (per-resident table with last statement sent), RFMS (facility-consolidated with multiple checks per period, `qb_rev_share_type` handling), hybrid (split panel). All views: Send Statement + Send via QB buttons. New Billing sidebar nav entry for admin+. Data from `qb_invoices` + `qb_payments`.
 
-### Phase 12 — Advanced KPI Dashboard
-No schema changes. New computed metrics in existing report endpoints plus a new weekly digest email route.
+### Phase 11C — Statement & Reminder Emails (PLANNED — Sonnet)
+Two send channels: Resend path (`POST /api/billing/send-statement/[facilityId]`) + QB API path (`POST /api/billing/send-via-qb/[invoiceId]`). Records `last_sent_at` + `sent_via` on invoices. 7-day dedup warning before resend from either channel. Rate limit: `billingSend` 20/hr.
 
-### Phase 13 — Facility Contact Portal
-New role `facility_contact` in `facility_users.role`. New table `service_change_requests`: `facility_id`, `submitted_by` (user_id), `request_type` text, `requested_date`, `notes`, `status` (pending|approved|denied).
+### Phase 11D — Check Scanning (PLANNED — Opus)
+Gemini 2.5 Flash OCR (direct v1beta fetch, no SDK). Initial formats: IP remittance slip + RFMS facility check. More formats to be added in 11D planning session (Josh will provide physical examples). Total accuracy rule: line items must sum to check total or save is blocked. Confirmation screen before DB write. Unresolved queue at `/billing/unresolved`. Route: `POST /api/billing/scan-check`. Images stored in Supabase `check-images` bucket. Build format detection as modular/extensible.
 
-### Phase 14 — QuickBooks polish (pending)
-Core QuickBooks Online integration shipped as **Phase 10B** (see above) — rescoped forward from the legacy Phase 14 slot. Remaining polish items deferred: a `quickbooks_sync_log` table (per-entity audit trail with retry history) and an automated retry-with-backoff worker for transient QB failures. Core OAuth / Vendor sync / Bill push / payment-status pull already live.
+### Phase 11E — Resident Portal Isolation (PLANNED — Opus)
+Invite links: `portal/[facilityCode]/[portalToken]` using existing `residents.portal_token`. Facility locked at account creation, no switcher ever. Billing page added to existing services portal as additional tab — same auth context. "Copy invite link" + "Send invite email" buttons on resident records. Cross-facility access → 403.
+
+### Phase 11F — QB API Live Sync (PLANNED — Opus)
+Manual sync per facility. Route: `POST /api/quickbooks/sync-invoices/[facilityId]`. First sync backfills `qb_invoice_id` on CSV-imported records. Requires Intuit production approval. Until approved → button hidden.
+
+### Phase 11G — Revenue Share Integration (PLANNED — Opus)
+New `facilities.rev_share_percentage` integer column. Per-invoice stylist/facility split calculation. New `qb_invoice_id` on `stylist_pay_items` links payroll to invoices. Billing view shows split breakdown. Payroll detail shows corresponding invoices.
+
+### Phase 12 — Franchise Layer + Bookkeeper Role (PLANNED — Opus)
+New `franchises` table, `franchise_facilities` join, `franchise_users` with `franchise_head` role. Each franchise head sees only their franchise's facilities. Bookkeeper role (between admin and stylist in hierarchy): read billing/payroll/AR, record payments, mark invoices paid, link unresolved checks, export reports. Cannot manage residents/bookings/services/stylists. Scoped to franchise/facility like all other roles.
+
+### Phase 13 — Per-Stylist Google Calendar Integration (PLANNED — Sonnet)
+Per-stylist OAuth2 connect to Google Calendar. Bookings sync as calendar events. Already in roadmap from prior planning.
 
 ---
 

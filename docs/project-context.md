@@ -332,32 +332,29 @@ Tailwind CSS 4, Vercel
 - Stylist self-service pay-period viewing (`/my-account` surface)
 - `quickbooks_sync_log` audit-trail table + automated retry-with-backoff worker for transient QB failures (rescoped from legacy Phase 14 polish)
 
-### Phase 11 PLANNED — Incident & Issue Tracking
-- New table: `issues` (facility_id, stylist_id nullable, booking_id nullable, reported_by, issue_type: cancellation|complaint|safety|access_problem|payment_issue|supply_issue|staff_behavior|other, severity: low|medium|high, description, action_taken, assigned_to, status: open|in_progress|resolved, resolved_at)
-- "Report Issue" button on booking cards and log rows
-- Issues list in Settings
-- High severity triggers email to admin + red dashboard banner
-- Issue count shown on facility and stylist detail pages
+### Phase 11B — AR Dashboard (PLANNED — Opus)
+Three payment-type views (IP/RFMS/hybrid), role-gated, new /billing route, Billing sidebar nav entry.
 
-### Phase 12 PLANNED — Advanced KPI Dashboard
-- No schema changes
-- New metrics in `/reports` and super-admin reports: cancellation rate per facility, avg ticket per stylist, utilization rate, facility concentration risk, MoM/YoY trends
-- Region filtering on all metrics
-- Weekly email digest to NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-- Dashboard PDF export
+### Phase 11C — Statement & Reminder Emails (PLANNED — Sonnet)
+Two-channel send (Resend + QB), dedup protection, billingSend rate limit bucket.
 
-### Phase 13 PLANNED — Facility Contact Portal
-- New role `facility_contact` in `facility_users.role`
-- New table: `service_change_requests` (facility_id, submitted_by, request_type: add_day|cancel_day|change_hours|request_substitute|special_event, requested_date, notes, status: pending|approved|denied)
-- Facility contacts invited via existing invite flow with the new role
-- Restricted nav: Schedule (read-only), Visit Summaries, Invoices, Submit Request
-- Cannot see residents, other facilities, or stylist details
+### Phase 11D — Check Scanning (PLANNED — Opus)
+Gemini OCR, IP + RFMS formats (more coming), total accuracy rule, confirmation UI, unresolved queue, check-images Supabase bucket. Josh to provide more check examples before implementation.
 
-### Phase 14 PLANNED — QuickBooks polish (rescoped)
-- Core QuickBooks Online integration shipped as **Phase 10B** (2026-04-20). Remaining Phase 14 polish items:
-  - `quickbooks_sync_log` audit-trail table (facility_id, entity_type, entity_id, qb_id, status, error, synced_at) for full retry history visibility
-  - Automated retry-with-backoff worker for transient QB failures (currently surfaced as per-stylist errors in the UI for manual retry)
-  - Invoice push (beyond payroll Bills) — optional; facilities using Stripe Checkout may not need QB invoicing
+### Phase 11E — Resident Portal Isolation (PLANNED — Opus)
+portal/[facilityCode]/[portalToken] invite links, billing tab in existing services portal, facility-locked accounts, copy/send invite buttons on resident records.
+
+### Phase 11F — QB API Live Sync (PLANNED — Opus)
+Manual per-facility sync after Intuit production approval. Backfills qb_invoice_id on first run.
+
+### Phase 11G — Revenue Share Integration (PLANNED — Opus)
+rev_share_percentage on facilities, per-invoice stylist/facility split, qb_invoice_id on pay items.
+
+### Phase 12 — Franchise Layer + Bookkeeper Role (PLANNED — Opus)
+Franchise DB layer, franchise_head role, bookkeeper role with AR/payroll read + payment recording.
+
+### Phase 13 — Per-Stylist Google Calendar (PLANNED — Sonnet)
+Per-stylist OAuth2, booking → calendar event sync.
 
 ---
 
