@@ -372,18 +372,23 @@
 - **Slide-over drawer pattern** (`cross-facility-panel.tsx`): `fixed inset-y-0 right-0 w-full max-w-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300`. Backdrop is a SIBLING at z-40 (`fixed inset-0 bg-black/30`), onClick → close. Escape key closes via useEffect keyed on onClose. Use this pattern when a dense list needs to appear without leaving the current page.
 - **Year subheader pattern** (RFMS checks): when DESC-sorted dated rows need year grouping, use `Fragment` + `let lastYear: number | null = null` + IIFE. Parse date as `new Date(\`${iso}T00:00:00\`)` to avoid UTC drift. Works in both `<table>` and `<div>`-grid-based lists.
 
-### Phase 11D — Check Scanning [PLANNED — Opus]
-- **Entry point**: "Scan Check" button on billing page → upload modal (camera on mobile, file picker on desktop)
-- **Storage**: check image uploaded to Supabase storage bucket `check-images`, URL stored on `qb_payments.check_image_url` or `qb_unresolved_payments.check_image_url`
-- **OCR**: Gemini 2.5 Flash via direct fetch to v1beta (same pattern as daily log OCR — no SDK, fold system prompt into text part). Route: `POST /api/billing/scan-check` — multipart/form-data with image + facilityId
-- **Check formats** (Josh will provide more examples before 11D implementation — minimum two formats known):
-  - **IP remittance slip**: extract account#, date, invoice ref (e.g. "1225 F197"), amount, facility name/address. Match to resident via invoice ref → `qb_customer_id` lookup.
-  - **RFMS facility check**: extract facility name (from check header), check#, date, total amount, per-resident rows (LastName FirstName + amount + service type e.g. "BEAUTY SHOP/BARBER"). Fuzzy-match each resident row against `residents` table scoped to that facility.
-- **Total accuracy rule (non-negotiable)**: sum of all matched + unresolved line items MUST equal check total before save is allowed. Block save + show discrepancy if they don't add up.
-- **Confirmation screen**: check image on left, parsed data on right. Each resident row: parsed name → matched resident name (green/yellow/red confidence). Admin corrects mismatches inline. Confirm saves everything at once.
-- **Unresolved rows**: go to `qb_unresolved_payments`, not lost. Still count toward facility outstanding total.
-- **Unresolved queue page**: `/billing/unresolved` — per-facility list, check thumbnail, date, check#, raw name, amount, "Link to Resident" dropdown. Once linked → moves to `qb_payments`.
-- **IMPORTANT**: More check/receipt formats will be provided by Josh in the 11D planning session. Build the OCR pipeline to be extensible — the format detection and field extraction should be modular so new formats can be added without rewriting core logic.
+### Phase 11D — Check Scanning [SHIPPED 2026-04-20]
+- **Gemini for check scanning uses the same direct-fetch pattern as daily-log OCR** — v1beta, `gemini-2.5-flash`, `inlineData`+`text` only, no `systemInstruction`, no `@google/generative-ai` SDK. Copy the pattern; do NOT abstract it into a shared helper — the OCR prompts diverge per surface.
+- **`check-images` bucket is PRIVATE.** Always upload via service-role (`createStorageClient()`), store the PATH (not a URL) in `qb_payments.check_image_url` / `qb_unresolved_payments.check_image_url`, and regenerate signed URLs (1-hour TTL via `storage.createSignedUrl(path, 3600)`) at read time. Never cache URLs client-side beyond their 1-hour window.
+- **Total-accuracy invariant**: `residentLinesSum + cashAlsoReceived === amountCents` MUST be true before save. Modal's "Record Payment" button is gated on this; the save route also re-checks server-side and 400s if violated.
+- **Invoice decrement is EXACT-MATCH ONLY.** Only when `invoiceMatchConfidence === 'high'` AND `matchedInvoiceIds.length > 0` do we `UPDATE qb_invoices SET open_balance_cents=0, status='paid'` for each matched id. `partial` and `none` leave invoices untouched — documented limitation reconciled on next CSV re-import. Do NOT implement prorated partial-invoice decrement without an explicit design-change discussion.
+- **`qb_unresolved_payments` is the only persistence path for OCR-failed documents.** Never silently drop a scan. The "Save as Unresolved" button on the confirmation modal is always enabled and always writes a row (even when facility match is `none` — the route falls back to `body.facilityId` since the DB column is NOT NULL).
+- **`src/lib/fuzzy.ts` is the canonical fuzzy-match module.** Exports `WORD_EXPANSIONS`, `normalizeWords`, `fuzzyScore`, `fuzzyMatches`, `fuzzyBestMatch`. Both `ocr-import-modal.tsx` and `scan-check` route import from here. Do NOT re-implement inline.
+- **Image MIME allowlist**: `image/jpeg,image/png,image/webp,image/heic,image/heif`. HEIC supported natively by Gemini 2.5 Flash — no server-side transcoding needed. Enforce the allowlist + 10MB cap both on the storage bucket policy AND in the `scan-check` route.
+- **Unresolved surfaces**:
+  - Banner on per-facility billing hub (amber `bg-amber-50 border-amber-200`) when `unresolvedCount > 0` — scoped to facility for admins; scoped to currently-selected facility for master. Review button opens `CrossFacilityPanel` with `type='unresolved'`.
+  - 5th master-only card "Unresolved Scans" on the cross-facility grid. Grid is `md:grid-cols-5` on master views, `md:grid-cols-4` otherwise. Red-tinted when `totalUnresolvedCount > 0`.
+  - `CrossFacilityPanel` `type='unresolved'` has no "View Full Report →" footer link — no dedicated drill-down page in v1.
+- **`CrossFacilityPanel` props**: `type: PanelType` (`'outstanding' | 'collected' | 'invoiced' | 'overdue' | 'unresolved'`), optional `facilityId?: string | null` (scopes the unresolved fetch), optional `onResolveUnresolved?: (row, scanResult) => void`. The panel reshapes an `UnresolvedRow` into a `ScanResult` (all extracted fields wrapped as `FieldValue<T>` with `confidence: 'medium'`) before invoking the callback.
+- **`cross-facility-report-client.tsx` has a local `ReportPanelType = Exclude<PanelType, 'unresolved'>`** — the four drill-down report pages (`/billing/outstanding|collected|invoiced|overdue`) cannot be `'unresolved'`. Extending `PanelType` in the future requires deciding whether the new variant is reportable.
+- **`checkScan` rate-limit bucket**: 30/hr/user. Added to `src/lib/rate-limit.ts`.
+- **`qb_unresolved_payments` migration was ADDITIVE.** The original Phase 11A scaffolding columns (`checkNum`, `checkDate`, `totalAmountCents`, `rawResidentName`, `rawAmountCents`, `rawServiceType`, `resolvedToResidentId`) are preserved and marked `// @deprecated 11A scaffolding, unused` in `schema.ts`. Do not remove them without a separate migration; they are nullable and harmless.
+- **Save route returns `{ data: { paymentIds: string[], updatedBalanceCents: number } }`** — `paymentIds` enables future linking back to scanned check images; `updatedBalanceCents` drives optimistic UI updates.
 
 ### Phase 11E — Resident Portal Isolation [PLANNED — Opus]
 - **Invite link format**: `senior-stylist.vercel.app/portal/[facilityCode]/[portalToken]`

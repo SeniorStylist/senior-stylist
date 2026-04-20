@@ -13,6 +13,7 @@ import { IPView } from './views/ip-view'
 import { RFMSView } from './views/rfms-view'
 import { HybridView } from './views/hybrid-view'
 import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel'
+import { ScanCheckModal, ScanResult } from './components/scan-check-modal'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
 import {
@@ -108,6 +109,13 @@ export function BillingClient({
 
   const [panelType, setPanelType] = useState<PanelType | null>(null)
 
+  const [showScanModal, setShowScanModal] = useState(false)
+  const [scanResolveData, setScanResolveData] = useState<
+    { id: string; data: ScanResult } | null
+  >(null)
+  const [unresolvedCount, setUnresolvedCount] = useState(0)
+  const [totalUnresolvedCount, setTotalUnresolvedCount] = useState(0)
+
   const { toast } = useToast()
 
   useEffect(() => {
@@ -173,6 +181,43 @@ export function BillingClient({
     }
   }, [facilityId, refreshKey, dateRange.from, dateRange.to])
 
+  useEffect(() => {
+    if (!facilityId) return
+    let cancelled = false
+    const url = isMaster
+      ? `/api/billing/unresolved-count?facilityId=${facilityId}`
+      : `/api/billing/unresolved-count`
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : { data: { count: 0 } }))
+      .then((body) => {
+        if (cancelled) return
+        setUnresolvedCount(body?.data?.count ?? 0)
+      })
+      .catch(() => {
+        if (!cancelled) setUnresolvedCount(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [facilityId, refreshKey, isMaster])
+
+  useEffect(() => {
+    if (!isMaster) return
+    let cancelled = false
+    fetch('/api/billing/unresolved-count')
+      .then((r) => (r.ok ? r.json() : { data: { count: 0 } }))
+      .then((body) => {
+        if (cancelled) return
+        setTotalUnresolvedCount(body?.data?.count ?? 0)
+      })
+      .catch(() => {
+        if (!cancelled) setTotalUnresolvedCount(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isMaster, refreshKey])
+
   const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   const totals = useMemo(() => {
@@ -194,6 +239,7 @@ export function BillingClient({
   const crossCollectedAnimated = useCountUp(crossSummary?.collectedThisMonthCents ?? 0)
   const crossInvoicedAnimated = useCountUp(crossSummary?.invoicedThisMonthCents ?? 0)
   const crossOverdueAnimated = useCountUp(crossSummary?.facilitiesOverdueCount ?? 0)
+  const crossUnresolvedAnimated = useCountUp(totalUnresolvedCount)
 
   const paymentType = summary?.facility.paymentType ?? null
   const showRevShareRow =
@@ -324,10 +370,38 @@ export function BillingClient({
       {panelType && (
         <CrossFacilityPanel
           type={panelType}
+          facilityId={panelType === 'unresolved' && !isMaster ? facilityId : null}
           onClose={() => setPanelType(null)}
           onSelectFacility={(id) => {
             setFacilityId(id)
             setPanelType(null)
+          }}
+          onResolveUnresolved={(row, scanResult) => {
+            setScanResolveData({ id: row.id, data: scanResult })
+            setShowScanModal(true)
+            setPanelType(null)
+          }}
+        />
+      )}
+
+      {showScanModal && summary && (
+        <ScanCheckModal
+          open={showScanModal}
+          facilityId={facilityId}
+          facilityPaymentType={summary.facility.paymentType ?? null}
+          facilities={facilityOptions}
+          residents={summary.residents}
+          isMaster={isMaster}
+          resolveFromUnresolvedId={scanResolveData?.id}
+          resolveFromUnresolvedData={scanResolveData?.data}
+          onClose={() => {
+            setShowScanModal(false)
+            setScanResolveData(null)
+          }}
+          onSuccess={() => {
+            setRefreshKey((k) => k + 1)
+            setShowScanModal(false)
+            setScanResolveData(null)
           }}
         />
       )}
@@ -340,9 +414,10 @@ export function BillingClient({
       </h1>
 
       {isMaster ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {crossLoading ? (
             <>
+              <div className="skeleton-shimmer rounded-2xl h-20" />
               <div className="skeleton-shimmer rounded-2xl h-20" />
               <div className="skeleton-shimmer rounded-2xl h-20" />
               <div className="skeleton-shimmer rounded-2xl h-20" />
@@ -408,6 +483,32 @@ export function BillingClient({
                   }
                 >
                   {crossOverdueAnimated}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelType('unresolved')}
+                className={`${btnBase} text-left w-full rounded-2xl border shadow-sm p-4 ${cardHover} ${
+                  totalUnresolvedCount > 0
+                    ? 'bg-red-50 border-red-100'
+                    : 'bg-white border-stone-100'
+                }`}
+              >
+                <div
+                  className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${
+                    totalUnresolvedCount > 0 ? 'text-red-700' : 'text-stone-500'
+                  }`}
+                >
+                  Unresolved Scans
+                </div>
+                <div
+                  className={
+                    totalUnresolvedCount > 0
+                      ? 'text-xl font-bold text-red-700'
+                      : 'text-xl font-bold text-stone-900'
+                  }
+                >
+                  {crossUnresolvedAnimated}
                 </div>
               </button>
             </>
@@ -482,6 +583,30 @@ export function BillingClient({
                     className={`rounded-xl border border-stone-200 px-3 py-1.5 text-sm text-stone-900 w-56 focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
                   />
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanResolveData(null)
+                    setShowScanModal(true)
+                  }}
+                  className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  Scan Check
+                </button>
                 <button
                   type="button"
                   disabled={sendLoading || !sendToEmail}
@@ -644,6 +769,22 @@ export function BillingClient({
               </div>
             ) : null}
           </div>
+
+          {unresolvedCount > 0 ? (
+            <div className="px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between mb-4">
+              <span className="text-sm text-amber-800">
+                ⚠ {unresolvedCount} unresolved scan{unresolvedCount === 1 ? '' : 's'}
+                {isMaster ? ' for this facility' : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPanelType('unresolved')}
+                className={`${btnBase} text-sm font-semibold text-amber-900 hover:underline`}
+              >
+                Review →
+              </button>
+            </div>
+          ) : null}
 
           {paymentType === 'ip' ? (
             <IPView

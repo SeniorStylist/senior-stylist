@@ -1221,3 +1221,26 @@ Shared motion vocabulary lives in `src/lib/animations.ts`. Import the constants 
 **Full-report drill-down pages** (`/billing/{outstanding,collected,invoiced,overdue}`): master-admin-only server components redirecting non-masters to `/billing`; render a shared `CrossFacilityReportClient` client component. Header: `← Back to Billing` (left) + "Download CSV" button (right). Full sortable table below. CSV export is client-side only (`new Blob([csv], { type: 'text/csv;charset=utf-8' })` + `URL.createObjectURL` + programmatic `<a download>`); reflects the CURRENT client-side sort. Row click → `router.push('/billing?facility=' + id)`.
 
 **Year subheader pattern** (RFMS checks list): when rendering a DESC-sorted list of dated rows, insert a year heading above the first row of each year via `Fragment` + `let lastYear: number | null = null`. The subheader is a sibling `<div>` (not a wrapper) styled `text-xs font-bold text-stone-400 uppercase tracking-widest` on `border-b border-stone-50`. Works in both `<table>`-based and `<div>`-grid-based lists.
+
+### Check Scanning Patterns (Phase 11D)
+
+**Scan Check button** (billing hub, next to Send Statement): `${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`. Inline 16×16 camera SVG via `<svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">` — matches the outlined-icon language of the rest of the hub. Button placement is intentionally stone-colored (not burgundy) so Send Statement remains the primary action.
+
+**Camera vs file input**: a single `<input type="file">` with `accept="image/jpeg,image/png,image/webp,image/heic,image/heif"` and `capture="environment"` works for both desktop file picker and mobile camera. The `capture` attribute is a hint — desktop browsers ignore it, mobile browsers honor it. No `md:hidden` branch needed if a single picker is sufficient; split into "Take Photo" + "Choose File" buttons only when the UX needs both visible simultaneously.
+
+**Two-column confirmation layout** (scan-check modal Step 2): grid `grid-cols-1 md:grid-cols-2 gap-6`. Left = check image in `max-h-[540px] overflow-y-auto` scroll container (signed-URL `<img>` inside). Right = form fields vertically stacked. On mobile, image collapses above the form (single column).
+
+**Low-confidence field highlight**: fields from OCR marked `confidence: 'low' | 'medium'` wrap in `bg-amber-50 border-amber-200 rounded-lg`. High-confidence fields use the default stone styling. Gives admins an at-a-glance "verify this" signal without blocking save.
+
+**Total-accuracy validation**: when the sum of line items + cash-also-received doesn't equal the check total, show an inline red validation message above the save button: `Line items total $X but check amount is $Y — adjust before saving.` "Record Payment" stays disabled until the equation balances. "Save as Unresolved" remains enabled — unresolvable is always an escape hatch.
+
+**Invoice match banners** (below resident lines in confirmation modal):
+- `high` (exact open-balance match): `bg-emerald-50 border-emerald-100 text-emerald-800` with "Matches open balance exactly (${amount})".
+- `partial` (total open balance > check amount, no exact match): `bg-amber-50 border-amber-200 text-amber-800` with "Partial payment — $X of $Y total. $Z will remain outstanding."
+- `none`: `bg-stone-50 border-stone-200 text-stone-600` "No matching invoice found — payment will be recorded as unattributed".
+
+**Unresolved banner** (per-facility billing hub): `px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between mb-4`. Left: `text-sm text-amber-800` with `⚠ {N} unresolved scan{s}`. Right: `${btnBase} text-sm font-semibold text-amber-900 hover:underline` "Review →" button that opens the unresolved panel.
+
+**Red-tinted stat card variant** (5th master card when unresolved count > 0): `bg-red-50 border-red-100` shell + `text-red-700` label + `text-red-700` value. Same animation contract as the other 4 cards (`useCountUp` + `cardHover`). Flips to default `bg-white border-stone-100` when count is 0 — tinting is reserved for "needs attention right now" state.
+
+**Modal mount stacking**: `ScanCheckModal` lives alongside `SendDedupModal` and `CrossFacilityPanel` in `billing-client.tsx`. All three are z-50 overlays; they never stack (only one is open at a time, enforced by the panel's `onResolveUnresolved` callback which closes the panel before opening the modal).

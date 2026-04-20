@@ -7,14 +7,16 @@ import { formatDollars } from '../views/billing-shared'
 import { btnBase, transitionBase } from '@/lib/animations'
 import type { PanelType, CrossFacilityDetailRow } from './cross-facility-panel'
 
-const TITLES: Record<PanelType, string> = {
+type ReportPanelType = Exclude<PanelType, 'unresolved'>
+
+const TITLES: Record<ReportPanelType, string> = {
   outstanding: 'Outstanding Balances',
   collected: 'Collected This Month',
   invoiced: 'Invoiced This Month',
   overdue: 'Overdue Facilities',
 }
 
-const VALUE_LABELS: Record<PanelType, string> = {
+const VALUE_LABELS: Record<ReportPanelType, string> = {
   outstanding: 'Outstanding',
   collected: 'Collected',
   invoiced: 'Invoiced',
@@ -30,7 +32,7 @@ function toISODate(d: Date): string {
   ).padStart(2, '0')}`
 }
 
-function toCsv(rows: CrossFacilityDetailRow[], type: PanelType): string {
+function toCsv(rows: CrossFacilityDetailRow[], type: ReportPanelType): string {
   const headers =
     type === 'overdue'
       ? ['Facility', 'Code', 'Outstanding', 'Days Overdue']
@@ -48,7 +50,7 @@ function toCsv(rows: CrossFacilityDetailRow[], type: PanelType): string {
   return lines.join('\n')
 }
 
-export function CrossFacilityReportClient({ type }: { type: PanelType }) {
+export function CrossFacilityReportClient({ type }: { type: ReportPanelType }) {
   const router = useRouter()
   const [rows, setRows] = useState<CrossFacilityDetailRow[] | null>(null)
   const [loading, setLoading] = useState(true)

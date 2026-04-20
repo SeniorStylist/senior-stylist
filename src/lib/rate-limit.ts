@@ -15,6 +15,7 @@ type Bucket =
   | 'qbImport'
   | 'billingImport'
   | 'billingSend'
+  | 'checkScan'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -30,6 +31,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   qbImport: { tokens: 5, window: '1 h' },
   billingImport: { tokens: 5, window: '1 h' },
   billingSend: { tokens: 20, window: '1 h' },
+  checkScan: { tokens: 30, window: '1 h' },
 }
 
 let redis: Redis | null = null

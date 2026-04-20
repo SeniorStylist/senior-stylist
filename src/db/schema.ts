@@ -490,6 +490,13 @@ export const qbPayments = pgTable('qb_payments', {
   memo: text('memo'),
   invoiceRef: text('invoice_ref'),
   paymentType: text('payment_type'),
+  paymentMethod: text('payment_method').notNull().default('check'),
+  residentBreakdown: jsonb('resident_breakdown').$type<Array<{
+    name: string
+    residentId: string | null
+    amountCents: number
+    matchConfidence: 'high' | 'medium' | 'low' | 'none'
+  }>>(),
   recordedVia: text('recorded_via').notNull().default('manual'),
   checkImageUrl: text('check_image_url'),
   qbPaymentId: text('qb_payment_id'),
@@ -501,6 +508,7 @@ export const qbPayments = pgTable('qb_payments', {
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  // @deprecated 11A scaffolding, unused — 11D uses extracted_* columns below
   checkNum: text('check_num'),
   checkDate: date('check_date'),
   totalAmountCents: integer('total_amount_cents').notNull().default(0),
@@ -510,6 +518,25 @@ export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   checkImageUrl: text('check_image_url'),
   notes: text('notes'),
   resolvedToResidentId: uuid('resolved_to_resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  // 11D columns
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedBy: uuid('resolved_by'),
+  rawOcrJson: jsonb('raw_ocr_json').$type<Record<string, unknown>>(),
+  extractedCheckNum: text('extracted_check_num'),
+  extractedCheckDate: date('extracted_check_date'),
+  extractedAmountCents: integer('extracted_amount_cents'),
+  extractedPayerName: text('extracted_payer_name'),
+  extractedInvoiceRef: text('extracted_invoice_ref'),
+  extractedInvoiceDate: date('extracted_invoice_date'),
+  extractedResidentLines: jsonb('extracted_resident_lines').$type<Array<{
+    rawName: string
+    amountCents: number
+    serviceCategory: string | null
+    residentId: string | null
+    matchConfidence: 'high' | 'medium' | 'low' | 'none'
+  }>>(),
+  confidenceOverall: text('confidence_overall'),
+  unresolvedReason: text('unresolved_reason'),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
