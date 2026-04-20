@@ -1174,3 +1174,34 @@ Read-only admin dashboard shipped in Phase 11B. Three views branch on `facilitie
 - **Empty state**: single card "No billing data yet. Import historical data from the Super Admin panel." when `invoices.length + payments.length === 0`.
 
 Sidebar nav entry lives between Reports and Payroll, admin-only, inline SVG (receipt with `$` glyph). No mobile-nav entry — the 5-icon bottom bar is full.
+
+### Animation System (Phase 11C.5)
+
+Shared motion vocabulary lives in `src/lib/animations.ts`. Import the constants — never re-declare raw transition classes elsewhere.
+
+- **`btnBase`** — `transition-all duration-150 ease-out active:scale-[0.97]`. Baseline press feel; no hover-scale. Already folded into `src/components/ui/button.tsx`.
+- **`btnHubInteractive`** — adds `hover:scale-[1.02]` on top of `btnBase`. **Billing hub only** (pill toggles, prominent stat interactions). Do not apply hover-scale to dense UI (lists, table rows, sidebar items).
+- **`cardHover`** — `transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md`. Clickable card lift.
+- **`transitionBase`** — `transition-all duration-150 ease-out`. For simple color/bg hovers and chevron rotation.
+- **`expandTransition`** — `transition-[max-height,opacity] duration-300 ease-out overflow-hidden`. Paired with inline `style={{ maxHeight: open ? '5000px' : '0px', opacity: open ? 1 : 0 }}`.
+- **`modalEnter`** — `animate-in fade-in slide-in-from-bottom-3 duration-200`. Matches the shared Modal entrance; reuse when a surface needs the same feel.
+- **`successFlash`** — `animate-in fade-in duration-150`. Wrap a transient save button / confirmation message that briefly appears.
+- **`shimmer`** — references the `.skeleton-shimmer` class in `globals.css` (single source of truth). Always use `className="skeleton-shimmer rounded-2xl h-N"` for skeleton loaders; do NOT inline `animate-pulse bg-stone-100`.
+
+**`useCountUp(target, duration=600)`** (`src/hooks/use-count-up.ts`) — animates integer values via `requestAnimationFrame` + easeOutCubic. Initial `value` seeds to `target` so SSR output matches first client render (no hydration mismatch). Honors `prefers-reduced-motion: reduce` (jumps straight to target). Call one hook per animated number at the top level of the component.
+
+**`<ExpandableSection title meta defaultOpen children>`** (`src/app/(protected)/billing/views/expandable-section.tsx`) — accordion wrapper used by all billing views. Header row: `bg-white rounded-2xl border border-stone-100 shadow-sm`, hover `bg-stone-50`; chevron `rotate-180` when open. Max-height cap is **5000px** — fits hundreds of rows; worst case is a scroll cut-off which is acceptable vs JS-measured heights.
+
+### Billing Hub Card (Phase 11C.5)
+
+`billing-client.tsx` now renders one unified hub card per facility (replaces the flat totals+buttons stack).
+
+- **Cross-facility summary bar** (master admin only, above facility selector): `grid grid-cols-2 md:grid-cols-4 gap-3 mb-6`. Four cards (Total Outstanding / Collected This Month / Invoiced This Month / Facilities Overdue), each `bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`. Numeric values wrapped in `useCountUp`. Amber tint when outstanding > 0; emerald tint on collected; red when facilities overdue > 0. Loading: 4 `skeleton-shimmer rounded-2xl h-20`.
+- **Hub card** (`bg-white rounded-2xl border border-stone-100 shadow-sm p-6 mb-4`):
+  - Top row: facility name (DM Serif Display) + `facilityCode` mono badge + payment-type pill (`IP`/`RFMS`/`Hybrid` → `bg-stone-100 text-stone-700 rounded-full px-2 py-0.5 text-xs font-semibold`). Right side: Send Statement button with inline spinner during `sendLoading`, success toast on send.
+  - Stat row: 3 tiles in `grid grid-cols-1 md:grid-cols-3 gap-3 mt-5`, each value wrapped in `useCountUp` → `formatDollars`. Amber highlight on Outstanding when > 0.
+  - Rev-share row (only `paymentType ∈ {rfms, facility, hybrid}`): `mt-5 pt-5 border-t border-stone-100`. Label `text-xs font-semibold text-stone-500 uppercase tracking-wide`. Two pill buttons (Senior Stylist / Facility) — active pill is burgundy `bg-[#8B2E4A] text-white`, inactive is `bg-stone-100 text-stone-600 hover:bg-stone-200`. Both use `btnHubInteractive` (hover-scale allowed here). Save button appears only when `pendingRevShare !== null && pendingRevShare !== current`, wrapped in `successFlash`. Success toast on save; error toast on failure.
+- **Payment-type views** are now `<ExpandableSection>` wrappers:
+  - **`IPView`** — single section, default open. Meta: `"N residents · K with balance"`.
+  - **`RFMSView`** — two sections, both default closed. Meta examples: `"N checks · $X received"`, `"N residents · $X outstanding"`. Rose-50 rev-share notice REMOVED (hub card replaces it).
+  - **`HybridView`** — delegates to `IPView` (title="IP Residents", open) + `RFMSView` (residentsTitle="RFMS Residents", checksTitle="RFMS Checks received", both closed). All three accept optional `title`/`defaultOpen` overrides so hybrid can rename/recolor without duplicating internals.

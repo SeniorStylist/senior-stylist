@@ -5,41 +5,47 @@ import {
   BillingInvoice,
   BillingPayment,
   BillingResident,
-  DisabledActionButton,
   computeResidentTotals,
   formatDollars,
   formatInvoiceDate,
   formatShortDate,
-  revShareLabel,
 } from './billing-shared'
+import { ExpandableSection } from './expandable-section'
 
 export function RFMSView({
-  facility,
   residents,
   invoices,
   payments,
+  residentsTitle = 'Residents',
+  checksTitle = 'Checks received',
+  checksDefaultOpen = false,
+  residentsDefaultOpen = false,
 }: {
   facility: BillingFacility
   residents: BillingResident[]
   invoices: BillingInvoice[]
   payments: BillingPayment[]
+  residentsTitle?: string
+  checksTitle?: string
+  checksDefaultOpen?: boolean
+  residentsDefaultOpen?: boolean
 }) {
+  const totalReceived = payments.reduce((s, p) => s + p.amountCents, 0)
+  const outstanding = residents.reduce(
+    (s, r) => s + (r.qbOutstandingBalanceCents ?? 0),
+    0
+  )
+
+  const checkWord = payments.length === 1 ? 'check' : 'checks'
+  const residentWord = residents.length === 1 ? 'resident' : 'residents'
+
   return (
-    <div className="space-y-6">
-      <div className="bg-rose-50 border border-rose-100 text-rose-900 px-4 py-3 rounded-2xl text-sm">
-        <span className="font-semibold">Revenue share:</span>{' '}
-        {revShareLabel(facility.qbRevShareType)}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100">
-          <h3 className="text-sm font-semibold text-stone-700">Checks received</h3>
-          <DisabledActionButton
-            label="Send via QB"
-            title="Available after QB production approval"
-          />
-        </div>
-
+    <div className="space-y-4">
+      <ExpandableSection
+        title={checksTitle}
+        meta={`${payments.length} ${checkWord} · ${formatDollars(totalReceived)} received`}
+        defaultOpen={checksDefaultOpen}
+      >
         {payments.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-stone-500">
             No checks recorded for this facility yet.
@@ -81,12 +87,13 @@ export function RFMSView({
             ))}
           </>
         )}
-      </div>
+      </ExpandableSection>
 
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-stone-100">
-          <h3 className="text-sm font-semibold text-stone-700">Per-resident breakdown</h3>
-        </div>
+      <ExpandableSection
+        title={residentsTitle}
+        meta={`${residents.length} ${residentWord} · ${formatDollars(outstanding)} outstanding`}
+        defaultOpen={residentsDefaultOpen}
+      >
         {residents.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-stone-500">
             No residents set up for this facility yet.
@@ -121,7 +128,9 @@ export function RFMSView({
                   key={r.id}
                   className="md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3 border-b border-stone-50 last:border-0"
                 >
-                  <div className="md:col-span-4 text-sm font-medium text-stone-900">{r.name}</div>
+                  <div className="md:col-span-4 text-sm font-medium text-stone-900">
+                    {r.name}
+                  </div>
                   <div className="md:col-span-1 text-sm text-stone-500">
                     {r.roomNumber ?? '—'}
                   </div>
@@ -139,7 +148,7 @@ export function RFMSView({
             })}
           </>
         )}
-      </div>
+      </ExpandableSection>
     </div>
   )
 }
