@@ -49,6 +49,8 @@ export const facilities = pgTable('facilities', {
   serviceCategoryOrder: jsonb('service_category_order').$type<string[]>(),
   qbCustomerId: text('qb_customer_id'),
   facilityCode: text('facility_code'),
+  qbOutstandingBalanceCents: integer('qb_outstanding_balance_cents').default(0),
+  qbRevShareType: text('qb_rev_share_type').default('we_deduct'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -92,6 +94,8 @@ export const residents = pgTable(
     poaCity: text('poa_city'),
     poaNotificationsEnabled: boolean('poa_notifications_enabled').default(true).notNull(),
     qbCustomerId: text('qb_customer_id'),
+    qbOutstandingBalanceCents: integer('qb_outstanding_balance_cents').default(0),
+    residentPaymentType: text('resident_payment_type'),
     active: boolean('active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
@@ -450,6 +454,63 @@ export const payDeductions = pgTable('pay_deductions', {
   note: text('note'),
   createdBy: uuid('created_by').references(() => profiles.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const qbInvoices = pgTable('qb_invoices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  qbCustomerId: text('qb_customer_id'),
+  invoiceNum: text('invoice_num').notNull(),
+  invoiceDate: date('invoice_date').notNull(),
+  dueDate: date('due_date'),
+  amountCents: integer('amount_cents').notNull().default(0),
+  openBalanceCents: integer('open_balance_cents').notNull().default(0),
+  status: text('status').notNull().default('open'),
+  paymentType: text('payment_type'),
+  qbInvoiceId: text('qb_invoice_id'),
+  lastSentAt: timestamp('last_sent_at', { withTimezone: true }),
+  sentVia: text('sent_via'),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => ({
+  dedupIdx: unique('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId),
+}))
+
+export const qbPayments = pgTable('qb_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  qbCustomerId: text('qb_customer_id'),
+  checkNum: text('check_num'),
+  checkDate: date('check_date'),
+  paymentDate: date('payment_date').notNull(),
+  amountCents: integer('amount_cents').notNull().default(0),
+  memo: text('memo'),
+  invoiceRef: text('invoice_ref'),
+  paymentType: text('payment_type'),
+  recordedVia: text('recorded_via').notNull().default('manual'),
+  checkImageUrl: text('check_image_url'),
+  qbPaymentId: text('qb_payment_id'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
+export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  checkNum: text('check_num'),
+  checkDate: date('check_date'),
+  totalAmountCents: integer('total_amount_cents').notNull().default(0),
+  rawResidentName: text('raw_resident_name'),
+  rawAmountCents: integer('raw_amount_cents'),
+  rawServiceType: text('raw_service_type'),
+  checkImageUrl: text('check_image_url'),
+  notes: text('notes'),
+  resolvedToResidentId: uuid('resolved_to_resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow(),
 })
 
 // ─── Relations ───────────────────────────────────────────────────────────────

@@ -318,6 +318,14 @@ Tailwind CSS 4, Vercel
 - UI — Settings → Integrations tab gains a Connected-state card (realm ID, expense account `<select>` populated from `/api/quickbooks/accounts`, Sync Vendors button, two-click Disconnect). `?qb=connected` / `?qb=error&reason=…` URL params trigger one-shot toasts that `replaceState` to clear themselves. Payroll detail (`/payroll/[id]`) gains a QB panel between the paid banner and items grid, gated on `hasQuickBooks && status !== 'open'`: Push / Re-push / Sync Payment Status / Retry Sync buttons + per-stylist error listing.
 - Env vars: `QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET` (server-only, no `NEXT_PUBLIC_*`). Not yet set in Vercel — see Immediate Next Fix.
 
+### Phase 11A SHIPPED (2026-04-20) — Billing AR Foundation
+- Three new tables: `qb_invoices` (dedup on invoice_num+facility_id; status: open/partial/paid/credit), `qb_payments` (natural key index on payment_date+facility_id+amount_cents+COALESCE(invoice_ref,'')), `qb_unresolved_payments` (staging for unmatched checks)
+- New columns on `facilities`: `qb_outstanding_balance_cents`, `qb_rev_share_type`. On `residents`: `qb_outstanding_balance_cents`, `resident_payment_type`
+- CSV import route: `POST /api/super-admin/import-billing-history` — parses QB Invoice List CSV (header:true, PapaParse, upsert on invoice_num+facility_id) and QB Transaction List CSV (header:false, facility header rows + Payment detail rows, onConflictDoNothing)
+- Balance recompute: two raw SQL UPDATEs after each import run (SUM open_balance_cents per facility/resident)
+- UI: `/super-admin/import-billing-history` (3-state: upload → loading overlay → results). Two separate file pickers (invoices + transactions), at least one required. "Import Billing History" link added to super-admin header.
+- Rate limit: `billingImport` bucket 5/hr
+
 ### Phase 10B+ PLANNED — Payroll extensions (pending)
 - Recurring pay period auto-creation (cron-driven monthly rollover)
 - Payroll email notifications to stylists

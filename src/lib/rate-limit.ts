@@ -13,6 +13,7 @@ type Bucket =
   | 'payPeriodCreate'
   | 'quickbooksSync'
   | 'qbImport'
+  | 'billingImport'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -26,6 +27,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   payPeriodCreate: { tokens: 10, window: '1 h' },
   quickbooksSync: { tokens: 15, window: '1 h' },
   qbImport: { tokens: 5, window: '1 h' },
+  billingImport: { tokens: 5, window: '1 h' },
 }
 
 let redis: Redis | null = null

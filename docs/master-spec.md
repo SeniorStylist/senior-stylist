@@ -384,6 +384,63 @@ Constraint: `UNIQUE(pay_period_id, stylist_id)` (named `stylist_pay_items_period
 
 Net pay is always `max(0, base − Σ deductions)` where base = commissionAmountCents | `round(hoursWorked × hourlyRateCents)` | flatAmountCents. Helper: `computeNetPay()` in `src/lib/payroll.ts`. Recompute inside a single `db.transaction()` on every item PUT, deduction POST, deduction DELETE.
 
+### `qb_invoices` (Phase 11A)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` |
+| `facility_id` | FK → `facilities.id` ON DELETE CASCADE, NOT NULL |
+| `resident_id` | FK → `residents.id` ON DELETE SET NULL, nullable |
+| `qb_customer_id` | `text`, nullable — QB Name column value |
+| `invoice_num` | `text` NOT NULL |
+| `invoice_date` | `date` NOT NULL |
+| `due_date` | `date`, nullable |
+| `amount_cents` | `integer` NOT NULL default 0 |
+| `open_balance_cents` | `integer` NOT NULL default 0 |
+| `status` | `text` NOT NULL default `'open'` — `open|partial|paid|credit` |
+| `payment_type` | `text`, nullable |
+| `qb_invoice_id` | `text`, nullable |
+| `last_sent_at` / `sent_via` / `synced_at` | timestamps, nullable |
+| `created_at` / `updated_at` | timestamps |
+
+Dedup unique index: `qb_invoices_dedup_idx ON (invoice_num, facility_id)`.
+
+### `qb_payments` (Phase 11A)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` |
+| `facility_id` | FK → `facilities.id` ON DELETE CASCADE, NOT NULL |
+| `resident_id` | FK → `residents.id` ON DELETE SET NULL, nullable |
+| `qb_customer_id` | `text`, nullable |
+| `check_num` | `text`, nullable |
+| `check_date` | `date`, nullable |
+| `payment_date` | `date` NOT NULL |
+| `amount_cents` | `integer` NOT NULL default 0 |
+| `memo` / `invoice_ref` / `payment_type` | `text`, nullable |
+| `recorded_via` | `text` NOT NULL default `'manual'` — `manual|qb_import` |
+| `check_image_url` / `qb_payment_id` | `text`, nullable |
+| `resolved_at` / `synced_at` | timestamps with timezone, nullable |
+| `created_at` | timestamp |
+
+Natural key unique index: `qb_payments_natural_key_idx ON (payment_date, facility_id, amount_cents, COALESCE(invoice_ref, ''))`.
+
+### `qb_unresolved_payments` (Phase 11A)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` |
+| `facility_id` | FK → `facilities.id` ON DELETE CASCADE, NOT NULL |
+| `check_num` / `check_date` | `text`/`date`, nullable |
+| `total_amount_cents` | `integer` NOT NULL default 0 |
+| `raw_resident_name` / `raw_amount_cents` / `raw_service_type` | nullable — raw data from check |
+| `check_image_url` / `notes` | `text`, nullable |
+| `resolved_to_resident_id` | FK → `residents.id` ON DELETE SET NULL, nullable |
+| `created_at` | timestamp |
+
+**New columns on `facilities`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `qb_rev_share_type text DEFAULT 'we_deduct'`.
+**New columns on `residents`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `resident_payment_type text`.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -775,6 +832,17 @@ Per-facility OAuth2 connection, stylists mapped to QB Vendors, pay periods pushe
 
 ### Phase 10B+ — Payroll extensions (pending)
 Recurring pay period auto-creation, payroll emails to stylists, QuickBooks error log table + automated retry with backoff (rescoped from legacy Phase 14), and stylist self-service payroll viewing.
+
+### Phase 11A — Billing AR Foundation (SHIPPED 2026-04-20)
+Three new tables (`qb_invoices`, `qb_payments`, `qb_unresolved_payments`), four new columns on `facilities` and `residents` — see schema reference above. One-off migration: `scripts/migrate-billing-schema.mjs` (deleted after run).
+
+**Import route** — `POST /api/super-admin/import-billing-history` (master admin only, `maxDuration=120`, `billingImport` rate limit 5/hr). Accepts two optional form-data files:
+- `invoices` — QB Invoice List CSV (PapaParse `header:true`). Only `Transaction type === 'Invoice'` rows. Derives facilityId from Name column prefix before `:`. Upsert on `(invoice_num, facility_id)` with status recomputed from `openBalance/amount` ratio.
+- `transactions` — QB Transaction List CSV (PapaParse `header:false`). Scans first 20 rows for header with "Date" + "Transaction type" columns. Tracks `currentFacilityId` from col0 F-code rows. Inserts `Payment` detail rows via `onConflictDoNothing` on the natural key index.
+
+After both imports: two raw `db.execute(sql\`UPDATE...\`)` correlated subqueries recompute `qb_outstanding_balance_cents` on `facilities` and `residents`.
+
+**UI** — `/super-admin/import-billing-history` page + client component (same 3-state pattern as QB import). Two file pickers, at least one required. "Import Billing History" link in super-admin header. Rate limit: `billingImport` 5/hr (added to `src/lib/rate-limit.ts`).
 
 ### Phase 11 — Incident & Issue Tracking
 New table `issues`: `facility_id`, `stylist_id` nullable, `booking_id` nullable, `reported_by` (user_id), `issue_type` text, `severity` (low|medium|high), `description`, `action_taken`, `assigned_to` nullable, `status` (open|in_progress|resolved), `resolved_at`.

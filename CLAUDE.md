@@ -302,6 +302,18 @@
 - **CSP** `connect-src` includes `https://quickbooks.api.intuit.com https://oauth.platform.intuit.com https://appcenter.intuit.com https://developer.api.intuit.com` (server-side fetch isn't subject to browser CSP, but extend anyway for future client widgets).
 - Env: `QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET` in Vercel (server-only, no `NEXT_PUBLIC_*`).
 
+### Phase 11A — Billing AR Foundation
+- **Three new tables** — all have RLS enabled + `service_role_all` policy:
+  - `qb_invoices`: dedup unique index on `(invoice_num, facility_id)`. Status values: `open`, `partial`, `paid`, `credit`. Columns: facilityId, residentId (nullable), qbCustomerId, invoiceNum, invoiceDate, dueDate, amountCents, openBalanceCents, status, paymentType, qbInvoiceId, lastSentAt, sentVia, syncedAt.
+  - `qb_payments`: natural key unique index `qb_payments_natural_key_idx ON (payment_date, facility_id, amount_cents, COALESCE(invoice_ref, ''))` — COALESCE prevents NULL bypass. `recorded_via` values: `manual`, `qb_import`. Columns: facilityId, residentId (nullable), checkNum, checkDate, paymentDate, amountCents, memo, invoiceRef, paymentType, recordedVia, checkImageUrl, qbPaymentId, resolvedAt, syncedAt.
+  - `qb_unresolved_payments`: staging table for unmatched checks. Columns: facilityId, checkNum, checkDate, totalAmountCents, rawResidentName, rawAmountCents, rawServiceType, checkImageUrl, notes, resolvedToResidentId.
+- **New columns**: `facilities.qb_outstanding_balance_cents` + `facilities.qb_rev_share_type` (default `'we_deduct'`). `residents.qb_outstanding_balance_cents` + `residents.resident_payment_type`.
+- **Balance recompute pattern**: two `db.execute(sql\`UPDATE...\`)` correlated subqueries after any invoice import run — never store stale balance, always recompute from `SUM(open_balance_cents)`.
+- **`import-billing-history` route** (`POST /api/super-admin/import-billing-history`): master admin only, `maxDuration=120`, rate-limited `billingImport` (5/hr). Accepts two optional CSV files — `invoices` and `transactions` (at least one required). Uses PapaParse. `parseCents(val)` strips commas, parseFloat, Math.round*100. `parseQBDate(val)` parses `MM/DD/YYYY` → `YYYY-MM-DD`.
+  - **Invoice List** (`header: true`): skip non-Invoice rows, skip rows with empty Date. Derive facilityId from Name column — everything before `:` is the F-code. `onConflictDoUpdate` on `(invoice_num, facility_id)`. Status derived: `openBalance === 0 → 'paid'`, `< 0 → 'credit'`, `< amount → 'partial'`, else `'open'`. Dedup within batch by `invoiceNum+facilityId`.
+  - **Transaction List** (`header: false`): find header row by scanning for columns containing "Date" and "Transaction type". Track `currentFacilityId` from col0 rows with F-code prefix. Only process `transactionType === 'Payment'` detail rows. `onConflictDoNothing()` without target — relies on natural key index. Extract checkNum from memo via `/(?:CK|CHK|CHECK)\s*#?\s*(\w+)/i`.
+- **UI**: `/super-admin/import-billing-history` (3-state: upload → loading → results). Two separate `<input type="file" accept=".csv">` pickers (one for invoices, one for transactions). Import button disabled when both null. Results show 4 stats: invoices processed, payments processed, facilities with open balance, residents with open balance. "Import Billing History" link in super-admin header. Rate limit: `billingImport` 5/hr.
+
 ### Phase 9.5 — Applicant Pipeline
 - **`applicants` table** has RLS enabled + `service_role_all` policy — same as every other table. Indexes on `franchise_id`, `status`, `email`.
 - **Franchise scope**: all applicant queries filter by `franchiseId` (not `facilityId`) — applicants belong to a franchise, not a single facility. Use `getUserFranchise()` in every applicant route.
