@@ -74,7 +74,10 @@ export async function POST(request: Request) {
 
   // ── Invoice List CSV ──────────────────────────────────────────────────────
   if (invoicesFile) {
-    const csvText = await invoicesFile.text()
+    const rawText = await invoicesFile.text()
+    const lines = rawText.split('\n')
+    const headerIdx = lines.findIndex(l => l.trimStart().startsWith('Date,'))
+    const csvText = headerIdx >= 0 ? lines.slice(headerIdx).join('\n') : rawText
     const parsed = Papa.parse<Record<string, string>>(csvText, { header: true, skipEmptyLines: true })
 
     type InvoiceRow = {
@@ -192,7 +195,10 @@ export async function POST(request: Request) {
 
   // ── Transaction List CSV ──────────────────────────────────────────────────
   if (transactionsFile) {
-    const csvText = await transactionsFile.text()
+    const rawText = await transactionsFile.text()
+    const txnLines = rawText.split('\n')
+    const txnHeaderLineIdx = txnLines.findIndex(l => l.includes(',Date,') && l.includes('Transaction type'))
+    const csvText = txnHeaderLineIdx >= 0 ? txnLines.slice(txnHeaderLineIdx).join('\n') : rawText
     const parsed = Papa.parse<string[]>(csvText, { header: false, skipEmptyLines: false })
     const rows = parsed.data
 
