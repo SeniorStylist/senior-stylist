@@ -1284,7 +1284,9 @@ Shared motion vocabulary lives in `src/lib/animations.ts`. Import the constants 
 
 **Camera vs file input**: a single `<input type="file">` with `accept="image/jpeg,image/png,image/webp,image/heic,image/heif"` and `capture="environment"` works for both desktop file picker and mobile camera. The `capture` attribute is a hint — desktop browsers ignore it, mobile browsers honor it. No `md:hidden` branch needed if a single picker is sufficient; split into "Take Photo" + "Choose File" buttons only when the UX needs both visible simultaneously.
 
-**Two-column confirmation layout** (scan-check modal Step 2): grid `grid-cols-1 md:grid-cols-2 gap-6`. Left = check image in `max-h-[540px] overflow-y-auto` scroll container (signed-URL `<img>` inside). Right = form fields vertically stacked. On mobile, image collapses above the form (single column).
+**Two-column confirmation layout** (scan-check modal Step 2): grid `grid-cols-1 md:grid-cols-2 gap-6`. Left = check image in `max-h-[540px] overflow-y-auto` scroll container. Image is wrapped in `<button type="button" className="w-full cursor-zoom-in">` with a "Click to enlarge" caption below — clicking sets `lightboxOpen = true`. Right = form fields vertically stacked. On mobile, image collapses above the form (single column).
+
+**Check image lightbox**: a `z-[60]` full-screen overlay (`fixed inset-0 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out`) renders as a sibling to `<Modal>` in the component's return — requires a `<>...</>` fragment wrapper. Click backdrop to close; `onClick={(e) => e.stopPropagation()}` on the `<img>` prevents accidental close. X close button: `absolute top-4 right-4 text-white bg-black/50 rounded-full w-8 h-8 flex items-center justify-center`. `lightboxOpen` state is reset to `false` in `resetEditState()` so it clears between scans.
 
 **Low-confidence field highlight**: fields from OCR marked `confidence: 'low' | 'medium'` wrap in `bg-amber-50 border-amber-200 rounded-lg`. High-confidence fields use the default stone styling. Gives admins an at-a-glance "verify this" signal without blocking save.
 

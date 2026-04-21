@@ -3,21 +3,21 @@ import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { fuzzyBestMatch } from '@/lib/fuzzy'
 import Papa from 'papaparse'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-const VALID_PAYMENT_TYPES = new Set(['facility', 'ip', 'rfms', 'hybrid'])
+// col[1] must be a valid F-code: F120, F1200, etc.
+const F_CODE_RE = /^F\d{2,4}$/
 
-function findCol(headers: string[], ...candidates: string[]): number {
-  const lower = headers.map((h) => h.toLowerCase().trim())
-  for (const c of candidates) {
-    const idx = lower.indexOf(c)
-    if (idx !== -1) return idx
-  }
-  return -1
+// Map billing type values from the CSV to DB payment_type values
+function mapBillingType(raw: string): string | null {
+  const v = raw.toUpperCase().trim()
+  if (v.includes('IP') && v.includes('F')) return 'hybrid'
+  if (v === 'IP' || v === 'IPM' || v.startsWith('IP')) return 'ip'
+  if (v === 'F' || v === 'NB' || v === 'SC' || v.startsWith('F')) return 'rfms'
+  return null
 }
 
 export async function POST(request: Request) {
@@ -44,24 +44,17 @@ export async function POST(request: Request) {
   }
 
   const rows = parsed.data as string[][]
-  if (rows.length < 2) return Response.json({ error: 'CSV must have a header row and at least one data row' }, { status: 400 })
-
-  const headers = rows[0]
+  // Skip header row(s) — first data row with a valid F-code starts processing
   const dataRows = rows.slice(1)
 
-  const nameCol = findCol(headers, 'name', 'facility', 'facility name')
-  const emailCol = findCol(headers, 'email', 'contact email', 'contact_email')
-  const typeCol = findCol(headers, 'payment type', 'payment_type', 'type')
-  const revCol = findCol(headers, 'rev share', 'rev_share', 'rev share %', 'rev_share_percentage', 'rev share percentage')
-
-  if (nameCol === -1) {
-    return Response.json({ error: 'CSV must have a facility name column (Name, Facility, or "Facility Name")' }, { status: 400 })
-  }
-
+  // Pre-load all facilities keyed by facilityCode for O(1) lookup
   const allFacilities = await db.query.facilities.findMany({
     where: eq(facilities.active, true),
-    columns: { id: true, name: true, contactEmail: true, paymentType: true, revSharePercentage: true },
+    columns: { id: true, facilityCode: true, contactEmail: true, paymentType: true, revSharePercentage: true },
   })
+  const byCode = new Map(
+    allFacilities.filter((f) => f.facilityCode).map((f) => [f.facilityCode!, f])
+  )
 
   let updated = 0
   let skipped = 0
@@ -70,40 +63,48 @@ export async function POST(request: Request) {
   const warnings: string[] = []
 
   for (const row of dataRows) {
-    const rawName = (row[nameCol] ?? '').trim()
-    if (!rawName) continue
+    const facilityCode = (row[1] ?? '').trim()
+    const name = (row[0] ?? '').trim()
 
-    const match = fuzzyBestMatch(allFacilities, rawName, 0.7)
+    // Skip rows without a valid F-code (header continuations, totals, blank rows)
+    if (!F_CODE_RE.test(facilityCode)) continue
+
+    // Skip junk rows: col[3] contains "@", "IS NOW", or "see above"
+    const col3 = (row[3] ?? '').toLowerCase()
+    if (col3.includes('@') || col3.includes('is now') || col3.includes('see above')) continue
+
+    const match = byCode.get(facilityCode)
     if (!match) {
       skipped++
-      if (warnings.length < 50) warnings.push(`No facility match for: "${rawName}"`)
+      if (warnings.length < 50) warnings.push(`No DB facility for ${facilityCode}${name ? ` (${name})` : ''}`)
       continue
     }
 
     const updates: Partial<typeof facilities.$inferInsert> = {}
 
-    if (emailCol !== -1) {
-      const email = (row[emailCol] ?? '').trim()
-      if (email && !match.contactEmail) {
+    // col[3] = contact email (fill if null/empty)
+    const email = (row[3] ?? '').trim()
+    if (email && !email.toLowerCase().includes('is now') && !email.includes('@') === false && !match.contactEmail) {
+      // email is in col[3] only when it looks like an email address
+      if (email.includes('@')) {
         updates.contactEmail = email
         emailsFilled++
       }
     }
 
-    if (typeCol !== -1) {
-      const ptype = (row[typeCol] ?? '').trim().toLowerCase()
-      if (VALID_PAYMENT_TYPES.has(ptype)) {
-        updates.paymentType = ptype
-      }
+    // col[4] = billing type
+    const billingRaw = (row[4] ?? '').trim()
+    if (billingRaw) {
+      const mappedType = mapBillingType(billingRaw)
+      if (mappedType) updates.paymentType = mappedType
     }
 
-    if (revCol !== -1) {
-      const rawRev = (row[revCol] ?? '').trim().replace('%', '')
-      const revNum = parseInt(rawRev, 10)
-      if (!isNaN(revNum) && revNum >= 0 && revNum <= 100) {
-        updates.revSharePercentage = revNum
-        revShareSet++
-      }
+    // col[5] = rev share percentage
+    const revRaw = (row[5] ?? '').trim().replace('%', '')
+    const revNum = parseInt(revRaw, 10)
+    if (!isNaN(revNum) && revNum >= 0 && revNum <= 100) {
+      updates.revSharePercentage = revNum
+      revShareSet++
     }
 
     if (Object.keys(updates).length > 0) {

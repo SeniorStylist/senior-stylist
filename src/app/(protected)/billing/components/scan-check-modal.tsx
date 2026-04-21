@@ -169,6 +169,7 @@ export function ScanCheckModal({
   const [cashInput, setCashInput] = useState('')
   const [localResidents, setLocalResidents] = useState<BillingResident[]>(residents)
   const [loadingResidents, setLoadingResidents] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   function clearLineMatches() {
     setLines((prev) => prev.map((l) => ({ ...l, residentId: null, residentName: null, matchConfidence: 'none' as MatchConfidence })))
@@ -233,6 +234,7 @@ export function ScanCheckModal({
     setCashInput('')
     setLocalResidents(residents)
     setLoadingResidents(false)
+    setLightboxOpen(false)
   }
 
   function applyResultToState(r: ScanResult) {
@@ -451,6 +453,7 @@ export function ScanCheckModal({
     !saving
 
   return (
+    <>
     <Modal open={open} onClose={onClose} className="max-w-3xl">
       <div className="p-6">
         {step === 'upload' &&
@@ -588,12 +591,20 @@ export function ScanCheckModal({
             <div className="grid md:grid-cols-2 gap-5">
               <div className="rounded-2xl border border-stone-100 bg-stone-50 p-2 max-h-[540px] overflow-y-auto">
                 {result.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={result.imageUrl}
-                    alt="Scanned check"
-                    className="w-full rounded-xl"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setLightboxOpen(true)}
+                    className="w-full cursor-zoom-in text-left"
+                    title="Click to enlarge"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={result.imageUrl}
+                      alt="Scanned check"
+                      className="w-full rounded-xl"
+                    />
+                    <p className="text-xs text-center text-stone-400 mt-1">Click to enlarge</p>
+                  </button>
                 ) : (
                   <p className="text-sm text-stone-500 p-4">No preview available.</p>
                 )}
@@ -929,6 +940,30 @@ export function ScanCheckModal({
         )}
       </div>
     </Modal>
+
+    {lightboxOpen && result?.imageUrl && (
+      <div
+        className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+        onClick={() => setLightboxOpen(false)}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={result.imageUrl}
+          alt="Check"
+          className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        />
+        <button
+          type="button"
+          onClick={() => setLightboxOpen(false)}
+          className="absolute top-4 right-4 text-white bg-black/50 rounded-full w-8 h-8 flex items-center justify-center text-lg hover:bg-black/70"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+    )}
+    </>
   )
 }
 
