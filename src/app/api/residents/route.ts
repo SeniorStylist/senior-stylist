@@ -13,7 +13,7 @@ const createSchema = z.object({
   phone: z.string().max(50).optional(),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -21,12 +21,32 @@ export async function GET() {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const isMaster =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
     const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    const { facilityId } = facilityUser
+    if (!isMaster && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+
+    // Optional ?facilityId=X param: master admin can query any facility;
+    // regular admin can only query their own facility.
+    const paramFacilityId = new URL(request.url).searchParams.get('facilityId')
+    let facilityId: string
+    if (paramFacilityId) {
+      if (!isMaster && facilityUser?.facilityId !== paramFacilityId) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      facilityId = paramFacilityId
+    } else {
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      facilityId = facilityUser.facilityId
+    }
 
     const data = await db.query.residents.findMany({
       where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+      columns: paramFacilityId
+        ? { id: true, name: true, roomNumber: true }
+        : undefined,
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

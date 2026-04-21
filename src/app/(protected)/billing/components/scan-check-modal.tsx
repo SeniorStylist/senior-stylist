@@ -25,6 +25,8 @@ interface FacilityMatch {
   name: string | null
   facilityCode: string | null
   confidence: MatchConfidence
+  inferredFromResidents?: boolean
+  residentMatchCount?: number
 }
 
 interface ResidentMatchLine {
@@ -69,6 +71,7 @@ export interface ScanResult {
   facilityMatch: FacilityMatch
   residentMatches: ResidentMatchLine[]
   invoiceMatch: InvoiceMatch
+  cashAlsoReceivedCents: { value: number | null; confidence: Confidence } | null
   invoiceLines: InvoiceLine[]
   rawOcrJson: Record<string, unknown>
   overallConfidence: Confidence
@@ -83,6 +86,7 @@ interface EditableLine {
   residentId: string | null
   residentName: string | null
   matchConfidence: MatchConfidence
+  residentSearch: string
 }
 
 const ALLOWED = 'image/jpeg,image/png,image/webp,image/heic,image/heif'
@@ -155,6 +159,39 @@ export function ScanCheckModal({
   const [lines, setLines] = useState<EditableLine[]>([])
   const [cashEnabled, setCashEnabled] = useState(false)
   const [cashInput, setCashInput] = useState('')
+  const [localResidents, setLocalResidents] = useState<BillingResident[]>(residents)
+  const [loadingResidents, setLoadingResidents] = useState(false)
+
+  function clearLineMatches() {
+    setLines((prev) => prev.map((l) => ({ ...l, residentId: null, residentName: null, matchConfidence: 'none' as MatchConfidence })))
+  }
+
+  // Re-fetch residents when facility selection changes
+  useEffect(() => {
+    if (!selectedFacilityId) {
+      setLocalResidents([])
+      clearLineMatches()
+      return
+    }
+    if (selectedFacilityId === facilityId) {
+      setLocalResidents(residents)
+      return
+    }
+    const controller = new AbortController()
+    setLoadingResidents(true)
+    fetch(`/api/residents?facilityId=${selectedFacilityId}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((body) => {
+        if (body.data) {
+          setLocalResidents(body.data)
+          clearLineMatches()
+        }
+      })
+      .catch((err) => { if (err.name !== 'AbortError') console.error(err) })
+      .finally(() => setLoadingResidents(false))
+    return () => controller.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFacilityId])
 
   // Initialize from scan result (or from resolve-from-unresolved data)
   useEffect(() => {
@@ -186,6 +223,8 @@ export function ScanCheckModal({
     setLines([])
     setCashEnabled(false)
     setCashInput('')
+    setLocalResidents(residents)
+    setLoadingResidents(false)
   }
 
   function applyResultToState(r: ScanResult) {
@@ -206,8 +245,13 @@ export function ScanCheckModal({
         residentId: m.residentId,
         residentName: m.residentName,
         matchConfidence: m.matchConfidence,
+        residentSearch: m.residentName ?? m.rawName,
       })),
     )
+    if (r.cashAlsoReceivedCents?.value != null) {
+      setCashEnabled(true)
+      setCashInput(centsToInput(r.cashAlsoReceivedCents.value))
+    }
   }
 
   async function handleScan() {
@@ -368,9 +412,11 @@ export function ScanCheckModal({
     }
   }
 
+  const requiresResidentMatch = result?.documentType !== 'RFMS_REMITTANCE_SLIP'
+
   const canRecord =
     !!selectedFacilityId &&
-    !hasUnmatchedLine &&
+    (!requiresResidentMatch || !hasUnmatchedLine) &&
     totalMatches &&
     amountCents > 0 &&
     !saving
@@ -526,23 +572,30 @@ export function ScanCheckModal({
 
               <div className="space-y-3">
                 {/* Facility */}
-                <FacilityCombobox
-                  facilities={facilities}
-                  selectedId={selectedFacilityId}
-                  searchValue={facilitySearch}
-                  onSearchChange={(v) => {
-                    setFacilitySearch(v)
-                    if (!v) setSelectedFacilityId(null)
-                  }}
-                  onSelect={(id, name) => {
-                    setSelectedFacilityId(id)
-                    setFacilitySearch(name)
-                  }}
-                  onClear={() => {
-                    setSelectedFacilityId(null)
-                    setFacilitySearch('')
-                  }}
-                />
+                <div>
+                  <FacilityCombobox
+                    facilities={facilities}
+                    selectedId={selectedFacilityId}
+                    searchValue={facilitySearch}
+                    onSearchChange={(v) => {
+                      setFacilitySearch(v)
+                      if (!v) setSelectedFacilityId(null)
+                    }}
+                    onSelect={(id, name) => {
+                      setSelectedFacilityId(id)
+                      setFacilitySearch(name)
+                    }}
+                    onClear={() => {
+                      setSelectedFacilityId(null)
+                      setFacilitySearch('')
+                    }}
+                  />
+                  {result.facilityMatch.inferredFromResidents && (
+                    <p className="mt-1 text-xs text-stone-400">
+                      Matched via resident names ({result.facilityMatch.residentMatchCount}/{result.residentMatches.length} matched)
+                    </p>
+                  )}
+                </div>
 
                 {/* Check fields */}
                 <div className="grid grid-cols-2 gap-3">
@@ -629,7 +682,9 @@ export function ScanCheckModal({
                     <ResidentRow
                       key={i}
                       line={l}
-                      residents={residents}
+                      residents={localResidents}
+                      loadingResidents={loadingResidents}
+                      facilitySelected={!!selectedFacilityId}
                       onChange={(next) => {
                         const copy = [...lines]
                         copy[i] = next
@@ -957,11 +1012,15 @@ function FieldInput({
 function ResidentRow({
   line,
   residents,
+  loadingResidents,
+  facilitySelected,
   onChange,
   onRemove,
 }: {
   line: EditableLine
   residents: BillingResident[]
+  loadingResidents: boolean
+  facilitySelected: boolean
   onChange: (next: EditableLine) => void
   onRemove: () => void
 }) {
@@ -981,27 +1040,25 @@ function ResidentRow({
         <div className="text-stone-900 font-medium truncate">{line.rawName}</div>
       </div>
       <div className="col-span-5">
-        <select
-          value={line.residentId ?? ''}
-          onChange={(e) => {
-            const id = e.target.value || null
-            const r = residents.find((x) => x.id === id) ?? null
+        <ResidentCombobox
+          residents={residents}
+          selectedId={line.residentId}
+          searchValue={line.residentSearch}
+          disabled={!facilitySelected || loadingResidents}
+          onSearchChange={(v) => onChange({ ...line, residentSearch: v })}
+          onSelect={(id, name, roomNumber) =>
             onChange({
               ...line,
               residentId: id,
-              residentName: r?.name ?? null,
-              matchConfidence: id ? 'high' : 'none',
+              residentName: name,
+              matchConfidence: 'high',
+              residentSearch: roomNumber ? `${roomNumber} · ${name}` : name,
             })
-          }}
-          className={`w-full rounded-lg border border-stone-200 px-2 py-1 text-xs focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
-        >
-          <option value="">— Unmatched —</option>
-          {residents.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.roomNumber ? `${r.roomNumber} · ${r.name}` : r.name}
-            </option>
-          ))}
-        </select>
+          }
+          onClear={() =>
+            onChange({ ...line, residentId: null, residentName: null, matchConfidence: 'none', residentSearch: '' })
+          }
+        />
       </div>
       <div className="col-span-2">
         <input
@@ -1022,6 +1079,108 @@ function ResidentRow({
           ×
         </button>
       </div>
+    </div>
+  )
+}
+
+function ResidentCombobox({
+  residents,
+  selectedId,
+  searchValue,
+  disabled,
+  onSearchChange,
+  onSelect,
+  onClear,
+}: {
+  residents: BillingResident[]
+  selectedId: string | null
+  searchValue: string
+  disabled: boolean
+  onSearchChange: (v: string) => void
+  onSelect: (id: string, name: string, roomNumber: string | null) => void
+  onClear: () => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+
+  const filtered = useMemo(() => {
+    const q = searchValue.toLowerCase()
+    return residents
+      .filter((r) => {
+        if (!q) return true
+        const label = r.roomNumber ? `${r.roomNumber} ${r.name}` : r.name
+        return label.toLowerCase().includes(q)
+      })
+      .slice(0, 8)
+  }, [residents, searchValue])
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+        setOpen(false)
+      }
+    },
+    [],
+  )
+
+  if (disabled) {
+    return (
+      <div className="rounded-lg border border-stone-100 bg-stone-50 px-2 py-1 text-xs text-stone-400">
+        Select facility first
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} onBlur={handleBlur} className="relative">
+      <input
+        type="text"
+        value={searchValue}
+        placeholder="Search residents…"
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { onSearchChange(e.target.value); setOpen(true) }}
+        className={`w-full rounded-lg border border-stone-200 px-2 py-1 pr-6 text-xs focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+      />
+      {searchValue && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onMouseDown={(e) => { e.preventDefault(); onClear(); setOpen(false) }}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-sm leading-none"
+          aria-label="Clear"
+        >
+          ×
+        </button>
+      )}
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+          {filtered.map((r) => (
+            <li key={r.id}>
+              <button
+                type="button"
+                tabIndex={0}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(r.id, r.name, r.roomNumber ?? null)
+                  setOpen(false)
+                }}
+                className={`w-full text-left px-2 py-1.5 text-xs hover:bg-stone-50 cursor-pointer ${
+                  r.id === selectedId ? 'bg-rose-50 text-[#8B2E4A] font-medium' : 'text-stone-800'
+                }`}
+              >
+                {r.roomNumber ? (
+                  <><span className="text-stone-400 mr-1">{r.roomNumber} ·</span>{r.name}</>
+                ) : r.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && filtered.length === 0 && searchValue && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg px-2 py-1.5 text-xs text-stone-400">
+          No residents found
+        </div>
+      )}
     </div>
   )
 }

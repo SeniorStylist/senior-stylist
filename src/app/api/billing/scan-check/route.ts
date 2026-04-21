@@ -64,6 +64,7 @@ interface GeminiResult {
   memo: string | null
   residentLines: ResidentLine[]
   invoiceLines: InvoiceLine[]
+  cashAlsoReceivedCents: { value: number | null; confidence: Confidence } | null
   overallConfidence: Confidence
   unresolvableReason: string | null
   fieldConfidence?: Record<string, Confidence>
@@ -88,6 +89,7 @@ Return ONLY a JSON object with this EXACT shape — no markdown, no prose:
   "invoiceLines": [
     { "ref": string | null, "invoiceDate": "YYYY-MM-DD" | null, "amountCents": number, "confidence": "high" | "medium" | "low" }
   ],
+  "cashAlsoReceivedCents": { "value": number | null, "confidence": "high" | "medium" | "low" },
   "fieldConfidence": {
     "checkNum": "high" | "medium" | "low",
     "checkDate": "high" | "medium" | "low",
@@ -115,6 +117,7 @@ Extraction rules:
 - Service category examples: "BEAUTY SHOP", "BARBER", "SALON", "SERVICES" — null when not shown.
 - "invoiceLines": For REMITTANCE_SLIP documents ONLY — extract each line showing an invoice reference + date + amount. Each entry is one remittance invoice line. Return [] for all other document types. "amountCents" is an INTEGER in cents.
 - Check number location: For RFMS_PETTY_CASH_BREAKDOWN and REMITTANCE_SLIP, the check number may appear in the top-left corner (e.g. "006847"), as a field labeled "Check Number" / "Check #" / "Check No.", or in a footer row near "CHECK AMT" / "CHECK DATE" labels. Scan the ENTIRE document for these patterns, not just the top-right corner. For RFMS_PETTY_CASH_BREAKDOWN the check number is typically in the top-right corner.
+- "cashAlsoReceivedCents": Look for any handwritten addition to the document such as "+440 Cash", "+490 Cash", "+ $440 cash", or similar notation written separately from the printed amounts. This may appear anywhere — margins, bottom of page, near the total. If found, extract the dollar amount converted to INTEGER cents (e.g. $440.00 → 44000). Return { "value": null, "confidence": "low" } if no such annotation is found.
 - fieldConfidence: "high" = clearly legible; "medium" = probable but imperfect; "low" = guess.
 - overallConfidence: "high" = you are confident in every important field; "medium" = some low-confidence fields but usable; "low" = many fields unreadable.
 
@@ -414,9 +417,61 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 6. Resident-name inference — when all name/address passes failed AND we have
+    //    ≥2 resident lines, fuzzy-match them against ALL residents in the DB to find
+    //    which facility owns most of the names. ≥50% match to one facility = medium confidence.
+    //    We also reuse this pre-fetched list in the resident matching step below.
+    let allResidentsForInference: { id: string; name: string; facilityId: string; roomNumber: string | null }[] = []
+    let inferredFromResidents = false
+    let residentMatchCount = 0
+    const rawLines = parsed.residentLines ?? []
+
+    if (!matchedFacility && rawLines.length >= 2) {
+      allResidentsForInference = await db.query.residents.findMany({
+        where: eq(residents.active, true),
+        columns: { id: true, name: true, facilityId: true, roomNumber: true },
+      })
+      const facilityHits: Record<string, number> = {}
+      let totalHits = 0
+      for (const line of rawLines) {
+        const rawName = (line.rawName ?? '').trim()
+        if (!rawName) continue
+        const best = fuzzyBestMatch(allResidentsForInference, rawName, 0.65)
+        if (best?.facilityId) {
+          facilityHits[best.facilityId] = (facilityHits[best.facilityId] ?? 0) + 1
+          totalHits++
+        }
+      }
+      // Find the facility with the most hits
+      let topFacilityId: string | null = null
+      let topCount = 0
+      for (const [fid, count] of Object.entries(facilityHits)) {
+        if (count > topCount) { topCount = count; topFacilityId = fid }
+      }
+      // Require ≥2 hits AND ≥50% of lines AND no tie
+      const tieExists = topFacilityId
+        ? Object.values(facilityHits).filter((c) => c === topCount).length > 1
+        : false
+      if (
+        topFacilityId &&
+        topCount >= 2 &&
+        topCount / rawLines.length >= 0.5 &&
+        !tieExists
+      ) {
+        const hit = activeFacilities.find((f) => f.id === topFacilityId)
+        if (hit) {
+          matchedFacility = { id: hit.id, name: hit.name, facilityCode: hit.facilityCode }
+          facilityConfidence = 'medium'
+          inferredFromResidents = true
+          residentMatchCount = topCount
+        }
+      }
+    }
+
     // ─── Resident matching ───
     // Always map resident lines — even when facility is unknown, return raws so
     // the confirmation UI can show them and let the user match manually.
+    // When inference already fetched allResidentsForInference, filter rather than re-query.
     interface ResidentMatch {
       rawName: string
       amountCents: number
@@ -426,14 +481,18 @@ export async function POST(request: NextRequest) {
       matchConfidence: MatchConfidence
     }
     const residentMatches: ResidentMatch[] = []
-    const rawLines = parsed.residentLines ?? []
     if (rawLines.length) {
-      const residentList = matchedFacility
-        ? await db.query.residents.findMany({
-            where: and(eq(residents.facilityId, matchedFacility.id), eq(residents.active, true)),
-            columns: { id: true, name: true, roomNumber: true },
-          })
-        : []
+      let residentList: { id: string; name: string; roomNumber: string | null }[]
+      if (matchedFacility) {
+        residentList = allResidentsForInference.length
+          ? allResidentsForInference.filter((r) => r.facilityId === matchedFacility!.id)
+          : await db.query.residents.findMany({
+              where: and(eq(residents.facilityId, matchedFacility.id), eq(residents.active, true)),
+              columns: { id: true, name: true, roomNumber: true },
+            })
+      } else {
+        residentList = []
+      }
       for (const line of rawLines) {
         const rawName = (line.rawName ?? '').trim()
         if (!rawName) continue
@@ -513,10 +572,13 @@ export async function POST(request: NextRequest) {
               name: matchedFacility.name,
               facilityCode: matchedFacility.facilityCode,
               confidence: facilityConfidence,
+              inferredFromResidents,
+              residentMatchCount,
             }
-          : { facilityId: null, name: null, facilityCode: null, confidence: 'none' },
+          : { facilityId: null, name: null, facilityCode: null, confidence: 'none', inferredFromResidents: false, residentMatchCount: 0 },
         residentMatches,
         invoiceMatch,
+        cashAlsoReceivedCents: parsed.cashAlsoReceivedCents ?? null,
         rawOcrJson: parsed as unknown as Record<string, unknown>,
         overallConfidence: parsed.overallConfidence ?? 'medium',
         invoiceLines: (parsed.invoiceLines ?? []).map((l) => ({

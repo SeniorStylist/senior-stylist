@@ -502,23 +502,39 @@ When a long async operation replaces step content (e.g. OCR scanning in `ocr-imp
 
 Tip rotation: `useEffect` keyed on the `scanning` flag; 3s interval fades out (`tipVisible=false`) → 400ms delay increments index → fades in. Progress bar: regex parse the progress string → `(X/Y)*100` capped at 90, default 5 when empty.
 
-### Searchable Combobox (FacilityCombobox pattern)
+### Searchable Combobox (FacilityCombobox / ResidentCombobox pattern)
 
-Used when a list is too long for a plain `<select>` and needs typeahead filtering (e.g. facility picker in `scan-check-modal.tsx`).
+Used when a list is too long for a plain `<select>` and needs typeahead filtering (e.g. facility picker and resident line pickers in `scan-check-modal.tsx`).
 
-**State ownership:** Component owns its own `open: boolean` state internally — parent only controls `searchValue` and `selectedId`.
+**State ownership:** Component owns its own `open: boolean` state internally — parent controls `searchValue`, `selectedId`, and callbacks.
 
-**Blur handling:** `onBlur` on the container `<div>` (via `containerRef`) closes the dropdown when focus leaves entirely. If the user typed but didn't pick and `!selectedId`, clears the input via `onSearchChange('')`.
+**Blur handling:** `onBlur` on the container `<div>` (via `containerRef`) closes the dropdown when focus leaves entirely. `FacilityCombobox` also clears the input via `onSearchChange('')` if `!selectedId` on blur.
 
 **Click vs blur race:** Use `onMouseDown={(e) => { e.preventDefault(); onSelect(...) }}` on dropdown options — `preventDefault()` stops the input's `onBlur` from firing before the click registers.
 
-**Styles:**
+**Disabled state (ResidentCombobox):** When `disabled={true}` (e.g. no facility selected yet), render a non-interactive placeholder div instead of the input:
+```tsx
+<div className="rounded-lg border border-stone-100 bg-stone-50 px-2 py-1 text-xs text-stone-400">
+  Select facility first
+</div>
+```
+
+**AbortController cleanup:** Any `useEffect` that triggers a fetch keyed on a selection change must use `AbortController` + return a cleanup that calls `controller.abort()`. Swallow `AbortError` silently in the `.catch()`.
+
+**Styles (FacilityCombobox — larger, full-width):**
 - Input: `rounded-xl border border-stone-200 px-3 py-2 pr-8 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none`
 - Dropdown: `absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-64 overflow-y-auto`
 - Each option: `px-3 py-2 text-sm hover:bg-stone-50 cursor-pointer`
+
+**Styles (ResidentCombobox — compact, inside a table row):**
+- Input: `rounded-lg border border-stone-200 px-2 py-1 pr-6 text-xs focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none`
+- Dropdown: `absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-48 overflow-y-auto`
+- Each option: `px-2 py-1.5 text-xs hover:bg-stone-50 cursor-pointer`
+
+**Shared across both:**
 - Selected option: `bg-rose-50 text-[#8B2E4A] font-medium`
-- Facility code prefix: `<span className="text-stone-400 font-mono text-xs mr-1.5">{code} ·</span>` before the name
-- X clear button: `absolute right-2 top-1/2 -translate-y-1/2`, `tabIndex={-1}`, `onMouseDown` with `e.preventDefault()` to avoid blur race
+- Room number prefix: `<span className="text-stone-400 mr-1">{roomNumber} ·</span>` before the name
+- X clear button: positioned `absolute right-2 top-1/2 -translate-y-1/2`, `tabIndex={-1}`, `onMouseDown` with `e.preventDefault()` to avoid blur race
 - "No results" state: same dropdown container with `text-stone-400` message inside
 
 ### Document Type Badge
