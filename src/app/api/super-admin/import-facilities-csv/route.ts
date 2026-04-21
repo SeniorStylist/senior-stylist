@@ -11,6 +11,9 @@ export const dynamic = 'force-dynamic'
 // col[1] must be a valid F-code: F120, F1200, etc.
 const F_CODE_RE = /^F\d{2,4}$/
 
+// Extract first email address from a cell value
+const EMAIL_RE = /[\w.+\-]+@[\w.\-]+\.[a-zA-Z]{2,}/
+
 // Map billing type values from the CSV to DB payment_type values
 function mapBillingType(raw: string): string | null {
   const v = raw.toUpperCase().trim()
@@ -44,68 +47,89 @@ export async function POST(request: Request) {
   }
 
   const rows = parsed.data as string[][]
-  // Skip header row(s) — first data row with a valid F-code starts processing
+  // Skip header row — first data row with a valid F-code starts processing
   const dataRows = rows.slice(1)
 
   // Pre-load all facilities keyed by facilityCode for O(1) lookup
   const allFacilities = await db.query.facilities.findMany({
     where: eq(facilities.active, true),
-    columns: { id: true, facilityCode: true, contactEmail: true, paymentType: true, revSharePercentage: true },
+    columns: { id: true, facilityCode: true, name: true, contactEmail: true, paymentType: true, revSharePercentage: true },
   })
   const byCode = new Map(
     allFacilities.filter((f) => f.facilityCode).map((f) => [f.facilityCode!, f])
   )
 
+  // CSV column layout:
+  // col[0] = notes/prefix (blank or context label)
+  // col[1] = F-code (e.g. "F127")
+  // col[2] = priority (A/B/C)
+  // col[3] = facility NAME
+  // col[4] = billing type (F, IP, NB, etc.)
+  // col[5] = rev share % (e.g. "10.00%")
+  // col[6] = contact email
+  // col[8] = phone
+  // col[9] = address
+
   let updated = 0
   let skipped = 0
+  let namesFilled = 0
   let emailsFilled = 0
   let revShareSet = 0
   const warnings: string[] = []
 
   for (const row of dataRows) {
     const facilityCode = (row[1] ?? '').trim()
-    const name = (row[0] ?? '').trim()
 
     // Skip rows without a valid F-code (header continuations, totals, blank rows)
     if (!F_CODE_RE.test(facilityCode)) continue
 
-    // Skip junk rows: col[3] contains "@", "IS NOW", or "see above"
-    const col3 = (row[3] ?? '').toLowerCase()
-    if (col3.includes('@') || col3.includes('is now') || col3.includes('see above')) continue
-
     const match = byCode.get(facilityCode)
     if (!match) {
       skipped++
-      if (warnings.length < 50) warnings.push(`No DB facility for ${facilityCode}${name ? ` (${name})` : ''}`)
+      const rowName = (row[3] ?? '').trim()
+      if (warnings.length < 50) warnings.push(`No DB facility for ${facilityCode}${rowName ? ` (${rowName})` : ''}`)
       continue
     }
 
     const updates: Partial<typeof facilities.$inferInsert> = {}
 
-    // col[3] = contact email (fill if null/empty)
-    const email = (row[3] ?? '').trim()
-    if (email && !email.toLowerCase().includes('is now') && !email.includes('@') === false && !match.contactEmail) {
-      // email is in col[3] only when it looks like an email address
-      if (email.includes('@')) {
-        updates.contactEmail = email
-        emailsFilled++
-      }
+    // col[3] = facility name (fill if null/empty)
+    const csvName = (row[3] ?? '').trim()
+    if (csvName && (!match.name || match.name.trim() === '')) {
+      updates.name = csvName
+      namesFilled++
     }
 
-    // col[4] = billing type
+    // col[4] = billing type (always overwrite if valid)
     const billingRaw = (row[4] ?? '').trim()
     if (billingRaw) {
       const mappedType = mapBillingType(billingRaw)
       if (mappedType) updates.paymentType = mappedType
     }
 
-    // col[5] = rev share percentage
+    // col[5] = rev share percentage (always overwrite if valid 0–100)
     const revRaw = (row[5] ?? '').trim().replace('%', '')
-    const revNum = parseInt(revRaw, 10)
+    const revNum = parseFloat(revRaw)
     if (!isNaN(revNum) && revNum >= 0 && revNum <= 100) {
-      updates.revSharePercentage = revNum
+      updates.revSharePercentage = Math.round(revNum)
       revShareSet++
     }
+
+    // col[6] = contact email (fill if null/empty)
+    const emailRaw = (row[6] ?? '').trim()
+    const emailFound = emailRaw.match(EMAIL_RE)
+    if (emailFound && !match.contactEmail) {
+      updates.contactEmail = emailFound[0]
+      emailsFilled++
+    }
+
+    // col[8] = phone (always overwrite if provided)
+    const phoneRaw = (row[8] ?? '').trim()
+    if (phoneRaw) updates.phone = phoneRaw
+
+    // col[9] = address (always overwrite if provided)
+    const addressRaw = (row[9] ?? '').trim()
+    if (addressRaw) updates.address = addressRaw
 
     if (Object.keys(updates).length > 0) {
       await db.update(facilities).set(updates).where(eq(facilities.id, match.id))
@@ -115,5 +139,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return Response.json({ data: { updated, skipped, emailsFilled, revShareSet, warnings } })
+  return Response.json({ data: { updated, skipped, namesFilled, emailsFilled, revShareSet, warnings } })
 }

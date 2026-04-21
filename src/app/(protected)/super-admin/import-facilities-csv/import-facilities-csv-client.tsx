@@ -6,6 +6,7 @@ import Link from 'next/link'
 interface ImportResult {
   updated: number
   skipped: number
+  namesFilled: number
   emailsFilled: number
   revShareSet: number
   warnings: string[]
@@ -101,9 +102,9 @@ export function ImportFacilitiesCSVClient() {
               Update Facilities from CSV
             </h1>
             <p className="text-sm text-stone-500 mb-8">
-              Import facility contact emails, payment types, and rev share percentages from the master
-              facilities spreadsheet. Facilities are matched by name. Contact emails are only filled when
-              currently blank. Payment type and rev share are always overwritten.
+              Import facility data from the master spreadsheet. Matched by F-code (col B). Names and
+              emails fill only when blank. Payment type, rev share, phone, and address are always
+              overwritten when present in the CSV.
             </p>
 
             {error && (
@@ -172,6 +173,10 @@ export function ImportFacilitiesCSVClient() {
                 <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">
                   <span className="text-sm font-medium text-stone-700">Rows skipped (no match)</span>
                   <span className="text-sm font-semibold text-stone-700">{result.skipped.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">
+                  <span className="text-sm font-medium text-stone-700">Names filled</span>
+                  <span className="text-sm font-semibold text-stone-700">{result.namesFilled.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">
                   <span className="text-sm font-medium text-stone-700">Contact emails filled</span>

@@ -398,7 +398,8 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          {/* Title row */}
+          <div className="flex items-center justify-between mb-3">
             <div>
               <h1
                 className="text-2xl font-bold text-stone-900"
@@ -410,24 +411,52 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 {localFacilities.length} {localFacilities.length === 1 ? 'facility' : 'facilities'} total
               </p>
             </div>
-            <a
-              href="/super-admin/import-quickbooks"
-              className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
-            >
-              QB Customer Import
-            </a>
-            <a
-              href="/super-admin/import-billing-history"
-              className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
-            >
-              QB Billing Import
-            </a>
-            <a
-              href="/super-admin/import-facilities-csv"
-              className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
-            >
-              Facility Data Import
-            </a>
+            {activeTab === 'facilities' && (
+              <button
+                onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
+                className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
+                style={{ backgroundColor: '#8B2E4A' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#72253C')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
+              >
+                {showCreateForm ? 'Cancel' : '+ Create Facility'}
+              </button>
+            )}
+            {activeTab === 'franchises' && (
+              <button
+                onClick={() => { setShowCreateFranchise((v) => !v); setFranchiseFormError(null) }}
+                className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
+                style={{ backgroundColor: '#8B2E4A' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#72253C')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
+              >
+                {showCreateFranchise ? 'Cancel' : '+ New Franchise'}
+              </button>
+            )}
+          </div>
+          {/* Toolbar row */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-stone-400 mr-1">Import:</span>
+              <a
+                href="/super-admin/import-quickbooks"
+                className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                QB Customers
+              </a>
+              <a
+                href="/super-admin/import-billing-history"
+                className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                QB Billing
+              </a>
+              <a
+                href="/super-admin/import-facilities-csv"
+                className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                Facilities
+              </a>
+            </div>
             {activeTab === 'facilities' && (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1 text-xs text-stone-500">
@@ -456,32 +485,12 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 {inactiveCount > 0 && (
                   <button
                     onClick={() => setShowInactive((v) => !v)}
-                    className="px-3 py-2 rounded-2xl text-sm font-medium text-stone-500 border border-stone-200 hover:bg-stone-50 transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
                   >
                     {showInactive ? 'Hide inactive' : `Show inactive (${inactiveCount})`}
                   </button>
                 )}
-                <button
-                  onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
-                  className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-                  style={{ backgroundColor: '#8B2E4A' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
-                >
-                  {showCreateForm ? 'Cancel' : '+ Create Facility'}
-                </button>
               </div>
-            )}
-            {activeTab === 'franchises' && (
-              <button
-                onClick={() => { setShowCreateFranchise((v) => !v); setFranchiseFormError(null) }}
-                className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
-                style={{ backgroundColor: '#8B2E4A' }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
-              >
-                {showCreateFranchise ? 'Cancel' : '+ New Franchise'}
-              </button>
             )}
           </div>
           {/* Tab bar */}
@@ -808,9 +817,13 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   <div className="flex items-start justify-between mb-3">
                     <div className="min-w-0 flex-1">
                       <h3 className="text-base font-bold text-stone-900 flex items-center gap-2 flex-wrap">
-                        {f.facilityCode && (
+                        {f.facilityCode ? (
                           <span className="inline-flex items-center rounded-md bg-stone-100 text-stone-500 text-xs font-mono px-1.5 py-0.5 shrink-0">
                             {f.facilityCode}
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-medium shrink-0">
+                            No FID
                           </span>
                         )}
                         <span className="truncate">
