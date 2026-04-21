@@ -27,6 +27,8 @@ interface FacilityMatch {
   confidence: MatchConfidence
   inferredFromResidents?: boolean
   residentMatchCount?: number
+  inferenceAttempted?: boolean
+  inferenceResidentCount?: number
 }
 
 interface ResidentMatchLine {
@@ -622,6 +624,11 @@ export function ScanCheckModal({
                       Matched via resident names ({result.facilityMatch.residentMatchCount}/{result.residentMatches.length} matched)
                     </p>
                   )}
+                  {!result.facilityMatch.inferredFromResidents && result.facilityMatch.inferenceAttempted && (
+                    <p className="mt-1 text-xs text-amber-600">
+                      Could not auto-match from {result.facilityMatch.inferenceResidentCount} resident name{result.facilityMatch.inferenceResidentCount === 1 ? '' : 's'} — please select facility manually
+                    </p>
+                  )}
                 </div>
 
                 {/* Check fields */}
@@ -820,6 +827,25 @@ export function ScanCheckModal({
                 {formatDollars(amountCents)}. Adjust line amounts to match the check.
               </div>
             )}
+
+            {/* Payment total summary */}
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-3 text-sm font-semibold text-stone-700 bg-stone-50 rounded-2xl px-4 py-3 border border-stone-100">
+              <span>Check: {formatDollars(amountCents)}</span>
+              {cashEnabled && cashCents > 0 && (
+                <>
+                  <span className="text-stone-400 font-normal">+</span>
+                  <span>Cash: {formatDollars(cashCents)}</span>
+                  <span className="text-stone-400 font-normal">=</span>
+                  <span style={{ color: '#8B2E4A' }}>Total Received: {formatDollars(amountCents + cashCents)}</span>
+                </>
+              )}
+              {(!cashEnabled || cashCents === 0) && (
+                <>
+                  <span className="text-stone-400 font-normal">=</span>
+                  <span style={{ color: '#8B2E4A' }}>Total Received: {formatDollars(amountCents)}</span>
+                </>
+              )}
+            </div>
 
             <div className="mt-6 flex items-center justify-end gap-2">
               <button

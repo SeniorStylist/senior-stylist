@@ -438,7 +438,7 @@ Natural key unique index: `qb_payments_natural_key_idx ON (payment_date, facilit
 | `resolved_to_resident_id` | FK → `residents.id` ON DELETE SET NULL, nullable |
 | `created_at` | timestamp |
 
-**New columns on `facilities`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `qb_rev_share_type text DEFAULT 'we_deduct'`.
+**New columns on `facilities`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `qb_rev_share_type text DEFAULT 'we_deduct'`, `rev_share_percentage integer` (nullable, Phase 11D.6).
 **New columns on `residents`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `resident_payment_type text`.
 
 ### `scan_corrections` (Phase 11D Round 4)
@@ -941,6 +941,14 @@ End-to-end paper-check intake with Gemini 2.5 Flash OCR + confirmation + unresol
 - **Correction recording** (`save-check-payment` route): Zod `BaseSchema` gains `corrections?: Array<{fieldName: string, geminiExtracted: string|null, correctedValue: string}>` (max 20 items, each field max 50/2000 chars). Step 9 in the transaction: if `body.corrections.length > 0`, batch-inserts rows into `scan_corrections`. `facilityId` = `body.matchedFacilityId ?? body.facilityId`.
 - **Correction tracking** (`scan-check-modal.tsx`): New `CorrectionEntry` interface. In `handleSave`, when `mode === 'resolve'`, compares edited checkNum/checkDate/invoiceRef/invoiceDate fields against `result.extracted.*` values and resident combobox picks against `result.residentMatches[i].residentId`. Corrections sent in save body only when `corrections.length > 0`.
 - **Few-shot prompt injection** (`scan-check` route): Before the Gemini call, fetches last 10 `scan_corrections` rows for the facility (ordered desc by createdAt, minimal columns). `buildFewShotBlock()` deduplicates by fieldName (first occurrence wins) and emits up to 5 "LEARNED FROM PREVIOUS CORRECTIONS" lines. `buildPrompt(fewShotBlock)` replaces the old `PROMPT` const; the block is appended just before "Return ONLY the JSON object."
+
+**Phase 11D.6 fixes**:
+- **`facilities.rev_share_percentage`** — new nullable `integer` column added. Used by the CSV import route.
+- **`POST /api/super-admin/import-facilities-csv`** — master admin only, rate-limited under `billingImport` bucket (5/hr), `maxDuration=60`. Accepts multipart `csv` field. Fuzzy-matches rows against active facilities by name (threshold 0.7 via `fuzzyBestMatch`). Per matched facility: fills `contactEmail` only when currently null, always overwrites `paymentType` (valid values: facility/ip/rfms/hybrid) and `revSharePercentage` (0–100). Returns `{ updated, skipped, emailsFilled, revShareSet, warnings }`. Never creates new facilities.
+- **`/super-admin/import-facilities-csv`** page — same 3-state pattern as import-billing-history (upload card → loading overlay → results card). Separate `page.tsx` (auth redirect) + `import-facilities-csv-client.tsx`.
+- **"Update Facilities" header link** — added to Super Admin header after "Import Billing History", same `text-xs px-3 py-1.5` border link style.
+- **Inference status message** — `FacilityMatch` response gains `inferenceAttempted: boolean` and `inferenceResidentCount: number` (total non-empty lines tried). Modal shows amber "Could not auto-match from N resident names — please select facility manually" when inference ran but failed; keeps existing stone "Matched via resident names" message for success.
+- **Payment total row** — inserted between totals-invariant warning and buttons in scan-check-modal.tsx confirm step. Shows `Check: $X = Total Received: $X` always; when `cashEnabled && cashCents > 0`: `Check: $X + Cash: $Y = Total Received: $Z` with total in burgundy `#8B2E4A`.
 
 **Key invariants**:
 - `check-images` bucket is PRIVATE. Upload via service-role only; regenerate signed URLs (1-hour TTL) at read time. Never store or expose raw URLs.

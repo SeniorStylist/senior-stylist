@@ -410,6 +410,12 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
             >
               Import Billing History
             </a>
+            <a
+              href="/super-admin/import-facilities-csv"
+              className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+            >
+              Update Facilities
+            </a>
             {activeTab === 'facilities' && (
               <div className="flex items-center gap-2">
                 {inactiveCount > 0 && (

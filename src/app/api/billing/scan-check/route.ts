@@ -466,6 +466,8 @@ export async function POST(request: NextRequest) {
     let inferredFromResidents = false
     let residentMatchCount = 0
     const rawLines = parsed.residentLines ?? []
+    const inferenceAttempted = !matchedFacility && rawLines.length >= 2
+    const inferenceResidentCount = rawLines.filter((l) => (l.rawName ?? '').trim()).length
 
     if (!matchedFacility && rawLines.length >= 2) {
       allResidentsForInference = await db.query.residents.findMany({
@@ -622,8 +624,10 @@ export async function POST(request: NextRequest) {
               confidence: facilityConfidence,
               inferredFromResidents,
               residentMatchCount,
+              inferenceAttempted,
+              inferenceResidentCount,
             }
-          : { facilityId: null, name: null, facilityCode: null, confidence: 'none', inferredFromResidents: false, residentMatchCount: 0 },
+          : { facilityId: null, name: null, facilityCode: null, confidence: 'none', inferredFromResidents: false, residentMatchCount: 0, inferenceAttempted, inferenceResidentCount },
         residentMatches,
         invoiceMatch,
         cashAlsoReceivedCents: parsed.cashAlsoReceivedCents ?? null,

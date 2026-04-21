@@ -51,6 +51,7 @@ export const facilities = pgTable('facilities', {
   facilityCode: text('facility_code'),
   qbOutstandingBalanceCents: integer('qb_outstanding_balance_cents').default(0),
   qbRevShareType: text('qb_rev_share_type').default('we_deduct'),
+  revSharePercentage: integer('rev_share_percentage'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
