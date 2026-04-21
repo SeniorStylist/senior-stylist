@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { btnBase, transitionBase } from '@/lib/animations'
@@ -144,6 +144,7 @@ export function ScanCheckModal({
 
   // Editable state after scan
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null)
+  const [facilitySearch, setFacilitySearch] = useState('')
   const [checkNum, setCheckNum] = useState('')
   const [checkDate, setCheckDate] = useState('')
   const [invoiceRef, setInvoiceRef] = useState('')
@@ -174,6 +175,7 @@ export function ScanCheckModal({
     setFile(null)
     setPreviewUrl(null)
     setSelectedFacilityId(null)
+    setFacilitySearch('')
     setCheckNum('')
     setCheckDate('')
     setInvoiceRef('')
@@ -188,6 +190,8 @@ export function ScanCheckModal({
 
   function applyResultToState(r: ScanResult) {
     setSelectedFacilityId(r.facilityMatch.facilityId)
+    const matchedName = r.facilityMatch.name ?? ''
+    setFacilitySearch(matchedName)
     const ex = r.extracted
     setCheckNum(ex?.checkNum.value ?? '')
     setCheckDate(ex?.checkDate.value ?? '')
@@ -483,13 +487,20 @@ export function ScanCheckModal({
               >
                 Confirm Check Details
               </h2>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${confidenceBadge(
-                  result.overallConfidence,
-                )}`}
-              >
-                {result.overallConfidence.toUpperCase()} confidence
-              </span>
+              <div className="flex items-center gap-1.5">
+                {result.documentType !== 'UNREADABLE' && (
+                  <span className="bg-stone-100 text-stone-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+                    {DOC_TYPE_LABEL[result.documentType] ?? result.documentType}
+                  </span>
+                )}
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${confidenceBadge(
+                    result.overallConfidence,
+                  )}`}
+                >
+                  {result.overallConfidence.toUpperCase()} confidence
+                </span>
+              </div>
             </div>
 
             {result.unresolvable ? (
@@ -515,26 +526,23 @@ export function ScanCheckModal({
 
               <div className="space-y-3">
                 {/* Facility */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
-                    Facility
-                  </label>
-                  <select
-                    value={selectedFacilityId ?? ''}
-                    onChange={(e) => setSelectedFacilityId(e.target.value || null)}
-                    className={`w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
-                  >
-                    <option value="">— Select a facility —</option>
-                    {facilities.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-[11px] text-stone-500">
-                    Matched: {result.facilityMatch.name ?? '—'} ({result.facilityMatch.confidence})
-                  </p>
-                </div>
+                <FacilityCombobox
+                  facilities={facilities}
+                  selectedId={selectedFacilityId}
+                  searchValue={facilitySearch}
+                  onSearchChange={(v) => {
+                    setFacilitySearch(v)
+                    if (!v) setSelectedFacilityId(null)
+                  }}
+                  onSelect={(id, name) => {
+                    setSelectedFacilityId(id)
+                    setFacilitySearch(name)
+                  }}
+                  onClear={() => {
+                    setSelectedFacilityId(null)
+                    setFacilitySearch('')
+                  }}
+                />
 
                 {/* Check fields */}
                 <div className="grid grid-cols-2 gap-3">
@@ -806,6 +814,110 @@ export function ScanCheckModal({
         )}
       </div>
     </Modal>
+  )
+}
+
+const DOC_TYPE_LABEL: Record<string, string> = {
+  RFMS_PETTY_CASH_BREAKDOWN: 'Petty Cash',
+  RFMS_REMITTANCE_SLIP: 'Remittance',
+  RFMS_FACILITY_CHECK: 'Facility Check',
+  FACILITY_CHECK: 'Facility Check',
+  IP_PERSONAL_CHECK: 'Personal Check',
+  REMITTANCE_SLIP: 'Remittance',
+}
+
+function FacilityCombobox({
+  facilities,
+  selectedId,
+  searchValue,
+  onSearchChange,
+  onSelect,
+  onClear,
+}: {
+  facilities: FacilityOption[]
+  selectedId: string | null
+  searchValue: string
+  onSearchChange: (v: string) => void
+  onSelect: (id: string, name: string) => void
+  onClear: () => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+
+  const filtered = useMemo(() => {
+    const q = searchValue.toLowerCase()
+    return facilities
+      .filter((f) => {
+        if (!q) return true
+        const label = f.facilityCode ? `${f.facilityCode} ${f.name}` : f.name
+        return label.toLowerCase().includes(q)
+      })
+      .slice(0, 8)
+  }, [facilities, searchValue])
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+        setOpen(false)
+        if (!selectedId) onSearchChange('')
+      }
+    },
+    [selectedId, onSearchChange],
+  )
+
+  return (
+    <div ref={containerRef} onBlur={handleBlur}>
+      <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
+        Facility
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          value={searchValue}
+          placeholder="Search facilities…"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { onSearchChange(e.target.value); setOpen(true) }}
+          className={`w-full rounded-xl border border-stone-200 px-3 py-2 pr-8 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+        />
+        {searchValue && (
+          <button
+            type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => { e.preventDefault(); onClear(); setOpen(false) }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-base leading-none"
+            aria-label="Clear facility"
+          >
+            ×
+          </button>
+        )}
+        {open && filtered.length > 0 && (
+          <ul className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+            {filtered.map((f) => (
+              <li key={f.id}>
+                <button
+                  type="button"
+                  tabIndex={0}
+                  onMouseDown={(e) => { e.preventDefault(); onSelect(f.id, f.name); setOpen(false) }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-stone-50 cursor-pointer ${
+                    f.id === selectedId ? 'bg-rose-50 text-[#8B2E4A] font-medium' : 'text-stone-800'
+                  }`}
+                >
+                  {f.facilityCode && (
+                    <span className="text-stone-400 font-mono text-xs mr-1.5">{f.facilityCode} ·</span>
+                  )}
+                  {f.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {open && filtered.length === 0 && searchValue && (
+          <div className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg px-3 py-2 text-sm text-stone-400">
+            No facilities found
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

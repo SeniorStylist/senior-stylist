@@ -378,24 +378,26 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 4. word-fragment pass: if ≥2 normalized payer words appear in a facility name
+      // 4. word-fragment pass
+      // Matches on ≥2 shared words OR any single word ≥6 chars (unique proper nouns
+      // like "Layhill", "Brightview" that are unambiguous even alone).
       if (!matchedFacility && payerName) {
         const payerWords = normalizeWords(payerName)
-        if (payerWords.length >= 2) {
-          let bestHit: typeof namedList[number] | null = null
-          let bestOverlap = 1 // require at least 2 matches
-          for (const f of namedList) {
-            const fWords = normalizeWords(f.name)
-            const overlap = payerWords.filter((w) => fWords.includes(w)).length
-            if (overlap > bestOverlap) {
-              bestOverlap = overlap
-              bestHit = f
-            }
+        let bestHit: typeof namedList[number] | null = null
+        let bestOverlap = 1 // require strict > 1 for short-word multi-match
+        for (const f of namedList) {
+          const fWords = normalizeWords(f.name)
+          const sharedWords = payerWords.filter((w) => fWords.includes(w))
+          const overlap = sharedWords.length
+          const hasLongShared = sharedWords.some((w) => w.length >= 6)
+          if (overlap > bestOverlap || (overlap === 1 && hasLongShared && !bestHit)) {
+            bestOverlap = overlap
+            bestHit = f
           }
-          if (bestHit) {
-            matchedFacility = { id: bestHit.id, name: bestHit.name, facilityCode: bestHit.facilityCode }
-            facilityConfidence = 'medium'
-          }
+        }
+        if (bestHit) {
+          matchedFacility = { id: bestHit.id, name: bestHit.name, facilityCode: bestHit.facilityCode }
+          facilityConfidence = 'medium'
         }
       }
     }
@@ -412,7 +414,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ─── Resident matching (only when facility matched) ───
+    // ─── Resident matching ───
+    // Always map resident lines — even when facility is unknown, return raws so
+    // the confirmation UI can show them and let the user match manually.
     interface ResidentMatch {
       rawName: string
       amountCents: number
@@ -422,17 +426,20 @@ export async function POST(request: NextRequest) {
       matchConfidence: MatchConfidence
     }
     const residentMatches: ResidentMatch[] = []
-    if (matchedFacility && parsed.residentLines?.length) {
-      const residentList = await db.query.residents.findMany({
-        where: and(eq(residents.facilityId, matchedFacility.id), eq(residents.active, true)),
-        columns: { id: true, name: true, roomNumber: true },
-      })
-      for (const line of parsed.residentLines) {
+    const rawLines = parsed.residentLines ?? []
+    if (rawLines.length) {
+      const residentList = matchedFacility
+        ? await db.query.residents.findMany({
+            where: and(eq(residents.facilityId, matchedFacility.id), eq(residents.active, true)),
+            columns: { id: true, name: true, roomNumber: true },
+          })
+        : []
+      for (const line of rawLines) {
         const rawName = (line.rawName ?? '').trim()
         if (!rawName) continue
-        const best = fuzzyBestMatch(residentList, rawName, 0.5)
+        const best = residentList.length ? fuzzyBestMatch(residentList, rawName, 0.5) : null
         const score = best ? fuzzyScore(rawName, best.name) : 0
-        const confidence = best ? confidenceFromScore(score) : 'none'
+        const confidence: MatchConfidence = best ? confidenceFromScore(score) : 'none'
         residentMatches.push({
           rawName,
           amountCents: Number.isFinite(line.amountCents) ? Math.round(line.amountCents) : 0,
