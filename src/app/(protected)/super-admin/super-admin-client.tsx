@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ReportsTab } from './reports-tab'
@@ -116,6 +116,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
 
   // Show/hide inactive toggle
   const [showInactive, setShowInactive] = useState(false)
+  const [facilitySortBy, setFacilitySortBy] = useState<'fid' | 'name'>('fid')
 
   // Create form
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -261,6 +262,17 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
   const visibleFacilities = showInactive
     ? localFacilities
     : localFacilities.filter((f) => f.active)
+
+  const sortedFacilities = useMemo(() => {
+    return [...visibleFacilities].sort((a, b) => {
+      if (facilitySortBy === 'name') {
+        return (a.name ?? '').localeCompare(b.name ?? '')
+      }
+      const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      return numA - numB
+    })
+  }, [visibleFacilities, facilitySortBy])
 
   const handleEnterFacility = async (facilityId: string) => {
     setEnteringId(facilityId)
@@ -417,7 +429,30 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
               Facility Data Import
             </a>
             {activeTab === 'facilities' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 text-xs text-stone-500">
+                  Sort:
+                  <button
+                    onClick={() => setFacilitySortBy('fid')}
+                    className={`px-2 py-0.5 rounded-md transition-colors ${
+                      facilitySortBy === 'fid'
+                        ? 'bg-stone-200 text-stone-800 font-semibold'
+                        : 'hover:bg-stone-100 text-stone-500'
+                    }`}
+                  >
+                    FID
+                  </button>
+                  <button
+                    onClick={() => setFacilitySortBy('name')}
+                    className={`px-2 py-0.5 rounded-md transition-colors ${
+                      facilitySortBy === 'name'
+                        ? 'bg-stone-200 text-stone-800 font-semibold'
+                        : 'hover:bg-stone-100 text-stone-500'
+                    }`}
+                  >
+                    Name
+                  </button>
+                </div>
                 {inactiveCount > 0 && (
                   <button
                     onClick={() => setShowInactive((v) => !v)}
@@ -666,7 +701,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
 
         {/* Facility Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {visibleFacilities.map((f) => (
+          {sortedFacilities.map((f) => (
             <div
               key={f.id}
               className={cn(
@@ -924,7 +959,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
           ))}
         </div>
 
-        {visibleFacilities.length === 0 && (
+        {sortedFacilities.length === 0 && (
           <div className="text-center py-16">
             <p className="text-stone-400 text-sm">
               {localFacilities.length === 0
