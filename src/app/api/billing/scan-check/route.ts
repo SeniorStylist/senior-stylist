@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createStorageClient } from '@/lib/supabase/storage'
 import { db } from '@/db'
-import { facilities, residents, qbInvoices } from '@/db/schema'
+import { facilities, residents, qbInvoices, scanCorrections } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
@@ -70,7 +70,8 @@ interface GeminiResult {
   fieldConfidence?: Record<string, Confidence>
 }
 
-const PROMPT = `You are an OCR assistant reading a paper check or remittance document from a senior-living facility. Classify the document and extract every readable field.
+function buildPrompt(fewShotBlock: string): string {
+  return `You are an OCR assistant reading a paper check or remittance document from a senior-living facility. Classify the document and extract every readable field.
 
 Return ONLY a JSON object with this EXACT shape — no markdown, no prose:
 {
@@ -120,8 +121,39 @@ Extraction rules:
 - "cashAlsoReceivedCents": Look for any handwritten addition to the document such as "+440 Cash", "+490 Cash", "+ $440 cash", or similar notation written separately from the printed amounts. This may appear anywhere — margins, bottom of page, near the total. If found, extract the dollar amount converted to INTEGER cents (e.g. $440.00 → 44000). Return { "value": null, "confidence": "low" } if no such annotation is found.
 - fieldConfidence: "high" = clearly legible; "medium" = probable but imperfect; "low" = guess.
 - overallConfidence: "high" = you are confident in every important field; "medium" = some low-confidence fields but usable; "low" = many fields unreadable.
-
+${fewShotBlock}
 Return ONLY the JSON object.`
+}
+
+function normalizeResidentName(raw: string): string[] {
+  const lower = raw.toLowerCase().trim()
+  if (raw.includes(',')) {
+    const [last, ...firstParts] = lower.split(',').map((s) => s.trim())
+    const firstName = firstParts.join(' ')
+    return [lower, `${firstName} ${last}`.trim()]
+  }
+  return [lower]
+}
+
+type CorrectionRow = { fieldName: string; geminiExtracted: string | null; correctedValue: string }
+
+function buildFewShotBlock(corrections: CorrectionRow[]): string {
+  if (corrections.length === 0) return ''
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const c of corrections) {
+    if (seen.has(c.fieldName)) continue
+    seen.add(c.fieldName)
+    if (c.geminiExtracted) {
+      lines.push(`- ${c.fieldName}: previously extracted "${c.geminiExtracted}", correct value was "${c.correctedValue}"`)
+    } else {
+      lines.push(`- ${c.fieldName}: correct value is "${c.correctedValue}"`)
+    }
+    if (seen.size >= 5) break
+  }
+  if (lines.length === 0) return ''
+  return `\nLEARNED FROM PREVIOUS CORRECTIONS FOR THIS FACILITY:\n${lines.join('\n')}\n`
+}
 
 function normalizeMoneyToCents(value: unknown): number | null {
   if (value == null) return null
@@ -206,6 +238,15 @@ export async function POST(request: NextRequest) {
     const signedRes = await storage.storage.from('check-images').createSignedUrl(storagePath, 3600)
     const imageUrl = signedRes.data?.signedUrl ?? null
 
+    // ─── Few-shot corrections fetch ───
+    const recentCorrections = await db.query.scanCorrections.findMany({
+      where: eq(scanCorrections.facilityId, facilityId),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      limit: 10,
+      columns: { fieldName: true, geminiExtracted: true, correctedValue: true },
+    })
+    const prompt = buildPrompt(buildFewShotBlock(recentCorrections))
+
     // ─── Gemini call ───
     const base64 = buffer.toString('base64')
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
@@ -214,7 +255,7 @@ export async function POST(request: NextRequest) {
         {
           parts: [
             { inlineData: { mimeType: file.type, data: base64 } },
-            { text: PROMPT },
+            { text: prompt },
           ],
         },
       ],
@@ -436,7 +477,14 @@ export async function POST(request: NextRequest) {
       for (const line of rawLines) {
         const rawName = (line.rawName ?? '').trim()
         if (!rawName) continue
-        const best = fuzzyBestMatch(allResidentsForInference, rawName, 0.65)
+        const candidates = normalizeResidentName(rawName)
+        let best: typeof allResidentsForInference[0] | null = null
+        for (const candidate of candidates) {
+          const hit = fuzzyBestMatch(allResidentsForInference, candidate, 0.55)
+          if (hit && (!best || fuzzyScore(candidate, hit.name) > fuzzyScore(rawName, best.name))) {
+            best = hit
+          }
+        }
         if (best?.facilityId) {
           facilityHits[best.facilityId] = (facilityHits[best.facilityId] ?? 0) + 1
           totalHits++

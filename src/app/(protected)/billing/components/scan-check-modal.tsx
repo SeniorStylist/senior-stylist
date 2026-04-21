@@ -77,6 +77,12 @@ export interface ScanResult {
   overallConfidence: Confidence
 }
 
+interface CorrectionEntry {
+  fieldName: string
+  geminiExtracted: string | null
+  correctedValue: string
+}
+
 type Step = 'upload' | 'confirm' | 'success'
 type PaymentMethod = 'check' | 'cash' | 'ach' | 'other'
 
@@ -296,7 +302,7 @@ export function ScanCheckModal({
     }
     return linesTotal
   }, [result, linesTotal])
-  const totalMatches = lines.length === 0 || linesSumForValidation + cashCents === amountCents
+  const totalMatches = lines.length === 0 || linesSumForValidation === amountCents
   const hasUnmatchedLine = lines.some((l) => !l.residentId)
 
   const isRFMSLike = facilityPaymentType === 'rfms' || facilityPaymentType === 'facility' || facilityPaymentType === 'hybrid'
@@ -305,6 +311,26 @@ export function ScanCheckModal({
     if (!result && mode === 'resolve') return
     setSaving(true)
     try {
+      const corrections: CorrectionEntry[] = []
+      if (mode === 'resolve' && result?.extracted) {
+        const ex = result.extracted
+        const track = (fieldName: string, extracted: string | null | undefined, current: string) => {
+          if (extracted != null && current !== '' && current !== extracted) {
+            corrections.push({ fieldName, geminiExtracted: extracted, correctedValue: current })
+          }
+        }
+        track('checkNum', ex.checkNum.value, checkNum)
+        track('checkDate', ex.checkDate.value, checkDate)
+        track('invoiceRef', ex.invoiceRef.value, invoiceRef)
+        track('invoiceDate', ex.invoiceDate.value, invoiceDate)
+        lines.forEach((l, i) => {
+          const original = result.residentMatches[i]
+          if (original && l.residentId && l.residentId !== original.residentId) {
+            corrections.push({ fieldName: 'residentName', geminiExtracted: original.rawName, correctedValue: l.residentName ?? '' })
+          }
+        })
+      }
+
       const body: Record<string, unknown> = {
         mode,
         facilityId,
@@ -342,6 +368,7 @@ export function ScanCheckModal({
           body.cashAlsoReceivedCents = cashCents
           body.cashAttributionResidentId = lines[0]?.residentId ?? null
         }
+        if (corrections.length > 0) body.corrections = corrections
       } else {
         body.extracted = {
           rawOcrJson: result?.rawOcrJson ?? {},
@@ -698,24 +725,31 @@ export function ScanCheckModal({
             )}
 
             {/* Cash also received */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-              <label className="inline-flex items-center gap-2 text-stone-700">
-                <input
-                  type="checkbox"
-                  checked={cashEnabled}
-                  onChange={(e) => setCashEnabled(e.target.checked)}
-                  className="accent-[#8B2E4A]"
-                />
-                Cash also received
-              </label>
+            <div className="mt-4 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-stone-700">
+                  <input
+                    type="checkbox"
+                    checked={cashEnabled}
+                    onChange={(e) => setCashEnabled(e.target.checked)}
+                    className="accent-[#8B2E4A]"
+                  />
+                  Cash also received
+                </label>
+                {cashEnabled && (
+                  <input
+                    type="text"
+                    value={cashInput}
+                    onChange={(e) => setCashInput(e.target.value)}
+                    placeholder="0.00"
+                    className="w-24 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none"
+                  />
+                )}
+              </div>
               {cashEnabled && (
-                <input
-                  type="text"
-                  value={cashInput}
-                  onChange={(e) => setCashInput(e.target.value)}
-                  placeholder="0.00"
-                  className="w-24 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none"
-                />
+                <p className="mt-1 text-xs text-stone-400">
+                  Recorded as a separate cash payment on top of the check amount.
+                </p>
               )}
             </div>
 
@@ -782,8 +816,8 @@ export function ScanCheckModal({
             {/* Totals invariant */}
             {!totalMatches && lines.length > 0 && (
               <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-800">
-                Line items total {formatDollars(linesTotal + cashCents)} but check amount is{' '}
-                {formatDollars(amountCents)}. Adjust before saving.
+                Line items total {formatDollars(linesTotal)} but check amount is{' '}
+                {formatDollars(amountCents)}. Adjust line amounts to match the check.
               </div>
             )}
 

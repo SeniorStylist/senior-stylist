@@ -6,6 +6,7 @@ import {
   qbUnresolvedPayments,
   residents,
   facilities,
+  scanCorrections,
 } from '@/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
@@ -85,6 +86,13 @@ const BaseSchema = z.object({
 
   // Snapshot for save_unresolved and for posterity on resolved records
   extracted: ExtractedSchema,
+
+  // Field corrections — recorded when user edits Gemini-extracted values before saving
+  corrections: z.array(z.object({
+    fieldName: z.string().max(50),
+    geminiExtracted: z.string().max(2000).nullable(),
+    correctedValue: z.string().max(2000),
+  })).max(20).optional(),
 
   // Remittance slip invoice line breakdown
   documentType: z.string().max(50).optional(),
@@ -178,10 +186,10 @@ export async function POST(request: NextRequest) {
     const residentBreakdownTotal = sumLines(body.residentBreakdown)
     const cashTotal = body.cashAlsoReceivedCents ?? 0
     const lineTotal = residentPaymentsTotal + residentBreakdownTotal
-    if (lineTotal + cashTotal !== body.amountCents && lineTotal > 0) {
+    if (lineTotal !== body.amountCents && lineTotal > 0) {
       return Response.json(
         {
-          error: `Line items total ${lineTotal} plus cash ${cashTotal} do not match check amount ${body.amountCents}`,
+          error: `Line items total ${lineTotal} does not match check amount ${body.amountCents}`,
         },
         { status: 400 },
       )
@@ -444,6 +452,20 @@ export async function POST(request: NextRequest) {
           .update(qbUnresolvedPayments)
           .set({ resolvedAt: new Date(), resolvedBy: user.id })
           .where(eq(qbUnresolvedPayments.id, body.unresolvedId))
+      }
+
+      // 9. Record field corrections for few-shot learning
+      if (body.corrections && body.corrections.length > 0) {
+        await tx.insert(scanCorrections).values(
+          body.corrections.map((c) => ({
+            facilityId: body.matchedFacilityId ?? body.facilityId,
+            documentType: body.documentType ?? 'UNKNOWN',
+            fieldName: c.fieldName,
+            geminiExtracted: c.geminiExtracted ?? null,
+            correctedValue: c.correctedValue,
+            createdBy: user.id,
+          })),
+        )
       }
 
       return inserted

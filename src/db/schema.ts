@@ -550,6 +550,18 @@ export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   createdAt: timestamp('created_at').defaultNow(),
 })
 
+export const scanCorrections = pgTable('scan_corrections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }),
+  documentType: text('document_type').notNull(),
+  fieldName: text('field_name').notNull(),
+  geminiExtracted: text('gemini_extracted'),
+  correctedValue: text('corrected_value').notNull(),
+  contextNote: text('context_note'),
+  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({

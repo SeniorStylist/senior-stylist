@@ -441,6 +441,22 @@ Natural key unique index: `qb_payments_natural_key_idx ON (payment_date, facilit
 **New columns on `facilities`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `qb_rev_share_type text DEFAULT 'we_deduct'`.
 **New columns on `residents`**: `qb_outstanding_balance_cents integer DEFAULT 0`, `resident_payment_type text`.
 
+### `scan_corrections` (Phase 11D Round 4)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` `defaultRandom()` |
+| `created_at` | `timestamptz` NOT NULL `defaultNow()` |
+| `facility_id` | FK → `facilities.id` ON DELETE CASCADE, nullable |
+| `document_type` | `text` NOT NULL (e.g. `RFMS_PETTY_CASH_BREAKDOWN`) |
+| `field_name` | `text` NOT NULL (e.g. `checkNum`, `residentName`) |
+| `gemini_extracted` | `text` nullable — what Gemini originally extracted |
+| `corrected_value` | `text` NOT NULL — what the user changed it to |
+| `context_note` | `text` nullable — reserved for future use |
+| `created_by` | FK → `profiles.id` ON DELETE SET NULL, nullable |
+
+RLS enabled. `service_role_all` policy. Indexes on `(document_type, field_name)` and `(facility_id, document_type)`. Used for few-shot learning injection into the Gemini scan prompt.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -918,9 +934,17 @@ End-to-end paper-check intake with Gemini 2.5 Flash OCR + confirmation + unresol
 - `GET /api/residents`: now accepts optional `?facilityId=X` query param. Master admin: any facility. Facility admin: own facility only (403 otherwise). Returns minimal columns (id/name/roomNumber) when param is present to keep the combobox payload small.
 - `scan-check-modal.tsx`: (1) `ScanResult` adds `cashAlsoReceivedCents`; `FacilityMatch` adds `inferredFromResidents?`/`residentMatchCount?`; `EditableLine` adds `residentSearch: string`. (2) `applyResultToState` auto-enables cash checkbox + pre-fills amount if `cashAlsoReceivedCents.value != null`. (3) Inference note shown below FacilityCombobox when `inferredFromResidents`. (4) New `ResidentCombobox` component (same pattern as `FacilityCombobox` — owns open state, blur handling, `onMouseDown` to avoid blur race, disabled state shows "Select facility first"). (5) `ResidentRow` uses `ResidentCombobox` instead of `<select>`; receives `facilitySelected` + `loadingResidents` props for disabled state. (6) `localResidents` state + `useEffect` keyed on `selectedFacilityId`: on change, fetches `/api/residents?facilityId=X`, resets all line matches via `clearLineMatches()` helper, cleans up with `AbortController`. (7) `requiresResidentMatch` const gates `canRecord` — RFMS_REMITTANCE_SLIP documents don't require resident matching.
 
+**Phase 11D Round 4 fixes**:
+- **Cash invariant fix**: Cash is additive and saved as a separate `qb_payments` row with `paymentMethod='cash'`. The total-accuracy invariant is now `linesTotal === amountCents` (cash excluded). Modal `totalMatches` and `save-check-payment` server-side check both updated. Error message reads "Line items total $X but check amount is $Y. Adjust line amounts to match the check." Cash UI shows helper text "Recorded as a separate cash payment on top of the check amount."
+- **Resident name normalization** (`scan-check` route): New `normalizeResidentName(raw: string): string[]` helper converts Gemini's "LAST, FIRST" comma format into both `["last, first", "first last"]` candidates. The inference loop now iterates candidates and calls `fuzzyBestMatch` at threshold 0.55 per candidate (lowered from 0.65 for inference pass). "LEMPGES, CLAUDE" → swapped candidate "claude lempges" → `fuzzyScore === 1.0` vs DB "Claude Lempges".
+- **`scan_corrections` table** (new in `schema.ts`): id, createdAt, facilityId (cascade delete), documentType, fieldName, geminiExtracted (nullable), correctedValue, contextNote (nullable), createdBy → profiles.id (set null). RLS enabled, `service_role_all` policy, indexes on `(document_type, field_name)` and `(facility_id, document_type)`.
+- **Correction recording** (`save-check-payment` route): Zod `BaseSchema` gains `corrections?: Array<{fieldName: string, geminiExtracted: string|null, correctedValue: string}>` (max 20 items, each field max 50/2000 chars). Step 9 in the transaction: if `body.corrections.length > 0`, batch-inserts rows into `scan_corrections`. `facilityId` = `body.matchedFacilityId ?? body.facilityId`.
+- **Correction tracking** (`scan-check-modal.tsx`): New `CorrectionEntry` interface. In `handleSave`, when `mode === 'resolve'`, compares edited checkNum/checkDate/invoiceRef/invoiceDate fields against `result.extracted.*` values and resident combobox picks against `result.residentMatches[i].residentId`. Corrections sent in save body only when `corrections.length > 0`.
+- **Few-shot prompt injection** (`scan-check` route): Before the Gemini call, fetches last 10 `scan_corrections` rows for the facility (ordered desc by createdAt, minimal columns). `buildFewShotBlock()` deduplicates by fieldName (first occurrence wins) and emits up to 5 "LEARNED FROM PREVIOUS CORRECTIONS" lines. `buildPrompt(fewShotBlock)` replaces the old `PROMPT` const; the block is appended just before "Return ONLY the JSON object."
+
 **Key invariants**:
 - `check-images` bucket is PRIVATE. Upload via service-role only; regenerate signed URLs (1-hour TTL) at read time. Never store or expose raw URLs.
-- Total accuracy (`linesTotal + cashCents === amountCents`) MUST pass before save.
+- Total accuracy (`linesTotal === amountCents`) MUST pass before save. Cash is a separate additive payment — NOT included in the invariant.
 - Invoice decrement is exact-match only. Partial/none leaves invoices untouched (documented limitation — reconciled on next CSV re-import).
 - `qb_unresolved_payments` is the only persistence path for OCR-failed documents. Never silently drop a scan.
 - `src/lib/fuzzy.ts` is the canonical fuzzy-match module. Never re-implement inline.
