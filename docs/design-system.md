@@ -502,6 +502,46 @@ When a long async operation replaces step content (e.g. OCR scanning in `ocr-imp
 
 Tip rotation: `useEffect` keyed on the `scanning` flag; 3s interval fades out (`tipVisible=false`) → 400ms delay increments index → fades in. Progress bar: regex parse the progress string → `(X/Y)*100` capped at 90, default 5 when empty.
 
+### Searchable Combobox (FacilityCombobox pattern)
+
+Used when a list is too long for a plain `<select>` and needs typeahead filtering (e.g. facility picker in `scan-check-modal.tsx`).
+
+**State ownership:** Component owns its own `open: boolean` state internally — parent only controls `searchValue` and `selectedId`.
+
+**Blur handling:** `onBlur` on the container `<div>` (via `containerRef`) closes the dropdown when focus leaves entirely. If the user typed but didn't pick and `!selectedId`, clears the input via `onSearchChange('')`.
+
+**Click vs blur race:** Use `onMouseDown={(e) => { e.preventDefault(); onSelect(...) }}` on dropdown options — `preventDefault()` stops the input's `onBlur` from firing before the click registers.
+
+**Styles:**
+- Input: `rounded-xl border border-stone-200 px-3 py-2 pr-8 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none`
+- Dropdown: `absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-64 overflow-y-auto`
+- Each option: `px-3 py-2 text-sm hover:bg-stone-50 cursor-pointer`
+- Selected option: `bg-rose-50 text-[#8B2E4A] font-medium`
+- Facility code prefix: `<span className="text-stone-400 font-mono text-xs mr-1.5">{code} ·</span>` before the name
+- X clear button: `absolute right-2 top-1/2 -translate-y-1/2`, `tabIndex={-1}`, `onMouseDown` with `e.preventDefault()` to avoid blur race
+- "No results" state: same dropdown container with `text-stone-400` message inside
+
+### Document Type Badge
+
+Small pill label identifying the OCR-detected document type in the scan confirmation screen. Shown next to the confidence badge in a `flex items-center gap-1.5` wrapper.
+
+**Lookup map at module level:**
+
+```ts
+const DOC_TYPE_LABEL: Record<string, string> = {
+  RFMS_PETTY_CASH_BREAKDOWN: 'Petty Cash',
+  RFMS_REMITTANCE_SLIP: 'Remittance',
+  RFMS_FACILITY_CHECK: 'Facility Check',
+  FACILITY_CHECK: 'Facility Check',
+  IP_PERSONAL_CHECK: 'Personal Check',
+  REMITTANCE_SLIP: 'Remittance',
+}
+```
+
+**Style:** `bg-stone-100 text-stone-600 text-xs font-semibold px-2 py-0.5 rounded-full`
+
+**Visibility:** Hidden when `documentType === 'UNREADABLE'`
+
 ### Full-page async operation overlay (e.g. PDF import parse)
 
 When a slow async operation (Gemini API call, large upload) runs from a page — not a modal — use a `fixed inset-0` overlay so the user can't interact with the underlying page while waiting. Pattern (`import-client.tsx`):
