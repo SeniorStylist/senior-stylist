@@ -667,6 +667,38 @@ Never use `window.confirm()`. Always use inline two-step confirm:
 3. Mouse leave resets `confirmXId`
 4. "Yes" click: execute + clear state
 
+### Typed-Name Confirmation Modal (irreversible operations)
+
+For operations that cannot be undone automatically (e.g. facility merge), use a modal that requires the operator to type the target's exact name before the destructive action enables.
+
+- Modal shell: `fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4` with a `bg-white rounded-2xl shadow-xl p-6 max-w-md w-full` panel.
+- Explain the effect in one paragraph — name both sides of the operation in `<strong>`, end with "This cannot be undone automatically."
+- Label: "Type the secondary facility name to confirm:" → `<input autoFocus>` bound to local `typedName` state. Use `placeholder={exactName}` so the operator can see what to type.
+- Primary button: `disabled={!typedOk || busy}`. `typedOk = typedName.trim().toLowerCase() === exactName.toLowerCase()`. Label flips to "Merging…" (or equivalent `-ing` form) while the request is inflight.
+- Secondary: "Cancel" clears both `confirmPair` and `typedName` state.
+- Pattern lives in `src/app/(protected)/super-admin/merge-tab.tsx` (Phase 11E).
+
+### Pair Card (primary/secondary comparison)
+
+When an admin compares two records side-by-side before merging/linking them:
+
+- Row layout: `grid grid-cols-[1fr_auto_1fr] gap-2 items-stretch`. The middle auto column holds a swap button (`⇄` — rounded `p-2 hover:bg-stone-100`, `title="Swap primary / secondary"`).
+- Primary card: `bg-stone-50 border-stone-200`, tiny `"Keep (primary)"` caption (`text-[10px] font-semibold uppercase tracking-wide text-stone-500`).
+- Secondary card: `bg-amber-50 border-amber-200`, caption `"Merge away (secondary)"`. The amber tint visually signals the side that will be destroyed.
+- Both cards show: facility-code chip (stone mono) or "No FID" amber pill if code is null, truncated name, `residents · bookings · stylists` counts, and optional address/email in `text-stone-400`.
+- Pair header row above the grid shows the fuzzy score percentage left + confidence badge right.
+- Pattern lives in `src/app/(protected)/super-admin/merge-tab.tsx` (Phase 11E).
+
+### Confidence Badge
+
+Used anywhere we surface a fuzzy-match score to the operator.
+
+- Shape: `text-xs px-2 py-0.5 rounded-full font-medium border`.
+- High (score = 1.0 or similar exact): `bg-emerald-50 text-emerald-700 border-emerald-200`, label "High confidence".
+- Medium (≥ 0.8): `bg-amber-50 text-amber-700 border-amber-200`, label "Likely match".
+- Low (≥ 0.6): `bg-stone-100 text-stone-600 border-stone-200`, label "Review carefully".
+- Pattern lives in `src/app/(protected)/super-admin/merge-tab.tsx` (Phase 11E).
+
 ### Role-Gated UI
 
 Admin-only features are hidden via `isAdmin` prop:

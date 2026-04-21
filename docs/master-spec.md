@@ -457,6 +457,28 @@ Natural key unique index: `qb_payments_natural_key_idx ON (payment_date, facilit
 
 RLS enabled. `service_role_all` policy. Indexes on `(document_type, field_name)` and `(facility_id, document_type)`. Used for few-shot learning injection into the Gemini scan prompt.
 
+### `facility_merge_log` (Phase 11E)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` `defaultRandom()` |
+| `created_at` | `timestamptz` NOT NULL `defaultNow()` |
+| `performed_by` | FK → `profiles.id` ON DELETE SET NULL, nullable |
+| `primary_facility_id` | FK → `facilities.id` ON DELETE SET NULL, nullable |
+| `secondary_facility_id` | `uuid` — NOT a FK (secondary is deactivated but retained; capture id as historical value) |
+| `secondary_facility_name` | `text` NOT NULL — snapshot of name at merge time |
+| `residents_transferred` | `integer` NOT NULL DEFAULT 0 — residents re-pointed to primary (no conflict) |
+| `residents_conflicted` | `integer` NOT NULL DEFAULT 0 — residents dedup'd (same name+room as a primary resident); bookings/invoices/payments re-pointed |
+| `bookings_transferred` | `integer` NOT NULL DEFAULT 0 |
+| `log_entries_transferred` / `_dropped` | `integer` each — dropped when primary already has an entry for same (stylist, date) |
+| `stylist_assignments_transferred` / `_dropped` | `integer` each — dropped when primary already has assignment for same stylist |
+| `qb_invoices_transferred` / `_dropped` | `integer` each — dropped when primary already has same invoice_num |
+| `qb_payments_transferred` | `integer` NOT NULL DEFAULT 0 |
+| `fields_inherited` | `text[]` NOT NULL DEFAULT `'{}'::text[]` — names of facility columns copied from secondary → primary (copy-if-null only) |
+| `notes` | `text` nullable |
+
+RLS enabled. `service_role_all` policy. Append-only audit log — no updates or deletes from application code. Written atomically as the final step of the merge transaction in `POST /api/super-admin/merge-facilities`.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -704,6 +726,8 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `GET /api/super-admin/reports/outstanding` | Super admin | All completed + unpaid bookings across authorized facilities with resident/stylist/service/facilityName. Cached 5 min via `unstable_cache`, tag `bookings`. |
 | `POST /api/super-admin/reports/mark-paid` | Super admin | Mark bookingIds as paid. Verifies every booking belongs to an authorized facility (403 otherwise). Calls `revalidateTag('bookings', {})`. |
 | `GET /api/super-admin/export/billing?month=YYYY-MM` | Super admin | Cross-facility CSV export with Facility column prepended; per-facility subtotals; grand total row. Always fresh (`force-dynamic`). |
+| `GET /api/super-admin/merge-candidates` | Super admin email only | Phase 11E. Returns `{ candidates, unpaired, fidFacilityCount }`. Fuzzy-matches every no-FID active facility against every FID active facility via `fuzzyScore` at threshold 0.6; buckets into `high` (score=1.0), `medium` (≥0.8), `low` (≥0.6). Each row carries per-facility resident/booking/stylist counts. |
+| `POST /api/super-admin/merge-facilities` | Super admin email only | Phase 11E. Body: `{ primaryFacilityId, secondaryFacilityId, notes? }`. Wraps entire merge in `db.transaction()` — auto-rolls back on any throw. Migrates all 20 facility_id FK tables, handles 5 unique-constraint conflicts (log_entries, stylist_facility_assignments, stylist_availability, facility_users PK, qb_invoices) by deleting secondary row. Residents with same normalized name + room as a primary resident are soft-deleted and their bookings/invoices/payments/unresolved-payments re-pointed to the primary resident. Field inheritance: copy-if-null for 15 facility columns (address, phone, contactEmail, calendarId, qb*, workingHours, stripe*, revSharePercentage, serviceCategoryOrder). Secondary facility soft-deactivated (`active=false`). Writes one row to `facility_merge_log`. `maxDuration=60`. |
 | `GET /api/facilities/admin-contact` | **Public** | Returns facility contact email (for `/unauthorized` mailto fallback). No facilityId param = returns `allFacilities` list. |
 | `POST /api/access-requests` | **Public** | Submit access request; facilityId optional (null = global queue). Idempotent by email. Fires admin notification email to `NEXT_PUBLIC_ADMIN_EMAIL`. |
 | `GET /api/access-requests` | **Facility admin** | Pending requests already assigned to their facility |
@@ -965,13 +989,22 @@ End-to-end paper-check intake with Gemini 2.5 Flash OCR + confirmation + unresol
 ### Phase 11D.5 — Payment Reconciliation (PLANNED — Opus)
 Match `resident_breakdown.type === 'remittance_lines'` invoice dates against daily log entries for the same facility+date. Confidence scoring: exact date match = high, ±1 day = medium, no log = unmatched. Unmatched lines flagged for review. Reconciliation status fields (`reconciled_at`, `reconciliation_notes`) to be added in a future migration. UI entry point: "Reconcile" button on expanded remittance rows (only when `invoiceDate` lines exist). Audit trail view per facility showing matched/unmatched/pending status.
 
-### Phase 11E — Resident Portal Isolation (PLANNED — Opus)
+### Phase 11E — Facility Merge Tool (SHIPPED 2026-04-21)
+
+Consolidates no-FID duplicate facilities (manual early-day entries) into their QB-imported canonical records. New "Merge" tab between "Requests" and "Reports" on `/super-admin`. Two routes + one audit table:
+
+- **`GET /api/super-admin/merge-candidates`** — splits all active facilities by `facilityCode` presence; fuzzy-matches each no-FID facility against all FID facilities via `fuzzyScore`; returns pairs at threshold ≥0.6, bucketed `high` (1.0) / `medium` (≥0.8) / `low` (≥0.6). Unmatched no-FID facilities returned separately.
+- **`POST /api/super-admin/merge-facilities`** — single `db.transaction()` migrates all 20 facility_id FK tables. Unique-constraint tables (log_entries, stylist_facility_assignments, stylist_availability, facility_users PK, qb_invoices) drop the secondary row when a primary row exists for the same key. Resident soft-conflict resolution: same normalized name+room ⇒ bookings/invoices/payments/unresolved-payments re-pointed to primary resident, secondary resident `active=false`. Field inheritance: 15 facility columns copy-if-null from secondary → primary. Secondary facility soft-deactivated (never hard-deleted). Audit row written to `facility_merge_log` with every transfer count + inherited fields. Entire operation rolls back atomically on any error.
+- **`facility_merge_log`** table — append-only audit trail (schema above).
+- **UI** — `src/app/(protected)/super-admin/merge-tab.tsx`. Each candidate rendered as a two-column `PairCard` (stone-50 primary / amber-50 secondary) with a swap-sides button, confidence badge, and counts. "Merge →" opens a confirmation modal requiring the operator to type the secondary facility name exactly (case-insensitive) before the "Merge now" button enables.
+
+### Phase 11F — Resident Portal Isolation (PLANNED — Opus)
 Invite links: `portal/[facilityCode]/[portalToken]` using existing `residents.portal_token`. Facility locked at account creation, no switcher ever. Billing page added to existing services portal as additional tab — same auth context. "Copy invite link" + "Send invite email" buttons on resident records. Cross-facility access → 403.
 
-### Phase 11F — QB API Live Sync (PLANNED — Opus)
+### Phase 11G — QB API Live Sync (PLANNED — Opus)
 Manual sync per facility. Route: `POST /api/quickbooks/sync-invoices/[facilityId]`. First sync backfills `qb_invoice_id` on CSV-imported records. Requires Intuit production approval. Until approved → button hidden.
 
-### Phase 11G — Revenue Share Integration (PLANNED — Opus)
+### Phase 11H — Revenue Share Integration (PLANNED — Opus)
 New `facilities.rev_share_percentage` integer column. Per-invoice stylist/facility split calculation. New `qb_invoice_id` on `stylist_pay_items` links payroll to invoices. Billing view shows split breakdown. Payroll detail shows corresponding invoices.
 
 ### Phase 12 — Franchise Layer + Bookkeeper Role (PLANNED — Opus)

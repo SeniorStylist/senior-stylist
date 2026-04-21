@@ -350,13 +350,16 @@ End-to-end check intake via Gemini 2.5 Flash OCR + confirmation UI + unresolved 
 ### Phase 11D.5 — Payment Reconciliation (PLANNED — Opus)
 Match remittance_lines invoice dates against daily log entries. Confidence scoring (exact/±1 day/unmatched). Reconcile button on expanded check rows. `reconciled_at` + `reconciliation_notes` columns in a future migration.
 
-### Phase 11E — Resident Portal Isolation (PLANNED — Opus)
+### Phase 11E — Facility Merge Tool (SHIPPED 2026-04-21)
+Consolidates no-FID duplicate facilities into their QB-imported canonical records. New "Merge" tab on `/super-admin` between Requests and Reports. `GET /api/super-admin/merge-candidates` fuzzy-matches all no-FID active facilities against all FID facilities (threshold ≥0.6, bucketed high/medium/low). `POST /api/super-admin/merge-facilities` runs an atomic `db.transaction()` that migrates all 20 facility_id FK tables, resolves 5 unique-constraint conflicts by dropping the secondary row, re-points bookings/invoices/payments of conflicted residents (same normalized name+room) to primary residents, copy-if-null inherits 15 facility columns from secondary → primary, soft-deactivates secondary, and writes one row to the new `facility_merge_log` audit table. UI confirmation requires the operator to type the secondary facility name exactly.
+
+### Phase 11F — Resident Portal Isolation (PLANNED — Opus)
 portal/[facilityCode]/[portalToken] invite links, billing tab in existing services portal, facility-locked accounts, copy/send invite buttons on resident records.
 
-### Phase 11F — QB API Live Sync (PLANNED — Opus)
+### Phase 11G — QB API Live Sync (PLANNED — Opus)
 Manual per-facility sync after Intuit production approval. Backfills qb_invoice_id on first run.
 
-### Phase 11G — Revenue Share Integration (PLANNED — Opus)
+### Phase 11H — Revenue Share Integration (PLANNED — Opus)
 rev_share_percentage on facilities, per-invoice stylist/facility split, qb_invoice_id on pay items.
 
 ### Phase 12 — Franchise Layer + Bookkeeper Role (PLANNED — Opus)
@@ -370,6 +373,7 @@ Per-stylist OAuth2, booking → calendar event sync.
 ## 6. CURRENT STATUS
 
 ### Working
+- Phase 11E — Facility Merge Tool shipped (2026-04-21): new "Merge" tab on `/super-admin` between Requests and Reports. `GET /api/super-admin/merge-candidates` fuzzy-matches every no-FID active facility against every FID facility via `fuzzyScore` at threshold ≥0.6; returns pairs bucketed high (1.0) / medium (≥0.8) / low (≥0.6) plus per-facility resident/booking/stylist counts, and lists unmatched no-FID facilities separately. `POST /api/super-admin/merge-facilities` runs an atomic `db.transaction()` that migrates all 20 facility_id FK tables; handles 5 unique-constraint conflicts (log_entries, stylist_facility_assignments, stylist_availability, facility_users PK, qb_invoices) by deleting the secondary row; resolves resident soft-conflicts (same `normalizeWords(name)` + room) by re-pointing bookings/qb_invoices/qb_payments/qb_unresolved_payments and soft-deleting the secondary resident; copy-if-null inherits 15 facility columns (address, phone, contactEmail, calendarId, qb*, workingHours, stripe*, revSharePercentage, serviceCategoryOrder); soft-deactivates secondary (never hard-deletes); writes one row to the new `facility_merge_log` audit table with all transfer counts + `fields_inherited` text[]. UI: `src/app/(protected)/super-admin/merge-tab.tsx` renders each candidate as a two-column `PairCard` (stone-50 primary / amber-50 secondary) with a swap button, confidence badge, and counts; "Merge →" opens a confirmation modal that requires the operator to type the secondary facility name exactly (case-insensitive) before the "Merge now" button enables.
 - CSV column mapping fix + header UI + No-FID badge shipped (2026-04-21): (1) `import-facilities-csv` route corrected — name is col[3] (not col[0]), email is col[6] (not col[3]), added phone col[8] and address col[9], removed junk-row filter, added `namesFilled` counter, uses `parseFloat+Math.round` for rev share. (2) Super Admin header reorganized into two rows: title+Create button row, then toolbar with Import label+links left and Sort+Show inactive right. (3) Facilities without `facilityCode` show amber "No FID" badge instead of blank.
 - Super Admin facility sort toggle shipped (2026-04-21): Facilities tab toolbar gains FID/Name sort toggle. `facilitySortBy` state (`'fid' | 'name'`, default `'fid'`). `sortedFacilities` useMemo derives a sorted copy from `visibleFacilities` — FID sorts numerically (strips non-digits, no-code facilities sort to end at 9999), Name sorts via `localeCompare`. Render iterates `sortedFacilities` instead of `visibleFacilities`. Client-side only — no API changes.
 - Phase 11D.6 round 2 fixes shipped (2026-04-21): three targeted improvements. (1) **CSV import by facilityCode** — `import-facilities-csv` route rewritten to match rows by F-code (`col[1]`, `/^F\d{2,4}$/`) via `Map<facilityCode, facility>` pre-loaded from DB. Removed `fuzzyBestMatch` dependency. Added `mapBillingType()` (IP+F→hybrid, IP*→ip, F/NB/SC*→rfms). Junk-row filter on col[3]. (2) **Super Admin header labels** — three links renamed: "QB Customer Import", "QB Billing Import", "Facility Data Import". (3) **Check image lightbox** — clicking the check image in scan modal Step 2 opens a `z-[60]` full-screen overlay with X close button; `lightboxOpen` state resets on `resetEditState()`; component return wrapped in `<>...</>` fragment to accommodate the sibling overlay.

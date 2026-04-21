@@ -212,6 +212,19 @@
 - Use `unstable_cache` with `tags: ['bookings']` and `revalidate: 300`
 - Cache key must include sorted facilityIds + month/year
 
+### Facility Merge Tool (`/super-admin` Merge tab)
+- Both routes gated on `user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL` — master admin only, NOT franchise super_admin
+- `GET /api/super-admin/merge-candidates` fuzzy-matches no-FID active facilities against FID active facilities via `fuzzyScore` at threshold **0.6** (below `fuzzyBestMatch`'s 0.7 default — no-FID variants often drop abbreviations). Confidence bucketing: `score === 1.0` → high, `≥0.8` → medium, `≥0.6` → low
+- `POST /api/super-admin/merge-facilities` MUST wrap every write in a single `db.transaction()` — Drizzle auto-rolls back on throw. Never break the transaction apart
+- **Resident re-pointing order is LOAD-BEARING**: secondary residents are re-pointed BEFORE the bookings `facility_id` bulk update so any conflicted residents' bookings get their `resident_id` remapped inside the same transaction. Do not reorder
+- Resident soft-conflict key: `normalizeWords(name).join(' ') + '|' + (roomNumber ?? '').trim().toLowerCase()`. Match = re-point bookings/qb_invoices/qb_payments/qb_unresolved_payments.resolved_to_resident_id + soft-delete secondary resident. No match = simple `facilityId` update
+- Unique-constraint tables where the secondary row must be DELETED when the primary already has a matching key: `log_entries(facility_id, stylist_id, date)`, `stylist_facility_assignments(stylist_id, facility_id)`, `stylist_availability(stylist_id, facility_id, day_of_week)`, `facility_users(user_id, facility_id)` PK, `qb_invoices(invoice_num, facility_id)` unique index. Do not attempt to merge the rows — primary wins
+- `franchise_facilities` secondary rows are always DELETED (primary keeps its own franchise memberships)
+- Field inheritance (copy-if-null only, secondary → primary) — exactly these 15 columns: `address, phone, contactEmail, calendarId, qbRealmId, qbAccessToken, qbRefreshToken, qbTokenExpiresAt, qbExpenseAccountId, qbCustomerId, workingHours, stripePublishableKey, stripeSecretKey, revSharePercentage, serviceCategoryOrder`. NEVER inherited: `id, name, facilityCode, paymentType, qbRevShareType, timezone, active, createdAt`
+- Secondary facility is ALWAYS soft-deactivated (`active = false`) — never hard-deleted, consistent with the project-wide no-hard-delete rule
+- `facility_merge_log` row is the final step of the transaction — every merge MUST produce exactly one audit row with all transfer counts + `fields_inherited text[]`. RLS enabled with `service_role_all` policy (required for all new tables)
+- Confirmation modal requires the operator to type the secondary facility name exactly (case-insensitive) before the destructive action enables. Never remove this gate
+
 ### Applicant ZIP Radius Search
 - `src/lib/zip-coords.ts` — static `ZIP_COORDS` table (~1200 entries: DC/MD 20xxx–21xxx, VA 22xxx–23xxx, MN Twin Cities 55xxx)
 - Helpers: `getZipsWithinMiles(zip, miles): string[]` (Haversine O(n) scan), `extractZip(location): string | null`

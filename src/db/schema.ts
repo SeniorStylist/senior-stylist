@@ -11,7 +11,7 @@ import {
   primaryKey,
   unique,
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 export const profiles = pgTable('profiles', {
@@ -561,6 +561,27 @@ export const scanCorrections = pgTable('scan_corrections', {
   correctedValue: text('corrected_value').notNull(),
   contextNote: text('context_note'),
   createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+})
+
+export const facilityMergeLog = pgTable('facility_merge_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  performedBy: uuid('performed_by').references(() => profiles.id, { onDelete: 'set null' }),
+  primaryFacilityId: uuid('primary_facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+  secondaryFacilityId: uuid('secondary_facility_id'),
+  secondaryFacilityName: text('secondary_facility_name').notNull(),
+  residentsTransferred: integer('residents_transferred').notNull().default(0),
+  residentsConflicted: integer('residents_conflicted').notNull().default(0),
+  bookingsTransferred: integer('bookings_transferred').notNull().default(0),
+  logEntriesTransferred: integer('log_entries_transferred').notNull().default(0),
+  logEntriesDropped: integer('log_entries_dropped').notNull().default(0),
+  stylistAssignmentsTransferred: integer('stylist_assignments_transferred').notNull().default(0),
+  stylistAssignmentsDropped: integer('stylist_assignments_dropped').notNull().default(0),
+  qbInvoicesTransferred: integer('qb_invoices_transferred').notNull().default(0),
+  qbInvoicesDropped: integer('qb_invoices_dropped').notNull().default(0),
+  qbPaymentsTransferred: integer('qb_payments_transferred').notNull().default(0),
+  fieldsInherited: text('fields_inherited').array().notNull().default(sql`'{}'::text[]`),
+  notes: text('notes'),
 })
 
 // ─── Relations ───────────────────────────────────────────────────────────────
