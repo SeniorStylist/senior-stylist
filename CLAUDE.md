@@ -147,9 +147,11 @@
 - Mobile nav prefetch: `<Link prefetch={true}>` on all nav links in `mobile-nav.tsx` and `sidebar.tsx`; `mobile-nav.tsx` also has `pendingHref` state — set on click for immediate tab highlight, cleared on pathname change
 
 ### Dashboard right panel resize
-- Dashboard right panel uses a pointer-drag resize handle between the Today card and the tab list. `todayHeight` state (px number) is persisted to localStorage key `dashboardTodayPanelHeight`. Min 100px, max 260px. Stat pills are always `shrink-0` at the bottom and are NOT part of the resizable area.
-- Implementation note: in practice the top zone groups Today + Who's Working + Coverage cards (admin-only), so the clamp max is 520px in code to fit all three; the handle, top zone, and stat pills structure are exactly as spec'd otherwise.
-- Drag uses native pointer events + `setPointerCapture` (no library). `touch-none` + `touchAction: 'none'` on the handle prevents page scroll during touch drag. Handle is `role="separator"` + `tabIndex={0}`; ArrowUp/ArrowDown adjusts height by 20px/keypress.
+- Dashboard right panel uses `react-resizable-panels` v2 (`PanelGroup direction="vertical" autoSaveId="dashboard-right-panel"`) to split the top zone (Today + Who's Working + Coverage) from the bottom zone (Tabs + list). Stat pills are a `shrink-0` sibling BELOW the PanelGroup — not inside it. `autoSaveId` handles localStorage persistence; no manual read/write.
+- Panel sizes are percentages (not pixels): top `defaultSize={40} minSize={15} maxSize={70}`, bottom `defaultSize={60} minSize={30}`. Min/max are bounds; library clamps drags automatically.
+- The Today card has three adaptive layout modes driven by a `ResizeObserver` on the top panel content div: `tall` (>220px, shows 2×2 stat grid), `medium` (140–220px, hides stat grid, keeps date + summary line), `compact` (<140px, single-row flex with big count + date stack). See `TodayCard` component in `dashboard-client.tsx`.
+- Non-admins skip the `PanelGroup` entirely — the list zone renders in a plain `flex-1 min-h-0` div. No resize handle.
+- Handle visual: horizontal divider line (`bg-stone-200`) with a white "grab dots" pill centred on top. Uses `group-data-[resize-handle-active]` Tailwind selector to switch to burgundy while dragging (the library sets that data attribute natively).
 
 ### OCR / Gemini
 - Call Gemini REST API **directly via `fetch`** to `v1beta` endpoint — do NOT use the `@google/generative-ai` SDK

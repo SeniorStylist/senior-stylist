@@ -33,6 +33,7 @@
     "postgres": "^3.4.8",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-resizable-panels": "^2.1.9",
     "recharts": "^3.8.0",
     "resend": "^6.9.4",
     "stripe": "^20.4.1",
