@@ -72,7 +72,7 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <NavigationProgress />
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} />
