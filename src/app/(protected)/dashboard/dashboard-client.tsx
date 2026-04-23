@@ -630,10 +630,10 @@ export function DashboardClient({
             autoSaveId="dashboard-right-panel"
             className="flex-1 min-h-0"
           >
-            <Panel id="today-zone" order={1} defaultSize={40} minSize={15} maxSize={70}>
+            <Panel id="today-zone" order={1} defaultSize={28} minSize={12} maxSize={70}>
               <div
                 ref={topPanelContentRef}
-                className="h-full flex flex-col gap-3 overflow-y-auto pr-0.5"
+                className="h-full flex flex-col overflow-y-auto pr-0.5"
               >
                 <TodayCard
                   date={new Date()}
@@ -642,7 +642,7 @@ export function DashboardClient({
                   size={todayCardSize}
                 />
                 {(workingToday.length > 0 || workingTomorrow.length > 0) && (
-                  <div className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                  <div className="shrink-0 mt-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
                     <div className="px-4 py-3 border-b border-stone-100">
                       <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
                         Who&apos;s Working Today
@@ -675,7 +675,7 @@ export function DashboardClient({
                   </div>
                 )}
                 {coverageQueue.length > 0 && (
-                  <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                  <div id="coverage-queue" className="shrink-0 mt-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
                     <div className="px-4 py-3 border-b border-stone-100">
                       <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
                         Coverage Requests
@@ -696,7 +696,7 @@ export function DashboardClient({
               </div>
             </Panel>
 
-            <PanelResizeHandle className="group relative h-4 flex items-center justify-center cursor-ns-resize touch-none shrink-0 focus-visible:outline-none">
+            <PanelResizeHandle className="group relative h-3 -mt-1 flex items-center justify-center cursor-ns-resize touch-none shrink-0 focus-visible:outline-none">
               <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-px bg-stone-200 group-hover:bg-[#8B2E4A]/40 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors duration-150" />
               <div className="relative z-10 flex items-center gap-[3px] px-2 py-0.5 rounded-full bg-white border border-stone-200 group-hover:border-[#C4687A] group-data-[resize-handle-active]:border-[#8B2E4A] group-data-[resize-handle-active]:bg-[#8B2E4A]/5 transition-all duration-150 shadow-sm">
                 <div className="w-[3px] h-[3px] rounded-full bg-stone-300 group-hover:bg-[#8B2E4A]/60 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors" />
@@ -898,7 +898,7 @@ function TodayCard({
   if (size === 'compact') {
     return (
       <div
-        className={cn(cardBase, 'px-4 py-3 flex flex-row items-center justify-between gap-3')}
+        className={cn(cardBase, 'px-4 py-2.5 flex flex-row items-center justify-between gap-3')}
         style={gradient}
       >
         <div className="min-w-0">
