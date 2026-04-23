@@ -5,6 +5,22 @@
 - GitHub: https://github.com/SeniorStylist/senior-stylist
 - Supabase project: goomnlsdguetfgwjpwer
 
+## Agent Entry Point
+- `AGENTS.md` at project root — auto-read by Claude Code on session start; imports core rules and Next.js doc-reading requirement
+
+---
+
+## Response Style
+- Reply concisely. No preamble, no narration of steps.
+- No phrases like "I'll now…", "I'm going to…", "Great, let's…"
+- Lead with the action. Show results, not process.
+- If a plan is needed, /plan first — then execute without re-explaining the plan.
+
+## Context Management
+- Run `/compact` with instructions before switching phases mid-session: `/compact Focus on schema changes, new API routes, and any open bugs`
+- If context feels degraded (repeated questions, forgotten rules), stop and `/clear` — do not continue degraded
+- Never use the final 20% of context for multi-file tasks — restart session instead
+
 ---
 
 ## Non-Negotiable Rules
