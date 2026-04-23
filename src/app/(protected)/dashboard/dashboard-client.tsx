@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels'
 import { BookingModal } from '@/components/calendar/booking-modal'
 import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -92,6 +92,9 @@ function formatHHMM(t: string): string {
   return `${hour}:${m.toString().padStart(2, '0')}${ampm}`
 }
 
+const SNAP_POINTS = [18, 28, 48] as const
+const SNAP_THRESHOLD = 5
+
 export function DashboardClient({
   facilityId,
   facility,
@@ -140,6 +143,7 @@ export function DashboardClient({
 
   // Right panel resize — track top panel pixel height for adaptive TodayCard layout
   const topPanelContentRef = useRef<HTMLDivElement>(null)
+  const topPanelRef = useRef<ImperativePanelHandle>(null)
   const [todayCardSize, setTodayCardSize] = useState<'tall' | 'medium' | 'compact'>('tall')
 
   useEffect(() => {
@@ -436,7 +440,7 @@ export function DashboardClient({
   }
 
   const bottomZoneContent = (
-    <div className="h-full flex flex-col gap-3">
+    <div className="h-full flex flex-col gap-3 scroll-smooth" style={{ overscrollBehavior: 'contain' }}>
       {/* Tabs */}
       <div className="bg-white rounded-xl border border-stone-200 p-0.5 flex gap-0.5 shrink-0 shadow-[var(--shadow-sm)]">
         {(['residents', 'services', 'stylists'] as const).map((tab) => (
@@ -630,7 +634,7 @@ export function DashboardClient({
             autoSaveId="dashboard-right-panel"
             className="flex-1 min-h-0"
           >
-            <Panel id="today-zone" order={1} defaultSize={28} minSize={12} maxSize={70}>
+            <Panel ref={topPanelRef} id="today-zone" order={1} defaultSize={28} minSize={12} maxSize={70}>
               <div
                 ref={topPanelContentRef}
                 className="h-full flex flex-col overflow-y-auto pr-0.5"
@@ -696,12 +700,30 @@ export function DashboardClient({
               </div>
             </Panel>
 
-            <PanelResizeHandle className="group relative h-3 -mt-1 flex items-center justify-center cursor-ns-resize touch-none shrink-0 focus-visible:outline-none">
+            <PanelResizeHandle
+              onDragging={(isDragging) => {
+                const group = document.querySelector('[data-panel-group-id="dashboard-right-panel"]') as HTMLElement | null
+                if (group) {
+                  if (isDragging) group.setAttribute('data-dragging', 'true')
+                  else group.removeAttribute('data-dragging')
+                }
+                if (!isDragging && topPanelRef.current) {
+                  const current = topPanelRef.current.getSize()
+                  const nearest = SNAP_POINTS.reduce((a, b) =>
+                    Math.abs(b - current) < Math.abs(a - current) ? b : a
+                  )
+                  if (Math.abs(nearest - current) <= SNAP_THRESHOLD) {
+                    topPanelRef.current.resize(nearest)
+                  }
+                }
+              }}
+              className="group relative h-3 -mt-1 flex items-center justify-center cursor-ns-resize touch-none shrink-0 focus-visible:outline-none"
+            >
               <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-px bg-stone-200 group-hover:bg-[#8B2E4A]/40 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors duration-150" />
-              <div className="relative z-10 flex items-center gap-[3px] px-2 py-0.5 rounded-full bg-white border border-stone-200 group-hover:border-[#C4687A] group-data-[resize-handle-active]:border-[#8B2E4A] group-data-[resize-handle-active]:bg-[#8B2E4A]/5 transition-all duration-150 shadow-sm">
-                <div className="w-[3px] h-[3px] rounded-full bg-stone-300 group-hover:bg-[#8B2E4A]/60 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors" />
-                <div className="w-[3px] h-[3px] rounded-full bg-stone-300 group-hover:bg-[#8B2E4A]/60 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors" />
-                <div className="w-[3px] h-[3px] rounded-full bg-stone-300 group-hover:bg-[#8B2E4A]/60 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors" />
+              <div className="resize-handle-dots relative z-10 flex items-center gap-[3px] px-2 py-0.5 rounded-full bg-white border border-stone-200 group-hover:border-[#C4687A] group-data-[resize-handle-active]:border-[#8B2E4A] group-data-[resize-handle-active]:bg-[#8B2E4A]/5 transition-all duration-150 shadow-sm">
+                <div className="w-[3px] h-[3px] rounded-full bg-stone-300" />
+                <div className="w-[3px] h-[3px] rounded-full bg-stone-300" />
+                <div className="w-[3px] h-[3px] rounded-full bg-stone-300" />
               </div>
             </PanelResizeHandle>
 
@@ -892,8 +914,9 @@ function TodayCard({
   const longDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
   const shortDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  const cardBase = 'shrink-0 rounded-2xl text-white shadow-[var(--shadow-md)]'
+  const cardBase = 'shrink-0 rounded-2xl text-white shadow-[var(--shadow-md)] transition-all duration-200 ease-out'
   const gradient = { background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }
+  const isTall = size === 'tall'
 
   if (size === 'compact') {
     return (
@@ -922,25 +945,8 @@ function TodayCard({
     )
   }
 
-  if (size === 'medium') {
-    return (
-      <div className={cn(cardBase, 'p-5 flex flex-col')} style={gradient}>
-        <div className="text-[11px] uppercase tracking-[0.12em] text-white/70 font-medium">Today</div>
-        <div
-          className="text-2xl mt-1 leading-tight"
-          style={{ fontFamily: "'DM Serif Display', serif" }}
-        >
-          {longDate}
-        </div>
-        <div className="text-sm text-white/80 mt-2">
-          {todayBookings.length} today · {pendingCount} pending
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className={cn(cardBase, 'p-5')} style={gradient}>
+    <div className={cn(cardBase, 'p-5 flex flex-col')} style={gradient}>
       <div className="text-[11px] uppercase tracking-[0.12em] text-white/70 font-medium">Today</div>
       <div
         className="text-2xl mt-1 leading-tight"
@@ -948,7 +954,15 @@ function TodayCard({
       >
         {longDate}
       </div>
-      <div className="grid grid-cols-2 gap-2 mt-4">
+      <div
+        className={cn(
+          'grid grid-cols-2 gap-2 overflow-hidden transition-all duration-200 ease-out',
+          isTall
+            ? 'opacity-100 scale-100 max-h-40 mt-4'
+            : 'opacity-0 scale-95 max-h-0 mt-0 pointer-events-none'
+        )}
+        aria-hidden={!isTall}
+      >
         <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Bookings</div>
           <div className="text-xl font-semibold mt-0.5">{todayBookings.length}</div>
@@ -965,6 +979,17 @@ function TodayCard({
           <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Pending</div>
           <div className="text-xl font-semibold mt-0.5">{pendingCount}</div>
         </div>
+      </div>
+      <div
+        className={cn(
+          'text-sm text-white/80 overflow-hidden transition-all duration-200 ease-out',
+          isTall
+            ? 'opacity-0 max-h-0 mt-0 pointer-events-none'
+            : 'opacity-100 max-h-10 mt-2'
+        )}
+        aria-hidden={isTall}
+      >
+        {todayBookings.length} today · {pendingCount} pending
       </div>
     </div>
   )

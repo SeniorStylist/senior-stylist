@@ -152,6 +152,11 @@
 - The Today card has three adaptive layout modes driven by a `ResizeObserver` on the top panel content div: `tall` (>220px, shows 2×2 stat grid), `medium` (140–220px, hides stat grid, keeps date + summary line), `compact` (<140px, single-row flex with big count + date stack). See `TodayCard` component in `dashboard-client.tsx`. Compact uses `px-4 py-2.5` internal padding so the card squishes to ~72px minimum.
 - Non-admins skip the `PanelGroup` entirely — the list zone renders in a plain `flex-1 min-h-0` div. No resize handle.
 - Handle visual: horizontal divider line (`bg-stone-200`) with a white "grab dots" pill centred on top. Uses `group-data-[resize-handle-active]` Tailwind selector to switch to burgundy while dragging (the library sets that data attribute natively).
+- Motion: `[data-panel]` has `transition: flex-basis 180ms cubic-bezier(0.25, 0.46, 0.45, 0.94)` + `will-change: flex-basis` (globals.css). Transition is suppressed during active drag via `[data-panel-group][data-dragging] [data-panel] { transition: none !important }` — the `data-dragging` attribute is toggled on the PanelGroup root via `document.querySelector('[data-panel-group-id="dashboard-right-panel"]')` inside `PanelResizeHandle.onDragging`.
+- Magnetic snap: three resting positions (18 / 28 / 48 percent) with a 5pp threshold. On drag release, `topPanelRef.current.getSize()` is compared to the nearest snap point; if within threshold, `topPanelRef.current.resize(nearest)` triggers the animated settle via the CSS transition. `ImperativePanelHandle` from `react-resizable-panels` provides `getSize` + `resize`.
+- Handle dots wrapper carries `.resize-handle-dots` class; CSS rule scales child dots to `1.4×` and fills them `#8B2E4A` via `[data-resize-handle-active] .resize-handle-dots > div`. Dot divs drop inline hover/active color classes — CSS is the source of truth.
+- `TodayCard` uses a single DOM for `tall` + `medium` so the 2×2 stats grid and the summary line can crossfade via `opacity + max-h + scale` (200ms ease-out). `compact` stays its own branch because flex-direction flips to row.
+- `bottomZoneContent` outer has `overscrollBehavior: 'contain'` + `scroll-smooth` so inner list scroll doesn't bubble into the page.
 
 ### OCR / Gemini
 - Call Gemini REST API **directly via `fetch`** to `v1beta` endpoint — do NOT use the `@google/generative-ai` SDK
