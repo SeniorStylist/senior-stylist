@@ -60,6 +60,12 @@ export interface BookingWithRelations {
 type PanelTab = 'residents' | 'services' | 'stylists'
 type CalendarViewType = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
 
+const TOP_ZONE_MIN = 100
+const TOP_ZONE_MAX = 520
+const TOP_ZONE_DEFAULT = 360
+const TOP_ZONE_STORAGE_KEY = 'dashboardTodayPanelHeight'
+const clampTopZone = (n: number) => Math.min(TOP_ZONE_MAX, Math.max(TOP_ZONE_MIN, n))
+
 interface WorkingTodayRow {
   id: string
   name: string
@@ -136,6 +142,56 @@ export function DashboardClient({
   }, [localServices, facility.serviceCategoryOrder])
   const [coverageQueue, setCoverageQueue] = useState<CoverageRequest[]>(openCoverageRequests)
   const openCoverageCount = coverageQueue.length
+
+  // Right panel resize (Today group ↕ tab list)
+  const [topZoneHeight, setTopZoneHeight] = useState<number>(TOP_ZONE_DEFAULT)
+  const [isResizingTopZone, setIsResizingTopZone] = useState(false)
+  const dragStartYRef = useRef<number>(0)
+  const dragStartHeightRef = useRef<number>(TOP_ZONE_DEFAULT)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(TOP_ZONE_STORAGE_KEY)
+    if (!raw) return
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed)) setTopZoneHeight(clampTopZone(parsed))
+  }, [])
+
+  const onResizeHandlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragStartYRef.current = e.clientY
+    dragStartHeightRef.current = topZoneHeight
+    setIsResizingTopZone(true)
+  }
+
+  const onResizeHandlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isResizingTopZone) return
+    setTopZoneHeight(clampTopZone(dragStartHeightRef.current + (e.clientY - dragStartYRef.current)))
+  }
+
+  const onResizeHandlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isResizingTopZone) return
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+    setIsResizingTopZone(false)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOP_ZONE_STORAGE_KEY, String(topZoneHeight))
+    }
+  }
+
+  const onResizeHandleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    e.preventDefault()
+    const delta = e.key === 'ArrowUp' ? -20 : 20
+    setTopZoneHeight((h) => {
+      const next = clampTopZone(h + delta)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(TOP_ZONE_STORAGE_KEY, String(next))
+      }
+      return next
+    })
+  }
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
@@ -552,164 +608,203 @@ export function DashboardClient({
         className="hidden md:flex w-[300px] shrink-0 flex-col h-full p-4 pl-0 gap-3"
         style={{ backgroundColor: 'var(--color-panel-bg)' }}
       >
-        {/* Today gradient card (admin only) */}
+        {/* Top zone — Today + Who's Working + Coverage (resizable; admin only) */}
         {isAdmin && (
           <div
-            className="shrink-0 rounded-2xl p-5 text-white shadow-[var(--shadow-md)]"
-            style={{ background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }}
+            className="shrink-0 flex flex-col gap-3 overflow-y-auto pr-0.5"
+            style={{ height: topZoneHeight }}
           >
-            <div className="text-[11px] uppercase tracking-[0.12em] text-white/70 font-medium">Today</div>
+            {/* Today gradient card */}
             <div
-              className="text-2xl mt-1 leading-tight"
-              style={{ fontFamily: "'DM Serif Display', serif" }}
+              className="shrink-0 rounded-2xl p-5 text-white shadow-[var(--shadow-md)]"
+              style={{ background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }}
             >
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
-                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Bookings</div>
-                <div className="text-xl font-semibold mt-0.5">{todayBookings.length}</div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-white/70 font-medium">Today</div>
+              <div
+                className="text-2xl mt-1 leading-tight"
+                style={{ fontFamily: "'DM Serif Display', serif" }}
+              >
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               </div>
-              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
-                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Completed</div>
-                <div className="text-xl font-semibold mt-0.5">
-                  {todayBookings.filter((b) => b.status === 'completed').length}
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Bookings</div>
+                  <div className="text-xl font-semibold mt-0.5">{todayBookings.length}</div>
                 </div>
-              </div>
-              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
-                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Revenue</div>
-                <div className="text-xl font-semibold mt-0.5">{formatCents(todayRevenue)}</div>
-              </div>
-              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
-                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Pending</div>
-                <div className="text-xl font-semibold mt-0.5">
-                  {todayBookings.filter((b) => b.status !== 'completed').length}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Who's Working Today (admin only) */}
-        {isAdmin && (workingToday.length > 0 || workingTomorrow.length > 0) && (
-          <div className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
-            <div className="px-4 py-3 border-b border-stone-100">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Who&apos;s Working Today
-              </p>
-            </div>
-            <div className="px-4 py-3 space-y-2">
-              {workingToday.length > 0 ? (
-                workingToday.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: s.color }}
-                    />
-                    <span className="font-medium text-stone-800 flex-1 min-w-0 truncate">{s.name}</span>
-                    <span className="text-stone-400 text-xs shrink-0">
-                      {formatHHMM(s.startTime)}–{formatHHMM(s.endTime)}
-                    </span>
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Completed</div>
+                  <div className="text-xl font-semibold mt-0.5">
+                    {todayBookings.filter((b) => b.status === 'completed').length}
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-stone-400 italic">No stylists scheduled today</p>
-              )}
-              {workingTomorrow.length > 0 && (
-                <p className="text-xs text-stone-400 pt-1.5 border-t border-stone-50">
-                  <span className="font-medium">Tomorrow:</span>{' '}
-                  {workingTomorrow.map((s) => s.name).join(', ')}
-                </p>
-              )}
+                </div>
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Revenue</div>
+                  <div className="text-xl font-semibold mt-0.5">{formatCents(todayRevenue)}</div>
+                </div>
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Pending</div>
+                  <div className="text-xl font-semibold mt-0.5">
+                    {todayBookings.filter((b) => b.status !== 'completed').length}
+                  </div>
+                </div>
+              </div>
             </div>
+            {/* Who's Working Today */}
+            {(workingToday.length > 0 || workingTomorrow.length > 0) && (
+              <div className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                <div className="px-4 py-3 border-b border-stone-100">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                    Who&apos;s Working Today
+                  </p>
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  {workingToday.length > 0 ? (
+                    workingToday.map((s) => (
+                      <div key={s.id} className="flex items-center gap-2 text-sm">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: s.color }}
+                        />
+                        <span className="font-medium text-stone-800 flex-1 min-w-0 truncate">{s.name}</span>
+                        <span className="text-stone-400 text-xs shrink-0">
+                          {formatHHMM(s.startTime)}–{formatHHMM(s.endTime)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-stone-400 italic">No stylists scheduled today</p>
+                  )}
+                  {workingTomorrow.length > 0 && (
+                    <p className="text-xs text-stone-400 pt-1.5 border-t border-stone-50">
+                      <span className="font-medium">Tomorrow:</span>{' '}
+                      {workingTomorrow.map((s) => s.name).join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* Coverage Queue */}
+            {coverageQueue.length > 0 && (
+              <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                <div className="px-4 py-3 border-b border-stone-100">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                    Coverage Requests
+                  </p>
+                </div>
+                <ul className="max-h-[320px] overflow-y-auto divide-y divide-stone-100">
+                  {coverageQueue.map((r) => (
+                    <CoverageQueueRow
+                      key={r.id}
+                      request={r}
+                      stylists={stylists.filter((s) => s.id !== r.stylistId)}
+                      onAssigned={(id) => setCoverageQueue((prev) => prev.filter((x) => x.id !== id))}
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
-        {/* Coverage Queue (admin only) */}
-        {isAdmin && coverageQueue.length > 0 && (
-          <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
-            <div className="px-4 py-3 border-b border-stone-100">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                Coverage Requests
-              </p>
-            </div>
-            <ul className="max-h-[320px] overflow-y-auto divide-y divide-stone-100">
-              {coverageQueue.map((r) => (
-                <CoverageQueueRow
-                  key={r.id}
-                  request={r}
-                  stylists={stylists.filter((s) => s.id !== r.stylistId)}
-                  onAssigned={(id) => setCoverageQueue((prev) => prev.filter((x) => x.id !== id))}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
-        {/* Tabs */}
-        <div className="bg-white rounded-xl border border-stone-200 p-0.5 flex gap-0.5 shrink-0 shadow-[var(--shadow-sm)]">
-          {(['residents', 'services', 'stylists'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActivePanel(tab)}
+
+        {/* Drag handle (admin only) */}
+        {isAdmin && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize today panel"
+            aria-valuenow={topZoneHeight}
+            aria-valuemin={TOP_ZONE_MIN}
+            aria-valuemax={TOP_ZONE_MAX}
+            tabIndex={0}
+            onPointerDown={onResizeHandlePointerDown}
+            onPointerMove={onResizeHandlePointerMove}
+            onPointerUp={onResizeHandlePointerEnd}
+            onPointerCancel={onResizeHandlePointerEnd}
+            onKeyDown={onResizeHandleKeyDown}
+            className="shrink-0 h-4 flex items-center justify-center cursor-ns-resize touch-none select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8B2E4A]/30 rounded"
+            style={{ touchAction: 'none' }}
+          >
+            <div
               className={cn(
-                'flex-1 h-8 text-xs font-medium rounded-lg transition-all duration-150 capitalize active:scale-95',
-                activePanel === tab
-                  ? 'bg-stone-900 text-white shadow-sm'
-                  : 'text-stone-600 hover:bg-stone-50'
+                'w-7 h-1 rounded-full transition-colors',
+                isResizingTopZone
+                  ? 'bg-[#8B2E4A] shadow-[0_0_6px_rgba(139,46,74,0.4)]'
+                  : 'bg-stone-200 group-hover:bg-stone-400'
               )}
-            >
-              {tab}
-            </button>
-          ))}
+            />
+          </div>
+        )}
+
+        {/* Bottom zone — Tabs + tab list (fills remaining space) */}
+        <div className="flex-1 min-h-0 flex flex-col gap-3">
+          {/* Tabs */}
+          <div className="bg-white rounded-xl border border-stone-200 p-0.5 flex gap-0.5 shrink-0 shadow-[var(--shadow-sm)]">
+            {(['residents', 'services', 'stylists'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActivePanel(tab)}
+                className={cn(
+                  'flex-1 h-8 text-xs font-medium rounded-lg transition-all duration-150 capitalize active:scale-95',
+                  activePanel === tab
+                    ? 'bg-stone-900 text-white shadow-sm'
+                    : 'text-stone-600 hover:bg-stone-50'
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab list white card */}
+          <div className="flex-1 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden flex flex-col min-h-0">
+            <div className="flex-1 overflow-hidden min-h-0">
+              {activePanel === 'residents' && (
+                <ResidentsPanel
+                  residents={residents}
+                  onResidentAdded={(r) => setResidents((prev) => [r, ...prev])}
+                  isAdmin={isAdmin}
+                />
+              )}
+              {activePanel === 'services' && (
+                <ServicesPanel
+                  services={sortedLocalServices}
+                  onServiceAdded={(s) => setLocalServices((prev) => [...prev, s])}
+                  onServiceUpdated={(s) =>
+                    setLocalServices((prev) => prev.map((x) => (x.id === s.id ? s : x)))
+                  }
+                  isAdmin={isAdmin}
+                />
+              )}
+              {activePanel === 'stylists' && (
+                <StylistsPanel
+                  stylists={stylists}
+                  onStylistAdded={(s) => setStylists((prev) => [...prev, s])}
+                  isAdmin={isAdmin}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Panel + stats */}
-        <div className="flex-1 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden flex flex-col min-h-0">
-          <div className="flex-1 overflow-hidden min-h-0">
-            {activePanel === 'residents' && (
-              <ResidentsPanel
-                residents={residents}
-                onResidentAdded={(r) => setResidents((prev) => [r, ...prev])}
-                isAdmin={isAdmin}
-              />
-            )}
-            {activePanel === 'services' && (
-              <ServicesPanel
-                services={sortedLocalServices}
-                onServiceAdded={(s) => setLocalServices((prev) => [...prev, s])}
-                onServiceUpdated={(s) =>
-                  setLocalServices((prev) => prev.map((x) => (x.id === s.id ? s : x)))
-                }
-                isAdmin={isAdmin}
-              />
-            )}
-            {activePanel === 'stylists' && (
-              <StylistsPanel
-                stylists={stylists}
-                onStylistAdded={(s) => setStylists((prev) => [...prev, s])}
-                isAdmin={isAdmin}
-              />
-            )}
-          </div>
-
-          {/* Stats footer */}
-          <div className="shrink-0 border-t border-stone-100 px-3 py-3 bg-stone-50/70 rounded-b-2xl">
-            {isAdmin && periodStats ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
-                  <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This week</p>
-                  <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisWeek.revenueCents)}</p>
-                </div>
-                <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
-                  <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This month</p>
-                  <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisMonth.revenueCents)}</p>
-                </div>
-              </div>
-            ) : (
+        {/* Stats pills — pinned at bottom, outside resize area */}
+        <div className="shrink-0 rounded-2xl border border-stone-100 bg-stone-50/70 px-3 py-3 shadow-sm">
+          {isAdmin && periodStats ? (
+            <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
-                <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">Today</p>
-                <p className="text-sm font-semibold text-stone-800 mt-0.5">{todayBookings.length} appointments</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This week</p>
+                <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisWeek.revenueCents)}</p>
               </div>
-            )}
-          </div>
+              <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
+                <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This month</p>
+                <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisMonth.revenueCents)}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
+              <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">Today</p>
+              <p className="text-sm font-semibold text-stone-800 mt-0.5">{todayBookings.length} appointments</p>
+            </div>
+          )}
         </div>
       </div>
 

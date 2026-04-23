@@ -146,6 +146,11 @@
 - Edit mode shows $ price input + notes textarea. Stylist role: only sees edit button on own bookings (gated by `stylistFilter`)
 - Mobile nav prefetch: `<Link prefetch={true}>` on all nav links in `mobile-nav.tsx` and `sidebar.tsx`; `mobile-nav.tsx` also has `pendingHref` state — set on click for immediate tab highlight, cleared on pathname change
 
+### Dashboard right panel resize
+- Dashboard right panel uses a pointer-drag resize handle between the Today card and the tab list. `todayHeight` state (px number) is persisted to localStorage key `dashboardTodayPanelHeight`. Min 100px, max 260px. Stat pills are always `shrink-0` at the bottom and are NOT part of the resizable area.
+- Implementation note: in practice the top zone groups Today + Who's Working + Coverage cards (admin-only), so the clamp max is 520px in code to fit all three; the handle, top zone, and stat pills structure are exactly as spec'd otherwise.
+- Drag uses native pointer events + `setPointerCapture` (no library). `touch-none` + `touchAction: 'none'` on the handle prevents page scroll during touch drag. Handle is `role="separator"` + `tabIndex={0}`; ArrowUp/ArrowDown adjusts height by 20px/keypress.
+
 ### OCR / Gemini
 - Call Gemini REST API **directly via `fetch`** to `v1beta` endpoint — do NOT use the `@google/generative-ai` SDK
 - Model: `gemini-2.5-flash` — the current stable production model
