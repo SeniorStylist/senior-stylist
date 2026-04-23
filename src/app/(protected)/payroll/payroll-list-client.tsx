@@ -172,8 +172,8 @@ export function PayrollListClient({
           </p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-stone-200 bg-white overflow-hidden">
-          <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] gap-4 px-5 py-3 border-b border-stone-100 text-xs font-semibold text-stone-500 uppercase tracking-wide">
+        <div className="rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]">
+          <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] gap-4 px-5 py-3 border-b border-stone-200 bg-stone-50/60 text-[11px] font-semibold text-stone-400 uppercase tracking-wide">
             <div>Period</div>
             <div>Type</div>
             <div>Status</div>
@@ -190,7 +190,7 @@ export function PayrollListClient({
               <button
                 key={p.id}
                 onClick={() => router.push(`/payroll/${p.id}`)}
-                className="w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-stone-50 transition-colors"
+                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-[#F9EFF2] transition-colors"
               >
                 <div className="text-sm text-stone-900 font-medium">
                   {formatRange(p.startDate, p.endDate)}

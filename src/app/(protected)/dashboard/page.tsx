@@ -30,7 +30,7 @@ export default async function DashboardPage() {
       return (
         <div className="p-8">
           <h1
-            className="text-2xl font-bold text-stone-900 mb-2"
+            className="text-2xl font-normal text-stone-900 mb-2"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             Dashboard

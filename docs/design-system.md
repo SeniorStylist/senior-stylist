@@ -1338,3 +1338,142 @@ Shared motion vocabulary lives in `src/lib/animations.ts`. Import the constants 
 **Invoice Lines table** (scan-check modal Step 2, RFMS_REMITTANCE_SLIP only): `bg-stone-50 rounded-2xl p-4 border border-stone-100`. Header row: `grid grid-cols-[auto_1fr_auto] gap-x-4 text-xs text-stone-400 font-semibold uppercase tracking-wide`. Each line: same grid, `py-1 text-sm`; `confidence === 'low'` rows get `bg-amber-50`. Total row: `border-t border-stone-200 mt-2 pt-2 flex items-center justify-between text-sm`. Total value: `text-emerald-700 font-bold tabular-nums` when matches extracted check amount, `text-red-600` otherwise with ` ≠ check amount` suffix.
 
 **Expandable check detail row** (rfms-view.tsx, remittance checks only): Check # cell renders as `${btnBase} text-stone-700 underline decoration-dotted hover:text-stone-900` button when `residentBreakdown.type === 'remittance_lines'`; plain text otherwise. Expanded detail is a sibling `<div>` (not inside the payment row) with `${expandTransition} px-5 py-3 bg-stone-50 border-b border-stone-100`. Three-column grid: `grid-cols-[6rem_1fr_6rem]` — Ref # (font-mono xs), Date, Amount (text-right tabular-nums). Total row at bottom: emerald when matches `p.amountCents`, amber otherwise. Single-open-at-a-time via `expandedCheckId` state; clicking an already-open row collapses it.
+
+---
+
+## UI Polish Overhaul v2 (2026-04-23)
+
+A visual-only pass — zero logic changes — to make the app feel like a premium admin tool. The patterns below are the new house style; older sections in this doc still reference the previous looser conventions and will be reconciled as surfaces are touched.
+
+### Shadow tokens
+
+Four CSS variables on `:root` in `globals.css` — use via `shadow-[var(--shadow-*)]`. Do NOT roll custom shadows inline.
+
+```css
+--shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+--shadow-md: 0 4px 10px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+--shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.05);
+--color-panel-bg: #FDFCFB;  /* warm off-white for side panels */
+```
+
+### TopBar (`src/components/layout/top-bar.tsx`)
+
+Desktop-only horizontal bar (48px) above main content. Hidden on mobile (`hidden md:flex`).
+
+- Container: `h-12 shrink-0 items-center gap-2 px-5 border-b border-stone-200 bg-white/80 backdrop-blur-sm`
+- Three page tabs (Calendar / Residents / Daily Log) — role-filtered. Active state is an **underline** via `after:absolute after:left-2 after:right-2 after:-bottom-[13px] after:h-[2px] after:bg-[#8B2E4A] after:rounded-full`. Inactive: `text-stone-500 hover:text-stone-800`.
+- Facility chip: `h-8 px-3 rounded-full border border-stone-200 bg-stone-50 text-xs font-medium text-stone-700 inline-flex items-center gap-2`. Shows `{facilityCode} · {facilityName}`.
+- New Booking button (admin-only, `size="sm"`) → `router.push('/dashboard?new=1')`. Dashboard reads the param via `useSearchParams()` in a `useEffect`, opens the existing `NewBookingModal`, then strips the param via `router.replace('/dashboard')`.
+- Lives inside `<main>` as `shrink-0`. The children below it are wrapped in `flex-1 min-h-0 overflow-auto` so nested `h-full` layouts (dashboard) work correctly.
+
+### Sidebar section labels (`src/components/layout/sidebar.tsx`)
+
+Nav items are split at definition time into three labeled groups:
+
+- **SCHEDULING** — Calendar, Daily Log, My Account
+- **MANAGEMENT** — Residents, Stylists, Directory, Services, Settings
+- **ANALYTICS** — Billing, Analytics, Payroll
+
+Each group renders under a section label: `text-[10px] tracking-[0.14em] uppercase text-white/35 px-4 mt-3 mb-2 font-medium`.
+
+**Active nav pill:** `bg-[#8B2E4A]/30 text-white font-semibold shadow-inner` + icon `text-[#E8A0B0]`.
+**Inactive:** `text-white/70 hover:bg-white/5`.
+**Radial accent overlay:** wrap `<aside>` inner content in `relative overflow-hidden` with a non-interactive background layer:
+
+```tsx
+<div aria-hidden className="pointer-events-none absolute inset-0"
+     style={{ background: 'radial-gradient(1200px 400px at -10% 0%, rgba(196,104,122,0.14), transparent 60%)' }} />
+```
+
+### Dashboard Today gradient card (right panel top)
+
+Inserted at the TOP of the dashboard right panel, above "Who's Working Today" (admin-only; coexists with existing cards).
+
+```tsx
+<div className="rounded-2xl p-5 text-white shadow-[var(--shadow-md)]"
+     style={{ background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }}>
+  <div className="text-[11px] uppercase tracking-wide text-white/70 font-medium">Today</div>
+  <div className="text-3xl font-serif mt-1">{format(new Date(), 'EEEE, MMM d')}</div>
+  <div className="grid grid-cols-2 gap-2 mt-4">
+    {/* 2×2 stat pills — frosted glass */}
+  </div>
+</div>
+```
+
+**2×2 stat pills inside the gradient card** use `bg-white/10 backdrop-blur-sm rounded-xl p-3` with `text-[11px] uppercase tracking-wide text-white/70` labels and `text-lg font-semibold text-white` values. Stats read from existing dashboard state (no new queries).
+
+### View-switcher pill group (dashboard calendar + right panel tabs)
+
+Replaced the old dense border buttons with a compact pill group:
+
+```tsx
+<div className="inline-flex h-9 rounded-xl border border-stone-200 bg-white p-0.5 shadow-[var(--shadow-sm)]">
+  <button className="h-8 px-3 rounded-lg text-sm font-medium ...">
+    {/* active: bg-stone-900 text-white shadow-sm; inactive: text-stone-600 hover:text-stone-900 */}
+  </button>
+</div>
+```
+
+### Table chrome (house style for CSS-Grid "tables")
+
+All grid-based tables (residents, stylists, directory, payroll list + detail, billing IP/RFMS/cross-facility, super-admin facility list) share:
+
+- **Outer wrapper:** `rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]`
+- **Header row:** `bg-stone-50/60 border-b border-stone-200` with column labels in `text-[11px] font-semibold text-stone-400 uppercase tracking-wide`
+- **Data row hover:** `group transition-colors hover:bg-[#F9EFF2]` — soft burgundy blush (rose-50-ish)
+- **Persistent amber tint** (billing surfaces only, when `outstandingCents > 0` or equivalent): `bg-amber-50/40 hover:bg-amber-50/70` — OVERRIDES the blush hover. Reserved for "needs attention right now" rows.
+- **Row action reveal:** action icons use `opacity-0 group-hover:opacity-100 transition-opacity` on row-level controls.
+
+The old `text-xs font-semibold text-stone-500` header pattern is superseded by the lighter `text-[11px] … text-stone-400` above. Older surfaces still using `text-xs` headers should be migrated opportunistically.
+
+### Primary button shadow + lift
+
+`Button variant="primary"` now carries a soft burgundy shadow that grows on hover with a 1px lift:
+
+```
+shadow-[0_2px_6px_rgba(139,46,74,0.22)]
+hover:shadow-[0_4px_10px_rgba(139,46,74,0.28)]
+hover:-translate-y-[1px]
+disabled:shadow-none disabled:translate-y-0
+```
+
+Secondary gets rose border + burgundy text on hover: `hover:border-[#C4687A] hover:text-[#8B2E4A]`.
+
+### Badge base
+
+All badges are now fully rounded capsules:
+
+```
+inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+```
+
+(was `px-2 py-0.5 rounded-md`). Hardcoded badge sites outside the `Badge` component (sort toggles in super-admin, facility chips in directory) should match this shape.
+
+### Underline page-tab pattern (new standard — `pnav`)
+
+**New design-system standard for page-level tab navigation** (top of a page, below the heading). NOT applied retroactively to existing pill-style tabs in this pass; use for any new tab surface going forward.
+
+```tsx
+<nav className="flex items-center gap-4 border-b border-stone-200">
+  {tabs.map(t => {
+    const active = pathname === t.href
+    return (
+      <Link
+        key={t.href}
+        href={t.href}
+        className={cn(
+          'relative py-3 text-sm font-medium transition-colors',
+          active ? 'text-stone-900' : 'text-stone-500 hover:text-stone-800',
+          active && "after:absolute after:left-0 after:right-0 after:-bottom-px after:h-[2px] after:bg-[#8B2E4A] after:rounded-full"
+        )}
+      >
+        {t.label}
+      </Link>
+    )
+  })}
+</nav>
+```
+
+### h1 weight
+
+DM Serif Display is already a heavy serif — `font-bold` crushes its counters. **All DM-Serif-Display-styled `<h1>` elements use `font-normal`**, not `font-bold`. Leave `<h2>`/`<h3>` untouched (those use DM Sans and benefit from `font-bold`).

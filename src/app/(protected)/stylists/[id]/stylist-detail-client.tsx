@@ -305,7 +305,7 @@ export function StylistDetailClient({
         </button>
         <div>
           <h1
-            className="text-2xl font-bold text-stone-900"
+            className="text-2xl font-normal text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             {stylist.name}

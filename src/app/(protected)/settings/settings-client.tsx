@@ -554,7 +554,7 @@ export function SettingsClient({
   return (
     <div className="p-6 md:p-8 max-w-2xl">
       <h1
-        className="text-2xl font-bold text-stone-900 mb-1"
+        className="text-2xl font-normal text-stone-900 mb-1"
         style={{ fontFamily: "'DM Serif Display', serif" }}
       >
         Settings

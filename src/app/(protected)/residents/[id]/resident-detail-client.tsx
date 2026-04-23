@@ -185,7 +185,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
         </button>
         <div>
           <h1
-            className="text-2xl font-bold text-stone-900"
+            className="text-2xl font-normal text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             {resident.name}

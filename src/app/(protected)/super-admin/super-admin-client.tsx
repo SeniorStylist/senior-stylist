@@ -403,7 +403,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1
-                className="text-2xl font-bold text-stone-900"
+                className="text-2xl font-normal text-stone-900"
                 style={{ fontFamily: "'DM Serif Display', serif" }}
               >
                 Super Admin
@@ -464,7 +464,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   Sort:
                   <button
                     onClick={() => setFacilitySortBy('fid')}
-                    className={`px-2 py-0.5 rounded-md transition-colors ${
+                    className={`px-2.5 py-0.5 rounded-full transition-colors ${
                       facilitySortBy === 'fid'
                         ? 'bg-stone-200 text-stone-800 font-semibold'
                         : 'hover:bg-stone-100 text-stone-500'
@@ -474,7 +474,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                   </button>
                   <button
                     onClick={() => setFacilitySortBy('name')}
-                    className={`px-2 py-0.5 rounded-md transition-colors ${
+                    className={`px-2.5 py-0.5 rounded-full transition-colors ${
                       facilitySortBy === 'name'
                         ? 'bg-stone-200 text-stone-800 font-semibold'
                         : 'hover:bg-stone-100 text-stone-500'

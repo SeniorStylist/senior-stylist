@@ -466,7 +466,7 @@ export function LogClient({
         <div className="flex-1 text-center">
           <div className="flex items-center justify-center gap-2">
             <h1
-              className="text-xl font-bold text-stone-900"
+              className="text-xl font-normal text-stone-900"
               style={{ fontFamily: "'DM Serif Display', serif" }}
             >
               {formatLogDate(date)}

@@ -5,6 +5,7 @@ import { facilityUsers, facilities, franchises } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
+import { TopBar } from '@/components/layout/top-bar'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { ToastProvider } from '@/components/ui/toast'
 import InstallBanner from '@/components/pwa/install-banner'
@@ -76,8 +77,11 @@ export default async function ProtectedLayout({
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} />
       </div>
-      <main className="main-content flex-1 min-w-0 overflow-auto">
-        <ToastProvider>{children}</ToastProvider>
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
+        <div className="main-content flex-1 min-h-0 overflow-auto">
+          <ToastProvider>{children}</ToastProvider>
+        </div>
       </main>
       <MobileNav role={activeRole} />
       <InstallBanner />

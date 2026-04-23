@@ -412,7 +412,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           </div>
         )}
         <h1
-          className="text-2xl font-bold text-stone-900 mb-6"
+          className="text-2xl font-normal text-stone-900 mb-6"
           style={{ fontFamily: "'DM Serif Display', serif" }}
         >
           My Account
@@ -471,7 +471,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
         </div>
       )}
       <h1
-        className="text-2xl font-bold text-stone-900"
+        className="text-2xl font-normal text-stone-900"
         style={{ fontFamily: "'DM Serif Display', serif" }}
       >
         My Account

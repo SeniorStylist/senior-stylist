@@ -225,7 +225,7 @@ export function IPView({
               />
             </div>
 
-            <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
+            <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-200 bg-stone-50/60">
               <div className="col-span-3">
                 <SortHeader label="Resident" k="name" />
               </div>
@@ -238,13 +238,13 @@ export function IPView({
               <div className="col-span-1 text-right">
                 <SortHeader label="Billed" k="billed" align="right" />
               </div>
-              <div className="col-span-1 text-xs font-semibold text-stone-500 uppercase tracking-wide text-right">
+              <div className="col-span-1 text-[11px] font-semibold text-stone-400 uppercase tracking-wide text-right">
                 Paid
               </div>
               <div className="col-span-2 text-right">
                 <SortHeader label="Outstanding" k="outstanding" align="right" />
               </div>
-              <div className="col-span-2 text-xs font-semibold text-stone-500 uppercase tracking-wide text-right">
+              <div className="col-span-2 text-[11px] font-semibold text-stone-400 uppercase tracking-wide text-right">
                 Last Sent
               </div>
             </div>
@@ -257,10 +257,13 @@ export function IPView({
               const isSending = rowSending[r.id] ?? false
               const canSend = !!r.poaEmail
 
+              const rowTintClass = t.outstandingCents > 0
+                ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                : 'hover:bg-[#F9EFF2]'
               return (
                 <div
                   key={r.id}
-                  className="md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-50 last:border-0"
+                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-50 last:border-0 transition-colors ${rowTintClass}`}
                 >
                   <div className="md:col-span-3 text-sm font-medium text-stone-900">
                     {r.name}

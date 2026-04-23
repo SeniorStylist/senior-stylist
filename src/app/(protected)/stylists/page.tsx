@@ -70,7 +70,7 @@ export default async function StylistsPage() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
         <h1
-          className="text-2xl font-bold text-stone-900"
+          className="text-2xl font-normal text-stone-900"
           style={{ fontFamily: "'DM Serif Display', serif" }}
         >
           Stylists

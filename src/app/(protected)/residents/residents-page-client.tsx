@@ -152,7 +152,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1
-            className="text-2xl font-bold text-stone-900"
+            className="text-2xl font-normal text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             Residents
@@ -286,9 +286,9 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-[18px] border border-stone-200 shadow-[var(--shadow-sm)] overflow-hidden">
           {/* Table header */}
-          <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
+          <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-200 bg-stone-50/60">
             {(
               [
                 { key: 'name', label: 'Resident', span: 'col-span-4' },
@@ -301,8 +301,8 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
                 <button
                   onClick={() => toggleSort(key)}
                   className={cn(
-                    'flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-                    sortKey === key ? 'text-[#8B2E4A]' : 'text-stone-500 hover:text-stone-700'
+                    'flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                    sortKey === key ? 'text-[#8B2E4A]' : 'text-stone-400 hover:text-stone-600'
                   )}
                 >
                   {label}
@@ -320,7 +320,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
             <button
               key={resident.id}
               onClick={() => router.push(`/residents/${resident.id}`)}
-              className="w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0 text-left"
+              className="group w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors border-b border-stone-50 last:border-0 text-left"
             >
               <div className="col-span-4 flex items-center gap-3">
                 <Avatar name={resident.name} size="sm" />

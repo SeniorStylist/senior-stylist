@@ -107,6 +107,7 @@
 
 ### Typography & Layout
 - Fonts: DM Serif Display (headings), DM Sans (body)
+- **DM Serif Display `<h1>` uses `font-normal`** — `font-bold` crushes the serif's counters. Leave `<h2>`/`<h3>` untouched (DM Sans, benefits from bold).
 - Bottom sheets on mobile, modals on desktop
 - All bottom sheets: fixed overlay → flex-col → justify-end structure
 - Footer/save buttons ALWAYS outside scroll area (`flexShrink: 0`)
@@ -114,6 +115,18 @@
 - **Mobile safe area:** Any `fixed` element near the bottom MUST use `style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}` — mobile nav bar is ~72px tall; this clears both it and the home indicator. Remove any Tailwind `bottom-N` class from the same element. Applies to: floating action bars, FABs, scan buttons, multi-select bars.
 - Portal layout header: `style={{ backgroundColor: '#8B2E4A' }}` with inline floral SVG rose accent (`rgba(255,255,255,0.15)` stroke, `80×96px`, positioned absolute top-right)
 - Skeleton loaders use `.skeleton-shimmer` class — NOT `animate-pulse bg-stone-100`
+
+### UI Polish v2 (2026-04-23) — house style
+- **Shadow tokens** (`globals.css`): `--shadow-sm/md/lg` — use via `shadow-[var(--shadow-*)]`, do NOT roll custom shadows inline. `--color-panel-bg: #FDFCFB` for side-panel backgrounds.
+- **TopBar is desktop-only** (`hidden md:flex`) and lives inside `<main>` as `shrink-0`. Main content wraps children in `flex-1 min-h-0 overflow-auto` so nested `h-full` layouts (dashboard) work. The `.main-content` class (mobile nav padding) sits on the inner scroll container, not the outer `<main>`.
+- **New Booking button** in TopBar → `router.push('/dashboard?new=1')`. Dashboard reads `?new=1` via `useSearchParams()` in a `useEffect`, opens `NewBookingModal`, then strips the param via `router.replace('/dashboard')`.
+- **Sidebar sections:** nav items are grouped under SCHEDULING / MANAGEMENT / ANALYTICS labels. Active pill: `bg-[#8B2E4A]/30 text-white font-semibold shadow-inner` + icon `text-[#E8A0B0]`. Radial gradient overlay at top-left.
+- **Table chrome house style:** `rounded-[18px]` outer wrapper + `shadow-[var(--shadow-sm)]`, header bg `bg-stone-50/60` with `text-[11px] text-stone-400 uppercase tracking-wide` columns, row hover `hover:bg-[#F9EFF2]` (soft burgundy blush). Apply to all CSS-Grid-based "tables".
+- **Persistent amber row tint** (`bg-amber-50/40 hover:bg-amber-50/70`) signals a facility/resident with outstanding balance — overrides the default blush hover. **Reserved for billing surfaces only** — never use amber tint elsewhere.
+- **Primary Button:** carries `shadow-[0_2px_6px_rgba(139,46,74,0.22)]` + `hover:-translate-y-[1px]` + `hover:shadow-[0_4px_10px_rgba(139,46,74,0.28)]`. `disabled:shadow-none disabled:translate-y-0` neutralizes the lift when inert.
+- **Badges** are fully rounded capsules: `rounded-full px-2.5 py-0.5`. Hardcoded badge-like pills (sort toggles, facility chips) should match this shape.
+- **Underline `pnav` tab pattern** is the new design-system standard for page-level tab navigation — active state is a `#8B2E4A` underline bar via `after:`. Existing pill-style tabs are NOT migrated in this pass; use the underline pattern for any new tab surface going forward.
+- **Today gradient card** lives at the TOP of the dashboard right panel (admin-only), ABOVE "Who's Working Today" — it prepends, it doesn't replace. 2×2 stat grid inside uses frosted-glass tiles (`bg-white/10 backdrop-blur-sm`).
 
 ### File Structure Conventions
 - Server components in `page.tsx`, client logic in `[name]-client.tsx`

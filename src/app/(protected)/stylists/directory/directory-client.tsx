@@ -579,7 +579,7 @@ export function DirectoryClient({
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1
-            className="text-2xl font-bold text-stone-900"
+            className="text-2xl font-normal text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             Directory
@@ -956,11 +956,11 @@ export function DirectoryClient({
                     )}
                   </span>
                   {facility ? (
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 shrink-0">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
                       {facility}
                     </span>
                   ) : (
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-rose-50 text-[#8B2E4A] shrink-0">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-[#8B2E4A] shrink-0">
                       Franchise Pool
                     </span>
                   )}
@@ -1083,9 +1083,9 @@ export function DirectoryClient({
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-[18px] border border-stone-200 shadow-[var(--shadow-sm)] overflow-hidden">
               {/* Sort header */}
-              <div className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] px-4 py-2 border-b border-stone-100 bg-stone-50/50">
+              <div className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] px-4 py-2 border-b border-stone-200 bg-stone-50/60">
                 {(
                   [
                     { key: 'name', label: 'Name' },
@@ -1099,7 +1099,7 @@ export function DirectoryClient({
                     key={col.key}
                     type="button"
                     onClick={() => handleAppSort(col.key)}
-                    className="flex items-center gap-1 text-xs font-semibold text-stone-400 uppercase tracking-wide hover:text-stone-600 transition-colors text-left"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-stone-400 uppercase tracking-wide hover:text-stone-600 transition-colors text-left"
                   >
                     {col.label}
                     {appSortKey === col.key ? (
@@ -1112,7 +1112,7 @@ export function DirectoryClient({
                 <div />
               </div>
               {filteredApplicants.map((a) => (
-                <div key={a.id} className="border-b border-stone-50 last:border-0">
+                <div key={a.id} className="group border-b border-stone-50 last:border-0 hover:bg-[#F9EFF2] transition-colors">
                   {/* Summary row */}
                   <div
                     className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"

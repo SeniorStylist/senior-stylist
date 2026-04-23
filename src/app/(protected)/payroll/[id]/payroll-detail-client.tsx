@@ -337,8 +337,8 @@ export function PayrollDetailClient({
         </div>
       )}
 
-      <div className="rounded-2xl border border-stone-200 bg-white overflow-hidden">
-        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_0.7fr_1fr_1fr_1fr_32px] gap-4 px-5 py-3 border-b border-stone-100 text-xs font-semibold text-stone-500 uppercase tracking-wide">
+      <div className="rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]">
+        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_0.7fr_1fr_1fr_1fr_32px] gap-4 px-5 py-3 border-b border-stone-200 bg-stone-50/60 text-[11px] font-semibold text-stone-400 uppercase tracking-wide">
           <div>Stylist</div>
           <div>Pay Type</div>
           <div>Gross Revenue</div>
@@ -367,7 +367,7 @@ export function PayrollDetailClient({
                   setExpandedId((id) => (id === item.id ? null : item.id))
                 }}
                 disabled={isPaid}
-                className="w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_0.7fr_1fr_1fr_1fr_32px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 hover:bg-stone-50 transition-colors disabled:cursor-default disabled:hover:bg-transparent"
+                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_0.7fr_1fr_1fr_1fr_32px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors disabled:cursor-default disabled:hover:bg-transparent"
               >
                 <div className="flex items-center gap-2">
                   <span

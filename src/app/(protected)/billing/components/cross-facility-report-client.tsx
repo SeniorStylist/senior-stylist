@@ -211,7 +211,7 @@ export function CrossFacilityReportClient({ type }: { type: ReportPanelType }) {
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-12 gap-3 px-5 py-2.5 bg-stone-50 border-b border-stone-100">
+            <div className="grid grid-cols-12 gap-3 px-5 py-2.5 bg-stone-50/60 border-b border-stone-200">
               <div className="col-span-5">
                 <SortHeader label="Facility" k="name" />
               </div>
@@ -228,18 +228,22 @@ export function CrossFacilityReportClient({ type }: { type: ReportPanelType }) {
               </div>
             </div>
             {sortedRows.map((row) => {
+              const isOwed = (type === 'outstanding' || type === 'overdue') && row.valueCents > 0
               const valueClass =
                 type === 'outstanding' || type === 'overdue'
                   ? row.valueCents > 0
                     ? 'text-sm font-semibold text-amber-700 text-right'
                     : 'text-sm text-stone-500 text-right'
                   : 'text-sm font-semibold text-stone-900 text-right'
+              const rowTintClass = isOwed
+                ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                : 'hover:bg-[#F9EFF2]'
               return (
                 <button
                   key={row.facilityId}
                   type="button"
                   onClick={() => router.push(`/billing?facility=${row.facilityId}`)}
-                  className={`${transitionBase} grid grid-cols-12 gap-3 px-5 py-3 border-b border-stone-50 last:border-0 hover:bg-stone-50 w-full text-left`}
+                  className={`${transitionBase} group grid grid-cols-12 gap-3 px-5 py-3 border-b border-stone-50 last:border-0 ${rowTintClass} w-full text-left`}
                 >
                   <div className="col-span-5 text-sm font-medium text-stone-900 truncate">
                     {row.name || '—'}

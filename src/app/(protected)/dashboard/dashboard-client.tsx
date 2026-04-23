@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { BookingModal } from '@/components/calendar/booking-modal'
 import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
@@ -126,6 +127,19 @@ export function DashboardClient({
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Handle `?new=1` from TopBar "New Booking" button — opens modal, strips param.
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setEditBookingId(null)
+      setModalStart(null)
+      setModalEnd(null)
+      setModalOpen(true)
+      router.replace('/dashboard')
+    }
+  }, [searchParams, router])
 
   // Stylist mobile list mode
   const [stylistListMode, setStylistListMode] = useState(false)
@@ -322,7 +336,7 @@ export function DashboardClient({
           {/* Header */}
           <div className="px-4 pt-6 pb-4">
             <p className="text-xs text-stone-400 font-medium uppercase tracking-wide">{todayLabel}</p>
-            <h1 className="text-2xl font-bold text-stone-900 mt-0.5" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            <h1 className="text-2xl font-normal text-stone-900 mt-0.5" style={{ fontFamily: "'DM Serif Display', serif" }}>
               {greeting}, {firstName}
             </h1>
           </div>
@@ -391,7 +405,7 @@ export function DashboardClient({
 
   return (
     <ErrorBoundary>
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="flex h-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* ── Calendar column ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden p-3 md:p-4 gap-3">
         {/* Admin: pending access requests banner */}
@@ -459,16 +473,16 @@ export function DashboardClient({
             </div>
             {/* Right: view switcher + export */}
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
+              <div className="inline-flex h-9 rounded-xl border border-stone-200 bg-white p-0.5 shadow-[var(--shadow-sm)]">
                 {(['timeGridDay', 'timeGridWeek', 'dayGridMonth'] as const).map((view) => (
                   <button
                     key={view}
                     onClick={() => switchView(view)}
                     className={cn(
-                      'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-95',
+                      'h-8 px-3 text-sm font-medium rounded-lg transition-all duration-150 active:scale-95',
                       calendarView === view
-                        ? 'bg-[#8B2E4A] text-white'
-                        : 'text-stone-600 hover:bg-stone-100'
+                        ? 'bg-stone-900 text-white shadow-sm'
+                        : 'text-stone-600 hover:bg-stone-50'
                     )}
                   >
                     {view === 'timeGridDay' ? 'Day' : view === 'timeGridWeek' ? 'Week' : 'Month'}
@@ -522,7 +536,47 @@ export function DashboardClient({
       </div>
 
       {/* ── Right panel — hidden on mobile ── */}
-      <div className="hidden md:flex w-[300px] shrink-0 flex-col h-screen p-4 pl-0 gap-3">
+      <div
+        className="hidden md:flex w-[300px] shrink-0 flex-col h-full p-4 pl-0 gap-3"
+        style={{ backgroundColor: 'var(--color-panel-bg)' }}
+      >
+        {/* Today gradient card (admin only) */}
+        {isAdmin && (
+          <div
+            className="shrink-0 rounded-2xl p-5 text-white shadow-[var(--shadow-md)]"
+            style={{ background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }}
+          >
+            <div className="text-[11px] uppercase tracking-[0.12em] text-white/70 font-medium">Today</div>
+            <div
+              className="text-2xl mt-1 leading-tight"
+              style={{ fontFamily: "'DM Serif Display', serif" }}
+            >
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Bookings</div>
+                <div className="text-xl font-semibold mt-0.5">{todayBookings.length}</div>
+              </div>
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Completed</div>
+                <div className="text-xl font-semibold mt-0.5">
+                  {todayBookings.filter((b) => b.status === 'completed').length}
+                </div>
+              </div>
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Revenue</div>
+                <div className="text-xl font-semibold mt-0.5">{formatCents(todayRevenue)}</div>
+              </div>
+              <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Pending</div>
+                <div className="text-xl font-semibold mt-0.5">
+                  {todayBookings.filter((b) => b.status !== 'completed').length}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Who's Working Today (admin only) */}
         {isAdmin && (workingToday.length > 0 || workingTomorrow.length > 0) && (
           <div className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm">
@@ -578,16 +632,16 @@ export function DashboardClient({
           </div>
         )}
         {/* Tabs */}
-        <div className="bg-white rounded-xl border border-stone-200 p-1 flex gap-1 shrink-0">
+        <div className="bg-white rounded-xl border border-stone-200 p-0.5 flex gap-0.5 shrink-0 shadow-[var(--shadow-sm)]">
           {(['residents', 'services', 'stylists'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActivePanel(tab)}
               className={cn(
-                'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 capitalize active:scale-95',
+                'flex-1 h-8 text-xs font-medium rounded-lg transition-all duration-150 capitalize active:scale-95',
                 activePanel === tab
-                  ? 'bg-[#8B2E4A] text-white'
-                  : 'text-stone-600 hover:bg-stone-100'
+                  ? 'bg-stone-900 text-white shadow-sm'
+                  : 'text-stone-600 hover:bg-stone-50'
               )}
             >
               {tab}
@@ -625,41 +679,22 @@ export function DashboardClient({
           </div>
 
           {/* Stats footer */}
-          <div className="shrink-0 border-t border-stone-100 px-4 py-3 bg-stone-50 rounded-b-2xl space-y-2.5">
-            {/* Today */}
-            <div>
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1.5">
-                Today
-              </p>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xl font-bold text-stone-900">{todayBookings.length}</p>
-                  <p className="text-xs text-stone-400">appointments</p>
+          <div className="shrink-0 border-t border-stone-100 px-3 py-3 bg-stone-50/70 rounded-b-2xl">
+            {isAdmin && periodStats ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
+                  <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This week</p>
+                  <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisWeek.revenueCents)}</p>
                 </div>
-                {isAdmin && (
-                  <div className="text-right">
-                    <p className="text-xl font-bold text-[#8B2E4A]">{formatCents(todayRevenue)}</p>
-                    <p className="text-xs text-stone-400">revenue</p>
-                  </div>
-                )}
+                <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
+                  <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This month</p>
+                  <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisMonth.revenueCents)}</p>
+                </div>
               </div>
-            </div>
-
-            {/* Week + Month */}
-            {isAdmin && periodStats && (
-              <div className="border-t border-stone-100 pt-2.5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-stone-400">This week</p>
-                  <p className="text-xs font-semibold text-stone-700">
-                    {formatCents(periodStats.thisWeek.revenueCents)}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-stone-400">This month</p>
-                  <p className="text-xs font-semibold text-stone-700">
-                    {formatCents(periodStats.thisMonth.revenueCents)}
-                  </p>
-                </div>
+            ) : (
+              <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
+                <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">Today</p>
+                <p className="text-sm font-semibold text-stone-800 mt-0.5">{todayBookings.length} appointments</p>
               </div>
             )}
           </div>
