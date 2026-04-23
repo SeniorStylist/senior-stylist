@@ -87,6 +87,7 @@
 - Next.js 16 async params — always `{ params: Promise<{id: string}> }`
 - `revalidateTag` in Next.js 16 takes TWO args — `revalidateTag('bookings', {})` not `revalidateTag('bookings')`
 - **Date parsing:** Use `new Date(d + 'T00:00:00')` (appending local time) — avoid `new Date('YYYY-MM-DD')` which is UTC-midnight and shifts back one day in negative-UTC-offset timezones
+- **Dashboard Services panel** — NEVER use `formatCents(service.priceCents)` in `services-panel.tsx`; always use `formatPricingLabel(service)` from `src/lib/pricing.ts`. The panel receives a pre-sorted list from `dashboard-client.tsx` (sorted via `service-sort.ts` helpers respecting `facility.serviceCategoryOrder`) — do not sort inside the panel itself
 
 ---
 

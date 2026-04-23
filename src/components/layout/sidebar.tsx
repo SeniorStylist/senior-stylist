@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -188,6 +188,22 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
   const supabase = createClient()
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
+  const [facilitySortOrder, setFacilitySortOrder] = useState<'fid' | 'name'>(() => {
+    if (typeof window === 'undefined') return 'fid'
+    return (localStorage.getItem('facilitySortOrder') as 'fid' | 'name') ?? 'fid'
+  })
+  const sortedFacilities = useMemo(() => {
+    return [...allFacilities].sort((a, b) => {
+      if (facilitySortOrder === 'name') return (a.name ?? '').localeCompare(b.name ?? '')
+      const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      return numA - numB
+    })
+  }, [allFacilities, facilitySortOrder])
+  const handleSortChange = (order: 'fid' | 'name') => {
+    setFacilitySortOrder(order)
+    localStorage.setItem('facilitySortOrder', order)
+  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -269,8 +285,25 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                 className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50 overflow-hidden"
                 style={{ backgroundColor: 'var(--color-sidebar)', border: '1px solid rgba(255,255,255,0.12)' }}
               >
-                <div className="max-h-[60vh] overflow-y-auto">
-                  {allFacilities.map((f) => (
+                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
+                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Sort:</span>
+                  {(['fid', 'name'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => handleSortChange(opt)}
+                      className="px-2 py-0.5 rounded-full text-[10px] transition-colors"
+                      style={{
+                        backgroundColor: facilitySortOrder === opt ? 'rgba(255,255,255,0.15)' : 'transparent',
+                        color: facilitySortOrder === opt ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)',
+                        fontWeight: facilitySortOrder === opt ? '600' : '400',
+                      }}
+                    >
+                      {opt === 'fid' ? 'FID' : 'A–Z'}
+                    </button>
+                  ))}
+                </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                  {sortedFacilities.map((f) => (
                     <button
                       key={f.id}
                       onClick={() => handleSelectFacility(f.id)}
