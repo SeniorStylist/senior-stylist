@@ -317,7 +317,11 @@ Adds `shadow-sm` and uses white background by default:
 
 ### Category Grouping in Native Selects
 
-Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`. Section order follows the per-facility `facilities.service_category_order` (captured on PDF import) when it exists; when absent or empty, categories fall back to **Z→A descending** alphabetical. "Other" always sorts last. Skip the grouping wrapper when `groups.length <= 1`. Within each group, services are pre-sorted by `pricingTypePriority` (fixed/multi_option = 0, tiered = 1, addon = 2) then alphabetically by name — so standard services appear first, tiered second, add-ons last. All three sort primitives live in `src/lib/service-sort.ts` (`buildCategoryPriority`, `sortCategoryGroups`, `sortServicesWithinCategory`) and are shared by booking modal, portal picker, services page, and log walk-in form — no site should re-implement its own category sort.
+Long service pickers group options by `service.category` via `<optgroup>`. A small helper produces `Array<[string, T[]]>` keyed on `category?.trim() || 'Other'`. Section order follows the per-facility `facilities.service_category_order` (captured on PDF import) when it exists; when absent or empty, categories fall back to **Z→A descending** alphabetical. "Other" always sorts last. Skip the grouping wrapper when `groups.length <= 1`. Within each group, services are pre-sorted by `pricingTypePriority` (fixed/multi_option = 0, tiered = 1, addon = 2) then alphabetically by name — so standard services appear first, tiered second, add-ons last. All three sort primitives live in `src/lib/service-sort.ts` (`buildCategoryPriority`, `sortCategoryGroups`, `sortServicesWithinCategory`) and are shared by booking modal, portal picker, services page, log walk-in form, and **dashboard Services panel** — no site should re-implement its own category sort.
+
+**Dashboard Services panel** (`src/components/panels/services-panel.tsx`) rules:
+- Price display MUST use `formatPricingLabel(service)` from `src/lib/pricing.ts` — never `formatCents(service.priceCents)` directly (returns $0 for addon/tiered/multi_option types)
+- Sort order is applied in `dashboard-client.tsx` via a `useMemo` on `localServices` using the same three `service-sort.ts` helpers, respecting `facility.serviceCategoryOrder`; the panel receives an already-sorted list and renders it flat
 
 ```tsx
 <select>

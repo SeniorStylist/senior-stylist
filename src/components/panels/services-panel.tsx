@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { formatCents, dollarsToCents } from '@/lib/utils'
+import { dollarsToCents } from '@/lib/utils'
+import { formatPricingLabel } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import type { Service } from '@/types'
 import { useToast } from '@/components/ui/toast'
@@ -235,7 +236,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
                     <p className="text-xs text-stone-400">{service.durationMinutes}min</p>
                   </div>
                   <p className="text-sm font-semibold text-stone-700 shrink-0">
-                    {formatCents(service.priceCents)}
+                    {formatPricingLabel(service)}
                   </p>
                   {isAdmin && hoverId === service.id && (
                     <button

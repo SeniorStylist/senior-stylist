@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { BookingModal } from '@/components/calendar/booking-modal'
@@ -10,6 +10,7 @@ import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
 import { cn, formatCents } from '@/lib/utils'
+import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Resident, Stylist, Service, Facility, CoverageRequest } from '@/types'
 import { Spinner } from '@/components/ui'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -122,6 +123,17 @@ export function DashboardClient({
   const [residents, setResidents] = useState<Resident[]>(initialResidents)
   const [stylists, setStylists] = useState<Stylist[]>(initialStylists)
   const [localServices, setLocalServices] = useState<Service[]>(initialServices)
+  const sortedLocalServices = useMemo(() => {
+    const priority = buildCategoryPriority(facility.serviceCategoryOrder)
+    const groups = new Map<string, Service[]>()
+    for (const s of localServices) {
+      const cat = s.category ?? 'Other'
+      if (!groups.has(cat)) groups.set(cat, [])
+      groups.get(cat)!.push(s)
+    }
+    const sorted = sortCategoryGroups([...groups.entries()], priority)
+    return sorted.flatMap(([, items]) => sortServicesWithinCategory(items))
+  }, [localServices, facility.serviceCategoryOrder])
   const [coverageQueue, setCoverageQueue] = useState<CoverageRequest[]>(openCoverageRequests)
   const openCoverageCount = coverageQueue.length
 
@@ -661,7 +673,7 @@ export function DashboardClient({
             )}
             {activePanel === 'services' && (
               <ServicesPanel
-                services={localServices}
+                services={sortedLocalServices}
                 onServiceAdded={(s) => setLocalServices((prev) => [...prev, s])}
                 onServiceUpdated={(s) =>
                   setLocalServices((prev) => prev.map((x) => (x.id === s.id ? s : x)))
