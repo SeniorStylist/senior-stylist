@@ -634,7 +634,7 @@ export function DashboardClient({
             autoSaveId="dashboard-right-panel"
             className="flex-1 min-h-0"
           >
-            <Panel ref={topPanelRef} id="today-zone" order={1} defaultSize={28} minSize={12} maxSize={70}>
+            <Panel ref={topPanelRef} id="today-zone" order={1} defaultSize={28} minSize={14} maxSize={70}>
               <div
                 ref={topPanelContentRef}
                 className="h-full flex flex-col overflow-y-auto pr-0.5"
