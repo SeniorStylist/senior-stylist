@@ -372,13 +372,13 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                       href={item.href}
                       prefetch={true}
                       className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
+                        'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
                         isActive
                           ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
                           : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
                       )}
                     >
-                      <span className={cn(isActive ? 'text-[#E8A0B0]' : 'text-white/50')}>
+                      <span className={cn('transition-colors duration-150', isActive ? 'text-[#E8A0B0]' : 'text-white/50')}>
                         {item.icon}
                       </span>
                       {item.label}

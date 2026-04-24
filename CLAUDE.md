@@ -131,7 +131,7 @@
 - `viewport-fit=cover` required in `layout.tsx` for iPhone safe areas
 - **Mobile safe area:** Any `fixed` element near the bottom MUST use `style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}` — mobile nav bar is ~72px tall; this clears both it and the home indicator. Remove any Tailwind `bottom-N` class from the same element. Applies to: floating action bars, FABs, scan buttons, multi-select bars.
 - Portal layout header: `style={{ backgroundColor: '#8B2E4A' }}` with inline floral SVG rose accent (`rgba(255,255,255,0.15)` stroke, `80×96px`, positioned absolute top-right)
-- Skeleton loaders use `.skeleton-shimmer` class — NOT `animate-pulse bg-stone-100`
+- Skeleton loaders use `.skeleton` (preferred, lighter) or `.skeleton-shimmer` class — NOT `animate-pulse bg-stone-100`. See "Motion & Interaction System" below.
 
 ### UI Polish v2 (2026-04-23) — house style
 - **Shadow tokens** (`globals.css`): `--shadow-sm/md/lg` — use via `shadow-[var(--shadow-*)]`, do NOT roll custom shadows inline. `--color-panel-bg: #FDFCFB` for side-panel backgrounds.
@@ -144,6 +144,22 @@
 - **Badges** are fully rounded capsules: `rounded-full px-2.5 py-0.5`. Hardcoded badge-like pills (sort toggles, facility chips) should match this shape.
 - **Underline `pnav` tab pattern** is the new design-system standard for page-level tab navigation — active state is a `#8B2E4A` underline bar via `after:`. Existing pill-style tabs are NOT migrated in this pass; use the underline pattern for any new tab surface going forward.
 - **Today gradient card** lives at the TOP of the dashboard right panel (admin-only), ABOVE "Who's Working Today" — it prepends, it doesn't replace. 2×2 stat grid inside uses frosted-glass tiles (`bg-white/10 backdrop-blur-sm`).
+
+### Motion & Interaction System (2026-04-24)
+- **Motion tokens** in `globals.css`: `--ease-out` / `--ease-spring` / `--ease-in-out`, `--duration-fast` (100ms) / `--duration-base` (160ms) / `--duration-slow` (260ms). `--shadow-xl` + surface tokens (`--surface-base/card/raised/sunken`).
+- **Global interaction baseline**: `button, [role="button"], a` carry a transition baseline on background/border/color/shadow/transform/opacity. `:active` scales to `0.97` with a 60ms duration. Do not add ad-hoc `transition` classes unless you need non-default properties.
+- **Button** (`src/components/ui/button.tsx`) carries a `focus-visible:ring-2 focus-visible:ring-[#8B2E4A]/30 focus-visible:ring-offset-2` keyboard ring. Primary hover lift is `-translate-y-[1.5px]` with `shadow-[0_6px_16px_rgba(139,46,74,0.32)]`; `active:shadow-none` collapses the lift on press. Ghost buttons add `active:scale-[0.95]` for a stronger press.
+- **Card hover lift** (`cardHover` in `src/lib/animations.ts`): `transition-[transform,box-shadow] duration-[160ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:-translate-y-[2px] hover:shadow-[var(--shadow-md)]`. Apply to standalone clickable cards; NEVER apply to list rows (use blush row-hover instead).
+- **Table row timing**: rows use `transition-colors duration-[120ms] ease-out` for the blush hover sweep. Applied across residents/stylists/payroll/billing/cross-facility report tables.
+- **Skeleton loaders**: use `<Skeleton>` / `<SkeletonResidentRow>` / `<SkeletonBookingCard>` / `<SkeletonStatCard>` from `src/components/ui/skeleton.tsx`, which uses the lighter `.skeleton` class (1.4s shimmer loop). `.skeleton-shimmer` remains for existing usages; prefer `.skeleton` for new ad-hoc shapes.
+- **Toast notifications**: `useToast()` from `src/components/ui/toast.tsx` — method API `toast.success('…')`, `toast.error('…')`, `toast.info('…')`, `toast.loading('…')`. The legacy `toast('msg', 'success')` form still works. **Error and loading variants do NOT auto-dismiss** (only on X click). Success/info auto-dismiss at 3500ms. Visual: white bg + colored border + colored icon + `shadow-[var(--shadow-lg)]`. NEVER use `alert()` or raw error divs.
+- **Empty states**: use `<EmptyState>` from `src/components/ui/empty-state.tsx` — icon (20×20 SVG) + title + optional description + optional CTA. Don't render bare "No X yet" text on primary surfaces.
+- **Page-level mount animation**: add `className="page-enter"` (prefix, preserve existing classes) to the outermost div of each page client. Dashboard is excluded by design.
+- **Focus ring standard** across inputs/selects/textareas: `focus:ring-2 focus:ring-[#8B2E4A]/20`. Wrapper components (`<Input>`/`<Select>`/`<NativeSelect>`) also use `focus:border-[#8B2E4A]/50`. Do NOT use `focus:ring-rose-100` (migrated) or `focus:ring-[#8B2E4A]/30` (migrated).
+- **Search-input glow**: primary search inputs (residents, daily log resident search, stylist/applicant directory) carry `focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)]` — a soft burgundy halo.
+- **`.balance-attention` pulse class** is reserved for **outstanding-balance dollar figures in billing views only** (`ip-view.tsx` and `rfms-view.tsx`, applied conditionally when `outstandingCents > 0`). Never apply it anywhere else.
+- **Reduced motion**: `@media (prefers-reduced-motion: reduce)` in globals.css collapses animation/transition durations to 0.01ms globally — all new motion must respect this.
+- **Sidebar active pill**: the nav `<Link>` uses `transition-colors duration-150 ease-out` and the icon span carries `transition-colors duration-150` so the active state crossfades rather than snapping. No framer-motion dependency — CSS-only.
 
 ### File Structure Conventions
 - Server components in `page.tsx`, client logic in `[name]-client.tsx`

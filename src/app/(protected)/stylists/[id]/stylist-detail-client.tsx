@@ -292,7 +292,7 @@ export function StylistDetailClient({
 
   return (
     <ErrorBoundary>
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="page-enter p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <button
@@ -388,7 +388,7 @@ export function StylistDetailClient({
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
               />
             </div>
 
@@ -401,7 +401,7 @@ export function StylistDetailClient({
                   value={stylistCode}
                   onChange={(e) => setStylistCode(e.target.value.toUpperCase())}
                   placeholder="ST###"
-                  className="w-32 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                  className="w-32 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                 />
               ) : (
                 <span className="text-sm font-mono text-stone-700">{stylist.stylistCode}</span>
@@ -416,7 +416,7 @@ export function StylistDetailClient({
                 <select
                   value={facilityId ?? ''}
                   onChange={(e) => setFacilityId(e.target.value || null)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                 >
                   <option value="">Unassigned (franchise pool)</option>
                   {franchiseFacilities.map((f) => (
@@ -440,7 +440,7 @@ export function StylistDetailClient({
                     max={100}
                     value={commissionInput}
                     onChange={(e) => setCommissionInput(e.target.value)}
-                    className="w-20 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-20 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     autoFocus
                   />
                   <span className="text-sm text-stone-400">%</span>
@@ -493,7 +493,7 @@ export function StylistDetailClient({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Add email address"
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 mb-2"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 mb-2"
                   />
                 )}
                 {stylist.email && (hasLinkedAccount ? (
@@ -558,7 +558,7 @@ export function StylistDetailClient({
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as StylistStatus)}
-                    className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   >
                     {STATUS_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
@@ -620,7 +620,7 @@ export function StylistDetailClient({
                         if (e.key === 'Escape') { setNewSpecialtyInput(''); setAddingSpecialty(false) }
                       }}
                       placeholder="Custom specialty"
-                      className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                      className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                     />
                     <button
                       type="button"
@@ -695,7 +695,7 @@ export function StylistDetailClient({
                   <input
                     value={licenseNumber}
                     onChange={(e) => setLicenseNumber(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     placeholder="e.g. 123456"
                   />
                 </div>
@@ -704,7 +704,7 @@ export function StylistDetailClient({
                   <input
                     value={licenseType}
                     onChange={(e) => setLicenseType(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     placeholder="e.g. Cosmetology"
                   />
                 </div>
@@ -713,7 +713,7 @@ export function StylistDetailClient({
                   <input
                     value={licenseState}
                     onChange={(e) => setLicenseState(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     placeholder="e.g. MD, VA"
                   />
                 </div>
@@ -723,7 +723,7 @@ export function StylistDetailClient({
                     type="date"
                     value={licenseExpiresAt}
                     onChange={(e) => setLicenseExpiresAt(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap pt-1">
@@ -773,7 +773,7 @@ export function StylistDetailClient({
                                 return next
                               })
                             }}
-                            className="w-24 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                            className="w-24 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                           >
                             {PHONE_LABELS.map((l) => (
                               <option key={l} value={l}>{l}</option>
@@ -791,7 +791,7 @@ export function StylistDetailClient({
                                 })
                               }}
                               placeholder="label"
-                              className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                              className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                             />
                           )}
                           <input
@@ -805,7 +805,7 @@ export function StylistDetailClient({
                               })
                             }}
                             placeholder="555-000-0000"
-                            className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                            className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                           />
                           <button
                             type="button"
@@ -834,7 +834,7 @@ export function StylistDetailClient({
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="123 Main St, City, State"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   />
                 </div>
                 <div>
@@ -842,7 +842,7 @@ export function StylistDetailClient({
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   >
                     <option value="">— select —</option>
                     <option value="Commission">Commission</option>
@@ -893,7 +893,7 @@ export function StylistDetailClient({
                           value={editCommissionInput}
                           onChange={(e) => setEditCommissionInput(e.target.value)}
                           placeholder="Default"
-                          className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                          className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                         />
                         <span className="text-xs text-stone-400">%</span>
                       </div>
@@ -982,7 +982,7 @@ export function StylistDetailClient({
                     <select
                       value={newAssignmentFacilityId}
                       onChange={(e) => setNewAssignmentFacilityId(e.target.value)}
-                      className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                      className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                     >
                       <option value="">Select facility…</option>
                       {available.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -995,7 +995,7 @@ export function StylistDetailClient({
                         value={newAssignmentCommission}
                         onChange={(e) => setNewAssignmentCommission(e.target.value)}
                         placeholder="Default"
-                        className="w-20 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                        className="w-20 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                       />
                       <span className="text-xs text-stone-400">%</span>
                     </div>
@@ -1070,7 +1070,7 @@ export function StylistDetailClient({
                   placeholder="Add a note…"
                   rows={3}
                   maxLength={5000}
-                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all resize-none"
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all resize-none"
                 />
                 <button
                   type="button"

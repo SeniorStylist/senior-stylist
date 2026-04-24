@@ -861,7 +861,7 @@ function CoverageQueueRow({
         <select
           value={substituteId}
           onChange={(e) => setSubstituteId(e.target.value)}
-          className="flex-1 min-w-0 text-xs rounded-lg border border-stone-200 px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+          className="flex-1 min-w-0 text-xs rounded-lg border border-stone-200 px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
           disabled={saving}
         >
           <option value="">Pick substitute…</option>

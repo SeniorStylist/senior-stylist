@@ -1,9 +1,9 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
-type ToastType = 'success' | 'error' | 'info'
+type ToastType = 'success' | 'error' | 'info' | 'loading'
 
 interface Toast {
   id: string
@@ -12,8 +12,15 @@ interface Toast {
   visible: boolean
 }
 
+type ToastFn = ((message: string, type?: ToastType) => void) & {
+  success: (message: string) => void
+  error: (message: string) => void
+  info: (message: string) => void
+  loading: (message: string) => void
+}
+
 interface ToastContextValue {
-  toast: (message: string, type?: ToastType) => void
+  toast: ToastFn
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -23,29 +30,35 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const counterRef = useRef(0)
 
   const dismiss = useCallback((id: string) => {
-    // Start slide-out by toggling visible
-    setToasts((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, visible: false } : t))
-    )
-    // Remove after animation
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, visible: false } : t)))
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 300)
+    }, 160)
   }, [])
 
-  const toast = useCallback(
+  const push = useCallback(
     (message: string, type: ToastType = 'success') => {
       counterRef.current += 1
       const id = `toast-${counterRef.current}`
       setToasts((prev) => {
         const next = [...prev, { id, type, message, visible: true }]
-        // Keep max 3
         return next.slice(-3)
       })
-      setTimeout(() => dismiss(id), 3000)
+      if (type !== 'error' && type !== 'loading') {
+        setTimeout(() => dismiss(id), 3500)
+      }
     },
     [dismiss]
   )
+
+  const toast = useMemo(() => {
+    const fn = ((message: string, type?: ToastType) => push(message, type)) as ToastFn
+    fn.success = (message: string) => push(message, 'success')
+    fn.error = (message: string) => push(message, 'error')
+    fn.info = (message: string) => push(message, 'info')
+    fn.loading = (message: string) => push(message, 'loading')
+    return fn
+  }, [push])
 
   return (
     <ToastContext.Provider value={{ toast }}>
@@ -62,28 +75,44 @@ export function useToast() {
 }
 
 const TYPE_STYLES: Record<ToastType, string> = {
-  success: 'bg-emerald-600 text-white',
-  error: 'bg-red-600 text-white',
-  info: 'bg-[#8B2E4A] text-white',
+  success: 'bg-white border border-emerald-200 text-stone-800',
+  error: 'bg-white border border-red-200 text-stone-800',
+  info: 'bg-white border border-stone-200 text-stone-700',
+  loading: 'bg-white border border-stone-200 text-stone-700',
+}
+
+const ICON_COLOR: Record<ToastType, string> = {
+  success: 'text-emerald-600',
+  error: 'text-red-600',
+  info: 'text-stone-500',
+  loading: 'text-stone-500',
 }
 
 const TYPE_ICONS: Record<ToastType, React.ReactNode> = {
   success: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <polyline points="20 6 9 17 4 12" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="16 10 11 15 8 12" />
     </svg>
   ),
   error: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="15" y1="9" x2="9" y2="15" />
+      <line x1="9" y1="9" x2="15" y2="15" />
     </svg>
   ),
   info: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="8" x2="12" y2="12" />
       <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
+  loading: (
+    <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
   ),
 }
@@ -101,10 +130,8 @@ function ToastContainer({
     <div
       className={cn(
         'fixed z-[9999] flex flex-col gap-2 pointer-events-none',
-        // Mobile: bottom-center
         'bottom-20 left-1/2 -translate-x-1/2 items-center',
-        // Desktop: top-right
-        'md:bottom-auto md:top-5 md:right-5 md:left-auto md:translate-x-0 md:items-end'
+        'md:bottom-5 md:right-5 md:top-auto md:left-auto md:translate-x-0 md:items-end'
       )}
       aria-live="polite"
     >
@@ -129,23 +156,22 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
   return (
     <div
       className={cn(
-        'pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-lg text-sm font-semibold',
-        'transition-all duration-300 ease-out',
+        'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-[var(--shadow-lg)] text-sm font-medium min-w-[280px] max-w-[360px]',
+        'transition-all duration-200 ease-out',
         TYPE_STYLES[toast.type],
-        // Slide in from bottom on mobile, from right on desktop
         entered && toast.visible
-          ? 'opacity-100 translate-y-0 md:translate-x-0'
-          : 'opacity-0 translate-y-3 md:translate-y-0 md:translate-x-4'
+          ? 'opacity-100 translate-y-0'
+          : 'opacity-0 translate-y-3'
       )}
     >
-      <span className="shrink-0">{TYPE_ICONS[toast.type]}</span>
-      <span>{toast.message}</span>
+      <span className={cn('shrink-0', ICON_COLOR[toast.type])}>{TYPE_ICONS[toast.type]}</span>
+      <span className="flex-1">{toast.message}</span>
       <button
         onClick={() => onDismiss(toast.id)}
-        className="ml-1 opacity-70 hover:opacity-100 transition-opacity shrink-0"
+        className="ml-1 text-stone-400 hover:text-stone-600 shrink-0"
         aria-label="Dismiss"
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>

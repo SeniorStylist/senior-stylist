@@ -404,7 +404,7 @@ export function BookingModal({
           value={cancelReasonOther}
           onChange={(e) => setCancelReasonOther(e.target.value)}
           placeholder="Describe the reason..."
-          className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+          className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
         />
       )}
     </div>
@@ -486,7 +486,7 @@ export function BookingModal({
             }}
             placeholder="Search by name or room..."
             disabled={submitting}
-            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all duration-150 disabled:opacity-60"
+            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all duration-150 disabled:opacity-60"
           />
           {residentDropdownOpen && (
             <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
@@ -502,14 +502,14 @@ export function BookingModal({
                     value={createResidentName}
                     onChange={(e) => setCreateResidentName(e.target.value)}
                     placeholder="Full name *"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   />
                   <input
                     tabIndex={0}
                     value={createResidentRoom}
                     onChange={(e) => setCreateResidentRoom(e.target.value)}
                     placeholder="Room number (optional)"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   />
                   <div className="flex gap-2 pt-1">
                     <button
@@ -641,7 +641,7 @@ export function BookingModal({
                   value={svcId}
                   onChange={(e) => setServiceAt(idx, e.target.value)}
                   disabled={submitting}
-                  className="flex-1 w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all disabled:opacity-60 min-h-[48px]"
+                  className="flex-1 w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all disabled:opacity-60 min-h-[48px]"
                 >
                   <option value="">Select a service</option>
                   {(() => {
@@ -756,7 +756,7 @@ export function BookingModal({
               value={selectedOptionName}
               onChange={(e) => setSelectedOptionName(e.target.value)}
               disabled={submitting}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all disabled:opacity-60 min-h-[44px]"
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all disabled:opacity-60 min-h-[44px]"
             >
               {primaryService.pricingOptions?.map((opt) => (
                 <option key={opt.name} value={opt.name}>
@@ -838,7 +838,7 @@ export function BookingModal({
             onChange={(e) => setStartTime(e.target.value)}
             step="1800"
             disabled={submitting}
-            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all duration-150 disabled:opacity-60 min-h-[44px]"
+            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all duration-150 disabled:opacity-60 min-h-[44px]"
           />
         </div>
 
@@ -853,7 +853,7 @@ export function BookingModal({
             rows={2}
             placeholder="Allergies, preferences, special requests..."
             disabled={submitting}
-            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all duration-150 resize-none disabled:opacity-60"
+            className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all duration-150 resize-none disabled:opacity-60"
           />
         </div>
 
@@ -889,7 +889,7 @@ export function BookingModal({
                     type="date"
                     value={recurringEndDate}
                     onChange={(e) => setRecurringEndDate(e.target.value)}
-                    className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   />
                 </div>
               </div>

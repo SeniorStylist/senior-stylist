@@ -11,6 +11,7 @@ import {
   sortServicesWithinCategory,
 } from '@/lib/service-sort'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -449,7 +450,7 @@ export function LogClient({
   return (
     <ErrorBoundary>
     <div
-      className="p-4 md:p-6 max-w-3xl mx-auto pb-40 md:pb-0"
+      className="page-enter p-4 md:p-6 max-w-3xl mx-auto pb-40 md:pb-0"
       {...pullHandlers}
     >
       {/* Header */}
@@ -564,7 +565,7 @@ export function LogClient({
                 setTimeout(() => setWiResidentDropOpen(false), 150)
               }}
               placeholder="Search resident..."
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
             />
             {wiResidentDropOpen && (
               <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
@@ -580,14 +581,14 @@ export function LogClient({
                       value={wiCreateName}
                       onChange={(e) => setWiCreateName(e.target.value)}
                       placeholder="Full name *"
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     />
                     <input
                       tabIndex={0}
                       value={wiCreateRoom}
                       onChange={(e) => setWiCreateRoom(e.target.value)}
                       placeholder="Room number (optional)"
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     />
                     <div className="flex gap-2 pt-1">
                       <button
@@ -792,16 +793,20 @@ export function LogClient({
 
       {/* No bookings state */}
       {stylistGroups.length === 0 && !loading && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center mb-4">
-          <p className="text-stone-400 text-sm">No appointments scheduled for this day.</p>
-          {isToday && (
-            <button
-              onClick={() => setShowWalkIn(true)}
-              className="mt-3 text-sm text-[#8B2E4A] font-medium hover:underline"
-            >
-              Add a walk-in
-            </button>
-          )}
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm mb-4">
+          <EmptyState
+            icon={
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+                <path d="M12 14l.8 1.8L14.5 16l-1.7 1.5.4 2L12 18.5l-1.2.9.4-2L9.5 16l1.7-.2.8-1.8z" />
+              </svg>
+            }
+            title={isToday ? 'No appointments today' : 'No appointments scheduled for this day'}
+            cta={isToday ? { label: '+ Add Walk-in', onClick: () => setShowWalkIn(true) } : undefined}
+          />
         </div>
       )}
 
@@ -959,7 +964,7 @@ export function LogClient({
                                 min="0"
                                 value={editPrice}
                                 onChange={(e) => setEditPrice(e.target.value)}
-                                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100"
+                                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                               />
                             </div>
                             <textarea
@@ -967,7 +972,7 @@ export function LogClient({
                               onChange={(e) => setEditNotes(e.target.value)}
                               placeholder="Notes..."
                               rows={2}
-                              className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 resize-none"
+                              className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 resize-none"
                             />
                             <div className="flex items-center gap-2">
                               <button
@@ -1098,7 +1103,7 @@ export function LogClient({
                   onChange={(e) => setNotes((prev) => ({ ...prev, [stylist.id]: e.target.value }))}
                   placeholder="Day notes (optional)..."
                   rows={2}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all resize-none"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all resize-none"
                 />
                 {notes[stylist.id] && (
                   <div className="flex justify-end mt-1.5">

@@ -246,7 +246,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
             value={addName}
             onChange={(e) => setAddName(e.target.value)}
             placeholder="Service name *"
-            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
           />
           <div className="flex gap-3">
             <div className="flex-1 relative">
@@ -258,7 +258,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
               />
             </div>
             <select
@@ -277,7 +277,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
             <select
               value={addPricingType}
               onChange={(e) => setAddPricingType(e.target.value as PricingType)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
             >
               <option value="fixed">Fixed Price</option>
               <option value="addon">Add-on</option>
@@ -297,7 +297,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
               />
             </div>
           )}

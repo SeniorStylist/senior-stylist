@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { dollarsToCents } from '@/lib/utils'
 import { formatPricingLabel } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { Service } from '@/types'
 import { useToast } from '@/components/ui/toast'
 
@@ -130,7 +131,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
               value={addName}
               onChange={(e) => setAddName(e.target.value)}
               placeholder="Service name *"
-              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
             />
             <div className="flex gap-2">
               <div className="flex-1 relative">
@@ -142,7 +143,7 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
                   placeholder="0.00"
                   step="0.01"
                   min="0"
-                  className="w-full bg-white border border-stone-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
+                  className="w-full bg-white border border-stone-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
                 />
               </div>
               <select
@@ -172,9 +173,18 @@ export function ServicesPanel({ services, onServiceAdded, onServiceUpdated, isAd
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {services.length === 0 ? (
-          <div className="flex items-center justify-center h-28">
-            <p className="text-sm text-stone-400">No services yet</p>
-          </div>
+          <EmptyState
+            icon={
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="6" cy="18" r="3" />
+                <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                <line x1="8.12" y1="8.12" x2="12" y2="12" />
+              </svg>
+            }
+            title="No services yet"
+          />
         ) : (
           services.map((service) => (
             <div

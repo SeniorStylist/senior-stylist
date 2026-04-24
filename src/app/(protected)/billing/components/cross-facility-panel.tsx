@@ -291,7 +291,7 @@ export function CrossFacilityPanel({
                     key={row.facilityId}
                     type="button"
                     onClick={() => onSelectFacility(row.facilityId)}
-                    className={`${transitionBase} grid grid-cols-12 gap-3 px-4 py-3 border-b border-stone-50 last:border-0 hover:bg-stone-50 w-full text-left`}
+                    className={`transition-colors duration-[120ms] ease-out grid grid-cols-12 gap-3 px-4 py-3 border-b border-stone-50 last:border-0 hover:bg-stone-50 w-full text-left`}
                   >
                     <div className="col-span-5 text-sm font-medium text-stone-900 truncate">
                       {row.name || '—'}

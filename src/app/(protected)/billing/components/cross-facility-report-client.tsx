@@ -243,7 +243,7 @@ export function CrossFacilityReportClient({ type }: { type: ReportPanelType }) {
                   key={row.facilityId}
                   type="button"
                   onClick={() => router.push(`/billing?facility=${row.facilityId}`)}
-                  className={`${transitionBase} group grid grid-cols-12 gap-3 px-5 py-3 border-b border-stone-50 last:border-0 ${rowTintClass} w-full text-left`}
+                  className={`transition-colors duration-[120ms] ease-out group grid grid-cols-12 gap-3 px-5 py-3 border-b border-stone-50 last:border-0 ${rowTintClass} w-full text-left`}
                 >
                   <div className="col-span-5 text-sm font-medium text-stone-900 truncate">
                     {row.name || '—'}

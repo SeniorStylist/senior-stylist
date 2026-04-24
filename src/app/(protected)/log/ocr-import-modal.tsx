@@ -634,7 +634,7 @@ export function OcrImportModal({
                           type="date"
                           value={sheet.date}
                           onChange={(e) => updateSheet(activeTab, { date: e.target.value })}
-                          className="min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+                          className="min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
                         />
                       </div>
                       <div className="flex-1 min-w-[180px]">
@@ -643,7 +643,7 @@ export function OcrImportModal({
                           value={sheet.stylistId ?? ''}
                           onChange={(e) => updateSheet(activeTab, { stylistId: e.target.value || null })}
                           className={cn(
-                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]',
+                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
                             !sheet.stylistId ? 'border-red-300' : 'border-stone-200'
                           )}
                         >

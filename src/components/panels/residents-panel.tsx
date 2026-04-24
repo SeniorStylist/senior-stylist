@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { Resident } from '@/types'
 import { useToast } from '@/components/ui/toast'
 
@@ -86,7 +87,7 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
           />
           {isAdmin && (
             <button
@@ -112,7 +113,7 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
               onChange={(e) => setName(e.target.value)}
               placeholder="Full name *"
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
             />
             <div className="flex gap-2">
               <input
@@ -120,14 +121,14 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
                 value={roomNumber}
                 onChange={(e) => setRoomNumber(e.target.value)}
                 placeholder="Room #"
-                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
+                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
               />
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Phone"
-                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
+                className="w-1/2 bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
               />
             </div>
             <div className="flex gap-2 justify-end">
@@ -145,11 +146,23 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
       {/* Resident list */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-28 text-center px-4">
-            <p className="text-sm text-stone-400">
-              {search ? 'No matches found' : 'No residents yet'}
-            </p>
-          </div>
+          search ? (
+            <div className="flex flex-col items-center justify-center h-28 text-center px-4">
+              <p className="text-sm text-stone-400">No matches found</p>
+            </div>
+          ) : (
+            <EmptyState
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" y1="8" x2="19" y2="14" />
+                  <line x1="22" y1="11" x2="16" y2="11" />
+                </svg>
+              }
+              title="No residents yet"
+            />
+          )
         ) : (
           filtered.map((resident) => (
             <button

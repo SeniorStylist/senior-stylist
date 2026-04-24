@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 import { computeNetPay } from '@/lib/payroll'
 
 interface DetailStylist {
@@ -94,6 +95,7 @@ export function PayrollDetailClient({
   hasExpenseAccount: boolean
 }) {
   const router = useRouter()
+  const { toast } = useToast()
   const [currentStatus, setCurrentStatus] = useState(period.status)
   const [items, setItems] = useState<DetailItem[]>(initialItems)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -181,7 +183,7 @@ export function PayrollDetailClient({
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        alert(typeof j.error === 'string' ? j.error : 'Failed to update status')
+        toast.error(typeof j.error === 'string' ? j.error : 'Failed to update status')
         return
       }
       setCurrentStatus(target)
@@ -367,7 +369,7 @@ export function PayrollDetailClient({
                   setExpandedId((id) => (id === item.id ? null : item.id))
                 }}
                 disabled={isPaid}
-                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_0.7fr_1fr_1fr_1fr_32px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors disabled:cursor-default disabled:hover:bg-transparent"
+                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_0.7fr_1fr_1fr_1fr_32px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out disabled:cursor-default disabled:hover:bg-transparent"
               >
                 <div className="flex items-center gap-2">
                   <span
@@ -422,7 +424,7 @@ export function PayrollDetailClient({
                       )
                       const json = await res.json()
                       if (!res.ok) {
-                        alert(typeof json.error === 'string' ? json.error : 'Failed to save')
+                        toast.error(typeof json.error === 'string' ? json.error : 'Failed to save')
                         return
                       }
                       const updated = json.data.item
@@ -450,7 +452,7 @@ export function PayrollDetailClient({
                     )
                     const json = await res.json()
                     if (!res.ok) {
-                      alert(typeof json.error === 'string' ? json.error : 'Failed to add deduction')
+                      toast.error(typeof json.error === 'string' ? json.error : 'Failed to add deduction')
                       return false
                     }
                     updateItemLocal(item.id, {
@@ -466,7 +468,7 @@ export function PayrollDetailClient({
                     )
                     const json = await res.json()
                     if (!res.ok) {
-                      alert(typeof json.error === 'string' ? json.error : 'Failed to delete')
+                      toast.error(typeof json.error === 'string' ? json.error : 'Failed to delete')
                       return
                     }
                     updateItemLocal(item.id, {
@@ -605,7 +607,7 @@ function ItemEditor({
             <select
               value={payType}
               onChange={(e) => setPayType(e.target.value)}
-              className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+              className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
             >
               <option value="commission">Commission</option>
               <option value="hourly">Hourly</option>
@@ -635,7 +637,7 @@ function ItemEditor({
                   min="0"
                   value={hoursWorked}
                   onChange={(e) => setHoursWorked(e.target.value)}
-                  className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                  className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -648,7 +650,7 @@ function ItemEditor({
                   min="0"
                   value={hourlyRateDollars}
                   onChange={(e) => setHourlyRateDollars(e.target.value)}
-                  className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                  className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
                 />
               </div>
             </div>
@@ -665,7 +667,7 @@ function ItemEditor({
                 min="0"
                 value={flatDollars}
                 onChange={(e) => setFlatDollars(e.target.value)}
-                className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
           )}
@@ -679,7 +681,7 @@ function ItemEditor({
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               maxLength={2000}
-              className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 resize-none"
+              className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 resize-none"
             />
           </div>
 
@@ -754,7 +756,7 @@ function ItemEditor({
                 <select
                   value={dedType}
                   onChange={(e) => setDedType(e.target.value)}
-                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
                 >
                   <option value="cash_kept">Cash Kept</option>
                   <option value="supplies">Supplies</option>
@@ -772,7 +774,7 @@ function ItemEditor({
                   min="0"
                   value={dedAmount}
                   onChange={(e) => setDedAmount(e.target.value)}
-                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -784,7 +786,7 @@ function ItemEditor({
                   value={dedNote}
                   onChange={(e) => setDedNote(e.target.value)}
                   maxLength={500}
-                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 pt-1">

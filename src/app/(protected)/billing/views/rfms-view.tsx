@@ -203,7 +203,7 @@ export function RFMSView({
               const t = computeResidentTotals(r, invoices)
               const outstandingClass =
                 t.outstandingCents > 0
-                  ? 'text-sm font-semibold text-amber-700 md:text-right'
+                  ? 'text-sm font-semibold text-amber-700 md:text-right balance-attention'
                   : 'text-sm text-stone-500 md:text-right'
               const rowTintClass = t.outstandingCents > 0
                 ? 'bg-amber-50/40 hover:bg-amber-50/70'
@@ -211,7 +211,7 @@ export function RFMSView({
               return (
                 <div
                   key={r.id}
-                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3 border-b border-stone-50 last:border-0 transition-colors ${rowTintClass}`}
+                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${rowTintClass}`}
                 >
                   <div className="md:col-span-4 text-sm font-medium text-stone-900">
                     {r.name}

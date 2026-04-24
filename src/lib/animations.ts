@@ -4,7 +4,7 @@ export const btnHubInteractive =
   'transition-all duration-150 ease-out active:scale-[0.97] hover:scale-[1.02]'
 
 export const cardHover =
-  'transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md'
+  'transition-[transform,box-shadow] duration-[160ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:-translate-y-[2px] hover:shadow-[var(--shadow-md)]'
 
 export const transitionBase = 'transition-all duration-150 ease-out'
 

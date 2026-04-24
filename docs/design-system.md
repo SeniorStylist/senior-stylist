@@ -1481,3 +1481,159 @@ inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
 ### h1 weight
 
 DM Serif Display is already a heavy serif — `font-bold` crushes its counters. **All DM-Serif-Display-styled `<h1>` elements use `font-normal`**, not `font-bold`. Leave `<h2>`/`<h3>` untouched (those use DM Sans and benefit from `font-bold`).
+
+## Motion & Interaction System (2026-04-24)
+
+A coordinated pass to unify motion vocabulary, tighten interaction feedback, migrate remaining `alert()` calls, add empty states where primary surfaces had plain text, and give every page a subtle mount animation. Zero logic / API / schema changes.
+
+### Motion tokens (globals.css)
+
+```css
+--ease-out:      cubic-bezier(0.25, 0.46, 0.45, 0.94);   /* Apple ease-out */
+--ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);      /* overshoot */
+--ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+--duration-fast: 100ms;
+--duration-base: 160ms;
+--duration-slow: 260ms;
+--shadow-xl:     0 20px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.06);
+--surface-base:   #F7F5F0;
+--surface-card:   #FFFFFF;
+--surface-raised: #FFFFFF;
+--surface-sunken: #F3F1EC;
+```
+
+### Global interaction baseline
+
+```css
+button, [role="button"], a {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+button:active, [role="button"]:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
+}
+```
+
+Do not layer extra `transition-all` / `transition-colors` classes on top unless you need non-default properties.
+
+### Button polish
+
+- Base: `focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8B2E4A]/30 focus-visible:ring-offset-2` — keyboard users see a soft burgundy halo; mouse clicks don't trigger it.
+- Primary: `hover:-translate-y-[1.5px] hover:shadow-[0_6px_16px_rgba(139,46,74,0.32)]` + `active:shadow-none` (lift collapses on press).
+- Secondary: `hover:bg-[#F9EFF2]/60 active:bg-[#F9EFF2]` (blush hover instead of stone).
+- Ghost: `active:bg-stone-200 active:scale-[0.95]` (stronger press; overrides global 0.97).
+
+### Card hover lift (`cardHover` in `src/lib/animations.ts`)
+
+```
+transition-[transform,box-shadow] duration-[160ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]
+hover:-translate-y-[2px] hover:shadow-[var(--shadow-md)]
+```
+
+Apply to standalone clickable cards (e.g. billing summary cards). NEVER apply to list rows or rows-inside-a-card — lifting a container inside another container breaks visually. For rows, use blush row-hover instead.
+
+### Table row timing
+
+All CSS-grid "tables" carry `transition-colors duration-[120ms] ease-out` on the row element for the blush sweep on hover. Applied on: residents list, stylist directory, applicants list, payroll list, payroll detail, ip-view billing rows, rfms-view billing rows, cross-facility-report rows, cross-facility-panel facility rows.
+
+### Sidebar active pill
+
+CSS-only animation — no framer-motion in the project. Link uses `transition-colors duration-150 ease-out`, icon span uses `transition-colors duration-150`. The burgundy `bg-[#8B2E4A]/30` pill crossfades in/out between route changes via background-color interpolation.
+
+### Skeleton classes
+
+Two parallel classes:
+
+- `.skeleton` — lighter, faster (1.4s loop), `#F3F1EC → #EAE8E4` gradient. Used by `<Skeleton>` / `<SkeletonResidentRow>` / `<SkeletonBookingCard>` / `<SkeletonStatCard>` from `src/components/ui/skeleton.tsx`.
+- `.skeleton-shimmer` — existing heavier variant, remains for billing-specific placeholders and any prior inline usages.
+
+Prefer `.skeleton` for new ad-hoc shimmer shapes. Never `animate-pulse bg-stone-100`.
+
+### Page-level mount animation
+
+```css
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: pageEnter var(--duration-slow) var(--ease-out) forwards; }
+```
+
+Add `className="page-enter"` (as a prefix, preserving existing classes) to the outermost div of each page client. Dashboard is excluded — its grid layout is custom and the animation would flash the calendar. Applied to: residents list, log, billing, payroll list, settings, my-account, stylist directory, stylist detail, resident detail.
+
+### Toast system (refactor)
+
+`useToast()` from `src/components/ui/toast.tsx` — method API:
+
+```ts
+toast.success('Saved')
+toast.error('Network error')
+toast.info('Heads up…')
+toast.loading('Importing…')
+// legacy form still works: toast('msg', 'success')
+```
+
+- Visual: white bg + colored border + colored icon (emerald checkmark / red X / stone info / stone spinner) + `shadow-[var(--shadow-lg)]`, `rounded-xl`, `min-w-[280px] max-w-[360px]`, text `text-sm font-medium`.
+- Enter animation: 200ms ease-out. Exit: 160ms.
+- Auto-dismiss at 3500ms for `success` / `info`. **`error` and `loading` do NOT auto-dismiss** — user must X out.
+- Position: top-right on mobile, bottom-right on desktop.
+
+Never use `alert()` or raw error divs for user-facing messages — existing `alert()` calls in `billing/views/ip-view.tsx` and `payroll/[id]/payroll-detail-client.tsx` have been migrated.
+
+### Empty states (`<EmptyState>`)
+
+Component at `src/components/ui/empty-state.tsx`:
+
+```tsx
+<EmptyState
+  icon={<svg width="20" height="20" ...>…</svg>}
+  title="No appointments today"
+  description="Add a walk-in to get started."          // optional
+  cta={{ label: '+ Add Walk-in', onClick: handleAdd }} // optional
+/>
+```
+
+Layout: 48×48 tinted circle (`bg-stone-50`, `text-stone-400`) → title (`text-sm font-semibold text-stone-700`) → optional description (`text-xs text-stone-400`) → optional primary CTA button. Vertical stack, centered, `py-10 px-6`.
+
+Applied to: residents list (refactor of previous inline impl), daily log (scissors-style sparkle icon + "+ Add Walk-in" CTA), dashboard services panel (scissors icon), dashboard stylists panel (person + star icon), dashboard residents panel (person + plus icon). Don't render bare "No X yet" text on primary surfaces.
+
+### Focus ring standard
+
+- All inputs/selects/textareas use `focus:ring-2 focus:ring-[#8B2E4A]/20`. Bulk-refactored from `focus:ring-rose-100` and `focus:ring-[#8B2E4A]/30` across 28 files.
+- Wrapper components (`<Input>`, `<Select>`, `<NativeSelect>`) also soften the border to `focus:border-[#8B2E4A]/50` and use `transition-[border-color,box-shadow] duration-150 ease-out`.
+- Inline inputs keep the solid `focus:border-[#8B2E4A]` (avoids touching button classnames that legitimately use the solid color).
+
+### Search-input glow
+
+Primary search inputs carry an additional `focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)]` halo on top of the ring. Applied on: residents list search, log resident search, stylist directory search, applicant directory search.
+
+### Balance-attention pulse
+
+```css
+@keyframes attention {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
+}
+.balance-attention { animation: attention 2.5s ease-in-out infinite; }
+```
+
+**Reserved for outstanding-balance dollar figures in `ip-view.tsx` and `rfms-view.tsx` only**, applied conditionally when `outstandingCents > 0`. Never apply elsewhere — the class is a signal for "needs attention" money, not a general pulse utility.
+
+### Reduced motion
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+All new animation must respect this — it sits at the bottom of globals.css so it wins on specificity ties.

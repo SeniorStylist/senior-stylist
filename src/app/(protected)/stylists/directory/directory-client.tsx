@@ -550,7 +550,7 @@ export function DirectoryClient({
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto pb-32">
+    <div className="page-enter p-6 max-w-5xl mx-auto pb-32">
       {/* Tab switcher */}
       <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white w-fit mb-6">
         {(['stylists', 'applicants'] as const).map((tab) => (
@@ -622,7 +622,7 @@ export function DirectoryClient({
           value={search}
           onChange={(e) => { setSearch(e.target.value); setSelected(new Set()) }}
           placeholder="Search by name or ST code"
-          className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+          className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
         />
         <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white">
           {(['all', 'assigned', 'unassigned'] as Filter[]).map((k) => (
@@ -681,7 +681,7 @@ export function DirectoryClient({
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
                 maxLength={200}
-                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
             <div>
@@ -692,7 +692,7 @@ export function DirectoryClient({
                 value={addCode}
                 onChange={(e) => setAddCode(e.target.value.toUpperCase())}
                 placeholder="ST###"
-                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-rose-100"
+                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
             <div>
@@ -712,7 +712,7 @@ export function DirectoryClient({
                 max={100}
                 value={addCommission}
                 onChange={(e) => setAddCommission(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
             <div className="md:col-span-2">
@@ -720,7 +720,7 @@ export function DirectoryClient({
               <select
                 value={addFacilityId}
                 onChange={(e) => setAddFacilityId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
               >
                 <option value="">Unassigned (franchise pool)</option>
                 {franchiseFacilities.map((f) => (
@@ -905,7 +905,7 @@ export function DirectoryClient({
             return (
               <div
                 key={s.id}
-                className={`flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors ${
+                className={`flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${
                   dupMode && dupInfo.dupCodeIds.has(s.id)
                     ? 'bg-red-50'
                     : dupMode && dupInfo.dupNameIds.has(s.id)
@@ -1006,7 +1006,7 @@ export function DirectoryClient({
               value={appSearch}
               onChange={(e) => setAppSearch(e.target.value)}
               placeholder="Search by name, email, location, or ZIP"
-              className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+              className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
             />
             {/^\d{5}$/.test(appSearch.trim()) && (
               <select
@@ -1112,7 +1112,7 @@ export function DirectoryClient({
                 <div />
               </div>
               {filteredApplicants.map((a) => (
-                <div key={a.id} className="group border-b border-stone-50 last:border-0 hover:bg-[#F9EFF2] transition-colors">
+                <div key={a.id} className="group border-b border-stone-50 last:border-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out">
                   {/* Summary row */}
                   <div
                     className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"
@@ -1249,7 +1249,7 @@ export function DirectoryClient({
                           onBlur={() => handleNotesBlur(a)}
                           placeholder="Add internal notes…"
                           rows={3}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-100"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                         />
                       </div>
                       <div className="flex items-center gap-3 pt-1">

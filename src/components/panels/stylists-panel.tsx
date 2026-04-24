@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 import type { Stylist } from '@/types'
 
@@ -96,7 +97,7 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
               placeholder="Full name *"
-              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-rose-100 transition-all"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
             />
             {/* Color picker */}
             <div>
@@ -134,9 +135,16 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
       {/* Stylist list */}
       <div className="flex-1 overflow-y-auto">
         {stylists.length === 0 ? (
-          <div className="flex items-center justify-center h-28">
-            <p className="text-sm text-stone-400">No stylists yet</p>
-          </div>
+          <EmptyState
+            icon={
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+                <polygon points="18 1.5 19 3.5 21 4 19.5 5.5 19.8 7.8 18 6.7 16.2 7.8 16.5 5.5 15 4 17 3.5" />
+              </svg>
+            }
+            title="No stylists yet"
+          />
         ) : (
           stylists.map((stylist) => (
             <button

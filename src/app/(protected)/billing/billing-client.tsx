@@ -337,7 +337,7 @@ export function BillingClient({
 
   if (!facilityId) {
     return (
-      <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
         <h1
           className="text-2xl md:text-3xl text-stone-900"
           style={{ fontFamily: 'DM Serif Display, serif' }}
@@ -355,7 +355,7 @@ export function BillingClient({
   const sendToEmail = contactEmail ?? sendEmailOverride
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto">
+    <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
       {sendWarning && (
         <SendDedupModal
           lastSentAt={sendWarning.lastSentAt}
@@ -521,7 +521,7 @@ export function BillingClient({
           <select
             value={facilityId}
             onChange={(e) => setFacilityId(e.target.value)}
-            className={`rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+            className={`rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
           >
             {facilityOptions.map((f) => (
               <option key={f.id} value={f.id}>
@@ -605,7 +605,7 @@ export function BillingClient({
                     value={sendEmailOverride}
                     onChange={(e) => setSendEmailOverride(e.target.value)}
                     placeholder="Recipient email…"
-                    className={`rounded-xl border border-stone-200 px-3 py-1.5 text-sm text-stone-900 w-56 focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+                    className={`rounded-xl border border-stone-200 px-3 py-1.5 text-sm text-stone-900 w-56 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
                   />
                 ) : null}
                 <button
@@ -727,7 +727,7 @@ export function BillingClient({
                       type="date"
                       value={tempFrom}
                       onChange={(e) => setTempFrom(e.target.value)}
-                      className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+                      className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
                     />
                   </label>
                   <label className="text-xs font-semibold text-stone-500">
@@ -736,7 +736,7 @@ export function BillingClient({
                       type="date"
                       value={tempTo}
                       onChange={(e) => setTempTo(e.target.value)}
-                      className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+                      className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
                     />
                   </label>
                   <button

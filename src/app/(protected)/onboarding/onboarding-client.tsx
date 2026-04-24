@@ -426,7 +426,7 @@ export default function OnboardingClient() {
   }
 
   // ── Shared style classes ───────────────────────────────────────────
-  const inputClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all'
+  const inputClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all'
   const selectClass = 'w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] transition-all'
   const ctaClass = 'w-full py-3.5 rounded-2xl bg-[#8B2E4A] text-white font-semibold text-base active:scale-[0.98] transition-all shadow-sm disabled:opacity-50'
   const skipClass = 'w-full text-sm text-stone-400 hover:text-stone-600 transition-colors py-1'

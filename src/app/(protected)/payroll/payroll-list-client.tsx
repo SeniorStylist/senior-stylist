@@ -147,7 +147,7 @@ export function PayrollListClient({
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto">
+    <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-serif text-stone-900">Payroll</h1>
@@ -190,7 +190,7 @@ export function PayrollListClient({
               <button
                 key={p.id}
                 onClick={() => router.push(`/payroll/${p.id}`)}
-                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-[#F9EFF2] transition-colors"
+                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out"
               >
                 <div className="text-sm text-stone-900 font-medium">
                   {formatRange(p.startDate, p.endDate)}
@@ -241,7 +241,7 @@ export function PayrollListClient({
               <select
                 value={periodType}
                 onChange={(e) => handleTypeChange(e.target.value as 'weekly' | 'biweekly' | 'monthly')}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               >
                 <option value="weekly">Weekly</option>
                 <option value="biweekly">Bi-weekly</option>
@@ -257,7 +257,7 @@ export function PayrollListClient({
                 type="date"
                 value={startDate}
                 onChange={(e) => handleStartChange(e.target.value)}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
 
@@ -272,7 +272,7 @@ export function PayrollListClient({
                   setEndDate(e.target.value)
                   setEndEdited(true)
                 }}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100"
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
 
@@ -285,7 +285,7 @@ export function PayrollListClient({
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 maxLength={2000}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 resize-none"
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 resize-none"
               />
             </div>
 

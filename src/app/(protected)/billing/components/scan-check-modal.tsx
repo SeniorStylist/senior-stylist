@@ -687,7 +687,7 @@ export function ScanCheckModal({
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
                     rows={2}
-                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none"
+                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none"
                   />
                 </div>
 
@@ -760,7 +760,7 @@ export function ScanCheckModal({
                     value={cashInput}
                     onChange={(e) => setCashInput(e.target.value)}
                     placeholder="0.00"
-                    className="w-24 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none"
+                    className="w-24 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none"
                   />
                 )}
               </div>
@@ -1027,7 +1027,7 @@ function FacilityCombobox({
           placeholder="Search facilities…"
           onFocus={() => setOpen(true)}
           onChange={(e) => { onSearchChange(e.target.value); setOpen(true) }}
-          className={`w-full rounded-xl border border-stone-200 px-3 py-2 pr-8 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+          className={`w-full rounded-xl border border-stone-200 px-3 py-2 pr-8 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
         />
         {searchValue && (
           <button
@@ -1094,7 +1094,7 @@ function FieldInput({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase} ${
+        className={`w-full rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase} ${
           lowConf
             ? 'bg-amber-50 border border-amber-200 focus:border-amber-400'
             : 'border border-stone-200 focus:border-[#8B2E4A]'
@@ -1161,7 +1161,7 @@ function ResidentRow({
           value={amountInput}
           onChange={(e) => setAmountInput(e.target.value)}
           onBlur={commitAmount}
-          className="w-full rounded-lg border border-stone-200 px-2 py-1 text-xs text-right focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none"
+          className="w-full rounded-lg border border-stone-200 px-2 py-1 text-xs text-right focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none"
         />
       </div>
       <div className="col-span-1 text-right">
@@ -1234,7 +1234,7 @@ function ResidentCombobox({
         placeholder="Search residents…"
         onFocus={() => setOpen(true)}
         onChange={(e) => { onSearchChange(e.target.value); setOpen(true) }}
-        className={`w-full rounded-lg border border-stone-200 px-2 py-1 pr-6 text-xs focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none ${transitionBase}`}
+        className={`w-full rounded-lg border border-stone-200 px-2 py-1 pr-6 text-xs focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
       />
       {searchValue && (
         <button

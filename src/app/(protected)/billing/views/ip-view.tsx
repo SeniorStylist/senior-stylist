@@ -15,6 +15,7 @@ import {
 } from './billing-shared'
 import { ExpandableSection } from './expandable-section'
 import { transitionBase } from '@/lib/animations'
+import { useToast } from '@/components/ui/toast'
 
 type SortKey = 'name' | 'room' | 'lastService' | 'billed' | 'outstanding'
 type SortDir = 'asc' | 'desc'
@@ -34,6 +35,7 @@ export function IPView({
   title?: string
   defaultOpen?: boolean
 }) {
+  const { toast } = useToast()
   const [sendAllLoading, setSendAllLoading] = useState(false)
   const [rowSending, setRowSending] = useState<Record<string, boolean>>({})
   const [rowWarning, setRowWarning] = useState<{
@@ -140,16 +142,16 @@ export function IPView({
       )
       const body = await res.json()
       if (!res.ok) {
-        alert(body?.error ?? 'Failed to send')
+        toast.error(body?.error ?? 'Failed to send')
         return
       }
       const { sent, skipped } = body.data ?? {}
-      alert(
+      toast.success(
         `Sent ${sent ?? 0} reminder${(sent ?? 0) === 1 ? '' : 's'}${skipped ? `, ${skipped} skipped` : ''}.`
       )
       onRefresh()
     } catch {
-      alert('Network error — please try again.')
+      toast.error('Network error — please try again.')
     } finally {
       setSendAllLoading(false)
     }
@@ -170,12 +172,12 @@ export function IPView({
         return
       }
       if (!res.ok) {
-        alert(body?.error ?? 'Failed to send')
+        toast.error(body?.error ?? 'Failed to send')
         return
       }
       onRefresh()
     } catch {
-      alert('Network error — please try again.')
+      toast.error('Network error — please try again.')
     } finally {
       setRowSending((prev) => ({ ...prev, [residentId]: false }))
     }
@@ -252,7 +254,7 @@ export function IPView({
             {sortedRows.map(({ r, t }) => {
               const outstandingClass =
                 t.outstandingCents > 0
-                  ? 'text-sm font-semibold text-amber-700 text-right'
+                  ? 'text-sm font-semibold text-amber-700 text-right balance-attention'
                   : 'text-sm text-stone-500 text-right'
               const isSending = rowSending[r.id] ?? false
               const canSend = !!r.poaEmail
@@ -263,7 +265,7 @@ export function IPView({
               return (
                 <div
                   key={r.id}
-                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-50 last:border-0 transition-colors ${rowTintClass}`}
+                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${rowTintClass}`}
                 >
                   <div className="md:col-span-3 text-sm font-medium text-stone-900">
                     {r.name}

@@ -255,7 +255,7 @@ export function MergeTab() {
               onChange={(e) => setTypedName(e.target.value)}
               placeholder={confirmPair.secondary.name}
               autoFocus
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-[#8B2E4A]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             />
             <div className="flex items-center justify-end gap-2">
               <button

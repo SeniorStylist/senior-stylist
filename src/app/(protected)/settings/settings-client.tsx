@@ -552,7 +552,7 @@ export function SettingsClient({
   ]
 
   return (
-    <div className="p-6 md:p-8 max-w-2xl">
+    <div className="page-enter p-6 md:p-8 max-w-2xl">
       <h1
         className="text-2xl font-normal text-stone-900 mb-1"
         style={{ fontFamily: "'DM Serif Display', serif" }}
@@ -605,7 +605,7 @@ export function SettingsClient({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={!isAdmin}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
 
@@ -628,7 +628,7 @@ export function SettingsClient({
               onChange={(e) => setAddress(e.target.value)}
               disabled={!isAdmin}
               placeholder="123 Main St, City, State"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
 
@@ -639,7 +639,7 @@ export function SettingsClient({
               onChange={(e) => setPhone(e.target.value)}
               disabled={!isAdmin}
               placeholder="(555) 000-0000"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
           </div>
 
@@ -649,7 +649,7 @@ export function SettingsClient({
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
               disabled={!isAdmin}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
@@ -663,7 +663,7 @@ export function SettingsClient({
               value={paymentType}
               onChange={(e) => setPaymentType(e.target.value)}
               disabled={!isAdmin}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             >
               <option value="facility">Facility Pays (facility covers all services)</option>
               <option value="ip">Individual Pay (residents pay at time of service)</option>
@@ -701,7 +701,7 @@ export function SettingsClient({
                     value={workingStart}
                     onChange={(e) => setWorkingStart(e.target.value)}
                     disabled={!isAdmin}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
                   >
                     {Array.from({ length: 32 }, (_, i) => {
                       const totalMins = 360 + i * 30
@@ -719,7 +719,7 @@ export function SettingsClient({
                     value={workingEnd}
                     onChange={(e) => setWorkingEnd(e.target.value)}
                     disabled={!isAdmin}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
                   >
                     {Array.from({ length: 32 }, (_, i) => {
                       const totalMins = 360 + i * 30
@@ -745,7 +745,7 @@ export function SettingsClient({
               onChange={(e) => setContactEmail(e.target.value)}
               disabled={!isAdmin}
               placeholder="admin@yourfacility.com"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50"
             />
             <p className="text-[11px] text-stone-400 mt-1">
               Shown on the &ldquo;Request access&rdquo; button for users waiting for an invite.
@@ -777,7 +777,7 @@ export function SettingsClient({
               onChange={(e) => setCalendarId(e.target.value)}
               disabled={!isAdmin}
               placeholder="your-calendar@group.calendar.google.com"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50 font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50 disabled:bg-stone-50 font-mono"
             />
             <p className="text-xs text-stone-400 mt-1.5">
               Find this in Google Calendar → Settings → your calendar → Calendar ID.
@@ -860,7 +860,7 @@ export function SettingsClient({
                       value={qbExpenseAccountId}
                       onChange={(e) => setQbExpenseAccountId(e.target.value)}
                       disabled={!isAdmin || !qbAccountsLoaded}
-                      className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] disabled:opacity-50"
+                      className="flex-1 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] disabled:opacity-50"
                     >
                       <option value="">{qbAccountsLoaded ? 'Select an expense account…' : 'Loading…'}</option>
                       {qbAccounts.map((a) => (
@@ -1054,7 +1054,7 @@ export function SettingsClient({
               <select
                 value={inviteFacilityId}
                 onChange={(e) => setInviteFacilityId(e.target.value)}
-                className="w-48 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+                className="w-48 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
               >
                 {facilitiesList.length === 0 && <option value="">Loading…</option>}
                 {facilitiesList.map((f) => (
@@ -1068,12 +1068,12 @@ export function SettingsClient({
               onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendInvite()}
               placeholder="colleague@example.com"
-              className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="w-32 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+              className="w-32 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             >
               <option value="admin">Admin</option>
               <option value="stylist">Stylist</option>
@@ -1226,7 +1226,7 @@ export function SettingsClient({
               value={stripePublishableKey}
               onChange={(e) => setStripePublishableKey(e.target.value)}
               placeholder="pk_live_…"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] font-mono"
             />
           </div>
           <div>
@@ -1237,7 +1237,7 @@ export function SettingsClient({
               onChange={(e) => setStripeSecretKey(e.target.value)}
               placeholder={hasStripeSecret ? 'Stored securely — enter a new key to replace' : 'sk_live_…'}
               autoComplete="new-password"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A] font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] font-mono"
             />
             {hasStripeSecret && !stripeSecretKey && (
               <p className="mt-1.5 text-[11px] text-emerald-700 flex items-center gap-1">
@@ -1346,7 +1346,7 @@ export function SettingsClient({
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Sunrise Senior Living"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             />
           </div>
 
@@ -1356,7 +1356,7 @@ export function SettingsClient({
               value={newAddress}
               onChange={(e) => setNewAddress(e.target.value)}
               placeholder="123 Main St, City, State"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             />
           </div>
 
@@ -1366,7 +1366,7 @@ export function SettingsClient({
               value={newPhone}
               onChange={(e) => setNewPhone(e.target.value)}
               placeholder="(555) 000-0000"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             />
           </div>
 
@@ -1375,7 +1375,7 @@ export function SettingsClient({
             <select
               value={newTimezone}
               onChange={(e) => setNewTimezone(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/30 focus:border-[#8B2E4A]"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>

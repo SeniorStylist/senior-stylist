@@ -16,6 +16,21 @@
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 4px 10px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
   --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.05);
+  --shadow-xl: 0 20px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.06);
+
+  /* Motion tokens */
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 100ms;
+  --duration-base: 160ms;
+  --duration-slow: 260ms;
+
+  /* Surface tokens */
+  --surface-base: #F7F5F0;
+  --surface-card: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-sunken: #F3F1EC;
 }
 
 body {
@@ -226,4 +241,53 @@ body {
 [data-resize-handle-active] .resize-handle-dots > div {
   background-color: #8B2E4A !important;
   transform: scale(1.4);
+}
+
+/* Global interaction baseline — applies to all clickable elements */
+button, [role="button"], a {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+button:active, [role="button"]:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
+}
+
+/* Skeleton — lighter/faster alternative to .skeleton-shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #F3F1EC 25%, #EAE8E4 50%, #F3F1EC 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* Page-level mount animation */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: pageEnter var(--duration-slow) var(--ease-out) forwards;
+}
+
+/* Attention pulse for outstanding balance figures */
+@keyframes attention {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.balance-attention {
+  animation: attention 2.5s ease-in-out infinite;
+}
+
+/* Reduced motion — collapse all animation/transition to near-instant */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

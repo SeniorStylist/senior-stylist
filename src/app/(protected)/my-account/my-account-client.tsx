@@ -402,7 +402,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
 
   if (!linked) {
     return (
-      <div className="p-4 md:p-8 max-w-2xl mx-auto">
+      <div className="page-enter p-4 md:p-8 max-w-2xl mx-auto">
         {welcomeBanner && (
           <div className="mb-4 bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2" className="shrink-0 mt-0.5">
@@ -461,7 +461,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const upcomingCount = weekBookings.filter((b) => b.status === 'scheduled').length
 
   return (
-    <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-5">
+    <div className="page-enter p-4 md:p-8 max-w-2xl mx-auto space-y-5">
       {welcomeBanner && (
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2" className="shrink-0 mt-0.5">
@@ -610,7 +610,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
               <select
                 value={uploadType}
                 onChange={(e) => setUploadType(e.target.value as ComplianceDocumentType)}
-                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
               >
                 <option value="license">License</option>
                 <option value="insurance">Insurance</option>
@@ -635,7 +635,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                   type="date"
                   value={uploadExpires}
                   onChange={(e) => setUploadExpires(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                 />
               </div>
             )}
@@ -750,14 +750,14 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                         type="time"
                         value={editStartTime}
                         onChange={(e) => setEditStartTime(e.target.value)}
-                        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                       />
                       <span className="text-xs text-stone-400">to</span>
                       <input
                         type="time"
                         value={editEndTime}
                         onChange={(e) => setEditEndTime(e.target.value)}
-                        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                        className="px-2 py-1.5 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                       />
                       <button
                         type="button"
@@ -851,7 +851,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                       setCoverageStartDate(v)
                       if (coverageEndDate && coverageEndDate < v) setCoverageEndDate(v)
                     }}
-                    className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                   />
                 </div>
                 <div>
@@ -862,7 +862,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                     min={coverageStartDate || todayStr}
                     value={coverageEndDate}
                     onChange={(e) => setCoverageEndDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                   />
                 </div>
               </div>
@@ -873,7 +873,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                   maxLength={500}
                   rows={2}
                   onChange={(e) => setCoverageReason(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-100 resize-none"
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 resize-none"
                 />
               </div>
               {coverageError && <p className="text-xs text-red-600">{coverageError}</p>}

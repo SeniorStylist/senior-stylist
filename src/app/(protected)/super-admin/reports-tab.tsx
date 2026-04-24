@@ -162,7 +162,7 @@ export function ReportsTab() {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+            className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
           />
           {loading && <Spinner className="text-[#8B2E4A]" />}
         </div>

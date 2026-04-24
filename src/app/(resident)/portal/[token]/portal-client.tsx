@@ -600,7 +600,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                         <select
                           value={selectedOptionName}
                           onChange={e => setSelectedOptionName(e.target.value)}
-                          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all min-h-[44px]"
+                          className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all min-h-[44px]"
                         >
                           <option value="">Select an option</option>
                           {opts.map(opt => (
@@ -762,7 +762,7 @@ export function PortalClient({ token, residentName, roomNumber, poaName, poaEmai
                       if (newMonth !== curMonth) fetchAvailableDays(newMonth)
                       fetchAvailableSlots(val, Math.max(totalDurationMinutes, 30))
                     }}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                   />
                   {selectedDate && availableDates.size > 0 && !availableDates.has(selectedDate) && (
                     <p className="mt-2 text-xs text-amber-700">

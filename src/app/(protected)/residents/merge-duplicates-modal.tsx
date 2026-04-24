@@ -286,7 +286,7 @@ export function MergeDuplicatesModal({
                           <input
                             value={editName[key] ?? ''}
                             onChange={(e) => setEditName(prev => ({ ...prev, [key]: e.target.value }))}
-                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                           />
                         </div>
                         <div className="w-24">
@@ -295,7 +295,7 @@ export function MergeDuplicatesModal({
                             value={editRoom[key] ?? ''}
                             onChange={(e) => setEditRoom(prev => ({ ...prev, [key]: e.target.value }))}
                             placeholder="—"
-                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all"
+                            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                           />
                         </div>
                       </div>
