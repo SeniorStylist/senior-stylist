@@ -173,13 +173,12 @@ export function PayrollListClient({
         </div>
       ) : (
         <div className="rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]">
-          <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] gap-4 px-5 py-3 border-b border-stone-200 bg-stone-50/60 text-[11px] font-semibold text-stone-400 uppercase tracking-wide">
+          <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b border-stone-200 bg-stone-50/60 text-[11px] font-semibold text-stone-400 uppercase tracking-wide">
             <div>Period</div>
             <div>Type</div>
             <div>Status</div>
             <div>Stylists</div>
             <div>Net Payout</div>
-            <div />
           </div>
           {periods.map((p) => {
             const badge = STATUS_BADGE[p.status] ?? {
@@ -190,17 +189,17 @@ export function PayrollListClient({
               <button
                 key={p.id}
                 onClick={() => router.push(`/payroll/${p.id}`)}
-                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_24px] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out"
+                className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out"
               >
-                <div className="text-sm text-stone-900 font-medium">
+                <div className="text-[13.5px] text-stone-900 font-semibold leading-snug">
                   {formatRange(p.startDate, p.endDate)}
                 </div>
-                <div className="text-sm text-stone-600">
+                <div className="text-[11.5px] text-stone-500 leading-snug">
                   {PERIOD_LABEL[p.periodType] ?? p.periodType}
                 </div>
                 <div>
                   <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}
+                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${badge.className}`}
                   >
                     {badge.label}
                   </span>
@@ -208,11 +207,6 @@ export function PayrollListClient({
                 <div className="text-sm text-stone-600">{p.stylistCount}</div>
                 <div className="text-sm font-semibold text-stone-900">
                   {formatDollars(p.totalPayoutCents)}
-                </div>
-                <div className="hidden md:flex items-center justify-end text-stone-400">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
                 </div>
               </button>
             )

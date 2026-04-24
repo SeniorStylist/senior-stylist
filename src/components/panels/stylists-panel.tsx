@@ -150,28 +150,17 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
             <button
               key={stylist.id}
               onClick={() => router.push(`/stylists/${stylist.id}`)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-stone-50 active:bg-stone-100 transition-colors border-b border-stone-50 last:border-0"
+              className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0"
             >
-              <Avatar name={stylist.name} color={stylist.color} size="sm" />
+              <Avatar name={stylist.name} color={stylist.color} size="md" />
               <div className="flex-1 min-w-0">
-                <span className="block text-sm font-medium text-stone-900 truncate">
+                <span className="block text-[13.5px] font-semibold text-stone-900 leading-snug truncate">
                   {stylist.name}
                 </span>
                 {stylist.commissionPercent > 0 && (
-                  <span className="text-xs text-stone-400">{stylist.commissionPercent}% commission</span>
+                  <span className="block text-[11.5px] text-stone-400 leading-snug mt-0.5">{stylist.commissionPercent}% commission</span>
                 )}
               </div>
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-stone-300 shrink-0"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
             </button>
           ))
         )}

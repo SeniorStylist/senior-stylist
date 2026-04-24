@@ -168,28 +168,17 @@ export function ResidentsPanel({ residents, onResidentAdded, isAdmin = true }: R
             <button
               key={resident.id}
               onClick={() => router.push(`/residents/${resident.id}`)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-stone-50 active:bg-stone-100 transition-colors border-b border-stone-50 last:border-0 ${
+              className={`w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0 ${
                 newlyAddedId === resident.id ? 'bg-rose-50' : ''
               }`}
             >
-              <Avatar name={resident.name} size="sm" />
+              <Avatar name={resident.name} size="md" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-stone-900 truncate">{resident.name}</p>
+                <p className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate">{resident.name}</p>
                 {resident.roomNumber && (
-                  <p className="text-xs text-stone-400">Room {resident.roomNumber}</p>
+                  <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">Room {resident.roomNumber}</p>
                 )}
               </div>
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-stone-300 shrink-0"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
             </button>
           ))
         )}

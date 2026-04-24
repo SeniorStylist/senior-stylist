@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Applicant, ApplicantStatus, Stylist, StylistStatus } from '@/types'
 import { useToast } from '@/components/ui/toast'
+import { Avatar } from '@/components/ui/avatar'
 import { getZipsWithinMiles, extractZip } from '@/lib/zip-coords'
 
 interface FacilityOption {
@@ -936,18 +937,14 @@ export function DirectoryClient({
                   <span className="font-mono text-xs text-stone-500 w-14 shrink-0">
                     {s.stylistCode}
                   </span>
-                  <span
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: s.color }}
-                    title="Calendar color"
-                  />
-                  <span className="text-sm font-semibold text-stone-900 flex-1 min-w-0 truncate">
+                  <Avatar name={s.name} color={s.color} size="md" />
+                  <span className="text-[13.5px] font-semibold text-stone-900 leading-snug flex-1 min-w-0 truncate">
                     {s.name}
                   </span>
                   <span className="w-20 shrink-0 flex items-center">
                     {s.status !== 'active' && STATUS_BADGE[s.status as keyof typeof STATUS_BADGE] && (
                       <span
-                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        className={`text-[10.5px] font-semibold px-2.5 py-1 rounded-full ${
                           STATUS_BADGE[s.status as keyof typeof STATUS_BADGE].className
                         }`}
                       >
@@ -956,15 +953,15 @@ export function DirectoryClient({
                     )}
                   </span>
                   {facility ? (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
+                    <span className="text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600 shrink-0">
                       {facility}
                     </span>
                   ) : (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-[#8B2E4A] shrink-0">
+                    <span className="text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-[#8B2E4A] shrink-0">
                       Franchise Pool
                     </span>
                   )}
-                  <span className="text-xs text-stone-500 shrink-0 hidden sm:inline">
+                  <span className="text-[11.5px] text-stone-500 shrink-0 hidden sm:inline">
                     {s.commissionPercent}%
                   </span>
                 </Link>

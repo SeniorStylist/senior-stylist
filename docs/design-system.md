@@ -1637,3 +1637,38 @@ Primary search inputs carry an additional `focus:shadow-[0_0_0_3px_rgba(139,46,7
 ```
 
 All new animation must respect this — it sits at the bottom of globals.css so it wins on specificity ties.
+
+---
+
+## List Row Standards (2026-04-24)
+
+Before this pass, every list/panel row used the same cramped recipe — 28px avatar, 14px name, 12px sub-text, a uniform rose-50 background on every avatar, and a decorative `›` chevron at the end. On a salon-ops app where most screens ARE lists (residents, stylists, appointments, billing, payroll), that meant every row looked identical and nothing pulled the eye down a column. This section standardizes the replacement.
+
+### Avatar palette (`src/lib/avatar-colors.ts`)
+
+`getAvatarColor(name)` maps the first letter of a person's name to one of five pastel `{ bg, text }` pairs, cycling across A–Z. Determined by the letter's char code; stable across renders.
+
+```ts
+const PALETTE = [
+  { bg: '#EEEDFE', text: '#534AB7' }, // indigo
+  { bg: '#E1F5EE', text: '#0F6E56' }, // emerald
+  { bg: '#E6F1FB', text: '#185FA5' }, // blue
+  { bg: '#F9EFF2', text: '#8B2E4A' }, // burgundy
+  { bg: '#FAEEDA', text: '#854F0B' }, // amber
+]
+```
+
+The `<Avatar>` component automatically uses this when no explicit `color` prop is passed. Stylist rows that want the calendar color (log page, stylists panel) still pass `color={stylist.color}` to override.
+
+### Row anatomy
+
+- **Avatar:** `size='md'` (36px `w-9 h-9`, `text-[12px]`). Never `size='sm'` on list/panel rows anymore.
+- **Name text:** `text-[13.5px] font-semibold text-stone-900 leading-snug`.
+- **Sub-text:** `text-[11.5px] text-stone-500 leading-snug mt-0.5`.
+- **Row padding:** `py-3.5` minimum. `px-4` in right-rail panels, `px-5` in full-page tables.
+- **Status/facility chips:** `text-[10.5px] font-semibold px-2.5 py-1 rounded-full`. No more `text-[9px]` or `text-[10px]` chip sizing.
+- **Row hover:** `hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out`. Amber outstanding-balance tint (billing only) remains the one documented exception.
+- **No trailing chevron.** The hover state already communicates interactivity. Disclosure-indicator chevrons (expand/collapse) are a different pattern and are unaffected.
+
+Applied to: dashboard residents panel, dashboard stylists panel, residents list full page, daily log appointment rows (avatar replaces the leading status circle; status chip moves inline next to the name), stylist directory, billing IP view, billing RFMS view. Payroll list gets the text + chip + chevron cleanup but no avatar (rows are date ranges, not people).
+

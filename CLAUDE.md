@@ -161,6 +161,15 @@
 - **Reduced motion**: `@media (prefers-reduced-motion: reduce)` in globals.css collapses animation/transition durations to 0.01ms globally — all new motion must respect this.
 - **Sidebar active pill**: the nav `<Link>` uses `transition-colors duration-150 ease-out` and the icon span carries `transition-colors duration-150` so the active state crossfades rather than snapping. No framer-motion dependency — CSS-only.
 
+### List Row Standards (2026-04-24)
+- **Avatar:** `size='md'` (36px, `w-9 h-9`) on every list/panel row. Auto-tints per-letter via `getAvatarColor()` in `src/lib/avatar-colors.ts` — do NOT hardcode a single color (rose-50 uniform was retired). Stylist rows pass `color={stylist.color}` to override with calendar color.
+- **Name text:** `text-[13.5px] font-semibold text-stone-900 leading-snug`.
+- **Sub-text:** `text-[11.5px] text-stone-500 leading-snug mt-0.5`.
+- **Row padding:** `py-3.5` minimum. `px-4` in panels, `px-5` in full-page tables.
+- **Status/facility chips:** `text-[10.5px] font-semibold px-2.5 py-1 rounded-full`. Do NOT use `text-[9px]` or `text-[10px]` sizing on chips anymore.
+- **Row hover:** `hover:bg-[#F9EFF2] transition-colors duration-[120ms]`. Amber outstanding-balance tint remains an exception (billing only).
+- **Chevrons:** do NOT append `›` to list rows — the hover state already communicates interactivity. Disclosure-indicator chevrons (expand/collapse, accordion) are unaffected.
+
 ### File Structure Conventions
 - Server components in `page.tsx`, client logic in `[name]-client.tsx`
 - Shared utilities in `src/lib/utils.ts`

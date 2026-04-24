@@ -909,46 +909,47 @@ export function LogClient({
                         isCancelled && 'bg-stone-50/60 opacity-60'
                       )}
                     >
-                      {/* Status indicator */}
-                      <div className="shrink-0 mt-0.5">
-                        {isCompleted ? (
-                          <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          </div>
-                        ) : isNoShow ? (
-                          <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="3">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </div>
-                        ) : isCancelled ? (
-                          <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" strokeWidth="3">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <div className="w-6 h-6 rounded-full border-2 border-stone-200" />
-                        )}
+                      {/* Avatar */}
+                      <div className="shrink-0">
+                        <Avatar name={booking.resident.name} size="md" />
                       </div>
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-center gap-1.5">
                           <p
                             className={cn(
-                              'text-sm font-semibold text-stone-900',
+                              'text-[13.5px] font-semibold text-stone-900 leading-snug',
                               (isNoShow || isCancelled) && 'line-through text-stone-400'
                             )}
                           >
                             {booking.resident.name}
                           </p>
+                          {isCompleted && (
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-green-100 flex items-center justify-center" title="Completed">
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3.5">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </span>
+                          )}
+                          {isNoShow && (
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-orange-100 flex items-center justify-center" title="No-show">
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="3.5">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </span>
+                          )}
+                          {isCancelled && (
+                            <span className="shrink-0 w-4 h-4 rounded-full bg-stone-100 flex items-center justify-center" title="Cancelled">
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" strokeWidth="3.5">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </span>
+                          )}
                           {booking.resident.roomNumber && (
-                            <span className="text-xs text-stone-400">
+                            <span className="text-[11.5px] text-stone-400 leading-snug">
                               Rm {booking.resident.roomNumber}
                             </span>
                           )}
@@ -992,7 +993,7 @@ export function LogClient({
                           </div>
                         ) : (
                           <>
-                            <p className="text-xs text-stone-500 mt-0.5">
+                            <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">
                               {formatTime(booking.startTime)} · {serviceDisplayName(booking, services)} ·{' '}
                               {formatCents(booking.priceCents ?? booking.service.priceCents)}
                               {booking.selectedQuantity && booking.selectedQuantity > 1 && (

@@ -286,7 +286,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
                 { key: 'name', label: 'Resident', span: 'col-span-4' },
                 { key: 'room', label: 'Room', span: 'col-span-2' },
                 { key: 'lastVisit', label: 'Last visit', span: 'col-span-3' },
-                { key: 'totalSpent', label: 'Total spent', span: 'col-span-2' },
+                { key: 'totalSpent', label: 'Total spent', span: 'col-span-3' },
               ] as const
             ).map(({ key, label, span }) => (
               <div key={key} className={span}>
@@ -304,7 +304,6 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
                 </button>
               </div>
             ))}
-            <div className="col-span-1" />
           </div>
 
           {/* Rows */}
@@ -315,29 +314,24 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
               className="group w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0 text-left"
             >
               <div className="col-span-4 flex items-center gap-3">
-                <Avatar name={resident.name} size="sm" />
+                <Avatar name={resident.name} size="md" />
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-sm font-medium text-stone-900 truncate">{resident.name}</span>
+                  <span className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate">{resident.name}</span>
                   {resident.poaName && (
-                    <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-[#8B2E4A]">
+                    <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[10.5px] font-semibold bg-rose-50 text-[#8B2E4A]">
                       POA
                     </span>
                   )}
                 </div>
               </div>
-              <div className="col-span-2 text-sm text-stone-500">
+              <div className="col-span-2 text-[11.5px] text-stone-500 leading-snug">
                 {resident.roomNumber ? `Room ${resident.roomNumber}` : '—'}
               </div>
-              <div className="col-span-3 text-sm text-stone-500">
+              <div className="col-span-3 text-[11.5px] text-stone-500 leading-snug">
                 {resident.lastVisit ? formatDate(resident.lastVisit) : 'Never'}
               </div>
-              <div className="col-span-2 text-sm font-semibold text-stone-700">
+              <div className="col-span-3 text-[13.5px] font-semibold text-stone-800">
                 {resident.totalSpent > 0 ? formatCents(resident.totalSpent) : '—'}
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-stone-300">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
               </div>
             </button>
           ))}

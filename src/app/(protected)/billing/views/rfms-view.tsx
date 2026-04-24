@@ -14,6 +14,7 @@ import {
 } from './billing-shared'
 import { ExpandableSection } from './expandable-section'
 import { btnBase, expandTransition } from '@/lib/animations'
+import { Avatar } from '@/components/ui/avatar'
 
 export function RFMSView({
   residents,
@@ -211,15 +212,18 @@ export function RFMSView({
               return (
                 <div
                   key={r.id}
-                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${rowTintClass}`}
+                  className={`group md:grid md:grid-cols-12 md:gap-4 md:items-center flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${rowTintClass}`}
                 >
-                  <div className="md:col-span-4 text-sm font-medium text-stone-900">
-                    {r.name}
+                  <div className="md:col-span-4 flex items-center gap-3 min-w-0">
+                    <Avatar name={r.name} size="md" />
+                    <span className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate">
+                      {r.name}
+                    </span>
                   </div>
-                  <div className="md:col-span-1 text-sm text-stone-500">
+                  <div className="md:col-span-1 text-[11.5px] text-stone-500 leading-snug">
                     {r.roomNumber ?? '—'}
                   </div>
-                  <div className="md:col-span-2 text-sm text-stone-500">
+                  <div className="md:col-span-2 text-[11.5px] text-stone-500 leading-snug">
                     {formatShortDate(t.lastServiceDate)}
                   </div>
                   <div className="md:col-span-2 text-sm text-stone-700 md:text-right">

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { getAvatarColor } from '@/lib/avatar-colors'
 
 interface AvatarProps {
   name: string
@@ -15,7 +16,7 @@ function getInitials(name: string): string {
 
 const sizes = {
   sm: 'w-7 h-7 text-xs',
-  md: 'w-9 h-9 text-xs',
+  md: 'w-9 h-9 text-[12px]',
   lg: 'w-11 h-11 text-sm',
 }
 
@@ -37,13 +38,16 @@ export function Avatar({ name, color, size = 'md', className }: AvatarProps) {
     )
   }
 
+  const palette = getAvatarColor(name)
+
   return (
     <div
       className={cn(
-        'rounded-full flex items-center justify-center font-semibold shrink-0 bg-rose-50 text-[#8B2E4A]',
+        'rounded-full flex items-center justify-center font-semibold shrink-0',
         sizes[size],
         className
       )}
+      style={{ backgroundColor: palette.bg, color: palette.text }}
     >
       {initials}
     </div>
