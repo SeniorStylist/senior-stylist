@@ -754,6 +754,15 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `POST /api/quickbooks/sync-vendors` | **Admin**, rate-limited `quickbooksSync` | Creates or sparse-updates QB Vendors for every active assigned stylist in the facility. Never fails the whole batch — returns `{ created, updated, skipped, errors: [{ stylistId, message }] }`. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for reuse. `maxDuration=60`. |
 | `POST /api/quickbooks/sync-bill/[periodId]` | **Admin**, rate-limited `quickbooksSync` | Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor mapping. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item + aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', {})`. `maxDuration=60`. |
 | `POST /api/quickbooks/sync-status/[periodId]` | **Admin**, rate-limited `quickbooksSync` | GETs each `/bill/<qbBillId>` for items with a Bill. When every Balance === 0 and status ≠ paid, flips the period to `paid` + `revalidateTag('pay-periods', {})`. Returns `{ items, periodStatus, periodUpdated }`. |
+| `POST /api/portal/send-invite` | **Admin** (Phase 11I) | Body `{ residentId }`. Verifies resident is in facility + has `poaEmail`. Calls `createMagicLink` and fires `buildPortalMagicLinkEmailHtml` via `sendEmail` (fire-and-forget). Updates `residents.last_portal_invite_sent_at = now()`. |
+| `POST /api/portal/request-link` | **Public** (Phase 11I), rate-limited `portalRequestLink` | Body `{ email, facilityCode }`. Always returns `{ data: { sent: true } }` regardless of whether residents exist — never leaks email enumeration. When residents found, builds magic link and fires-and-forgets one email. |
+| `POST /api/portal/login` | **Public** (Phase 11I), rate-limited `portalLogin` | Body `{ email, password, facilityCode }`. Generic `Invalid email or password` on any failure. Sets `__portal_session` cookie (`httpOnly`, `secure`, `sameSite=lax`, `maxAge=30d`). |
+| `POST /api/portal/logout` | Authed (Phase 11I) | Reads cookie → `revokeSession` → clears cookie. |
+| `POST /api/portal/set-password` | Authed (Phase 11I), rate-limited `portalSetPassword` | Body `{ password }` (`z.string().min(8).max(200)`). Hashes via PBKDF2-SHA256 210k iterations and writes to `portal_accounts.password_hash`. |
+| `POST /api/portal/request-booking` | Authed (Phase 11I), rate-limited `portalRequestBooking` | Body `{ residentId, serviceIds: string[1..6], preferredDateFrom, preferredDateTo, notes }`. Verifies resident in session + every service in resident's facility + active. Resolves stylist via `resolveAvailableStylists` + `pickStylistWithLeastLoad` (fallback: first active facility stylist). Inserts `bookings` row with `status='requested'`, `requestedByPortal=true`, `portalNotes`, `serviceIds`, `serviceNames`, `totalDurationMinutes`, `priceCents`. Fires admin notification email via `buildPortalRequestEmailHtml`. `revalidateTag('bookings', {})`. |
+| `GET /api/portal/statement/[residentId]` | Authed (Phase 11I), rate-limited `portalStatement` | Verifies resident in session. Reuses `buildResidentStatementHtml`. Returns HTML with `@media print` CSS + `<button onclick="window.print()">`. `Content-Type: text/html`. |
+| `POST /api/portal/stripe/create-checkout` | Authed (Phase 11I), rate-limited `portalCheckout` | Body `{ residentId, amountCents }` (50–10_000_000). Stripe key = `facility.stripeSecretKey ?? STRIPE_SECRET_KEY`. Creates Checkout session with `metadata.type='portal_balance'`, `metadata.residentId`, `metadata.facilityId`, `metadata.facilityCode`. Returns `{ data: { checkoutUrl } }`. |
+| `GET /api/cron/portal-cleanup` | **Vercel Cron** (Phase 11I, `Bearer CRON_SECRET`) | Daily 04:00 UTC. Deletes `portal_magic_links` rows older than 7 days past expiry; deletes expired `portal_sessions`. `maxDuration=30`. |
 
 ---
 
@@ -1000,8 +1009,54 @@ Consolidates no-FID duplicate facilities (manual early-day entries) into their Q
 - **`facility_merge_log`** table — append-only audit trail (schema above).
 - **UI** — `src/app/(protected)/super-admin/merge-tab.tsx`. Each candidate rendered as a two-column `PairCard` (stone-50 primary / amber-50 secondary) with a swap-sides button, confidence badge, and counts. "Merge →" opens a confirmation modal requiring the operator to type the secondary facility name exactly (case-insensitive) before the "Merge now" button enables.
 
-### Phase 11F — Resident Portal Isolation (PLANNED — Opus)
-Invite links: `portal/[facilityCode]/[portalToken]` using existing `residents.portal_token`. Facility locked at account creation, no switcher ever. Billing page added to existing services portal as additional tab — same auth context. "Copy invite link" + "Send invite email" buttons on resident records. Cross-facility access → 403.
+### Phase 11F — Resident Portal Isolation (SUPERSEDED — see Phase 11I)
+Original plan: invite links of the form `portal/[facilityCode]/[portalToken]` reusing per-resident `residents.portal_token`. Replaced by Phase 11I (`/family/[facilityCode]/*` with persistent magic-link sessions and one-account-many-residents). Legacy `/portal/[token]` route remains alive so old single-resident invite emails still work.
+
+### Phase 11I — Family Portal (POA Magic-Link) (SHIPPED 2026-04-26)
+Real family/POA portal at `/family/[facilityCode]/*` — coexists with legacy `/portal/[token]`.
+
+**New tables (4)**
+- `portal_accounts` — `id`, `email` (unique, lowercased), `password_hash` (nullable, PBKDF2-SHA256 210k), `created_at`, `last_login_at`. RLS service_role_all.
+- `portal_account_residents` — join table, `portal_account_id` × `resident_id` × `facility_id`, unique on `(account, resident)`. CASCADE on all FKs.
+- `portal_magic_links` — `email`, `token` (unique opaque hex), `resident_id`, `facility_code`, `expires_at` (72h), `used_at`. CASCADE on resident.
+- `portal_sessions` — `portal_account_id`, `session_token` (unique opaque hex), `expires_at` (30d). CASCADE on account.
+
+**New columns**
+- `qb_invoices.stripe_payment_intent_id` (text, nullable) + `qb_invoices.stripe_paid_at` (timestamptz, nullable)
+- `bookings.requested_by_portal` (boolean, default false) + `bookings.portal_notes` (text, nullable)
+- `residents.last_portal_invite_sent_at` (timestamptz, nullable)
+
+**New library modules**
+- `src/lib/portal-password.ts` — `hashPassword`, `verifyPassword`. PBKDF2-SHA256, 210k iterations, 16-byte salt, 32-byte hash. Format: `pbkdf2$210000$<saltHex>$<hashHex>`. Constant-time compare via `crypto.timingSafeEqual`. No bcrypt dep.
+- `src/lib/portal-auth.ts` — `generateToken`, `createMagicLink`, `verifyMagicLink` (auto-discovers all residents with matching `poaEmail`), `createPortalSession`, `getPortalSession`, `requirePortalAuth(facilityCode)` (redirects to `/family/[code]/login`), `revokeSession`, `setPortalSessionCookie`, `clearPortalSessionCookie`.
+
+**New API routes**
+- `POST /api/portal/send-invite` — admin-only. Creates magic link, fires-and-forgets `buildPortalMagicLinkEmailHtml` email via Resend, updates `residents.last_portal_invite_sent_at`.
+- `POST /api/portal/request-link` — public, rate-limited `portalRequestLink`. Always returns `{ data: { sent: true } }` regardless of email existence.
+- `POST /api/portal/login` — public, rate-limited `portalLogin`. Generic `'Invalid email or password'` for any failure. Sets `__portal_session` cookie.
+- `POST /api/portal/logout` — clears cookie + revokes session row.
+- `POST /api/portal/set-password` — authed, rate-limited. Hashes via PBKDF2.
+- `POST /api/portal/request-booking` — authed, rate-limited. Resolves stylist via `resolveAvailableStylists` + `pickStylistWithLeastLoad`, falls back to first active facility stylist. Inserts `bookings` row with `status='requested'`, `requestedByPortal=true`, `portalNotes`. Fires admin notification email to `facility.contactEmail` AND `NEXT_PUBLIC_ADMIN_EMAIL`.
+- `GET /api/portal/statement/[residentId]` — authed, rate-limited. Returns printable HTML (reuses `buildResidentStatementHtml`) with `@media print` CSS + `<button onclick="window.print()">`. No PDF dep.
+- `POST /api/portal/stripe/create-checkout` — authed, rate-limited. Per-facility Stripe key with `process.env.STRIPE_SECRET_KEY` fallback. Sets `metadata.type = 'portal_balance'`, `metadata.residentId`, `metadata.facilityId`, `metadata.facilityCode`.
+- `GET /api/cron/portal-cleanup` — `vercel.json` cron daily 04:00 UTC. Deletes magic-link rows older than 7d past expiry + expired sessions. Auth via `Bearer ${CRON_SECRET}`.
+
+**Stripe webhook extension** — `/api/webhooks/stripe` discriminates on `session.metadata?.type === 'portal_balance'`. Single endpoint, single `STRIPE_WEBHOOK_SECRET`. On portal_balance:
+1. Insert `qb_payments(paymentMethod='stripe', stripePaymentIntentId, memo)` for the resident
+2. FIFO-decrement `qb_invoices.openBalanceCents` ordered by invoiceDate ASC, set `status='paid'` + `stripePaidAt` + `stripePaymentIntentId` when zero
+3. Recompute `residents.qbOutstandingBalanceCents`
+4. `revalidateTag('billing', {})` + `revalidateTag('bookings', {})`
+All wrapped in `db.transaction`. Always returns 200 to Stripe.
+
+**New rate-limit buckets** — `portalRequestLink` 5/hr per `${ip}:${emailHash}`, `portalLogin` 10/hr per IP, `portalSetPassword` 5/hr per accountId, `portalRequestBooking` 5/hr per accountId, `portalStatement` 20/hr per accountId, `portalCheckout` 10/hr per accountId.
+
+**Pages** — `/family/[facilityCode]/`: `layout.tsx` (burgundy header, resident picker, bottom nav), `page.tsx` (greeting + balance + upcoming-3 + CTA), `login/` (link tab + password tab), `auth/verify/` (verify magic link + optional set-password), `appointments/` (upcoming + past 6mo), `request/` (multi-select services, preferred date, notes), `billing/` (balance + Stripe button + mail-payment + invoice list + statement download), `contact/` (Senior Stylist + facility info), `portal-nav.tsx` (5 tabs, fixed bottom).
+
+**Email builders added to `src/lib/email.ts`** — `buildPortalMagicLinkEmailHtml({ residentNames, facilityName, link, expiresInHours })` and `buildPortalRequestEmailHtml({ residentName, facilityName, serviceNames, preferredDateFrom, preferredDateTo, notes, adminUrl })`.
+
+**Middleware** — `src/middleware.ts` includes `pathname.startsWith('/family')` in public-route allowlist.
+
+**No new env vars.** Reuses `RESEND_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_EMAIL`, `CRON_SECRET`. `PORTAL_SESSION_SECRET` deliberately NOT added — opaque server-side tokens need no signing.
 
 ### Phase 11G — QB API Live Sync (PLANNED — Opus)
 Manual sync per facility. Route: `POST /api/quickbooks/sync-invoices/[facilityId]`. First sync backfills `qb_invoice_id` on CSV-imported records. Requires Intuit production approval. Until approved → button hidden.

@@ -97,6 +97,7 @@ export const residents = pgTable(
     qbCustomerId: text('qb_customer_id'),
     qbOutstandingBalanceCents: integer('qb_outstanding_balance_cents').default(0),
     residentPaymentType: text('resident_payment_type'),
+    lastPortalInviteSentAt: timestamp('last_portal_invite_sent_at', { withTimezone: true }),
     active: boolean('active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
@@ -289,6 +290,8 @@ export const bookings = pgTable('bookings', {
   recurringParentId: uuid('recurring_parent_id').references((): AnyPgColumn => bookings.id),
   googleEventId: text('google_event_id').unique(),
   syncError: text('sync_error'),
+  requestedByPortal: boolean('requested_by_portal').default(false).notNull(),
+  portalNotes: text('portal_notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -473,6 +476,8 @@ export const qbInvoices = pgTable('qb_invoices', {
   lastSentAt: timestamp('last_sent_at', { withTimezone: true }),
   sentVia: text('sent_via'),
   syncedAt: timestamp('synced_at', { withTimezone: true }),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  stripePaidAt: timestamp('stripe_paid_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
@@ -582,6 +587,60 @@ export const facilityMergeLog = pgTable('facility_merge_log', {
   qbPaymentsTransferred: integer('qb_payments_transferred').notNull().default(0),
   fieldsInherited: text('fields_inherited').array().notNull().default(sql`'{}'::text[]`),
   notes: text('notes'),
+})
+
+// ─── Family Portal (Phase 11E) ───────────────────────────────────────────────
+
+export const portalAccounts = pgTable('portal_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+})
+
+export const portalAccountResidents = pgTable(
+  'portal_account_residents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalAccountId: uuid('portal_account_id')
+      .references(() => portalAccounts.id, { onDelete: 'cascade' })
+      .notNull(),
+    residentId: uuid('resident_id')
+      .references(() => residents.id, { onDelete: 'cascade' })
+      .notNull(),
+    facilityId: uuid('facility_id')
+      .references(() => facilities.id, { onDelete: 'cascade' })
+      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueAccountResident: unique('portal_account_residents_account_resident_unique').on(
+      t.portalAccountId,
+      t.residentId,
+    ),
+  }),
+)
+
+export const portalMagicLinks = pgTable('portal_magic_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull(),
+  token: text('token').notNull().unique(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'cascade' }),
+  facilityCode: text('facility_code').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const portalSessions = pgTable('portal_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  portalAccountId: uuid('portal_account_id')
+    .references(() => portalAccounts.id, { onDelete: 'cascade' })
+    .notNull(),
+  sessionToken: text('session_token').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 // ─── Relations ───────────────────────────────────────────────────────────────

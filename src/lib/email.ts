@@ -350,6 +350,96 @@ export function buildResidentStatementHtml(params: {
 </html>`.trim()
 }
 
+export function buildPortalMagicLinkEmailHtml(params: {
+  residentNames: string[]
+  facilityName: string
+  link: string
+  expiresInHours: number
+}): string {
+  const { residentNames, facilityName, link, expiresInHours } = params
+  const namesLine = residentNames.length > 0 ? residentNames.join(' & ') : 'your loved one'
+  const multiple = residentNames.length > 1
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Your Family Portal</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.6;">
+        Sign in to view appointments, request services, and manage billing for <strong>${namesLine}</strong>${multiple ? '' : ''}.
+      </p>
+      <p style="margin:0 0 24px;">
+        <a href="${link}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-size:14px;font-weight:600;">Open Family Portal</a>
+      </p>
+      <p style="margin:0 0 12px;color:#57534E;font-size:13px;line-height:1.5;">
+        This link expires in ${expiresInHours} hours. If you didn't request access, you can safely ignore this email.
+      </p>
+      <p style="margin:0;color:#A8A29E;font-size:12px;word-break:break-all;">
+        Or paste this link into your browser: <span style="color:#8B2E4A;">${link}</span>
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+export function buildPortalRequestEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  serviceNames: string[]
+  preferredDateFrom: string | null
+  preferredDateTo: string | null
+  notes: string | null
+  adminUrl: string
+}): string {
+  const { residentName, facilityName, serviceNames, preferredDateFrom, preferredDateTo, notes, adminUrl } = params
+  const servicesLine = serviceNames.length ? serviceNames.join(', ') : '—'
+  const dateLine =
+    preferredDateFrom && preferredDateTo
+      ? preferredDateFrom === preferredDateTo
+        ? fmtDate(preferredDateFrom)
+        : `${fmtDate(preferredDateFrom)} – ${fmtDate(preferredDateTo)}`
+      : preferredDateFrom
+        ? fmtDate(preferredDateFrom)
+        : 'Anytime'
+  const notesRow = notes
+    ? `<tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Notes</td><td style="padding:10px 0;color:#1C1917;font-size:14px;white-space:pre-wrap;">${notes.replace(/</g, '&lt;')}</td></tr>`
+    : ''
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">New Service Request</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
+        A family member has requested service for <strong>${residentName}</strong>. Confirm a date/stylist on the dashboard.
+      </p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Resident</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${residentName}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Services</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${servicesLine}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Preferred</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${dateLine}</td></tr>
+        ${notesRow}
+        <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Status</td><td style="padding:10px 0;color:#B45309;font-size:14px;font-weight:700;">Pending</td></tr>
+      </table>
+      <p style="margin:20px 0 0;">
+        <a href="${adminUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Review on Dashboard</a>
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 function formatDateRange(startDate: string, endDate: string): string {
   if (startDate === endDate) return startDate
   return `${startDate} – ${endDate}`

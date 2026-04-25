@@ -76,6 +76,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [linkCopied, setLinkCopied] = useState(false)
   const [sendingLink, setSendingLink] = useState(false)
   const [linkSent, setLinkSent] = useState(false)
+  const [sendingFamilyInvite, setSendingFamilyInvite] = useState(false)
 
   const portalUrl = typeof window !== 'undefined' && resident.portalToken
     ? `${window.location.origin}/portal/${resident.portalToken}`
@@ -88,6 +89,28 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       setTimeout(() => setLinkCopied(false), 2000)
     })
   }
+
+  const handleSendFamilyInvite = useCallback(async () => {
+    setSendingFamilyInvite(true)
+    try {
+      const res = await fetch('/api/portal/send-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: resident.id }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success(`Portal invite sent to ${resident.poaEmail}`)
+        router.refresh()
+      } else {
+        toast.error(j.error ?? 'Failed to send invite')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setSendingFamilyInvite(false)
+    }
+  }, [resident.id, resident.poaEmail, toast, router])
 
   const handleSendPortalLink = useCallback(async () => {
     setSendingLink(true)
@@ -392,6 +415,39 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
               </div>
             )}
           </div>
+
+          {/* Family Portal Invite (Phase 11E) */}
+          {(() => {
+            const inviteAt = resident.lastPortalInviteSentAt
+              ? new Date(resident.lastPortalInviteSentAt)
+              : null
+            const hoursAgo = inviteAt ? Math.floor((Date.now() - inviteAt.getTime()) / (60 * 60 * 1000)) : null
+            const cooldown = hoursAgo !== null && hoursAgo < 24
+            const noPoaEmail = !resident.poaEmail
+            const disabled = noPoaEmail || cooldown || sendingFamilyInvite
+            const label = sendingFamilyInvite
+              ? 'Sending…'
+              : cooldown
+              ? `Invite sent ${hoursAgo}h ago`
+              : 'Send Portal Invite'
+            return (
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Family Portal</p>
+                <p className="text-xs text-stone-400 mb-3">Magic-link sign-in for the POA email — manages multiple residents.</p>
+                <button
+                  onClick={handleSendFamilyInvite}
+                  disabled={disabled}
+                  title={noPoaEmail ? 'Add POA email first' : undefined}
+                  className="w-full inline-flex items-center justify-center px-3 py-2.5 rounded-xl text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] shadow-[0_2px_6px_rgba(139,46,74,0.22)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500 disabled:shadow-none"
+                >
+                  {label}
+                </button>
+                {resident.poaEmail && !cooldown && !sendingFamilyInvite && (
+                  <p className="text-[11px] text-stone-400 mt-2 text-center">Sends to {resident.poaEmail}</p>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Portal link */}
           {resident.portalToken && (

@@ -274,6 +274,24 @@
 - Register in `vercel.json` → `crons[]` with `{ path, schedule }`
 - Cron routes set `export const maxDuration = 60` + `export const dynamic = 'force-dynamic'`
 
+### Family Portal (Phase 11E / 11I)
+- URL home: `/family/[facilityCode]/*` — distinct from the legacy per-resident `/portal/[token]` route which stays alive for old invite links
+- Middleware: `pathname.startsWith('/family')` is in the public-route allowlist (no Supabase session required)
+- Auth identity = `residents.poaEmail`. One `portal_accounts` row per email; one POA can be linked to many residents across many facilities via `portal_account_residents`
+- Magic link: 72-hr expiry, one-time use (`portal_magic_links.used_at`). Verifying a link AUTO-LINKS every active resident with `poaEmail = email` (auto-discovery), so the user gets all their family members in one shot
+- Session cookie: `__portal_session` — `httpOnly`, `secure` (production only), `sameSite: 'lax'` (NOT `strict` — magic-link redirects are top-level navigations and would drop a strict cookie), `path: '/'`, `maxAge: 30 days`. The cookie value IS the opaque server-side token; no signing — there is no `PORTAL_SESSION_SECRET` env var
+- Password hashing: Web Crypto PBKDF2-SHA256, **210,000 iterations**, 16-byte salt, 32-byte hash. Encoded as `pbkdf2$210000$<saltHex>$<hashHex>`. Constant-time compare via `crypto.timingSafeEqual`. No bcrypt/argon2 deps
+- Auth helper: `requirePortalAuth(facilityCode)` from `src/lib/portal-auth.ts` — call from every server page under `/family/[facilityCode]/*`. Throws `redirect('/family/[code]/login')` on missing/expired session OR when the session has no resident at this facility code
+- Rate-limit buckets (in `src/lib/rate-limit.ts`): `portalRequestLink` 5/hr per `${ip}:${emailHash}`, `portalLogin` 10/hr per IP, `portalSetPassword` 5/hr per portalAccountId, `portalRequestBooking` 5/hr per portalAccountId, `portalStatement` 20/hr per portalAccountId, `portalCheckout` 10/hr per portalAccountId
+- `POST /api/portal/request-link` ALWAYS returns `{ data: { sent: true } }` — never leak whether an email matches a real account
+- `POST /api/portal/login` returns generic `'Invalid email or password'` for any failure mode — never distinguish reasons
+- Service requests: `bookings.status = 'requested'` + `requestedByPortal = true` + `portalNotes` set. Stylist is assigned at request time via `resolveAvailableStylists()` + `pickStylistWithLeastLoad()` (or first active facility stylist as fallback). Admin reviews and confirms by changing status to `'scheduled'`
+- Stripe Checkout: `POST /api/portal/stripe/create-checkout` writes `metadata.type = 'portal_balance'`. Webhook `/api/webhooks/stripe` discriminates on `session.metadata?.type` — `'portal_balance'` runs FIFO invoice-decrement + inserts `qb_payments(paymentMethod='stripe')` in a single `db.transaction`. Existing booking-payment path is unchanged. ONE webhook endpoint, ONE `STRIPE_WEBHOOK_SECRET`
+- Per-facility Stripe key: prefer `facility.stripeSecretKey`, fall back to `process.env.STRIPE_SECRET_KEY`. When BOTH are unset, hide the "Pay online" CTA and show only the mail-payment block
+- Statement download: `GET /api/portal/statement/[residentId]` returns printable HTML (reuses `buildResidentStatementHtml`). Adds a `<button onclick="window.print()">` and `@media print` CSS. NO PDF dependency — user invokes browser print
+- Cron: `/api/cron/portal-cleanup` (daily 04:00 UTC, `vercel.json`) deletes magic-link rows older than 7 days past expiry and expired sessions
+- Resident detail "Send Portal Invite" button: admin-only (gate is the existing admin-page guard), disabled when `!resident.poaEmail` (tooltip: "Add POA email first") or when `lastPortalInviteSentAt` is < 24h ago. Cooldown is UI-only — the route always sends and updates `lastPortalInviteSentAt`
+
 ### Compliance Alerts
 - Send when `expiresAt` is exactly 30 or 60 days from today (UTC), verified docs only
 - Emails to facility admins (`facilityUsers.role = 'admin'` joined to profiles for email), fallback to `NEXT_PUBLIC_ADMIN_EMAIL`

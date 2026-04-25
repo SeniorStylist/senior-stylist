@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/compliance-alerts", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/compliance-alerts", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/portal-cleanup", "schedule": "0 4 * * *" }
   ]
 }

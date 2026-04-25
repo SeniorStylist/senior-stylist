@@ -16,6 +16,12 @@ type Bucket =
   | 'billingImport'
   | 'billingSend'
   | 'checkScan'
+  | 'portalRequestLink'
+  | 'portalLogin'
+  | 'portalSetPassword'
+  | 'portalRequestBooking'
+  | 'portalStatement'
+  | 'portalCheckout'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -32,6 +38,12 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   billingImport: { tokens: 5, window: '1 h' },
   billingSend: { tokens: 20, window: '1 h' },
   checkScan: { tokens: 30, window: '1 h' },
+  portalRequestLink: { tokens: 5, window: '1 h' },
+  portalLogin: { tokens: 10, window: '1 h' },
+  portalSetPassword: { tokens: 5, window: '1 h' },
+  portalRequestBooking: { tokens: 5, window: '1 h' },
+  portalStatement: { tokens: 20, window: '1 h' },
+  portalCheckout: { tokens: 10, window: '1 h' },
 }
 
 let redis: Redis | null = null

@@ -70,6 +70,7 @@ export interface Resident {
   poaCity?: string | null
   poaNotificationsEnabled: boolean
   qbCustomerId?: string | null
+  lastPortalInviteSentAt?: string | Date | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

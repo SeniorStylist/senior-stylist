@@ -1703,3 +1703,46 @@ Desktop and mobile renderings share the same outer card wrapper; branching is do
 
 Other list surfaces (stylists, daily log, billing, payroll) currently render the Task A desktop treatment on both desktop and mobile — migrate them to a phone-specific card variant only if the same density issue recurs there.
 
+## Family Portal Layout (`/family/[facilityCode]/*` — Phase 11I)
+
+The family portal at `/family/[facilityCode]/*` is the POA-facing surface — magic-link auth, one account → many residents, mobile-first. It coexists with the legacy single-resident `/portal/[token]` route.
+
+**Shell** (`layout.tsx`):
+- Background: `bg-[#FDF8F8]` (pale rose tint, matches the resident portal palette).
+- Top header: `bg-[#8B2E4A]` with the same inline floral SVG accent used on the legacy portal (`rgba(255,255,255,0.15)` stroke, top-right anchored). Senior Stylist logo wrapped in `<Image>` with `filter: brightness(0) invert(1)` (white on burgundy).
+- Header right side: resident picker `<select>` (only when `residents.length > 1`) writes `?residentId` via `router.replace`. "Sign out" link → POST `/api/portal/logout` → `window.location.href = '/family/[code]/login'`.
+- Main content: `max-w-[640px] mx-auto px-4 pt-4` with bottom padding `paddingBottom: 'calc(env(safe-area-inset-bottom) + 96px)'` to clear the bottom nav + home indicator.
+- Login pages (`/login`, `/auth/verify`) render WITHOUT the header chrome and bottom nav.
+- Whole tree wrapped in `<ToastProvider>` so client pages can call `useToast()`.
+
+**Bottom navigation** (`portal-nav.tsx`, client component):
+- Fixed `bottom: 0`, full-width, `backdrop-blur` white background, `paddingBottom: 'env(safe-area-inset-bottom)'`. Visible at all widths (no `md:hidden`).
+- Five tabs: Home / Appointments / Request / Billing / Contact. Inline SVG icons.
+- Active state via `usePathname()` — burgundy `text-[#8B2E4A]` + heavier weight; inactive `text-stone-500`.
+
+**Login UX** (`login/login-client.tsx`):
+- Two tabs: `Email me a link` (default) and `Sign in with password`. Underline `pnav` pattern — active tab gets a `#8B2E4A` underline bar.
+- Email tab: input → POST `/api/portal/request-link` → confirmation card "Check your email — link expires in 72 hours." (Always shown, regardless of whether the email matched.)
+- Password tab: email + password → POST `/api/portal/login` → `router.push('/family/[facilityCode]')` on success.
+- Both forms display generic error text only — never "user not found" / "wrong password" distinctions.
+
+**Magic-link verify** (`auth/verify/page.tsx` + `verify-set-password.tsx`):
+- Server component verifies token, sets `__portal_session` cookie via `cookies().set(...)`, then renders a small client form: "Want to set a password for faster sign-in next time?" with `[Skip]` and `[Set password]` buttons. Skip → `router.push('/family/[code]')`.
+- On verification failure: error card with "Request a new link" CTA.
+
+**Home page** (`page.tsx`):
+- Greeting card: `Hi, {emailLocal} — here's {residentName}`.
+- Outstanding-balance callout: amber bg + `.balance-attention` pulse class when `qbOutstandingBalanceCents > 0`; emerald "All paid up!" otherwise.
+- Upcoming appointments: next 3 (date · time · service · stylist). Status badges: `requested` → amber "Pending approval"; `scheduled` → blue.
+- CTA button: "Request a service" → `/family/[code]/request`.
+
+**Appointments** — two sections (Upcoming, Past 6 months) with `<EmptyState>` fallbacks.
+
+**Request booking** (`request/request-client.tsx`) — three stacked sections (services / preferred date / notes), no wizard. Service picker uses `sortCategoryGroups` + `sortServicesWithinCategory` and filters out `pricingType === 'addon'`. Multi-select capped at 6. Notes textarea `maxLength={2000}`. Success card with "Make another" + "Back to home".
+
+**Billing** (`billing/billing-client.tsx`) — outstanding balance header (`.balance-attention` pulse only when > 0), "Pay online" section (visible only when Stripe key exists AND balance > 0) → POST `/api/portal/stripe/create-checkout` → `window.location = checkoutUrl`. Always-shown mail-payment block: "Or pay by check: Senior Stylist, 2833 Smith Ave Ste 152, Baltimore MD 21209 · 443-450-3344 · pmt@seniorstylist.com". Invoice list + "Download statement" anchor → `/api/portal/statement/[residentId]` (opens in new tab; user invokes browser print). Reads `?payment=success` on mount → success toast → `router.replace` to strip the param.
+
+**Statement (printable HTML)** — `/api/portal/statement/[residentId]` returns HTML with embedded `@media print` CSS that hides the print button + back link, and a header `<button onclick="window.print()">Print or Save as PDF</button>`. NO PDF dependency — user uses browser's native "Save as PDF".
+
+**Resident detail "Send Portal Invite" card** — admin-only card on `/residents/[id]` titled "Family Portal", placed above the legacy "Portal Link" card. Disabled when `!resident.poaEmail` (tooltip: "Add POA email first") OR when `lastPortalInviteSentAt` is < 24h ago (label flips to "Invite sent Nh ago"). Clicking POSTs to `/api/portal/send-invite` and shows a `toast.success(\`Portal invite sent to \${poaEmail}\`)`.
+
