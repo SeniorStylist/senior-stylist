@@ -226,7 +226,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
     ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
     : user.email?.slice(0, 2).toUpperCase() ?? '??'
 
-  const showSwitcher = allFacilities.length > 1
+  const showSwitcher = allFacilities.length > 1 && role === 'admin'
 
   return (
     <aside
@@ -337,7 +337,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             )}
           </div>
         )}
-        {!showSwitcher && allFacilities.length <= 1 && (
+        {role === 'admin' && !showSwitcher && allFacilities.length <= 1 && (
           <div className="mt-3">
             <Link
               href="/settings?tab=new-facility"

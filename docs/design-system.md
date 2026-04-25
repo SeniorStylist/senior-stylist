@@ -271,6 +271,7 @@ On mobile the sidebar is replaced by a bottom navigation bar. `.main-content` in
 - Inactive nav item: `text-white/60 hover:bg-white/10 hover:text-white`
 - Facility switcher uses inline styles
 - Viewer role gets a "View Only" badge in the nav
+- **Facility switcher + "Add facility" link are admin-only (2026-04-25)**: `showSwitcher = allFacilities.length > 1 && role === 'admin'`. The fallback "+ Add facility" link below the logo (single-facility branch) is also gated on `role === 'admin'`. Stylists with multi-facility membership see the current facility name as plain non-interactive text — no dropdown, no add link. Stylists must never see facility-switching UI
 
 ### Dashboard Layout
 
@@ -726,6 +727,25 @@ Each user row shows: avatar initials → name/email → role badge → linked st
 - **Success messages**: "Invite sent!" for new invites; "Invite refreshed and resent" when the API returns `{ refreshed: true }` (pending invite already existed — token was refreshed and email resent). Both auto-clear after 3 s.
 - **Error messages**: inline red text; includes "This person already has access to this facility" (409) when the invited email already has a `used=true` invite.
 - **Pending list**: shows role badge + Expired badge + Resend / Copy link / Revoke buttons per invite
+
+### Booking modal — read-only auto-assigned stylist (2026-04-25)
+
+The admin booking modal does **not** show a stylist `<select>`. Stylist assignment is date-driven and read-only.
+
+**Position:** between the Services field and the Date & Time field.
+
+**Fetch:** a `useEffect` keyed on `[open, mode, startTime, selectedServiceIds.join(','), facilityId]` calls `GET /api/stylists/available?facilityId=…&startTime=…&endTime=…` whenever both a date AND ≥1 service are picked. Uses `AbortController` so later picks supersede in-flight requests. Skipped entirely in `mode === 'edit'`.
+
+**Four display states:**
+- **Edit mode** — plain text showing `booking.stylist?.name` (with the stylist's color swatch). PUT body never sends `stylistId`; existing assignment is preserved.
+- **Create mode, no date or no services yet** — muted hint: `"Pick a date and service(s) to see who's scheduled."`
+- **Loading** — `"Checking availability…"` text.
+- **No candidates available** — amber block (`bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 text-sm`): `"No stylist available for {weekday} at {time}. Please choose a different date or time."` Submit is disabled.
+- **Picked** — read-only display: 16px color swatch (from stylist `color`) + name + sub-label `"Auto-assigned (least-loaded)"`.
+
+**Submit gating:** `submitDisabled = submitting || (mode === 'create' && (!pickedStylist || loadingStylists))`. Used by both the desktop modal footer button and the mobile bottom-sheet footer button.
+
+**Why exact-name preview (not a lightweight day-of-week check):** the modal calls the full `resolveAvailableStylists` + `pickStylistWithLeastLoad` pipeline so the previewed name matches what `POST /api/bookings` will actually pick at submit time. The extra round-trip is acceptable because it only fires when both date AND services are set.
 
 ### Inline Create in Combobox
 
@@ -1646,15 +1666,16 @@ Before this pass, every list/panel row used the same cramped recipe — 28px ava
 
 ### Avatar palette (`src/lib/avatar-colors.ts`)
 
-`getAvatarColor(name)` maps the first letter of a person's name to one of five pastel `{ bg, text }` pairs, cycling across A–Z. Determined by the letter's char code; stable across renders.
+`getAvatarColor(name)` maps the first letter of a person's name to one of six pastel `{ bg, text }` pairs, cycling across A–Z. Determined by the letter's char code; stable across renders.
 
 ```ts
 const PALETTE = [
-  { bg: '#EEEDFE', text: '#534AB7' }, // indigo
-  { bg: '#E1F5EE', text: '#0F6E56' }, // emerald
+  { bg: '#EEEDFE', text: '#534AB7' }, // purple
+  { bg: '#E1F5EE', text: '#0F6E56' }, // teal
   { bg: '#E6F1FB', text: '#185FA5' }, // blue
   { bg: '#F9EFF2', text: '#8B2E4A' }, // burgundy
   { bg: '#FAEEDA', text: '#854F0B' }, // amber
+  { bg: '#EAF3DE', text: '#3B6D11' }, // green
 ]
 ```
 
@@ -1671,4 +1692,14 @@ The `<Avatar>` component automatically uses this when no explicit `color` prop i
 - **No trailing chevron.** The hover state already communicates interactivity. Disclosure-indicator chevrons (expand/collapse) are a different pattern and are unaffected.
 
 Applied to: dashboard residents panel, dashboard stylists panel, residents list full page, daily log appointment rows (avatar replaces the leading status circle; status chip moves inline next to the name), stylist directory, billing IP view, billing RFMS view. Payroll list gets the text + chip + chevron cleanup but no avatar (rows are date ranges, not people).
+
+### Mobile list variants
+
+Desktop 4-column tables collapse uncomfortably on phones — avatars stay 36px, names truncate, and the "Total Spent" column is noise on a 375px viewport. The residents list is the first surface to get a dedicated phone layout: below the `md` breakpoint, rows render as vertical-flex cards with a 40px avatar (via `className="!w-10 !h-10"` override on `size='md'`), a 15px name that wraps to two lines (`break-words`, never `truncate`), a 12px subtitle combining room and POA (`Room 406 · POA on file` — the inline POA pill from the desktop layout is folded into text), a short-format last-service date (`Apr 24`) or a small `New` chip when the resident has no visits yet, and a trailing `›` chevron (a deliberate mobile-only affordance — desktop list rows remain chevron-free per the rules above). The "Total Spent" column is removed entirely on phones.
+
+When the residents list is sorted by name ascending (the default), sticky single-letter section headers (`A`, `B`, `C`…) appear above each group under `bg-white/90 backdrop-blur-sm`. On other sort orders the headers are suppressed since they'd lose meaning.
+
+Desktop and mobile renderings share the same outer card wrapper; branching is done via `hidden md:block` / `md:hidden` sibling divs. The wrapper drops `overflow-hidden` so sticky headers can escape, and the desktop inner div carries `overflow-hidden rounded-[18px]` instead to preserve grid-row clipping.
+
+Other list surfaces (stylists, daily log, billing, payroll) currently render the Task A desktop treatment on both desktop and mobile — migrate them to a phone-specific card variant only if the same density issue recurs there.
 

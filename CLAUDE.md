@@ -169,6 +169,7 @@
 - **Status/facility chips:** `text-[10.5px] font-semibold px-2.5 py-1 rounded-full`. Do NOT use `text-[9px]` or `text-[10px]` sizing on chips anymore.
 - **Row hover:** `hover:bg-[#F9EFF2] transition-colors duration-[120ms]`. Amber outstanding-balance tint remains an exception (billing only).
 - **Chevrons:** do NOT append `›` to list rows — the hover state already communicates interactivity. Disclosure-indicator chevrons (expand/collapse, accordion) are unaffected.
+- **Residents list mobile layout:** uses `flex` card-per-row (not `grid-cols` table) below `md`. Names never truncate on mobile — allow 2-line wrap via `break-words`. POA moves to the subtitle line (`Room N · POA on file`). Avatar bumps to 40px (`className="!w-10 !h-10"` override on `size='md'`). Last service renders as short date (`Apr 24`) or a `New` chip — never "Never" or `—`. `Total Spent` column is hidden on mobile via `md:hidden`/`hidden md:block` branching. Sticky single-letter section headers appear only when sort is `name asc`. Avatar colors hashed by name `charCode % 6`.
 
 ### File Structure Conventions
 - Server components in `page.tsx`, client logic in `[name]-client.tsx`
@@ -186,6 +187,8 @@
 - Stylist ownership guard: stylists can only edit their own bookings (checked via `profiles.stylistId` match)
 - Edit mode shows $ price input + notes textarea. Stylist role: only sees edit button on own bookings (gated by `stylistFilter`)
 - Mobile nav prefetch: `<Link prefetch={true}>` on all nav links in `mobile-nav.tsx` and `sidebar.tsx`; `mobile-nav.tsx` also has `pendingHref` state — set on click for immediate tab highlight, cleared on pathname change
+- **Admin booking modal is date-driven (2026-04-25)** — `stylistId` is auto-assigned via `resolveAvailableStylists()` + `pickStylistWithLeastLoad()` (the same helpers the resident portal uses). The modal previews the picked stylist read-only via `GET /api/stylists/available?facilityId=…&startTime=…&endTime=…`. The `<select>` dropdown for stylist is GONE — never re-add it. `POST /api/bookings` and `POST /api/bookings/recurring` accept `stylistId` as optional; on omit they auto-resolve, returning 409 (single) or `skipped: [{date, reason}]` (recurring) when no stylist is on schedule. `BookingModal` requires a `facilityId: string` prop (not a `stylists` array)
+- **Sidebar facility switcher is admin-only** — `showSwitcher = allFacilities.length > 1 && role === 'admin'` (`sidebar.tsx:229`). The fallback "+ Add facility" link below the logo is also gated on `role === 'admin'` (line 340 region). Stylists must never see facility-switching or facility-creation UI even if they belong to multiple facilities
 
 ### Dashboard right panel resize
 - Dashboard right panel uses `react-resizable-panels` v2 (`PanelGroup direction="vertical" autoSaveId="dashboard-right-panel"`) to split the top zone (Today + Who's Working + Coverage) from the bottom zone (Tabs + list). Stat pills are a `shrink-0` sibling BELOW the PanelGroup — not inside it. `autoSaveId` handles localStorage persistence; no manual read/write.

@@ -4,7 +4,6 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
 import { formatCents } from '@/lib/utils'
 import { resolvePrice, formatPricingLabel } from '@/lib/pricing'
 import {
@@ -13,7 +12,7 @@ import {
   sortServicesWithinCategory,
 } from '@/lib/service-sort'
 import { useIsMobile } from '@/hooks/use-is-mobile'
-import type { Resident, Stylist, Service } from '@/types'
+import type { Resident, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
 import { useToast } from '@/components/ui/toast'
 
@@ -25,12 +24,18 @@ interface BookingModalProps {
   defaultStart: Date | null
   defaultEnd: Date | null
   residents: Resident[]
-  stylists: Stylist[]
   services: Service[]
+  facilityId: string
   onBookingChange: (booking: BookingWithRelations) => void
   onBookingDeleted: (bookingId: string) => void
   isAdmin?: boolean
   serviceCategoryOrder?: string[] | null
+}
+
+interface PickedStylist {
+  id: string
+  name: string
+  color: string
 }
 
 function formatDateTimeLocal(date: Date | string): string {
@@ -47,8 +52,8 @@ export function BookingModal({
   defaultStart,
   defaultEnd,
   residents,
-  stylists,
   services,
+  facilityId,
   onBookingChange,
   onBookingDeleted,
   isAdmin,
@@ -59,7 +64,9 @@ export function BookingModal({
   const [selectedResidentId, setSelectedResidentId] = useState('')
   // Multi-service: ordered list of primary service IDs. First = primary.
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
-  const [selectedStylistId, setSelectedStylistId] = useState('')
+  const [pickedStylist, setPickedStylist] = useState<PickedStylist | null>(null)
+  const [availableCount, setAvailableCount] = useState<number | null>(null)
+  const [loadingStylists, setLoadingStylists] = useState(false)
   const [startTime, setStartTime] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -137,7 +144,6 @@ export function BookingModal({
           : [booking.serviceId]
       setSelectedServiceIds(existingIds)
       setSelectedAddonServiceIds(booking.addonServiceIds ?? [])
-      setSelectedStylistId(booking.stylistId)
       setStartTime(formatDateTimeLocal(booking.startTime))
       setNotes(booking.notes ?? '')
       setResidentSearch(booking.resident?.name ?? '')
@@ -145,11 +151,13 @@ export function BookingModal({
       setSelectedResidentId('')
       setSelectedServiceIds([])
       setSelectedAddonServiceIds([])
-      setSelectedStylistId(stylists[0]?.id ?? '')
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart) : '')
       setNotes('')
       setResidentSearch('')
     }
+    setPickedStylist(null)
+    setAvailableCount(null)
+    setLoadingStylists(false)
     setError(null)
     setConfirmCancel(false)
     setCancelReason('')
@@ -242,6 +250,59 @@ export function BookingModal({
     setSelectedServiceIds((prev) => [...prev, ''])
   }
 
+  // Auto-assign stylist preview: fetch the candidate the server will pick once date + services
+  // are both set. Skip in edit mode (existing stylist stays). Effect re-runs on date or service
+  // changes; AbortController keeps the displayed name in sync with the latest selection.
+  useEffect(() => {
+    if (mode === 'edit') return
+    if (!open) return
+    if (!startTime) {
+      setPickedStylist(null)
+      setAvailableCount(null)
+      return
+    }
+    const validServiceIds = selectedServiceIds.filter((id) => !!id)
+    if (validServiceIds.length === 0) {
+      setPickedStylist(null)
+      setAvailableCount(null)
+      return
+    }
+    const startDate = new Date(startTime)
+    if (Number.isNaN(startDate.getTime())) return
+    const duration = selectedServices.reduce((sum, s) => sum + s.durationMinutes, 0)
+    if (duration <= 0) return
+    const endDate = new Date(startDate.getTime() + duration * 60000)
+
+    const controller = new AbortController()
+    setLoadingStylists(true)
+    const url = `/api/stylists/available?facilityId=${encodeURIComponent(facilityId)}&startTime=${encodeURIComponent(
+      startDate.toISOString(),
+    )}&endTime=${encodeURIComponent(endDate.toISOString())}`
+    fetch(url, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((json) => {
+        if (controller.signal.aborted) return
+        const data = json?.data
+        if (!data) {
+          setPickedStylist(null)
+          setAvailableCount(0)
+          return
+        }
+        setPickedStylist(data.picked)
+        setAvailableCount(Array.isArray(data.available) ? data.available.length : 0)
+      })
+      .catch((err) => {
+        if (err?.name === 'AbortError') return
+        setPickedStylist(null)
+        setAvailableCount(0)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStylists(false)
+      })
+    return () => controller.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, startTime, selectedServiceIds.join(','), facilityId])
+
   // Cmd+Enter to submit
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -250,17 +311,20 @@ export function BookingModal({
     if (open) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedResidentId, selectedServiceIds, selectedStylistId, startTime, notes])
+  }, [open, selectedResidentId, selectedServiceIds, pickedStylist, startTime, notes])
 
   const handleSubmit = async () => {
     if (
       !selectedResidentId ||
       selectedServiceIds.length === 0 ||
       selectedServiceIds.some((id) => !id) ||
-      !selectedStylistId ||
       !startTime
     ) {
       setError('Please fill in all required fields.')
+      return
+    }
+    if (mode === 'create' && !pickedStylist) {
+      setError('No stylist available for this date and time.')
       return
     }
     // Synchronous guard — setSubmitting(true) is async state and won't re-render before the
@@ -288,7 +352,6 @@ export function BookingModal({
       const basePayload = {
         residentId: selectedResidentId,
         serviceIds: selectedServiceIds,
-        stylistId: selectedStylistId,
         startTime: new Date(startTime).toISOString(),
         notes: notes || undefined,
         ...pricingFields,
@@ -327,7 +390,11 @@ export function BookingModal({
       }
 
       if (mode === 'create' && isRecurring && isAdmin) {
-        toast(`${json.data.count} recurring appointments booked!`, 'success')
+        const skippedCount = Array.isArray(json.data.skipped) ? json.data.skipped.length : 0
+        const msg = skippedCount > 0
+          ? `${json.data.count} appointments booked. ${skippedCount} skipped (no stylist available).`
+          : `${json.data.count} recurring appointments booked!`
+        toast(msg, 'success')
         onClose()
       } else {
         onBookingChange(json.data)
@@ -812,20 +879,44 @@ export function BookingModal({
           </div>
         )}
 
-        {/* Stylist */}
-        <Select
-          label="Stylist *"
-          value={selectedStylistId}
-          onChange={(e) => setSelectedStylistId(e.target.value)}
-          disabled={submitting}
-        >
-          <option value="">Select a stylist</option>
-          {stylists.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </Select>
+        {/* Stylist (read-only — date-driven auto-assign) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+            Stylist
+          </label>
+          {mode === 'edit' && booking?.stylist ? (
+            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-700 flex items-center gap-2 min-h-[44px]">
+              <span
+                aria-hidden
+                className="inline-block w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: booking.stylist.color ?? '#8B2E4A' }}
+              />
+              <span>{booking.stylist.name}</span>
+            </div>
+          ) : !startTime || selectedServiceIds.filter((id) => !!id).length === 0 ? (
+            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
+              Pick a date and service(s) to see who's scheduled.
+            </div>
+          ) : loadingStylists ? (
+            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
+              Checking availability…
+            </div>
+          ) : pickedStylist ? (
+            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-700 flex items-center gap-2 min-h-[44px]">
+              <span
+                aria-hidden
+                className="inline-block w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: pickedStylist.color }}
+              />
+              <span className="font-medium">{pickedStylist.name}</span>
+              <span className="text-xs text-stone-400 ml-auto">Auto-assigned (least-loaded)</span>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3.5 py-2.5 text-sm min-h-[44px]">
+              No stylist available for {new Date(startTime).toLocaleDateString('en-US', { weekday: 'long' })} at {new Date(startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. Please choose a different date or time.
+            </div>
+          )}
+        </div>
 
         {/* Date & Time */}
         <div className="flex flex-col gap-1.5">
@@ -956,6 +1047,13 @@ export function BookingModal({
     </div>
   ) : null
 
+  const submitDisabled =
+    cancelling ||
+    (mode === 'create' &&
+      ((!!startTime &&
+        selectedServiceIds.filter((id) => !!id).length > 0 &&
+        (loadingStylists || (availableCount !== null && !pickedStylist)))))
+
   const formFooter = (
     <div
       className="bg-white px-6 pt-4 border-t border-stone-100"
@@ -973,7 +1071,7 @@ export function BookingModal({
         <Button
           onClick={handleSubmit}
           loading={submitting}
-          disabled={cancelling}
+          disabled={submitDisabled}
         >
           {mode === 'create' ? 'Book appointment' : 'Save changes'}
         </Button>
@@ -996,7 +1094,7 @@ export function BookingModal({
         {breakdown}
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={cancelling}>
+          <Button onClick={handleSubmit} loading={submitting} disabled={submitDisabled}>
             {mode === 'create' ? 'Book appointment' : 'Save changes'}
           </Button>
         </div>

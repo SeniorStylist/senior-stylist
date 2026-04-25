@@ -20,10 +20,11 @@ import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
+import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
-  stylistId: z.string().uuid(),
+  stylistId: z.string().uuid().optional(),
   serviceId: z.string().uuid().optional(),
   serviceIds: z.array(z.string().uuid()).min(1).optional(),
   startTime: z.string().datetime(),
@@ -115,34 +116,6 @@ export async function POST(request: NextRequest) {
     })
     if (!resident) return Response.json({ error: 'Resident not found' }, { status: 404 })
 
-    // Verify stylist exists, is active, and has an active assignment to this facility
-    const stylist = await db.query.stylists.findFirst({
-      where: and(
-        eq(stylists.id, stylistId),
-        eq(stylists.active, true),
-        eq(stylists.status, 'active'),
-      ),
-    })
-    if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
-
-    const [assignment] = await db
-      .select({ id: stylistFacilityAssignments.id })
-      .from(stylistFacilityAssignments)
-      .where(
-        and(
-          eq(stylistFacilityAssignments.stylistId, stylistId),
-          eq(stylistFacilityAssignments.facilityId, facilityId),
-          eq(stylistFacilityAssignments.active, true),
-        ),
-      )
-      .limit(1)
-    if (!assignment) {
-      return Response.json(
-        { error: 'Stylist is not assigned to this facility' },
-        { status: 404 },
-      )
-    }
-
     // Fetch all primary services in one query (single inArray, guarded .length > 0)
     const primarySvcRows = await db.query.services.findMany({
       where: and(eq(services.facilityId, facilityId), inArray(services.id, primaryServiceIds)),
@@ -191,11 +164,62 @@ export async function POST(request: NextRequest) {
     const startTime = new Date(startTimeStr)
     const endTime = new Date(startTime.getTime() + totalDurationMinutes * 60000)
 
+    // Resolve stylist: either explicit (admin-edit / legacy callers) or auto-assigned via the
+    // same helpers the resident portal uses, so admin and portal flows pick consistently.
+    let resolvedStylistId: string
+    if (stylistId) {
+      resolvedStylistId = stylistId
+    } else {
+      const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime })
+      if (candidates.length === 0) {
+        return Response.json(
+          { error: 'No stylist available for this date and time' },
+          { status: 409 },
+        )
+      }
+      const picked = await pickStylistWithLeastLoad(candidates, { facilityId, date: startTime })
+      if (!picked) {
+        return Response.json(
+          { error: 'No stylist available for this date and time' },
+          { status: 409 },
+        )
+      }
+      resolvedStylistId = picked.id
+    }
+
+    // Verify resolved stylist is active and assigned to this facility
+    const stylist = await db.query.stylists.findFirst({
+      where: and(
+        eq(stylists.id, resolvedStylistId),
+        eq(stylists.active, true),
+        eq(stylists.status, 'active'),
+      ),
+    })
+    if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+
+    const [assignment] = await db
+      .select({ id: stylistFacilityAssignments.id })
+      .from(stylistFacilityAssignments)
+      .where(
+        and(
+          eq(stylistFacilityAssignments.stylistId, resolvedStylistId),
+          eq(stylistFacilityAssignments.facilityId, facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .limit(1)
+    if (!assignment) {
+      return Response.json(
+        { error: 'Stylist is not assigned to this facility' },
+        { status: 404 },
+      )
+    }
+
     // Check for stylist conflict
     const conflict = await db.query.bookings.findFirst({
       where: and(
         eq(bookings.facilityId, facilityId),
-        eq(bookings.stylistId, stylistId),
+        eq(bookings.stylistId, resolvedStylistId),
         or(
           eq(bookings.status, 'scheduled'),
           eq(bookings.status, 'completed')
@@ -218,7 +242,7 @@ export async function POST(request: NextRequest) {
       .values({
         facilityId,
         residentId,
-        stylistId,
+        stylistId: resolvedStylistId,
         serviceId: primaryServices[0].id,
         serviceIds: primaryServices.map((s) => s.id),
         serviceNames: primaryServices.map((s) => s.name),

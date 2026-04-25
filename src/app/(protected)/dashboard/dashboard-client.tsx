@@ -771,8 +771,8 @@ export function DashboardClient({
         defaultStart={modalStart}
         defaultEnd={modalEnd}
         residents={residents}
-        stylists={stylists}
         services={localServices}
+        facilityId={facility.id}
         onBookingChange={handleBookingChange}
         onBookingDeleted={handleBookingDeleted}
         isAdmin={isAdmin}
