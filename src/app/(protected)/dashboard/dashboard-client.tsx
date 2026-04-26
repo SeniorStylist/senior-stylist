@@ -503,7 +503,7 @@ export function DashboardClient({
               <span className="font-semibold">{pendingRequestsCount}</span> access request{pendingRequestsCount > 1 ? 's' : ''} pending
             </p>
             <a
-              href="/settings?tab=access-requests"
+              href="/settings?section=team"
               className="text-xs font-semibold text-amber-700 underline hover:text-amber-900"
             >
               Review

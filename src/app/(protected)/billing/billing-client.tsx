@@ -21,7 +21,6 @@ import {
   btnHubInteractive,
   cardHover,
   modalEnter,
-  successFlash,
   transitionBase,
 } from '@/lib/animations'
 
@@ -98,9 +97,6 @@ export function BillingClient({
   const [crossSummary, setCrossSummary] = useState<CrossFacilitySummary | null>(null)
   const [crossLoading, setCrossLoading] = useState(isMaster)
 
-  const [pendingRevShare, setPendingRevShare] = useState<string | null>(null)
-  const [revShareSaving, setRevShareSaving] = useState(false)
-
   const [activePeriod, setActivePeriod] = useState<Period>('month')
   const [dateRange, setDateRange] = useState<DateRange>(() => currentMonthRange())
   const [customOpen, setCustomOpen] = useState(false)
@@ -151,7 +147,6 @@ export function BillingClient({
     let cancelled = false
     setLoading(true)
     setError(null)
-    setPendingRevShare(null)
     const qs = new URLSearchParams({
       from: dateRange.from,
       to: dateRange.to,
@@ -246,8 +241,7 @@ export function BillingClient({
     paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid'
 
   const currentRevShare = summary?.facility.qbRevShareType ?? 'we_deduct'
-  const effectiveRevShare = pendingRevShare ?? currentRevShare
-  const revShareDirty = pendingRevShare !== null && pendingRevShare !== currentRevShare
+  const revShareLabelText = currentRevShare === 'facility_deducts' ? 'Facility deducts' : 'Senior Stylist deducts'
 
   function handlePeriod(p: Period) {
     setActivePeriod(p)
@@ -301,37 +295,6 @@ export function BillingClient({
       toast('Network error — please try again', 'error')
     } finally {
       setSendLoading(false)
-    }
-  }
-
-  async function handleSaveRevShare() {
-    if (!summary || !pendingRevShare) return
-    setRevShareSaving(true)
-    try {
-      const res = await fetch(`/api/facilities/${facilityId}/rev-share`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ revShareType: pendingRevShare }),
-      })
-      const body = await res.json()
-      if (!res.ok) {
-        toast(body?.error ?? 'Could not save', 'error')
-        return
-      }
-      setSummary((prev) =>
-        prev
-          ? {
-              ...prev,
-              facility: { ...prev.facility, qbRevShareType: pendingRevShare },
-            }
-          : prev
-      )
-      setPendingRevShare(null)
-      toast('Saved', 'success')
-    } catch {
-      toast('Could not save', 'error')
-    } finally {
-      setRevShareSaving(false)
     }
   }
 
@@ -751,46 +714,15 @@ export function BillingClient({
             ) : null}
 
             {showRevShareRow ? (
-              <div className="mt-5 pt-5 border-t border-stone-100">
-                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
-                  Revenue share collected by:
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPendingRevShare('we_deduct')}
-                    disabled={revShareSaving}
-                    className={`${btnHubInteractive} rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed ${
-                      effectiveRevShare === 'we_deduct'
-                        ? 'bg-[#8B2E4A] text-white'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
-                  >
-                    Senior Stylist
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPendingRevShare('facility_deducts')}
-                    disabled={revShareSaving}
-                    className={`${btnHubInteractive} rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed ${
-                      effectiveRevShare === 'facility_deducts'
-                        ? 'bg-[#8B2E4A] text-white'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
-                  >
-                    Facility
-                  </button>
-                  {revShareDirty ? (
-                    <button
-                      type="button"
-                      onClick={handleSaveRevShare}
-                      disabled={revShareSaving}
-                      className={`${successFlash} ${btnBase} rounded-xl px-4 py-2 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed`}
-                    >
-                      {revShareSaving ? 'Saving…' : 'Save'}
-                    </button>
-                  ) : null}
-                </div>
+              <div className="mt-5 pt-5 border-t border-stone-100 text-xs text-stone-500">
+                Revenue share: <span className="font-semibold text-stone-700">{revShareLabelText}</span>
+                {' · '}
+                <a
+                  href="/settings?section=billing"
+                  className="text-[#8B2E4A] hover:text-[#72253C] font-medium"
+                >
+                  Change in Settings
+                </a>
               </div>
             ) : null}
           </div>

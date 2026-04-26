@@ -79,8 +79,9 @@ export default async function SettingsPage() {
       connectedUsers={toClientJson(usersWithStatus)}
       currentUserId={user.id}
       currentUserEmail={user.email ?? null}
-      isAdmin={facilityUser.role === 'admin'}
+      role={facilityUser.role}
       pendingRequestsCount={pendingRequests.length}
+      adminEmail={process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? null}
     />
   )
   } catch (err) {

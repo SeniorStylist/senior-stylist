@@ -723,21 +723,43 @@ Admin-only features are hidden via `isAdmin` prop:
 ```
 Stylist role shows calendar + log only. No conditional rendering based on `role === 'viewer'` — viewer gets the same read UI; all mutation actions simply fail the server-side role check.
 
-### Settings — Team Tab
+### Settings — Apple two-pane layout (Phase 11J.3)
 
-Each user row shows: avatar initials → name/email → role badge → linked stylist name (if any) → status badge → Remove button.
+`/settings` is a two-panel surface modeled on macOS / iOS Settings. Page container: `max-w-5xl mx-auto px-4 py-8`. Layout: `md:flex md:gap-0` with a left rail and a right content panel.
 
-- **Role badge** (Phase 11J.1 — invite palette): `admin` = burgundy (`bg-[#8B2E4A]/10 text-[#8B2E4A]`), `facility_staff` = blue (`bg-blue-50 text-blue-700`), `bookkeeper` = emerald (`bg-emerald-50 text-emerald-700`), `viewer` = amber (`bg-amber-50 text-amber-700`), others = stone. All `rounded-full px-2.5 py-0.5 text-xs font-semibold`.
+**Left rail (desktop, md+):** `md:w-56 md:shrink-0 md:border-r md:border-stone-100 md:pr-4 md:space-y-0.5`. Each category is a button:
+- Inactive: `px-3 py-2 text-sm rounded-xl w-full text-left flex items-center justify-between text-stone-600 hover:bg-stone-50 transition-colors duration-150`
+- Active: `bg-stone-100 text-stone-900 font-semibold`
+- Optional badge: `inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold` — burgundy (`bg-[#8B2E4A] text-white`) when the row is active, amber (`bg-amber-100 text-amber-800`) otherwise. Currently used for Team & Roles when `pendingRequestsCount > 0`.
+
+**Right pane:** `flex-1 min-w-0 md:pl-6 mt-4 md:mt-0`. Contains the active section's cards.
+
+**Mobile (below md):** drill-down via `mobileShowingContent: boolean` state. Initial view = category list; selecting a category sets it true; a `← Back to Settings` text button (`text-sm text-stone-500 mb-4 flex items-center gap-1 hover:text-stone-700`, `md:hidden`) returns to the list.
+
+**Section card style** (one card per logical group within a section): `rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]`. Section headers inside a card: `text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3`.
+
+**Categories** (admin sees all; `facility_staff` sees only General as read-only; `bookkeeper` sees only Notifications read-only; `stylist`/`viewer` already redirected by the page guard):
+- General — facility name/address/phone/timezone/working-hours/payment-type/contact-email/facility-code (read-only chip)
+- Team & Roles — invite form / Active Members / Pending Invites / Accepted Invites / Access Requests
+- Billing & Payments — QuickBooks card / Stripe card / Revenue Share toggle (moved from `/billing`)
+- Integrations — Google Calendar
+- Notifications — alert email read-only display + Coming-soon portal request toggle + compliance alert info
+- Advanced — Service Category Order (read-only) + Add Facility form + Danger Zone (Coming soon)
+
+**URL convention:** `?section=<id>`. Legacy `?tab=<id>` maps to sections via `TAB_TO_SECTION` so saved bookmarks still land. QuickBooks OAuth callback uses `?section=billing&qb=connected` (or `&qb=error&reason=…`); the section param routes to Billing & Payments and the qb flag surfaces a toast in the QuickBooks card.
+
+**Read-only role rendering:** in General/Notifications when `role !== 'admin'`, every input is replaced with a `<p className="text-sm text-stone-700">{value}</p>` row, no Save button is rendered, and an amber banner reads *"Contact your facility admin to change these settings."* — `rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800`.
+
+#### Settings — Team & Roles section
+
+Active members row shows: avatar initials → name/email → role badge → linked stylist name (if any) → status badge → Remove button.
+- **Role badge** (Phase 11J.1 — invite palette): `admin` = burgundy (`bg-[#fdf2f4] text-[#8B2E4A]`), `facility_staff` = blue (`bg-blue-50 text-blue-700`), `bookkeeper` = emerald (`bg-emerald-50 text-emerald-700`), `viewer` = amber (`bg-amber-50 text-amber-700`), others = stone. All `rounded-full px-2 py-0.5 text-xs font-medium`.
 - **Linked stylist** (`↔ StylistName`): shown in `text-xs text-stone-400 hidden sm:inline` when `cu.stylistName` is set. Resolved server-side via batch `inArray` query in page.tsx; passed as `stylistName: string | null` on `ConnectedUser`.
 - **Status badges**: Active (emerald, last sign-in < 90 days), Invited (amber, never signed in), Inactive (stone, > 90 days)
 - **Remove flow**: two-step inline confirm; mouse leave cancels confirm state; optimistic `localUsers` removal; emerald toast "Access removed" for 3 s
-
-### Settings — Invites Tab
-
-- **Send Invite**: form with email + role select (options: Admin / Facility Staff / Bookkeeper / Stylist; Super Admin (franchise) shown only to super_admins) + "Send Invite" button. `viewer` option removed from picker (Phase 11J.1).
-- **Success messages**: "Invite sent!" for new invites; "Invite refreshed and resent" when the API returns `{ refreshed: true }` (pending invite already existed — token was refreshed and email resent). Both auto-clear after 3 s.
-- **Error messages**: inline red text; includes "This person already has access to this facility" (409) when the invited email already has a `used=true` invite.
-- **Pending list**: shows role badge + Expired badge + Resend / Copy link / Revoke buttons per invite
+- **Send Invite form** card at top of section: email + role select (Admin / Facility Staff / Bookkeeper / Stylist; Super Admin (franchise) shown only to super_admins). `viewer` option removed from picker (Phase 11J.1). Success messages "Invite sent!" / "Invite refreshed and resent" auto-clear after 3 s. Error includes "This person already has access to this facility" (409) when target email already has a `used=true` invite.
+- **Pending invites** card lists each invite with role badge + Expired badge + Resend / Copy link / Revoke buttons.
+- **Access requests** card shows pending requests with `stylist | admin | viewer` role picker + green Approve / red Deny icons. Approve toast "Access granted to {name}", deny toast "Request denied" — auto-clear after 3 s.
 
 ### Booking modal — read-only auto-assigned stylist (2026-04-25)
 
@@ -894,7 +916,7 @@ Dashboard shows an amber banner when there are pending access requests assigned 
     <span className="text-amber-700 text-sm font-medium">
       {pendingCount} pending access request{pendingCount > 1 ? 's' : ''}
     </span>
-    <a href="/settings?tab=requests" className="text-amber-700 underline text-sm">Review</a>
+    <a href="/settings?section=team" className="text-amber-700 underline text-sm">Review</a>
   </div>
 )}
 ```

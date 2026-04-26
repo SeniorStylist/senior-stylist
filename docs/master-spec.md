@@ -110,7 +110,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 ### Dashboard & settings flags
 
 - **`isAdmin`** is `facilityUser.role === 'admin'` on the dashboard (`src/app/(protected)/dashboard/page.tsx`): non-admins do not get admin-only panel actions (e.g. add residents / services / stylists from the dashboard panels).
-- Settings UI receives **`isAdmin`**; non-admins cannot use admin-only tabs/actions (`src/app/(protected)/settings/settings-client.tsx`).
+- Settings UI receives **`role`** (full role string, not `isAdmin` boolean) and uses it to derive `visibleCategories` per role (`src/app/(protected)/settings/settings-client.tsx`). It also receives `adminEmail` (`process.env.NEXT_PUBLIC_ADMIN_EMAIL`) for the Notifications section.
 
 ### API enforcement (explicit checks in code)
 
@@ -541,7 +541,7 @@ Authenticated app shell: sidebar (`Sidebar`), mobile nav, toast provider (`layou
 | `/reports` | **Admin-only** (redirect for others) — monthly analytics |
 | `/payroll` | **Admin-only** — pay period list + New Pay Period modal |
 | `/payroll/[id]` | **Admin-only** — pay period detail with expandable rows, inline deductions, status transitions, CSV export |
-| `/settings` | Facility settings, users, invites (admin-only sections gated in client) |
+| `/settings` | Apple-style two-pane settings (Phase 11J.3). Six categories: General, Team & Roles, Billing & Payments, Integrations, Notifications, Advanced. URL convention: `?section=<id>` (legacy `?tab=<id>` resolves via back-compat map). Role-gated: admin sees all; facility_staff sees only General (read-only); bookkeeper sees only Notifications (read-only); stylist/viewer redirected by `page.tsx` guard. Sections under `src/app/(protected)/settings/sections/`. Rev-share toggle was moved here from `/billing` (Phase 11J.3). |
 
 ### `(resident)` — `src/app/(resident)/`
 
@@ -787,7 +787,7 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 | `GET /api/coverage/substitutes?date=YYYY-MM-DD` | **Admin** | Returns `{ data: { facilityStylists, franchiseStylists } }` — both lists are `{ id, name, stylistCode }`. Facility pool = active stylists at caller's facility with availability on that day-of-week, not themselves on coverage that date. Franchise pool = active stylists with `facilityId IS NULL AND franchiseId = caller's franchise`. |
 | `GET /api/cron/compliance-alerts` | **Vercel Cron** (`Bearer CRON_SECRET`) | Daily at 09:00 UTC via `vercel.json`. Emails facility admins when any verified doc or stylist license/insurance `expires_at` is exactly **today+30** or **today+60**. Fallback recipient: `NEXT_PUBLIC_ADMIN_EMAIL`. All `sendEmail()` fire-and-forget. Returns `{ data: { alertsSent } }`. |
 | `GET /api/quickbooks/connect` | **Admin** (Phase 10B) | Inserts `oauth_states` row with `userId` + `facilityId` (no `stylistId`) and redirects to Intuit authorize URL with base64-encoded nonce as `state`. |
-| `GET /api/quickbooks/callback` | Authenticated (Intuit redirect) | Validates `state` against `oauth_states` (userId match, facilityId present, 10-min TTL), exchanges `code` via `exchangeQBCode()`, stores `qb_realm_id` + tokens + `qb_token_expires_at` on the facility, deletes state row. Redirects `/settings?qb=connected#integrations` or `?qb=error&reason=…`. |
+| `GET /api/quickbooks/callback` | Authenticated (Intuit redirect) | Validates `state` against `oauth_states` (userId match, facilityId present, 10-min TTL), exchanges `code` via `exchangeQBCode()`, stores `qb_realm_id` + tokens + `qb_token_expires_at` on the facility, deletes state row. Redirects `/settings?section=billing&qb=connected` or `?section=billing&qb=error&reason=…` (Phase 11J.3 — section param routes to Billing & Payments; the legacy `#integrations` hash was dropped). |
 | `POST /api/quickbooks/disconnect` | **Admin** (Phase 10B) | Clears all QB columns (`qb_realm_id`, tokens, expiry, `qb_expense_account_id`). Fire-and-forget `revokeQBToken()` against Intuit's revoke endpoint. |
 | `GET /api/quickbooks/accounts` | **Admin**, rate-limited `quickbooksSync` | Queries QB for active Expense accounts; returns sorted `{ id, name, accountType, accountSubType }[]` for the Settings picker. `maxDuration=60`. |
 | `POST /api/quickbooks/sync-vendors` | **Admin**, rate-limited `quickbooksSync` | Creates or sparse-updates QB Vendors for every active assigned stylist in the facility. Never fails the whole batch — returns `{ created, updated, skipped, errors: [{ stylistId, message }] }`. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for reuse. `maxDuration=60`. |
@@ -904,7 +904,7 @@ Per-facility OAuth2 connection, stylists mapped to QB Vendors, pay periods pushe
 
 **API routes under `src/app/api/quickbooks/`**:
 - `GET /connect` — admin-only. Inserts `oauth_states` row with `userId` + `facilityId`, redirects to Intuit authorize URL with nonce state.
-- `GET /callback` — Intuit redirect target. Validates state (userId match, facilityId present, 10-min TTL), exchanges code, stores tokens + `qb_realm_id`, deletes state row. Redirects `/settings?qb=connected#integrations` or `?qb=error&reason=…`.
+- `GET /callback` — Intuit redirect target. Validates state (userId match, facilityId present, 10-min TTL), exchanges code, stores tokens + `qb_realm_id`, deletes state row. Redirects `/settings?section=billing&qb=connected` or `?section=billing&qb=error&reason=…` (Phase 11J.3).
 - `POST /disconnect` — admin-only. Clears all QB columns on the facility. Fire-and-forget revoke against `developer.api.intuit.com/v2/oauth2/tokens/revoke`.
 - `GET /accounts` — admin-only, rate-limited. Lists active Expense accounts for the Settings picker.
 - `POST /sync-vendors` — admin-only, rate-limited, `maxDuration=60`. Creates or sparse-updates QB Vendors for every active assigned stylist; never fails the batch on a per-stylist error. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for inline reuse by sync-bill.

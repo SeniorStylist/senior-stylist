@@ -53,12 +53,12 @@ export async function GET(request: NextRequest) {
 
     await db.delete(oauthStates).where(eq(oauthStates.nonce, nonce))
 
-    return NextResponse.redirect(new URL('/settings?qb=connected#integrations', origin))
+    return NextResponse.redirect(new URL('/settings?section=billing&qb=connected', origin))
   } catch (err) {
     console.error('QuickBooks callback error:', err)
     const reason = encodeURIComponent((err as Error).message?.slice(0, 80) ?? 'unknown')
     return NextResponse.redirect(
-      new URL(`/settings?qb=error&reason=${reason}#integrations`, origin),
+      new URL(`/settings?section=billing&qb=error&reason=${reason}`, origin),
     )
   }
 }

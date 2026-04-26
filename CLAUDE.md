@@ -281,6 +281,22 @@
 - **Expandable check detail in `rfms-view.tsx`**: Check # cell is a dotted-underline button when `residentBreakdown.type === 'remittance_lines'`. Click toggles an inline expand row (`expandTransition` from `@/lib/animations`) showing ref/date/amount per line + total (emerald when matches `amountCents`, amber otherwise). Only one row expanded at a time (`expandedCheckId` state)
 - **Cross-facility drill-down pages** (`/billing/{outstanding,collected,invoiced,overdue}`) — master-admin-only; each `page.tsx` redirects non-masters to `/billing` BEFORE try/catch. CSV export is client-side only (`Blob` + `URL.createObjectURL`); reflects current sort. Row click → `router.push('/billing?facility=' + id)`
 - **`GET /api/billing/cross-facility-detail?type=...`** rows accessed as iterable (`rows[0]`) — the project's `postgres` driver does NOT return `.rows`. Always `Number(row.value_cents)` to normalize postgres `bigint` (returned as string)
+- **Revenue share toggle lives in Settings → Billing & Payments** (Phase 11J.3). The `/billing` page only renders a one-line read-only summary linking to `/settings?section=billing`. Do NOT re-add the toggle to `billing-client.tsx`.
+
+### Settings (`/settings`, Phase 11J.3)
+- Layout: Apple-style two-pane — left rail of categories, right content panel. Mobile collapses to a category list that drills into a content view via `mobileShowingContent` state.
+- Categories: `general | team | billing | integrations | notifications | advanced`. Each lives as its own component under `src/app/(protected)/settings/sections/`. The shell (`settings-client.tsx`) only owns nav + URL sync + role-gated visibility.
+- URL convention: `?section=<id>`. Legacy `?tab=<id>` values still resolve via `TAB_TO_SECTION` map for back-compat with saved bookmarks. New inbound links MUST use `?section=`.
+- QuickBooks OAuth callback (`?qb=connected` / `?qb=error&reason=…`) auto-resolves the active section to `billing`; the toast surfaces in the Billing & Payments section.
+- Role-gated visibility (built in `settings-client.tsx::visibleCategories`):
+  - `admin` (and normalized `super_admin`) → all 6 categories
+  - `facility_staff` → only General (read-only — every input rendered as `<p>` text, no Save button, amber "contact your admin" banner)
+  - `bookkeeper` → only Notifications (read-only)
+  - `stylist` / `viewer` → already redirected at `page.tsx:20` (Phase 11J.1 guard)
+- Server `page.tsx` passes `role: facilityUser.role` (NOT `isAdmin`) and `adminEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? null` to the client.
+- Section card style: `rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]`. Section headers inside a category: `text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3`.
+- The page container is `max-w-5xl mx-auto px-4 py-8` (NOT `max-w-2xl` like the old flat layout).
+- Sign-out button always renders below all sections, at the bottom of the page.
 
 ### Cron Routes
 - Every route under `/api/cron/*` MUST check: `request.headers.get('authorization') === \`Bearer ${process.env.CRON_SECRET}\`` — 401 otherwise
