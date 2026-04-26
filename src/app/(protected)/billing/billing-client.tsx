@@ -757,6 +757,16 @@ export function BillingClient({
               invoices={summary.invoices}
               payments={summary.payments}
               onRefresh={handleRefresh}
+              onPaymentUpdated={(updated) =>
+                setSummary((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        payments: prev.payments.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)),
+                      }
+                    : prev,
+                )
+              }
             />
           ) : (
             <RFMSView
@@ -764,6 +774,16 @@ export function BillingClient({
               residents={summary.residents}
               invoices={summary.invoices}
               payments={summary.payments}
+              onPaymentUpdated={(updated) =>
+                setSummary((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        payments: prev.payments.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)),
+                      }
+                    : prev,
+                )
+              }
             />
           )}
         </>

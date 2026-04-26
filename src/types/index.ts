@@ -355,3 +355,22 @@ export interface CoverageRequest {
   stylist?: { id: string; name: string } | null
   substituteStylist?: { id: string; name: string } | null
 }
+
+// Phase 11K — Payment reconciliation
+// `logEntryId` actually holds a `bookings.id` — kept named "logEntryId" because
+// per-resident service evidence lives on the booking row that appears in the daily log.
+export type ReconciliationStatus = 'unreconciled' | 'reconciled' | 'partial' | 'flagged'
+export type ReconciliationConfidence = 'high' | 'medium' | 'unmatched'
+
+export interface ReconciliationLine {
+  invoiceRef: string | null
+  invoiceDate: string | null
+  residentId: string | null
+  residentName: string
+  amountCents: number
+  confidence: ReconciliationConfidence
+  logEntryId: string | null
+  logDate: string | null
+  logStylistName: string | null
+  flagReason: string | null
+}

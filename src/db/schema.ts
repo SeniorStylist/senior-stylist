@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
+import type { ReconciliationLine as ReconciliationLineSchema } from '@/types'
 
 export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey(),
@@ -518,6 +519,11 @@ export const qbPayments = pgTable('qb_payments', {
   qbPaymentId: text('qb_payment_id'),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   syncedAt: timestamp('synced_at', { withTimezone: true }),
+  // Phase 11K — payment reconciliation
+  reconciliationStatus: text('reconciliation_status').default('unreconciled'),
+  reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
+  reconciliationNotes: text('reconciliation_notes'),
+  reconciliationLines: jsonb('reconciliation_lines').$type<ReconciliationLineSchema[]>(),
   createdAt: timestamp('created_at').defaultNow(),
 })
 

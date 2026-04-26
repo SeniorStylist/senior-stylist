@@ -64,6 +64,21 @@ export interface BillingPayment {
       }>
     | { type: 'remittance_lines'; lines: RemittanceLine[] }
     | null
+  reconciliationStatus?: string | null
+  reconciledAt?: string | null
+  reconciliationNotes?: string | null
+  reconciliationLines?: Array<{
+    invoiceRef: string | null
+    invoiceDate: string | null
+    residentId: string | null
+    residentName: string
+    amountCents: number
+    confidence: 'high' | 'medium' | 'unmatched'
+    logEntryId: string | null
+    logDate: string | null
+    logStylistName: string | null
+    flagReason: string | null
+  }> | null
 }
 
 export interface BillingSummary {

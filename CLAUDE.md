@@ -298,6 +298,23 @@
 - The page container is `max-w-5xl mx-auto px-4 py-8` (NOT `max-w-2xl` like the old flat layout).
 - Sign-out button always renders below all sections, at the bottom of the page.
 
+### Payment Reconciliation (Phase 11K)
+- Schema: `qb_payments` gained 4 nullable columns — `reconciliation_status` (text, default `'unreconciled'`, CHECK in `unreconciled|reconciled|partial|flagged`), `reconciled_at` (timestamptz), `reconciliation_notes` (text), `reconciliation_lines` (jsonb).
+- `ReconciliationLine` type lives in `src/types/index.ts`; the schema column references it via `import type` to avoid duplication.
+- **Engine**: `src/lib/reconciliation.ts` exports `reconcilePayment(paymentId, facilityId)`. It only does per-line matching when `residentBreakdown.type === 'remittance_lines'` — non-remittance payments are auto-marked `'reconciled'` with empty lines.
+- **Match strategy** for each line:
+  1. Same-day booking exists for `(facilityId, residentId, invoiceDate)` → `'high'`
+  2. ±1 day booking exists → `'medium'` with `flagReason: 'Date off by 1 day …'`
+  3. Otherwise → `'unmatched'`
+- **Booking-status filter** (load-bearing): `notInArray(bookings.status, ['cancelled', 'no_show', 'requested'])`. Cancelled/no-show bookings explicitly do NOT count as evidence the service was performed; portal-`requested` bookings are not yet confirmed by an admin.
+- **`logEntryId` field naming**: actually stores a `bookings.id`, not a `log_entries.id`. The user-facing concept is "the daily log entry that proves the service happened" — that's a booking. Don't try to dereference it against `log_entries`.
+- **Timezone math**: `bookings.startTime` is `timestamptz`; the invoice date is `'YYYY-MM-DD'` in the facility's local time. The engine converts a date+timezone to a UTC `[start, end)` range using `Intl.DateTimeFormat` to derive the offset (DST-aware). Helper `dayRangeInTimezone` is private to `reconciliation.ts`.
+- **Status rollup**: any unmatched → `'flagged'`; all high → `'reconciled'`; otherwise → `'partial'`.
+- **API**: `POST /api/billing/reconcile/[paymentId]` runs reconciliation + persists; `GET` returns the stored result without re-running. Both use `canAccessBilling(role)` + facility scope (master-admin bypass via env email match). POST calls `revalidateTag('billing', {})`.
+- **UI**: lives in `rfms-view.tsx` only. Status pill on the parent row's Memo cell when `reconciliationStatus !== 'unreconciled'`; expanded row gains a `<ReconciliationPanel>` (Reconcile button if `unreconciled`, results table otherwise). One-line summary above the checks table: `Reconciliation: N reconciled · M partial · K flagged · [View flagged →]`. The flagged-only filter is local-state, not a route.
+- **Resident resolution**: only the parent payment's `residentId` is used (all lines on a remittance slip share the same payee). Per-line resolution via `qb_invoices.invoice_ref` was deferred — note it as the obvious next iteration if Lisa flags multi-resident remittance slips.
+- **HybridView** must forward `onPaymentUpdated` from `billing-client.tsx` through to its inner `<RFMSView>` so reconciliation works on hybrid facilities too.
+
 ### Performance / Caching (Phase 11J.4)
 - **`loading.tsx`**: every server-rendered page with non-trivial data fetch MUST have a sibling `loading.tsx` exporting a skeleton — without it Next.js shows a blank screen on cold renders. Use `.skeleton-shimmer rounded-2xl` blocks (class lives in `globals.css`). Existing files: `master-admin/`, `billing/`, `payroll/`, `residents/`, `settings/`, `analytics/`, `log/`, `dashboard/`. Skeleton shape should roughly match the page (header bar + content cards/rows).
 - **`unstable_cache` registry** (existing wrapped queries):

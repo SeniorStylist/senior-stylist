@@ -24,6 +24,7 @@ export function RFMSView({
   checksTitle = 'Checks received',
   checksDefaultOpen = false,
   residentsDefaultOpen = false,
+  onPaymentUpdated,
 }: {
   facility: BillingFacility
   residents: BillingResident[]
@@ -33,8 +34,12 @@ export function RFMSView({
   checksTitle?: string
   checksDefaultOpen?: boolean
   residentsDefaultOpen?: boolean
+  onPaymentUpdated?: (payment: BillingPayment) => void
 }) {
   const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null)
+  const [reconciling, setReconciling] = useState<Record<string, boolean>>({})
+  const [reconcileErrors, setReconcileErrors] = useState<Record<string, string>>({})
+  const [filterFlaggedOnly, setFilterFlaggedOnly] = useState(false)
 
   function getRemittanceLines(p: BillingPayment): RemittanceLine[] | null {
     const bd = p.residentBreakdown
@@ -43,6 +48,44 @@ export function RFMSView({
     }
     return null
   }
+
+  async function handleReconcile(p: BillingPayment) {
+    setReconciling((s) => ({ ...s, [p.id]: true }))
+    setReconcileErrors((s) => {
+      const { [p.id]: _drop, ...rest } = s
+      return rest
+    })
+    try {
+      const res = await fetch(`/api/billing/reconcile/${p.id}`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) {
+        setReconcileErrors((s) => ({ ...s, [p.id]: body?.error ?? 'Reconcile failed' }))
+        return
+      }
+      onPaymentUpdated?.({
+        ...p,
+        reconciliationStatus: body.data.status,
+        reconciliationLines: body.data.lines,
+        reconciliationNotes: body.data.notes,
+        reconciledAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      setReconcileErrors((s) => ({ ...s, [p.id]: (err as Error).message ?? 'Network error' }))
+    } finally {
+      setReconciling((s) => ({ ...s, [p.id]: false }))
+    }
+  }
+
+  // Reconciliation summary across remittance-slip payments only
+  const remittancePayments = payments.filter((p) => getRemittanceLines(p) !== null)
+  const reconciledCount = remittancePayments.filter((p) => p.reconciliationStatus === 'reconciled').length
+  const partialCount = remittancePayments.filter((p) => p.reconciliationStatus === 'partial').length
+  const flaggedCount = remittancePayments.filter((p) => p.reconciliationStatus === 'flagged').length
+  const showReconciliationSummary = remittancePayments.length > 0
+
+  const visiblePayments = filterFlaggedOnly
+    ? payments.filter((p) => p.reconciliationStatus === 'flagged' || p.reconciliationStatus === 'partial')
+    : payments
 
   const totalReceived = payments.reduce((s, p) => s + p.amountCents, 0)
   const outstanding = residents.reduce(
@@ -60,6 +103,25 @@ export function RFMSView({
         meta={`${payments.length} ${checkWord} · ${formatDollars(totalReceived)} received`}
         defaultOpen={checksDefaultOpen}
       >
+        {showReconciliationSummary && (
+          <div className="px-5 py-2.5 border-b border-stone-100 bg-stone-50/40 flex items-center gap-2 text-xs text-stone-500">
+            <span className="font-semibold text-stone-600">Reconciliation:</span>
+            <span><span className="font-semibold text-emerald-700">{reconciledCount}</span> reconciled</span>
+            <span className="text-stone-300">·</span>
+            <span><span className="font-semibold text-amber-700">{partialCount}</span> partial</span>
+            <span className="text-stone-300">·</span>
+            <span><span className="font-semibold text-red-700">{flaggedCount}</span> flagged</span>
+            {(flaggedCount > 0 || partialCount > 0) && (
+              <button
+                type="button"
+                onClick={() => setFilterFlaggedOnly((v) => !v)}
+                className="ml-auto text-[#8B2E4A] hover:text-[#72253C] font-medium"
+              >
+                {filterFlaggedOnly ? 'Show all' : 'View flagged →'}
+              </button>
+            )}
+          </div>
+        )}
         {payments.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-stone-500">
             No checks recorded for this facility yet.
@@ -82,7 +144,7 @@ export function RFMSView({
             </div>
             {(() => {
               let lastYear: number | null = null
-              return payments.map((p) => {
+              return visiblePayments.map((p) => {
                 const year = new Date(`${p.paymentDate}T00:00:00`).getFullYear()
                 const showYear = !Number.isNaN(year) && year !== lastYear
                 if (showYear) lastYear = year
@@ -120,9 +182,14 @@ export function RFMSView({
                       <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
                         {formatDollars(p.amountCents)}
                       </div>
-                      <div className="md:col-span-5 text-sm text-stone-500 truncate">
-                        {p.memo ?? p.invoiceRef ?? (
-                          <span className="text-stone-400">—</span>
+                      <div className="md:col-span-5 text-sm text-stone-500 truncate flex items-center gap-2">
+                        <span className="truncate">
+                          {p.memo ?? p.invoiceRef ?? (
+                            <span className="text-stone-400">—</span>
+                          )}
+                        </span>
+                        {p.reconciliationStatus && p.reconciliationStatus !== 'unreconciled' && (
+                          <ReconciliationPill status={p.reconciliationStatus} />
                         )}
                       </div>
                     </div>
@@ -161,6 +228,13 @@ export function RFMSView({
                               {formatDollars(lineTotal)}
                             </span>
                           </div>
+
+                          <ReconciliationPanel
+                            payment={p}
+                            reconciling={!!reconciling[p.id]}
+                            errorMsg={reconcileErrors[p.id] ?? null}
+                            onReconcile={() => handleReconcile(p)}
+                          />
                         </div>
                       )
                     })()}
@@ -239,5 +313,158 @@ export function RFMSView({
         )}
       </ExpandableSection>
     </div>
+  )
+}
+
+function ReconciliationPill({ status }: { status: string }) {
+  const map: Record<string, { cls: string; label: string }> = {
+    reconciled: { cls: 'bg-emerald-50 text-emerald-700', label: '✓ Reconciled' },
+    partial: { cls: 'bg-amber-50 text-amber-700', label: '⚠ Partial' },
+    flagged: { cls: 'bg-red-50 text-red-700', label: '⚠ Flagged' },
+  }
+  const m = map[status]
+  if (!m) return null
+  return (
+    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${m.cls}`}>
+      {m.label}
+    </span>
+  )
+}
+
+function ReconciliationPanel({
+  payment,
+  reconciling,
+  errorMsg,
+  onReconcile,
+}: {
+  payment: BillingPayment
+  reconciling: boolean
+  errorMsg: string | null
+  onReconcile: () => void
+}) {
+  const status = payment.reconciliationStatus ?? 'unreconciled'
+  const lines = payment.reconciliationLines ?? []
+
+  if (status === 'unreconciled') {
+    return (
+      <div className="mt-3 pt-3 border-t border-stone-200">
+        <button
+          type="button"
+          onClick={onReconcile}
+          disabled={reconciling}
+          className="rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 px-4 py-2 text-sm font-semibold disabled:opacity-50 transition-colors"
+        >
+          {reconciling ? 'Reconciling…' : 'Reconcile'}
+        </button>
+        {errorMsg && (
+          <p className="text-xs text-red-600 mt-2">{errorMsg}</p>
+        )}
+      </div>
+    )
+  }
+
+  const matchedCount = lines.filter((l) => l.confidence !== 'unmatched').length
+  const unmatchedCount = lines.length - matchedCount
+
+  return (
+    <div className="mt-3 rounded-2xl bg-stone-50 border border-stone-200 p-4">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h4 className="text-sm font-semibold text-stone-800">Reconciliation Results</h4>
+        <div className="flex items-center gap-2">
+          <ReconciliationPill status={status} />
+          <button
+            type="button"
+            onClick={onReconcile}
+            disabled={reconciling}
+            className="text-xs text-[#8B2E4A] hover:text-[#72253C] font-medium disabled:opacity-50"
+          >
+            {reconciling ? '…' : 'Re-run'}
+          </button>
+        </div>
+      </div>
+
+      {lines.length === 0 ? (
+        <p className="text-xs text-stone-500">No per-line reconciliation needed.</p>
+      ) : (
+        <>
+          <div className="hidden md:grid grid-cols-[1fr_6rem_6rem_8rem] gap-x-4 text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">
+            <span>Resident</span>
+            <span>Inv Date</span>
+            <span>Log Date</span>
+            <span>Status</span>
+          </div>
+          {lines.map((l, i) => (
+            <div
+              key={i}
+              className="md:grid md:grid-cols-[1fr_6rem_6rem_8rem] md:gap-x-4 flex flex-col gap-0.5 py-1.5 text-sm border-t border-stone-100 first:border-t-0"
+            >
+              <span className="text-stone-700 truncate">{l.residentName}</span>
+              <span className="text-stone-600 text-xs md:text-sm">
+                {l.invoiceDate
+                  ? new Date(`${l.invoiceDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : '—'}
+              </span>
+              <span className="text-stone-600 text-xs md:text-sm">
+                {l.logDate
+                  ? new Date(`${l.logDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : '—'}
+              </span>
+              <ReconciliationLineStatus line={l} />
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="border-t border-stone-200 mt-3 pt-2 text-xs text-stone-500 flex flex-wrap items-center gap-x-2">
+        {payment.reconciledAt && (
+          <span>
+            Reconciled{' '}
+            {new Date(payment.reconciledAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </span>
+        )}
+        {payment.reconciledAt && lines.length > 0 && <span className="text-stone-300">·</span>}
+        {lines.length > 0 && (
+          <span>
+            {matchedCount} matched
+            {unmatchedCount > 0 ? `, ${unmatchedCount} flagged` : ''}
+          </span>
+        )}
+      </div>
+
+      {errorMsg && <p className="text-xs text-red-600 mt-2">{errorMsg}</p>}
+    </div>
+  )
+}
+
+function ReconciliationLineStatus({
+  line,
+}: {
+  line: NonNullable<BillingPayment['reconciliationLines']>[number]
+}) {
+  if (line.confidence === 'high') {
+    return (
+      <span className="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1">
+        <span aria-hidden>✓</span>
+        <span>Matched</span>
+      </span>
+    )
+  }
+  if (line.confidence === 'medium') {
+    return (
+      <span className="text-xs font-semibold text-amber-700 inline-flex items-center gap-1">
+        <span aria-hidden>⚠</span>
+        <span>{line.flagReason ?? 'Date off'}</span>
+      </span>
+    )
+  }
+  return (
+    <span className="text-xs font-semibold text-red-700 inline-flex items-center gap-1">
+      <span aria-hidden>✗</span>
+      <span>{line.flagReason ?? 'No match'}</span>
+    </span>
   )
 }

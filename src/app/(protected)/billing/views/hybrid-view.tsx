@@ -15,12 +15,14 @@ export function HybridView({
   invoices,
   payments,
   onRefresh,
+  onPaymentUpdated,
 }: {
   facility: BillingFacility
   residents: BillingResident[]
   invoices: BillingInvoice[]
   payments: BillingPayment[]
   onRefresh: () => void
+  onPaymentUpdated?: (payment: BillingPayment) => void
 }) {
   const ipResidents = residents.filter((r) => r.residentPaymentType === 'ip')
   const rfmsResidents = residents.filter((r) => r.residentPaymentType !== 'ip')
@@ -57,6 +59,7 @@ export function HybridView({
         checksTitle="RFMS Checks received"
         checksDefaultOpen={false}
         residentsDefaultOpen={false}
+        onPaymentUpdated={onPaymentUpdated}
       />
     </div>
   )

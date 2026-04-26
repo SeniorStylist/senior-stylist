@@ -400,6 +400,31 @@ Edit/archive icons appear only on `onMouseEnter` via a `hoverId` state — not s
 2. Second click on "Yes": executes the action
 3. Mouse leave cancels the confirm state
 
+### Reconciliation badges + results panel (Phase 11K)
+
+Visual contract for the RFMS billing view's reconciliation feature:
+
+**Status pill** (small, inline next to the row's Memo cell when `reconciliationStatus !== 'unreconciled'`):
+- `reconciled` → `bg-emerald-50 text-emerald-700` · label `✓ Reconciled`
+- `partial` → `bg-amber-50 text-amber-700` · label `⚠ Partial`
+- `flagged` → `bg-red-50 text-red-700` · label `⚠ Flagged`
+- Shape: `rounded-full px-2.5 py-0.5 text-xs font-semibold` (matches the project's standard pill).
+
+**Reconcile button** (default state, inside the expanded row): `rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 px-4 py-2 text-sm font-semibold`. Loading label: `'Reconciling…'`. Inline red error text below on failure.
+
+**Results panel** (after a reconcile run, replaces the button):
+- Container: `mt-3 rounded-2xl bg-stone-50 border border-stone-200 p-4`
+- Header: `Reconciliation Results` h4 + status pill + small `Re-run` link in burgundy on the right
+- Per-line table (4-col grid `md:grid-cols-[1fr_6rem_6rem_8rem]`): Resident · Inv Date · Log Date · Status
+- Status column inline icons: `✓ Matched` emerald (high), `⚠ {flagReason}` amber (medium), `✗ {flagReason}` red (unmatched)
+- Footer: `Reconciled {date} · {N} matched, {K} flagged` in `text-xs text-stone-500`
+
+**Hub summary line** (above the checks table, only when remittance-slip payments exist):
+```
+Reconciliation: <emerald N> reconciled · <amber M> partial · <red K> flagged   [View flagged →]
+```
+Container: `px-5 py-2.5 border-b border-stone-100 bg-stone-50/40`. The `View flagged →` link is local-state filter (toggle to `Show all`) — burgundy `text-[#8B2E4A]`. Counts only payments where `getRemittanceLines(p) !== null`.
+
 ### Expandable Row with Inline Edit (payroll detail)
 
 Pattern: one row per item with `expandedId: string | null` state (see `payroll-detail-client.tsx` + `directory-client.tsx` for the applicant variant). Clicking the row toggles `expandedId`; the expanded body renders below the same row inside the list container (NOT a separate modal). Row grid columns are desktop-only (`md:grid md:grid-cols-[...]`); mobile collapses to stacked rows. Expand chevron rotates via `rotate-90` when active.
