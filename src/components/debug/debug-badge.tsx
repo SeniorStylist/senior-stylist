@@ -23,7 +23,7 @@ export function DebugBadge() {
 
   const handleReset = async () => {
     await fetch('/api/debug/reset', { method: 'POST' })
-    window.location.href = '/super-admin'
+    window.location.href = '/master-admin'
   }
 
   return (
@@ -36,7 +36,7 @@ export function DebugBadge() {
         onClick={handleReset}
         className="ml-2 bg-amber-950/10 hover:bg-amber-950/20 text-amber-900 font-bold px-2 py-0.5 rounded-lg text-xs transition-colors"
       >
-        ← Exit to Super Admin
+        ← Exit to Master Admin
       </button>
     </div>
   )

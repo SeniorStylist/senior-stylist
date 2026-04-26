@@ -573,7 +573,7 @@ export function BillingClient({
       ) : summary.invoices.length + summary.payments.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 text-center">
           <p className="text-sm text-stone-500">
-            No billing data yet. Import historical data from the Super Admin panel.
+            No billing data yet. Import historical data from the Master Admin panel.
           </p>
         </div>
       ) : (

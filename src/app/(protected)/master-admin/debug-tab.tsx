@@ -97,13 +97,13 @@ export function DebugTab({ facilities }: DebugTabProps) {
               onClick={handleReset}
               className="ml-4 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-400 text-amber-950 hover:bg-amber-500 transition-colors"
             >
-              Reset to Super Admin
+              Reset to Master Admin
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-            <span className="text-sm font-medium text-stone-700">Super Admin (normal)</span>
+            <span className="text-sm font-medium text-stone-700">Master Admin (normal)</span>
           </div>
         )}
       </div>

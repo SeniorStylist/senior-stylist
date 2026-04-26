@@ -424,16 +424,16 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
           )}
           {process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode && (
             <Link
-              href="/super-admin"
+              href="/master-admin"
               prefetch={true}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
-                pathname === '/super-admin'
+                pathname === '/master-admin'
                   ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
                   : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
               )}
             >
-              <span className={cn(pathname === '/super-admin' ? 'text-[#E8A0B0]' : 'text-white/50')}>
+              <span className={cn(pathname === '/master-admin' ? 'text-[#E8A0B0]' : 'text-white/50')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                 </svg>

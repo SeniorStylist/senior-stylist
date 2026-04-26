@@ -191,7 +191,7 @@ export default async function DashboardPage() {
         {isSuperAdminActingAsFacility && (
           <div className="shrink-0 bg-[#8B2E4A] text-white text-sm px-4 py-2 text-center">
             Viewing as: <strong>{facility.name}</strong> —{' '}
-            <a href="/super-admin" className="underline">Back to Super Admin</a>
+            <a href="/master-admin" className="underline">Back to Master Admin</a>
           </div>
         )}
         <DashboardClient

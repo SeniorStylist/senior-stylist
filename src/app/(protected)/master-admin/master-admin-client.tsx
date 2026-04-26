@@ -66,7 +66,7 @@ const PAYMENT_TYPES = [
   { value: 'hybrid', label: 'Hybrid' },
 ]
 
-export function SuperAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises }: SuperAdminClientProps) {
+export function MasterAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises }: SuperAdminClientProps) {
   const router = useRouter()
 
   // Active tab
@@ -407,7 +407,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
                 className="text-2xl font-normal text-stone-900"
                 style={{ fontFamily: "'DM Serif Display', serif" }}
               >
-                Super Admin
+                Master Admin
               </h1>
               <p className="text-sm text-stone-500 mt-1">
                 {localFacilities.length} {localFacilities.length === 1 ? 'facility' : 'facilities'} total
@@ -441,19 +441,19 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-stone-400 mr-1">Import:</span>
               <a
-                href="/super-admin/import-quickbooks"
+                href="/master-admin/import-quickbooks"
                 className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 QB Customers
               </a>
               <a
-                href="/super-admin/import-billing-history"
+                href="/master-admin/import-billing-history"
                 className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 QB Billing
               </a>
               <a
-                href="/super-admin/import-facilities-csv"
+                href="/master-admin/import-facilities-csv"
                 className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 Facilities

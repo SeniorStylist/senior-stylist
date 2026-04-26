@@ -103,8 +103,8 @@ export function ImportBillingHistoryClient() {
       )}
 
       <div className="max-w-2xl mx-auto">
-        <Link href="/super-admin" className="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700 mb-6">
-          <span>←</span> Back to Super Admin
+        <Link href="/master-admin" className="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700 mb-6">
+          <span>←</span> Back to Master Admin
         </Link>
 
         {state !== 'results' ? (
@@ -249,11 +249,11 @@ export function ImportBillingHistoryClient() {
                   Import Another File
                 </button>
                 <Link
-                  href="/super-admin"
+                  href="/master-admin"
                   className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white text-center transition-colors"
                   style={{ backgroundColor: '#8B2E4A' }}
                 >
-                  Go to Super Admin →
+                  Go to Master Admin →
                 </Link>
               </div>
             </div>

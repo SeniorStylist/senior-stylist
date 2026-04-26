@@ -53,7 +53,7 @@
 
 ### Navigation (primary UX contract) — `src/components/layout/sidebar.tsx`
 
-Sidebar renders four nav groups (SCHEDULING / MANAGEMENT / FINANCIAL / ACCOUNT) plus a divider followed by Settings + Master Admin (always last). The "Super Admin" sidebar label was renamed to **"Master Admin"** in Phase 11J.1 — the route is still `/super-admin`.
+Sidebar renders four nav groups (SCHEDULING / MANAGEMENT / FINANCIAL / ACCOUNT) plus a divider followed by Settings + Master Admin (always last). The page URL is `/master-admin` (Phase 11J.2 rename from `/super-admin`). A redirect page at `/super-admin` handles saved bookmarks.
 
 | Area | admin | facility_staff | bookkeeper | stylist |
 |------|-------|----------------|------------|---------|
@@ -68,7 +68,7 @@ Sidebar renders four nav groups (SCHEDULING / MANAGEMENT / FINANCIAL / ACCOUNT) 
 | **Payroll** (`/payroll`) | ✓ | — | ✓ | — |
 | **My Account** (`/my-account`) | — | — | — | ✓ |
 | **Settings** (`/settings`) | ✓ | ✓ | ✓ | — |
-| **Master Admin** (`/super-admin`) | (master email only, hidden in debug mode) |
+| **Master Admin** (`/master-admin`) | (master email only, hidden in debug mode) |
 
 - `super_admin` is normalized to `admin` by `getUserFacility()` so it inherits all admin nav.
 - `viewer` is a legacy role kept in the type union but no longer offered in the invite picker; it appears in no nav row.
@@ -76,10 +76,28 @@ Sidebar renders four nav groups (SCHEDULING / MANAGEMENT / FINANCIAL / ACCOUNT) 
 
 ### Route-level guards (server page components, OUTSIDE try/catch)
 
-| Route | Guard |
-|-------|-------|
-| `/stylists`, `/services`, `/reports`, `/settings` | `facilityUser.role !== 'admin'` → redirect `/dashboard` |
-| `/residents` | `facilityUser.role === 'stylist'` → redirect `/dashboard` |
+Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()` calls are placed OUTSIDE try/catch blocks (Next.js redirect throws internally; a catch block swallows it).
+
+| Route | Guard | Notes |
+|-------|-------|-------|
+| `/dashboard` | bookkeeper → redirect `/billing` | Bookkeeper's home is billing, not the calendar |
+| `/billing` | `!canAccessBilling(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
+| `/analytics` | `!canAccessBilling(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
+| `/payroll` | `!canAccessPayroll(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
+| `/payroll/[id]` | `!canAccessPayroll(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
+| `/settings` | `role === 'stylist' \|\| role === 'viewer'` → redirect `/dashboard` | Allows admin + facility_staff + bookkeeper |
+| `/my-account` | `role !== 'stylist'` → redirect `/dashboard` | Stylist-only page |
+| `/residents` | `role === 'stylist'` → redirect `/dashboard` | Bookkeeper allowed (read-only UI gates) |
+| `/residents/[id]` | `role === 'stylist'` → redirect `/dashboard` | Bookkeeper allowed (read-only UI gates) |
+| `/residents/import` | `!isAdminOrAbove(role) && !isFacilityStaff(role)` → redirect `/dashboard` | Write action |
+| `/services` | `role !== 'admin'` → redirect `/dashboard` | Admin-only |
+| `/services/import` | `!isAdminOrAbove(role)` → redirect `/dashboard` | Admin-only |
+| `/stylists` | `role !== 'admin'` → redirect `/dashboard` | Admin-only |
+| `/stylists/directory` | `role !== 'admin'` → redirect `/dashboard` | Admin-only |
+| `/stylists/[id]` | `!isAdminOrAbove(role)` → redirect `/dashboard` | Admin-only |
+| `/billing/outstanding` etc. | master email only → redirect `/billing` | Cross-facility drill-downs |
+| `/master-admin` | master email only → redirect `/dashboard` | `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` gate |
+| `/super-admin` | → redirect `/master-admin` | Bookmark compatibility only |
 
 ### Stylist role behavior
 

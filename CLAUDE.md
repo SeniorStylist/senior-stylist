@@ -74,7 +74,7 @@
 - `/residents/[id]` → `role === 'stylist'`: redirect('/dashboard')
 - `/residents/import`, `/services/import`, `/stylists/[id]` → non-admin/facility_staff (or non-admin for the latter two)
 
-**Sidebar nav structure** (`src/components/layout/sidebar.tsx`): four groups — SCHEDULING (Calendar / Residents / Daily Log) / MANAGEMENT (Stylists / Directory / Services) / FINANCIAL (Billing / Analytics / Payroll) / ACCOUNT (My Account, stylist-only). Settings + Master Admin render below a divider, after all groups, always last. The `Super Admin` nav label was renamed to `Master Admin` — the route is still `/super-admin`.
+**Sidebar nav structure** (`src/components/layout/sidebar.tsx`): four groups — SCHEDULING (Calendar / Residents / Daily Log) / MANAGEMENT (Stylists / Directory / Services) / FINANCIAL (Billing / Analytics / Payroll) / ACCOUNT (My Account, stylist-only). Settings + Master Admin render below a divider, after all groups, always last. The nav label is `Master Admin` and the route is `/master-admin` (Phase 11J.2). A redirect at `/super-admin` handles saved bookmarks.
 - Portal routes (`/portal/*`) are PUBLIC — token = auth, no login required
 - Invoice routes (`/invoice/*`) are PUBLIC — printable pages
 - Franchise system: `franchises` table (id, name, owner_user_id → profiles). `franchise_facilities` join table (franchise_id, facility_id, CASCADE on both). When a franchise is created/updated, `facilityUsers` rows are upserted for the owner with `role='super_admin'` on all franchise facilities
@@ -293,10 +293,10 @@
 - Gate: BOTH API routes (`POST /api/debug/impersonate`, `POST /api/debug/reset`) check `user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL` — 403 otherwise. Never expose to non-master users
 - `getUserFacility()` reads `__debug_role` first — if present, returns a synthetic facilityUser object; skips DB entirely. This means ALL API routes and pages automatically see the impersonated role/facilityId without any per-route changes
 - `(protected)/layout.tsx` independently reads the cookie to override `activeRole` + `facilityName` sent to Sidebar (layout doesn't use `getUserFacility`)
-- `DebugBadge` (`src/components/debug/debug-badge.tsx`): client component, reads `document.cookie` on mount, renders fixed amber pill at **`top-4 right-4 z-[200]`** (top-right corner, always visible above all other chrome). Shows "Debug · {role} · {facilityName}" + "← Exit to Super Admin" button. Reset POSTs `/api/debug/reset` then does `window.location.href = '/super-admin'` (hard redirect, NOT `router.refresh()`). No `useRouter` import needed.
+- `DebugBadge` (`src/components/debug/debug-badge.tsx`): client component, reads `document.cookie` on mount, renders fixed amber pill at **`top-4 right-4 z-[200]`** (top-right corner, always visible above all other chrome). Shows "Debug · {role} · {facilityName}" + "← Exit to Master Admin" button. Reset POSTs `/api/debug/reset` then does `window.location.href = '/master-admin'` (hard redirect, NOT `router.refresh()`). No `useRouter` import needed.
 - Sidebar (`src/components/layout/sidebar.tsx`): `debugMode?: boolean` prop — when true, shows amber "DEBUG MODE" chip below the facility name. **Super Admin nav link is hidden when `debugMode === true`** (`&& !debugMode` added to the email check) so the simulated role is fully faithful
 - `MobileNavProps` accepts `debugMode?: boolean` (unused — no Super Admin link in mobile nav — but passed from layout for API consistency)
-- Debug tab (`src/app/(protected)/super-admin/debug-tab.tsx`): last tab in super-admin, three action rows (Admin View / Stylist View / Family Portal). **Persistent status block** always shown at top — amber dot + role/facility when impersonating, emerald dot + "Super Admin (normal)" when clean. `useEffect` adds `visibilitychange` listener so status updates on tab focus-return. Family Portal row opens `/family/[facilityCode]` in new tab (no cookie involved)
+- Debug tab (`src/app/(protected)/master-admin/debug-tab.tsx`): last tab in super-admin, three action rows (Admin View / Stylist View / Family Portal). **Persistent status block** always shown at top — amber dot + role/facility when impersonating, emerald dot + "Master Admin (normal)" when clean. `useEffect` adds `visibilitychange` listener so status updates on tab focus-return. Family Portal row opens `/family/[facilityCode]` in new tab (no cookie involved)
 - "Resident Portal" row in debug tab is only enabled when selected facility has a `facilityCode` — required for the `/family/` URL
 
 ### Family Portal (Phase 11E / 11I)
@@ -326,7 +326,7 @@
 - Use `unstable_cache` with `tags: ['bookings']` and `revalidate: 300`
 - Cache key must include sorted facilityIds + month/year
 
-### Facility Merge Tool (`/super-admin` Merge tab)
+### Facility Merge Tool (`/master-admin` Merge tab)
 - Both routes gated on `user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL` — master admin only, NOT franchise super_admin
 - `GET /api/super-admin/merge-candidates` fuzzy-matches no-FID active facilities against FID active facilities via `fuzzyScore` at threshold **0.6** (below `fuzzyBestMatch`'s 0.7 default — no-FID variants often drop abbreviations). Confidence bucketing: `score === 1.0` → high, `≥0.8` → medium, `≥0.6` → low
 - `POST /api/super-admin/merge-facilities` MUST wrap every write in a single `db.transaction()` — Drizzle auto-rolls back on throw. Never break the transaction apart
@@ -381,7 +381,7 @@
 
 - **Phase 7** — Compliance & Document Management: `compliance_documents` table, license/insurance columns on stylists, upload from My Account, admin verify, compliance badge (green/amber/red), 60/30-day expiry email alerts
 - **Phase 8** — Workforce Availability & Coverage: `stylist_availability` table, `coverage_requests` table, time-off from My Account, "Needs Coverage" calendar flag, admin coverage queue, email alerts
-- **Phase 9** — Territory / Region Management: `regions` table with `franchise_id`, `region_id` on facilities + stylists, Regions tab in /super-admin, region filter on all views. Hierarchy: Master Admin → Franchise → Region → Facility
+- **Phase 9** — Territory / Region Management: `regions` table with `franchise_id`, `region_id` on facilities + stylists, Regions tab in /master-admin, region filter on all views. Hierarchy: Master Admin → Franchise → Region → Facility
 - **Phase 10** — Payroll Operations: `payroll_periods` + `payroll_entries` tables, auto-calc from completed bookings via `commission_percent`, admin approval, QuickBooks-compatible CSV, payroll history on stylist detail
 - **Phase 10B** — QuickBooks Online Integration (SHIPPED 2026-04-20): OAuth per facility, Vendor sync, payroll Bill push, payment status pull back
 - **Phase 11** — Incident & Issue Tracking: `issues` table (severity: low|medium|high, type: cancellation|complaint|safety|…), "Report Issue" on booking cards + log rows, high severity → email + red banner

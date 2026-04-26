@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
             <li><strong>Email:</strong> ${normalizedEmail}</li>
             <li><strong>Role:</strong> ${role ?? 'stylist'}</li>
           </ul>
-          <p><a href="${appUrl}/super-admin">Review in admin</a></p>
+          <p><a href="${appUrl}/master-admin">Review in admin</a></p>
         `,
       })
     }

@@ -266,12 +266,23 @@ On mobile the sidebar is replaced by a bottom navigation bar. `.main-content` in
 ### Sidebar (`src/components/layout/sidebar.tsx`)
 
 - Width: `w-[220px]`
-- Background: `var(--color-sidebar)` → `#0D2B2E`
-- Active nav item: `bg-white/15 text-white` + icon `text-[#14D9C4]`
+- Background: `var(--color-sidebar)` → `#1C0A12` (dark warm burgundy — NOT `#0D2B2E` which was the old teal dark)
+- Active nav item: `bg-[#8B2E4A]/30 text-white font-semibold shadow-inner` + icon `text-[#E8A0B0]`
 - Inactive nav item: `text-white/60 hover:bg-white/10 hover:text-white`
-- Facility switcher uses inline styles
-- Viewer role gets a "View Only" badge in the nav
-- **Facility switcher + "Add facility" link are admin-only (2026-04-25)**: `showSwitcher = allFacilities.length > 1 && role === 'admin'`. The fallback "+ Add facility" link below the logo (single-facility branch) is also gated on `role === 'admin'`. Stylists with multi-facility membership see the current facility name as plain non-interactive text — no dropdown, no add link. Stylists must never see facility-switching UI
+- Radial gradient overlay at top-left
+
+**Nav structure (Phase 11J.1):** four groups — SCHEDULING / MANAGEMENT / FINANCIAL / ACCOUNT — followed by a `border-t border-white/10` divider, then Settings + Master Admin (always last, outside navGroups array):
+- SCHEDULING: Calendar, Residents, Daily Log
+- MANAGEMENT: Stylists, Directory, Services
+- FINANCIAL: Billing, Analytics, Payroll
+- ACCOUNT: My Account (stylist-only)
+- Below divider: Settings (`['admin', 'facility_staff', 'bookkeeper']`), Master Admin (master email + `!debugMode`)
+
+**Master Admin** — label and route are now `/master-admin` (Phase 11J.2). A redirect page at `/super-admin` handles saved bookmarks. API routes at `/api/super-admin/*` are unchanged.
+
+**Debug mode chip**: when `debugMode` prop is true, an amber "DEBUG MODE" chip shows below the facility name. Super Admin/Master Admin nav link is hidden when `debugMode === true`.
+
+**Facility switcher + "Add facility" link are admin-only (2026-04-25)**: `showSwitcher = allFacilities.length > 1 && role === 'admin'`. The fallback "+ Add facility" link below the logo (single-facility branch) is also gated on `role === 'admin'`. Stylists must never see facility-switching UI.
 
 ### Dashboard Layout
 
@@ -716,14 +727,14 @@ Stylist role shows calendar + log only. No conditional rendering based on `role 
 
 Each user row shows: avatar initials → name/email → role badge → linked stylist name (if any) → status badge → Remove button.
 
-- **Role badge**: teal pill for admin, stone pill for others
+- **Role badge** (Phase 11J.1 — invite palette): `admin` = burgundy (`bg-[#8B2E4A]/10 text-[#8B2E4A]`), `facility_staff` = blue (`bg-blue-50 text-blue-700`), `bookkeeper` = emerald (`bg-emerald-50 text-emerald-700`), `viewer` = amber (`bg-amber-50 text-amber-700`), others = stone. All `rounded-full px-2.5 py-0.5 text-xs font-semibold`.
 - **Linked stylist** (`↔ StylistName`): shown in `text-xs text-stone-400 hidden sm:inline` when `cu.stylistName` is set. Resolved server-side via batch `inArray` query in page.tsx; passed as `stylistName: string | null` on `ConnectedUser`.
 - **Status badges**: Active (emerald, last sign-in < 90 days), Invited (amber, never signed in), Inactive (stone, > 90 days)
 - **Remove flow**: two-step inline confirm; mouse leave cancels confirm state; optimistic `localUsers` removal; emerald toast "Access removed" for 3 s
 
 ### Settings — Invites Tab
 
-- **Send Invite**: form with email + role select + "Send Invite" button
+- **Send Invite**: form with email + role select (options: Admin / Facility Staff / Bookkeeper / Stylist; Super Admin (franchise) shown only to super_admins) + "Send Invite" button. `viewer` option removed from picker (Phase 11J.1).
 - **Success messages**: "Invite sent!" for new invites; "Invite refreshed and resent" when the API returns `{ refreshed: true }` (pending invite already existed — token was refreshed and email resent). Both auto-clear after 3 s.
 - **Error messages**: inline red text; includes "This person already has access to this facility" (409) when the invited email already has a `used=true` invite.
 - **Pending list**: shows role badge + Expired badge + Resend / Copy link / Revoke buttons per invite
