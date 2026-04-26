@@ -180,9 +180,10 @@ interface SidebarProps {
   facilityCode?: string | null
   allFacilities?: FacilityOption[]
   role?: string
+  debugMode?: boolean
 }
 
-export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin' }: SidebarProps) {
+export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -255,6 +256,11 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             <div className="text-xs leading-tight truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
               {facilityName}
             </div>
+          </div>
+        )}
+        {debugMode && (
+          <div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-semibold text-center">
+            DEBUG MODE
           </div>
         )}
 

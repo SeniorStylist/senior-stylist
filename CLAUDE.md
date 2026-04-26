@@ -274,6 +274,16 @@
 - Register in `vercel.json` → `crons[]` with `{ path, schedule }`
 - Cron routes set `export const maxDuration = 60` + `export const dynamic = 'force-dynamic'`
 
+### Debug Role Impersonation (Super Admin Only)
+- Cookie name: `__debug_role` — `httpOnly: false` (client badge reads it via `document.cookie`), `sameSite: lax`, `path: /`, 8-hour `maxAge`. Value: JSON `{ role: 'admin' | 'stylist'; facilityId: string; facilityName: string }`
+- Gate: BOTH API routes (`POST /api/debug/impersonate`, `POST /api/debug/reset`) check `user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL` — 403 otherwise. Never expose to non-master users
+- `getUserFacility()` reads `__debug_role` first — if present, returns a synthetic facilityUser object; skips DB entirely. This means ALL API routes and pages automatically see the impersonated role/facilityId without any per-route changes
+- `(protected)/layout.tsx` independently reads the cookie to override `activeRole` + `facilityName` sent to Sidebar (layout doesn't use `getUserFacility`)
+- `DebugBadge` (`src/components/debug/debug-badge.tsx`): client component, reads `document.cookie` on mount, renders fixed amber pill at `bottom: calc(env(safe-area-inset-bottom) + 80px) right-4`. Has inline "× Reset" button that POSTs `/api/debug/reset` + `router.refresh()`
+- Sidebar (`src/components/layout/sidebar.tsx`): `debugMode?: boolean` prop — when true, shows amber "DEBUG MODE" chip below the facility name
+- Debug tab (`src/app/(protected)/super-admin/debug-tab.tsx`): last tab in super-admin, three action rows (Admin View / Stylist View / Family Portal). Family Portal row opens `/family/[facilityCode]` in new tab (no cookie involved)
+- "Resident Portal" row in debug tab is only enabled when selected facility has a `facilityCode` — required for the `/family/` URL
+
 ### Family Portal (Phase 11E / 11I)
 - URL home: `/family/[facilityCode]/*` — the only portal UI. Legacy `/portal/[token]` UI pages were deleted; a redirect-only page at `src/app/portal/[token]/page.tsx` catches old links and redirects to `/family/[facilityCode]`. The `/api/portal/[token]/*` API routes are kept for backward compat with old Stripe checkout flows
 - Middleware: `pathname.startsWith('/family')` is in the public-route allowlist (no Supabase session required)

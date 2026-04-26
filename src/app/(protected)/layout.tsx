@@ -10,6 +10,7 @@ import { MobileNav } from '@/components/layout/mobile-nav'
 import { ToastProvider } from '@/components/ui/toast'
 import InstallBanner from '@/components/pwa/install-banner'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
+import { DebugBadge } from '@/components/debug/debug-badge'
 
 export default async function ProtectedLayout({
   children,
@@ -71,11 +72,28 @@ export default async function ProtectedLayout({
     console.error('[layout] Failed to load facility data:', err)
   }
 
+  const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  let debugMode = false
+  if (isMaster) {
+    const cookieStore = await cookies()
+    const debugRaw = cookieStore.get('__debug_role')?.value
+    if (debugRaw) {
+      try {
+        const debug = JSON.parse(debugRaw) as { role: string; facilityId: string; facilityName: string }
+        if (debug.role && debug.facilityId) {
+          activeRole = debug.role === 'super_admin' ? 'admin' : debug.role
+          facilityName = debug.facilityName
+          debugMode = true
+        }
+      } catch { /* malformed */ }
+    }
+  }
+
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
@@ -85,6 +103,7 @@ export default async function ProtectedLayout({
       </main>
       <MobileNav role={activeRole} />
       <InstallBanner />
+      <DebugBadge />
     </div>
   )
 }

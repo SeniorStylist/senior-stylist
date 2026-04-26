@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ReportsTab } from './reports-tab'
 import { MergeTab } from './merge-tab'
+import { DebugTab } from './debug-tab'
 
 interface FacilityInfo {
   id: string
@@ -44,7 +45,7 @@ interface FranchiseInfo {
 interface SuperAdminClientProps {
   facilities: FacilityInfo[]
   pendingRequests: AccessRequestInfo[]
-  activeFacilities: { id: string; name: string }[]
+  activeFacilities: { id: string; name: string; facilityCode: string | null }[]
   franchises: FranchiseInfo[]
 }
 
@@ -69,7 +70,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
   const router = useRouter()
 
   // Active tab
-  type TabId = 'facilities' | 'franchises' | 'requests' | 'merge' | 'reports'
+  type TabId = 'facilities' | 'franchises' | 'requests' | 'merge' | 'reports' | 'debug'
   const [activeTab, setActiveTab] = useState<TabId>('facilities')
 
   // Local list so we can remove deleted facilities immediately
@@ -496,7 +497,7 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
           </div>
           {/* Tab bar */}
           <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1">
-            {(['facilities', 'franchises', 'requests', 'merge', 'reports'] as const).map((tab) => (
+            {(['facilities', 'franchises', 'requests', 'merge', 'reports', 'debug'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -700,6 +701,8 @@ export function SuperAdminClient({ facilities, pendingRequests, activeFacilities
         {activeTab === 'reports' && <ReportsTab />}
 
         {activeTab === 'merge' && <MergeTab />}
+
+        {activeTab === 'debug' && <DebugTab facilities={activeFacilities} />}
 
         {activeTab === 'facilities' && (
         <>

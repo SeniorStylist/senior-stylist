@@ -60,7 +60,7 @@ export default async function SuperAdminPage() {
     db.query.facilities.findMany({
       where: (t) => eq(t.active, true),
       orderBy: (t, { asc }) => [asc(t.name)],
-      columns: { id: true, name: true },
+      columns: { id: true, name: true, facilityCode: true },
     }),
     db.query.franchises.findMany({
       with: {

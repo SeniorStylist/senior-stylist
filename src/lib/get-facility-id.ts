@@ -22,6 +22,26 @@ function normalizeRole<T extends { role: string }>(fu: T): T {
 export async function getUserFacility(userId: string) {
   try {
     const cookieStore = await cookies()
+
+    const debugRaw = cookieStore.get('__debug_role')?.value
+    if (debugRaw) {
+      try {
+        const debug = JSON.parse(debugRaw) as { role: string; facilityId: string; facilityName: string }
+        if (debug.role && debug.facilityId) {
+          const synth = {
+            id: 'debug',
+            userId,
+            facilityId: debug.facilityId,
+            role: debug.role,
+            commissionPercent: null as number | null,
+            createdAt: null as Date | null,
+            updatedAt: null as Date | null,
+          }
+          return normalizeRole(synth)
+        }
+      } catch { /* malformed cookie — fall through */ }
+    }
+
     const selected = cookieStore.get('selected_facility_id')?.value
 
     if (selected) {

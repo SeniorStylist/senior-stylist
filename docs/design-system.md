@@ -1703,6 +1703,26 @@ Desktop and mobile renderings share the same outer card wrapper; branching is do
 
 Other list surfaces (stylists, daily log, billing, payroll) currently render the Task A desktop treatment on both desktop and mobile — migrate them to a phone-specific card variant only if the same density issue recurs there.
 
+## Debug Role Impersonation UI
+
+The `DebugBadge` (`src/components/debug/debug-badge.tsx`) is a floating amber pill rendered in `(protected)/layout.tsx`. It reads `document.cookie` on mount for `__debug_role` and renders when the cookie exists.
+
+- **Position**: `fixed right-4 z-50` with `style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}` — clears mobile nav bar (72px) and home indicator
+- **Color**: `bg-amber-400 text-amber-950` — high-contrast amber on dark amber text
+- **Shape**: `rounded-full px-3 py-1.5 text-xs font-semibold shadow-lg`
+- **Content**: "Debug: {role} @ {facilityName}" + inline "×" reset button (`hover:opacity-70`)
+- **Reset**: POSTs `/api/debug/reset`, then `router.refresh()` — badge disappears on next render
+
+Sidebar amber chip (when `debugMode` prop is true):
+```
+<div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-semibold text-center">
+  DEBUG MODE
+</div>
+```
+Rendered below the facility name / facility switcher in `sidebar.tsx`.
+
+The Debug tab (`src/app/(protected)/super-admin/debug-tab.tsx`) is the last tab in the Super Admin page. Uses the same `bg-white rounded-2xl border border-stone-200 p-5 shadow-sm` card style as other super-admin cards. Action buttons use the standard burgundy button with hover color swap.
+
 ## Family Portal Layout (`/family/[facilityCode]/*` — Phase 11I)
 
 The family portal at `/family/[facilityCode]/*` is the POA-facing surface — magic-link auth, one account → many residents, mobile-first. It coexists with the legacy single-resident `/portal/[token]` route.
