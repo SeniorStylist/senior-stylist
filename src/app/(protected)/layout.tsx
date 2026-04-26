@@ -101,7 +101,7 @@ export default async function ProtectedLayout({
           <ToastProvider>{children}</ToastProvider>
         </div>
       </main>
-      <MobileNav role={activeRole} />
+      <MobileNav role={activeRole} debugMode={debugMode} />
       <InstallBanner />
       <DebugBadge />
     </div>

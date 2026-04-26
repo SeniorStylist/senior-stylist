@@ -279,9 +279,10 @@
 - Gate: BOTH API routes (`POST /api/debug/impersonate`, `POST /api/debug/reset`) check `user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL` — 403 otherwise. Never expose to non-master users
 - `getUserFacility()` reads `__debug_role` first — if present, returns a synthetic facilityUser object; skips DB entirely. This means ALL API routes and pages automatically see the impersonated role/facilityId without any per-route changes
 - `(protected)/layout.tsx` independently reads the cookie to override `activeRole` + `facilityName` sent to Sidebar (layout doesn't use `getUserFacility`)
-- `DebugBadge` (`src/components/debug/debug-badge.tsx`): client component, reads `document.cookie` on mount, renders fixed amber pill at `bottom: calc(env(safe-area-inset-bottom) + 80px) right-4`. Has inline "× Reset" button that POSTs `/api/debug/reset` + `router.refresh()`
-- Sidebar (`src/components/layout/sidebar.tsx`): `debugMode?: boolean` prop — when true, shows amber "DEBUG MODE" chip below the facility name
-- Debug tab (`src/app/(protected)/super-admin/debug-tab.tsx`): last tab in super-admin, three action rows (Admin View / Stylist View / Family Portal). Family Portal row opens `/family/[facilityCode]` in new tab (no cookie involved)
+- `DebugBadge` (`src/components/debug/debug-badge.tsx`): client component, reads `document.cookie` on mount, renders fixed amber pill at **`top-4 right-4 z-[200]`** (top-right corner, always visible above all other chrome). Shows "Debug · {role} · {facilityName}" + "← Exit to Super Admin" button. Reset POSTs `/api/debug/reset` then does `window.location.href = '/super-admin'` (hard redirect, NOT `router.refresh()`). No `useRouter` import needed.
+- Sidebar (`src/components/layout/sidebar.tsx`): `debugMode?: boolean` prop — when true, shows amber "DEBUG MODE" chip below the facility name. **Super Admin nav link is hidden when `debugMode === true`** (`&& !debugMode` added to the email check) so the simulated role is fully faithful
+- `MobileNavProps` accepts `debugMode?: boolean` (unused — no Super Admin link in mobile nav — but passed from layout for API consistency)
+- Debug tab (`src/app/(protected)/super-admin/debug-tab.tsx`): last tab in super-admin, three action rows (Admin View / Stylist View / Family Portal). **Persistent status block** always shown at top — amber dot + role/facility when impersonating, emerald dot + "Super Admin (normal)" when clean. `useEffect` adds `visibilitychange` listener so status updates on tab focus-return. Family Portal row opens `/family/[facilityCode]` in new tab (no cookie involved)
 - "Resident Portal" row in debug tab is only enabled when selected facility has a `facilityCode` — required for the `/family/` URL
 
 ### Family Portal (Phase 11E / 11I)

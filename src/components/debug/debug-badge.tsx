@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 export function DebugBadge() {
-  const router = useRouter()
   const [debug, setDebug] = useState<{ role: string; facilityName: string } | null>(null)
 
   useEffect(() => {
@@ -18,16 +16,21 @@ export function DebugBadge() {
 
   const handleReset = async () => {
     await fetch('/api/debug/reset', { method: 'POST' })
-    router.refresh()
+    window.location.href = '/super-admin'
   }
 
   return (
-    <div
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
-      className="fixed right-4 z-50 flex items-center gap-2 bg-amber-400 text-amber-950 text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg"
-    >
-      <span>Debug: {debug.role} @ {debug.facilityName}</span>
-      <button onClick={handleReset} className="hover:opacity-70 transition-opacity ml-1">×</button>
+    <div className="fixed top-4 right-4 z-[200] flex items-center gap-2 bg-amber-400 text-amber-950 text-xs font-bold px-3 py-2 rounded-2xl shadow-xl border-2 border-amber-500">
+      <span className="text-amber-800 text-[10px] font-semibold uppercase tracking-wide">Debug</span>
+      <span className="font-bold">
+        {debug.role === 'admin' ? 'Admin' : 'Stylist'} · {debug.facilityName}
+      </span>
+      <button
+        onClick={handleReset}
+        className="ml-2 bg-amber-950/10 hover:bg-amber-950/20 text-amber-900 font-bold px-2 py-0.5 rounded-lg text-xs transition-colors"
+      >
+        ← Exit to Super Admin
+      </button>
     </div>
   )
 }

@@ -397,8 +397,8 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         })}
       </nav>
 
-      {/* Super Admin link — only visible to super admin */}
-      {process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && (
+      {/* Super Admin link — only visible to super admin, hidden when impersonating */}
+      {process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode && (
         <div className="px-3 pb-2">
           <Link
             href="/super-admin"

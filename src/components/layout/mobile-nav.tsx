@@ -98,6 +98,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
 
 interface MobileNavProps {
   role?: string
+  debugMode?: boolean
 }
 
 export function MobileNav({ role = 'admin' }: MobileNavProps) {

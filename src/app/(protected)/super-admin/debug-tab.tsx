@@ -22,10 +22,17 @@ export function DebugTab({ facilities }: DebugTabProps) {
   const eligible = facilities.filter((f) => f.facilityCode)
 
   useEffect(() => {
-    const match = document.cookie.match(/(?:^|;\s*)__debug_role=([^;]*)/)
-    if (match) {
-      try { setCurrentDebug(JSON.parse(decodeURIComponent(match[1]))) } catch { /* ignore */ }
+    const readCookie = () => {
+      const match = document.cookie.match(/(?:^|;\s*)__debug_role=([^;]*)/)
+      if (match) {
+        try { setCurrentDebug(JSON.parse(decodeURIComponent(match[1]))) } catch { /* ignore */ }
+      } else {
+        setCurrentDebug(null)
+      }
     }
+    readCookie()
+    document.addEventListener('visibilitychange', readCookie)
+    return () => document.removeEventListener('visibilitychange', readCookie)
   }, [])
 
   const selected = eligible.find((f) => f.id === selectedId)
@@ -66,20 +73,31 @@ export function DebugTab({ facilities }: DebugTabProps) {
 
   return (
     <div className="mt-4 space-y-6">
-      {currentDebug && (
-        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-          <p className="text-sm font-medium text-amber-800">
-            Currently impersonating: <span className="font-semibold">{currentDebug.role}</span> at{' '}
-            <span className="font-semibold">{currentDebug.facilityName}</span>
-          </p>
-          <button
-            onClick={handleReset}
-            className="ml-4 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-400 text-amber-950 hover:bg-amber-500 transition-colors"
-          >
-            Reset to Master
-          </button>
-        </div>
-      )}
+      {/* Status indicator — always visible */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Current Mode</p>
+        {currentDebug ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              <span className="text-sm font-semibold text-amber-800">
+                {currentDebug.role === 'admin' ? 'Admin' : 'Stylist'} · {currentDebug.facilityName}
+              </span>
+            </div>
+            <button
+              onClick={handleReset}
+              className="ml-4 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-400 text-amber-950 hover:bg-amber-500 transition-colors"
+            >
+              Reset to Super Admin
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            <span className="text-sm font-medium text-stone-700">Super Admin (normal)</span>
+          </div>
+        )}
+      </div>
 
       <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-stone-800 mb-1">Select Facility</h2>

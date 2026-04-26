@@ -1707,21 +1707,42 @@ Other list surfaces (stylists, daily log, billing, payroll) currently render the
 
 The `DebugBadge` (`src/components/debug/debug-badge.tsx`) is a floating amber pill rendered in `(protected)/layout.tsx`. It reads `document.cookie` on mount for `__debug_role` and renders when the cookie exists.
 
-- **Position**: `fixed right-4 z-50` with `style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}` — clears mobile nav bar (72px) and home indicator
-- **Color**: `bg-amber-400 text-amber-950` — high-contrast amber on dark amber text
-- **Shape**: `rounded-full px-3 py-1.5 text-xs font-semibold shadow-lg`
-- **Content**: "Debug: {role} @ {facilityName}" + inline "×" reset button (`hover:opacity-70`)
-- **Reset**: POSTs `/api/debug/reset`, then `router.refresh()` — badge disappears on next render
+- **Position**: `fixed top-4 right-4 z-[200]` — top-right corner, well above all other chrome including the TopBar; does NOT use `bottom` positioning (old bottom-right badge was retired in 2026-04-26 fix)
+- **Color**: `bg-amber-400 text-amber-950 border-2 border-amber-500` — high-contrast amber
+- **Shape**: `rounded-2xl px-3 py-2 text-xs font-bold shadow-xl`
+- **Content**: "Debug" uppercase label + "{role} · {facilityName}" in bold + "← Exit to Super Admin" button
+- **Reset**: POSTs `/api/debug/reset`, then `window.location.href = '/super-admin'` (hard redirect, not `router.refresh()`) — ensures server re-reads cleared cookie before rendering
+- **No `useRouter`** — removed; `window.location.href` is the correct escape pattern here
+
+**Anti-pattern — do NOT revert to:**
+- Bottom-right position with `style={{ bottom: 'calc(...)' }}` — competes with mobile nav
+- `z-50` — too low, can be occluded by modals
+- `router.refresh()` — doesn't guarantee a clean server re-render after cookie clear
+- `rounded-full` small pill with `×` button — not prominent enough as an escape hatch
 
 Sidebar amber chip (when `debugMode` prop is true):
-```
+```tsx
 <div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-semibold text-center">
   DEBUG MODE
 </div>
 ```
 Rendered below the facility name / facility switcher in `sidebar.tsx`.
 
+**Super Admin nav link gating** — the Super Admin link in `sidebar.tsx` is gated on BOTH the email check AND `!debugMode`. When impersonating, the link must be hidden so the simulated role is fully faithful:
+```tsx
+{process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode && (
+  // Super Admin nav link
+)}
+```
+
 The Debug tab (`src/app/(protected)/super-admin/debug-tab.tsx`) is the last tab in the Super Admin page. Uses the same `bg-white rounded-2xl border border-stone-200 p-5 shadow-sm` card style as other super-admin cards. Action buttons use the standard burgundy button with hover color swap.
+
+**Debug tab status block** — always rendered at the top of the tab (before the facility picker), showing current mode:
+- When impersonating: amber dot + "{role} · {facilityName}" + "Reset to Super Admin" button
+- When normal: emerald dot + "Super Admin (normal)" — no button
+- Uses `document.addEventListener('visibilitychange', readCookie)` so the status updates when the browser tab regains focus (e.g., returning from impersonation session)
+
+`MobileNavProps` accepts `debugMode?: boolean` (currently unused — mobile nav has no Super Admin link — but passed for API consistency).
 
 ## Family Portal Layout (`/family/[facilityCode]/*` — Phase 11I)
 
