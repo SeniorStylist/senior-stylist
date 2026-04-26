@@ -5,8 +5,7 @@ import { eq } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-
-export const dynamic = 'force-dynamic'
+import { revalidateTag } from 'next/cache'
 
 const schema = z.object({
   revShareType: z.enum(['we_deduct', 'facility_deducts']),
@@ -55,6 +54,8 @@ export async function PATCH(
       .update(facilities)
       .set({ qbRevShareType: parsed.data.revShareType })
       .where(eq(facilities.id, facilityId))
+
+    revalidateTag('facilities', {})
 
     return Response.json({ data: { revShareType: parsed.data.revShareType } })
   } catch (err) {

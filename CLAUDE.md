@@ -298,6 +298,20 @@
 - The page container is `max-w-5xl mx-auto px-4 py-8` (NOT `max-w-2xl` like the old flat layout).
 - Sign-out button always renders below all sections, at the bottom of the page.
 
+### Performance / Caching (Phase 11J.4)
+- **`loading.tsx`**: every server-rendered page with non-trivial data fetch MUST have a sibling `loading.tsx` exporting a skeleton — without it Next.js shows a blank screen on cold renders. Use `.skeleton-shimmer rounded-2xl` blocks (class lives in `globals.css`). Existing files: `master-admin/`, `billing/`, `payroll/`, `residents/`, `settings/`, `analytics/`, `log/`, `dashboard/`. Skeleton shape should roughly match the page (header bar + content cards/rows).
+- **`unstable_cache` registry** (existing wrapped queries):
+  - `master-admin/page.tsx` — `getCachedFacilityInfos(yearMonthKey)`: keyParts `['master-admin-facility-infos']`, `revalidate: 300`, tag `'facilities'`. The function arg `yearMonthKey` (e.g. `'2026-04'`) auto-rotates the cache when the calendar month flips so `bookingsThisMonth` stays correct.
+  - `master-admin/page.tsx` — `getCachedPendingAccessRequests()`: keyParts `['master-admin-pending-access-requests']`, `revalidate: 60`, tag `'access-requests'`.
+  - `super-admin/reports/{outstanding,monthly}/route.ts` — keyParts include facilityIds + month, `revalidate: 300`, tag `'bookings'`.
+- **Cache tags in use**: `'bookings'`, `'pay-periods'`, `'billing'`, `'facilities'`, `'access-requests'`. Always call `revalidateTag('<tag>', {})` (Next.js 16 second-arg signature) on the success path of any mutation that affects cached data.
+- **`'facilities'` revalidation**: every facility mutation MUST call `revalidateTag('facilities', {})` — already wired on `POST /api/facilities`, `PUT /api/facility`, `PATCH /api/facilities/[facilityId]/rev-share`, `POST /api/super-admin/merge-facilities`, `POST /api/super-admin/import-quickbooks`, `POST /api/super-admin/import-facilities-csv`.
+- **`'access-requests'` revalidation**: `POST /api/access-requests`, `PUT /api/access-requests/[id]` (approve + deny paths).
+- **Parallel `Promise.all` in `page.tsx`**: data fetches that don't depend on each other MUST be wrapped in `Promise.all([...])`. When a query depends on `facilityUser.facilityId`, keep it sequential (don't try to parallelize through it). The billing page uses a conditional `Promise.all` to skip `getUserFacility` for master admins (they don't need a facilityUser).
+- **`force-dynamic` is redundant** when a route uses `cookies()`, `getUserFacility()`, or `request.nextUrl.searchParams` — Next.js auto-detects dynamic from those. Only keep `export const dynamic = 'force-dynamic'` on routes that have `maxDuration` set, on `scan-check` / `save-check-payment` / QB sync routes, and on family/portal pages.
+- **DB pool** (`src/db/index.ts`): `max: 1`, `idle_timeout: 20`, `connect_timeout: 10`, `prepare: false`. Do not raise `max` above 1 in transaction-mode pgBouncer. Do not lower `connect_timeout` below 10.
+- **Drizzle migrations**: `drizzle.config.ts` reads `DIRECT_URL` (with `DATABASE_URL` fallback). `drizzle-kit push` should always go through the direct connection, not pgBouncer.
+
 ### Cron Routes
 - Every route under `/api/cron/*` MUST check: `request.headers.get('authorization') === \`Bearer ${process.env.CRON_SECRET}\`` — 401 otherwise
 - `src/middleware.ts` already includes `pathname.startsWith('/api/cron')` in the public-route check — new cron routes need no further middleware work

@@ -705,6 +705,24 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 
 ---
 
+## Caching & revalidation
+
+The app uses Next.js `unstable_cache` for expensive read aggregations and `revalidateTag(tag, {})` to invalidate caches on mutation. Tags currently in use:
+
+| Tag | Cached queries | Mutation routes that revalidate |
+|---|---|---|
+| `bookings` | `super-admin/reports/{outstanding,monthly}` (`revalidate: 300`) | `POST/PUT/DELETE /api/bookings`, `POST /api/bookings/recurring`, `POST /api/portal/request-booking`, `POST /api/super-admin/reports/mark-paid`, `POST /api/webhooks/stripe` |
+| `pay-periods` | (n/a — only used for revalidation) | `pay-periods/*`, `quickbooks/sync-bill`, `quickbooks/sync-status` |
+| `billing` | (n/a — only used for revalidation) | `POST /api/webhooks/stripe` |
+| `facilities` | `master-admin/page.tsx::getCachedFacilityInfos(yearMonthKey)` (`revalidate: 300`) | `POST /api/facilities`, `PUT /api/facility`, `PATCH /api/facilities/[facilityId]/rev-share`, `POST /api/super-admin/{merge-facilities,import-quickbooks,import-facilities-csv}` |
+| `access-requests` | `master-admin/page.tsx::getCachedPendingAccessRequests()` (`revalidate: 60`) | `POST /api/access-requests`, `PUT /api/access-requests/[id]` |
+
+Caching keys: `unstable_cache` takes a function-arg-based cache key plus a `keyParts: string[]` array. The master-admin facility cache passes `yearMonthKey` (e.g. `'2026-04'`) so the cache rotates when the calendar month flips (`bookingsThisMonth` filter depends on month boundary).
+
+Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Single-arg form is deprecated.
+
+---
+
 ## API directory (`src/app/api/`)
 
 | Route | Role / auth | Purpose |

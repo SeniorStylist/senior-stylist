@@ -7,6 +7,7 @@ import { eq, and, ilike } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { revalidateTag } from 'next/cache'
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -64,6 +65,8 @@ export async function PUT(
         .update(accessRequests)
         .set({ status: 'denied', updatedAt: new Date() })
         .where(eq(accessRequests.id, id))
+
+      revalidateTag('access-requests', {})
 
       return Response.json({ data: { denied: true } })
     }
@@ -143,6 +146,8 @@ export async function PUT(
         <p>You can now sign in at <a href="${appUrl}">${appUrl}</a>.</p>
       `,
     })
+
+    revalidateTag('access-requests', {})
 
     return Response.json({ data: { approved: true } })
   } catch (err) {

@@ -5,6 +5,7 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import * as XLSX from 'xlsx'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { randomUUID } from 'crypto'
+import { revalidateTag } from 'next/cache'
 
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
@@ -376,6 +377,8 @@ export async function POST(request: Request) {
       )
       stats.residents.updated += updateChunk.length
     }
+
+    revalidateTag('facilities', {})
 
     return Response.json({ data: { ...stats, warnings } })
   } catch (err) {

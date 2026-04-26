@@ -6,8 +6,6 @@ import { sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 
-export const dynamic = 'force-dynamic'
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()

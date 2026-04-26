@@ -6,6 +6,7 @@ import { eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { sanitizeFacility } from '@/lib/sanitize'
+import { revalidateTag } from 'next/cache'
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -89,6 +90,8 @@ export async function PUT(request: NextRequest) {
       .set({ ...parsed.data, updatedAt: new Date() })
       .where(eq(facilities.id, facilityUser.facilityId))
       .returning()
+
+    revalidateTag('facilities', {})
 
     return Response.json({ data: sanitizeFacility(updated) })
   } catch (err) {

@@ -7,6 +7,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { revalidateTag } from 'next/cache'
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
         `,
       })
     }
+
+    revalidateTag('access-requests', {})
 
     return Response.json({ data: { id: created.id } }, { status: 201 })
   } catch (err) {

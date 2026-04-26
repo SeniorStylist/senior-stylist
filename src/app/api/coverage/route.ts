@@ -12,8 +12,6 @@ import { and, asc, eq, lte, gte } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-export const dynamic = 'force-dynamic'
-
 const STATUS_VALUES = ['open', 'filled', 'cancelled'] as const
 
 const createSchema = z

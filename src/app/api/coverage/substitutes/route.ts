@@ -10,8 +10,6 @@ import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { and, eq, lte, gte, inArray, isNull } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
-export const dynamic = 'force-dynamic'
-
 function parseDateUTC(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map((n) => parseInt(n, 10))
   return new Date(Date.UTC(y, m - 1, d))

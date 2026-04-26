@@ -4,6 +4,7 @@ import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import Papa from 'papaparse'
+import { revalidateTag } from 'next/cache'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -138,6 +139,8 @@ export async function POST(request: Request) {
       skipped++
     }
   }
+
+  revalidateTag('facilities', {})
 
   return Response.json({ data: { updated, skipped, namesFilled, emailsFilled, revShareSet, warnings } })
 }

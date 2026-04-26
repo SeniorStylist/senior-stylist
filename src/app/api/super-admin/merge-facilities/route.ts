@@ -27,6 +27,7 @@ import {
 import { eq, and, inArray } from 'drizzle-orm'
 import { normalizeWords } from '@/lib/fuzzy'
 import { z } from 'zod'
+import { revalidateTag } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -337,6 +338,8 @@ export async function POST(request: Request) {
         fieldsInherited,
       }
     })
+
+    revalidateTag('facilities', {})
 
     return Response.json({ data: result })
   } catch (err) {

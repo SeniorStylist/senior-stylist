@@ -6,8 +6,6 @@ import { and, asc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-export const dynamic = 'force-dynamic'
-
 const availabilitySchema = z.object({
   stylistId: z.string().uuid(),
   availability: z

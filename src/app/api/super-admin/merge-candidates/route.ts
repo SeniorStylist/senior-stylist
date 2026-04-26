@@ -4,8 +4,6 @@ import { facilities, residents, bookings, stylistFacilityAssignments } from '@/d
 import { eq, count } from 'drizzle-orm'
 import { fuzzyScore } from '@/lib/fuzzy'
 
-export const dynamic = 'force-dynamic'
-
 interface FacilityRow {
   id: string
   name: string

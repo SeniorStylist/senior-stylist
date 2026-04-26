@@ -18,7 +18,16 @@ export default async function BillingPage() {
     !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
     user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
-  const facilityUser = await getUserFacility(user.id)
+  // Run facilityUser lookup and (master-only) facility list in parallel.
+  const [facilityUser, masterList] = await Promise.all([
+    isMaster ? Promise.resolve(null) : getUserFacility(user.id),
+    isMaster
+      ? db.query.facilities.findMany({
+          where: eq(facilities.active, true),
+          columns: { id: true, name: true, facilityCode: true },
+        })
+      : Promise.resolve(null),
+  ])
 
   if (!isMaster && (!facilityUser || !canAccessBilling(facilityUser.role))) {
     redirect('/dashboard')
@@ -28,10 +37,7 @@ export default async function BillingPage() {
   let facilityOptions: { id: string; name: string; facilityCode: string | null }[] = []
 
   if (isMaster) {
-    const list = await db.query.facilities.findMany({
-      where: eq(facilities.active, true),
-      columns: { id: true, name: true, facilityCode: true },
-    })
+    const list = masterList ?? []
     list.sort((a, b) => {
       const aNum = a.facilityCode ? parseInt(a.facilityCode.replace(/\D/g, ''), 10) : Infinity
       const bNum = b.facilityCode ? parseInt(b.facilityCode.replace(/\D/g, ''), 10) : Infinity

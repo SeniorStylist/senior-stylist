@@ -495,6 +495,34 @@ Icon stroke color is always `#A8A29E` (stone-400 equivalent) for empty state ico
 
 Skeleton components (e.g. `SkeletonResidentRow`) use the `shimmer` animation from globals.css. The pull-to-refresh indicator uses a spinning refresh SVG with `stroke="#0D7377"`.
 
+#### Page-level `loading.tsx` (Next.js App Router)
+
+Every server-rendered page with a non-trivial data fetch ships a sibling `loading.tsx` that renders a shimmer skeleton matching the rough shape of the real page. Without it, Next.js shows a blank white screen during the server render. Existing files:
+
+| Route | Skeleton shape |
+|---|---|
+| `master-admin/loading.tsx` | header `h-10 w-48` + `h-12` toolbar + `grid md:grid-cols-2` of 6 cards `h-32` |
+| `billing/loading.tsx` | header `h-10 w-48` + `grid md:grid-cols-4` of 4 stat cards `h-24` + one `h-72` content card |
+| `payroll/loading.tsx` | header + 5 rows `h-14` |
+| `residents/loading.tsx` | header + search bar + `SkeletonResidentRow` × 6 (uses the shared `<SkeletonResidentRow>` component) |
+| `settings/loading.tsx` | `md:flex` two-pane: 6 nav items `h-9` on the left rail + 2 cards `h-40` / `h-64` on the right (matches the Apple two-pane shell) |
+| `analytics/loading.tsx` | header + chart `h-64` + 3 stat cards `h-24` |
+| `log/loading.tsx` | header + date nav + `SkeletonBookingCard` × 4 |
+| `dashboard/loading.tsx` | (predates this pass — keep as-is) |
+
+Pattern for new `loading.tsx`:
+```tsx
+export default function Loading() {
+  return (
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-4">
+      <div className="skeleton-shimmer rounded-2xl h-10 w-48" />
+      <div className="skeleton-shimmer rounded-2xl h-32" />
+    </div>
+  )
+}
+```
+Use `.skeleton-shimmer rounded-2xl` blocks (lighter skeletons can use `.skeleton`). Do NOT inline `animate-pulse bg-stone-100` — both shimmer classes already animate.
+
 ### Multi-step modal in-progress loading overlay
 
 When a long async operation replaces step content (e.g. OCR scanning in `ocr-import-modal.tsx`), replace the step body with a centered overlay — same outer container dimensions. Pattern:

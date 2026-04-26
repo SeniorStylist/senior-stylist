@@ -4,6 +4,7 @@ import { facilities, facilityUsers, profiles } from '@/db/schema'
 import { and, eq, sql, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -114,6 +115,8 @@ export async function POST(request: NextRequest) {
       facilityId: facility.id,
       role: 'admin',
     })
+
+    revalidateTag('facilities', {})
 
     return Response.json({ data: facility }, { status: 201 })
   } catch (err) {
