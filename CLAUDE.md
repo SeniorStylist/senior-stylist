@@ -275,7 +275,7 @@
 - Cron routes set `export const maxDuration = 60` + `export const dynamic = 'force-dynamic'`
 
 ### Family Portal (Phase 11E / 11I)
-- URL home: `/family/[facilityCode]/*` — distinct from the legacy per-resident `/portal/[token]` route which stays alive for old invite links
+- URL home: `/family/[facilityCode]/*` — the only portal UI. Legacy `/portal/[token]` UI pages were deleted; a redirect-only page at `src/app/portal/[token]/page.tsx` catches old links and redirects to `/family/[facilityCode]`. The `/api/portal/[token]/*` API routes are kept for backward compat with old Stripe checkout flows
 - Middleware: `pathname.startsWith('/family')` is in the public-route allowlist (no Supabase session required)
 - Auth identity = `residents.poaEmail`. One `portal_accounts` row per email; one POA can be linked to many residents across many facilities via `portal_account_residents`
 - Magic link: 72-hr expiry, one-time use (`portal_magic_links.used_at`). Verifying a link AUTO-LINKS every active resident with `poaEmail = email` (auto-discovery), so the user gets all their family members in one shot
@@ -290,7 +290,8 @@
 - Per-facility Stripe key: prefer `facility.stripeSecretKey`, fall back to `process.env.STRIPE_SECRET_KEY`. When BOTH are unset, hide the "Pay online" CTA and show only the mail-payment block
 - Statement download: `GET /api/portal/statement/[residentId]` returns printable HTML (reuses `buildResidentStatementHtml`). Adds a `<button onclick="window.print()">` and `@media print` CSS. NO PDF dependency — user invokes browser print
 - Cron: `/api/cron/portal-cleanup` (daily 04:00 UTC, `vercel.json`) deletes magic-link rows older than 7 days past expiry and expired sessions
-- Resident detail "Send Portal Invite" button: admin-only (gate is the existing admin-page guard), disabled when `!resident.poaEmail` (tooltip: "Add POA email first") or when `lastPortalInviteSentAt` is < 24h ago. Cooldown is UI-only — the route always sends and updates `lastPortalInviteSentAt`
+- Resident detail **unified "Family Portal" card** (admin-only): two buttons — **Send Link** (POSTs `/api/portal/send-invite`, fires email, 24h UI cooldown, refreshes page) and **Copy Link** (POSTs `/api/portal/create-magic-link`, writes URL to clipboard, 3s "✓ Copied!" feedback). Both disabled when `!resident.poaEmail`. No old "Portal Link" card exists anymore — `portalToken` removed from the `Resident` TypeScript type (DB column kept)
+- `POST /api/portal/create-magic-link` — admin-only, rate-limited `portalRequestLink`. Returns `{ data: { link } }` without sending email or updating `lastPortalInviteSentAt`
 
 ### Compliance Alerts
 - Send when `expiresAt` is exactly 30 or 60 days from today (UTC), verified docs only

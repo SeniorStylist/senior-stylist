@@ -1,9 +1,10 @@
 const PALETTE = [
-  { bg: '#EEEDFE', text: '#534AB7' }, // indigo
-  { bg: '#E1F5EE', text: '#0F6E56' }, // emerald
+  { bg: '#EEEDFE', text: '#534AB7' }, // purple
+  { bg: '#E1F5EE', text: '#0F6E56' }, // teal
   { bg: '#E6F1FB', text: '#185FA5' }, // blue
   { bg: '#F9EFF2', text: '#8B2E4A' }, // burgundy
   { bg: '#FAEEDA', text: '#854F0B' }, // amber
+  { bg: '#EAF3DE', text: '#3B6D11' }, // green
 ] as const
 
 export function getAvatarColor(name: string): { bg: string; text: string } {

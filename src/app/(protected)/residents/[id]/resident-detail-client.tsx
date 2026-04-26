@@ -73,22 +73,9 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
-  const [sendingLink, setSendingLink] = useState(false)
-  const [linkSent, setLinkSent] = useState(false)
   const [sendingFamilyInvite, setSendingFamilyInvite] = useState(false)
-
-  const portalUrl = typeof window !== 'undefined' && resident.portalToken
-    ? `${window.location.origin}/portal/${resident.portalToken}`
-    : null
-
-  const copyPortalLink = () => {
-    if (!portalUrl) return
-    navigator.clipboard.writeText(portalUrl).then(() => {
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    })
-  }
+  const [copyingLink, setCopyingLink] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const handleSendFamilyInvite = useCallback(async () => {
     setSendingFamilyInvite(true)
@@ -112,21 +99,29 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     }
   }, [resident.id, resident.poaEmail, toast, router])
 
-  const handleSendPortalLink = useCallback(async () => {
-    setSendingLink(true)
+  const handleCopyMagicLink = useCallback(async () => {
+    if (!resident.poaEmail) return
+    setCopyingLink(true)
     try {
-      const res = await fetch(`/api/residents/${resident.id}/send-portal-link`, { method: 'POST' })
-      if (res.ok) {
-        setLinkSent(true)
-        toast('Portal link sent', 'success')
-        setTimeout(() => setLinkSent(false), 3000)
+      const res = await fetch('/api/portal/create-magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: resident.id }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok && j.data?.link) {
+        await navigator.clipboard.writeText(j.data.link)
+        setLinkCopied(true)
+        setTimeout(() => setLinkCopied(false), 3000)
       } else {
-        toast('Failed to send link', 'error')
+        toast.error(j.error ?? 'Failed to generate link')
       }
+    } catch {
+      toast.error('Network error')
     } finally {
-      setSendingLink(false)
+      setCopyingLink(false)
     }
-  }, [resident.id, toast])
+  }, [resident.id, resident.poaEmail, toast])
 
   const handleSave = async () => {
     if (!name.trim()) { setSaveError('Name is required'); return }
@@ -416,75 +411,48 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
             )}
           </div>
 
-          {/* Family Portal Invite (Phase 11E) */}
+          {/* Family Portal */}
           {(() => {
             const inviteAt = resident.lastPortalInviteSentAt
               ? new Date(resident.lastPortalInviteSentAt)
               : null
             const hoursAgo = inviteAt ? Math.floor((Date.now() - inviteAt.getTime()) / (60 * 60 * 1000)) : null
-            const cooldown = hoursAgo !== null && hoursAgo < 24
-            const noPoaEmail = !resident.poaEmail
-            const disabled = noPoaEmail || cooldown || sendingFamilyInvite
-            const label = sendingFamilyInvite
-              ? 'Sending…'
-              : cooldown
-              ? `Invite sent ${hoursAgo}h ago`
-              : 'Send Portal Invite'
+            const inviteCooldown = hoursAgo !== null && hoursAgo < 24
             return (
-              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-4">
                 <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Family Portal</p>
-                <p className="text-xs text-stone-400 mb-3">Magic-link sign-in for the POA email — manages multiple residents.</p>
-                <button
-                  onClick={handleSendFamilyInvite}
-                  disabled={disabled}
-                  title={noPoaEmail ? 'Add POA email first' : undefined}
-                  className="w-full inline-flex items-center justify-center px-3 py-2.5 rounded-xl text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] shadow-[0_2px_6px_rgba(139,46,74,0.22)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500 disabled:shadow-none"
-                >
-                  {label}
-                </button>
-                {resident.poaEmail && !cooldown && !sendingFamilyInvite && (
-                  <p className="text-[11px] text-stone-400 mt-2 text-center">Sends to {resident.poaEmail}</p>
+                <p className="text-xs text-stone-400 mb-3">
+                  Send a magic link to the POA email for instant portal access.
+                  They can view appointments, request services, and pay their balance.
+                </p>
+                {resident.poaEmail ? (
+                  <p className="text-xs text-stone-600 mb-3">
+                    <span className="font-medium">POA email:</span> {resident.poaEmail}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600 mb-3">No POA email on file — add one to enable portal access.</p>
                 )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSendFamilyInvite}
+                    disabled={!resident.poaEmail || sendingFamilyInvite || inviteCooldown}
+                    title={!resident.poaEmail ? 'Add POA email first' : undefined}
+                    className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-xl text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {sendingFamilyInvite ? 'Sending…' : inviteCooldown ? `Sent ${hoursAgo}h ago` : 'Send Link'}
+                  </button>
+                  <button
+                    onClick={handleCopyMagicLink}
+                    disabled={!resident.poaEmail || copyingLink}
+                    title={!resident.poaEmail ? 'Add POA email first' : 'Copy a magic link to clipboard'}
+                    className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {copyingLink ? 'Copying…' : linkCopied ? '✓ Copied!' : 'Copy Link'}
+                  </button>
+                </div>
               </div>
             )
           })()}
-
-          {/* Portal link */}
-          {resident.portalToken && (
-            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Portal Link</p>
-              <p className="text-xs text-stone-400 mb-3">Share with resident or family</p>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={copyPortalLink}
-                  className="flex-1"
-                >
-                  {linkCopied ? 'Copied!' : 'Copy Link'}
-                </Button>
-                {portalUrl && (
-                  <a
-                    href={portalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors"
-                  >
-                    Open Portal
-                  </a>
-                )}
-                {resident.poaEmail && (
-                  <button
-                    onClick={handleSendPortalLink}
-                    disabled={sendingLink}
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl text-xs font-medium border border-[#8B2E4A] text-[#8B2E4A] hover:bg-rose-50 transition-colors disabled:opacity-40 min-h-[44px]"
-                  >
-                    {sendingLink ? 'Sending…' : linkSent ? 'Sent!' : 'Send portal link'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Delete */}
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">

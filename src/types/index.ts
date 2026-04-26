@@ -59,7 +59,6 @@ export interface Resident {
   roomNumber: string | null
   phone: string | null
   notes: string | null
-  portalToken: string | null
   defaultServiceId: string | null
   mostUsedServiceId?: string | null
   poaName: string | null

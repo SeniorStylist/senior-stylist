@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
@@ -278,63 +278,137 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-[18px] border border-stone-200 shadow-[var(--shadow-sm)] overflow-hidden">
-          {/* Table header */}
-          <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-200 bg-stone-50/60">
-            {(
-              [
-                { key: 'name', label: 'Resident', span: 'col-span-4' },
-                { key: 'room', label: 'Room', span: 'col-span-2' },
-                { key: 'lastVisit', label: 'Last visit', span: 'col-span-3' },
-                { key: 'totalSpent', label: 'Total spent', span: 'col-span-3' },
-              ] as const
-            ).map(({ key, label, span }) => (
-              <div key={key} className={span}>
-                <button
-                  onClick={() => toggleSort(key)}
-                  className={cn(
-                    'flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                    sortKey === key ? 'text-[#8B2E4A]' : 'text-stone-400 hover:text-stone-600'
-                  )}
-                >
-                  {label}
-                  {sortKey === key && (
-                    <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                  )}
-                </button>
-              </div>
+        <div className="bg-white rounded-[18px] border border-stone-200 shadow-[var(--shadow-sm)]">
+          {/* ── DESKTOP: grid table ── */}
+          <div className="hidden md:block overflow-hidden rounded-[18px]">
+            <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-200 bg-stone-50/60">
+              {(
+                [
+                  { key: 'name', label: 'Resident', span: 'col-span-4' },
+                  { key: 'room', label: 'Room', span: 'col-span-2' },
+                  { key: 'lastVisit', label: 'Last visit', span: 'col-span-3' },
+                  { key: 'totalSpent', label: 'Total spent', span: 'col-span-3' },
+                ] as const
+              ).map(({ key, label, span }) => (
+                <div key={key} className={span}>
+                  <button
+                    onClick={() => toggleSort(key)}
+                    className={cn(
+                      'flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                      sortKey === key ? 'text-[#8B2E4A]' : 'text-stone-400 hover:text-stone-600'
+                    )}
+                  >
+                    {label}
+                    {sortKey === key && (
+                      <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {filtered.map((resident) => (
+              <button
+                key={resident.id}
+                onClick={() => router.push(`/residents/${resident.id}`)}
+                className="group w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0 text-left"
+              >
+                <div className="col-span-4 flex items-center gap-3">
+                  <Avatar name={resident.name} size="md" />
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate">{resident.name}</span>
+                    {resident.poaName && (
+                      <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[10.5px] font-semibold bg-rose-50 text-[#8B2E4A]">
+                        POA
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="col-span-2 text-[11.5px] text-stone-500 leading-snug">
+                  {resident.roomNumber ? `Room ${resident.roomNumber}` : '—'}
+                </div>
+                <div className="col-span-3 text-[11.5px] text-stone-500 leading-snug">
+                  {resident.lastVisit ? formatDate(resident.lastVisit) : 'Never'}
+                </div>
+                <div className="col-span-3 text-[13.5px] font-semibold text-stone-800">
+                  {resident.totalSpent > 0 ? formatCents(resident.totalSpent) : '—'}
+                </div>
+              </button>
             ))}
           </div>
 
-          {/* Rows */}
-          {filtered.map((resident) => (
-            <button
-              key={resident.id}
-              onClick={() => router.push(`/residents/${resident.id}`)}
-              className="group w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0 text-left"
-            >
-              <div className="col-span-4 flex items-center gap-3">
-                <Avatar name={resident.name} size="md" />
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate">{resident.name}</span>
-                  {resident.poaName && (
-                    <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[10.5px] font-semibold bg-rose-50 text-[#8B2E4A]">
-                      POA
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="col-span-2 text-[11.5px] text-stone-500 leading-snug">
-                {resident.roomNumber ? `Room ${resident.roomNumber}` : '—'}
-              </div>
-              <div className="col-span-3 text-[11.5px] text-stone-500 leading-snug">
-                {resident.lastVisit ? formatDate(resident.lastVisit) : 'Never'}
-              </div>
-              <div className="col-span-3 text-[13.5px] font-semibold text-stone-800">
-                {resident.totalSpent > 0 ? formatCents(resident.totalSpent) : '—'}
-              </div>
-            </button>
-          ))}
+          {/* ── MOBILE: card-per-row ── */}
+          <div className="md:hidden">
+            {(() => {
+              const showHeaders = sortKey === 'name' && sortDir === 'asc'
+              let lastLetter = ''
+              return filtered.flatMap((resident, idx) => {
+                const firstLetter = (resident.name.trim()[0] ?? '#').toUpperCase()
+                const emitHeader = showHeaders && firstLetter !== lastLetter
+                if (emitHeader) lastLetter = firstLetter
+                const subtitleParts: string[] = []
+                subtitleParts.push(resident.roomNumber ? `Room ${resident.roomNumber}` : 'No room')
+                if (resident.poaName) subtitleParts.push('POA on file')
+                const nodes: ReactNode[] = []
+                if (emitHeader) {
+                  nodes.push(
+                    <div
+                      key={`section-${firstLetter}`}
+                      className={cn(
+                        'sticky top-0 z-10 px-4 py-1.5 bg-white/90 backdrop-blur-sm border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide',
+                        idx === 0 && 'rounded-t-[18px]'
+                      )}
+                    >
+                      {firstLetter}
+                    </div>
+                  )
+                }
+                nodes.push(
+                  <button
+                    key={resident.id}
+                    onClick={() => router.push(`/residents/${resident.id}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-stone-100 last:border-0 hover:bg-[#F9EFF2] transition-colors duration-100 text-left"
+                  >
+                    <Avatar name={resident.name} size="md" className="!w-10 !h-10" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[15px] font-semibold text-stone-900 leading-snug break-words">
+                        {resident.name}
+                      </div>
+                      <div className="text-[12px] text-stone-500 leading-snug mt-0.5">
+                        {subtitleParts.join(' · ')}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {resident.lastVisit ? (
+                        <span className="text-[12px] text-stone-400">
+                          {new Date(resident.lastVisit).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-stone-100 text-stone-500">
+                          New
+                        </span>
+                      )}
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="text-stone-300"
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </div>
+                  </button>
+                )
+                return nodes
+              })
+            })()}
+          </div>
         </div>
       )}
     </div>
