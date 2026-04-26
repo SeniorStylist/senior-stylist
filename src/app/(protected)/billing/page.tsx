@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { BillingClient } from './billing-client'
 
 export default async function BillingPage() {
@@ -20,7 +20,7 @@ export default async function BillingPage() {
 
   const facilityUser = await getUserFacility(user.id)
 
-  if (!isMaster && (!facilityUser || facilityUser.role !== 'admin')) {
+  if (!isMaster && (!facilityUser || !canAccessBilling(facilityUser.role))) {
     redirect('/dashboard')
   }
 

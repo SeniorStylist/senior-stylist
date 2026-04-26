@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { payPeriods } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { desc, eq } from 'drizzle-orm'
 import { PayrollListClient, type PayPeriodSummary } from './payroll-list-client'
 
@@ -14,7 +14,7 @@ export default async function PayrollPage() {
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser || facilityUser.role !== 'admin') redirect('/dashboard')
+  if (!facilityUser || !canAccessPayroll(facilityUser.role)) redirect('/dashboard')
 
   let periods: PayPeriodSummary[] = []
   try {

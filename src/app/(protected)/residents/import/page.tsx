@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { ImportClient } from './import-client'
 
 export default async function ResidentsImportPage() {
@@ -12,6 +12,7 @@ export default async function ResidentsImportPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) redirect('/dashboard')
 
   return <ImportClient />
 }

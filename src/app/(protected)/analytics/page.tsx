@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { ReportsClient } from './reports-client'
 
 export default async function AnalyticsPage() {
@@ -14,7 +14,7 @@ export default async function AnalyticsPage() {
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser || facilityUser.role !== 'admin') redirect('/dashboard')
+  if (!facilityUser || !canAccessBilling(facilityUser.role)) redirect('/dashboard')
 
   const facility = await db.query.facilities.findFirst({
     where: eq(facilities.id, facilityUser.facilityId),

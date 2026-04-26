@@ -65,6 +65,15 @@
 - `isFacilityStaff(role)` → true for `facility_staff` only
 - Use these in route guards instead of bare `role !== 'admin'` whenever bookkeeper or facility_staff should be allowed. Other admin-only routes (services, stylists, invites, applicants, compliance, coverage, availability, super-admin, log/ocr) keep the bare `role !== 'admin'` guard — that already excludes the new roles.
 
+**Server-side page guards** (Phase 11J.1 fix — guards in `page.tsx`, OUTSIDE try/catch):
+- `/dashboard` → bookkeeper: redirect('/billing') (their home is billing, not the calendar)
+- `/billing`, `/analytics` → `!canAccessBilling(role)`: redirect('/dashboard')
+- `/payroll`, `/payroll/[id]` → `!canAccessPayroll(role)`: redirect('/dashboard')
+- `/settings` → `role === 'stylist' || role === 'viewer'`: redirect('/dashboard') — facility_staff + bookkeeper allowed
+- `/my-account` → `role !== 'stylist'`: redirect('/dashboard') — stylist-only page
+- `/residents/[id]` → `role === 'stylist'`: redirect('/dashboard')
+- `/residents/import`, `/services/import`, `/stylists/[id]` → non-admin/facility_staff (or non-admin for the latter two)
+
 **Sidebar nav structure** (`src/components/layout/sidebar.tsx`): four groups — SCHEDULING (Calendar / Residents / Daily Log) / MANAGEMENT (Stylists / Directory / Services) / FINANCIAL (Billing / Analytics / Payroll) / ACCOUNT (My Account, stylist-only). Settings + Master Admin render below a divider, after all groups, always last. The `Super Admin` nav label was renamed to `Master Admin` — the route is still `/super-admin`.
 - Portal routes (`/portal/*`) are PUBLIC — token = auth, no login required
 - Invoice routes (`/invoice/*`) are PUBLIC — printable pages

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, payPeriods } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { toClientJson } from '@/lib/sanitize'
 import { and, eq } from 'drizzle-orm'
@@ -21,7 +21,7 @@ export default async function PayrollDetailPage({
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser || facilityUser.role !== 'admin') redirect('/dashboard')
+  if (!facilityUser || !canAccessPayroll(facilityUser.role)) redirect('/dashboard')
 
   const row = await db.query.payPeriods.findFirst({
     where: and(eq(payPeriods.id, id), eq(payPeriods.facilityId, facilityUser.facilityId)),

@@ -22,6 +22,7 @@ export default async function ResidentDetailPage({
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (facilityUser.role === 'stylist') redirect('/dashboard')
 
   try {
   const resident = await db.query.residents.findFirst({

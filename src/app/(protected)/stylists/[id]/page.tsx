@@ -12,7 +12,7 @@ import {
   franchiseFacilities,
   profiles,
 } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, isAdminOrAbove } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
 import { eq, and, gte, lte, ne, desc } from 'drizzle-orm'
@@ -33,6 +33,7 @@ export default async function StylistDetailPage({
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (!isAdminOrAbove(facilityUser.role)) redirect('/dashboard')
 
   try {
   const franchise = await getUserFranchise(user.id)

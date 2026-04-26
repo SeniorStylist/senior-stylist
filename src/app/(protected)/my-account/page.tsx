@@ -24,6 +24,7 @@ export default async function MyAccountPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
+  if (facilityUser.role !== 'stylist') redirect('/dashboard')
 
   const profile = await db.query.profiles.findFirst({
     where: eq(profiles.id, user.id),

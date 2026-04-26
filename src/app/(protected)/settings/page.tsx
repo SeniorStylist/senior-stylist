@@ -17,7 +17,7 @@ export default async function SettingsPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  if (facilityUser.role !== 'admin') redirect('/dashboard')
+  if (facilityUser.role === 'stylist' || facilityUser.role === 'viewer') redirect('/dashboard')
 
   try {
   const [facility, connectedUsers, pendingRequests] = await Promise.all([
