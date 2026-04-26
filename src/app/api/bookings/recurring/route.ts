@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { bookings, services } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { createClient } from '@/lib/supabase/server'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 403 })
+    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await request.json()
     const parsed = recurringSchema.safeParse(body)

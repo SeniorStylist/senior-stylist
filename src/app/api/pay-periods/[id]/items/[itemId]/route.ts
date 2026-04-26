@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { payPeriods, stylistPayItems, payDeductions } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { computeNetPay } from '@/lib/payroll'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -32,7 +32,7 @@ export async function PUT(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') {
+    if (!canAccessPayroll(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

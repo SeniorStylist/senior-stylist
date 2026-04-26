@@ -23,9 +23,11 @@ interface ResidentWithStats extends Resident {
 interface ResidentsPageClientProps {
   residents: ResidentWithStats[]
   facilityId: string
+  role?: string
 }
 
-export function ResidentsPageClient({ residents: initialResidents, facilityId }: ResidentsPageClientProps) {
+export function ResidentsPageClient({ residents: initialResidents, facilityId, role = 'admin' }: ResidentsPageClientProps) {
+  const canEdit = role === 'admin' || role === 'super_admin' || role === 'facility_staff'
   const router = useRouter()
   const { toast } = useToast()
   const [residents, setResidents] = useState(initialResidents)
@@ -163,43 +165,49 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId }:
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowMerge(true)}
-            className="relative flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
-            title="Find duplicate residents"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="8" cy="12" r="4" />
-              <circle cx="16" cy="12" r="4" />
-            </svg>
-            Duplicates
-            {dupeCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                {dupeCount > 9 ? '9+' : dupeCount}
-              </span>
-            )}
-          </button>
-          <Link
-            href="/residents/import"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            Import
-          </Link>
-          <button
-            onClick={() => setShowAdd((v) => !v)}
-            className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
-            title="Add resident"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowMerge(true)}
+              className="relative flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+              title="Find duplicate residents"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="8" cy="12" r="4" />
+                <circle cx="16" cy="12" r="4" />
+              </svg>
+              Duplicates
+              {dupeCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {dupeCount > 9 ? '9+' : dupeCount}
+                </span>
+              )}
+            </button>
+          )}
+          {canEdit && (
+            <>
+              <Link
+                href="/residents/import"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Import
+              </Link>
+              <button
+                onClick={() => setShowAdd((v) => !v)}
+                className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
+                title="Add resident"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

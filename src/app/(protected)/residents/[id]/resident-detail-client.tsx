@@ -37,6 +37,7 @@ interface ResidentDetailClientProps {
   stats: ResidentStats
   preferredServiceName?: string | null
   facilityServices?: Service[]
+  role?: string
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -53,8 +54,10 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'No show',
 }
 
-export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [] }: ResidentDetailClientProps) {
+export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin' }: ResidentDetailClientProps) {
   const router = useRouter()
+  const isAdmin = role === 'admin' || role === 'super_admin'
+  const canEdit = isAdmin || role === 'facility_staff'
   const { toast } = useToast()
   const [resident, setResident] = useState(initialResident)
   const [editing, setEditing] = useState(false)
@@ -238,7 +241,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
             <div className="flex justify-between items-start mb-4">
               <Avatar name={resident.name} size="lg" />
-              {!editing && (
+              {!editing && canEdit && (
                 <button
                   onClick={() => setEditing(true)}
                   className="p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
@@ -411,8 +414,8 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
             )}
           </div>
 
-          {/* Family Portal */}
-          {(() => {
+          {/* Family Portal — admin-only (invite action) */}
+          {isAdmin && (() => {
             const inviteAt = resident.lastPortalInviteSentAt
               ? new Date(resident.lastPortalInviteSentAt)
               : null
@@ -454,23 +457,25 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
             )
           })()}
 
-          {/* Delete */}
-          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Danger zone</p>
-            {confirmDelete ? (
-              <div className="space-y-2">
-                <p className="text-xs text-stone-600">Remove this resident? This cannot be undone.</p>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</Button>
-                  <Button variant="danger" size="sm" loading={deleting} onClick={handleDelete}>Yes, remove</Button>
+          {/* Delete — admin or facility_staff */}
+          {canEdit && (
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Danger zone</p>
+              {confirmDelete ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-stone-600">Remove this resident? This cannot be undone.</p>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</Button>
+                    <Button variant="danger" size="sm" loading={deleting} onClick={handleDelete}>Yes, remove</Button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
-                Remove resident
-              </Button>
-            )}
-          </div>
+              ) : (
+                <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+                  Remove resident
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Booking history */}

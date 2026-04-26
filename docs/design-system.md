@@ -1141,8 +1141,31 @@ After the stylist name on the Stylists list (`/stylists`), a subtle badge render
 - **Contact section** (below phone numbers, admin-only, **always visible for admins**): Address as an `<input type="text">` with placeholder "123 Main St, City, State". Payment method as a `<select>` dropdown with options: Commission / Hourly / Flat Rate / Booth Rental (empty default "— select —"). Both use the standard field class: `w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 transition-all`. Both wired into `isDirty` and the single `handleSave → PUT /api/stylists/[id]` call.
 - **Schedule notes** (below Availability card): shown when `stylist.scheduleNotes` is set. Label: "Schedule notes (unmatched facilities)" (`text-[11px] font-semibold text-stone-400 uppercase tracking-wide`). Note text: `text-xs text-stone-500 italic`. Renders inside the Availability card's bottom padding area (not a separate card).
 
-### Franchise owner (super_admin) nav (bug fix 2026-04-15)
-Franchise owners have `facility_users.role = 'super_admin'` in the DB. `NavRole` in sidebar.tsx and mobile-nav.tsx only lists `'admin' | 'stylist' | 'viewer'`, so a raw `'super_admin'` value produces an empty sidebar. **Fix**: `getUserFacility()` normalizes `'super_admin'` → `'admin'` at read time; `layout.tsx` does the same normalization for `activeRole`. The sidebar and mobile nav do not need to change. Do NOT add `'super_admin'` to `NavRole` or navItem roles arrays — that would require updating every page guard and API guard. Normalize at the source instead.
+### Franchise owner (super_admin) nav (bug fix 2026-04-15, updated Phase 11J.1)
+Franchise owners have `facility_users.role = 'super_admin'` in the DB. `getUserFacility()` normalizes `'super_admin'` → `'admin'` at read time via `normalizeRole()`; `layout.tsx` does the same normalization for `activeRole`. As of Phase 11J.1, `NavRole` in sidebar.tsx, mobile-nav.tsx, and top-bar.tsx is the full union `'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'`, but the normalization still runs first so any per-item `roles: ['admin', ...]` array still applies to franchise owners. Continue normalizing at the source — do not duplicate `super_admin` in nav role arrays.
+
+### Sidebar nav structure (Phase 11J.1, 2026-04-26)
+Four nav groups under `<nav>`:
+- **SCHEDULING** — Calendar / Residents / Daily Log
+- **MANAGEMENT** — Stylists / Directory / Services
+- **FINANCIAL** — Billing / Analytics / Payroll  *(renamed from "ANALYTICS")*
+- **ACCOUNT** — My Account *(stylist-only group; group label hides for other roles since visibleItems is empty)*
+
+Below `</nav>`, a divider (`border-t border-white/10 mx-1 mb-2`) separates the always-last block:
+- **Settings** — visible to admin / facility_staff / bookkeeper
+- **Master Admin** — visible only to master admin email AND `!debugMode` (label renamed from "Super Admin"; route still `/super-admin`)
+
+Both Settings and Master Admin use the standard nav-link styling pattern (`bg-[#8B2E4A]/30 text-white font-semibold shadow-inner` when active, `text-white/70 hover:bg-white/5` otherwise). Settings shares the `SettingsIcon` constant defined at module level so the icon JSX isn't duplicated.
+
+### Invite role badge palette (Phase 11J.1)
+`src/app/(protected)/settings/settings-client.tsx` exposes two helpers at module level: `roleBadgeClass(role)` returns the tailwind classes for the invite role pill, and `roleBadgeLabel(role)` returns the display string. Palette:
+- `admin`, `super_admin` → `bg-[#fdf2f4] text-[#8B2E4A]` (burgundy tint)
+- `facility_staff` → `bg-blue-50 text-blue-700`
+- `bookkeeper` → `bg-emerald-50 text-emerald-700`
+- `viewer` → `bg-amber-50 text-amber-700` (legacy)
+- everything else (incl. `stylist`) → `bg-stone-100 text-stone-500`
+
+Use these helpers anywhere a role badge needs to render. The invite picker `<select>` shows: Admin / Facility Staff / Bookkeeper / Stylist (and "Super Admin (franchise)" only for `isSuperAdmin`). `viewer` is removed from the picker — legacy invites still render with the amber palette.
 
 ### Applicant Pipeline — Directory tab switcher (Phase 9.5, 2026-04-16)
 Directory page gains a segmented control at the top: `flex rounded-xl border border-stone-200 overflow-hidden bg-white w-fit mb-6`. Two buttons: "Stylists" and "Applicants". Active tab: `text-white` with `style={{ backgroundColor: '#8B2E4A' }}`. Inactive tab: `text-stone-600 hover:bg-stone-50`. The Applicants button shows a `•N` count pill when there are applicants (invisible when 0). Entire existing Stylists content wrapped in `{activeTab === 'stylists' && (<>...</>)}`. Floating bulk-action bar stays outside both tab conditions (driven by `selected.size > 0` which only applies in Stylists mode).

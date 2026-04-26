@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbInvoices } from '@/db/schema'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { sendEmail, buildResidentStatementHtml } from '@/lib/email'
 import { z } from 'zod'
@@ -46,7 +46,7 @@ export async function POST(
 
     if (!isMaster) {
       const fu = await getUserFacility(user.id)
-      if (!fu || fu.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+      if (!fu || !canAccessBilling(fu.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
       if (fu.facilityId !== resident.facilityId) return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

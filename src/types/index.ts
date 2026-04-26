@@ -13,7 +13,13 @@ export interface PricingOption {
 
 export type UserRole = 'admin' | 'stylist' | 'viewer'
 export type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
-export type FacilityUserRole = 'admin' | 'stylist' | 'viewer'
+export type FacilityUserRole =
+  | 'admin'
+  | 'super_admin'
+  | 'facility_staff'
+  | 'bookkeeper'
+  | 'stylist'
+  | 'viewer'
 export type StylistStatus = 'active' | 'inactive' | 'on_leave' | 'terminated'
 
 export interface Profile {

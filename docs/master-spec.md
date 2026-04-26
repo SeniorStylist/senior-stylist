@@ -33,8 +33,8 @@
 
 ### Types (`src/types/index.ts`)
 
-- **`UserRole`**: `’admin’ | ‘stylist’ | ‘viewer’` — used for **profile** typing.
-- **`FacilityUserRole`**: `’admin’ | ‘stylist’` — TypeScript type for facility-scoped roles (the **`facility_users.role`** column is plain `text` in Drizzle; the UI also recognizes **`viewer`** and **`super_admin`** for navigation).
+- **`UserRole`**: `'admin' | 'stylist' | 'viewer'` — used for **profile** typing.
+- **`FacilityUserRole`** (Phase 11J.1): `'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'` — TypeScript union for facility-scoped roles. The **`facility_users.role`** column is plain `text` in Drizzle (no CHECK constraint), so no DB migration was needed when the union expanded.
 
 ### Facility membership (`facility_users`)
 
@@ -53,19 +53,26 @@
 
 ### Navigation (primary UX contract) — `src/components/layout/sidebar.tsx`
 
-| Area | `admin` | `stylist` | `viewer` |
-|------|---------|-----------|----------|
-| **Calendar** (`/dashboard`) | ✓ | ✓ | ✓ |
-| **Residents** (`/residents`) | ✓ | — | ✓ |
-| **Stylists** (`/stylists`) | ✓ | — | — |
-| **Services** (`/services`) | ✓ | — | — |
-| **Daily Log** (`/log`) | ✓ | ✓ | — |
-| **Reports** (`/reports`) | ✓ | — | — |
-| **Settings** (`/settings`) | ✓ | — | — |
-| **My Account** (`/my-account`) | ✓ | ✓ | ✓ |
+Sidebar renders four nav groups (SCHEDULING / MANAGEMENT / FINANCIAL / ACCOUNT) plus a divider followed by Settings + Master Admin (always last). The "Super Admin" sidebar label was renamed to **"Master Admin"** in Phase 11J.1 — the route is still `/super-admin`.
 
-- Users with role **`viewer`** see a **”View Only”** badge in the sidebar.
-- **`/reports`** server page redirects non-admins to **`/dashboard`** (`src/app/(protected)/reports/page.tsx`).
+| Area | admin | facility_staff | bookkeeper | stylist |
+|------|-------|----------------|------------|---------|
+| **Calendar** (`/dashboard`) | ✓ | ✓ | — | ✓ |
+| **Residents** (`/residents`) | ✓ | ✓ | — | — |
+| **Daily Log** (`/log`) | ✓ | ✓ (read-only) | ✓ (read-only) | ✓ (own entries) |
+| **Stylists** (`/stylists`) | ✓ | — | — | — |
+| **Directory** (`/stylists/directory`) | ✓ | — | — | — |
+| **Services** (`/services`) | ✓ | — | — | — |
+| **Billing** (`/billing`) | ✓ | — | ✓ | — |
+| **Analytics** (`/analytics`) | ✓ | — | ✓ | — |
+| **Payroll** (`/payroll`) | ✓ | — | ✓ | — |
+| **My Account** (`/my-account`) | — | — | — | ✓ |
+| **Settings** (`/settings`) | ✓ | ✓ | ✓ | — |
+| **Master Admin** (`/super-admin`) | (master email only, hidden in debug mode) |
+
+- `super_admin` is normalized to `admin` by `getUserFacility()` so it inherits all admin nav.
+- `viewer` is a legacy role kept in the type union but no longer offered in the invite picker; it appears in no nav row.
+- **`/reports`** server page still redirects non-admins to **`/dashboard`** (`src/app/(protected)/reports/page.tsx`).
 
 ### Route-level guards (server page components, OUTSIDE try/catch)
 
@@ -89,14 +96,26 @@
 
 ### API enforcement (explicit checks in code)
 
-These routes require **`facility_users.role === 'admin'`**:
+**Phase 11J.1 helper functions** (`src/lib/get-facility-id.ts`) — use these instead of bare `role !== 'admin'` when bookkeeper or facility_staff should be allowed:
+- `isAdminOrAbove(role)` — `admin`, `super_admin`
+- `canAccessBilling(role)` — `admin`, `super_admin`, `bookkeeper`
+- `canAccessPayroll(role)` — `admin`, `super_admin`, `bookkeeper`
+- `isFacilityStaff(role)` — `facility_staff`
 
-- `PUT /api/facility` — update facility settings (including `payment_type`, calendar id, timezone).
-- `GET` / `POST /api/invites`, `DELETE /api/invites/[id]`.
-- `GET /api/reports/invoice`.
-- `POST /api/reports/mark-paid`.
+**Routes that allow `bookkeeper` via `canAccessBilling` / `canAccessPayroll`** (Phase 11J.1):
+- `/api/billing/*` (summary, scan-check, save-check-payment, send-statement/*, unresolved, unresolved-count)
+- `/api/facilities/[facilityId]/rev-share`
+- `/api/reports/invoice`, `/api/reports/mark-paid`
+- `/api/export/bookkeeper`
+- `/api/pay-periods/*` (all routes including items + deductions + export)
+- `/api/quickbooks/*` (connect, disconnect, accounts, sync-vendors, sync-bill, sync-status)
 
-Many other authenticated routes only require a valid **facility user** and **do not** check `viewer` vs `stylist` for write operations — authorization for those roles is primarily expressed in **navigation and page-level** behavior.
+**Routes that allow `facility_staff` via positive guard** (Phase 11J.1):
+- `POST /api/bookings`, `PUT /api/bookings/[id]`, `DELETE /api/bookings/[id]`, `POST /api/bookings/recurring` — admin OR facility_staff OR stylist (existing stylist-self check on PUT preserved at line 94-98)
+- `POST /api/residents`, `PUT /api/residents/[id]`, `DELETE /api/residents/[id]` — admin OR facility_staff
+- `GET /api/residents`, `GET /api/residents/[id]` — unchanged (any facility user, including bookkeeper)
+
+**Routes that stay strict admin-only**: services (`/api/services/*`), stylists (`/api/stylists/*`), invites (`/api/invites/*`), applicants (`/api/applicants/*`), compliance (`/api/compliance/*`), coverage (`/api/coverage/*`), availability (`/api/availability/*`), super-admin (`/api/super-admin/*`), access-requests (`/api/access-requests/*`), facility (`/api/facility/*`), `/api/log/ocr/*`, portal admin (`/api/portal/create-magic-link`, `/api/portal/send-invite`), `/api/stylists/[id]/invite`. Their existing `role !== 'admin'` guards already exclude `facility_staff`, `bookkeeper`, and `viewer` — no changes needed.
 
 ### Special cases
 

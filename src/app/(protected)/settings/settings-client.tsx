@@ -51,6 +51,29 @@ const TIMEZONES = [
 
 type Tab = 'general' | 'integrations' | 'payments' | 'team' | 'invites' | 'access-requests' | 'new-facility'
 
+function roleBadgeClass(role: string | null | undefined): string {
+  switch (role) {
+    case 'admin': return 'bg-[#fdf2f4] text-[#8B2E4A]'
+    case 'super_admin': return 'bg-[#fdf2f4] text-[#8B2E4A]'
+    case 'facility_staff': return 'bg-blue-50 text-blue-700'
+    case 'bookkeeper': return 'bg-emerald-50 text-emerald-700'
+    case 'viewer': return 'bg-amber-50 text-amber-700'
+    default: return 'bg-stone-100 text-stone-500'
+  }
+}
+
+function roleBadgeLabel(role: string | null | undefined): string {
+  switch (role) {
+    case 'admin': return 'admin'
+    case 'super_admin': return 'super admin'
+    case 'facility_staff': return 'facility staff'
+    case 'bookkeeper': return 'bookkeeper'
+    case 'stylist': return 'stylist'
+    case 'viewer': return 'viewer'
+    default: return role || 'stylist'
+  }
+}
+
 interface InviteData {
   id: string
   email: string
@@ -1073,12 +1096,13 @@ export function SettingsClient({
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="w-32 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
+              className="w-40 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
             >
               <option value="admin">Admin</option>
+              <option value="facility_staff">Facility Staff</option>
+              <option value="bookkeeper">Bookkeeper</option>
               <option value="stylist">Stylist</option>
-              <option value="viewer">Viewer</option>
-              {isSuperAdmin && <option value="super_admin">Super Admin</option>}
+              {isSuperAdmin && <option value="super_admin">Super Admin (franchise)</option>}
             </select>
             <button
               onClick={handleSendInvite}
@@ -1110,14 +1134,10 @@ export function SettingsClient({
                         <span
                           className={cn(
                             'ml-2 text-xs font-medium px-2 py-0.5 rounded-full',
-                            invite.inviteRole === 'admin'
-                              ? 'bg-[#fdf2f4] text-[#8B2E4A]'
-                              : invite.inviteRole === 'viewer'
-                                ? 'bg-amber-50 text-amber-700'
-                                : 'bg-stone-100 text-stone-500'
+                            roleBadgeClass(invite.inviteRole)
                           )}
                         >
-                          {invite.inviteRole || 'stylist'}
+                          {roleBadgeLabel(invite.inviteRole)}
                         </span>
                         {isExpired && (
                           <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">
@@ -1186,14 +1206,10 @@ export function SettingsClient({
                         <span
                           className={cn(
                             'ml-2 text-xs font-medium px-2 py-0.5 rounded-full',
-                            invite.inviteRole === 'admin'
-                              ? 'bg-[#fdf2f4] text-[#8B2E4A]'
-                              : invite.inviteRole === 'viewer'
-                                ? 'bg-amber-50 text-amber-700'
-                                : 'bg-stone-100 text-stone-500'
+                            roleBadgeClass(invite.inviteRole)
                           )}
                         >
-                          {invite.inviteRole || 'stylist'}
+                          {roleBadgeLabel(invite.inviteRole)}
                         </span>
                       </p>
                       <p className="text-xs text-stone-400">

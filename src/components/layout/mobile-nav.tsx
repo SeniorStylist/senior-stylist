@@ -5,13 +5,13 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
-type NavRole = 'admin' | 'stylist' | 'viewer'
+type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
 const navItems: { href: string; label: string; icon: React.ReactNode; roles: NavRole[] }[] = [
   {
     href: '/dashboard',
     label: 'Calendar',
-    roles: ['admin', 'stylist', 'viewer'],
+    roles: ['admin', 'facility_staff', 'stylist'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -24,7 +24,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/log',
     label: 'Log',
-    roles: ['admin', 'stylist'],
+    roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -49,7 +49,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/residents',
     label: 'Residents',
-    roles: ['admin', 'viewer'],
+    roles: ['admin', 'facility_staff'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
@@ -62,7 +62,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/analytics',
     label: 'Analytics',
-    roles: ['admin'],
+    roles: ['admin', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="18" y1="20" x2="18" y2="10"/>
@@ -74,7 +74,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/payroll',
     label: 'Payroll',
-    roles: ['admin'],
+    roles: ['admin', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -86,7 +86,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/settings',
     label: 'Settings',
-    roles: ['admin'],
+    roles: ['admin', 'facility_staff', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="12" cy="12" r="3"/>

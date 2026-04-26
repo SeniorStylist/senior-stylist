@@ -57,6 +57,7 @@ interface LogClientProps {
   services: Service[]
   stylistFilter?: string | null
   serviceCategoryOrder?: string[] | null
+  role?: string
 }
 
 // Round a date to nearest 30 min
@@ -105,8 +106,11 @@ export function LogClient({
   services,
   stylistFilter,
   serviceCategoryOrder,
+  role = 'admin',
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
+  // facility_staff and bookkeeper are read-only on the daily log
+  const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist'
   const [date, setDate] = useState(initialDate)
   const [bookings, setBookings] = useState(initialBookings)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
@@ -805,7 +809,7 @@ export function LogClient({
               </svg>
             }
             title={isToday ? 'No appointments today' : 'No appointments scheduled for this day'}
-            cta={isToday ? { label: '+ Add Walk-in', onClick: () => setShowWalkIn(true) } : undefined}
+            cta={isToday && canWrite ? { label: '+ Add Walk-in', onClick: () => setShowWalkIn(true) } : undefined}
           />
         </div>
       )}
@@ -860,7 +864,7 @@ export function LogClient({
                   </svg>
                   Finalized
                 </span>
-              ) : confirmFinalizeId === stylist.id ? (
+              ) : !canWrite ? null : confirmFinalizeId === stylist.id ? (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-stone-500">Finalize?</span>
                   <Button
@@ -897,7 +901,7 @@ export function LogClient({
                   const isCancelled = booking.status === 'cancelled'
                   const isUpdating = updatingId === booking.id
                   const isEditing = editingBookingId === booking.id
-                  const canEdit = !isCancelled && !isFinalized && (!stylistFilter || booking.stylist.id === stylistFilter)
+                  const canEdit = canWrite && !isCancelled && !isFinalized && (!stylistFilter || booking.stylist.id === stylistFilter)
 
                   return (
                     <div
@@ -1132,13 +1136,15 @@ export function LogClient({
                     ? `Finalized ${new Date(logEntry.finalizedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
                     : 'Finalized'}
                 </p>
-                <button
-                  onClick={() => handleUnfinalize(stylist.id)}
-                  disabled={unfinalizingId === stylist.id}
-                  className="text-xs text-stone-400 hover:text-stone-600 font-medium hover:underline disabled:opacity-40 transition-colors"
-                >
-                  {unfinalizingId === stylist.id ? 'Undoing…' : 'Unfinalize'}
-                </button>
+                {canWrite && (
+                  <button
+                    onClick={() => handleUnfinalize(stylist.id)}
+                    disabled={unfinalizingId === stylist.id}
+                    className="text-xs text-stone-400 hover:text-stone-600 font-medium hover:underline disabled:opacity-40 transition-colors"
+                  >
+                    {unfinalizingId === stylist.id ? 'Undoing…' : 'Unfinalize'}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1149,7 +1155,7 @@ export function LogClient({
       )}{/* end body wrapper */}
 
       {/* Mobile footer bar — pinned above nav bar */}
-      {!showWalkIn && (
+      {!showWalkIn && canWrite && (
         <div
           className="md:hidden fixed left-0 right-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
           style={{ bottom: '72px', paddingTop: '8px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
@@ -1179,7 +1185,7 @@ export function LogClient({
       )}
 
       {/* Desktop inline buttons */}
-      {!showWalkIn && (
+      {!showWalkIn && canWrite && (
         <div className="hidden md:flex gap-2 mt-4">
           <button
             onClick={() => setOcrOpen(true)}

@@ -69,9 +69,9 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Email is required' }, { status: 422 })
     }
 
-    const validRoles = ['admin', 'stylist', 'viewer']
+    const validRoles = ['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist']
     if (inviteRole && !validRoles.includes(inviteRole)) {
-      return Response.json({ error: 'Invalid role. Must be admin, stylist, or viewer' }, { status: 422 })
+      return Response.json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }, { status: 422 })
     }
 
     const normalizedEmail = email.toLowerCase().trim()

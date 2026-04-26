@@ -8,9 +8,27 @@ import { and, eq } from 'drizzle-orm'
  * work uniformly for franchise owners without touching every call site.
  * The Super Admin page/link is gated by NEXT_PUBLIC_SUPER_ADMIN_EMAIL
  * (email match), not by role, so this normalization is safe.
+ *
+ * `facility_staff` and `bookkeeper` (Phase 11J.1) are passed through
+ * unchanged — they are first-class roles, not aliases.
  */
 function normalizeRole<T extends { role: string }>(fu: T): T {
   return fu.role === 'super_admin' ? { ...fu, role: 'admin' } : fu
+}
+
+// Role helpers (Phase 11J.1). `super_admin` is accepted defensively even though
+// `normalizeRole` rewrites it to 'admin' before route handlers see the role.
+export function isAdminOrAbove(role: string): boolean {
+  return role === 'admin' || role === 'super_admin'
+}
+export function canAccessBilling(role: string): boolean {
+  return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
+}
+export function canAccessPayroll(role: string): boolean {
+  return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
+}
+export function isFacilityStaff(role: string): boolean {
+  return role === 'facility_staff'
 }
 
 /**

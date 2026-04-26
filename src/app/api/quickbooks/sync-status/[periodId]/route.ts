@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, payPeriods, stylistPayItems } from '@/db/schema'
 import { and, eq, isNotNull } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { qbGet } from '@/lib/quickbooks'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { revalidateTag } from 'next/cache'
@@ -28,7 +28,7 @@ export async function POST(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') {
+    if (!canAccessPayroll(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

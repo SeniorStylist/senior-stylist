@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services, profiles } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { eq, and, lt, gt, or, ne, gte, count, desc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -83,6 +83,9 @@ export async function PUT(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const { facilityId } = facilityUser
 
     // Load current booking
@@ -419,6 +422,9 @@ export async function DELETE(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const { facilityId } = facilityUser
 
     const existing = await db.query.bookings.findFirst({

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
-type NavRole = 'admin' | 'stylist' | 'viewer'
+type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
 interface TopBarProps {
   facilityName?: string
@@ -14,9 +14,9 @@ interface TopBarProps {
 }
 
 const TABS: { href: string; label: string; roles: NavRole[] }[] = [
-  { href: '/dashboard', label: 'Calendar', roles: ['admin', 'stylist', 'viewer'] },
-  { href: '/residents', label: 'Residents', roles: ['admin', 'viewer'] },
-  { href: '/log', label: 'Daily Log', roles: ['admin', 'stylist'] },
+  { href: '/dashboard', label: 'Calendar', roles: ['admin', 'facility_staff', 'stylist'] },
+  { href: '/residents', label: 'Residents', roles: ['admin', 'facility_staff'] },
+  { href: '/log', label: 'Daily Log', roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'] },
 ]
 
 export function TopBar({ facilityName, facilityCode, role = 'admin' }: TopBarProps) {

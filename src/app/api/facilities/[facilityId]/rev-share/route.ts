@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
@@ -30,7 +30,7 @@ export async function PATCH(
 
   if (!isMaster) {
     const fu = await getUserFacility(user.id)
-    if (!fu || fu.role !== 'admin') {
+    if (!fu || !canAccessBilling(fu.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (fu.facilityId !== facilityId) {

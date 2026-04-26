@@ -13,10 +13,17 @@ interface DebugTabProps {
   facilities: Facility[]
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Admin',
+  facility_staff: 'Facility Staff',
+  bookkeeper: 'Bookkeeper',
+  stylist: 'Stylist',
+}
+
 export function DebugTab({ facilities }: DebugTabProps) {
   const router = useRouter()
   const [selectedId, setSelectedId] = useState('')
-  const [loading, setLoading] = useState<'admin' | 'stylist' | null>(null)
+  const [loading, setLoading] = useState<'admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | null>(null)
   const [currentDebug, setCurrentDebug] = useState<{ role: string; facilityName: string } | null>(null)
 
   const eligible = facilities.filter((f) => f.facilityCode)
@@ -37,7 +44,7 @@ export function DebugTab({ facilities }: DebugTabProps) {
 
   const selected = eligible.find((f) => f.id === selectedId)
 
-  const handleImpersonate = async (role: 'admin' | 'stylist') => {
+  const handleImpersonate = async (role: 'admin' | 'facility_staff' | 'bookkeeper' | 'stylist') => {
     if (!selected) return
     setLoading(role)
     try {
@@ -65,8 +72,10 @@ export function DebugTab({ facilities }: DebugTabProps) {
     window.open(`/family/${encodeURIComponent(selected.facilityCode)}`, '_blank')
   }
 
-  const rows: { role: 'admin' | 'stylist' | 'portal'; label: string; desc: string }[] = [
+  const rows: { role: 'admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'portal'; label: string; desc: string }[] = [
     { role: 'admin', label: 'Admin View', desc: 'Full admin access — residents, billing, settings, reports' },
+    { role: 'facility_staff', label: 'Facility Staff View', desc: 'Scheduling and resident management; no billing/payroll' },
+    { role: 'bookkeeper', label: 'Bookkeeper View', desc: 'Billing, payments, payroll; read-only residents/log' },
     { role: 'stylist', label: 'Stylist View', desc: 'Calendar + daily log only; no residents or billing' },
     { role: 'portal', label: 'Family Portal', desc: 'Opens the family portal in a new tab (no impersonation cookie)' },
   ]
@@ -81,7 +90,7 @@ export function DebugTab({ facilities }: DebugTabProps) {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
               <span className="text-sm font-semibold text-amber-800">
-                {currentDebug.role === 'admin' ? 'Admin' : 'Stylist'} · {currentDebug.facilityName}
+                {ROLE_LABEL[currentDebug.role] ?? currentDebug.role} · {currentDebug.facilityName}
               </span>
             </div>
             <button

@@ -3,7 +3,7 @@ import { db } from '@/db'
 import { qbUnresolvedPayments } from '@/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
     const facilityUser = await getUserFacility(user.id)
-    if (!isMaster && (!facilityUser || facilityUser.role !== 'admin')) {
+    if (!isMaster && (!facilityUser || !canAccessBilling(facilityUser.role))) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

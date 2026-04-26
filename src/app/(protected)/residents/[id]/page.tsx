@@ -101,6 +101,7 @@ export default async function ResidentDetailPage({
       stats={stats}
       preferredServiceName={preferredServiceName}
       facilityServices={toClientJson(facilityServices)}
+      role={facilityUser.role}
     />
   )
   } catch (err) {

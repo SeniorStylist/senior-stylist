@@ -8,7 +8,7 @@ import {
   bookings,
   franchiseFacilities,
 } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { resolveCommission } from '@/lib/stylist-commission'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, eq, desc, gte, lt, inArray } from 'drizzle-orm'
@@ -43,7 +43,7 @@ export async function GET() {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') {
+    if (!canAccessPayroll(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') {
+    if (!canAccessPayroll(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

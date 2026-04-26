@@ -3,7 +3,7 @@ import { createStorageClient } from '@/lib/supabase/storage'
 import { db } from '@/db'
 import { facilities, residents, qbInvoices, scanCorrections } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { fuzzyBestMatch, fuzzyScore, normalizeWords } from '@/lib/fuzzy'
 import { NextRequest } from 'next/server'
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
       user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
     const facilityUser = await getUserFacility(user.id)
-    if (!isMaster && (!facilityUser || facilityUser.role !== 'admin')) {
+    if (!isMaster && (!facilityUser || !canAccessBilling(facilityUser.role))) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

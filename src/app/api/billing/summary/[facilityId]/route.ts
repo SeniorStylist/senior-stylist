@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
 import { and, desc, eq, gte, lte } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function GET(
 
   if (!isMaster) {
     const fu = await getUserFacility(user.id)
-    if (!fu || fu.role !== 'admin') {
+    if (!fu || !canAccessBilling(fu.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (fu.facilityId !== facilityId) {

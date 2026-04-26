@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 const schema = z.object({
-  role: z.enum(['admin', 'stylist']),
+  role: z.enum(['admin', 'facility_staff', 'bookkeeper', 'stylist']),
   facilityId: z.string().uuid(),
   facilityName: z.string().max(200),
 })

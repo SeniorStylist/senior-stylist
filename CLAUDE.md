@@ -50,17 +50,22 @@
 - Always run `npx tsc --noEmit` before committing — fix all errors first
 
 ### Auth & Roles
-- `role 'admin'` — full access to everything
-- `role 'stylist'` — calendar, log, own earnings only; no reports, no settings
-- `role 'viewer'` — read-only, no edits
-- `role 'super_admin'` — franchise owner; scoped to only the facilities in their franchise (via `franchises` + `franchise_facilities` tables)
-  - Facility switcher in `layout.tsx` filters to franchise facilities only
-  - Assigned via `facility_users.role = 'super_admin'` by master admin
-  - **`getUserFacility()` normalizes `'super_admin'` → `'admin'` at read time** so all page guards, API guards, and nav filters work correctly without touching every call site
-  - Normalization is in `src/lib/get-facility-id.ts` (`normalizeRole()` helper)
-  - `layout.tsx` also normalizes `activeRole` independently since it queries `facilityUsers` directly
-  - The Super Admin page and link remain gated by `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` email match (not role)
-- Super admin (master admin) bypasses all checks via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` env var
+- `role 'admin'` — full facility access
+- `role 'super_admin'` — franchise owner; scoped to only the facilities in their franchise. **Normalized to `'admin'` by `normalizeRole()` at `getUserFacility()` read time** so all page guards, API guards, and nav filters work uniformly. The Master Admin page/link remains gated by `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` email match (not role).
+- `role 'facility_staff'` (Phase 11J.1) — scheduling and resident management; NO billing/payroll/analytics. Sees Calendar / Residents / Daily Log (read-only) / Settings.
+- `role 'bookkeeper'` (Phase 11J.1) — billing + payroll + analytics; READ-ONLY on residents and daily log. Sees Daily Log (read-only) / Billing / Analytics / Payroll / Settings.
+- `role 'stylist'` — calendar, daily log (own entries), my account only; no residents, no billing.
+- `role 'viewer'` — legacy read-only role. Kept in the type union for backward compat; **no longer offered in the invite picker**.
+- Master admin email bypasses all role checks via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` env var.
+
+**Role helper functions** (`src/lib/get-facility-id.ts`, Phase 11J.1):
+- `isAdminOrAbove(role)` → true for `admin`, `super_admin`
+- `canAccessBilling(role)` → true for `admin`, `super_admin`, `bookkeeper` (use on `/api/billing/*`, statement send, scan-check, reports, rev-share, bookkeeper export)
+- `canAccessPayroll(role)` → true for `admin`, `super_admin`, `bookkeeper` (use on `/api/pay-periods/*`, `/api/quickbooks/*`)
+- `isFacilityStaff(role)` → true for `facility_staff` only
+- Use these in route guards instead of bare `role !== 'admin'` whenever bookkeeper or facility_staff should be allowed. Other admin-only routes (services, stylists, invites, applicants, compliance, coverage, availability, super-admin, log/ocr) keep the bare `role !== 'admin'` guard — that already excludes the new roles.
+
+**Sidebar nav structure** (`src/components/layout/sidebar.tsx`): four groups — SCHEDULING (Calendar / Residents / Daily Log) / MANAGEMENT (Stylists / Directory / Services) / FINANCIAL (Billing / Analytics / Payroll) / ACCOUNT (My Account, stylist-only). Settings + Master Admin render below a divider, after all groups, always last. The `Super Admin` nav label was renamed to `Master Admin` — the route is still `/super-admin`.
 - Portal routes (`/portal/*`) are PUBLIC — token = auth, no login required
 - Invoice routes (`/invoice/*`) are PUBLIC — printable pages
 - Franchise system: `franchises` table (id, name, owner_user_id → profiles). `franchise_facilities` join table (franchise_id, facility_id, CASCADE on both). When a franchise is created/updated, `facilityUsers` rows are upserted for the owner with `role='super_admin'` on all franchise facilities

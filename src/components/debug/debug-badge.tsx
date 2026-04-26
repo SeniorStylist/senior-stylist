@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from 'react'
 
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Admin',
+  facility_staff: 'Facility Staff',
+  bookkeeper: 'Bookkeeper',
+  stylist: 'Stylist',
+}
+
 export function DebugBadge() {
   const [debug, setDebug] = useState<{ role: string; facilityName: string } | null>(null)
 
@@ -23,7 +30,7 @@ export function DebugBadge() {
     <div className="fixed top-4 right-4 z-[200] flex items-center gap-2 bg-amber-400 text-amber-950 text-xs font-bold px-3 py-2 rounded-2xl shadow-xl border-2 border-amber-500">
       <span className="text-amber-800 text-[10px] font-semibold uppercase tracking-wide">Debug</span>
       <span className="font-bold">
-        {debug.role === 'admin' ? 'Admin' : 'Stylist'} · {debug.facilityName}
+        {ROLE_LABEL[debug.role] ?? debug.role} · {debug.facilityName}
       </span>
       <button
         onClick={handleReset}
