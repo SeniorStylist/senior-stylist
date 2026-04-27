@@ -8,6 +8,8 @@ export interface BillingFacility {
   revSharePercentage: number | null
   contactEmail: string | null
   address: string | null
+  hasQuickBooks: boolean
+  qbInvoicesLastSyncedAt: string | null
 }
 
 export interface BillingResident {

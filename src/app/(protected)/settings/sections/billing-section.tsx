@@ -7,9 +7,10 @@ import type { PublicFacility } from '@/lib/sanitize'
 
 interface Props {
   facility: PublicFacility
+  qbInvoiceSyncEnabled: boolean
 }
 
-export function BillingSection({ facility }: Props) {
+export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -28,6 +29,11 @@ export function BillingSection({ facility }: Props) {
   const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [qbConfirmDisconnect, setQbConfirmDisconnect] = useState(false)
   const [qbDisconnecting, setQbDisconnecting] = useState(false)
+
+  const qbInvoicesLastSyncedAt =
+    (facility as { qbInvoicesLastSyncedAt?: string | null }).qbInvoicesLastSyncedAt ?? null
+  const [qbInvoiceSyncing, setQbInvoiceSyncing] = useState(false)
+  const [qbInvoiceConfirmFull, setQbInvoiceConfirmFull] = useState(false)
 
   function showQbToast(kind: 'ok' | 'err', text: string) {
     setQbToast({ kind, text })
@@ -85,6 +91,31 @@ export function BillingSection({ facility }: Props) {
       showQbToast(errors.length > 0 ? 'err' : 'ok', `Vendors: ${bits.join(', ')}`)
     } finally {
       setQbSyncing(false)
+    }
+  }
+
+  async function handleQbInvoiceSync(fullSync: boolean) {
+    if (qbInvoiceSyncing) return
+    setQbInvoiceSyncing(true)
+    try {
+      const res = await fetch(`/api/quickbooks/sync-invoices/${facility.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullSync }),
+      })
+      const j = await res.json()
+      if (!res.ok) {
+        showQbToast('err', j.error ?? 'Invoice sync failed')
+        return
+      }
+      const { created, updated, skipped, errors } = j.data
+      const bits = [`${created} created`, `${updated} updated`, `${skipped} unchanged`]
+      if (errors.length > 0) bits.push(`${errors.length} error(s)`)
+      showQbToast(errors.length > 0 ? 'err' : 'ok', `Invoices: ${bits.join(', ')}`)
+      router.refresh()
+    } finally {
+      setQbInvoiceSyncing(false)
+      setQbInvoiceConfirmFull(false)
     }
   }
 
@@ -313,9 +344,86 @@ export function BillingSection({ facility }: Props) {
                 </div>
               )}
             </div>
+
+            <div className="border-t border-stone-100 pt-4 mt-4">
+              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
+                Invoice Sync
+              </h3>
+              {!qbInvoiceSyncEnabled ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                  Invoice sync coming soon — awaiting Intuit production approval.
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-stone-500 mb-3">
+                    Last synced:{' '}
+                    {qbInvoicesLastSyncedAt
+                      ? new Date(qbInvoicesLastSyncedAt).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })
+                      : 'never'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleQbInvoiceSync(false)}
+                      disabled={qbInvoiceSyncing}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
+                    >
+                      {qbInvoiceSyncing ? 'Syncing…' : 'Sync now'}
+                    </button>
+                    <button
+                      onClick={() => setQbInvoiceConfirmFull(true)}
+                      disabled={qbInvoiceSyncing}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 transition-all disabled:opacity-50"
+                    >
+                      Full re-sync
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {qbInvoiceConfirmFull && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3
+              className="text-xl text-stone-900 mb-2"
+              style={{ fontFamily: 'DM Serif Display, serif' }}
+            >
+              Full re-sync
+            </h3>
+            <p className="text-sm text-stone-600 mb-5">
+              This will re-import all invoices from QuickBooks and ignore the incremental sync
+              cursor. Continue?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setQbInvoiceConfirmFull(false)}
+                disabled={qbInvoiceSyncing}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQbInvoiceSync(true)}
+                disabled={qbInvoiceSyncing}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] disabled:opacity-50"
+              >
+                {qbInvoiceSyncing ? 'Running…' : 'Run full re-sync'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stripe card */}
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)] space-y-4">

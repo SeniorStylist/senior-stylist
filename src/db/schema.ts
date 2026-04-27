@@ -43,6 +43,8 @@ export const facilities = pgTable('facilities', {
   qbRefreshToken: text('qb_refresh_token'),
   qbTokenExpiresAt: timestamp('qb_token_expires_at', { withTimezone: true }),
   qbExpenseAccountId: text('qb_expense_account_id'),
+  qbInvoicesLastSyncedAt: timestamp('qb_invoices_last_synced_at', { withTimezone: true }),
+  qbInvoicesSyncCursor: text('qb_invoices_sync_cursor'),
   workingHours: jsonb('working_hours').$type<{
     days: string[]
     startTime: string
@@ -505,6 +507,7 @@ export const qbInvoices = pgTable('qb_invoices', {
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
   dedupIdx: uniqueIndex('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId),
+  qbIdIdx: index('qb_invoices_qb_id_idx').on(t.qbInvoiceId).where(sql`qb_invoice_id IS NOT NULL`),
 }))
 
 export const qbPayments = pgTable('qb_payments', {

@@ -48,6 +48,8 @@ export interface Facility {
   qbRefreshToken: string | null
   qbTokenExpiresAt: string | null
   qbExpenseAccountId: string | null
+  qbInvoicesLastSyncedAt: string | null
+  qbInvoicesSyncCursor: string | null
   workingHours: { days: string[]; startTime: string; endTime: string } | null
   contactEmail: string | null
   serviceCategoryOrder: string[] | null

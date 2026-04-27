@@ -82,6 +82,7 @@ export default async function SettingsPage() {
       role={facilityUser.role}
       pendingRequestsCount={pendingRequests.length}
       adminEmail={process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? null}
+      qbInvoiceSyncEnabled={process.env.QB_INVOICE_SYNC_ENABLED === 'true'}
     />
   )
   } catch (err) {

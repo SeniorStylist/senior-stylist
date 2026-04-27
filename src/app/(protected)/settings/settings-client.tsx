@@ -20,6 +20,7 @@ interface SettingsClientProps {
   role: string
   pendingRequestsCount: number
   adminEmail: string | null
+  qbInvoiceSyncEnabled: boolean
 }
 
 type CategoryId = 'general' | 'team' | 'billing' | 'integrations' | 'notifications' | 'advanced'
@@ -49,6 +50,7 @@ export function SettingsClient({
   role,
   pendingRequestsCount,
   adminEmail,
+  qbInvoiceSyncEnabled,
 }: SettingsClientProps) {
   const searchParams = useSearchParams()
 
@@ -201,7 +203,7 @@ export function SettingsClient({
             />
           )}
           {activeSection === 'billing' && isAdmin && (
-            <BillingSection facility={facility} />
+            <BillingSection facility={facility} qbInvoiceSyncEnabled={qbInvoiceSyncEnabled} />
           )}
           {activeSection === 'integrations' && isAdmin && (
             <IntegrationsSection facility={facility} />

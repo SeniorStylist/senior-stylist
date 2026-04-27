@@ -21,6 +21,7 @@ import {
   btnHubInteractive,
   cardHover,
   modalEnter,
+  successFlash,
   transitionBase,
 } from '@/lib/animations'
 
@@ -76,10 +77,12 @@ export function BillingClient({
   initialFacilityId,
   facilityOptions,
   isMaster,
+  qbInvoiceSyncEnabled,
 }: {
   initialFacilityId: string
   facilityOptions: FacilityOption[]
   isMaster: boolean
+  qbInvoiceSyncEnabled: boolean
 }) {
   const searchParams = useSearchParams()
   const [facilityId, setFacilityId] = useState<string>(() => {
@@ -95,6 +98,17 @@ export function BillingClient({
   const [sendLoading, setSendLoading] = useState(false)
   const [sendWarning, setSendWarning] = useState<{ lastSentAt: string } | null>(null)
   const [sendEmailOverride, setSendEmailOverride] = useState('')
+
+  const [qbSyncing, setQbSyncing] = useState(false)
+  const [qbSyncResult, setQbSyncResult] = useState<{
+    created: number
+    updated: number
+    skipped: number
+    errors: string[]
+  } | null>(null)
+  const [qbSyncFlash, setQbSyncFlash] = useState(false)
+  const [qbSyncError, setQbSyncError] = useState<string | null>(null)
+  const [confirmFullResync, setConfirmFullResync] = useState(false)
 
   const [crossSummary, setCrossSummary] = useState<CrossFacilitySummary | null>(null)
   const [crossLoading, setCrossLoading] = useState(isMaster)
@@ -304,6 +318,34 @@ export function BillingClient({
     }
   }
 
+  async function handleQbInvoiceSync(fullSync: boolean) {
+    if (qbSyncing) return
+    setQbSyncing(true)
+    setQbSyncError(null)
+    setQbSyncResult(null)
+    try {
+      const res = await fetch(`/api/quickbooks/sync-invoices/${facilityId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullSync }),
+      })
+      const j = await res.json()
+      if (!res.ok) {
+        setQbSyncError(j.error ?? 'Sync failed')
+        return
+      }
+      setQbSyncResult(j.data)
+      setQbSyncFlash(true)
+      setTimeout(() => setQbSyncFlash(false), 3000)
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      setQbSyncError((err as Error).message)
+    } finally {
+      setQbSyncing(false)
+      setConfirmFullResync(false)
+    }
+  }
+
   if (!facilityId) {
     return (
       <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
@@ -334,6 +376,41 @@ export function BillingClient({
           }}
           onCancel={() => setSendWarning(null)}
         />
+      )}
+
+      {confirmFullResync && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className={`bg-white rounded-2xl shadow-xl max-w-md w-full p-6 ${modalEnter}`}>
+            <h3
+              className="text-xl text-stone-900 mb-2"
+              style={{ fontFamily: 'DM Serif Display, serif' }}
+            >
+              Full re-sync
+            </h3>
+            <p className="text-sm text-stone-600 mb-5">
+              This will re-import all invoices from QuickBooks and ignore the incremental sync
+              cursor. Continue?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmFullResync(false)}
+                disabled={qbSyncing}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 disabled:opacity-50 ${btnBase}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQbInvoiceSync(true)}
+                disabled={qbSyncing}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] disabled:opacity-50 ${btnBase}`}
+              >
+                {qbSyncing ? 'Running…' : 'Run full re-sync'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {panelType && (
@@ -661,12 +738,109 @@ export function BillingClient({
                     'Send Statement'
                   )}
                 </button>
+                {summary?.facility.hasQuickBooks && qbInvoiceSyncEnabled ? (
+                  <button
+                    type="button"
+                    disabled={qbSyncing}
+                    onClick={() => handleQbInvoiceSync(false)}
+                    className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed ${qbSyncFlash ? successFlash : ''}`}
+                    title="Pull live invoice data from QuickBooks"
+                  >
+                    {qbSyncing ? (
+                      <>
+                        <svg
+                          className="animate-spin h-3.5 w-3.5 shrink-0"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                        Syncing…
+                      </>
+                    ) : qbSyncFlash ? (
+                      <span className="text-emerald-700">✓ Synced</span>
+                    ) : (
+                      <>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <polyline points="23 4 23 10 17 10" />
+                          <polyline points="1 20 1 14 7 14" />
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                        Sync from QB
+                      </>
+                    )}
+                  </button>
+                ) : summary?.facility.hasQuickBooks && !qbInvoiceSyncEnabled ? (
+                  <DisabledActionButton
+                    label="Sync from QB"
+                    title="Awaiting Intuit production approval"
+                  />
+                ) : null}
                 <DisabledActionButton
                   label="Send via QB"
-                  title="Available after QB production approval"
+                  title="Coming soon — available after Intuit approval"
                 />
               </div>
             </div>
+
+            {summary?.facility.hasQuickBooks && qbInvoiceSyncEnabled && (
+              <div className="text-xs text-stone-400 mt-2 flex items-center flex-wrap gap-x-2">
+                {qbSyncResult ? (
+                  <span className="text-stone-600">
+                    {qbSyncResult.created + qbSyncResult.updated} invoices updated
+                    {qbSyncResult.skipped > 0 ? ` · ${qbSyncResult.skipped} unchanged` : ''} · Last
+                    synced just now
+                  </span>
+                ) : (
+                  <span>
+                    Last synced:{' '}
+                    {summary.facility.qbInvoicesLastSyncedAt
+                      ? new Date(summary.facility.qbInvoicesLastSyncedAt).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })
+                      : 'never'}
+                  </span>
+                )}
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmFullResync(true)}
+                  className="underline hover:text-stone-600 disabled:opacity-40"
+                  disabled={qbSyncing}
+                >
+                  Full re-sync →
+                </button>
+                {qbSyncError && (
+                  <span className="text-red-600 w-full mt-1">{qbSyncError}</span>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <StatCard label="Total Billed" value={formatDollars(billedAnimated)} />

@@ -174,6 +174,8 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `qb_refresh_token` | `text`, nullable (Phase 10B) — QB OAuth refresh token; stored as **AES-256-GCM ciphertext**; never returned to client |
 | `qb_token_expires_at` | `timestamptz`, nullable (Phase 10B) — expiry of `qb_access_token`; helper refreshes 5min before |
 | `qb_expense_account_id` | `text`, nullable (Phase 10B) — admin-selected QB Expense Account ID used as `AccountRef` on every pushed Bill line |
+| `qb_invoices_last_synced_at` | `timestamptz`, nullable (Phase 11M) — wall-clock timestamp of the last successful invoice sync |
+| `qb_invoices_sync_cursor` | `text`, nullable (Phase 11M) — ISO 8601 timestamp used as `Metadata.LastUpdatedTime > '<cursor>'` filter on the next incremental sync |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -1220,3 +1222,42 @@ Three additions to the existing payroll system. No new pages.
 **Stylist pay history on `/my-account`**:
 - `my-account/page.tsx` — queries last 12 `stylistPayItems` joined to `payPeriods + facilities` (`desc(payPeriods.startDate)`); fetches deductions via `inArray(payDeductions.payItemId, payItemIds)`
 - `my-account-client.tsx` — `payHistory` + `payHistoryDeductions` props; "Pay History" card (only when `payHistory.length > 0`); expandable rows with `expandedPeriodId` state; expanded view shows gross → commission → deductions → net breakdown; status badges: open=stone, processing=amber, paid=emerald
+
+
+### Phase 11M — QuickBooks Invoice Live Sync (SHIPPED 2026-04-27 — gated)
+
+Pull live invoice data from QuickBooks Online into the local `qb_invoices` table on demand, per facility. Replaces the manual CSV import flow for QB-connected facilities. **Gated behind `QB_INVOICE_SYNC_ENABLED` env flag** — locally `false`, unset in Vercel — until Intuit production approval is granted.
+
+**Schema additions** (`facilities`):
+- `qb_invoices_last_synced_at timestamptz` — wall-clock of last successful sync
+- `qb_invoices_sync_cursor text` — ISO 8601 timestamp for `Metadata.LastUpdatedTime > '<cursor>'` filter
+
+**Schema index** (`qb_invoices`):
+- `qb_invoices_qb_id_idx` partial index on `qb_invoice_id WHERE qb_invoice_id IS NOT NULL` — enables future delta lookups by QB internal ID
+- `qb_invoice_id` text column itself was added in Phase 10B — no column change
+
+**Engine** — `src/lib/qb-invoice-sync.ts::syncQBInvoices(facilityId, { fullSync? })`:
+1. Loads facility + active resident list (with `qbCustomerId`) + existing invoice index for skip-detection
+2. Builds query: `SELECT * FROM Invoice [WHERE Metadata.LastUpdatedTime > '<cursor>'] STARTPOSITION <pos> MAXRESULTS 100` via `qbGet(facilityId, '/query?query=...&minorversion=65')`. Cursor ignored on `fullSync`.
+3. Paginates until <100 returned or 5000-invoice safety cap hit (cap reports an error so operator can re-run)
+4. For each QB invoice: derives `amountCents`/`openBalanceCents`/`status` (legacy CSV-import status logic — handles `open > amount` edge), resolves resident via exact `qbCustomerId` match → fuzzy 0.7 → null, upserts on `(invoice_num, facility_id)` unique index. Skip if `(openBalance, status, qbInvoiceId)` unchanged
+5. Recomputes `facilities.qb_outstanding_balance_cents` and `residents.qb_outstanding_balance_cents` for every resident in scope
+6. Updates `qb_invoices_last_synced_at = now()` and `qb_invoices_sync_cursor = now().toISOString()`
+
+Returns `{ created, updated, skipped, errors[] }`.
+
+**API route** — `POST /api/quickbooks/sync-invoices/[facilityId]`:
+- `maxDuration = 60`, `dynamic = 'force-dynamic'`
+- Returns 503 with "awaiting Intuit production approval" message when `process.env.QB_INVOICE_SYNC_ENABLED !== 'true'` (defense-in-depth alongside UI gating)
+- Auth: master admin OR admin/bookkeeper for own facility (`canAccessBilling`)
+- 412 when QB tokens or realm ID are missing
+- Rate limit: `qbInvoiceSync` bucket (3/h/user)
+- Body: `{ fullSync?: boolean }`. On success calls `revalidateTag('billing', {})` and `revalidateTag('facilities', {})`
+
+**Summary route extension** — `GET /api/billing/summary/[facilityId]` column whitelist gains `qbAccessToken`, `qbRefreshToken`, `qbInvoicesLastSyncedAt`. Tokens read but stripped server-side; the response shape adds `hasQuickBooks: boolean` and `qbInvoicesLastSyncedAt: string | null` to `BillingFacility`. Cached value busts via the existing `revalidateTag('billing', {})` call inside the sync route.
+
+**UI**:
+- `billing-client.tsx` — When `summary?.facility.hasQuickBooks && qbInvoiceSyncEnabled`, renders a stone-secondary "Sync from QB" button next to "Send Statement" with refresh icon, animated spinner during sync, 3-second emerald `successFlash` "✓ Synced" on success. Status line below: `Last synced: <date>` or `<X invoices updated>` after a sync, plus a `Full re-sync →` link that opens an inline confirm modal (`bg-black/40 backdrop-blur-sm z-[100]`). Errors surface as red text inline. When QB connected but flag off: shows `<DisabledActionButton title="Awaiting Intuit production approval" />`. Send via QB tooltip updated to "Coming soon — available after Intuit approval".
+- `settings/sections/billing-section.tsx` — Adds an "Invoice Sync" subsection inside the QB connected card. When flag off: amber `bg-amber-50 border-amber-200` "coming soon" banner. When on: last-synced label + Sync now / Full re-sync buttons (full re-sync uses the same confirm modal). Reuses the existing `qbToast` helper.
+
+**Env**: `QB_INVOICE_SYNC_ENABLED=false` in `.env.local`. NOT set in Vercel. Flip to `'true'` in Vercel (production + preview) only after Intuit approves the production app.

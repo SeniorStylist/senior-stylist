@@ -12,6 +12,7 @@ type Bucket =
   | 'payrollExport'
   | 'payPeriodCreate'
   | 'quickbooksSync'
+  | 'qbInvoiceSync'
   | 'qbImport'
   | 'billingImport'
   | 'billingSend'
@@ -34,6 +35,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   payrollExport: { tokens: 20, window: '1 h' },
   payPeriodCreate: { tokens: 10, window: '1 h' },
   quickbooksSync: { tokens: 15, window: '1 h' },
+  qbInvoiceSync: { tokens: 3, window: '1 h' },
   qbImport: { tokens: 5, window: '1 h' },
   billingImport: { tokens: 5, window: '1 h' },
   billingSend: { tokens: 20, window: '1 h' },

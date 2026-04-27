@@ -53,12 +53,15 @@ export default async function BillingPage() {
     initialFacilityId = facilityUser!.facilityId
   }
 
+  const qbInvoiceSyncEnabled = process.env.QB_INVOICE_SYNC_ENABLED === 'true'
+
   return (
     <Suspense fallback={null}>
       <BillingClient
         initialFacilityId={initialFacilityId}
         facilityOptions={facilityOptions}
         isMaster={isMaster}
+        qbInvoiceSyncEnabled={qbInvoiceSyncEnabled}
       />
     </Suspense>
   )

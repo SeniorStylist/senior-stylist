@@ -34,6 +34,9 @@ const getBillingSummaryData = unstable_cache(
           revSharePercentage: true,
           contactEmail: true,
           address: true,
+          qbAccessToken: true,
+          qbRefreshToken: true,
+          qbInvoicesLastSyncedAt: true,
         },
       }),
       db.query.residents.findMany({
@@ -83,7 +86,17 @@ const getBillingSummaryData = unstable_cache(
       }),
     ])
 
-    return { facility: facility ?? null, residents: residentList, invoices, payments }
+    const facilityClean = facility
+      ? (() => {
+          const { qbAccessToken, qbRefreshToken, ...rest } = facility
+          return {
+            ...rest,
+            hasQuickBooks: !!(qbAccessToken && qbRefreshToken),
+          }
+        })()
+      : null
+
+    return { facility: facilityClean, residents: residentList, invoices, payments }
   },
   ['billing-summary'],
   { revalidate: 120, tags: ['billing'] }
