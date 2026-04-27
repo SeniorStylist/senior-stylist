@@ -87,6 +87,18 @@ function formatRange(start: string, end: string): string {
   return `${left} – ${right}`
 }
 
+interface SyncLogEntry {
+  id: string
+  stylistId: string | null
+  action: string
+  status: string
+  qbBillId: string | null
+  errorMessage: string | null
+  responseSummary: string | null
+  createdAt: string
+  stylist: { name: string } | null
+}
+
 export function PayrollDetailClient({
   period,
   initialItems,
@@ -94,6 +106,7 @@ export function PayrollDetailClient({
   hasExpenseAccount,
   revShareType,
   revSharePercentage,
+  syncLog,
 }: {
   period: DetailPeriod
   initialItems: DetailItem[]
@@ -101,6 +114,7 @@ export function PayrollDetailClient({
   hasExpenseAccount: boolean
   revShareType: string | null
   revSharePercentage: number | null
+  syncLog: SyncLogEntry[]
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -115,6 +129,7 @@ export function PayrollDetailClient({
   const [qbPushing, setQbPushing] = useState(false)
   const [qbStatusPolling, setQbStatusPolling] = useState(false)
   const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [syncHistoryOpen, setSyncHistoryOpen] = useState(false)
 
   const showQbToast = (kind: 'ok' | 'err', text: string) => {
     setQbToast({ kind, text })
@@ -350,6 +365,70 @@ export function PayrollDetailClient({
                     </li>
                   ))}
               </ul>
+            </div>
+          )}
+          {syncLog.length > 0 && (
+            <div className="mt-4 border-t border-stone-100 pt-4">
+              <button
+                onClick={() => setSyncHistoryOpen((o) => !o)}
+                className="flex items-center gap-2 text-xs font-semibold text-stone-500 uppercase tracking-wide"
+              >
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${syncHistoryOpen ? 'rotate-90' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                Sync History ({syncLog.length > 20 ? '20+' : syncLog.length})
+              </button>
+              {syncHistoryOpen && (
+                <div className="mt-3 space-y-0">
+                  {syncLog.slice(0, 20).map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-start gap-3 text-xs text-stone-600 py-1.5 border-b border-stone-50 last:border-0"
+                    >
+                      <span className="text-stone-400 shrink-0 w-32 mt-0.5">
+                        {format(new Date(entry.createdAt), 'MMM d, h:mm a')}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-medium shrink-0 mt-0.5 ${
+                          entry.action === 'push_bill'
+                            ? 'bg-stone-100 text-stone-600'
+                            : entry.action === 'sync_status'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-purple-50 text-purple-700'
+                        }`}
+                      >
+                        {entry.action.replace('_', ' ')}
+                      </span>
+                      <span className="text-stone-500 shrink-0 w-24 mt-0.5">
+                        {entry.stylist?.name ?? '—'}
+                      </span>
+                      <span
+                        className={
+                          entry.status === 'success'
+                            ? 'text-emerald-600'
+                            : entry.status === 'error'
+                              ? 'text-red-600'
+                              : 'text-amber-600'
+                        }
+                      >
+                        {entry.status === 'success' ? '✓' : entry.status === 'error' ? '✗' : '~'}{' '}
+                        {entry.responseSummary ?? entry.errorMessage ?? ''}
+                      </span>
+                    </div>
+                  ))}
+                  {syncLog.length > 20 && (
+                    <p className="text-xs text-stone-400 pt-1">
+                      Showing 20 of {syncLog.length} entries
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

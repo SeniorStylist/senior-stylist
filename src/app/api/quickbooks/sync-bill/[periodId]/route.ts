@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, payPeriods, stylistPayItems, stylists } from '@/db/schema'
+import { facilities, payPeriods, stylistPayItems, stylists, quickbooksSyncLog } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { qbGet, qbPost } from '@/lib/quickbooks'
@@ -89,7 +89,7 @@ export async function POST(
       .filter((it) => !it.stylistQbVendorId && it.netPayCents > 0)
       .map((it) => it.stylistId)
     if (missingVendorStylistIds.length > 0) {
-      await syncVendorsForFacility(facilityUser.facilityId, missingVendorStylistIds)
+      await syncVendorsForFacility(facilityUser.facilityId, missingVendorStylistIds, periodId)
     }
 
     // Reload stylist vendor IDs for any that we just auto-synced.
@@ -141,6 +141,7 @@ export async function POST(
       }
 
       try {
+        let billId: string
         if (item.qbBillId) {
           const existing = await qbGet<{ Bill: QBBill }>(
             facilityUser.facilityId,
@@ -159,6 +160,7 @@ export async function POST(
               updatedAt: new Date(),
             })
             .where(eq(stylistPayItems.id, item.id))
+          billId = item.qbBillId
         } else {
           const res = await qbPost<{ Bill: QBBill }>(
             facilityUser.facilityId,
@@ -174,8 +176,18 @@ export async function POST(
               updatedAt: new Date(),
             })
             .where(eq(stylistPayItems.id, item.id))
+          billId = res.Bill.Id
         }
         synced += 1
+        db.insert(quickbooksSyncLog).values({
+          payPeriodId: periodId,
+          facilityId: facilityUser.facilityId,
+          stylistId: item.stylistId,
+          action: 'push_bill',
+          status: 'success',
+          qbBillId: billId,
+          responseSummary: `Bill ${billId} created/updated for ${item.stylistName}`,
+        }).catch(e => console.error('[qb-log]', e))
       } catch (err) {
         failed += 1
         const message = (err as Error).message?.slice(0, 200) ?? 'Unknown error'
@@ -184,6 +196,14 @@ export async function POST(
           .update(stylistPayItems)
           .set({ qbSyncError: message, updatedAt: new Date() })
           .where(eq(stylistPayItems.id, item.id))
+        db.insert(quickbooksSyncLog).values({
+          payPeriodId: periodId,
+          facilityId: facilityUser.facilityId,
+          stylistId: item.stylistId,
+          action: 'push_bill',
+          status: 'error',
+          errorMessage: message,
+        }).catch(e => console.error('[qb-log]', e))
       }
     }
 

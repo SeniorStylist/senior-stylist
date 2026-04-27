@@ -487,6 +487,46 @@ export function buildCoverageRequestEmailHtml(params: {
 </html>`.trim()
 }
 
+export function buildPayrollNotificationHtml(params: {
+  stylistName: string
+  facilityName: string
+  periodStart: string
+  periodEnd: string
+  grossRevenueCents: number
+  commissionRate: number
+  commissionAmountCents: number
+  deductions: Array<{ name: string; amountCents: number }>
+  netPayCents: number
+}): string {
+  const { stylistName, facilityName, periodStart, periodEnd, grossRevenueCents, commissionRate, commissionAmountCents, deductions, netPayCents } = params
+  const deductionRows = deductions
+    .map((d) => `<tr><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;">${d.name}</td><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#57534E;font-size:13px;text-align:right;">-${fmtCents(d.amountCents)}</td></tr>`)
+    .join('')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Your Pay Is Ready</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;color:#1C1917;font-size:14px;line-height:1.6;">Hi ${stylistName}, your payroll has been marked paid for the period <strong>${periodStart} – ${periodEnd}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:60%;">Gross Revenue</td><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:13px;text-align:right;">${fmtCents(grossRevenueCents)}</td></tr>
+        <tr><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Commission (${commissionRate}%)</td><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#57534E;font-size:13px;text-align:right;">-${fmtCents(commissionAmountCents)}</td></tr>
+        ${deductionRows}
+        <tr><td style="padding:12px 0 8px;color:#1C1917;font-size:14px;font-weight:700;">Net Pay</td><td style="padding:12px 0 8px;color:#8B2E4A;font-size:16px;font-weight:700;text-align:right;">${fmtCents(netPayCents)}</td></tr>
+      </table>
+      <p style="margin:20px 0 0;font-size:13px;color:#57534E;line-height:1.5;">Questions? Contact your facility admin.</p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 export function buildCoverageFilledEmailHtml(params: {
   stylistName: string
   substituteName: string

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, payPeriods, stylistPayItems } from '@/db/schema'
+import { facilities, payPeriods, stylistPayItems, quickbooksSyncLog } from '@/db/schema'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { qbGet } from '@/lib/quickbooks'
@@ -66,6 +66,7 @@ export async function POST(
 
     const results: Array<{ payItemId: string; qbBillId: string; qbBalance: number }> = []
     let allPaid = items.length > 0
+    let failed = 0
 
     for (const item of items) {
       if (!item.qbBillId) continue
@@ -80,8 +81,18 @@ export async function POST(
       } catch (err) {
         console.error('QB sync-status item error:', err)
         allPaid = false
+        failed += 1
       }
     }
+
+    db.insert(quickbooksSyncLog).values({
+      payPeriodId: periodId,
+      facilityId: facilityUser.facilityId,
+      stylistId: null,
+      action: 'sync_status',
+      status: failed > 0 ? 'error' : 'success',
+      responseSummary: `Checked ${items.length} bills; ${allPaid ? 'all paid' : 'some unpaid'}`,
+    }).catch(e => console.error('[qb-log]', e))
 
     let periodUpdated = false
     let periodStatus = period.status

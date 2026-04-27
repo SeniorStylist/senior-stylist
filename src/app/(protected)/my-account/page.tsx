@@ -10,8 +10,11 @@ import {
   coverageRequests,
   stylistFacilityAssignments,
   facilities,
+  payPeriods,
+  stylistPayItems,
+  payDeductions,
 } from '@/db/schema'
-import { eq, and, gte, lte, desc } from 'drizzle-orm'
+import { eq, and, gte, lte, desc, inArray } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
@@ -37,6 +40,8 @@ export default async function MyAccountPage() {
   let availabilityRows: Array<Record<string, unknown>> = []
   let coverageRows: Array<Record<string, unknown>> = []
   let stylistAssignments: Array<{ facilityId: string; facilityName: string; active: boolean }> = []
+  let payHistory: Array<Record<string, unknown>> = []
+  let payHistoryDeductions: Array<Record<string, unknown>> = []
 
   if (profile?.stylistId) {
     stylist = await db.query.stylists.findFirst({
@@ -130,6 +135,34 @@ export default async function MyAccountPage() {
             eq(stylistFacilityAssignments.active, true),
           ),
         )
+
+      payHistory = await db
+        .select({
+          periodId: payPeriods.id,
+          startDate: payPeriods.startDate,
+          endDate: payPeriods.endDate,
+          status: payPeriods.status,
+          facilityName: facilities.name,
+          grossRevenueCents: stylistPayItems.grossRevenueCents,
+          netPayCents: stylistPayItems.netPayCents,
+          commissionRate: stylistPayItems.commissionRate,
+          commissionAmountCents: stylistPayItems.commissionAmountCents,
+          payItemId: stylistPayItems.id,
+        })
+        .from(stylistPayItems)
+        .innerJoin(payPeriods, eq(stylistPayItems.payPeriodId, payPeriods.id))
+        .innerJoin(facilities, eq(payPeriods.facilityId, facilities.id))
+        .where(eq(stylistPayItems.stylistId, stylist.id))
+        .orderBy(desc(payPeriods.startDate))
+        .limit(12)
+
+      const payItemIds = payHistory.map((h) => h.payItemId as string).filter(Boolean)
+      if (payItemIds.length > 0) {
+        payHistoryDeductions = await db.query.payDeductions.findMany({
+          where: inArray(payDeductions.payItemId, payItemIds),
+          columns: { payItemId: true, deductionType: true, amountCents: true },
+        }) as Array<Record<string, unknown>>
+      }
     }
   }
 
@@ -153,6 +186,8 @@ export default async function MyAccountPage() {
       coverageRequests={JSON.parse(JSON.stringify(coverageRows))}
       stylistId={profile?.stylistId ?? null}
       stylistAssignments={JSON.parse(JSON.stringify(stylistAssignments))}
+      payHistory={JSON.parse(JSON.stringify(payHistory))}
+      payHistoryDeductions={JSON.parse(JSON.stringify(payHistoryDeductions))}
     />
   )
 }

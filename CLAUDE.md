@@ -282,6 +282,8 @@
 - **Cross-facility drill-down pages** (`/billing/{outstanding,collected,invoiced,overdue}`) — master-admin-only; each `page.tsx` redirects non-masters to `/billing` BEFORE try/catch. CSV export is client-side only (`Blob` + `URL.createObjectURL`); reflects current sort. Row click → `router.push('/billing?facility=' + id)`
 - **`GET /api/billing/cross-facility-detail?type=...`** rows accessed as iterable (`rows[0]`) — the project's `postgres` driver does NOT return `.rows`. Always `Number(row.value_cents)` to normalize postgres `bigint` (returned as string)
 - **Revenue share toggle lives in Settings → Billing & Payments** (Phase 11J.3). The `/billing` page only renders a one-line read-only summary linking to `/settings?section=billing`. Do NOT re-add the toggle to `billing-client.tsx`.
+- **`quickbooks_sync_log` table (Phase 11N)**: one row per QB operation; `payPeriodId` is NULLABLE — `syncVendorsForFacility` is called both from its own POST handler (no period context) and from `sync-bill` (has context). The third param `payPeriodId: string | null = null` must stay optional with a null default. All log inserts are fire-and-forget (`.catch()`) — never await, never let failure propagate.
+- **`syncVendorsForFacility` signature**: `(facilityId: string, filterStylistIds?: string[], payPeriodId: string | null = null)` — the `sync-bill` route passes `periodId` as the third arg when auto-syncing missing vendors.
 
 ### Settings (`/settings`, Phase 11J.3)
 - Layout: Apple-style two-pane — left rail of categories, right content panel. Mobile collapses to a category list that drills into a content view via `mobileShowingContent` state.
@@ -455,7 +457,7 @@
 - **Phase 11** — Incident & Issue Tracking: `issues` table (severity: low|medium|high, type: cancellation|complaint|safety|…), "Report Issue" on booking cards + log rows, high severity → email + red banner
 - **Phase 12** — Advanced KPI Dashboard: no schema changes, new metrics (cancellation rate, avg ticket, utilization, concentration risk, MoM/YoY), region filtering, weekly email digest, PDF export
 - **Phase 13** — Facility Contact Portal: `facility_contact` role, `service_change_requests` table (add_day|cancel_day|…), restricted nav (Schedule read-only, Visit Summaries, Invoices, Submit Request)
-- **Phase 14** — QuickBooks Polish: `quickbooks_sync_log` audit table, automated retry-with-backoff worker for transient failures, optional invoice push for non-Stripe facilities
+- **Phase 14** — QuickBooks Polish: automated retry-with-backoff worker for transient failures, optional invoice push for non-Stripe facilities. (`quickbooks_sync_log` audit table shipped in Phase 11N.)
 - **Phase 15** — Per-Stylist Google Calendar Integration: per-stylist OAuth2 connect, bookings sync as calendar events
 
 ---

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, stylists, stylistFacilityAssignments } from '@/db/schema'
+import { facilities, stylists, stylistFacilityAssignments, quickbooksSyncLog } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { qbGet, qbPost } from '@/lib/quickbooks'
@@ -27,6 +27,7 @@ export interface SyncVendorsResult {
 export async function syncVendorsForFacility(
   facilityId: string,
   filterStylistIds?: string[],
+  payPeriodId: string | null = null,
 ): Promise<SyncVendorsResult> {
   const result: SyncVendorsResult = { created: 0, updated: 0, skipped: 0, errors: [] }
 
@@ -69,6 +70,14 @@ export async function syncVendorsForFacility(
           .set({ qbVendorId: res.Vendor.Id, updatedAt: new Date() })
           .where(eq(stylists.id, s.id))
         result.created += 1
+        db.insert(quickbooksSyncLog).values({
+          payPeriodId,
+          facilityId,
+          stylistId: s.id,
+          action: 'sync_vendors',
+          status: 'success',
+          responseSummary: `Vendor created for ${s.name}`,
+        }).catch(e => console.error('[qb-log]', e))
       } else {
         const existing = await qbGet<{ Vendor: QBVendor }>(
           facilityId,
@@ -83,6 +92,14 @@ export async function syncVendorsForFacility(
             PrintOnCheckName: s.name,
           })
           result.updated += 1
+          db.insert(quickbooksSyncLog).values({
+            payPeriodId,
+            facilityId,
+            stylistId: s.id,
+            action: 'sync_vendors',
+            status: 'success',
+            responseSummary: `Vendor updated for ${s.name}`,
+          }).catch(e => console.error('[qb-log]', e))
         } else {
           result.skipped += 1
         }

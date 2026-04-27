@@ -27,6 +27,25 @@ interface StylistAssignment {
   active: boolean
 }
 
+interface PayHistoryRow {
+  periodId: string
+  startDate: string
+  endDate: string
+  status: string
+  facilityName: string
+  grossRevenueCents: number | null
+  netPayCents: number | null
+  commissionRate: number | null
+  commissionAmountCents: number | null
+  payItemId: string
+}
+
+interface PayHistoryDeduction {
+  payItemId: string
+  deductionType: string
+  amountCents: number
+}
+
 interface MyAccountClientProps {
   user: { email: string; fullName: string | null }
   stylist: Stylist | null
@@ -40,6 +59,8 @@ interface MyAccountClientProps {
   coverageRequests: CoverageRequest[]
   stylistId: string | null
   stylistAssignments?: StylistAssignment[]
+  payHistory?: PayHistoryRow[]
+  payHistoryDeductions?: PayHistoryDeduction[]
 }
 
 function formatHHMM(t: string): string {
@@ -148,7 +169,7 @@ function statusBadge(status: string) {
   )
 }
 
-export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId, stylistAssignments = [] }: MyAccountClientProps) {
+export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId, stylistAssignments = [], payHistory = [], payHistoryDeductions = [] }: MyAccountClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')
@@ -181,6 +202,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [coverageError, setCoverageError] = useState<string | null>(null)
   const [coverageSavedMsg, setCoverageSavedMsg] = useState<string | null>(null)
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
+  const [expandedPeriodId, setExpandedPeriodId] = useState<string | null>(null)
 
   const todayStr = (() => {
     const d = new Date()
@@ -1006,6 +1028,77 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           </div>
         )}
       </div>
+
+      {payHistory.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Pay History</h2>
+          <div className="space-y-0">
+            {payHistory.map((row) => {
+              const isExpanded = expandedPeriodId === row.periodId
+              const deductions = payHistoryDeductions.filter((d) => d.payItemId === row.payItemId)
+              const startLabel = new Date(`${row.startDate.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+              const statusBadgeCls =
+                row.status === 'paid'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : row.status === 'processing'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'bg-stone-100 text-stone-500'
+              return (
+                <div key={row.periodId} className="border-b border-stone-100 last:border-0">
+                  <button
+                    onClick={() => setExpandedPeriodId(isExpanded ? null : row.periodId)}
+                    className="w-full flex items-center gap-3 py-3 text-left hover:bg-stone-50 transition-colors rounded-xl px-2 -mx-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-semibold text-stone-900">
+                        {startLabel} · {row.facilityName}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[13px] font-semibold text-stone-900">{formatCents(row.netPayCents ?? 0)}</div>
+                      <div className="text-[11px] text-stone-400">net pay</div>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold shrink-0 ${statusBadgeCls}`}>
+                      {row.status === 'paid' ? 'Paid' : row.status === 'processing' ? 'Processing' : 'Open'}
+                    </span>
+                    <svg
+                      className={`w-3.5 h-3.5 text-stone-400 shrink-0 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  {isExpanded && (
+                    <div className="pb-3 px-2 text-xs text-stone-600 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Gross revenue</span>
+                        <span>{formatCents(row.grossRevenueCents ?? 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Commission ({row.commissionRate ?? 0}%)</span>
+                        <span>-{formatCents(row.commissionAmountCents ?? 0)}</span>
+                      </div>
+                      {deductions.map((d) => (
+                        <div key={d.deductionType} className="flex justify-between text-stone-500">
+                          <span>{d.deductionType}</span>
+                          <span>-{formatCents(d.amountCents)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between font-semibold text-stone-900 pt-1 border-t border-stone-100">
+                        <span>Net pay</span>
+                        <span>{formatCents(row.netPayCents ?? 0)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

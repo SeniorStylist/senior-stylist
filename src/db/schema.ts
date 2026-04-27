@@ -11,6 +11,7 @@ import {
   primaryKey,
   unique,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
@@ -466,6 +467,22 @@ export const payDeductions = pgTable('pay_deductions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
+export const quickbooksSyncLog = pgTable('quickbooks_sync_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  payPeriodId: uuid('pay_period_id').references(() => payPeriods.id, { onDelete: 'cascade' }),
+  facilityId: uuid('facility_id').notNull().references(() => facilities.id, { onDelete: 'cascade' }),
+  stylistId: uuid('stylist_id').references(() => stylists.id, { onDelete: 'set null' }),
+  action: text('action').notNull(),
+  status: text('status').notNull(),
+  qbBillId: text('qb_bill_id'),
+  errorMessage: text('error_message'),
+  responseSummary: text('response_summary'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  periodIdx: index('qb_sync_log_period_idx').on(t.payPeriodId, t.createdAt),
+  facilityIdx: index('qb_sync_log_facility_idx').on(t.facilityId, t.createdAt),
+}))
+
 export const qbInvoices = pgTable('qb_invoices', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
@@ -885,5 +902,20 @@ export const payDeductionsRelations = relations(payDeductions, ({ one }) => ({
   payItem: one(stylistPayItems, {
     fields: [payDeductions.payItemId],
     references: [stylistPayItems.id],
+  }),
+}))
+
+export const quickbooksSyncLogRelations = relations(quickbooksSyncLog, ({ one }) => ({
+  facility: one(facilities, {
+    fields: [quickbooksSyncLog.facilityId],
+    references: [facilities.id],
+  }),
+  stylist: one(stylists, {
+    fields: [quickbooksSyncLog.stylistId],
+    references: [stylists.id],
+  }),
+  payPeriod: one(payPeriods, {
+    fields: [quickbooksSyncLog.payPeriodId],
+    references: [payPeriods.id],
   }),
 }))

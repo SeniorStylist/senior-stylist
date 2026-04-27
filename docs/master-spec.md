@@ -421,6 +421,23 @@ Constraint: `UNIQUE(pay_period_id, stylist_id)` (named `stylist_pay_items_period
 
 Net pay is always `max(0, base − Σ deductions)` where base = commissionAmountCents | `round(hoursWorked × hourlyRateCents)` | flatAmountCents. Helper: `computeNetPay()` in `src/lib/payroll.ts`. Recompute inside a single `db.transaction()` on every item PUT, deduction POST, deduction DELETE.
 
+### `quickbooks_sync_log` (Phase 11N)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid`, default random |
+| `pay_period_id` | FK → `pay_periods.id` ON DELETE CASCADE, **nullable** — direct vendor syncs have no period context |
+| `facility_id` | FK → `facilities.id` ON DELETE CASCADE, NOT NULL |
+| `stylist_id` | FK → `stylists.id` ON DELETE SET NULL, nullable |
+| `action` | `text` NOT NULL — `push_bill | sync_status | sync_vendors` |
+| `status` | `text` NOT NULL — `success | error | partial` |
+| `qb_bill_id` | `text`, nullable |
+| `error_message` | `text`, nullable |
+| `response_summary` | `text`, nullable |
+| `created_at` | `timestamptz` NOT NULL default now |
+
+Indexes: `qb_sync_log_period_idx(pay_period_id, created_at)`, `qb_sync_log_facility_idx(facility_id, created_at)`. RLS enabled with `service_role_all`. All inserts are fire-and-forget (`.catch(e => console.error('[qb-log]', e))`) — never awaited, never propagate failure.
+
 ### `qb_invoices` (Phase 11A)
 
 | Column | Notes |
@@ -1179,3 +1196,27 @@ These files are also uploaded to Claude Projects so the AI
 assistant in chat always has full context.
 
 *End of master specification.*
+
+
+### Phase 11N — Payroll Extensions (SHIPPED 2026-04-27)
+
+Three additions to the existing payroll system. No new pages.
+
+**Schema**: new `quickbooks_sync_log` table (see DB schema section above). `payPeriodId` is nullable — `syncVendorsForFacility` is called from its own POST handler (no period context) and from `sync-bill` (has context).
+
+**QB Sync Log routes**:
+- `sync-bill/[periodId]` — fire-and-forget log row per stylist on success (with `qbBillId`) and on error
+- `sync-status/[periodId]` — one summary row per run after the QB poll loop; includes `failed` counter
+- `sync-vendors/route.ts::syncVendorsForFacility` — optional third param `payPeriodId: string | null = null`; logs per-vendor create/update; `sync-bill` passes `periodId` as the third arg when auto-syncing missing vendors
+
+**Sync History UI**:
+- `payroll/[id]/page.tsx` — queries up to 50 log rows (`with: { stylist: { columns: { name: true } } }`, `desc(createdAt)`)
+- `payroll-detail-client.tsx` — `syncLog: SyncLogEntry[]` prop; collapsible accordion below QB panel; action badges (push_bill=stone, sync_status=blue, sync_vendors=purple); shows ✓/✗/~ + summary or error; capped at 20 displayed with overflow note
+
+**Payroll email notification**:
+- `src/lib/email.ts::buildPayrollNotificationHtml()` — inline-style template (same pattern as other emails); gross → commission → deductions list → net pay (burgundy)
+- `PUT /api/pay-periods/[id]` — detects `body.status === 'paid' && existing.status !== 'paid'` transition; fire-and-forget `void (async () => {...})()` block; fetches `facilities.name`, queries `stylistPayItems + stylists` (email + pay figures), queries `payDeductions`, sends one email per stylist with an email address; uses `stylists.email` directly (no profiles join)
+
+**Stylist pay history on `/my-account`**:
+- `my-account/page.tsx` — queries last 12 `stylistPayItems` joined to `payPeriods + facilities` (`desc(payPeriods.startDate)`); fetches deductions via `inArray(payDeductions.payItemId, payItemIds)`
+- `my-account-client.tsx` — `payHistory` + `payHistoryDeductions` props; "Pay History" card (only when `payHistory.length > 0`); expandable rows with `expandedPeriodId` state; expanded view shows gross → commission → deductions → net breakdown; status badges: open=stone, processing=amber, paid=emerald

@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { payPeriods } from '@/db/schema'
+import { payPeriods, stylistPayItems, stylists, facilities, payDeductions } from '@/db/schema'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
+import { sendEmail, buildPayrollNotificationHtml } from '@/lib/email'
 
 const updateSchema = z
   .object({
@@ -125,6 +126,69 @@ export async function PUT(
       .returning()
 
     revalidateTag('pay-periods', {})
+
+    if (parsed.data.status === 'paid' && existing.status !== 'paid') {
+      void (async () => {
+        try {
+          const facilityRow = await db.query.facilities.findFirst({
+            where: eq(facilities.id, facilityUser.facilityId),
+            columns: { name: true },
+          })
+          const items = await db
+            .select({
+              stylistId: stylistPayItems.stylistId,
+              stylistName: stylists.name,
+              email: stylists.email,
+              grossRevenueCents: stylistPayItems.grossRevenueCents,
+              commissionRate: stylistPayItems.commissionRate,
+              commissionAmountCents: stylistPayItems.commissionAmountCents,
+              netPayCents: stylistPayItems.netPayCents,
+              payItemId: stylistPayItems.id,
+            })
+            .from(stylistPayItems)
+            .innerJoin(stylists, eq(stylistPayItems.stylistId, stylists.id))
+            .where(eq(stylistPayItems.payPeriodId, id))
+
+          const deductionRows = await db.query.payDeductions.findMany({
+            where: eq(payDeductions.payPeriodId, id),
+            columns: { stylistId: true, deductionType: true, amountCents: true },
+          })
+
+          const fmtLong = (iso: string) =>
+            new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          const fmtShort = (iso: string) =>
+            new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+          const subject = existing.periodType === 'monthly'
+            ? `Your pay is ready — ${new Date(`${existing.startDate.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+            : `Your pay is ready — ${fmtShort(existing.startDate)} – ${fmtShort(existing.endDate)}`
+
+          for (const item of items) {
+            if (!item.email) continue
+            const deductions = deductionRows
+              .filter((d) => d.stylistId === item.stylistId)
+              .map((d) => ({ name: d.deductionType, amountCents: d.amountCents }))
+            void sendEmail({
+              to: item.email,
+              subject,
+              html: buildPayrollNotificationHtml({
+                stylistName: item.stylistName,
+                facilityName: facilityRow?.name ?? 'your facility',
+                periodStart: fmtLong(existing.startDate),
+                periodEnd: fmtLong(existing.endDate),
+                grossRevenueCents: item.grossRevenueCents ?? 0,
+                commissionRate: item.commissionRate ?? 0,
+                commissionAmountCents: item.commissionAmountCents ?? 0,
+                deductions,
+                netPayCents: item.netPayCents ?? 0,
+              }),
+            })
+          }
+        } catch (e) {
+          console.error('[payroll-email]', e)
+        }
+      })()
+    }
 
     return Response.json({ data: { period: updated } })
   } catch (err) {

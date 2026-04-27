@@ -1,11 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, payPeriods } from '@/db/schema'
+import { facilities, payPeriods, quickbooksSyncLog } from '@/db/schema'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { toClientJson } from '@/lib/sanitize'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { PayrollDetailClient } from './payroll-detail-client'
 
 export default async function PayrollDetailPage({
@@ -56,6 +56,13 @@ export default async function PayrollDetailPage({
   const hasQuickBooks = !!(facility?.qbAccessToken && facility?.qbRefreshToken)
   const hasExpenseAccount = !!facility?.qbExpenseAccountId
 
+  const syncLog = await db.query.quickbooksSyncLog.findMany({
+    where: eq(quickbooksSyncLog.payPeriodId, row.id),
+    orderBy: [desc(quickbooksSyncLog.createdAt)],
+    limit: 50,
+    with: { stylist: { columns: { name: true } } },
+  })
+
   return (
     <PayrollDetailClient
       period={toClientJson(period)}
@@ -64,6 +71,7 @@ export default async function PayrollDetailPage({
       hasExpenseAccount={hasExpenseAccount}
       revShareType={facility?.qbRevShareType ?? null}
       revSharePercentage={facility?.revSharePercentage ?? null}
+      syncLog={toClientJson(syncLog)}
     />
   )
 }
