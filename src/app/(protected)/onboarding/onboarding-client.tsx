@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6
 
@@ -86,7 +88,6 @@ async function parseServiceFile(file: File): Promise<ServiceRow[]> {
   }
 
   if (ext === 'csv') {
-    const Papa = (await import('papaparse')).default
     return new Promise((resolve, reject) => {
       Papa.parse<Record<string, string>>(file, {
         header: true,
@@ -112,7 +113,6 @@ async function parseServiceFile(file: File): Promise<ServiceRow[]> {
   }
 
   // xlsx / xls
-  const XLSX = await import('xlsx')
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
@@ -157,7 +157,6 @@ async function parseResidentFile(file: File): Promise<ResidentRow[]> {
   }
 
   if (ext === 'csv') {
-    const Papa = (await import('papaparse')).default
     return new Promise((resolve, reject) => {
       Papa.parse<Record<string, string>>(file, {
         header: true,
@@ -171,7 +170,6 @@ async function parseResidentFile(file: File): Promise<ResidentRow[]> {
   }
 
   // xlsx / xls
-  const XLSX = await import('xlsx')
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
