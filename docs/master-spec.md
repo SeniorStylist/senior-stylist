@@ -1127,6 +1127,36 @@ Manual sync per facility. Route: `POST /api/quickbooks/sync-invoices/[facilityId
 ### Phase 11H — Revenue Share Integration (PLANNED — Opus)
 New `facilities.rev_share_percentage` integer column. Per-invoice stylist/facility split calculation. New `qb_invoice_id` on `stylist_pay_items` links payroll to invoices. Billing view shows split breakdown. Payroll detail shows corresponding invoices.
 
+### Phase 11L — Revenue Share Integration (SHIPPED 2026-04-27)
+
+**Schema additions** (all nullable, no defaults except `qb_payments.reconciliation_status`):
+- `qb_payments`: `rev_share_amount_cents integer`, `rev_share_type text`, `senior_stylist_amount_cents integer`
+- `stylist_pay_items`: `qb_invoice_id text`, `invoice_amount_cents integer`, `rev_share_amount_cents integer`, `rev_share_type text`
+
+**Helper**: `src/lib/rev-share.ts` exports:
+```ts
+calculateRevShare(totalCents, revSharePercentage, revShareType): RevShareResult
+```
+Result has `totalCents`, `seniorStylistCents`, `facilityShareCents`, `revShareType`, `revSharePercentage`. When percentage is null/0 or type is null, returns full amount as senior-stylist-only with zero facility share. Rounding: `facilityShareCents = Math.round(total * pct/100)`, `seniorStylistCents = totalCents - facilityShareCents` (never two independent rounds).
+
+**API additions**:
+- `POST /api/billing/save-check-payment` — re-fetches `facilities.findFirst` for `revSharePercentage` + `qbRevShareType` and writes the 3 split columns on every `qb_payments` insert (per-resident IP / RFMS facility-level / lump facility / cash — all 4 paths).
+- `POST /api/pay-periods` — best-effort booking↔invoice match: left-join `bookings` × `qb_invoices` on `(facility_id, resident_id)` plus `qb_invoices.invoice_date BETWEEN bookings.start_time::date - 30d AND + 30d`. First match per stylist wins. Stores `qb_invoice_id`, `invoice_amount_cents`, `rev_share_amount_cents` (computed from gross), `rev_share_type` on each pay item insert.
+- `GET /api/billing/cross-facility-summary` — adds two new SUM aggregates from `qb_payments` (over all rows, no date filter). Returns `totalRevShareCents` + `totalNetCents`. Master-admin only.
+- `GET /api/billing/summary/[facilityId]` — column whitelist extends with `facilities.revSharePercentage` and `qb_payments.{revShareAmountCents, revShareType, seniorStylistAmountCents}`.
+
+**UI surfaces**:
+- `rfms-view.tsx` — checks-received Memo cell shows 2-line rev share sub-block when `revShareAmountCents > 0` (Senior Stylist / Facility share with stone-100 percentage badges).
+- `billing-client.tsx` — Net to Senior Stylist sub-line under Total Received tile (when `facility.revSharePercentage > 0`); cross-facility 2-tile rollup row below the existing 5-tile bar (master only).
+- `payroll-detail-client.tsx` — per-stylist sub-row below main grid with rev share breakdown + Net to Senior Stylist; bottom footer summary line "Total payroll | Rev share deducted | Net revenue".
+- `analytics/reports-client.tsx` — Revenue Share card above the Total Revenue / Appointments tiles with 3-column gross/deducted/net grid + type badge.
+- `settings/sections/billing-section.tsx` — calculation preview block under the rev share toggle ("On a $10,000 payment → $X to Senior Stylist, $Y to facility"), updates live as toggle changes.
+
+**Caveats**:
+- Pay-item ↔ invoice link is lossy (1:1 stored, 1:many in reality). Best-effort, first match wins.
+- Cross-facility rev share rollup only counts payments inserted post-Phase-11L. Historical rows contribute 0. No backfill performed.
+- `facility_deducts` and `we_deduct` produce identical numbers — only the operational flow / label differs.
+
 ### Phase 12 — Franchise Layer + Bookkeeper Role (PLANNED — Opus)
 New `franchises` table, `franchise_facilities` join, `franchise_users` with `franchise_head` role. Each franchise head sees only their franchise's facilities. Bookkeeper role (between admin and stylist in hierarchy): read billing/payroll/AR, record payments, mark invoices paid, link unresolved checks, export reports. Cannot manage residents/bookings/services/stylists. Scoped to franchise/facility like all other roles.
 

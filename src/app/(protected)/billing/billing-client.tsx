@@ -61,6 +61,8 @@ interface CrossFacilitySummary {
   collectedThisMonthCents: number
   invoicedThisMonthCents: number
   facilitiesOverdueCount: number
+  totalRevShareCents?: number
+  totalNetCents?: number
 }
 
 function paymentTypeLabel(pt: string | null | undefined): string {
@@ -216,14 +218,18 @@ export function BillingClient({
   const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   const totals = useMemo(() => {
-    if (!summary) return { billed: 0, received: 0, outstanding: 0 }
+    if (!summary) return { billed: 0, received: 0, outstanding: 0, netToSenior: 0 }
     const billed = (summary.invoices ?? []).reduce((s, i) => s + (i.amountCents ?? 0), 0)
     const received = (summary.payments ?? []).reduce((s, p) => s + (p.amountCents ?? 0), 0)
+    const netToSenior = (summary.payments ?? []).reduce(
+      (s, p) => s + (p.seniorStylistAmountCents ?? p.amountCents ?? 0),
+      0,
+    )
     const outstanding =
       activePeriod === 'all'
         ? summary.facility.qbOutstandingBalanceCents ?? 0
         : (summary.invoices ?? []).reduce((s, i) => s + (i.openBalanceCents ?? 0), 0)
-    return { billed, received, outstanding }
+    return { billed, received, outstanding, netToSenior }
   }, [summary, activePeriod])
 
   const billedAnimated = useCountUp(totals.billed)
@@ -479,6 +485,27 @@ export function BillingClient({
         </div>
       ) : null}
 
+      {isMaster && crossSummary && (crossSummary.totalRevShareCents ?? 0) > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+            <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
+              Total rev share collected
+            </div>
+            <div className="text-xl font-bold text-stone-900">
+              {formatDollars(crossSummary.totalRevShareCents ?? 0)}
+            </div>
+          </div>
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-4">
+            <div className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
+              Net to Senior Stylist
+            </div>
+            <div className="text-xl font-bold text-emerald-800">
+              {formatDollars(crossSummary.totalNetCents ?? 0)}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {isMaster && facilityOptions.length > 1 ? (
         <div className="mb-4 flex items-center justify-between gap-3">
           <select
@@ -638,7 +665,14 @@ export function BillingClient({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <StatCard label="Total Billed" value={formatDollars(billedAnimated)} />
-              <StatCard label="Total Received" value={formatDollars(receivedAnimated)} />
+              <div>
+                <StatCard label="Total Received" value={formatDollars(receivedAnimated)} />
+                {(summary?.facility.revSharePercentage ?? 0) > 0 && (
+                  <div className="text-xs text-stone-500 mt-1 px-1">
+                    Net to Senior Stylist: {formatDollars(totals.netToSenior)}
+                  </div>
+                )}
+              </div>
               <StatCard
                 label="Outstanding"
                 value={formatDollars(outstandingAnimated)}

@@ -10,6 +10,7 @@ import {
 } from '@/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
+import { calculateRevShare } from '@/lib/rev-share'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
@@ -236,6 +237,14 @@ export async function POST(request: NextRequest) {
       residentMap = new Map(residentRows.map((r) => [r.id, r]))
     }
 
+    // Phase 11L — fetch facility rev share config to compute split on every insert
+    const facilityRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, body.facilityId),
+      columns: { revSharePercentage: true, qbRevShareType: true },
+    })
+    const revSharePercentage = facilityRow?.revSharePercentage ?? null
+    const revShareType = facilityRow?.qbRevShareType ?? null
+
     // Collect residentIds whose balances we'll recompute after the transaction
     const residentsToRecompute = new Set<string>()
 
@@ -247,6 +256,7 @@ export async function POST(request: NextRequest) {
         for (const line of body.residentPayments) {
           if (!line.residentId) continue
           const resident = residentMap.get(line.residentId)
+          const ipRev = calculateRevShare(line.amountCents, revSharePercentage, revShareType)
           const [row] = await tx
             .insert(qbPayments)
             .values({
@@ -263,6 +273,9 @@ export async function POST(request: NextRequest) {
               paymentMethod: body.paymentMethod,
               recordedVia: 'check_scan',
               checkImageUrl: body.storagePath ?? null,
+              revShareAmountCents: ipRev.facilityShareCents,
+              revShareType: ipRev.revShareType,
+              seniorStylistAmountCents: ipRev.seniorStylistCents,
             })
             .returning({ id: qbPayments.id })
           if (row?.id) inserted.push(row.id)
@@ -303,6 +316,7 @@ export async function POST(request: NextRequest) {
                 return `${body.invoiceLines!.length} invoice${body.invoiceLines!.length === 1 ? '' : 's'}: ${dates.join(', ')}${ck}`
               })()
             : null)
+        const rfmsRev = calculateRevShare(rfmsTotal, revSharePercentage, revShareType)
         const [row] = await tx
           .insert(qbPayments)
           .values({
@@ -320,6 +334,9 @@ export async function POST(request: NextRequest) {
             recordedVia: 'check_scan',
             checkImageUrl: body.storagePath ?? null,
             residentBreakdown: breakdown,
+            revShareAmountCents: rfmsRev.facilityShareCents,
+            revShareType: rfmsRev.revShareType,
+            seniorStylistAmountCents: rfmsRev.seniorStylistCents,
           })
           .returning({ id: qbPayments.id })
         if (row?.id) inserted.push(row.id)
@@ -361,6 +378,7 @@ export async function POST(request: NextRequest) {
                 return `${body.invoiceLines!.length} invoice${body.invoiceLines!.length === 1 ? '' : 's'}: ${dates.join(', ')}${ck}`
               })()
             : null)
+        const lumpRev = calculateRevShare(body.amountCents, revSharePercentage, revShareType)
         const [row] = await tx
           .insert(qbPayments)
           .values({
@@ -378,6 +396,9 @@ export async function POST(request: NextRequest) {
             recordedVia: 'check_scan',
             checkImageUrl: body.storagePath ?? null,
             residentBreakdown: lumpBreakdown,
+            revShareAmountCents: lumpRev.facilityShareCents,
+            revShareType: lumpRev.revShareType,
+            seniorStylistAmountCents: lumpRev.seniorStylistCents,
           })
           .returning({ id: qbPayments.id })
         if (row?.id) inserted.push(row.id)
@@ -387,6 +408,7 @@ export async function POST(request: NextRequest) {
       if (cashTotal > 0) {
         const attributionId = body.cashAttributionResidentId ?? null
         const cashResident = attributionId ? residentMap.get(attributionId) : null
+        const cashRev = calculateRevShare(cashTotal, revSharePercentage, revShareType)
         const [row] = await tx
           .insert(qbPayments)
           .values({
@@ -403,6 +425,9 @@ export async function POST(request: NextRequest) {
             paymentMethod: 'cash',
             recordedVia: 'check_scan',
             checkImageUrl: body.storagePath ?? null,
+            revShareAmountCents: cashRev.facilityShareCents,
+            revShareType: cashRev.revShareType,
+            seniorStylistAmountCents: cashRev.seniorStylistCents,
           })
           .returning({ id: qbPayments.id })
         if (row?.id) inserted.push(row.id)

@@ -437,6 +437,10 @@ export const stylistPayItems = pgTable(
     qbBillId: text('qb_bill_id'),
     qbBillSyncToken: text('qb_bill_sync_token'),
     qbSyncError: text('qb_sync_error'),
+    qbInvoiceId: text('qb_invoice_id'),
+    invoiceAmountCents: integer('invoice_amount_cents'),
+    revShareAmountCents: integer('rev_share_amount_cents'),
+    revShareType: text('rev_share_type'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -525,6 +529,10 @@ export const qbPayments = pgTable('qb_payments', {
   reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
   reconciliationNotes: text('reconciliation_notes'),
   reconciliationLines: jsonb('reconciliation_lines').$type<ReconciliationLineSchema[]>(),
+  // Phase 11L — revenue share split (computed at insert time from facility config)
+  revShareAmountCents: integer('rev_share_amount_cents'),
+  revShareType: text('rev_share_type'),
+  seniorStylistAmountCents: integer('senior_stylist_amount_cents'),
   createdAt: timestamp('created_at').defaultNow(),
 })
 

@@ -23,5 +23,12 @@ export default async function AnalyticsPage() {
   const paymentType = facility?.paymentType ?? 'facility'
   const facilityId = facilityUser.facilityId
 
-  return <ReportsClient paymentType={paymentType} facilityId={facilityId} />
+  return (
+    <ReportsClient
+      paymentType={paymentType}
+      facilityId={facilityId}
+      revShareType={facility?.qbRevShareType ?? null}
+      revSharePercentage={facility?.revSharePercentage ?? null}
+    />
+  )
 }

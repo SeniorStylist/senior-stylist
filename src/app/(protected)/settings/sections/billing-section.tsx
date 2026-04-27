@@ -420,6 +420,18 @@ export function BillingSection({ facility }: Props) {
               </button>
             )}
           </div>
+          {revSharePct != null && revSharePct > 0 ? (
+            <div className="text-xs text-stone-600 mt-3 leading-relaxed bg-stone-50 rounded-lg p-3">
+              <div className="font-semibold text-stone-700 mb-0.5">
+                At {revSharePct}% revenue share ({effectiveRevShare === 'we_deduct' ? 'we deduct' : 'facility deducts'}):
+              </div>
+              <div className="text-stone-500">
+                On a $10,000 payment → ${(10000 * (100 - revSharePct) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to Senior Stylist, ${(10000 * revSharePct / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to facility
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-stone-400 mt-3 italic">No revenue share configured</div>
+          )}
         </div>
       )}
     </div>

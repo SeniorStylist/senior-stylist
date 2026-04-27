@@ -5,6 +5,7 @@ export interface BillingFacility {
   paymentType: string
   qbOutstandingBalanceCents: number | null
   qbRevShareType: string | null
+  revSharePercentage: number | null
   contactEmail: string | null
   address: string | null
 }
@@ -79,6 +80,9 @@ export interface BillingPayment {
     logStylistName: string | null
     flagReason: string | null
   }> | null
+  revShareAmountCents?: number | null
+  revShareType?: string | null
+  seniorStylistAmountCents?: number | null
 }
 
 export interface BillingSummary {

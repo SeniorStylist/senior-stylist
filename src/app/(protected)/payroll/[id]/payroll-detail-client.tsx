@@ -41,6 +41,10 @@ interface DetailItem {
   qbBillId: string | null
   qbBillSyncToken: string | null
   qbSyncError: string | null
+  qbInvoiceId: string | null
+  invoiceAmountCents: number | null
+  revShareAmountCents: number | null
+  revShareType: string | null
   stylist: DetailStylist
   deductions: DetailDeduction[]
 }
@@ -88,11 +92,15 @@ export function PayrollDetailClient({
   initialItems,
   hasQuickBooks,
   hasExpenseAccount,
+  revShareType,
+  revSharePercentage,
 }: {
   period: DetailPeriod
   initialItems: DetailItem[]
   hasQuickBooks: boolean
   hasExpenseAccount: boolean
+  revShareType: string | null
+  revSharePercentage: number | null
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -166,6 +174,14 @@ export function PayrollDetailClient({
 
   const isPaid = currentStatus === 'paid'
   const totalNet = useMemo(() => items.reduce((s, it) => s + it.netPayCents, 0), [items])
+  const totalRevShare = useMemo(
+    () => items.reduce((s, it) => s + (it.revShareAmountCents ?? 0), 0),
+    [items],
+  )
+  const totalGross = useMemo(
+    () => items.reduce((s, it) => s + (it.grossRevenueCents ?? 0), 0),
+    [items],
+  )
 
   const advanceStatus = async (target: 'processing' | 'paid') => {
     if (advancingStatus) return
@@ -360,6 +376,9 @@ export function PayrollDetailClient({
               : item.payType === 'hourly'
                 ? Math.round(parseFloat(item.hoursWorked ?? '0') * (item.hourlyRateCents ?? 0))
                 : (item.flatAmountCents ?? 0)
+          const revShareCents = item.revShareAmountCents ?? 0
+          const seniorStylistNet = item.netPayCents - revShareCents
+          const showRevShare = (revSharePercentage ?? 0) > 0
 
           return (
             <div key={item.id} className="border-b border-stone-100 last:border-b-0">
@@ -403,6 +422,17 @@ export function PayrollDetailClient({
                   )}
                 </div>
               </button>
+
+              {showRevShare && (
+                <div className="px-5 pb-2 -mt-1 ml-4 border-l-2 border-stone-100 pl-3 space-y-0.5">
+                  <div className="text-xs text-stone-500">
+                    Rev share: {revSharePercentage}% → {formatDollars(revShareCents)} to facility
+                  </div>
+                  <div className="text-xs text-stone-700 font-semibold">
+                    Net to Senior Stylist: {formatDollars(seniorStylistNet)}
+                  </div>
+                </div>
+              )}
 
               {expanded && !isPaid && (
                 <ItemEditor
@@ -485,6 +515,22 @@ export function PayrollDetailClient({
         {items.length === 0 && (
           <div className="px-5 py-8 text-center text-sm text-stone-500">
             No stylists assigned to this period.
+          </div>
+        )}
+
+        {(revSharePercentage ?? 0) > 0 && items.length > 0 && (
+          <div className="px-5 py-3 border-t border-stone-200 bg-stone-50/60 text-xs text-stone-600 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+            <span>
+              Total payroll: <span className="font-semibold text-stone-900">{formatDollars(totalGross)}</span>
+            </span>
+            <span className="text-stone-300">|</span>
+            <span>
+              Rev share deducted: <span className="font-semibold text-stone-900">{formatDollars(totalRevShare)}</span>
+            </span>
+            <span className="text-stone-300">|</span>
+            <span>
+              Net revenue: <span className="font-semibold text-stone-900">{formatDollars(totalGross - totalRevShare)}</span>
+            </span>
           </div>
         )}
       </div>

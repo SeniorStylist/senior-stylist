@@ -425,6 +425,56 @@ Reconciliation: <emerald N> reconciled · <amber M> partial · <red K> flagged  
 ```
 Container: `px-5 py-2.5 border-b border-stone-100 bg-stone-50/40`. The `View flagged →` link is local-state filter (toggle to `Show all`) — burgundy `text-[#8B2E4A]`. Counts only payments where `getRemittanceLines(p) !== null`.
 
+### Revenue Share UI (Phase 11L)
+
+Visual contract for revenue-share split surfaces. All elements are conditionally hidden when `facility.revSharePercentage` is null/0.
+
+**Percentage badge** (used everywhere a `%` appears next to a dollar split):
+- `bg-stone-100 text-stone-600 rounded-full px-2 py-0.5 text-[10px] font-semibold`
+- Renders `{N}%` only — no spaces, no other content.
+
+**RFMS check row sub-block** (under the Memo cell when `revShareAmountCents > 0`):
+```
+Senior Stylist: $9,960.00 [80%]
+Facility share: $2,490.00 [20%] · we deduct
+```
+- Container: `text-xs text-stone-400 leading-tight space-y-0.5`
+- Each line: `flex items-center gap-1.5`
+- Type label: lowercase `we deduct` / `facility deducts`, never the snake_case enum
+
+**Billing hub Net to Senior Stylist line** (under the Total Received StatCard tile):
+- `text-xs text-stone-500 mt-1 px-1`
+- Single line: `Net to Senior Stylist: $X,XXX`
+
+**Cross-facility rev share rollup** (master-admin only, below the existing 5-tile bar):
+- Wrapper: `grid grid-cols-1 md:grid-cols-2 gap-3 mb-6`
+- Tile 1 (Total rev share collected): plain white card
+- Tile 2 (Net to Senior Stylist): `bg-emerald-50 border-emerald-100`
+- Both render only when `crossSummary.totalRevShareCents > 0`
+
+**Payroll detail per-row sub-block** (below each stylist row in the items grid):
+- Container: `px-5 pb-2 -mt-1 ml-4 border-l-2 border-stone-100 pl-3 space-y-0.5`
+- Line 1 (rev share): `text-xs text-stone-500` — "Rev share: 20% → $X to facility"
+- Line 2 (net): `text-xs text-stone-700 font-semibold` — "Net to Senior Stylist: $Y"
+
+**Payroll detail footer summary** (bottom of items table):
+- Container: `px-5 py-3 border-t border-stone-200 bg-stone-50/60 text-xs text-stone-600 flex flex-wrap items-center justify-end gap-x-4 gap-y-1`
+- Three segments separated by `<span className="text-stone-300">|</span>`: Total payroll / Rev share deducted / Net revenue
+- Dollar values: `font-semibold text-stone-900`
+
+**Analytics Revenue Share card** (above the Total Revenue / Appointments tiles):
+- Container: `bg-white rounded-2xl border border-stone-200 p-5 shadow-[var(--shadow-sm)]`
+- Header row: `flex items-center justify-between mb-3` — h3 `text-sm font-semibold text-stone-800` + status pill on right
+- Status pill (right side): `bg-stone-100 text-stone-600 rounded-full px-2.5 py-0.5 text-xs font-semibold` — text `"{N}% · {label}"`
+- Body: `grid grid-cols-3 gap-4 text-sm` — each cell has a `text-xs text-stone-500 mb-0.5` label and a `font-semibold text-stone-900` (or `text-stone-800` for Net) value
+
+**Settings preview block** (under the rev share toggle):
+- When `revSharePercentage > 0`:
+  - Container: `text-xs text-stone-600 mt-3 leading-relaxed bg-stone-50 rounded-lg p-3`
+  - Title line: `font-semibold text-stone-700` — "At {N}% revenue share ({we deduct|facility deducts}):"
+  - Detail line: `text-stone-500` — "On a $10,000 payment → $X to Senior Stylist, $Y to facility"
+- When 0/null: `text-xs text-stone-400 mt-3 italic` "No revenue share configured"
+
 ### Expandable Row with Inline Edit (payroll detail)
 
 Pattern: one row per item with `expandedId: string | null` state (see `payroll-detail-client.tsx` + `directory-client.tsx` for the applicant variant). Clicking the row toggles `expandedId`; the expanded body renders below the same row inside the list container (NOT a separate modal). Row grid columns are desktop-only (`md:grid md:grid-cols-[...]`); mobile collapses to stacked rows. Expand chevron rotates via `rotate-90` when active.

@@ -315,6 +315,26 @@
 - **Resident resolution**: only the parent payment's `residentId` is used (all lines on a remittance slip share the same payee). Per-line resolution via `qb_invoices.invoice_ref` was deferred — note it as the obvious next iteration if Lisa flags multi-resident remittance slips.
 - **HybridView** must forward `onPaymentUpdated` from `billing-client.tsx` through to its inner `<RFMSView>` so reconciliation works on hybrid facilities too.
 
+### Revenue Share Integration (Phase 11L)
+- Schema gained 7 nullable columns:
+  - `qb_payments`: `rev_share_amount_cents`, `rev_share_type`, `senior_stylist_amount_cents`
+  - `stylist_pay_items`: `qb_invoice_id`, `invoice_amount_cents`, `rev_share_amount_cents`, `rev_share_type`
+- **Engine**: `src/lib/rev-share.ts` exports `calculateRevShare(totalCents, revSharePercentage, revShareType) → { totalCents, seniorStylistCents, facilityShareCents, revShareType, revSharePercentage }`. When percentage is null/0 or type is null, returns the full amount as senior-stylist-only with `facilityShareCents: 0`. **Rounding rule**: `facilityShareCents = Math.round(total * pct / 100)`, then `seniorStylistCents = totalCents - facilityShareCents` (never two independent rounds — avoids 1¢ drift).
+- **Math is identical** for `we_deduct` and `facility_deducts` — only the operational flow / label differs. Don't branch on type for the numbers.
+- **`POST /api/billing/save-check-payment`** computes the split once per request from the facility row and writes the 3 new columns on every `qb_payments` insert — all 4 code paths (per-resident IP, RFMS facility-level, lump facility, cash). The facility row is fetched inside the route (not from the request body).
+- **`POST /api/pay-periods`** does a best-effort booking↔invoice match: a left-join from `bookings` to `qb_invoices` on `(facility_id, resident_id)` plus `qb_invoices.invoice_date BETWEEN bookings.start_time::date - 30 days AND bookings.start_time::date + 30 days`. Each pay item stores the **first** matched invoice (best-effort — pay items are 1-many to bookings; multi-invoice cases lose detail). Always also stores `revShareAmountCents = round(grossRevenueCents * revSharePct / 100)` and `revShareType = facility.qbRevShareType`.
+- **Booking-status filter on the JOIN**: not applied (pay-period query already filters on `status='completed'`).
+- **`logEntryId` field naming** (Phase 11K) and `qbInvoiceId` field naming (Phase 11L) both store best-effort references that may be wrong if data shifts. Treat them as informational, not load-bearing.
+- **Cross-facility rev share rollup** in `GET /api/billing/cross-facility-summary` adds two SUM aggregates from `qb_payments` over ALL rows (not month-scoped). Returns `totalRevShareCents` + `totalNetCents`. **Caveat**: only payments inserted post-Phase-11L populate the new columns — historical rows contribute 0. No backfill performed.
+- **UI**: 
+  - `rfms-view.tsx` Memo cell appends a 2-line rev share sub-block (Senior Stylist / Facility share with percentage badges) when `revShareAmountCents > 0` AND `facility.revSharePercentage > 0`. Style: `text-xs text-stone-400 leading-tight`, badges `bg-stone-100 text-stone-600 rounded-full px-2 py-0.5 text-[10px] font-semibold`.
+  - `billing-client.tsx` adds a "Net to Senior Stylist: $X" sub-line below the Total Received tile when `facility.revSharePercentage > 0`, plus a 2-tile cross-facility rollup row (master admin only) below the existing 5-tile cross-facility bar.
+  - `payroll-detail-client.tsx` adds a 2-line indented sub-block below each stylist row (border-l accent) showing rev share + net to Senior Stylist. Plus a 3-segment footer summary line at the bottom of the items table.
+  - `analytics/reports-client.tsx` adds a Revenue Share card above the Total Revenue / Appointments tiles when `revSharePercentage > 0`. 3-column grid: Gross / Rev share deducted / Net.
+  - `settings/sections/billing-section.tsx` rev share card adds a `bg-stone-50` calculation preview block under the toggle row showing "On a $10,000 payment → $X to Senior Stylist, $Y to facility" — recomputes live as the toggle changes (label only — math is identical between types).
+- **0%-facility behavior**: every rev share UI element is hidden when `revSharePercentage` is null/0. Don't render an empty card.
+- **`save-check-payment` does NOT pass facility from the request body** — it always re-fetches `facilities.findFirst` to read `revSharePercentage` + `qbRevShareType` server-side. Don't trust client-supplied rev share values.
+
 ### Performance / Caching (Phase 11J.4)
 - **`loading.tsx`**: every server-rendered page with non-trivial data fetch MUST have a sibling `loading.tsx` exporting a skeleton — without it Next.js shows a blank screen on cold renders. Use `.skeleton-shimmer rounded-2xl` blocks (class lives in `globals.css`). Existing files: `master-admin/`, `billing/`, `payroll/`, `residents/`, `settings/`, `analytics/`, `log/`, `dashboard/`. Skeleton shape should roughly match the page (header bar + content cards/rows).
 - **`unstable_cache` registry** (existing wrapped queries):

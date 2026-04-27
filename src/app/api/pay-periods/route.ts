@@ -7,11 +7,13 @@ import {
   stylistFacilityAssignments,
   bookings,
   franchiseFacilities,
+  qbInvoices,
+  facilities,
 } from '@/db/schema'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
 import { resolveCommission } from '@/lib/stylist-commission'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { and, eq, desc, gte, lt, inArray } from 'drizzle-orm'
+import { and, eq, desc, gte, lt, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
@@ -107,6 +109,13 @@ export async function POST(request: NextRequest) {
     })
     const franchiseId = franchiseRow?.franchiseId ?? null
 
+    const facilityRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { revSharePercentage: true, qbRevShareType: true },
+    })
+    const revSharePct = facilityRow?.revSharePercentage ?? 0
+    const revShareType = facilityRow?.qbRevShareType ?? null
+
     const endExclusive = new Date(`${endDate}T00:00:00Z`)
     endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
     const startInclusive = new Date(`${startDate}T00:00:00Z`)
@@ -151,7 +160,10 @@ export async function POST(request: NextRequest) {
 
       const completed = await tx
         .select({
+          bookingId: bookings.id,
           stylistId: bookings.stylistId,
+          residentId: bookings.residentId,
+          startTime: bookings.startTime,
           priceCents: bookings.priceCents,
         })
         .from(bookings)
@@ -173,10 +185,43 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // Phase 11L — best-effort booking ↔ invoice match (±30 days, same resident + facility)
+      const bookingIds = completed.map((b) => b.bookingId)
+      const invoiceMatchByStylist = new Map<string, { invoiceId: string; invoiceCents: number }>()
+      if (bookingIds.length > 0) {
+        const matches = await tx
+          .select({
+            bookingStylistId: bookings.stylistId,
+            invoiceId: qbInvoices.id,
+            invoiceCents: qbInvoices.amountCents,
+          })
+          .from(bookings)
+          .leftJoin(
+            qbInvoices,
+            and(
+              eq(qbInvoices.facilityId, bookings.facilityId),
+              eq(qbInvoices.residentId, bookings.residentId),
+              sql`${qbInvoices.invoiceDate} BETWEEN (${bookings.startTime})::date - interval '30 days' AND (${bookings.startTime})::date + interval '30 days'`,
+            ),
+          )
+          .where(inArray(bookings.id, bookingIds))
+        for (const m of matches) {
+          if (!m.invoiceId || !m.bookingStylistId) continue
+          if (!invoiceMatchByStylist.has(m.bookingStylistId)) {
+            invoiceMatchByStylist.set(m.bookingStylistId, {
+              invoiceId: m.invoiceId,
+              invoiceCents: m.invoiceCents ?? 0,
+            })
+          }
+        }
+      }
+
       const values = assignments.map((a) => {
         const gross = grossByStylist.get(a.stylistId) ?? 0
         const rate = resolveCommission(a.defaultCommission, { commissionPercent: a.overrideCommission })
         const commissionAmount = Math.round((gross * rate) / 100)
+        const matchedInvoice = invoiceMatchByStylist.get(a.stylistId) ?? null
+        const revShareCents = Math.round((gross * revSharePct) / 100)
         return {
           payPeriodId: period.id,
           stylistId: a.stylistId,
@@ -186,6 +231,10 @@ export async function POST(request: NextRequest) {
           commissionRate: rate,
           commissionAmountCents: commissionAmount,
           netPayCents: commissionAmount,
+          qbInvoiceId: matchedInvoice?.invoiceId ?? null,
+          invoiceAmountCents: matchedInvoice?.invoiceCents ?? null,
+          revShareAmountCents: revShareCents,
+          revShareType,
         }
       })
 

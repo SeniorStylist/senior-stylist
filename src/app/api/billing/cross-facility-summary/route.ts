@@ -20,33 +20,42 @@ export async function GET() {
   }
 
   try {
-    const [outstandingRows, collectedRows, invoicedRows, overdueRows] = await Promise.all([
-      db.execute(sql`
-        SELECT COALESCE(SUM(qb_outstanding_balance_cents), 0)::bigint AS total
-        FROM facilities WHERE active = true
-      `),
-      db.execute(sql`
-        SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total
-        FROM qb_payments
-        WHERE payment_date >= date_trunc('month', CURRENT_DATE)
-      `),
-      db.execute(sql`
-        SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total
-        FROM qb_invoices
-        WHERE invoice_date >= date_trunc('month', CURRENT_DATE)
-      `),
-      db.execute(sql`
-        SELECT COUNT(*)::int AS total
-        FROM facilities f
-        WHERE f.active = true
-          AND f.qb_outstanding_balance_cents > 0
-          AND NOT EXISTS (
-            SELECT 1 FROM qb_invoices i
-            WHERE i.facility_id = f.id
-              AND i.invoice_date >= (CURRENT_DATE - INTERVAL '30 days')
-          )
-      `),
-    ])
+    const [outstandingRows, collectedRows, invoicedRows, overdueRows, revShareRows, netRows] =
+      await Promise.all([
+        db.execute(sql`
+          SELECT COALESCE(SUM(qb_outstanding_balance_cents), 0)::bigint AS total
+          FROM facilities WHERE active = true
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total
+          FROM qb_payments
+          WHERE payment_date >= date_trunc('month', CURRENT_DATE)
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total
+          FROM qb_invoices
+          WHERE invoice_date >= date_trunc('month', CURRENT_DATE)
+        `),
+        db.execute(sql`
+          SELECT COUNT(*)::int AS total
+          FROM facilities f
+          WHERE f.active = true
+            AND f.qb_outstanding_balance_cents > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM qb_invoices i
+              WHERE i.facility_id = f.id
+                AND i.invoice_date >= (CURRENT_DATE - INTERVAL '30 days')
+            )
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(rev_share_amount_cents), 0)::bigint AS total
+          FROM qb_payments
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(senior_stylist_amount_cents), 0)::bigint AS total
+          FROM qb_payments
+        `),
+      ])
 
     const toNum = (v: unknown): number => {
       if (typeof v === 'number') return v
@@ -59,6 +68,8 @@ export async function GET() {
     const collectedThisMonthCents = toNum((collectedRows[0] as { total?: unknown } | undefined)?.total)
     const invoicedThisMonthCents = toNum((invoicedRows[0] as { total?: unknown } | undefined)?.total)
     const facilitiesOverdueCount = toNum((overdueRows[0] as { total?: unknown } | undefined)?.total)
+    const totalRevShareCents = toNum((revShareRows[0] as { total?: unknown } | undefined)?.total)
+    const totalNetCents = toNum((netRows[0] as { total?: unknown } | undefined)?.total)
 
     return Response.json({
       data: {
@@ -66,6 +77,8 @@ export async function GET() {
         collectedThisMonthCents,
         invoicedThisMonthCents,
         facilitiesOverdueCount,
+        totalRevShareCents,
+        totalNetCents,
       },
     })
   } catch (err) {

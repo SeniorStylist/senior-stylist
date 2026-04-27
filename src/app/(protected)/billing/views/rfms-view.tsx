@@ -17,6 +17,7 @@ import { btnBase, expandTransition } from '@/lib/animations'
 import { Avatar } from '@/components/ui/avatar'
 
 export function RFMSView({
+  facility,
   residents,
   invoices,
   payments,
@@ -182,15 +183,27 @@ export function RFMSView({
                       <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
                         {formatDollars(p.amountCents)}
                       </div>
-                      <div className="md:col-span-5 text-sm text-stone-500 truncate flex items-center gap-2">
-                        <span className="truncate">
-                          {p.memo ?? p.invoiceRef ?? (
-                            <span className="text-stone-400">—</span>
+                      <div className="md:col-span-5 text-sm text-stone-500 flex flex-col gap-0.5 min-w-0">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="truncate">
+                            {p.memo ?? p.invoiceRef ?? (
+                              <span className="text-stone-400">—</span>
+                            )}
+                          </span>
+                          {p.reconciliationStatus && p.reconciliationStatus !== 'unreconciled' && (
+                            <ReconciliationPill status={p.reconciliationStatus} />
                           )}
-                        </span>
-                        {p.reconciliationStatus && p.reconciliationStatus !== 'unreconciled' && (
-                          <ReconciliationPill status={p.reconciliationStatus} />
-                        )}
+                        </div>
+                        {p.revShareAmountCents != null &&
+                          p.revShareAmountCents > 0 &&
+                          (facility.revSharePercentage ?? 0) > 0 && (
+                            <RevShareSubRows
+                              seniorStylistCents={p.seniorStylistAmountCents ?? p.amountCents - p.revShareAmountCents}
+                              facilityShareCents={p.revShareAmountCents}
+                              percentage={facility.revSharePercentage ?? 0}
+                              type={p.revShareType ?? facility.qbRevShareType}
+                            />
+                          )}
                       </div>
                     </div>
                     {expandedCheckId === p.id && (() => {
@@ -312,6 +325,38 @@ export function RFMSView({
           </>
         )}
       </ExpandableSection>
+    </div>
+  )
+}
+
+function RevShareSubRows({
+  seniorStylistCents,
+  facilityShareCents,
+  percentage,
+  type,
+}: {
+  seniorStylistCents: number
+  facilityShareCents: number
+  percentage: number
+  type: string | null | undefined
+}) {
+  const seniorPct = 100 - percentage
+  const typeLabel = type === 'facility_deducts' ? 'facility deducts' : 'we deduct'
+  return (
+    <div className="text-xs text-stone-400 leading-tight space-y-0.5">
+      <div className="flex items-center gap-1.5">
+        <span>Senior Stylist: {formatDollars(seniorStylistCents)}</span>
+        <span className="bg-stone-100 text-stone-600 rounded-full px-2 py-0.5 text-[10px] font-semibold">
+          {seniorPct}%
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span>Facility share: {formatDollars(facilityShareCents)}</span>
+        <span className="bg-stone-100 text-stone-600 rounded-full px-2 py-0.5 text-[10px] font-semibold">
+          {percentage}%
+        </span>
+        <span className="text-stone-400">· {typeLabel}</span>
+      </div>
     </div>
   )
 }

@@ -49,6 +49,8 @@ export default async function PayrollDetailPage({
       qbAccessToken: true,
       qbRefreshToken: true,
       qbExpenseAccountId: true,
+      qbRevShareType: true,
+      revSharePercentage: true,
     },
   })
   const hasQuickBooks = !!(facility?.qbAccessToken && facility?.qbRefreshToken)
@@ -60,6 +62,8 @@ export default async function PayrollDetailPage({
       initialItems={toClientJson(items)}
       hasQuickBooks={hasQuickBooks}
       hasExpenseAccount={hasExpenseAccount}
+      revShareType={facility?.qbRevShareType ?? null}
+      revSharePercentage={facility?.revSharePercentage ?? null}
     />
   )
 }

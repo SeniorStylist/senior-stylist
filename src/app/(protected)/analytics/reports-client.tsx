@@ -84,9 +84,16 @@ const STATUS_STYLES: Record<string, string> = {
 interface ReportsClientProps {
   paymentType: string
   facilityId: string
+  revShareType?: string | null
+  revSharePercentage?: number | null
 }
 
-export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
+export function ReportsClient({
+  paymentType,
+  facilityId,
+  revShareType,
+  revSharePercentage,
+}: ReportsClientProps) {
   const [activeTab, setActiveTab] = useState<ReportTab>('analytics')
   const [month, setMonth] = useState(() => {
     const now = new Date()
@@ -242,6 +249,38 @@ export function ReportsClient({ paymentType, facilityId }: ReportsClientProps) {
 
       {activeTab === 'analytics' && !loading && data && (
         <div className="space-y-5">
+          {(revSharePercentage ?? 0) > 0 && (
+            <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-[var(--shadow-sm)]">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-stone-800">Revenue Share</h3>
+                <span className="bg-stone-100 text-stone-600 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                  {revSharePercentage}% · {revShareType === 'facility_deducts' ? 'facility deducts' : 'we deduct'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-stone-500 mb-0.5">Gross revenue</p>
+                  <p className="font-semibold text-stone-900">{formatCents(data.totalRevenueCents)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500 mb-0.5">Rev share deducted</p>
+                  <p className="font-semibold text-stone-900">
+                    −{formatCents(Math.round((data.totalRevenueCents * (revSharePercentage ?? 0)) / 100))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500 mb-0.5">Net revenue</p>
+                  <p className="font-semibold text-stone-800">
+                    {formatCents(
+                      data.totalRevenueCents -
+                        Math.round((data.totalRevenueCents * (revSharePercentage ?? 0)) / 100),
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Top stats */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
