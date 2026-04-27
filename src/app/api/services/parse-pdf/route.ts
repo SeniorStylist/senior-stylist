@@ -120,8 +120,6 @@ export async function POST(request: NextRequest) {
     }
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
-    console.log('[parse-pdf] Gemini raw response (first 500):', rawText.slice(0, 500))
-
     let parsed: unknown[]
     try {
       const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
@@ -175,7 +173,6 @@ export async function POST(request: NextRequest) {
         }
       })
 
-    console.log(`[parse-pdf] Extracted ${rows.length} services across ${colorMap.size} categories`)
     return Response.json({ data: rows })
   } catch (err) {
     console.error('[parse-pdf] error:', err)

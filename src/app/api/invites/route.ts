@@ -7,6 +7,13 @@ import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { sendEmail } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { z } from 'zod'
+
+const createInviteSchema = z.object({
+  email: z.string().email().max(320),
+  inviteRole: z.enum(['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist']).optional(),
+  facilityId: z.string().uuid().optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,22 +32,25 @@ export async function POST(request: NextRequest) {
     )
 
     const body = await request.json()
-    const { email, inviteRole } = body
+    const parsed = createInviteSchema.safeParse(body)
+    if (!parsed.success) {
+      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+    const { email, inviteRole } = parsed.data
 
     let facilityId: string
     if (isSuperAdmin) {
-      if (!body.facilityId || typeof body.facilityId !== 'string') {
+      if (!parsed.data.facilityId) {
         return Response.json({ error: 'facilityId is required' }, { status: 422 })
       }
-      facilityId = body.facilityId
+      facilityId = parsed.data.facilityId
     } else {
       const facilityUser = await getUserFacility(user.id)
       if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
       if (facilityUser.role === 'super_admin') {
         // Franchise owner — allow inviting only to facilities inside their franchise
-        const targetFacilityId =
-          (typeof body.facilityId === 'string' && body.facilityId) || facilityUser.facilityId
+        const targetFacilityId = parsed.data.facilityId ?? facilityUser.facilityId
 
         const ownedFranchise = await db.query.franchises.findFirst({
           where: eq(franchises.ownerUserId, user.id),
@@ -64,14 +74,6 @@ export async function POST(request: NextRequest) {
       } else {
         facilityId = facilityUser.facilityId
       }
-    }
-    if (!email || typeof email !== 'string') {
-      return Response.json({ error: 'Email is required' }, { status: 422 })
-    }
-
-    const validRoles = ['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist']
-    if (inviteRole && !validRoles.includes(inviteRole)) {
-      return Response.json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }, { status: 422 })
     }
 
     const normalizedEmail = email.toLowerCase().trim()

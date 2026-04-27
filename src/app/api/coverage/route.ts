@@ -8,6 +8,7 @@ import {
 } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sendEmail, buildCoverageRequestEmailHtml } from '@/lib/email'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, asc, eq, lte, gte } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -94,6 +95,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const rl = await checkRateLimit('coverage', user.id)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })

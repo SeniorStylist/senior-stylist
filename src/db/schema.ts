@@ -106,7 +106,11 @@ export const residents = pgTable(
     active: boolean('active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
-  }
+  },
+  (t) => ({
+    // billing summary + cross-facility queries filter on facility_id WHERE active = true
+    facilityActiveIdx: index('residents_facility_active_idx').on(t.facilityId).where(sql`active = true`),
+  })
 )
 
 export const stylists = pgTable('stylists', {
@@ -160,6 +164,8 @@ export const stylistFacilityAssignments = pgTable(
       t.stylistId,
       t.facilityId,
     ),
+    // facility-scoped lookups (existing unique has stylist_id as leftmost prefix — can't serve facility_id-only filters)
+    facilityIdx: index('stylist_facility_assignments_facility_idx').on(t.facilityId),
   }),
 )
 
@@ -193,7 +199,10 @@ export const complianceDocuments = pgTable('compliance_documents', {
   verifiedAt: timestamp('verified_at'),
   uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}, (t) => ({
+  // compliance dashboard fetches docs per stylist within a facility scope
+  stylistFacilityIdx: index('compliance_documents_stylist_facility_idx').on(t.stylistId, t.facilityId),
+}))
 
 export const stylistAvailability = pgTable(
   'stylist_availability',
@@ -299,7 +308,14 @@ export const bookings = pgTable('bookings', {
   portalNotes: text('portal_notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}, (t) => ({
+  // calendar fetch + portal availability + booking-summary (facility-scoped, time-ordered)
+  facilityStartIdx: index('bookings_facility_start_idx').on(t.facilityId, t.startTime.desc()),
+  // stylist conflict detection + per-stylist calendar
+  stylistStartIdx: index('bookings_stylist_start_idx').on(t.stylistId, t.startTime.desc()),
+  // resident duplicate-detection + merge tool re-pointing
+  residentIdx: index('bookings_resident_idx').on(t.residentId),
+}))
 
 export const invites = pgTable('invites', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -344,6 +360,8 @@ export const logEntries = pgTable(
   },
   (t) => ({
     uniqueFacilityStylistDate: unique().on(t.facilityId, t.stylistId, t.date),
+    // daily-log page filters by (facility_id, date) — existing unique has stylist_id in 2nd column so prefix doesn't help
+    facilityDateIdx: index('log_entries_facility_date_idx').on(t.facilityId, t.date.desc()),
   })
 )
 
@@ -508,6 +526,8 @@ export const qbInvoices = pgTable('qb_invoices', {
 }, (t) => ({
   dedupIdx: uniqueIndex('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId),
   qbIdIdx: index('qb_invoices_qb_id_idx').on(t.qbInvoiceId).where(sql`qb_invoice_id IS NOT NULL`),
+  // billing summary: WHERE facility_id = X AND invoice_date BETWEEN Y AND Z ORDER BY invoice_date DESC
+  facilityDateIdx: index('qb_invoices_facility_date_idx').on(t.facilityId, t.invoiceDate.desc()),
 }))
 
 export const qbPayments = pgTable('qb_payments', {
@@ -554,7 +574,10 @@ export const qbPayments = pgTable('qb_payments', {
   revShareType: text('rev_share_type'),
   seniorStylistAmountCents: integer('senior_stylist_amount_cents'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}, (t) => ({
+  // billing summary: WHERE facility_id = X AND payment_date BETWEEN Y AND Z ORDER BY payment_date DESC
+  facilityDateIdx: index('qb_payments_facility_date_idx').on(t.facilityId, t.paymentDate.desc()),
+}))
 
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -1,8 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import dynamic from 'next/dynamic'
 import { cn, formatCents } from '@/lib/utils'
+
+// Dynamic-load recharts so it doesn't ship in the protected-route base bundle.
+const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), { ssr: false })
+const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false })
+const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false })
+const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false })
+const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false })
+const ResponsiveContainer = dynamic(
+  () => import('recharts').then((m) => m.ResponsiveContainer),
+  { ssr: false },
+)
+const Cell = dynamic(() => import('recharts').then((m) => m.Cell), { ssr: false })
 import { Spinner } from '@/components/ui'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { SkeletonStatCard, Skeleton } from '@/components/ui/skeleton'

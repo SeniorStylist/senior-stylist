@@ -1057,6 +1057,8 @@ export function OcrImportModal({
             onClick={(e) => e.stopPropagation()}
           />
           <button
+            type="button"
+            aria-label="Close preview"
             className="absolute right-4 text-white text-2xl leading-none"
             style={{ top: 'calc(env(safe-area-inset-top) + 16px)' }}
             onClick={() => setLightboxSrc(null)}

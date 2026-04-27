@@ -14,6 +14,7 @@ type Bucket =
   | 'quickbooksSync'
   | 'qbInvoiceSync'
   | 'qbImport'
+  | 'coverage'
   | 'billingImport'
   | 'billingSend'
   | 'checkScan'
@@ -37,6 +38,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   quickbooksSync: { tokens: 15, window: '1 h' },
   qbInvoiceSync: { tokens: 3, window: '1 h' },
   qbImport: { tokens: 5, window: '1 h' },
+  coverage: { tokens: 10, window: '1 h' },
   billingImport: { tokens: 5, window: '1 h' },
   billingSend: { tokens: 20, window: '1 h' },
   checkScan: { tokens: 30, window: '1 h' },

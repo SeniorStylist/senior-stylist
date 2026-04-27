@@ -58,43 +58,106 @@ export default async function MyAccountPage() {
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 7)
 
-      weekBookings = await db.query.bookings.findMany({
-        where: and(
-          eq(bookings.facilityId, facilityUser.facilityId),
-          eq(bookings.stylistId, stylist.id),
-          gte(bookings.startTime, weekStart),
-          lte(bookings.startTime, weekEnd),
-        ),
-        with: { resident: true, service: true },
-        orderBy: (t, { asc }) => [asc(t.startTime)],
-      })
-
-      // This month's earnings
+      // This month's earnings range
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-      const monthBookings = await db.query.bookings.findMany({
-        where: and(
-          eq(bookings.facilityId, facilityUser.facilityId),
-          eq(bookings.stylistId, stylist.id),
-          gte(bookings.startTime, monthStart),
-          lte(bookings.startTime, monthEnd),
-          eq(bookings.status, 'completed'),
-        ),
-      })
+      // Fan out 7 independent stylist-scoped queries in parallel.
+      const [
+        weekBookingsRes,
+        monthBookings,
+        docs,
+        availabilityRowsRes,
+        coverageRowsRes,
+        stylistAssignmentsRes,
+        payHistoryRes,
+      ] = await Promise.all([
+        db.query.bookings.findMany({
+          where: and(
+            eq(bookings.facilityId, facilityUser.facilityId),
+            eq(bookings.stylistId, stylist.id),
+            gte(bookings.startTime, weekStart),
+            lte(bookings.startTime, weekEnd),
+          ),
+          with: { resident: true, service: true },
+          orderBy: (t, { asc }) => [asc(t.startTime)],
+        }),
+        db.query.bookings.findMany({
+          where: and(
+            eq(bookings.facilityId, facilityUser.facilityId),
+            eq(bookings.stylistId, stylist.id),
+            gte(bookings.startTime, monthStart),
+            lte(bookings.startTime, monthEnd),
+            eq(bookings.status, 'completed'),
+          ),
+        }),
+        db.query.complianceDocuments.findMany({
+          where: and(
+            eq(complianceDocuments.stylistId, stylist.id),
+            eq(complianceDocuments.facilityId, facilityUser.facilityId)
+          ),
+          orderBy: [desc(complianceDocuments.uploadedAt)],
+        }),
+        db.query.stylistAvailability.findMany({
+          where: and(
+            eq(stylistAvailability.stylistId, stylist.id),
+            eq(stylistAvailability.facilityId, facilityUser.facilityId)
+          ),
+          orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
+        }),
+        db.query.coverageRequests.findMany({
+          where: and(
+            eq(coverageRequests.stylistId, stylist.id),
+            eq(coverageRequests.facilityId, facilityUser.facilityId)
+          ),
+          orderBy: (t, { asc }) => [asc(t.startDate)],
+        }),
+        db
+          .select({
+            facilityId: stylistFacilityAssignments.facilityId,
+            facilityName: facilities.name,
+            active: stylistFacilityAssignments.active,
+          })
+          .from(stylistFacilityAssignments)
+          .innerJoin(facilities, eq(facilities.id, stylistFacilityAssignments.facilityId))
+          .where(
+            and(
+              eq(stylistFacilityAssignments.stylistId, stylist.id),
+              eq(stylistFacilityAssignments.active, true),
+            ),
+          ),
+        db
+          .select({
+            periodId: payPeriods.id,
+            startDate: payPeriods.startDate,
+            endDate: payPeriods.endDate,
+            status: payPeriods.status,
+            facilityName: facilities.name,
+            grossRevenueCents: stylistPayItems.grossRevenueCents,
+            netPayCents: stylistPayItems.netPayCents,
+            commissionRate: stylistPayItems.commissionRate,
+            commissionAmountCents: stylistPayItems.commissionAmountCents,
+            payItemId: stylistPayItems.id,
+          })
+          .from(stylistPayItems)
+          .innerJoin(payPeriods, eq(stylistPayItems.payPeriodId, payPeriods.id))
+          .innerJoin(facilities, eq(payPeriods.facilityId, facilities.id))
+          .where(eq(stylistPayItems.stylistId, stylist.id))
+          .orderBy(desc(payPeriods.startDate))
+          .limit(12),
+      ])
+
+      weekBookings = weekBookingsRes
+      availabilityRows = availabilityRowsRes
+      coverageRows = coverageRowsRes
+      stylistAssignments = stylistAssignmentsRes
+      payHistory = payHistoryRes
 
       monthEarningsCents = monthBookings.reduce((sum, b) => {
         const price = b.priceCents ?? 0
         return sum + Math.round(price * (stylist!.commissionPercent / 100))
       }, 0)
 
-      const docs = await db.query.complianceDocuments.findMany({
-        where: and(
-          eq(complianceDocuments.stylistId, stylist.id),
-          eq(complianceDocuments.facilityId, facilityUser.facilityId)
-        ),
-        orderBy: [desc(complianceDocuments.uploadedAt)],
-      })
       const storage = createStorageClient()
       complianceDocs = await Promise.all(
         docs.map(async (d) => {
@@ -104,57 +167,6 @@ export default async function MyAccountPage() {
           return { ...d, signedUrl: data?.signedUrl ?? null }
         })
       )
-
-      availabilityRows = await db.query.stylistAvailability.findMany({
-        where: and(
-          eq(stylistAvailability.stylistId, stylist.id),
-          eq(stylistAvailability.facilityId, facilityUser.facilityId)
-        ),
-        orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
-      })
-
-      coverageRows = await db.query.coverageRequests.findMany({
-        where: and(
-          eq(coverageRequests.stylistId, stylist.id),
-          eq(coverageRequests.facilityId, facilityUser.facilityId)
-        ),
-        orderBy: (t, { asc }) => [asc(t.startDate)],
-      })
-
-      stylistAssignments = await db
-        .select({
-          facilityId: stylistFacilityAssignments.facilityId,
-          facilityName: facilities.name,
-          active: stylistFacilityAssignments.active,
-        })
-        .from(stylistFacilityAssignments)
-        .innerJoin(facilities, eq(facilities.id, stylistFacilityAssignments.facilityId))
-        .where(
-          and(
-            eq(stylistFacilityAssignments.stylistId, stylist.id),
-            eq(stylistFacilityAssignments.active, true),
-          ),
-        )
-
-      payHistory = await db
-        .select({
-          periodId: payPeriods.id,
-          startDate: payPeriods.startDate,
-          endDate: payPeriods.endDate,
-          status: payPeriods.status,
-          facilityName: facilities.name,
-          grossRevenueCents: stylistPayItems.grossRevenueCents,
-          netPayCents: stylistPayItems.netPayCents,
-          commissionRate: stylistPayItems.commissionRate,
-          commissionAmountCents: stylistPayItems.commissionAmountCents,
-          payItemId: stylistPayItems.id,
-        })
-        .from(stylistPayItems)
-        .innerJoin(payPeriods, eq(stylistPayItems.payPeriodId, payPeriods.id))
-        .innerJoin(facilities, eq(payPeriods.facilityId, facilities.id))
-        .where(eq(stylistPayItems.stylistId, stylist.id))
-        .orderBy(desc(payPeriods.startDate))
-        .limit(12)
 
       const payItemIds = payHistory.map((h) => h.payItemId as string).filter(Boolean)
       if (payItemIds.length > 0) {

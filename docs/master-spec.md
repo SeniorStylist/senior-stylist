@@ -1261,3 +1261,34 @@ Returns `{ created, updated, skipped, errors[] }`.
 - `settings/sections/billing-section.tsx` — Adds an "Invoice Sync" subsection inside the QB connected card. When flag off: amber `bg-amber-50 border-amber-200` "coming soon" banner. When on: last-synced label + Sync now / Full re-sync buttons (full re-sync uses the same confirm modal). Reuses the existing `qbToast` helper.
 
 **Env**: `QB_INVOICE_SYNC_ENABLED=false` in `.env.local`. NOT set in Vercel. Flip to `'true'` in Vercel (production + preview) only after Intuit approves the production app.
+
+
+### Codebase Audit Pass (2026-04-27) — Indexes + Cleanup
+
+Quality/perf pass, no new features. Highlights:
+
+**9 new indexes** — all declared in `src/db/schema.ts` extras blocks AND created in DB:
+
+| Table | Index | Columns |
+|-------|-------|---------|
+| `bookings` | `bookings_facility_start_idx` | `(facility_id, start_time DESC)` |
+| `bookings` | `bookings_stylist_start_idx` | `(stylist_id, start_time DESC)` |
+| `bookings` | `bookings_resident_idx` | `(resident_id)` |
+| `log_entries` | `log_entries_facility_date_idx` | `(facility_id, date DESC)` |
+| `stylist_facility_assignments` | `stylist_facility_assignments_facility_idx` | `(facility_id)` |
+| `compliance_documents` | `compliance_documents_stylist_facility_idx` | `(stylist_id, facility_id)` |
+| `qb_invoices` | `qb_invoices_facility_date_idx` | `(facility_id, invoice_date DESC)` |
+| `qb_payments` | `qb_payments_facility_date_idx` | `(facility_id, payment_date DESC)` |
+| `residents` | `residents_facility_active_idx` | `(facility_id) WHERE active = true` |
+
+The last three were claimed by Phase 11J.4 documentation but had never been created in the DB — fixed in this pass.
+
+**New rate-limit bucket**: `coverage` (10/h/user) for `POST /api/coverage`.
+
+**New Zod schema**: `createInviteSchema` on `POST /api/invites`.
+
+**Loading skeletons**: 6 added (`stylists`, `services`, `my-account`, `payroll/[id]`, `residents/[id]`, `stylists/[id]`) — every protected route now has one.
+
+**Bundle**: `recharts` is dynamic-imported in `analytics`, `reports`, `master-admin/reports-tab`. `papaparse` + `xlsx` are inline-imported in onboarding event handlers only.
+
+**Brain-rule additions** (CLAUDE.md): indexes-in-schema-only, no `console.log` in `src/app/api` + `src/lib`, `revalidateTag` on cached-tag mutations, Zod safeParse on every `req.json()`, `Promise.all` on independent awaits, `next/dynamic` for heavy libs.

@@ -14,8 +14,7 @@ export async function sendEmail({
 }) {
   if (!process.env.RESEND_API_KEY) return
   try {
-    const result = await resend.emails.send({ from: FROM, to, subject, html })
-    console.log('[sendEmail] sent:', { to, messageId: result.data?.id })
+    await resend.emails.send({ from: FROM, to, subject, html })
   } catch (err) {
     console.error('[sendEmail] failed:', { to, error: err })
   }

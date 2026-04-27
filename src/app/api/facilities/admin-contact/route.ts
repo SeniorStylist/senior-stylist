@@ -36,7 +36,6 @@ export async function GET(_request: NextRequest) {
       } catch (e) {
         console.error('GET /api/facilities/admin-contact — allFacilities query failed:', e)
       }
-      console.log('GET /api/facilities/admin-contact — returning allFacilities count:', allFacilities.length)
       return Response.json({ email: null, facilityId: null, facilityName: null, allFacilities })
     }
 

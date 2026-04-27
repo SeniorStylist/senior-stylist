@@ -163,14 +163,8 @@ async function qbFetch<T>(
     })
   }
 
-  const logTid = (response: Response) => {
-    const tid = response.headers.get('intuit_tid')
-    if (tid) console.log(`[QB] intuit_tid=${tid} path=${path} status=${response.status}`)
-  }
-
   let token = await refreshQBToken(facilityId)
   let res = await doCall(token)
-  logTid(res)
   if (res.status === 401) {
     // Force a fresh refresh by clearing the cached access token.
     await db
@@ -179,7 +173,6 @@ async function qbFetch<T>(
       .where(eq(facilities.id, facilityId))
     token = await refreshQBToken(facilityId)
     res = await doCall(token)
-    logTid(res)
   }
   if (!res.ok) {
     const text = await res.text()

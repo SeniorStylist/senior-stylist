@@ -123,7 +123,6 @@ export async function POST(request: NextRequest) {
     const servicesJson = formData.get('servicesJson') as string | null
     const knownServices: { name: string; priceCents: number }[] = servicesJson ? JSON.parse(servicesJson) : []
     const instruction = buildInstruction(knownServices)
-    console.log(`[OCR] Received ${files.length} file(s), ${knownServices.length} known services`)
 
     if (files.length === 0) return Response.json({ error: 'No images provided' }, { status: 400 })
     if (files.length > MAX_FILE_COUNT) {
@@ -142,7 +141,6 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      console.log(`[OCR] Processing file ${i}: type=${file.type}, size=${file.size} bytes, name=${file.name}`)
 
       if (!allowedTypes.includes(file.type)) {
         console.warn(`[OCR] File ${i} rejected: unsupported type ${file.type}`)
@@ -153,10 +151,6 @@ export async function POST(request: NextRequest) {
       try {
         const bytes = await file.arrayBuffer()
         const base64 = Buffer.from(bytes).toString('base64')
-        if (file.type === 'application/pdf') {
-          console.log(`[OCR] PDF file ${i}: ${(file.size / 1024).toFixed(1)} KB`)
-        }
-        console.log(`[OCR] Sending file ${i} to Gemini (${base64.length} base64 chars)`)
 
         const rawText = await Promise.race([
           callGemini(base64, file.type, apiKey, instruction),
@@ -164,7 +158,6 @@ export async function POST(request: NextRequest) {
             setTimeout(() => reject(new Error('Gemini timeout after 90s')), 90_000)
           ),
         ])
-        console.log(`[OCR] Raw Gemini response for file ${i}:`, rawText.slice(0, 500))
 
         let parsed: { date: string | null; stylistName: string | null; entries: unknown[] }
         try {
@@ -185,7 +178,6 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        console.log(`[OCR] File ${i} parsed OK: ${(parsed.entries as unknown[]).length} entries, date=${parsed.date}`)
         sheets.push({
           imageIndex: i,
           date: parsed.date ?? null,
@@ -204,7 +196,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[OCR] Done: ${sheets.length} sheets, ${sheets.filter((s: unknown) => (s as { error?: string }).error).length} errors`)
     return Response.json({ data: { sheets } })
   } catch (err) {
     console.error('POST /api/log/ocr error:', err)

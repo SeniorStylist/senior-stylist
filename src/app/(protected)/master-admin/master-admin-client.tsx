@@ -710,7 +710,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
         {deleteError && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
             <span>{deleteError}</span>
-            <button onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600 ml-4 shrink-0">✕</button>
+            <button type="button" aria-label="Dismiss error" onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600 ml-4 shrink-0">✕</button>
           </div>
         )}
 

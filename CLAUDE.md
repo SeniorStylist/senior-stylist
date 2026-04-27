@@ -30,6 +30,7 @@
 - NEVER hard delete records — always use `active = false`
 - Prices are ALWAYS stored in cents (integers) — display by dividing by 100, NEVER store floats
 - After ANY schema change run: `npx dotenv -e .env.local -- npx drizzle-kit push`
+- **Indexes MUST be declared in `src/db/schema.ts`** inside the `(t) => ({ ... })` extras block — never create indexes only at the DB level. Reviewers can't see DB-only indexes; the schema is the source of truth. (Phase 11J.4 created three indexes only at DB level — by April 2026 the actual DB had none of them, and the docs lied for two months. The Apr 27 audit pass added them properly.)
 - `facilityUsers.role` is the authoritative role — not `profiles.role`
 - `facilities.working_hours` is jsonb `{ days: string[], startTime: "HH:MM", endTime: "HH:MM" }` — null = default 08:00–18:00; use it to bound time slots in booking modal
 - ALL tables MUST have RLS enabled with a `service_role_all` policy — when adding a new table, run:
@@ -91,9 +92,13 @@
   Stylist-role users can only mutate their own bookings/profile
 - Every Zod input schema needs `.max()` caps: names 200, room 50, notes/description 2000, email 320, color 20, address 500, cents 10_000_000, tier/option arrays 20, additionalServices 20, timezone 100
 - Rate-limit all public or expensive routes via `src/lib/rate-limit.ts` — `checkRateLimit(bucket, identifier)` + `rateLimitResponse(retryAfter)`
-  - Buckets: `signup` 5/hr/IP, `portalBook` 10/hr/token, `ocr` 20/hr/user, `parsePdf` 20/hr/user, `sendPortalLink` 10/hr/user, `invites` 30/hr/user, `checkScan` 30/hr/user, `qbInvoiceSync` 3/hr/user (Phase 11M)
+  - Buckets: `signup` 5/hr/IP, `portalBook` 10/hr/token, `ocr` 20/hr/user, `parsePdf` 20/hr/user, `sendPortalLink` 10/hr/user, `invites` 30/hr/user, `checkScan` 30/hr/user, `qbInvoiceSync` 3/hr/user (Phase 11M), `coverage` 10/hr/user (Apr 27 audit)
   - No-ops when UPSTASH env vars are unset
 - Portal routes (`/api/portal/[token]/*`) MUST use explicit `columns:` whitelists on every `db.query.*` call, and MUST verify every `stylistId`/`serviceId`/`addonServiceIds` belongs to the resident's facility before accepting input
+- **`console.log` is dev-time only.** Production routes use `console.error` for errors and (rarely) `console.warn` for unexpected-but-recoverable states. PR reviewers should reject `console.log` in `src/app/api/` and `src/lib/`.
+- **Mutation routes that affect a cached tag MUST call `revalidateTag('<tag>', {})` on the success path.** Tags currently in use: `'bookings'`, `'pay-periods'`, `'billing'`, `'facilities'`, `'access-requests'`. Adding `revalidateTag` for a tag that isn't consumed is dead code; only wire it in when the table is actually cached somewhere.
+- **Every `req.json()` MUST go through a Zod `safeParse()` schema** — no shape inference from `body.x` field accesses. Schemas live at the top of the route file.
+- **Sequential `await db.query.X` calls inside a `page.tsx` or `route.ts` MUST be `Promise.all()`'d** when neither query depends on the other's result (e.g. both filter by the same `facilityId` or `stylistId`).
 
 ### Security / Payload Hygiene
 - Server → client payloads MUST be sanitized — never expose internal DB columns (cost basis, internal notes, other-facility data, etc.) in API responses
@@ -341,12 +346,22 @@
 - **`save-check-payment` does NOT pass facility from the request body** — it always re-fetches `facilities.findFirst` to read `revSharePercentage` + `qbRevShareType` server-side. Don't trust client-supplied rev share values.
 
 ### Performance / Caching (Phase 11J.4)
-- **`loading.tsx`**: every server-rendered page with non-trivial data fetch MUST have a sibling `loading.tsx` exporting a skeleton — without it Next.js shows a blank screen on cold renders. Use `.skeleton-shimmer rounded-2xl` blocks (class lives in `globals.css`). Existing files: `master-admin/`, `billing/`, `payroll/`, `residents/`, `settings/`, `analytics/`, `log/`, `dashboard/`. Skeleton shape should roughly match the page (header bar + content cards/rows).
+- **`loading.tsx`**: every server-rendered page with non-trivial data fetch MUST have a sibling `loading.tsx` exporting a skeleton — without it Next.js shows a blank screen on cold renders. Use `.skeleton-shimmer rounded-2xl` blocks (class lives in `globals.css`). Existing files: `master-admin/`, `billing/`, `payroll/`, `payroll/[id]/`, `residents/`, `residents/[id]/`, `stylists/`, `stylists/[id]/`, `services/`, `my-account/`, `settings/`, `analytics/`, `log/`, `dashboard/`. Skeleton shape should roughly match the page (header bar + content cards/rows).
+- **Heavy libs go through `next/dynamic`** in client components: `recharts`, `pdfjs-dist`, `xlsx`, `papaparse`. Top-level imports inflate the route bundle for users who never hit the chart/import flow. Pattern for components: `const BarChart = dynamic(() => import('recharts').then(m => m.BarChart), { ssr: false })`. For one-off util calls in event handlers: `const Papa = (await import('papaparse')).default`.
 - **`unstable_cache` registry** (existing wrapped queries):
   - `master-admin/page.tsx` — `getCachedFacilityInfos(yearMonthKey)`: keyParts `['master-admin-facility-infos']`, `revalidate: 300`, tag `'facilities'`. The function arg `yearMonthKey` (e.g. `'2026-04'`) auto-rotates the cache when the calendar month flips so `bookingsThisMonth` stays correct.
   - `master-admin/page.tsx` — `getCachedPendingAccessRequests()`: keyParts `['master-admin-pending-access-requests']`, `revalidate: 60`, tag `'access-requests'`.
   - `super-admin/reports/{outstanding,monthly}/route.ts` — keyParts include facilityIds + month, `revalidate: 300`, tag `'bookings'`.
-  - `billing/summary/[facilityId]/route.ts` — `getBillingSummaryData(facilityId, from, to)`: keyParts `['billing-summary']`, `revalidate: 120`, tag `'billing'`. Busted by `revalidateTag('billing', {})` in save-check-payment, Stripe webhook, and reconcile routes. **Row limits**: 500 invoices, 200 payments. **Default date range**: current month (API always filters by date range — no unbounded all-history fetch). DB indexes: `qb_invoices_facility_date_idx (facility_id, invoice_date DESC)`, `qb_payments_facility_date_idx (facility_id, payment_date DESC)`, `residents_facility_active_idx (facility_id) WHERE active = true`.
+  - `billing/summary/[facilityId]/route.ts` — `getBillingSummaryData(facilityId, from, to)`: keyParts `['billing-summary']`, `revalidate: 120`, tag `'billing'`. Busted by `revalidateTag('billing', {})` in save-check-payment, Stripe webhook, and reconcile routes. **Row limits**: 500 invoices, 200 payments. **Default date range**: current month (API always filters by date range — no unbounded all-history fetch). DB indexes (declared in `src/db/schema.ts` AND created in DB by Apr 27 audit pass — they were missing in DB despite being claimed by Phase 11J.4): `qb_invoices_facility_date_idx (facility_id, invoice_date DESC)`, `qb_payments_facility_date_idx (facility_id, payment_date DESC)`, `residents_facility_active_idx (facility_id) WHERE active = true`.
+
+**Index audit (Apr 27 2026)**: full DB inspection produced 9 missing indexes on heavily-queried columns. All are now declared in `src/db/schema.ts` and present in DB:
+  - `bookings`: `bookings_facility_start_idx (facility_id, start_time DESC)`, `bookings_stylist_start_idx (stylist_id, start_time DESC)`, `bookings_resident_idx (resident_id)`
+  - `log_entries`: `log_entries_facility_date_idx (facility_id, date DESC)` — existing compound unique has stylist_id 2nd, prefix mismatch
+  - `stylist_facility_assignments`: `stylist_facility_assignments_facility_idx (facility_id)` — existing unique has stylist_id leftmost, can't serve facility-only filters
+  - `compliance_documents`: `compliance_documents_stylist_facility_idx (stylist_id, facility_id)`
+  - `qb_invoices`: `qb_invoices_facility_date_idx (facility_id, invoice_date DESC)` (was claimed by 11J.4, never existed)
+  - `qb_payments`: `qb_payments_facility_date_idx (facility_id, payment_date DESC)` (was claimed by 11J.4, never existed)
+  - `residents`: `residents_facility_active_idx (facility_id) WHERE active = true` (was claimed by 11J.4, never existed)
 - **Cache tags in use**: `'bookings'`, `'pay-periods'`, `'billing'`, `'facilities'`, `'access-requests'`. Always call `revalidateTag('<tag>', {})` (Next.js 16 second-arg signature) on the success path of any mutation that affects cached data.
 - **`'facilities'` revalidation**: every facility mutation MUST call `revalidateTag('facilities', {})` — already wired on `POST /api/facilities`, `PUT /api/facility`, `PATCH /api/facilities/[facilityId]/rev-share`, `POST /api/super-admin/merge-facilities`, `POST /api/super-admin/import-quickbooks`, `POST /api/super-admin/import-facilities-csv`.
 - **`'access-requests'` revalidation**: `POST /api/access-requests`, `PUT /api/access-requests/[id]` (approve + deny paths).

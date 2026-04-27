@@ -316,7 +316,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                     <input type="number" value={(tier.unitPriceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const t = [...addTiers]; t[i] = { ...t[i], unitPriceCents: dollarsToCents(e.target.value) }; setAddTiers(t) }} className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   </div>
                   {addTiers.length > 1 && (
-                    <button onClick={() => setAddTiers(addTiers.filter((_, j) => j !== i))} className="p-1 text-stone-400 hover:text-red-500"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                    <button type="button" aria-label="Remove tier" onClick={() => setAddTiers(addTiers.filter((_, j) => j !== i))} className="p-1 text-stone-400 hover:text-red-500"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   )}
                 </div>
               ))}
@@ -335,7 +335,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                     <input type="number" value={(opt.priceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const o = [...addOptions]; o[i] = { ...o[i], priceCents: dollarsToCents(e.target.value) }; setAddOptions(o) }} className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                   </div>
                   {addOptions.length > 1 && (
-                    <button onClick={() => setAddOptions(addOptions.filter((_, j) => j !== i))} className="p-1 text-stone-400 hover:text-red-500"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                    <button type="button" aria-label="Remove option" onClick={() => setAddOptions(addOptions.filter((_, j) => j !== i))} className="p-1 text-stone-400 hover:text-red-500"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   )}
                 </div>
               ))}
@@ -547,7 +547,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">$</span>
                               <input type="number" value={(tier.unitPriceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const t = [...editTiers]; t[i] = { ...t[i], unitPriceCents: dollarsToCents(e.target.value) }; setEditTiers(t) }} className="w-full bg-white border border-stone-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             </div>
-                            {editTiers.length > 1 && <button onClick={() => setEditTiers(editTiers.filter((_, j) => j !== i))} className="p-0.5 text-stone-400 hover:text-red-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                            {editTiers.length > 1 && <button type="button" aria-label="Remove tier" onClick={() => setEditTiers(editTiers.filter((_, j) => j !== i))} className="p-0.5 text-stone-400 hover:text-red-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                           </div>
                         ))}
                         <button onClick={() => setEditTiers([...editTiers, { minQty: (editTiers[editTiers.length - 1]?.maxQty ?? 0) + 1, maxQty: (editTiers[editTiers.length - 1]?.maxQty ?? 0) + 10, unitPriceCents: 0 }])} className="text-xs text-[#8B2E4A] font-medium hover:underline">+ Add tier</button>
@@ -563,7 +563,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">$</span>
                               <input type="number" value={(opt.priceCents / 100).toFixed(2)} step="0.01" min="0" onChange={(e) => { const o = [...editOptions]; o[i] = { ...o[i], priceCents: dollarsToCents(e.target.value) }; setEditOptions(o) }} className="w-full bg-white border border-stone-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:border-[#8B2E4A]" />
                             </div>
-                            {editOptions.length > 1 && <button onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))} className="p-0.5 text-stone-400 hover:text-red-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                            {editOptions.length > 1 && <button type="button" aria-label="Remove option" onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))} className="p-0.5 text-stone-400 hover:text-red-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                           </div>
                         ))}
                         <button onClick={() => setEditOptions([...editOptions, { name: '', priceCents: 0 }])} className="text-xs text-[#8B2E4A] font-medium hover:underline">+ Add option</button>

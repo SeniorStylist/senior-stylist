@@ -6,19 +6,14 @@ import { generateStylistCode } from '@/lib/stylist-code'
 
 export async function POST() {
   try {
-    console.log('[setup] Starting setup route')
-
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
     if (!user) {
-      console.log('[setup] No authenticated user')
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    console.log('[setup] User authenticated:', user.id)
 
     // Check if user already has a facility — treat any error as "no existing facility"
     let existing = null
@@ -26,14 +21,12 @@ export async function POST() {
       existing = await db.query.facilityUsers.findFirst({
         where: eq(facilityUsers.userId, user.id),
       })
-      console.log('[setup] facilityUsers check complete, existing:', existing?.facilityId ?? 'none')
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.warn('[setup] facilityUsers check failed (treating as no facility):', message)
     }
 
     if (existing) {
-      console.log('[setup] Already set up, returning existing facilityId:', existing.facilityId)
       return Response.json({
         data: {
           facilityId: existing.facilityId,
@@ -43,7 +36,6 @@ export async function POST() {
     }
 
     // Upsert profile first (required before inserting facilityUsers)
-    console.log('[setup] Upserting profile for user:', user.id)
     await db
       .insert(profiles)
       .values({
@@ -62,10 +54,7 @@ export async function POST() {
           updatedAt: new Date(),
         },
       })
-    console.log('[setup] Profile upserted')
 
-    // Create facility
-    console.log('[setup] Creating facility')
     const [facility] = await db
       .insert(facilities)
       .values({
@@ -73,19 +62,13 @@ export async function POST() {
         timezone: 'America/New_York',
       })
       .returning()
-    console.log('[setup] Facility created:', facility.id)
 
-    // Link user to facility as admin
-    console.log('[setup] Linking user to facility')
     await db.insert(facilityUsers).values({
       userId: user.id,
       facilityId: facility.id,
       role: 'admin',
     })
-    console.log('[setup] facilityUsers record created')
 
-    // Seed services
-    console.log('[setup] Seeding services')
     await db.insert(services).values([
       {
         facilityId: facility.id,
@@ -123,10 +106,7 @@ export async function POST() {
         color: '#059669',
       },
     ]).onConflictDoNothing()
-    console.log('[setup] Services seeded')
 
-    // Seed residents
-    console.log('[setup] Seeding residents')
     await db.insert(residents).values([
       { facilityId: facility.id, name: 'Mary Collins', roomNumber: '12' },
       { facilityId: facility.id, name: 'Robert Hill', roomNumber: '7' },
@@ -134,10 +114,7 @@ export async function POST() {
       { facilityId: facility.id, name: 'Dorothy Pierce', roomNumber: '31' },
       { facilityId: facility.id, name: 'Harold Bennett', roomNumber: '9' },
     ]).onConflictDoNothing()
-    console.log('[setup] Residents seeded')
 
-    // Seed stylist
-    console.log('[setup] Seeding stylist')
     await db.transaction(async (tx) => {
       const stylistCode = await generateStylistCode(tx)
       await tx.insert(stylists).values({
@@ -147,9 +124,7 @@ export async function POST() {
         color: '#0D7377',
       }).onConflictDoNothing()
     })
-    console.log('[setup] Stylist seeded')
 
-    console.log('[setup] Setup complete!')
     return Response.json({
       data: {
         facilityId: facility.id,
