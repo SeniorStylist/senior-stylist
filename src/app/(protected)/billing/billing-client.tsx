@@ -84,8 +84,8 @@ export function BillingClient({
   const searchParams = useSearchParams()
   const [facilityId, setFacilityId] = useState<string>(() => {
     const q = searchParams?.get('facility')
-    if (q && facilityOptions.some((f) => f.id === q)) return q
-    return initialFacilityId
+    if (q && (facilityOptions.length === 0 || facilityOptions.some((f) => f.id === q))) return q
+    return initialFacilityId || facilityOptions[0]?.id || ''
   })
   const [refreshKey, setRefreshKey] = useState(0)
   const [summary, setSummary] = useState<BillingSummary | null>(null)
