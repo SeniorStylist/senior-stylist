@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { cookies } from 'next/headers'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { BillingClient } from './billing-client'
 
@@ -44,7 +45,10 @@ export default async function BillingPage() {
       return aNum !== bNum ? aNum - bNum : (a.name ?? '').localeCompare(b.name ?? '')
     })
     facilityOptions = list
-    initialFacilityId = list[0]?.id ?? ''
+    const cookieStore = await cookies()
+    const selectedId = cookieStore.get('selected_facility_id')?.value
+    const cookieMatch = selectedId ? list.find((f) => f.id === selectedId) : null
+    initialFacilityId = cookieMatch?.id ?? list[0]?.id ?? ''
   } else {
     initialFacilityId = facilityUser!.facilityId
   }
