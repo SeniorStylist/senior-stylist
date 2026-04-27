@@ -10,6 +10,7 @@ import {
   numeric,
   primaryKey,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
@@ -482,7 +483,7 @@ export const qbInvoices = pgTable('qb_invoices', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
-  dedupIdx: unique('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId),
+  dedupIdx: uniqueIndex('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId),
 }))
 
 export const qbPayments = pgTable('qb_payments', {
@@ -599,11 +600,13 @@ export const facilityMergeLog = pgTable('facility_merge_log', {
 
 export const portalAccounts = pgTable('portal_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull().unique(),
+  email: text('email').notNull(),
   passwordHash: text('password_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
-})
+}, (t) => ({
+  emailUniq: unique('portal_accounts_email_key').on(t.email),
+}))
 
 export const portalAccountResidents = pgTable(
   'portal_account_residents',
@@ -621,7 +624,7 @@ export const portalAccountResidents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
-    uniqueAccountResident: unique('portal_account_residents_account_resident_unique').on(
+    uniqueAccountResident: unique('portal_account_residents_portal_account_id_resident_id_key').on(
       t.portalAccountId,
       t.residentId,
     ),
@@ -631,23 +634,27 @@ export const portalAccountResidents = pgTable(
 export const portalMagicLinks = pgTable('portal_magic_links', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull(),
-  token: text('token').notNull().unique(),
+  token: text('token').notNull(),
   residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'cascade' }),
   facilityCode: text('facility_code').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (t) => ({
+  tokenUniq: unique('portal_magic_links_token_key').on(t.token),
+}))
 
 export const portalSessions = pgTable('portal_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   portalAccountId: uuid('portal_account_id')
     .references(() => portalAccounts.id, { onDelete: 'cascade' })
     .notNull(),
-  sessionToken: text('session_token').notNull().unique(),
+  sessionToken: text('session_token').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (t) => ({
+  sessionTokenUniq: unique('portal_sessions_session_token_key').on(t.sessionToken),
+}))
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 
