@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
@@ -7,55 +8,19 @@ import { NextRequest } from 'next/server'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ facilityId: string }> }
-) {
-  const { facilityId } = await params
+const getBillingSummaryData = unstable_cache(
+  async (facilityId: string, from: string, to: string) => {
+    const invoiceWhere = and(
+      eq(qbInvoices.facilityId, facilityId),
+      gte(qbInvoices.invoiceDate, from),
+      lte(qbInvoices.invoiceDate, to)
+    )
+    const paymentWhere = and(
+      eq(qbPayments.facilityId, facilityId),
+      gte(qbPayments.paymentDate, from),
+      lte(qbPayments.paymentDate, to)
+    )
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const isMaster =
-    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
-    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-
-  if (!isMaster) {
-    const fu = await getUserFacility(user.id)
-    if (!fu || !canAccessBilling(fu.role)) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    if (fu.facilityId !== facilityId) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
-    }
-  }
-
-  const fromParam = req.nextUrl.searchParams.get('from')
-  const toParam = req.nextUrl.searchParams.get('to')
-  const hasRange = !!(fromParam && toParam)
-  if (hasRange && (!ISO_DATE.test(fromParam!) || !ISO_DATE.test(toParam!))) {
-    return Response.json({ error: 'Invalid date range' }, { status: 400 })
-  }
-
-  const invoiceWhere = hasRange
-    ? and(
-        eq(qbInvoices.facilityId, facilityId),
-        gte(qbInvoices.invoiceDate, fromParam!),
-        lte(qbInvoices.invoiceDate, toParam!)
-      )
-    : eq(qbInvoices.facilityId, facilityId)
-  const paymentWhere = hasRange
-    ? and(
-        eq(qbPayments.facilityId, facilityId),
-        gte(qbPayments.paymentDate, fromParam!),
-        lte(qbPayments.paymentDate, toParam!)
-      )
-    : eq(qbPayments.facilityId, facilityId)
-
-  try {
     const [facility, residentList, invoices, payments] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityId),
@@ -87,6 +52,7 @@ export async function GET(
       db.query.qbInvoices.findMany({
         where: invoiceWhere,
         orderBy: [desc(qbInvoices.invoiceDate)],
+        limit: 500,
       }),
       db.query.qbPayments.findMany({
         where: paymentWhere,
@@ -113,19 +79,61 @@ export async function GET(
           seniorStylistAmountCents: true,
         },
         orderBy: [desc(qbPayments.paymentDate)],
+        limit: 200,
       }),
     ])
 
-    if (!facility) return Response.json({ error: 'Not found' }, { status: 404 })
+    return { facility: facility ?? null, residents: residentList, invoices, payments }
+  },
+  ['billing-summary'],
+  { revalidate: 120, tags: ['billing'] }
+)
 
-    return Response.json({
-      data: {
-        facility,
-        residents: residentList,
-        invoices,
-        payments,
-      },
-    })
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ facilityId: string }> }
+) {
+  const { facilityId } = await params
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const isMaster =
+    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
+  if (!isMaster) {
+    const fu = await getUserFacility(user.id)
+    if (!fu || !canAccessBilling(fu.role)) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    if (fu.facilityId !== facilityId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
+
+  // Default to current month when no params provided — protects against unbounded
+  // historical fetches. Client always sends explicit params for its period selector.
+  const today = new Date()
+  const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1)
+    .toISOString()
+    .split('T')[0]
+  const defaultTo = today.toISOString().split('T')[0]
+
+  const fromParam = req.nextUrl.searchParams.get('from') ?? defaultFrom
+  const toParam = req.nextUrl.searchParams.get('to') ?? defaultTo
+
+  if (!ISO_DATE.test(fromParam) || !ISO_DATE.test(toParam)) {
+    return Response.json({ error: 'Invalid date range' }, { status: 400 })
+  }
+
+  try {
+    const data = await getBillingSummaryData(facilityId, fromParam, toParam)
+    if (!data.facility) return Response.json({ error: 'Not found' }, { status: 404 })
+    return Response.json({ data })
   } catch (err) {
     console.error('[billing/summary] DB error:', err)
     return Response.json({ error: 'Internal error' }, { status: 500 })

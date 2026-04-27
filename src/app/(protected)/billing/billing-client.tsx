@@ -549,7 +549,12 @@ export function BillingClient({
 
       {loading ? (
         <div className="space-y-4">
-          <div className="skeleton-shimmer rounded-2xl h-24" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="skeleton-shimmer rounded-2xl h-20" />
+            <div className="skeleton-shimmer rounded-2xl h-20" />
+            <div className="skeleton-shimmer rounded-2xl h-20" />
+            <div className="skeleton-shimmer rounded-2xl h-20" />
+          </div>
           <div className="skeleton-shimmer rounded-2xl h-64" />
         </div>
       ) : error ? (
