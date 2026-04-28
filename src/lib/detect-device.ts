@@ -37,3 +37,21 @@ export function isInstallable(): boolean {
   const device = detectDevice()
   return device !== 'desktop' && device !== 'unknown'
 }
+
+export type iOSUIVariant = 'ios26+' | 'ios16-18' | 'ios15' | 'ios-unknown'
+
+export function getiOSVersion(): { major: number; minor: number } | null {
+  if (typeof window === 'undefined') return null
+  const match = navigator.userAgent.match(/(iPhone OS|CPU OS)\s+(\d+)[_.](\d+)/)
+  if (!match) return null
+  return { major: parseInt(match[2], 10), minor: parseInt(match[3], 10) }
+}
+
+export function getiOSUIVariant(): iOSUIVariant {
+  const v = getiOSVersion()
+  if (!v) return 'ios-unknown'
+  if (v.major >= 26) return 'ios26+'
+  if (v.major >= 16) return 'ios16-18'
+  if (v.major === 15) return 'ios15'
+  return 'ios-unknown'
+}
