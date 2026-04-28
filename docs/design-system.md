@@ -1971,3 +1971,32 @@ The family portal at `/family/[facilityCode]/*` is the POA-facing surface — ma
 
 **Resident detail unified "Family Portal" card** — admin-only (gate: existing admin-page guard). Single card replaces the former "Family Portal" (send-invite only) + "Portal Link" (token copy/send) dual-card setup. Layout: label row + description + optional POA email display + two equal-width buttons side by side. **Send Link** button: burgundy primary, fires `/api/portal/send-invite`, toast on success, refreshes. Label flips to "Sent Nh ago" during the 24h cooldown. **Copy Link** button: stone secondary, calls `/api/portal/create-magic-link`, copies returned URL to clipboard, shows "✓ Copied!" for 3s. Both buttons disabled + `disabled:opacity-40` when `!resident.poaEmail`. No tooltip needed — amber "No POA email on file" message is shown above the buttons when email is absent.
 
+---
+
+## PWA Install Guide
+
+### Device detection (`src/lib/detect-device.ts`)
+
+`detectDevice() → DeviceType` — inspects `navigator.userAgent` to return one of: `ios-safari | ios-chrome | ios-other | android-chrome | android-samsung | android-other | desktop | unknown`. Already-installed check uses `window.matchMedia('(display-mode: standalone)').matches` and `window.navigator.standalone`.
+
+`isInstallable() → boolean` — returns `false` when already installed or on desktop/unknown.
+
+### InstallBanner (`src/components/pwa/install-banner.tsx`)
+
+Persistent dismissible banner: `md:hidden`, `fixed left-3 right-3 z-30`, `bottom: calc(env(safe-area-inset-bottom) + 80px)`, `bg-[#1C0A12]`. Shows after a **10-second** delay. Dismissed for **7 days** (stores timestamp in `localStorage` key `pwa_install_dismissed`). "Show me how →" opens `<InstallGuide>`. Captures `beforeinstallprompt` event for Android Chrome.
+
+### InstallGuide (`src/components/pwa/install-guide.tsx`)
+
+A `<BottomSheet>` rendering device-specific step-by-step guides:
+- **`ios-safari`** — 3 steps: tap Share (Safari toolbar mockup, highlighted share icon + bouncing arrow) → "Add to Home Screen" (share sheet mockup, highlighted row) → tap "Add" (confirmation dialog mockup)
+- **`ios-chrome`** — must switch to Safari: amber warning, step to tap "aA" in Chrome address bar → "Open in Safari"
+- **`android-chrome`** — if `deferredPrompt` available: big "Install App" button triggers native prompt; otherwise 2-step manual guide (⋮ menu → "Add to Home screen")
+- **`android-samsung`** — 2 steps: ≡ menu → "Add page to Home screen"
+- **other** — generic text fallback
+
+All visual mockups are **inline SVG + CSS divs** — no image files. Step numbers: `w-7 h-7 rounded-full bg-[#8B2E4A] text-white`. Bouncing arrows: `animate-bounce` in burgundy.
+
+### "Use as an app" card in `/my-account`
+
+Shown only when `isInstallable()` returns true (mobile, not already installed). Card at the bottom of `my-account-client.tsx` with a phone icon + "Show me how →" button that opens the same `<InstallGuide>`. Gives stylists a persistent second entry point after dismissing the banner.
+
