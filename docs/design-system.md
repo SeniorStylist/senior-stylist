@@ -284,6 +284,31 @@ On mobile the sidebar is replaced by a bottom navigation bar. `.main-content` in
 
 **Facility switcher + "Add facility" link are admin-only (2026-04-25)**: `showSwitcher = allFacilities.length > 1 && role === 'admin'`. The fallback "+ Add facility" link below the logo (single-facility branch) is also gated on `role === 'admin'`. Stylists must never see facility-switching UI.
 
+### Mobile Facility Header (`src/components/layout/mobile-facility-header.tsx`)
+
+Mobile-only (`md:hidden`) sticky header row inside `<main>`, sitting above `<TopBar>` (which is desktop-only `hidden md:flex`). Renders at 56px height.
+
+- **Left**: `<Image>` logo linked to `/dashboard` (no `filter` — white background)
+- **Right**: facility chip (`rounded-full bg-stone-100 text-stone-700 text-xs`) with code + name + chevron; tappable if `showSwitcher`; plain text display otherwise
+- **Debug badge**: amber `"Debug"` pill shown inline when `debugMode === true`
+- Tapping the chip opens a `<BottomSheet>` with:
+  - FID / A–Z sort toggle (same `'facilitySortOrder'` localStorage key as sidebar)
+  - Search input filtering facilities by name or code
+  - Facility list — active facility has burgundy text + checkmark; all others stone
+  - Calls `POST /api/facilities/select` on tap, then `router.refresh()`
+- **`showSwitcher`** rule matches sidebar: `allFacilities.length > 1 && role === 'admin'`
+
+### Mobile Debug Button (`src/components/layout/mobile-debug-button.tsx`)
+
+Mobile-only (`md:hidden`) floating button, rendered only when `isMaster === true`. Position: `fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-50`.
+
+- **Not in debug mode**: small burgundy `"Debug"` pill → opens `<BottomSheet>` with role picker + facility `<select>` + Impersonate button → calls `POST /api/debug/impersonate` → `window.location.href='/dashboard'`
+- **In debug mode**: amber pill (same style as desktop `DebugBadge`) with role label, inline "change" (re-opens sheet) + "exit" (calls `POST /api/debug/reset` → `/master-admin`) buttons
+- Reads `__debug_role` cookie in a `useEffect` on mount (same cookie-parse regex as `DebugBadge`)
+- `DebugBadge` is now `hidden md:flex` so it only renders on desktop; `MobileDebugButton` covers mobile
+
+**Anti-pattern**: do NOT show the `MobileDebugButton` to non-master users — it is always gated on the `isMaster` prop from `layout.tsx`.
+
 ### Dashboard Layout
 
 The dashboard (`dashboard-client.tsx`) uses a split layout:
