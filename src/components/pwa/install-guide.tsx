@@ -36,7 +36,7 @@ function StepNumber({ n }: { n: number }) {
 }
 
 // iOS 26+: floating pill address bar with ⋯ on the right
-function iOS26DotsBarMockup() {
+function IOS26DotsBarMockup() {
   return (
     <div className="relative mt-3">
       <div className="bg-stone-100 rounded-2xl p-3">
@@ -65,7 +65,7 @@ function iOS26DotsBarMockup() {
 }
 
 // iOS 26+: popup menu showing Share option
-function iOS26PopupMenuMockup() {
+function IOS26PopupMenuMockup() {
   return (
     <div className="mt-3 bg-stone-100 rounded-2xl p-3">
       {/* Menu anchored to bottom-right */}
@@ -93,7 +93,7 @@ function iOS26PopupMenuMockup() {
 }
 
 // iOS 26+: Add to Home Screen confirmation with "Open as Web App" toggle
-function iOS26AddConfirmMockup() {
+function IOS26AddConfirmMockup() {
   return (
     <div className="mt-3 bg-stone-100 rounded-2xl p-3">
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden mx-2">
@@ -465,12 +465,12 @@ function IOSSafariGuide({
       {
         title: 'Tap the ⋯ button',
         description: 'Find it on the right side of the address bar at the bottom of the screen.',
-        mockup: <iOS26DotsBarMockup />,
+        mockup: <IOS26DotsBarMockup />,
       },
       {
         title: 'Tap "Share" in the menu',
         description: 'A small menu appears — tap Share to open the share sheet.',
-        mockup: <iOS26PopupMenuMockup />,
+        mockup: <IOS26PopupMenuMockup />,
       },
       {
         title: 'Tap "Add to Home Screen"',
@@ -480,7 +480,7 @@ function IOSSafariGuide({
       {
         title: 'Leave "Open as Web App" on, then tap Add',
         description: 'The toggle should be green by default — this makes Senior Stylist open like a real app.',
-        mockup: <iOS26AddConfirmMockup />,
+        mockup: <IOS26AddConfirmMockup />,
       },
     ]
   } else {

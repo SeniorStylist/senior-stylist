@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 interface Facility {
   id: string
@@ -21,7 +20,6 @@ const ROLE_LABEL: Record<string, string> = {
 }
 
 export function DebugTab({ facilities }: DebugTabProps) {
-  const router = useRouter()
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState<'admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | null>(null)
   const [currentDebug, setCurrentDebug] = useState<{ role: string; facilityName: string } | null>(null)
@@ -54,7 +52,7 @@ export function DebugTab({ facilities }: DebugTabProps) {
         body: JSON.stringify({ role, facilityId: selected.id, facilityName: selected.name }),
       })
       if (res.ok) {
-        router.push('/dashboard')
+        window.location.href = '/dashboard'
       }
     } finally {
       setLoading(null)
@@ -63,8 +61,7 @@ export function DebugTab({ facilities }: DebugTabProps) {
 
   const handleReset = async () => {
     await fetch('/api/debug/reset', { method: 'POST' })
-    setCurrentDebug(null)
-    router.refresh()
+    window.location.href = '/master-admin'
   }
 
   const handleOpenPortal = () => {
