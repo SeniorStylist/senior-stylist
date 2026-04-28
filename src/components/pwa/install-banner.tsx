@@ -82,36 +82,35 @@ export default function InstallBanner() {
   return (
     <>
       <div
-        className="md:hidden fixed left-3 right-3 z-30 rounded-2xl shadow-lg px-4 py-3 flex items-center gap-3"
+        className="md:hidden fixed left-3 right-3 z-30 rounded-2xl shadow-lg flex items-center"
         style={{
-          bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+          bottom: 'calc(env(safe-area-inset-bottom) + 96px)',
           backgroundColor: '#1C0A12',
         }}
       >
-        {/* Phone icon */}
-        <div className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <rect x="5" y="2" width="14" height="20" rx="2"/>
-            <line x1="12" y1="18" x2="12.01" y2="18"/>
-          </svg>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-white leading-tight">{title}</p>
-          <p className="text-xs text-white/60 leading-tight mt-0.5">{subtitle}</p>
-        </div>
-
+        {/* Tappable main area — opens install guide */}
         <button
+          type="button"
           onClick={() => setGuideOpen(true)}
-          className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition-colors"
-          style={{ backgroundColor: '#8B2E4A', color: 'white' }}
+          className="flex-1 flex items-center gap-3 px-4 py-3 text-left"
         >
-          Show me how →
+          <div className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <rect x="5" y="2" width="14" height="20" rx="2"/>
+              <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white leading-tight">{title}</p>
+            <p className="text-xs text-white/60 leading-tight mt-0.5">{subtitle} →</p>
+          </div>
         </button>
 
+        {/* Dismiss only — no competing right-side button */}
         <button
+          type="button"
           onClick={handleDismiss}
-          className="shrink-0 text-white/50 hover:text-white/90 transition-colors"
+          className="shrink-0 text-white/50 hover:text-white/90 transition-colors px-4 py-3"
           aria-label="Dismiss"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
