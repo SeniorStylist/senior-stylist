@@ -94,6 +94,8 @@ function formatHHMM(t: string): string {
 
 const SNAP_POINTS = [18, 28, 48] as const
 const SNAP_THRESHOLD = 5
+const TODAY_CARD_BASE = 'shrink-0 rounded-2xl text-white shadow-[var(--shadow-md)] transition-all duration-200 ease-out'
+const TODAY_CARD_GRADIENT = { background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }
 
 export function DashboardClient({
   facilityId,
@@ -144,6 +146,11 @@ export function DashboardClient({
   // Right panel resize — track top panel pixel height for adaptive TodayCard layout
   const topPanelContentRef = useRef<HTMLDivElement>(null)
   const topPanelRef = useRef<ImperativePanelHandle>(null)
+  const panelGroupRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    panelGroupRef.current = document.querySelector('[data-panel-group-id="dashboard-right-panel"]')
+  }, [])
   const [todayCardSize, setTodayCardSize] = useState<'tall' | 'medium' | 'compact'>('tall')
 
   useEffect(() => {
@@ -249,6 +256,23 @@ export function DashboardClient({
       console.error('Failed to fetch bookings:', err)
     } finally {
       setLoadingBookings(false)
+    }
+  }, [])
+
+  const handlePanelDrag = useCallback((isDragging: boolean) => {
+    const group = panelGroupRef.current
+    if (group) {
+      if (isDragging) group.setAttribute('data-dragging', 'true')
+      else group.removeAttribute('data-dragging')
+    }
+    if (!isDragging && topPanelRef.current) {
+      const current = topPanelRef.current.getSize()
+      const nearest = SNAP_POINTS.reduce((a, b) =>
+        Math.abs(b - current) < Math.abs(a - current) ? b : a
+      )
+      if (Math.abs(nearest - current) <= SNAP_THRESHOLD) {
+        topPanelRef.current.resize(nearest)
+      }
     }
   }, [])
 
@@ -701,22 +725,7 @@ export function DashboardClient({
             </Panel>
 
             <PanelResizeHandle
-              onDragging={(isDragging) => {
-                const group = document.querySelector('[data-panel-group-id="dashboard-right-panel"]') as HTMLElement | null
-                if (group) {
-                  if (isDragging) group.setAttribute('data-dragging', 'true')
-                  else group.removeAttribute('data-dragging')
-                }
-                if (!isDragging && topPanelRef.current) {
-                  const current = topPanelRef.current.getSize()
-                  const nearest = SNAP_POINTS.reduce((a, b) =>
-                    Math.abs(b - current) < Math.abs(a - current) ? b : a
-                  )
-                  if (Math.abs(nearest - current) <= SNAP_THRESHOLD) {
-                    topPanelRef.current.resize(nearest)
-                  }
-                }
-              }}
+              onDragging={handlePanelDrag}
               className="group relative h-3 -mt-1 flex items-center justify-center cursor-ns-resize touch-none shrink-0 focus-visible:outline-none"
             >
               <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-px bg-stone-200 group-hover:bg-[#8B2E4A]/40 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors duration-150" />
@@ -914,15 +923,13 @@ function TodayCard({
   const longDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
   const shortDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  const cardBase = 'shrink-0 rounded-2xl text-white shadow-[var(--shadow-md)] transition-all duration-200 ease-out'
-  const gradient = { background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }
   const isTall = size === 'tall'
 
   if (size === 'compact') {
     return (
       <div
-        className={cn(cardBase, 'px-4 py-2.5 flex flex-row items-center justify-between gap-3')}
-        style={gradient}
+        className={cn(TODAY_CARD_BASE, 'px-4 py-2.5 flex flex-row items-center justify-between gap-3')}
+        style={TODAY_CARD_GRADIENT}
       >
         <div className="min-w-0">
           <div
@@ -946,7 +953,7 @@ function TodayCard({
   }
 
   return (
-    <div className={cn(cardBase, 'p-5 flex flex-col')} style={gradient}>
+    <div className={cn(TODAY_CARD_BASE, 'p-5 flex flex-col')} style={TODAY_CARD_GRADIENT}>
       <div className="text-[11px] uppercase tracking-[0.12em] text-white/70 font-medium">Today</div>
       <div
         className="text-2xl mt-1 leading-tight"
