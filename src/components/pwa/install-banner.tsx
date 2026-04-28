@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { detectDevice, isInstallable } from '@/lib/detect-device'
+import { detectDevice, isInstallable, getiOSUIVariant } from '@/lib/detect-device'
 import { InstallGuide } from './install-guide'
 import type { DeviceType } from '@/lib/detect-device'
 
@@ -24,6 +24,19 @@ function wasDismissedRecently(): boolean {
   }
 }
 
+function getBannerCopy(device: DeviceType, hasNativePrompt: boolean): { title: string; subtitle: string } {
+  if (device === 'ios-safari') {
+    const variant = getiOSUIVariant()
+    if (variant === 'ios26+') return { title: 'Save to home screen', subtitle: 'Tap ⋯ then Share' }
+    return { title: 'Save to home screen', subtitle: 'Tap the share icon in Safari' }
+  }
+  if (device === 'android-chrome' || device === 'android-samsung' || device === 'android-other') {
+    if (hasNativePrompt) return { title: 'Install Senior Stylist', subtitle: 'Add it as an app in one tap' }
+    return { title: 'Add to home screen', subtitle: 'For faster access' }
+  }
+  return { title: 'Add to home screen', subtitle: 'For the best experience' }
+}
+
 export default function InstallBanner() {
   const [show, setShow] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
@@ -37,14 +50,13 @@ export default function InstallBanner() {
     const device = detectDevice()
     setDeviceType(device)
 
-    // Capture Android Chrome native install prompt
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
     }
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
 
-    // Only show the banner after 10 seconds — don't interrupt on first load
+    // Only show after 10 seconds — don't interrupt on first load
     const timer = setTimeout(() => setShow(true), 10_000)
 
     return () => {
@@ -65,6 +77,8 @@ export default function InstallBanner() {
 
   if (!show) return null
 
+  const { title, subtitle } = getBannerCopy(deviceType, deferredPrompt !== null)
+
   return (
     <>
       <div
@@ -83,8 +97,8 @@ export default function InstallBanner() {
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-white leading-tight">Add to home screen</p>
-          <p className="text-xs text-white/60 leading-tight mt-0.5">for the best experience</p>
+          <p className="text-xs font-semibold text-white leading-tight">{title}</p>
+          <p className="text-xs text-white/60 leading-tight mt-0.5">{subtitle}</p>
         </div>
 
         <button

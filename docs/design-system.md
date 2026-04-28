@@ -1983,27 +1983,37 @@ The family portal at `/family/[facilityCode]/*` is the POA-facing surface — ma
 
 `getiOSVersion() → { major: number; minor: number } | null` — parses `(iPhone OS|CPU OS) XX_YY` from the UA string.
 
-`getiOSUIVariant() → iOSUIVariant` — maps version to `'ios26+'` (≥26), `'ios16-18'` (16–25), `'ios15'`, or `'ios-unknown'`.
+`getiOSUIVariant() → iOSUIVariant` — maps version to `'ios26+'` (≥26), `'ios16-18'` (16–25), `'ios-old'` (15 and below), or `'ios-unknown'`.
+
+`detectAndroidBrowser() → AndroidBrowser` — detects `'android-chrome' | 'android-samsung' | 'android-firefox' | 'android-edge' | 'android-other'` from UA.
 
 ### InstallBanner (`src/components/pwa/install-banner.tsx`)
 
-Persistent dismissible banner: `md:hidden`, `fixed left-3 right-3 z-30`, `bottom: calc(env(safe-area-inset-bottom) + 80px)`, `bg-[#1C0A12]`. Shows after a **10-second** delay. Dismissed for **7 days** (stores timestamp in `localStorage` key `pwa_install_dismissed`). "Show me how →" opens `<InstallGuide>`. Captures `beforeinstallprompt` event for Android Chrome.
+Persistent dismissible banner: `md:hidden`, `fixed left-3 right-3 z-30`, `bottom: calc(env(safe-area-inset-bottom) + 80px)`, `bg-[#1C0A12]`. Shows after a **10-second** delay. Dismissed for **7 days** (`localStorage` key `pwa_install_dismissed`). Device-specific copy via `getBannerCopy(device, hasNativePrompt)`:
+- iOS 26+: "Save to home screen / Tap ⋯ then Share"
+- iOS 16-18: "Save to home screen / Tap the share icon in Safari"
+- Android (native prompt): "Install Senior Stylist / Add it as an app in one tap"
+- Android (manual): "Add to home screen / For faster access"
 
 ### InstallGuide (`src/components/pwa/install-guide.tsx`)
 
-A `<BottomSheet>` rendering device-specific step-by-step guides:
-- **`ios-safari`** — paginated 3-step guide via `<PaginatedGuide>` with animated dot progress indicator and Next/Back navigation. Step 1 is variant-aware:
-  - `ios26+`: floating pill address bar mockup (share icon on right side), version badge "✦ New iOS 26 design detected"
-  - `ios16-18`: classic 5-icon bottom toolbar, version badge "Detected: iOS X.Y"
-  - `ios15`: same as ios16-18 + amber note on step 2 about scrolling up in share sheet
-  - `ios-unknown`: ios16-18 instructions + disclaimer text
-  - Steps 2–3 shared: share sheet mockup → Add confirmation dialog. Final button: "Done — open it from your home screen!"
-- **`ios-chrome`** — must switch to Safari: amber warning, tap "aA" → "Open in Safari"
-- **`android-chrome`** — if `deferredPrompt` available: big "Install App" button triggers native prompt; otherwise 2-step manual guide (⋮ menu → "Add to Home screen")
-- **`android-samsung`** — 2 steps: ≡ menu → "Add page to Home screen"
-- **other** — generic text fallback
+A `<BottomSheet>` rendering device-specific paginated step guides. All iOS Safari flows use `<PaginatedGuide>` with swipe-to-navigate (touch events) + dot progress indicator + "Step X of Y" counter. Step resets to 0 on guide close. "Not seeing this?" toggle reveals override chips to manually select any platform variant.
 
-Dot progress: active dot `width: 20px`, inactive `8px`, all `h-2 rounded-full`, tappable. Step resets to 0 on guide close. All mockups are inline SVG + CSS divs. Step numbers: `w-7 h-7 rounded-full bg-[#8B2E4A] text-white`. Bouncing arrows: `animate-bounce` in burgundy.
+**iOS Safari variants (via `iOSUIVariant`):**
+- `ios26+` — **4 steps**: (1) tap ⋯ on right of floating pill address bar (`iOS26DotsBarMockup`); (2) tap Share in popup menu (`iOS26PopupMenuMockup`); (3) tap "Add to Home Screen" in share sheet; (4) leave "Open as Web App" toggle ON, tap Add (`iOS26AddConfirmMockup`). Badge: "✦ New iOS 26 design detected"
+- `ios16-18` — **3 steps**: (1) tap Share in center of bottom toolbar (`SafariToolbarMockup`); (2) tap "Add to Home Screen"; note: "Don't see it? Scroll down and tap Edit Actions"; (3) tap "Add". Badge: "Detected: iOS X.Y"
+- `ios-old` — same as ios16-18 but step 2 note: "Your iOS version is older — steps should work but share sheet may look different"
+- `ios-unknown` — ios16-18 instructions + disclaimer: "Showing standard iPhone instructions. Your screen may look slightly different."
+
+**Other device guides:**
+- `ios-chrome` — amber warning + 2 steps: tap "aA" → "Open in Safari"
+- `android-chrome` — if `deferredPrompt`: single Install App button; else 3-step manual (⋮ menu → "Add to Home screen" → Add)
+- `android-samsung` — 3 steps: ≡ bottom-right → "Add page to Home screen" → Add
+- `android-firefox` — 3 steps: ⋮ menu → "Install" → "Add automatically"
+- `android-edge` — 3 steps: ⋯ menu → "Add to phone → Home screen" → Add
+- generic fallback
+
+Dot progress: active dot `width: 20px`, inactive `8px`, all `h-2 rounded-full`, tappable. Final step button: "Done! 🎉". All mockups are inline SVG + CSS divs. Step numbers: `w-7 h-7 rounded-full bg-[#8B2E4A] text-white`. Bouncing arrows: `animate-bounce` in burgundy.
 
 ### "Use as an app" card in `/my-account`
 

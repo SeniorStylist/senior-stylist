@@ -38,13 +38,14 @@ export function isInstallable(): boolean {
   return device !== 'desktop' && device !== 'unknown'
 }
 
-export type iOSUIVariant = 'ios26+' | 'ios16-18' | 'ios15' | 'ios-unknown'
+export type iOSUIVariant = 'ios26+' | 'ios16-18' | 'ios-old' | 'ios-unknown'
 
 export function getiOSVersion(): { major: number; minor: number } | null {
   if (typeof window === 'undefined') return null
-  const match = navigator.userAgent.match(/(iPhone OS|CPU OS)\s+(\d+)[_.](\d+)/)
+  const ua = window.navigator.userAgent
+  const match = ua.match(/(?:iPhone OS|CPU OS)\s+(\d+)[_.](\d+)/)
   if (!match) return null
-  return { major: parseInt(match[2], 10), minor: parseInt(match[3], 10) }
+  return { major: parseInt(match[1], 10), minor: parseInt(match[2], 10) }
 }
 
 export function getiOSUIVariant(): iOSUIVariant {
@@ -52,6 +53,23 @@ export function getiOSUIVariant(): iOSUIVariant {
   if (!v) return 'ios-unknown'
   if (v.major >= 26) return 'ios26+'
   if (v.major >= 16) return 'ios16-18'
-  if (v.major === 15) return 'ios15'
-  return 'ios-unknown'
+  return 'ios-old'
+}
+
+export type AndroidBrowser =
+  | 'android-chrome'
+  | 'android-samsung'
+  | 'android-firefox'
+  | 'android-edge'
+  | 'android-other'
+
+export function detectAndroidBrowser(): AndroidBrowser {
+  if (typeof window === 'undefined') return 'android-other'
+  const ua = window.navigator.userAgent
+  if (!ua.includes('Android')) return 'android-other'
+  if (ua.includes('SamsungBrowser')) return 'android-samsung'
+  if (ua.includes('Firefox')) return 'android-firefox'
+  if (ua.includes('EdgA')) return 'android-edge'
+  if (ua.includes('Chrome')) return 'android-chrome'
+  return 'android-other'
 }

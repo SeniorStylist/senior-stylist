@@ -123,6 +123,7 @@
 - `revalidateTag` in Next.js 16 takes TWO args — `revalidateTag('bookings', {})` not `revalidateTag('bookings')`
 - **Date parsing:** Use `new Date(d + 'T00:00:00')` (appending local time) — avoid `new Date('YYYY-MM-DD')` which is UTC-midnight and shifts back one day in negative-UTC-offset timezones
 - **Dashboard Services panel** — NEVER use `formatCents(service.priceCents)` in `services-panel.tsx`; always use `formatPricingLabel(service)` from `src/lib/pricing.ts`. The panel receives a pre-sorted list from `dashboard-client.tsx` (sorted via `service-sort.ts` helpers respecting `facility.serviceCategoryOrder`) — do not sort inside the panel itself
+- **PWA install guide** — iOS 26 Safari no longer has a share icon in the bottom toolbar. The correct flow is: tap ⋯ (three dots) on the RIGHT of the floating pill address bar → tap Share in the popup menu → tap "Add to Home Screen" → leave "Open as Web App" ON → tap Add. `iOSUIVariant` values are `'ios26+'`, `'ios16-18'`, `'ios-old'`, `'ios-unknown'` — never use `'ios15'`. `detectAndroidBrowser()` returns `'android-chrome' | 'android-samsung' | 'android-firefox' | 'android-edge' | 'android-other'`.
 
 ---
 
