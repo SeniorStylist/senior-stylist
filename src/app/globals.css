@@ -291,3 +291,20 @@ button:active, [role="button"]:active {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Prevent iOS/Android auto-zoom when focusing inputs with small font-size */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

@@ -860,7 +860,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
 
           {coverageOpen && (
             <div className="mb-4 p-4 rounded-xl bg-rose-50 border border-rose-100 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-stone-600 block mb-1">Start date</label>
                   <input
@@ -874,6 +874,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                       if (coverageEndDate && coverageEndDate < v) setCoverageEndDate(v)
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+                    style={{ fontSize: '16px' }}
                   />
                 </div>
                 <div>
@@ -885,6 +886,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                     value={coverageEndDate}
                     onChange={(e) => setCoverageEndDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-rose-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+                    style={{ fontSize: '16px' }}
                   />
                 </div>
               </div>
