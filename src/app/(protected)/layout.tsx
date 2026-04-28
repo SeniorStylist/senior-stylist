@@ -11,6 +11,8 @@ import { ToastProvider } from '@/components/ui/toast'
 import InstallBanner from '@/components/pwa/install-banner'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
 import { DebugBadge } from '@/components/debug/debug-badge'
+import { MobileFacilityHeader } from '@/components/layout/mobile-facility-header'
+import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 
 export default async function ProtectedLayout({
   children,
@@ -96,12 +98,14 @@ export default async function ProtectedLayout({
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
         <div className="main-content flex-1 min-h-0 overflow-auto">
           <ToastProvider>{children}</ToastProvider>
         </div>
       </main>
       <MobileNav role={activeRole} debugMode={debugMode} />
+      <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} />
       <InstallBanner />
       <DebugBadge />
     </div>

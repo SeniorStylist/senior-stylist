@@ -27,7 +27,7 @@ export function DebugBadge() {
   }
 
   return (
-    <div className="fixed top-4 right-4 z-[200] flex items-center gap-2 bg-amber-400 text-amber-950 text-xs font-bold px-3 py-2 rounded-2xl shadow-xl border-2 border-amber-500">
+    <div className="hidden md:flex fixed top-4 right-4 z-[200] items-center gap-2 bg-amber-400 text-amber-950 text-xs font-bold px-3 py-2 rounded-2xl shadow-xl border-2 border-amber-500">
       <span className="text-amber-800 text-[10px] font-semibold uppercase tracking-wide">Debug</span>
       <span className="font-bold">
         {ROLE_LABEL[debug.role] ?? debug.role} · {debug.facilityName}
