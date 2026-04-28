@@ -1,84 +1,118 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { detectDevice, isInstallable } from '@/lib/detect-device'
+import { InstallGuide } from './install-guide'
+import type { DeviceType } from '@/lib/detect-device'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+const DISMISSED_KEY = 'pwa_install_dismissed'
+const DISMISS_DAYS = 7
+
+function wasDismissedRecently(): boolean {
+  try {
+    const ts = localStorage.getItem(DISMISSED_KEY)
+    if (!ts) return false
+    const age = Date.now() - parseInt(ts, 10)
+    return age < DISMISS_DAYS * 24 * 60 * 60 * 1000
+  } catch {
+    return false
+  }
+}
+
 export default function InstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [show, setShow] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
+  const [deviceType, setDeviceType] = useState<DeviceType>('unknown')
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
-    // Don't show if already installed as PWA
-    if (window.matchMedia('(display-mode: standalone)').matches) return
-    // Don't show if previously dismissed
-    if (localStorage.getItem('pwa-banner-dismissed')) return
+    if (!isInstallable()) return
+    if (wasDismissedRecently()) return
 
-    const ua = navigator.userAgent
-    const iosDevice = /iphone|ipad|ipod/i.test(ua) && !(window as Window & { MSStream?: unknown }).MSStream
-    setIsIOS(iosDevice)
+    const device = detectDevice()
+    setDeviceType(device)
 
-    if (iosDevice) {
-      setShow(true)
-      return
-    }
-
-    const handler = (e: Event) => {
+    // Capture Android Chrome native install prompt
+    const handleBeforeInstall = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
-      setShow(true)
     }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
 
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    // Only show the banner after 10 seconds — don't interrupt on first load
+    const timer = setTimeout(() => setShow(true), 10_000)
+
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+    }
   }, [])
 
-  const handleInstall = async () => {
-    if (!deferredPrompt) return
-    await deferredPrompt.prompt()
-    await deferredPrompt.userChoice
+  const handleDismiss = () => {
+    try { localStorage.setItem(DISMISSED_KEY, String(Date.now())) } catch { /* ignore */ }
     setShow(false)
-    setDeferredPrompt(null)
   }
 
-  const handleDismiss = () => {
-    localStorage.setItem('pwa-banner-dismissed', '1')
+  const handleInstalled = () => {
     setShow(false)
+    setGuideOpen(false)
   }
 
   if (!show) return null
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-30 rounded-2xl bg-[#8B2E4A] text-white shadow-lg p-4 flex items-center gap-3">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold leading-tight">Install Senior Stylist</p>
-        {isIOS ? (
-          <p className="text-xs text-white/80 mt-0.5">
-            Tap <span className="font-medium">Share</span> → <span className="font-medium">Add to Home Screen</span>
-          </p>
-        ) : (
-          <p className="text-xs text-white/80 mt-0.5">Get the best experience on your device</p>
-        )}
-      </div>
-      {!isIOS && (
-        <button
-          onClick={handleInstall}
-          className="shrink-0 text-xs font-semibold bg-white text-[#8B2E4A] px-3 py-1.5 rounded-xl"
-        >
-          Add to Home Screen
-        </button>
-      )}
-      <button
-        onClick={handleDismiss}
-        className="shrink-0 text-white/70 hover:text-white text-lg leading-none"
-        aria-label="Dismiss"
+    <>
+      <div
+        className="md:hidden fixed left-3 right-3 z-30 rounded-2xl shadow-lg px-4 py-3 flex items-center gap-3"
+        style={{
+          bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+          backgroundColor: '#1C0A12',
+        }}
       >
-        ✕
-      </button>
-    </div>
+        {/* Phone icon */}
+        <div className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <rect x="5" y="2" width="14" height="20" rx="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-white leading-tight">Add to home screen</p>
+          <p className="text-xs text-white/60 leading-tight mt-0.5">for the best experience</p>
+        </div>
+
+        <button
+          onClick={() => setGuideOpen(true)}
+          className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition-colors"
+          style={{ backgroundColor: '#8B2E4A', color: 'white' }}
+        >
+          Show me how →
+        </button>
+
+        <button
+          onClick={handleDismiss}
+          className="shrink-0 text-white/50 hover:text-white/90 transition-colors"
+          aria-label="Dismiss"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <InstallGuide
+        isOpen={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        deviceType={deviceType}
+        deferredPrompt={deferredPrompt}
+        onInstalled={handleInstalled}
+      />
+    </>
   )
 }

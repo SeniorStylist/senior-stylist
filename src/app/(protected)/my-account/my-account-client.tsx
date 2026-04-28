@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
+import { isInstallable, detectDevice } from '@/lib/detect-device'
+import { InstallGuide } from '@/components/pwa/install-guide'
 import type {
   Stylist,
   ComplianceDocumentWithUrl,
@@ -203,6 +205,16 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [coverageSavedMsg, setCoverageSavedMsg] = useState<string | null>(null)
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
   const [expandedPeriodId, setExpandedPeriodId] = useState<string | null>(null)
+  const [installGuideOpen, setInstallGuideOpen] = useState(false)
+  const [installable, setInstallable] = useState(false)
+  const [installDeviceType, setInstallDeviceType] = useState<ReturnType<typeof detectDevice>>('unknown')
+
+  useEffect(() => {
+    if (isInstallable()) {
+      setInstallable(true)
+      setInstallDeviceType(detectDevice())
+    }
+  }, [])
 
   const todayStr = (() => {
     const d = new Date()
@@ -1101,6 +1113,38 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           </div>
         </div>
       )}
+
+      {/* Install app card — only shown on mobile when not already installed */}
+      {installable && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(139,46,74,0.08)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2">
+                <rect x="5" y="2" width="14" height="20" rx="2"/>
+                <line x1="12" y1="18" x2="12.01" y2="18"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-stone-900">Use as an app</p>
+              <p className="text-xs text-stone-500 mt-0.5">Save to your home screen for faster access</p>
+            </div>
+            <button
+              onClick={() => setInstallGuideOpen(true)}
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition-colors"
+              style={{ backgroundColor: '#8B2E4A', color: 'white' }}
+            >
+              Show me how →
+            </button>
+          </div>
+        </div>
+      )}
+
+      <InstallGuide
+        isOpen={installGuideOpen}
+        onClose={() => setInstallGuideOpen(false)}
+        deviceType={installDeviceType}
+        onInstalled={() => { setInstallGuideOpen(false); setInstallable(false) }}
+      />
     </div>
   )
 }
