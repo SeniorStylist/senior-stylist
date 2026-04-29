@@ -47,6 +47,7 @@ interface SuperAdminClientProps {
   pendingRequests: AccessRequestInfo[]
   activeFacilities: { id: string; name: string; facilityCode: string | null }[]
   franchises: FranchiseInfo[]
+  currentFacilityId: string
 }
 
 const TIMEZONES = [
@@ -66,7 +67,7 @@ const PAYMENT_TYPES = [
   { value: 'hybrid', label: 'Hybrid' },
 ]
 
-export function MasterAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises }: SuperAdminClientProps) {
+export function MasterAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises, currentFacilityId }: SuperAdminClientProps) {
   const router = useRouter()
 
   // Active tab
@@ -702,7 +703,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
         {activeTab === 'merge' && <MergeTab />}
 
-        {activeTab === 'debug' && <DebugTab facilities={activeFacilities} />}
+        {activeTab === 'debug' && <DebugTab facilities={activeFacilities} currentFacilityId={currentFacilityId} />}
 
         {activeTab === 'facilities' && (
         <>

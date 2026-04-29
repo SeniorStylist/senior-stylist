@@ -10,6 +10,7 @@ interface Facility {
 
 interface DebugTabProps {
   facilities: Facility[]
+  currentFacilityId: string
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -19,12 +20,13 @@ const ROLE_LABEL: Record<string, string> = {
   stylist: 'Stylist',
 }
 
-export function DebugTab({ facilities }: DebugTabProps) {
-  const [selectedId, setSelectedId] = useState('')
+export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
+  const eligible = facilities.filter((f) => f.facilityCode)
+  const [selectedId, setSelectedId] = useState(() =>
+    eligible.some((f) => f.id === currentFacilityId) ? currentFacilityId : ''
+  )
   const [loading, setLoading] = useState<'admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | null>(null)
   const [currentDebug, setCurrentDebug] = useState<{ role: string; facilityName: string } | null>(null)
-
-  const eligible = facilities.filter((f) => f.facilityCode)
 
   useEffect(() => {
     const readCookie = () => {

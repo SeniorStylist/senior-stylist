@@ -31,6 +31,7 @@ export default async function ProtectedLayout({
   let facilityCode: string | null = null
   let allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[] = []
   let activeRole: string = 'admin'
+  let activeFacilityId: string = ''
 
   try {
     const userFacilities = await db.query.facilityUsers.findMany({
@@ -67,6 +68,7 @@ export default async function ProtectedLayout({
     const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
     facilityName = active?.name
     facilityCode = active?.facilityCode ?? null
+    activeFacilityId = active?.id ?? ''
     const rawRole = active?.role ?? 'admin'
     activeRole = rawRole === 'super_admin' ? 'admin' : rawRole
   } catch (err) {
@@ -85,6 +87,7 @@ export default async function ProtectedLayout({
         if (debug.role && debug.facilityId) {
           activeRole = debug.role === 'super_admin' ? 'admin' : debug.role
           facilityName = debug.facilityName
+          activeFacilityId = debug.facilityId
           debugMode = true
         }
       } catch { /* malformed */ }
@@ -105,7 +108,7 @@ export default async function ProtectedLayout({
         </div>
       </main>
       <MobileNav role={activeRole} debugMode={debugMode} />
-      <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} />
+      <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
       <InstallBanner />
       <DebugBadge />
     </div>

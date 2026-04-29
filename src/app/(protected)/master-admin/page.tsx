@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
+import { cookies } from 'next/headers'
 import { db } from '@/db'
 import { residents, stylists, bookings, facilityUsers } from '@/db/schema'
 import { eq, and, gte, count } from 'drizzle-orm'
@@ -101,6 +102,9 @@ export default async function SuperAdminPage() {
   const now = new Date()
   const yearMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
+  const cookieStore = await cookies()
+  const currentFacilityId = cookieStore.get('selected_facility_id')?.value ?? ''
+
   const [facilityInfos, pendingRequests, activeFacilitiesList, franchiseList] = await Promise.all([
     getCachedFacilityInfos(yearMonthKey),
     getCachedPendingAccessRequests(),
@@ -122,6 +126,7 @@ export default async function SuperAdminPage() {
 
   return (
     <MasterAdminClient
+      currentFacilityId={currentFacilityId}
       facilities={facilityInfos}
       pendingRequests={pendingRequests.map((r) => ({
         id: r.id,

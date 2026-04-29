@@ -22,13 +22,14 @@ const ROLE_LABELS: Record<DebugRole, string> = {
 interface MobileDebugButtonProps {
   isMaster: boolean
   allFacilities: FacilityOption[]
+  currentFacilityId: string
 }
 
-export function MobileDebugButton({ isMaster, allFacilities }: MobileDebugButtonProps) {
+export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }: MobileDebugButtonProps) {
   const [open, setOpen] = useState(false)
   const [debugInfo, setDebugInfo] = useState<{ role: string; facilityId: string; facilityName: string } | null>(null)
   const [selectedRole, setSelectedRole] = useState<DebugRole>('admin')
-  const [selectedFacilityId, setSelectedFacilityId] = useState('')
+  const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
