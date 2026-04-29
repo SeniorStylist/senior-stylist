@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- White background -->
+  <rect width="512" height="512" fill="white"/>
+
+  <!-- Heart outline (grey) — positioned slightly right of center to leave room for scissors on left -->
+  <path
+    d="M256 430
+       C140 375 55 250 105 168
+       C140 100 200 98 256 150
+       C312 98 372 100 407 168
+       C457 250 372 375 256 430
+       Z"
+    stroke="#808080"
+    stroke-width="14"
+    fill="none"
+  />
+
+  <!-- Scissors ring 1 — upper-left, larger (outer ring) -->
+  <circle cx="148" cy="112" r="42" stroke="#808080" stroke-width="12" fill="white"/>
+  <!-- Scissors ring 1 — inner hole -->
+  <circle cx="148" cy="112" r="18" stroke="#808080" stroke-width="4" fill="white"/>
+
+  <!-- Scissors ring 2 — below ring 1, slightly smaller (outer ring) -->
+  <circle cx="184" cy="174" r="33" stroke="#808080" stroke-width="10" fill="white"/>
+  <!-- Scissors ring 2 — inner hole -->
+  <circle cx="184" cy="174" r="13" stroke="#808080" stroke-width="3" fill="white"/>
+
+  <!-- Straight scissors blade — grey, diagonal from rings toward lower-right -->
+  <line
+    x1="202" y1="208"
+    x2="380" y2="320"
+    stroke="#808080"
+    stroke-width="11"
+    stroke-linecap="round"
+  />
+
+  <!-- Burgundy S-curve blade — the flowing scissors handle forming an S-shape -->
+  <path
+    d="M200 210
+       C178 260 212 308 264 310
+       C316 312 328 368 292 412"
+    stroke="#8B2E4A"
+    stroke-width="22"
+    fill="none"
+    stroke-linecap="round"
+  />
+</svg>

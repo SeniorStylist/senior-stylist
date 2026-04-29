@@ -39,6 +39,13 @@ Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The 
 - **Portal header** (`(resident)/layout.tsx`): `style={{ filter: 'brightness(0) invert(1)' }}` on `<Image>` to render all logo colors white on `#8B2E4A` header; wrap in `<a href="https://seniorstylist.com" target="_blank">`
 - **White-background pages** (login, invite-accept, unauthorized): show logo naturally, no filter, no wrapper needed
 
+**Favicon / App Icon (2026-04-29):** The scissors+heart logo mark (not the full wordmark) is used as the favicon and app icon. Files:
+- `public/favicon.svg` — SVG logo mark (white background, grey `#808080` heart/rings, burgundy `#8B2E4A` S-curve blade); linked via `<link rel="icon" href="/favicon.svg" type="image/svg+xml">` in `layout.tsx` for priority in modern browsers
+- `src/app/favicon.ico` — 32×32 burgundy PNG embedded in ICO; fallback for legacy browsers
+- `src/app/icon.tsx` — 512×512 `ImageResponse` with SVG on burgundy `#8B2E4A` rounded-square background; auto-generates `/icon.png` + manifest icon
+- `src/app/apple-icon.tsx` — 180×180 `ImageResponse`; same SVG design; auto-generates Apple touch icon
+- The logo file (`/public/Seniorstylistlogo.jpg`) is a WebP file with the full wordmark — do NOT use it as a favicon as it cannot be programmatically cropped; use the SVG recreation instead
+
 **Exception:** `completed` status badges remain `bg-teal-50 text-teal-700` (semantic color — intentional). User-owned color data (service/stylist color picker palette arrays, DB defaults, calendar event fallbacks) also retain `#0D7377`.
 
 **FullCalendar hover:** `#72253C`; active: `#5c1e2e`; highlight tint: `rgba(139, 46, 74, 0.1)`.
