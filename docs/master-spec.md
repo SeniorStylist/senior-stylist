@@ -1289,6 +1289,11 @@ The last three were claimed by Phase 11J.4 documentation but had never been crea
 
 **Loading skeletons**: 6 added (`stylists`, `services`, `my-account`, `payroll/[id]`, `residents/[id]`, `stylists/[id]`) — every protected route now has one.
 
-**Bundle**: `recharts` is dynamic-imported in `analytics`, `reports`, `master-admin/reports-tab`. `papaparse` + `xlsx` are inline-imported in onboarding event handlers only.
+**Bundle**: `recharts` uses static top-level imports in `analytics/reports-client.tsx`, `reports/reports-client.tsx`, and `master-admin/reports-tab.tsx`. **DO NOT convert recharts to `next/dynamic` per-named-export** — barrel exports fail at runtime (attempted Apr 27, reverted same day). `papaparse` + `xlsx` also use static top-level imports in `onboarding-client.tsx` (reverted from inline `await import()` for same reason).
 
-**Brain-rule additions** (CLAUDE.md): indexes-in-schema-only, no `console.log` in `src/app/api` + `src/lib`, `revalidateTag` on cached-tag mutations, Zod safeParse on every `req.json()`, `Promise.all` on independent awaits, `next/dynamic` for heavy libs.
+**Brain-rule additions** (CLAUDE.md): indexes-in-schema-only, no `console.log` in `src/app/api` + `src/lib`, `revalidateTag` on cached-tag mutations, Zod safeParse on every `req.json()`, `Promise.all` on independent awaits, `window.location.href` (not `router.push`) after debug cookie mutations, React component names must start uppercase.
+
+**Mobile layout additions (2026-04-28/29)**:
+- `MobileFacilityHeader` (`src/components/layout/mobile-facility-header.tsx`): `md:hidden` 56px header inside `<main>`, above `<TopBar>`, shows logo + facility chip; BottomSheet for facility switching.
+- `MobileDebugButton` (`src/components/layout/mobile-debug-button.tsx`): `md:hidden`, master-admin only (`isMaster` prop), positioned `left-4` at `bottom: calc(env(safe-area-inset-bottom)+88px)`. BottomSheet with role picker + facility select → `window.location.href='/dashboard'`. In debug mode shows amber pill with inline change/exit.
+- `InstallBanner` bottom raised to `96px` (from `80px`); banner now fully tappable (no separate "Show me how →" button — it overlapped the `+` FAB).

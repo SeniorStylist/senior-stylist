@@ -300,14 +300,15 @@ Mobile-only (`md:hidden`) sticky header row inside `<main>`, sitting above `<Top
 
 ### Mobile Debug Button (`src/components/layout/mobile-debug-button.tsx`)
 
-Mobile-only (`md:hidden`) floating button, rendered only when `isMaster === true`. Position: `fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-50`.
+Mobile-only (`md:hidden`) floating button, rendered only when `isMaster === true`. Position: **`fixed left-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-50`** — LEFT side to avoid overlapping calendar/dashboard FABs on the right.
 
 - **Not in debug mode**: small burgundy `"Debug"` pill → opens `<BottomSheet>` with role picker + facility `<select>` + Impersonate button → calls `POST /api/debug/impersonate` → `window.location.href='/dashboard'`
-- **In debug mode**: amber pill (same style as desktop `DebugBadge`) with role label, inline "change" (re-opens sheet) + "exit" (calls `POST /api/debug/reset` → `/master-admin`) buttons
+- **In debug mode**: amber pill (same style as desktop `DebugBadge`) with role label, inline "change" (re-opens sheet) + "exit" (calls `POST /api/debug/reset` → `window.location.href='/master-admin'`) buttons
 - Reads `__debug_role` cookie in a `useEffect` on mount (same cookie-parse regex as `DebugBadge`)
-- `DebugBadge` is now `hidden md:flex` so it only renders on desktop; `MobileDebugButton` covers mobile
+- Uses `window.location.href` for all navigation after impersonation — `router.push`/`router.refresh()` does NOT flush server component state and the new cookie won't be seen by SSR pages
 
 **Anti-pattern**: do NOT show the `MobileDebugButton` to non-master users — it is always gated on the `isMaster` prop from `layout.tsx`.
+**Anti-pattern**: do NOT position the debug button on the RIGHT side — FABs and action buttons on `/dashboard` and other pages live on the right.
 
 ### Dashboard Layout
 
@@ -1989,18 +1990,28 @@ The family portal at `/family/[facilityCode]/*` is the POA-facing surface — ma
 
 ### InstallBanner (`src/components/pwa/install-banner.tsx`)
 
-Persistent dismissible banner: `md:hidden`, `fixed left-3 right-3 z-30`, `bottom: calc(env(safe-area-inset-bottom) + 80px)`, `bg-[#1C0A12]`. Shows after a **10-second** delay. Dismissed for **7 days** (`localStorage` key `pwa_install_dismissed`). Device-specific copy via `getBannerCopy(device, hasNativePrompt)`:
+Persistent dismissible banner: `md:hidden`, `fixed left-3 right-3 z-30`, **`bottom: calc(env(safe-area-inset-bottom) + 96px)`**, `bg-[#1C0A12]`. Shows after a **10-second** delay. Dismissed for **7 days** (`localStorage` key `pwa_install_dismissed`). Device-specific copy via `getBannerCopy(device, hasNativePrompt)`:
 - iOS 26+: "Save to home screen / Tap ⋯ then Share"
 - iOS 16-18: "Save to home screen / Tap the share icon in Safari"
 - Android (native prompt): "Install Senior Stylist / Add it as an app in one tap"
 - Android (manual): "Add to home screen / For faster access"
+
+**Layout (updated 2026-04-29):** The entire left portion (icon + text) is a tappable `<button>` that opens the install guide. There is NO separate "Show me how →" button on the right — it was removed because it overlapped the dashboard `+` FAB. Only a `×` dismiss button remains on the right edge. The `bottom` was raised from `80px` to `96px` to clear the `MobileDebugButton` at `88px`.
+
+**z-index layering** (bottom-left area):
+```
+Mobile nav bar:     z-50, bottom: 0
+Install banner:     z-30, bottom: ~96px above nav  
+Debug button (L):   z-50, bottom: ~88px above nav
++ FAB (right):      sits on right side, no conflict
+```
 
 ### InstallGuide (`src/components/pwa/install-guide.tsx`)
 
 A `<BottomSheet>` rendering device-specific paginated step guides. All iOS Safari flows use `<PaginatedGuide>` with swipe-to-navigate (touch events) + dot progress indicator + "Step X of Y" counter. Step resets to 0 on guide close. "Not seeing this?" toggle reveals override chips to manually select any platform variant.
 
 **iOS Safari variants (via `iOSUIVariant`):**
-- `ios26+` — **4 steps**: (1) tap ⋯ on right of floating pill address bar (`iOS26DotsBarMockup`); (2) tap Share in popup menu (`iOS26PopupMenuMockup`); (3) tap "Add to Home Screen" in share sheet; (4) leave "Open as Web App" toggle ON, tap Add (`iOS26AddConfirmMockup`). Badge: "✦ New iOS 26 design detected"
+- `ios26+` — **4 steps**: (1) tap ⋯ on right of floating pill address bar (`IOS26DotsBarMockup`); (2) tap Share in popup menu (`IOS26PopupMenuMockup`); (3) tap "Add to Home Screen" in share sheet; (4) leave "Open as Web App" toggle ON, tap Add (`IOS26AddConfirmMockup`). Badge: "✦ New iOS 26 design detected"
 - `ios16-18` — **3 steps**: (1) tap Share in center of bottom toolbar (`SafariToolbarMockup`); (2) tap "Add to Home Screen"; note: "Don't see it? Scroll down and tap Edit Actions"; (3) tap "Add". Badge: "Detected: iOS X.Y"
 - `ios-old` — same as ios16-18 but step 2 note: "Your iOS version is older — steps should work but share sheet may look different"
 - `ios-unknown` — ios16-18 instructions + disclaimer: "Showing standard iPhone instructions. Your screen may look slightly different."

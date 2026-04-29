@@ -118,6 +118,9 @@
 - **NEVER** use Gemini 1.5 or 2.0 model names (1.5 shut down March 2026; 2.0 unavailable to new API users) — always use `gemini-2.5-flash` on `v1beta`
 - **NEVER** use the `@google/generative-ai` SDK — it hardcodes old model names; use direct `fetch` to the REST API
 - **NEVER** await `sendEmail()` — all email calls fire-and-forget
+- **NEVER** use `router.push()` or `router.refresh()` after debug impersonation (`POST /api/debug/impersonate`) or reset (`POST /api/debug/reset`) — these do NOT flush server component state; the new cookie is invisible to SSR. Always use `window.location.href = '/dashboard'` (hard navigation) to ensure the impersonated role is picked up by `getUserFacility()`.
+- **NEVER** convert `recharts` named exports to individual `next/dynamic` calls — recharts uses barrel exports and the runtime resolution fails. If bundle size matters, use a single `dynamic(() => import('recharts'), { ssr: false })` wrapper around a chart component, not one-per-export. (The Apr 27 audit reverted exactly this mistake — see commit 6d2c300.)
+- **NEVER** name React component functions starting with lowercase (e.g. `function iOS26Mockup()`) — TypeScript and the runtime both treat them as DOM intrinsic elements. Use `IOS26Mockup` or `Ios26Mockup`.
 - Long-running API routes (OCR, AI calls) MUST export `export const maxDuration = 60` (or 120 for OCR) and `export const dynamic = 'force-dynamic'` — without `maxDuration`, Vercel cuts the function at 10s
 - Next.js 16 async params — always `{ params: Promise<{id: string}> }`
 - `revalidateTag` in Next.js 16 takes TWO args — `revalidateTag('bookings', {})` not `revalidateTag('bookings')`
