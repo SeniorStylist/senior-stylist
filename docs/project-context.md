@@ -18,7 +18,7 @@ nail, and other personal care services. Senior Stylist manages:
 - Payments, invoicing, and reporting
 - Multi-facility franchise management
 
-**Live site:** https://senior-stylist.vercel.app
+**Live site:** https://portal.seniorstylist.com
 **GitHub:** https://github.com/SeniorStylist/senior-stylist
 **Supabase project:** goomnlsdguetfgwjpwer
 **Stack:** Next.js 16 App Router, Supabase, Drizzle ORM,
@@ -47,7 +47,7 @@ Tailwind CSS 4, Vercel
 | NEXT_PUBLIC_SUPABASE_ANON_KEY | Supabase anon key | Supabase dashboard |
 | SUPABASE_SERVICE_ROLE_KEY | Server-side DB access | Supabase dashboard |
 | DATABASE_URL | Postgres pooler URL port 5432 session mode | Supabase dashboard |
-| NEXT_PUBLIC_APP_URL | https://senior-stylist.vercel.app | Hardcode |
+| NEXT_PUBLIC_APP_URL | https://portal.seniorstylist.com | Hardcode |
 | NEXT_PUBLIC_SUPER_ADMIN_EMAIL | lisag@seniorstylist.com | Hardcode |
 | NEXT_PUBLIC_ADMIN_EMAIL | lisag@seniorstylist.com | Hardcode |
 | RESEND_API_KEY | Transactional email | resend.com |
@@ -205,7 +205,7 @@ Tailwind CSS 4, Vercel
 - OAuth CSRF: new `oauth_states` table (`nonce pk`, `user_id`, `stylist_id`, `created_at`). Google Calendar connect/callback now require authenticated admin, nonce-bound state, 10-min TTL, post-success atomic delete. Old `Buffer.from(state,'base64')` → stylistId pattern removed.
 - Admin guards on all privileged mutation routes: `/api/stylists*` POST/PUT/DELETE, `/api/services*` POST/PUT/DELETE, `/api/services/parse-pdf`, `/api/log/ocr`, `/api/log/ocr/import`.
 - Upload caps: OCR 10MB/file + 20 files max; parse-pdf 50MB max.
-- Security headers in `next.config.ts`: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (camera/mic/geo all off), HSTS 1yr, Content-Security-Policy.
+- Security headers in `next.config.ts`: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (camera/mic/geo all off), HSTS 2yr + preload (`max-age=63072000; includeSubDomains; preload`), Content-Security-Policy. HTTP→HTTPS 301 redirect enforced via `redirects()` (condition: `x-forwarded-proto: http`; destination: `https://portal.seniorstylist.com/:path*`).
 - Facility scoping: `/api/profile` rejects stylist takeover; `/api/invites` super_admin role verifies franchise coverage via `franchise_facilities`; `/api/portal/[token]/*` routes have explicit column whitelists on every `db.query.*` call and validate `stylistId`/`serviceId`/addons belong to the resident's facility.
 - Rate limiting via `src/lib/rate-limit.ts` (Upstash Redis, no-op when env vars missing): signup 5/hr/IP, portalBook 10/hr/token, ocr 20/hr/user, parsePdf 20/hr/user, sendPortalLink 10/hr/user, invites 30/hr/user.
 - Zod `.max()` caps across all input schemas (name 200, room 50, notes 2000, email 320, color 20, address 500, cents 10_000_000, arrays 20 for tiers/options).

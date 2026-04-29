@@ -693,7 +693,9 @@ Applied in: `/(protected)/dashboard/page.tsx`, `/(protected)/settings/page.tsx`,
 
 The old `Buffer.from(state,'base64')` pattern (where any attacker could forge a stylist id) is removed.
 
-### Response headers (`next.config.ts`)
+### Response headers + redirects (`next.config.ts`)
+
+HTTP→HTTPS redirect via `redirects()`: source `/:path*`, condition `x-forwarded-proto: http`, destination `https://portal.seniorstylist.com/:path*`, permanent (301). No-op on Vercel (CDN enforces HTTPS at edge before requests reach Next.js).
 
 Applied to all routes via `headers()`:
 
@@ -701,7 +703,7 @@ Applied to all routes via `headers()`:
 - `X-Content-Type-Options: nosniff`.
 - `Referrer-Policy: strict-origin-when-cross-origin`.
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()` — all off; mobile OCR upload uses `<input capture="environment">` which is a file-picker and does not require camera permission.
-- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — 1-year HSTS.
+- `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` — 2-year HSTS with preload flag (qualifies for browser preload lists).
 - `Content-Security-Policy` — `default-src 'self'`, allowlists for Supabase, Google APIs, Upstash, Vercel Insights, Gemini, cdnjs (pdfjs worker); `'unsafe-inline'` for styles (Tailwind); `frame-ancestors 'none'`.
 
 ### Rate limiting (`src/lib/rate-limit.ts`)
