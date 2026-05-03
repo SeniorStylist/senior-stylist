@@ -1260,7 +1260,7 @@ Backfill historical bookkeeper XLSX service-log files into bookings/residents/se
 - `POST /api/super-admin/import-service-log` (maxDuration 120, force-dynamic, master-admin guard, `billingImport` rate limit 5/h/user). Pipeline: parse XLSX server-side → fuzzy match facility (≥0.70) → fuzzy match stylist (facility ∪ franchise pool, ≥0.70) → resident upsert (fuzzy 0.85, insert if no hit) → service match cascade (name fuzzy 0.72 → exact price → combo size 2-3) → dedup by `(residentId, serviceDate, rawServiceName)` → bulk insert bookings (chunk 100, status=`completed`, paymentStatus=`unpaid`, source=`historical_import`, importBatchId, needsReview, priceCents from XLSX, startTime at noon facility-local) → QB invoice cross-reference (amount=hard match, resident name fuzzy ≥0.70, closest date wins, claim-once per transaction) → finalize batch row → `revalidateTag('billing'/'bookings')`. Stylist-not-found returns 200 `{stylistResolutionNeeded: true}` (NOT an error). Facility-not-found returns 400 `{error: 'facility_not_found', facilityName}`.
 
 **Engine module `src/lib/service-log-import.ts`** (pure, no DB):
-- `parseServiceLogXlsx(buffer)` → `{ rows, meta: { facility, stylist, stylistCode } }`. Skips `Client Name` empty/`"Doesn't Fill"`. Parses `Service Date` (Excel serial OR ISO), `Amount` → cents.
+- `parseServiceLogXlsx(buffer, fileName?)` → `{ rows, meta: { facility, stylist, stylistCode } }`. Skips `Client Name` empty/`"Doesn't Fill"`. Parses `Service Date` (Excel serial OR ISO), `Amount` → cents. **Facility and stylist** are extracted via mode detection across ALL rows (`mostFrequent()` helper — most-frequent non-empty, non-`"Doesn't Fill"` value). When `facility` is still empty after scanning rows, falls back to parsing the filename: strip extension, split on `" - "`, take last segment (`"F177 - Sunrise of Bethesda.xlsx"` → `"Sunrise of Bethesda"`).
 - `splitStylistCell(raw)` → `{ stylistCode, stylistName }` from `"ST624 - Senait Edwards"` format.
 - `enumerateCombos<T>(items, maxSize)` — generic combination generator (size 2..maxSize).
 - `matchService(raw, amountCents, services)` — cascade `name → price → combo → unmatched`. Filters out `pricingType === 'addon'` from candidates. Combo cap: size 3 when `services.length ≤ 30`, size 2 otherwise (factorial guard).
@@ -1282,6 +1282,22 @@ Backfill historical bookkeeper XLSX service-log files into bookings/residents/se
 
 **Cross-cutting type changes**: dropping `bookings.serviceId` NOT NULL forced ~30 call sites (reports, exports, detail pages, Google Calendar sync) to use defensive `b.service?.X ?? <fallback>`. The `Service` type in `BookingForCalendar` / `LogBooking` / `BookingWithRelations` is now `Service | null`. Google Calendar sync sites short-circuit when `service` is null (historical imports never push to GCal).
 
+### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
+
+Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.
+
+**`layout.tsx` race fix**: `Promise.race` timeout branch changed from `reject(new Error(...))` to `resolve(null)`. A hanging DB query never rejects — it stalls the socket. `reject()` fires the timeout but the serverless function stays open because the original async work still holds the connection. `resolve(null)` guarantees the race always settles to a value, execution continues, and the function returns a response before Vercel's hard limit. `LAYOUT_TIMEOUT_MS = 8000`. Inner IIFE refactored into named `fetchLayoutData(userId)`.
+
+**Master admin cold-cache rewrite**: `getCachedFacilityInfos` was running 4 queries per facility in a `Promise.all` loop. With `max:1` connection pool and N=30 facilities, that's 120 queries serialized through one socket = 2-4s cold-cache renders. Rewritten to 5 flat queries: 1 `facilities.findMany` + 4 `GROUP BY facility_id` aggregations (residents/stylists/bookings-this-month/admin-email) joined via `Map<facilityId, value>` lookups in JS. Two previously-uncached queries in master-admin/page.tsx wrapped: `master-admin-active-facilities-list` (5min, tag `facilities`) + `master-admin-franchise-list` (5min, tag `facilities`). All 4 cached functions wrapped in try/catch returning `[]` on error — previously any query failure propagated through `unstable_cache` and crashed the page render.
+
+**Cross-facility summary cached**: `/api/billing/cross-facility-summary` 6-aggregate query wrapped in `unstable_cache(['cross-facility-summary'], { revalidate: 120, tags: ['billing'] })`.
+
+**3 new partial indexes** (declared in `src/db/schema.ts`, present in DB):
+- `bookings_facility_status_idx (facility_id, status) WHERE active = true`
+- `qb_invoices_facility_open_status_idx (facility_id, status) WHERE status != 'paid'`
+- `facility_users_facility_role_idx (facility_id, role)`
+
+**Middleware short-circuit**: `src/middleware.ts` now returns `NextResponse.next()` before calling `supabase.auth.getUser()` for paths with their own auth or no auth: `/portal`, `/family`, `/invoice`, `/api/portal`, `/api/cron`, `/privacy`, `/terms`. Saves a Supabase network round-trip per request on these surfaces.
 
 ### Phase 11N — Payroll Extensions (SHIPPED 2026-04-27)
 
