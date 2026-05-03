@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { importBatches, bookings } from '@/db/schema'
 import { count, eq, isNull, and } from 'drizzle-orm'
 import { ImportsHubClient, type SourceCardData } from './imports-client'
+import type { BatchRow } from './batch-history'
 
 const SOURCE_DEFS: { sourceType: string; title: string; description: string; format: 'XLSX' | 'CSV'; href: string }[] = [
   {
@@ -44,7 +45,7 @@ export default async function ImportsHubPage() {
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   if (!superAdminEmail || user.email !== superAdminEmail) redirect('/dashboard')
 
-  const [batchRows, needsReviewRows] = await Promise.all([
+  const [batchRows, needsReviewRows, fullBatches] = await Promise.all([
     db.query.importBatches.findMany({
       where: isNull(importBatches.deletedAt),
       orderBy: (t, { desc }) => [desc(t.createdAt)],
@@ -53,7 +54,15 @@ export default async function ImportsHubPage() {
     db
       .select({ c: count() })
       .from(bookings)
-      .where(and(eq(bookings.needsReview, true), eq(bookings.source, 'historical_import'))),
+      .where(and(eq(bookings.needsReview, true), eq(bookings.active, true))),
+    db.query.importBatches.findMany({
+      where: isNull(importBatches.deletedAt),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      with: {
+        facility: { columns: { name: true } },
+        stylist: { columns: { name: true } },
+      },
+    }),
   ])
 
   const needsReviewCount = needsReviewRows[0]?.c ?? 0
@@ -68,5 +77,17 @@ export default async function ImportsHubPage() {
     }
   })
 
-  return <ImportsHubClient cards={cardData} />
+  const batches: BatchRow[] = fullBatches.map((b) => ({
+    id: b.id,
+    fileName: b.fileName,
+    sourceType: b.sourceType,
+    rowCount: b.rowCount,
+    matchedCount: b.matchedCount,
+    unresolvedCount: b.unresolvedCount,
+    createdAt: b.createdAt instanceof Date ? b.createdAt.toISOString() : null,
+    facility: b.facility ? { name: b.facility.name } : null,
+    stylist: b.stylist ? { name: b.stylist.name } : null,
+  }))
+
+  return <ImportsHubClient cards={cardData} batches={batches} initialReviewCount={needsReviewCount} />
 }

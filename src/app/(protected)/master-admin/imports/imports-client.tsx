@@ -1,7 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { EmptyState } from '@/components/ui/empty-state'
+import { useState } from 'react'
+import { cn } from '@/lib/utils'
+import { ReviewQueue } from './review-queue'
+import { BatchHistory, type BatchRow } from './batch-history'
 
 export interface SourceCardData {
   sourceType: string
@@ -34,12 +37,6 @@ const BuildingIcon = (
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
   </svg>
 )
-const ClipboardIcon = (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-  </svg>
-)
-
 const ICONS: Record<string, React.ReactNode> = {
   service_log: SpreadsheetIcon,
   qb_customer: UsersIcon,
@@ -53,7 +50,18 @@ function formatTimestamp(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function ImportsHubClient({ cards }: { cards: SourceCardData[] }) {
+interface ImportsHubClientProps {
+  cards: SourceCardData[]
+  batches: BatchRow[]
+  initialReviewCount: number
+}
+
+type Tab = 'review' | 'history'
+
+export function ImportsHubClient({ cards, batches, initialReviewCount }: ImportsHubClientProps) {
+  const [tab, setTab] = useState<Tab>(initialReviewCount > 0 ? 'review' : 'history')
+  const [reviewCount, setReviewCount] = useState(initialReviewCount)
+
   return (
     <div className="page-enter min-h-screen bg-stone-50 p-6">
       <div className="max-w-5xl mx-auto">
@@ -117,16 +125,29 @@ export function ImportsHubClient({ cards }: { cards: SourceCardData[] }) {
           ))}
         </div>
 
-        <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mt-10 mb-3">
-          Needs Review
-        </h2>
-        <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)]">
-          <EmptyState
-            icon={ClipboardIcon}
-            title="Coming soon"
-            description="The reconciliation queue lands in Phase 12C."
-          />
+        <div className="flex border-b border-stone-100 mt-10 mb-5">
+          {(['review', 'history'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={cn(
+                'relative px-4 py-3 text-sm font-semibold transition-colors duration-150',
+                tab === t
+                  ? 'text-[#8B2E4A] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-[#8B2E4A]'
+                  : 'text-stone-500 hover:text-stone-800',
+              )}
+            >
+              {t === 'review' ? `Needs Review (${reviewCount})` : `Batch History (${batches.length})`}
+            </button>
+          ))}
         </div>
+
+        {tab === 'review' ? (
+          <ReviewQueue onCountChange={setReviewCount} />
+        ) : (
+          <BatchHistory initialBatches={batches} />
+        )}
       </div>
     </div>
   )

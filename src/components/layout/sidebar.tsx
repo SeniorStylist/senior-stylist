@@ -184,9 +184,10 @@ interface SidebarProps {
   allFacilities?: FacilityOption[]
   role?: string
   debugMode?: boolean
+  needsReviewCount?: number
 }
 
-export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false }: SidebarProps) {
+export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false, needsReviewCount = 0 }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -439,6 +440,14 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                 </svg>
               </span>
               Master Admin
+              {needsReviewCount > 0 && (
+                <span
+                  title={`${needsReviewCount} import${needsReviewCount === 1 ? '' : 's'} need review`}
+                  className="ml-auto text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950"
+                >
+                  {needsReviewCount}
+                </span>
+              )}
             </Link>
           )}
         </div>

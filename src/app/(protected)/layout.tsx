@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, facilities, franchises } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { facilityUsers, facilities, franchises, bookings } from '@/db/schema'
+import { eq, and, count } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TopBar } from '@/components/layout/top-bar'
@@ -77,6 +77,21 @@ export default async function ProtectedLayout({
   }
 
   const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
+  // Sidebar amber badge: count of bookings awaiting reconciliation. Master admin only.
+  let needsReviewCount = 0
+  if (isMaster) {
+    try {
+      const r = await db
+        .select({ c: count() })
+        .from(bookings)
+        .where(and(eq(bookings.needsReview, true), eq(bookings.active, true)))
+      needsReviewCount = r[0]?.c ?? 0
+    } catch (err) {
+      console.error('[layout] needs-review count error:', err)
+    }
+  }
+
   let debugMode = false
   if (isMaster) {
     const cookieStore = await cookies()
@@ -98,7 +113,7 @@ export default async function ProtectedLayout({
     <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} needsReviewCount={needsReviewCount} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />

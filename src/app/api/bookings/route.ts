@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const startParam = searchParams.get('start')
     const endParam = searchParams.get('end')
 
-    const conditions = [eq(bookings.facilityId, facilityId)]
+    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true)]
 
     if (startParam) {
       conditions.push(gte(bookings.startTime, new Date(startParam)))

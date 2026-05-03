@@ -1202,6 +1202,48 @@ assistant in chat always has full context.
 *End of master specification.*
 
 
+### Phase 12C — Reconciliation Queue + Batch Rollback (SHIPPED 2026-05-03)
+
+Fills in the "Needs Review" placeholder on `/master-admin/imports` with a real reconciliation queue, adds whole-batch and per-booking rollback, and surfaces an amber count badge on the sidebar Master Admin link.
+
+**Schema**: added `bookings.active boolean default true not null` — a soft-delete flag distinct from `status='cancelled'`. Default `true` keeps every existing row visible. Filter `eq(bookings.active, true)` added to `/api/bookings` GET (calendar), `/log/page.tsx` (daily log), and `/api/reports/monthly` GET. Other surfaces (resident detail, stylist detail, exports, billing summary) deliberately not filtered — practical impact is small at current scale and exhaustive coverage adds risk for low payoff. CLAUDE.md documents the rule for new booking queries.
+
+**New routes** (all master-admin gated via `getSuperAdmin()` helper):
+- `GET /api/super-admin/import-review` — returns all bookings where `needs_review = true AND active = true`, ordered by import batch creation desc then start time. For each booking: top-3 service suggestions per facility (computed server-side via `fuzzyScore(service.name, rawServiceName)`, filtered out `pricingType='addon'`, threshold > 0). Response also includes `facilityServices: Record<facilityId, ServiceOption[]>` (the full per-facility service list, sorted by name) so the linker UI doesn't need a separate master-admin services endpoint.
+- `POST /api/super-admin/import-review/resolve` — Zod discriminated union body `{action: 'link', bookingId, serviceId} | {action: 'create', bookingId, serviceName, priceCents} | {action: 'keep', bookingId}`. `link` verifies serviceId belongs to booking's facility (cross-facility leak guard), updates `bookings.serviceId/serviceIds + needsReview=false`. `create` inserts into `services` (`pricingType='fixed', durationMinutes=30, active=true`) inside a transaction, then links. `keep` only flips `needsReview=false` (booking stays as a permanent historical record with `serviceId=null`). All paths call `revalidateTag('bookings', {})`.
+- `DELETE /api/super-admin/import-batches/[batchId]` — transaction: `UPDATE bookings SET active=false WHERE import_batch_id=batchId AND active=true` (returns count) + `UPDATE import_batches SET deleted_at=now()`. Returns `{ok, bookingsDeactivated}`.
+- `DELETE /api/super-admin/import-bookings/[bookingId]` — single-booking soft-delete via `active=false`. Used by the trash button on each review card.
+
+**No `/count` endpoint** — server layout queries needs_review count directly via Drizzle.
+
+**Sidebar amber badge**: `(protected)/layout.tsx` runs a `count(bookings WHERE needs_review = true AND active = true)` query when `user.email === SUPER_ADMIN_EMAIL`, passes `needsReviewCount` to `<Sidebar>`. `Sidebar` renders an `ml-auto bg-amber-400 text-amber-950 rounded-full` count pill inside the Master Admin `<Link>` when count > 0. Uses the partial index `bookings_needs_review_idx` so the count is fast at any scale.
+
+**Imports hub restructure** (`/master-admin/imports`):
+- Server `page.tsx` now fetches a third dataset: full `import_batches` rows (where `deleted_at IS NULL`) with facility + stylist names. Passes as `batches` prop.
+- Client `imports-client.tsx` adds a tab system (underline pnav pattern: `text-[#8B2E4A]` + `after:bg-[#8B2E4A]` 2px bar) below the card grid. Two tabs: `Needs Review (N)` and `Batch History (M)`. Initial tab defaults to `review` if `initialReviewCount > 0`, else `history`. `reviewCount` mirrors local state and updates via `onCountChange` from `<ReviewQueue>`.
+
+**`<ReviewQueue />` component**:
+- Fetches via `useEffect` GET `/api/super-admin/import-review` on mount.
+- Loading skeleton → empty state (green check, "All imports resolved") → list view.
+- Amber banner at top: "{N} imported services couldn't be matched automatically…"
+- Each `<ReviewCard>` (`bg-white rounded-2xl shadow-[var(--shadow-sm)] p-5`):
+  - Header: resident name + room + facility + date + truncated file pill + trash button (right-aligned).
+  - Raw service block: `bg-stone-50 rounded-xl` row with `font-mono` raw text + price.
+  - Suggestions row (idle state, when `suggestions.length > 0`): "Suggested:" label + up to 3 rose-pill buttons showing name + price + rounded score badge ("87%"). Click → enters `link` sub-state pre-filled with that serviceId.
+  - Action row (idle state): three flex-1 buttons — "Link to service" (burgundy), "Create new service" (stone), "Keep as historical" (ghost border).
+  - **Link sub-form**: native `<select>` of all facility services + Save/Cancel. Submits resolve `{action:'link'}`.
+  - **Create sub-form**: name input (pre-filled from rawServiceName) + price input (pre-filled from priceCents) + Save/Cancel. Submits resolve `{action:'create'}`.
+  - **Keep**: single click → resolve `{action:'keep'}`, no form.
+  - **Trash**: enters `remove` sub-state with inline confirm "Remove this booking from Senior Stylist?" + Cancel/Remove. DELETEs `/api/super-admin/import-bookings/[id]`.
+  - Optimistic removal on success (card disappears, list re-renders empty state if last).
+
+**`<BatchHistory />` component**:
+- Receives `initialBatches` server-rendered. Renders a 9-column house-style table (date, file, source pill, facility, stylist, rows, matched, unresolved, rollback action). Empty state when no batches.
+- Rollback button per row → opens `<Modal>` with confirmation copy: "This will soft-delete all {N} bookings…". Confirm → DELETE → optimistic table-row removal + success toast "Rolled back N bookings."
+
+**Master spec / project-context note**: `bookings.active` is the soft-delete flag for import rollback. Not used for normal user-cancelled bookings (those continue to use `status='cancelled'`). The two are intentionally distinct.
+
+
 ### Phase 12A+B — Import Hub + Service Log Import (SHIPPED 2026-05-03)
 
 Backfill historical bookkeeper XLSX service-log files into bookings/residents/services and cross-link them to existing `qb_invoices` for AR reconciliation. Adds a dedicated `/master-admin/imports` hub that consolidates the four import flows. Historical bookings render with an unobtrusive `H` badge across calendar + daily log so live data stays visually distinct.

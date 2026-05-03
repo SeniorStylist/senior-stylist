@@ -311,6 +311,8 @@ export const bookings = pgTable('bookings', {
   importBatchId: uuid('import_batch_id').references((): AnyPgColumn => importBatches.id),
   qbInvoiceMatchId: uuid('qb_invoice_match_id').references((): AnyPgColumn => qbInvoices.id),
   needsReview: boolean('needs_review').default(false).notNull(),
+  // Phase 12C: soft-delete flag (false = removed via batch rollback or per-booking trash)
+  active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({

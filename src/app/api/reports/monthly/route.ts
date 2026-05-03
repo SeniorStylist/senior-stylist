@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     const rows = await db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityId),
+        eq(bookings.active, true),
         ne(bookings.status, 'cancelled'),
         ne(bookings.status, 'no_show'),
         gte(bookings.startTime, start),

@@ -42,6 +42,7 @@ export default async function LogPage() {
     db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityId),
+        eq(bookings.active, true),
         gte(bookings.startTime, dayStart),
         lt(bookings.startTime, dayEnd)
       ),
