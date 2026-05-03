@@ -93,6 +93,11 @@ export function parseServiceLogXlsx(buffer: Buffer, fileName?: string): ParsedSe
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
 
+  console.log('[import-debug] fileName received:', fileName)
+  console.log('[import-debug] First row keys:', Object.keys(raw[0] ?? {}))
+  console.log('[import-debug] First 3 Facility values:', raw.slice(0, 3).map(r => r['Facility']))
+  console.log('[import-debug] First 3 Stylist values:', raw.slice(0, 3).map(r => r['Stylist']))
+
   // Collect all non-empty, non-skip values for facility and stylist, then pick most frequent.
   const facilityValues: string[] = []
   const stylistValues: string[] = []
