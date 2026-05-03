@@ -2030,3 +2030,15 @@ Dot progress: active dot `width: 20px`, inactive `8px`, all `h-2 rounded-full`, 
 
 Shown only when `isInstallable()` returns true (mobile, not already installed). Card at the bottom of `my-account-client.tsx` with a phone icon + "Show me how →" button that opens the same `<InstallGuide>`. Gives stylists a persistent second entry point after dismissing the banner.
 
+### Interactive Stat Tile (`ResultTile` in `service-log-client.tsx`)
+
+Used on the import results screen to make summary metrics navigable or informational. Three modes:
+
+1. **Navigate on click** (`href` prop set): wraps content in a `<button>` that calls `router.push(href)`. Used for "Bookings created" (always → `/dashboard`) and conditional cards like "Need review" (→ `/master-admin/imports?tab=review` when count > 0) and "QB invoices linked" (→ `/billing` when count > 0).
+2. **Tooltip on click** (`tooltip` prop set, no `href`): `<button>` toggles a `showTooltip` state; absolute tooltip `bg-stone-800 text-white rounded-xl px-3 py-2.5 text-xs w-52 shadow-[var(--shadow-lg)]` appears below the tile. `mousedown` outside (via `useRef` + `document.addEventListener`) dismisses it. Used for "Services matched", "Residents upserted", "Duplicates skipped".
+3. **Static** (neither prop): plain `<div>`. Used for conditional zero-count tiles where there's nothing to navigate to or explain with different text.
+
+**Hover style (interactive only):** `hover:bg-[#F9EFF2] hover:shadow-[0_0_0_1.5px_rgba(139,46,74,0.15)] transition-[background-color,box-shadow] duration-[120ms]` on the `<button>`. Base background: `bg-stone-50 rounded-xl px-4 py-3`.
+
+**Deep-link pattern** (`imports-client.tsx`): reads `?tab=review` on mount via `new URLSearchParams(window.location.search)` in a `useEffect(() => {...}, [])` — avoids the Suspense boundary requirement that `useSearchParams()` imposes. Apply this pattern whenever a page needs to read a URL param for initial tab state.
+
