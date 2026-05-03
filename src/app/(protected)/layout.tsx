@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, facilities, franchises, bookings } from '@/db/schema'
-import { eq, and, count } from 'drizzle-orm'
+import { facilityUsers, facilities, franchises } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TopBar } from '@/components/layout/top-bar'
@@ -34,63 +34,56 @@ export default async function ProtectedLayout({
   let activeFacilityId: string = ''
 
   try {
-    const userFacilities = await db.query.facilityUsers.findMany({
-      where: eq(facilityUsers.userId, user.id),
-      with: { facility: true },
-      orderBy: (t, { asc }) => [asc(t.createdAt)],
-    })
+    await Promise.race([
+      (async () => {
+        const userFacilities = await db.query.facilityUsers.findMany({
+          where: eq(facilityUsers.userId, user.id),
+          with: { facility: true },
+          orderBy: (t, { asc }) => [asc(t.createdAt)],
+        })
 
-    allFacilities = userFacilities
-      .filter((fu) => fu.facility != null)
-      .map((fu) => ({
-        id: fu.facilityId,
-        name: fu.facility!.name,
-        facilityCode: fu.facility!.facilityCode ?? null,
-        role: fu.role,
-      }))
+        allFacilities = userFacilities
+          .filter((fu) => fu.facility != null)
+          .map((fu) => ({
+            id: fu.facilityId,
+            name: fu.facility!.name,
+            facilityCode: fu.facility!.facilityCode ?? null,
+            role: fu.role,
+          }))
 
-    // For super_admin users, restrict facility switcher to their franchise only
-    const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')
-    if (hasSuperAdminRole) {
-      const franchise = await db.query.franchises.findFirst({
-        where: eq(franchises.ownerUserId, user.id),
-        with: { franchiseFacilities: true },
-      })
-      if (franchise) {
-        const franchiseFacilityIds = new Set(franchise.franchiseFacilities.map((ff) => ff.facilityId))
-        allFacilities = allFacilities.filter((f) => franchiseFacilityIds.has(f.id))
-      }
-    }
+        // For super_admin users, restrict facility switcher to their franchise only
+        const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')
+        if (hasSuperAdminRole) {
+          const franchise = await db.query.franchises.findFirst({
+            where: eq(franchises.ownerUserId, user.id),
+            with: { franchiseFacilities: true },
+          })
+          if (franchise) {
+            const franchiseFacilityIds = new Set(franchise.franchiseFacilities.map((ff) => ff.facilityId))
+            allFacilities = allFacilities.filter((f) => franchiseFacilityIds.has(f.id))
+          }
+        }
 
-    // Determine active facility from cookie or first
-    const cookieStore = await cookies()
-    const selectedId = cookieStore.get('selected_facility_id')?.value
-    const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
-    facilityName = active?.name
-    facilityCode = active?.facilityCode ?? null
-    activeFacilityId = active?.id ?? ''
-    const rawRole = active?.role ?? 'admin'
-    activeRole = rawRole === 'super_admin' ? 'admin' : rawRole
+        // Determine active facility from cookie or first
+        const cookieStore = await cookies()
+        const selectedId = cookieStore.get('selected_facility_id')?.value
+        const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
+        facilityName = active?.name
+        facilityCode = active?.facilityCode ?? null
+        activeFacilityId = active?.id ?? ''
+        const rawRole = active?.role ?? 'admin'
+        activeRole = rawRole === 'super_admin' ? 'admin' : rawRole
+      })(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('layout-timeout')), 5000)
+      ),
+    ])
   } catch (err) {
-    // DB might not be set up yet — that's OK
+    // DB might not be set up yet, or timed out — render with empty defaults
     console.error('[layout] Failed to load facility data:', err)
   }
 
   const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-
-  // Sidebar amber badge: count of bookings awaiting reconciliation. Master admin only.
-  let needsReviewCount = 0
-  if (isMaster) {
-    try {
-      const r = await db
-        .select({ c: count() })
-        .from(bookings)
-        .where(and(eq(bookings.needsReview, true), eq(bookings.active, true)))
-      needsReviewCount = r[0]?.c ?? 0
-    } catch (err) {
-      console.error('[layout] needs-review count error:', err)
-    }
-  }
 
   let debugMode = false
   if (isMaster) {
@@ -113,7 +106,7 @@ export default async function ProtectedLayout({
     <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} needsReviewCount={needsReviewCount} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />

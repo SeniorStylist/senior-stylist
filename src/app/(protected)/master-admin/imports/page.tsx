@@ -45,12 +45,7 @@ export default async function ImportsHubPage() {
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   if (!superAdminEmail || user.email !== superAdminEmail) redirect('/dashboard')
 
-  const [batchRows, needsReviewRows, fullBatches] = await Promise.all([
-    db.query.importBatches.findMany({
-      where: isNull(importBatches.deletedAt),
-      orderBy: (t, { desc }) => [desc(t.createdAt)],
-      columns: { id: true, sourceType: true, createdAt: true },
-    }),
+  const [needsReviewRows, fullBatches] = await Promise.all([
     db
       .select({ c: count() })
       .from(bookings)
@@ -68,7 +63,7 @@ export default async function ImportsHubPage() {
   const needsReviewCount = needsReviewRows[0]?.c ?? 0
 
   const cardData: SourceCardData[] = SOURCE_DEFS.map((d) => {
-    const ofType = batchRows.filter((b) => b.sourceType === d.sourceType)
+    const ofType = fullBatches.filter((b) => b.sourceType === d.sourceType)
     return {
       ...d,
       lastImportedAt: ofType[0]?.createdAt instanceof Date ? ofType[0].createdAt.toISOString() : null,

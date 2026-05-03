@@ -323,7 +323,7 @@ export const bookings = pgTable('bookings', {
   // resident duplicate-detection + merge tool re-pointing
   residentIdx: index('bookings_resident_idx').on(t.residentId),
   // Phase 12B: needs-review queue lookup + import batch rollback
-  needsReviewIdx: index('bookings_needs_review_idx').on(t.needsReview).where(sql`needs_review = true`),
+  needsReviewIdx: index('bookings_needs_review_idx').on(t.needsReview).where(sql`needs_review = true AND active = true`),
   importBatchIdx: index('bookings_import_batch_idx').on(t.importBatchId).where(sql`import_batch_id IS NOT NULL`),
 }))
 
