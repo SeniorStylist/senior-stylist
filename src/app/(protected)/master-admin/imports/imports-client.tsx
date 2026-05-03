@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ReviewQueue } from './review-queue'
 import { BatchHistory, type BatchRow } from './batch-history'
@@ -61,6 +61,11 @@ type Tab = 'review' | 'history'
 export function ImportsHubClient({ cards, batches, initialReviewCount }: ImportsHubClientProps) {
   const [tab, setTab] = useState<Tab>(initialReviewCount > 0 ? 'review' : 'history')
   const [reviewCount, setReviewCount] = useState(initialReviewCount)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tab') === 'review') setTab('review')
+  }, [])
 
   return (
     <div className="page-enter min-h-screen bg-stone-50 p-6">

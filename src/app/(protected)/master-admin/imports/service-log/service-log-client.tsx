@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const SpreadsheetIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -381,16 +382,44 @@ export function ServiceLogClient() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-6">
-              <ResultTile label="Bookings created" value={result.bookingsCreated} accent="emerald" />
-              <ResultTile label="Residents upserted" value={result.residentsUpserted} accent="stone" />
-              <ResultTile label="Services matched" value={result.servicesMatched} accent="stone" />
+              <ResultTile
+                label="Bookings created"
+                value={result.bookingsCreated}
+                accent="emerald"
+                href="/dashboard"
+              />
+              <ResultTile
+                label="Residents upserted"
+                value={result.residentsUpserted}
+                accent="stone"
+                tooltip="New residents were auto-created from names in the import file."
+              />
+              <ResultTile
+                label="Services matched"
+                value={result.servicesMatched}
+                accent="stone"
+                tooltip="Line items matched to a service in the catalog by name, price, or combination."
+              />
               <ResultTile
                 label="Need review"
                 value={result.unresolvedCount}
                 accent={result.unresolvedCount > 0 ? 'amber' : 'stone'}
+                href={result.unresolvedCount > 0 ? '/master-admin/imports?tab=review' : undefined}
+                tooltip={result.unresolvedCount === 0 ? 'All line items were matched — nothing needs manual review.' : undefined}
               />
-              <ResultTile label="QB invoices linked" value={result.qbInvoicesLinked} accent="stone" />
-              <ResultTile label="Duplicates skipped" value={result.duplicatesSkipped} accent="stone" />
+              <ResultTile
+                label="QB invoices linked"
+                value={result.qbInvoicesLinked}
+                accent="stone"
+                href={result.qbInvoicesLinked > 0 ? '/billing' : undefined}
+                tooltip={result.qbInvoicesLinked === 0 ? 'No QB invoices were cross-referenced to these bookings.' : undefined}
+              />
+              <ResultTile
+                label="Duplicates skipped"
+                value={result.duplicatesSkipped}
+                accent="stone"
+                tooltip="Rows already in the database were skipped to prevent double-counting."
+              />
             </div>
 
             <div className="flex items-center gap-3">
@@ -419,21 +448,70 @@ function ResultTile({
   label,
   value,
   accent,
+  href,
+  tooltip,
 }: {
   label: string
   value: number
   accent: 'emerald' | 'amber' | 'stone'
+  href?: string
+  tooltip?: string
 }) {
+  const router = useRouter()
+  const [showTooltip, setShowTooltip] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showTooltip) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowTooltip(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showTooltip])
+
   const valueColor =
     accent === 'emerald'
       ? 'text-emerald-700'
       : accent === 'amber'
         ? 'text-amber-700'
         : 'text-stone-900'
-  return (
-    <div className="px-4 py-3 bg-stone-50 rounded-xl">
+
+  const isClickable = !!(href || tooltip)
+
+  const inner = (
+    <>
       <p className="text-xs text-stone-500 mb-1">{label}</p>
       <p className={`text-xl font-semibold ${valueColor}`}>{value.toLocaleString()}</p>
+    </>
+  )
+
+  if (isClickable) {
+    return (
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => {
+            if (href) { router.push(href) } else { setShowTooltip((v) => !v) }
+          }}
+          className="w-full text-left px-4 py-3 bg-stone-50 rounded-xl cursor-pointer transition-[background-color,box-shadow] duration-[120ms] hover:bg-[#F9EFF2] hover:shadow-[0_0_0_1.5px_rgba(139,46,74,0.15)]"
+        >
+          {inner}
+        </button>
+        {showTooltip && tooltip && (
+          <div className="absolute left-0 top-full mt-1.5 z-10 bg-stone-800 text-white text-xs rounded-xl px-3 py-2.5 shadow-[var(--shadow-lg)] leading-relaxed w-52">
+            {tooltip}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-4 py-3 bg-stone-50 rounded-xl">
+      {inner}
     </div>
   )
 }
