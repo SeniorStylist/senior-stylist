@@ -72,14 +72,10 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode
 }) {
-  console.log('[layout] start', Date.now())
-
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  console.log('[layout] auth done', Date.now())
 
   if (!user) redirect('/login')
 
@@ -100,8 +96,6 @@ export default async function ProtectedLayout({
   } catch {
     // ignore
   }
-
-  console.log('[layout] data done', Date.now())
 
   if (facilityData) {
     facilityName = facilityData.facilityName

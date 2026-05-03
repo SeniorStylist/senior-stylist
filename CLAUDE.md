@@ -27,10 +27,10 @@
 
 ### DB connection pool (`src/db/index.ts`)
 - Singleton via `globalThis._pgClient` — postgres-js client is reused across requests in the same serverless instance
-- `max: 1` (transaction-mode pgBouncer requirement — never raise)
-- `prepare: false` (transaction-mode pgBouncer requirement)
-- `connect_timeout: 10` (CLAUDE.md floor)
-- `DATABASE_URL` MUST point to Supabase pgBouncer (port 6543); `DIRECT_URL` (port 5432) is for `drizzle-kit push` only
+- `max: 1` (never raise)
+- `connect_timeout: 10` (never lower)
+- `prepare: false` is **NOT set** — session-mode pooler (port 5432) supports prepared statements; only transaction-mode (port 6543) requires it
+- `DATABASE_URL` MUST point to Supabase **session-mode** pooler (port 5432); `DIRECT_URL` (port 5432 direct connection, not pooler) is for `drizzle-kit push` only
 
 ### `unstable_cache` registry
 | Key | TTL | Tag | Where |
