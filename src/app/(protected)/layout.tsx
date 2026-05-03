@@ -14,7 +14,7 @@ import { DebugBadge } from '@/components/debug/debug-badge'
 import { MobileFacilityHeader } from '@/components/layout/mobile-facility-header'
 import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 
-const LAYOUT_TIMEOUT_MS = 4000
+const LAYOUT_TIMEOUT_MS = 8000
 
 interface LayoutData {
   facilityName: string | undefined

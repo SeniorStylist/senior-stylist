@@ -6,12 +6,11 @@ import * as schema from './schema'
 const globalForDb = globalThis as unknown as { _pgClient?: ReturnType<typeof postgres> }
 
 if (!globalForDb._pgClient) {
+  // DATABASE_URL points at Supabase's session-mode pooler (port 5432).
+  // Session mode supports prepared statements, so prepare:false is not needed.
   globalForDb._pgClient = postgres(process.env.DATABASE_URL!, {
     max: 1,
     connect_timeout: 10,
-    // Required when DATABASE_URL points at Supabase's transaction-mode pooler
-    // (port 6543). Safe to keep on the session-mode pooler (port 5432) too.
-    prepare: false,
   })
 }
 
