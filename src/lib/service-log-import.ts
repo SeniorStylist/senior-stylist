@@ -93,10 +93,30 @@ export function parseServiceLogXlsx(buffer: Buffer, fileName?: string): ParsedSe
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
 
-  console.log('[import-debug] fileName received:', fileName)
-  console.log('[import-debug] First row keys:', Object.keys(raw[0] ?? {}))
-  console.log('[import-debug] First 3 Facility values:', raw.slice(0, 3).map(r => r['Facility']))
-  console.log('[import-debug] First 3 Stylist values:', raw.slice(0, 3).map(r => r['Stylist']))
+  // Build a case-insensitive, trim-safe column key index once (all rows share the same header shape).
+  // Resolves 'Facility Name' vs 'Facility', 'Stylist Name' vs 'Stylist', etc.
+  const keyMap = new Map<string, string>() // normalizedName → actualKey
+  for (const k of Object.keys(raw[0] ?? {})) keyMap.set(k.toLowerCase().trim(), k)
+  const resolveKey = (...names: string[]): string | undefined => {
+    for (const n of names) {
+      const found = keyMap.get(n.toLowerCase().trim())
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+  const get = (r: Record<string, unknown>, key: string | undefined): unknown =>
+    key !== undefined ? r[key] : ''
+
+  const facilityKey   = resolveKey('Facility Name', 'Facility')
+  const stylistKey    = resolveKey('Stylist Name', 'Stylist')
+  const clientKey     = resolveKey('Client Name')
+  const serviceDateKey = resolveKey('Service Date')
+  const servicesKey   = resolveKey('Services Performed')
+  const amountKey     = resolveKey('Amount')
+  const roomKey       = resolveKey('Room#', 'Room')
+  const tipsKey       = resolveKey('Tips')
+  const notesKey      = resolveKey('Notes')
+  const paymentKey    = resolveKey('Payment Type')
 
   // Collect all non-empty, non-skip values for facility and stylist, then pick most frequent.
   const facilityValues: string[] = []
@@ -104,24 +124,29 @@ export function parseServiceLogXlsx(buffer: Buffer, fileName?: string): ParsedSe
 
   const rows: ParsedServiceLogRow[] = []
   for (const r of raw) {
-    const f = String(r['Facility'] ?? '').trim()
+    // Facility cells may include an F-code prefix: "F177 - Sunrise of Bethesda" → "Sunrise of Bethesda"
+    const rawF = String(get(r, facilityKey) ?? '').trim()
+    const fSegs = rawF.split(' - ')
+    const f = (fSegs.length >= 2 && /^F\d+$/.test(fSegs[0].trim()))
+      ? fSegs.slice(1).join(' - ').trim()
+      : rawF
     if (f && !SKIP_META.has(f.toLowerCase())) facilityValues.push(f)
 
-    const s = String(r['Stylist'] ?? '').trim()
+    const s = String(get(r, stylistKey) ?? '').trim()
     if (s && !SKIP_META.has(s.toLowerCase())) stylistValues.push(s)
 
-    const clientName = String(r['Client Name'] ?? '').trim()
+    const clientName = String(get(r, clientKey) ?? '').trim()
     if (SKIP_CLIENT.has(clientName.toLowerCase())) continue
 
-    const serviceDate = toDate(r['Service Date'])
+    const serviceDate = toDate(get(r, serviceDateKey))
     if (!serviceDate) continue
 
-    const servicesPerformed = String(r['Services Performed'] ?? '').trim()
-    const amountCents = toCents(r['Amount'])
+    const servicesPerformed = String(get(r, servicesKey) ?? '').trim()
+    const amountCents = toCents(get(r, amountKey))
     if (amountCents <= 0) continue
 
-    const roomVal = String(r['Room#'] ?? '').trim()
-    const tipsCents = toCents(r['Tips'])
+    const roomVal = String(get(r, roomKey) ?? '').trim()
+    const tipsCents = toCents(get(r, tipsKey))
 
     rows.push({
       serviceDate,
@@ -129,9 +154,9 @@ export function parseServiceLogXlsx(buffer: Buffer, fileName?: string): ParsedSe
       room: roomVal && roomVal.toLowerCase() !== "doesn't fill" ? roomVal : null,
       servicesPerformed,
       amountCents,
-      notes: String(r['Notes'] ?? '').trim() || null,
+      notes: String(get(r, notesKey) ?? '').trim() || null,
       tipsCents: tipsCents > 0 ? tipsCents : null,
-      paymentType: String(r['Payment Type'] ?? '').trim() || null,
+      paymentType: String(get(r, paymentKey) ?? '').trim() || null,
     })
   }
 
@@ -139,7 +164,7 @@ export function parseServiceLogXlsx(buffer: Buffer, fileName?: string): ParsedSe
 
   // Fallback: parse facility from filename ("F177 - Sunrise of Bethesda.xlsx" → "Sunrise of Bethesda")
   if (!facility && fileName) {
-    const base = fileName.replace(/\.[^/.]+$/, '') // strip extension
+    const base = fileName.replace(/\.[^/.]+$/, '')
     const segments = base.split(' - ')
     const last = segments[segments.length - 1].trim()
     if (last) facility = last
