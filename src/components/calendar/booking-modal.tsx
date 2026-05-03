@@ -141,7 +141,9 @@ export function BookingModal({
       const existingIds =
         booking.serviceIds && booking.serviceIds.length > 0
           ? booking.serviceIds
-          : [booking.serviceId]
+          : booking.serviceId
+            ? [booking.serviceId]
+            : []
       setSelectedServiceIds(existingIds)
       setSelectedAddonServiceIds(booking.addonServiceIds ?? [])
       setStartTime(formatDateTimeLocal(booking.startTime))

@@ -84,16 +84,16 @@ export async function GET(request: NextRequest) {
         year: 'numeric',
         timeZone: tz,
       })
-      const price = b.priceCents != null ? `$${(b.priceCents / 100).toFixed(2)}` : `$${(b.service.priceCents / 100).toFixed(2)}`
+      const price = b.priceCents != null ? `$${(b.priceCents / 100).toFixed(2)}` : `$${((b.service?.priceCents ?? 0) / 100).toFixed(2)}`
 
       lines.push(
         row(
           date,
           b.resident.name,
           b.resident.roomNumber ?? '',
-          b.service.name,
+          b.service?.name ?? b.rawServiceName ?? 'Unknown service',
           b.stylist.name,
-          b.durationMinutes ?? b.service.durationMinutes,
+          b.durationMinutes ?? b.service?.durationMinutes ?? 30,
           price,
           b.paymentStatus ?? '',
           b.resident.poaPaymentMethod ?? '',

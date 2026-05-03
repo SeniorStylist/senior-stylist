@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       residentId: b.residentId,
       residentName: b.resident.name,
       residentRoom: b.resident.roomNumber,
-      service: b.service.name,
+      service: b.service?.name ?? b.rawServiceName ?? 'Unknown service',
       stylist: b.stylist.name,
       priceCents: b.priceCents ?? 0,
       paymentStatus: b.paymentStatus,

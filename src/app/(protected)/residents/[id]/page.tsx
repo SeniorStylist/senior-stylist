@@ -60,9 +60,10 @@ export default async function ResidentDetailPage({
   // Most common service
   const serviceCounts = new Map<string, { name: string; count: number }>()
   for (const b of activeBookings) {
-    const existing = serviceCounts.get(b.serviceId)
+    const key = b.serviceId ?? b.id
+    const existing = serviceCounts.get(key)
     if (!existing) {
-      serviceCounts.set(b.serviceId, { name: b.service.name, count: 1 })
+      serviceCounts.set(key, { name: b.service?.name ?? b.rawServiceName ?? 'Unknown service', count: 1 })
     } else {
       existing.count++
     }

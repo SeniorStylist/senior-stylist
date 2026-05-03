@@ -440,24 +440,11 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
           {/* Toolbar row */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-stone-400 mr-1">Import:</span>
               <a
-                href="/master-admin/import-quickbooks"
+                href="/master-admin/imports"
                 className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
               >
-                QB Customers
-              </a>
-              <a
-                href="/master-admin/import-billing-history"
-                className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
-              >
-                QB Billing
-              </a>
-              <a
-                href="/master-admin/import-facilities-csv"
-                className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
-              >
-                Facilities
+                Imports →
               </a>
             </div>
             {activeTab === 'facilities' && (

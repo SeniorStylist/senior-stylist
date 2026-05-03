@@ -116,7 +116,7 @@ export default async function InvoicePage({
                       <td className="py-2 px-2 text-stone-600">
                         {new Date(b.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </td>
-                      <td className="py-2 px-2 text-stone-800 font-medium">{b.service.name}</td>
+                      <td className="py-2 px-2 text-stone-800 font-medium">{b.service?.name ?? b.rawServiceName ?? 'Unknown service'}</td>
                       <td className="py-2 px-2 text-stone-600">{b.stylist.name}</td>
                       <td className="py-2 px-2 text-right font-semibold text-stone-800">
                         {formatCentsDisplay(b.priceCents ?? 0)}

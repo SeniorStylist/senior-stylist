@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
         resident: true,
         stylist: true,
         service: true,
+        importBatch: { columns: { fileName: true } },
       },
       orderBy: (t, { asc }) => [asc(t.startTime)],
     })

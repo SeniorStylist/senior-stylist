@@ -18,9 +18,22 @@ interface BookingForCalendar {
   recurring?: boolean
   serviceNames?: string[] | null
   addonServiceIds?: string[] | null
+  source?: string | null
+  importBatch?: { fileName: string } | null
   resident: Resident
   stylist: Stylist
-  service: Service
+  service: Service | null
+}
+
+function HistoricalBadge({ fileName }: { fileName?: string | null }) {
+  return (
+    <span
+      title={fileName ? `Historical record — imported from ${fileName}` : 'Historical record'}
+      className="inline-flex items-center justify-center w-3.5 h-3.5 mr-0.5 rounded text-[8px] font-bold bg-white/30 text-white align-middle"
+    >
+      H
+    </span>
+  )
 }
 
 type CalendarViewType = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
@@ -132,6 +145,7 @@ export default function CalendarView({
             return (
               <div className="px-1 truncate text-xs font-medium leading-tight">
                 {booking.recurring && <span className="mr-0.5">↻</span>}
+                {booking.source === 'historical_import' && <HistoricalBadge fileName={booking.importBatch?.fileName} />}
                 {booking.resident?.name}
               </div>
             )
@@ -156,6 +170,7 @@ export default function CalendarView({
             <div className="px-1 py-0.5 overflow-hidden">
               <div className="text-xs font-semibold truncate leading-tight">
                 {booking.recurring && <span className="mr-0.5">↻</span>}
+                {booking.source === 'historical_import' && <HistoricalBadge fileName={booking.importBatch?.fileName} />}
                 {booking.resident?.name}
               </div>
               <div className="text-xs opacity-85 truncate leading-tight">

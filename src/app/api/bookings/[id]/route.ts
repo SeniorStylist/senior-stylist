@@ -333,7 +333,7 @@ export async function PUT(
             with: { resident: true, stylist: true, service: true },
           })
 
-          if (bookingWithRelations) {
+          if (bookingWithRelations && bookingWithRelations.service) {
             await updateCalendarEvent(
               facility.calendarId,
               updated.googleEventId,

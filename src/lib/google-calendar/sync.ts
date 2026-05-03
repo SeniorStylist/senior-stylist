@@ -7,7 +7,7 @@ type BookingLike = {
   facilityId: string
   residentId: string
   stylistId: string
-  serviceId: string
+  serviceId: string | null
   startTime: Date
   endTime: Date
   priceCents: number | null
@@ -51,7 +51,7 @@ export async function createCalendarEvent(
           bookingId: booking.id,
           residentId: booking.residentId,
           stylistId: booking.stylistId,
-          serviceId: booking.serviceId,
+          serviceId: booking.serviceId ?? '',
           facilityId: booking.facilityId,
         },
       },
@@ -95,7 +95,7 @@ export async function updateCalendarEvent(
           bookingId: booking.id,
           residentId: booking.residentId,
           stylistId: booking.stylistId,
-          serviceId: booking.serviceId,
+          serviceId: booking.serviceId ?? '',
           facilityId: booking.facilityId,
         },
       },

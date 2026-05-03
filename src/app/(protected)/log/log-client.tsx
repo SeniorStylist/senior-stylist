@@ -34,9 +34,12 @@ interface LogBooking {
   serviceIds: string[] | null
   serviceNames: string[] | null
   totalDurationMinutes: number | null
+  source?: string | null
+  rawServiceName?: string | null
+  importBatch?: { fileName: string } | null
   resident: Resident
   stylist: Stylist
-  service: Service
+  service: Service | null
 }
 
 interface LogEntryData {
@@ -78,7 +81,11 @@ function serviceDisplayName(booking: LogBooking, allServices: Service[]): string
   const primaryNames =
     booking.serviceNames && booking.serviceNames.length > 0
       ? booking.serviceNames
-      : [booking.service.name]
+      : booking.service
+        ? [booking.service.name]
+        : booking.rawServiceName
+          ? [booking.rawServiceName]
+          : ['Unknown service']
   const addonNames = (booking.addonServiceIds ?? [])
     .map((id) => allServices.find((s) => s.id === id)?.name)
     .filter((n): n is string => Boolean(n))
@@ -146,7 +153,7 @@ export function LogClient({
 
   const startEditBooking = (booking: LogBooking) => {
     setEditingBookingId(booking.id)
-    setEditPrice(((booking.priceCents ?? booking.service.priceCents) / 100).toFixed(2))
+    setEditPrice(((booking.priceCents ?? booking.service?.priceCents ?? 0) / 100).toFixed(2))
     setEditNotes(booking.notes ?? '')
   }
 
@@ -449,7 +456,7 @@ export function LogClient({
   // Totals
   const activeBookings = bookings.filter((b) => b.status !== 'cancelled')
   const completedBookings = bookings.filter((b) => b.status === 'completed')
-  const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.priceCents ?? b.service.priceCents), 0)
+  const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0), 0)
 
   return (
     <ErrorBoundary>
@@ -820,7 +827,7 @@ export function LogClient({
         const isFinalized = logEntry?.finalized ?? false
         const stylistCompleted = stylistBookings.filter((b) => b.status === 'completed')
         const stylistRevenue = stylistCompleted.reduce(
-          (sum, b) => sum + (b.priceCents ?? b.service.priceCents),
+          (sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0),
           0
         )
 
@@ -957,6 +964,14 @@ export function LogClient({
                               Rm {booking.resident.roomNumber}
                             </span>
                           )}
+                          {booking.source === 'historical_import' && (
+                            <span
+                              title={booking.importBatch?.fileName ? `Historical record — imported from ${booking.importBatch.fileName}` : 'Historical record'}
+                              className="inline-block text-[10.5px] font-semibold text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded-full leading-none"
+                            >
+                              H
+                            </span>
+                          )}
                         </div>
 
                         {isEditing ? (
@@ -999,7 +1014,7 @@ export function LogClient({
                           <>
                             <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">
                               {formatTime(booking.startTime)} · {serviceDisplayName(booking, services)} ·{' '}
-                              {formatCents(booking.priceCents ?? booking.service.priceCents)}
+                              {formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}
                               {booking.selectedQuantity && booking.selectedQuantity > 1 && (
                                 <span className="text-stone-400"> (qty: {booking.selectedQuantity})</span>
                               )}

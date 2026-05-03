@@ -73,16 +73,16 @@ export async function GET(request: NextRequest) {
         const date = new Date(b.startTime).toLocaleDateString('en-US', {
           month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC',
         })
-        const price = (b.priceCents ?? b.service.priceCents) / 100
+        const price = (b.priceCents ?? b.service?.priceCents ?? 0) / 100
         const bookingId = b.id.replace(/-/g, '').slice(0, 8).toUpperCase()
-        facilityTotal += b.priceCents ?? b.service.priceCents
+        facilityTotal += b.priceCents ?? b.service?.priceCents ?? 0
         lines.push(row(
           facility.name,
           bookingId,
           date,
           b.resident.name,
           b.resident.roomNumber ?? '',
-          b.service.name,
+          b.service?.name ?? b.rawServiceName ?? 'Unknown service',
           b.stylist.name,
           price.toFixed(2),
           b.paymentStatus,

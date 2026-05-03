@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     })
 
     const totalRevenueCents = rows.reduce(
-      (sum, b) => sum + (b.priceCents ?? b.service.priceCents),
+      (sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0),
       0
     )
     const totalAppointments = rows.length
@@ -59,13 +59,14 @@ export async function GET(request: NextRequest) {
     // Revenue by service
     const serviceMap = new Map<string, { name: string; count: number; revenueCents: number }>()
     for (const b of rows) {
-      const existing = serviceMap.get(b.service.id)
-      const price = b.priceCents ?? b.service.priceCents
+      const key = b.service?.id ?? b.id
+      const existing = serviceMap.get(key)
+      const price = b.priceCents ?? b.service?.priceCents ?? 0
       if (existing) {
         existing.count++
         existing.revenueCents += price
       } else {
-        serviceMap.set(b.service.id, { name: b.service.name, count: 1, revenueCents: price })
+        serviceMap.set(key, { name: b.service?.name ?? b.rawServiceName ?? 'Unknown service', count: 1, revenueCents: price })
       }
     }
     const byService = Array.from(serviceMap.values()).sort(
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
     const stylistMap = new Map<string, { name: string; count: number; revenueCents: number; commissionPercent: number }>()
     for (const b of rows) {
       const existing = stylistMap.get(b.stylist.id)
-      const price = b.priceCents ?? b.service.priceCents
+      const price = b.priceCents ?? b.service?.priceCents ?? 0
       const cp = stylistCommissionMap.get(b.stylist.id) ?? 0
       if (existing) {
         existing.count++
@@ -118,9 +119,9 @@ export async function GET(request: NextRequest) {
       id: b.id,
       startTime: b.startTime instanceof Date ? b.startTime.toISOString() : String(b.startTime),
       resident: b.resident.name,
-      service: b.service.name,
+      service: b.service?.name ?? b.rawServiceName ?? 'Unknown service',
       stylist: b.stylist.name,
-      priceCents: b.priceCents ?? b.service.priceCents,
+      priceCents: b.priceCents ?? b.service?.priceCents ?? 0,
       status: b.status,
     }))
 

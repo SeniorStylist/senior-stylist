@@ -66,7 +66,7 @@ export async function GET() {
     ])
 
     const sum = (rows: typeof todayRows) =>
-      rows.reduce((s, b) => s + (b.priceCents ?? b.service.priceCents), 0)
+      rows.reduce((s, b) => s + (b.priceCents ?? b.service?.priceCents ?? 0), 0)
 
     return Response.json({
       data: {

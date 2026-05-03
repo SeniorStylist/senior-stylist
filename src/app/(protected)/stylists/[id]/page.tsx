@@ -108,13 +108,14 @@ export default async function StylistDetailPage({
 
   const serviceBreakdownMap = new Map<string, { serviceName: string; count: number; revenueCents: number }>()
   for (const b of completedMonthBookings) {
-    const existing = serviceBreakdownMap.get(b.serviceId)
+    const key = b.serviceId ?? b.id
+    const existing = serviceBreakdownMap.get(key)
     const price = b.priceCents ?? 0
     if (existing) {
       existing.count++
       existing.revenueCents += price
     } else {
-      serviceBreakdownMap.set(b.serviceId, { serviceName: b.service.name, count: 1, revenueCents: price })
+      serviceBreakdownMap.set(key, { serviceName: b.service?.name ?? b.rawServiceName ?? 'Unknown service', count: 1, revenueCents: price })
     }
   }
 

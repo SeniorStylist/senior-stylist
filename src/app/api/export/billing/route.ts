@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
           year: 'numeric',
           timeZone: 'UTC',
         })
-        const price = b.priceCents != null ? b.priceCents / 100 : b.service.priceCents / 100
+        const price = b.priceCents != null ? b.priceCents / 100 : (b.service?.priceCents ?? 0) / 100
         const bookingId = b.id.replace(/-/g, '').slice(0, 8).toUpperCase()
 
         lines.push(
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
             date,
             b.resident.name,
             b.resident.roomNumber ?? '',
-            b.service.name,
+            b.service?.name ?? b.rawServiceName ?? 'Unknown service',
             b.stylist.name,
             price.toFixed(2),
             b.status,
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
       }
 
       const subtotal = groupRows.reduce(
-        (sum, b) => sum + (b.priceCents ?? b.service.priceCents),
+        (sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0),
         0
       )
       grandTotal += subtotal

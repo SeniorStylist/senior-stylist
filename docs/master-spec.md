@@ -1202,6 +1202,45 @@ assistant in chat always has full context.
 *End of master specification.*
 
 
+### Phase 12A+B — Import Hub + Service Log Import (SHIPPED 2026-05-03)
+
+Backfill historical bookkeeper XLSX service-log files into bookings/residents/services and cross-link them to existing `qb_invoices` for AR reconciliation. Adds a dedicated `/master-admin/imports` hub that consolidates the four import flows. Historical bookings render with an unobtrusive `H` badge across calendar + daily log so live data stays visually distinct.
+
+**Schema additions**:
+- New table `import_batches` (uuid PK, `facility_id` NOT NULL → facilities, `stylist_id` nullable → stylists, `uploaded_by` NOT NULL → profiles, `file_name`, `source_type` text — `'service_log' | 'qb_billing' | 'qb_customer' | 'facility_csv'`, `row_count` / `matched_count` / `unresolved_count` integers default 0, `created_at` timestamptz, `deleted_at` timestamptz nullable for rollback). Indexes: `import_batches_source_created_idx (source_type, created_at DESC)`, `import_batches_facility_idx (facility_id)`. RLS enabled with `service_role_all`.
+- `bookings`: **`service_id` is now NULLABLE** (was NOT NULL). Added: `source` text (`'scheduled' | 'historical_import' | 'walk_in'`, null = legacy), `raw_service_name` text, `import_batch_id` uuid → import_batches, `qb_invoice_match_id` uuid → qb_invoices, `needs_review` boolean default false. New indexes: `bookings_needs_review_idx (needs_review) WHERE needs_review = true`, `bookings_import_batch_idx (import_batch_id) WHERE import_batch_id IS NOT NULL`.
+- `qb_invoices`: added `matched_booking_id` uuid → bookings (back-reference). New index: `qb_invoices_unmatched_amount_idx (facility_id, amount_cents) WHERE matched_booking_id IS NULL`.
+
+**Routes**:
+- `/master-admin/imports/page.tsx` — server component, master-admin guard (canonical pattern). Reads `import_batches` (groupBy `source_type`) + `count(bookings WHERE needs_review)`. Renders 4 cards (Service Log / QB Customer / QB Billing / Facility CSV) with last-imported timestamp, total count, and amber "{N} need review" badge for service_log when applicable. Empty "Needs Review" scaffold section below cards (12C placeholder).
+- `/master-admin/imports/service-log/page.tsx` — master-admin guard, renders client.
+- `service-log-client.tsx` — 5-state machine: `upload` → `preview` → `loading` → `stylist-resolution` → `results`. Step 1 parses XLSX client-side via `await import('xlsx')` (heavy lib rule); extracts facility name, stylist name, row count for the preview card. Step 2 confirms. Step 3 runs the import. Step 4 (conditional) prompts to create the missing stylist via `POST /api/stylists`, then re-uploads the file. Step 5 shows 6 stat tiles: bookings created, residents upserted, services matched, need review, QB invoices linked, duplicates skipped.
+- `POST /api/super-admin/import-service-log` (maxDuration 120, force-dynamic, master-admin guard, `billingImport` rate limit 5/h/user). Pipeline: parse XLSX server-side → fuzzy match facility (≥0.70) → fuzzy match stylist (facility ∪ franchise pool, ≥0.70) → resident upsert (fuzzy 0.85, insert if no hit) → service match cascade (name fuzzy 0.72 → exact price → combo size 2-3) → dedup by `(residentId, serviceDate, rawServiceName)` → bulk insert bookings (chunk 100, status=`completed`, paymentStatus=`unpaid`, source=`historical_import`, importBatchId, needsReview, priceCents from XLSX, startTime at noon facility-local) → QB invoice cross-reference (amount=hard match, resident name fuzzy ≥0.70, closest date wins, claim-once per transaction) → finalize batch row → `revalidateTag('billing'/'bookings')`. Stylist-not-found returns 200 `{stylistResolutionNeeded: true}` (NOT an error). Facility-not-found returns 400 `{error: 'facility_not_found', facilityName}`.
+
+**Engine module `src/lib/service-log-import.ts`** (pure, no DB):
+- `parseServiceLogXlsx(buffer)` → `{ rows, meta: { facility, stylist, stylistCode } }`. Skips `Client Name` empty/`"Doesn't Fill"`. Parses `Service Date` (Excel serial OR ISO), `Amount` → cents.
+- `splitStylistCell(raw)` → `{ stylistCode, stylistName }` from `"ST624 - Senait Edwards"` format.
+- `enumerateCombos<T>(items, maxSize)` — generic combination generator (size 2..maxSize).
+- `matchService(raw, amountCents, services)` — cascade `name → price → combo → unmatched`. Filters out `pricingType === 'addon'` from candidates. Combo cap: size 3 when `services.length ≤ 30`, size 2 otherwise (factorial guard).
+- `serviceDateAtNoonInTz(date, tz)` — DST-aware via `Intl.DateTimeFormat`.
+
+**Calendar + daily log H badge**:
+- `BookingForCalendar` and `LogBooking` interfaces gained `source?: string | null` and `importBatch?: { fileName: string } | null`.
+- `/api/bookings` GET adds `importBatch: { columns: { fileName: true } }` to its `with` clause; `/log/page.tsx` does the same.
+- Calendar (`calendar-view.tsx`): `<HistoricalBadge fileName={...} />` (white-on-burgundy 14×14 pill with "H") inserted after the recurring `↻` indicator in all 3 view branches (dayGridMonth / timeGridWeek / timeGridDay). Tooltip via `title` attribute.
+- Daily log (`log-client.tsx`): stone-pill `H` chip in the name flex container, after status icon + room number. Same tooltip.
+
+**Master Admin nav**: 3 import links in `master-admin-client.tsx` (`Import: QB Customers / QB Billing / Facilities`) replaced with single `Imports →` link to `/master-admin/imports`.
+
+**Known limitations** (deferred to Phase 12C or beyond):
+- Memo matching dropped — `qb_invoices` has no memo column. Match uses amount (hard) + resident name fuzzy (≥0.70); closest date as tiebreaker.
+- Combo matching uses all active non-addon services; combo size capped at 3.
+- Historical bookings start `paymentStatus='unpaid'` (existing convention) rather than the spec's `'pending'`. The reconciliation queue (12C) will surface unpaid + matched-invoice combinations.
+- "Needs Review" tab on `/master-admin/imports` is a scaffold (EmptyState placeholder); queue UI lands in 12C.
+
+**Cross-cutting type changes**: dropping `bookings.serviceId` NOT NULL forced ~30 call sites (reports, exports, detail pages, Google Calendar sync) to use defensive `b.service?.X ?? <fallback>`. The `Service` type in `BookingForCalendar` / `LogBooking` / `BookingWithRelations` is now `Service | null`. Google Calendar sync sites short-circuit when `service` is null (historical imports never push to GCal).
+
+
 ### Phase 11N — Payroll Extensions (SHIPPED 2026-04-27)
 
 Three additions to the existing payroll system. No new pages.

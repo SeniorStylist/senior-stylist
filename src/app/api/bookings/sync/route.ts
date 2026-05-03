@@ -55,6 +55,8 @@ export async function POST() {
 
     for (const booking of unsynced) {
       try {
+        // historical_import bookings have no service — never sync to GCal
+        if (!booking.service) continue
         const googleEventId = await createCalendarEvent(
           facility.calendarId,
           booking,

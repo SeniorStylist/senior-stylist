@@ -44,10 +44,10 @@ export async function GET() {
           facilityId: b.facilityId,
           facilityName: facilityMap.get(b.facilityId) ?? '',
           startTime: b.startTime.toISOString(),
-          effectivePriceCents: b.priceCents ?? b.service.priceCents,
+          effectivePriceCents: b.priceCents ?? b.service?.priceCents ?? 0,
           resident: { name: b.resident.name, roomNumber: b.resident.roomNumber },
           stylist: { name: b.stylist.name },
-          service: { name: b.service.name },
+          service: { name: b.service?.name ?? b.rawServiceName ?? 'Unknown service' },
         }))
       },
       [cacheKey],

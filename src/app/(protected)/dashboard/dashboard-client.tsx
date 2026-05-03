@@ -31,7 +31,7 @@ export interface BookingWithRelations {
   facilityId: string
   residentId: string
   stylistId: string
-  serviceId: string
+  serviceId: string | null
   serviceIds: string[] | null
   serviceNames: string[] | null
   totalDurationMinutes: number | null
@@ -53,9 +53,11 @@ export interface BookingWithRelations {
   recurringParentId?: string | null
   googleEventId: string | null
   syncError: string | null
+  source?: string | null
+  importBatch?: { fileName: string } | null
   resident: Resident
   stylist: Stylist
-  service: Service
+  service: Service | null
 }
 
 type PanelTab = 'residents' | 'services' | 'stylists'

@@ -280,9 +280,8 @@ export const bookings = pgTable('bookings', {
   stylistId: uuid('stylist_id')
     .references(() => stylists.id)
     .notNull(),
-  serviceId: uuid('service_id')
-    .references(() => services.id)
-    .notNull(),
+  // nullable since Phase 12B: historical_import bookings may have no resolved service yet
+  serviceId: uuid('service_id').references(() => services.id),
   startTime: timestamp('start_time', { withTimezone: true }).notNull(),
   endTime: timestamp('end_time', { withTimezone: true }).notNull(),
   priceCents: integer('price_cents'),
@@ -306,6 +305,12 @@ export const bookings = pgTable('bookings', {
   syncError: text('sync_error'),
   requestedByPortal: boolean('requested_by_portal').default(false).notNull(),
   portalNotes: text('portal_notes'),
+  // Phase 12B: historical-import provenance + reconciliation
+  source: text('source'), // 'scheduled' | 'historical_import' | 'walk_in' (null = legacy)
+  rawServiceName: text('raw_service_name'),
+  importBatchId: uuid('import_batch_id').references((): AnyPgColumn => importBatches.id),
+  qbInvoiceMatchId: uuid('qb_invoice_match_id').references((): AnyPgColumn => qbInvoices.id),
+  needsReview: boolean('needs_review').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
@@ -315,6 +320,9 @@ export const bookings = pgTable('bookings', {
   stylistStartIdx: index('bookings_stylist_start_idx').on(t.stylistId, t.startTime.desc()),
   // resident duplicate-detection + merge tool re-pointing
   residentIdx: index('bookings_resident_idx').on(t.residentId),
+  // Phase 12B: needs-review queue lookup + import batch rollback
+  needsReviewIdx: index('bookings_needs_review_idx').on(t.needsReview).where(sql`needs_review = true`),
+  importBatchIdx: index('bookings_import_batch_idx').on(t.importBatchId).where(sql`import_batch_id IS NOT NULL`),
 }))
 
 export const invites = pgTable('invites', {
@@ -521,6 +529,8 @@ export const qbInvoices = pgTable('qb_invoices', {
   syncedAt: timestamp('synced_at', { withTimezone: true }),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   stripePaidAt: timestamp('stripe_paid_at', { withTimezone: true }),
+  // Phase 12B: back-reference to the historical-import booking that consumed this invoice
+  matchedBookingId: uuid('matched_booking_id').references((): AnyPgColumn => bookings.id),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
@@ -528,6 +538,8 @@ export const qbInvoices = pgTable('qb_invoices', {
   qbIdIdx: index('qb_invoices_qb_id_idx').on(t.qbInvoiceId).where(sql`qb_invoice_id IS NOT NULL`),
   // billing summary: WHERE facility_id = X AND invoice_date BETWEEN Y AND Z ORDER BY invoice_date DESC
   facilityDateIdx: index('qb_invoices_facility_date_idx').on(t.facilityId, t.invoiceDate.desc()),
+  // Phase 12B: cross-reference search — find unmatched invoices for a facility/amount
+  unmatchedAmountIdx: index('qb_invoices_unmatched_amount_idx').on(t.facilityId, t.amountCents).where(sql`matched_booking_id IS NULL`),
 }))
 
 export const qbPayments = pgTable('qb_payments', {
@@ -707,6 +719,28 @@ export const portalSessions = pgTable('portal_sessions', {
   sessionTokenUniq: unique('portal_sessions_session_token_key').on(t.sessionToken),
 }))
 
+// ─── Phase 12B: Import audit ─────────────────────────────────────────────────
+
+export const importBatches = pgTable('import_batches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  stylistId: uuid('stylist_id').references(() => stylists.id),
+  uploadedBy: uuid('uploaded_by').references(() => profiles.id).notNull(),
+  fileName: text('file_name').notNull(),
+  // 'service_log' | 'qb_billing' | 'qb_customer' | 'facility_csv'
+  sourceType: text('source_type').notNull(),
+  rowCount: integer('row_count').default(0).notNull(),
+  matchedCount: integer('matched_count').default(0).notNull(),
+  unresolvedCount: integer('unresolved_count').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  // Soft-delete for batch rollback (Phase 12C)
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => ({
+  // Imports hub: latest per source_type
+  sourceCreatedIdx: index('import_batches_source_created_idx').on(t.sourceType, t.createdAt.desc()),
+  facilityIdx: index('import_batches_facility_idx').on(t.facilityId),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
@@ -726,6 +760,47 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
     fields: [bookings.facilityId],
     references: [facilities.id],
   }),
+  importBatch: one(importBatches, {
+    fields: [bookings.importBatchId],
+    references: [importBatches.id],
+  }),
+  qbInvoiceMatch: one(qbInvoices, {
+    fields: [bookings.qbInvoiceMatchId],
+    references: [qbInvoices.id],
+    relationName: 'booking_qb_invoice_match',
+  }),
+}))
+
+export const qbInvoicesRelations = relations(qbInvoices, ({ one }) => ({
+  facility: one(facilities, {
+    fields: [qbInvoices.facilityId],
+    references: [facilities.id],
+  }),
+  resident: one(residents, {
+    fields: [qbInvoices.residentId],
+    references: [residents.id],
+  }),
+  matchedBooking: one(bookings, {
+    fields: [qbInvoices.matchedBookingId],
+    references: [bookings.id],
+    relationName: 'qb_invoice_matched_booking',
+  }),
+}))
+
+export const importBatchesRelations = relations(importBatches, ({ one, many }) => ({
+  facility: one(facilities, {
+    fields: [importBatches.facilityId],
+    references: [facilities.id],
+  }),
+  stylist: one(stylists, {
+    fields: [importBatches.stylistId],
+    references: [stylists.id],
+  }),
+  uploader: one(profiles, {
+    fields: [importBatches.uploadedBy],
+    references: [profiles.id],
+  }),
+  bookings: many(bookings),
 }))
 
 export const residentsRelations = relations(residents, ({ many }) => ({
