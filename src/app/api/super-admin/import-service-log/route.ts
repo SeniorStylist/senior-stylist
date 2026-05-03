@@ -16,7 +16,7 @@ import { fuzzyBestMatch, fuzzyScore, normalizeWords } from '@/lib/fuzzy'
 import {
   parseServiceLogXlsx,
   matchService,
-  serviceDateAtNoonInTz,
+  facilityDateAt9amPlusSlot,
   splitStylistCell,
   type ParsedServiceLogRow,
   type ServiceMatch,
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
           sql`${bookings.startTime} >= ${new Date(minDate.getTime() - 86_400_000).toISOString()}`,
           sql`${bookings.startTime} <= ${new Date(maxDate.getTime() + 86_400_000).toISOString()}`,
         ),
-        columns: { id: true, residentId: true, startTime: true, rawServiceName: true },
+        columns: { id: true, residentId: true, startTime: true, rawServiceName: true, source: true },
       })
       const dedupSet = new Set<string>()
       for (const b of existingBookings) {
@@ -207,6 +207,18 @@ export async function POST(request: Request) {
         dedupSet.add(`${b.residentId}|${dateStr}|${b.rawServiceName ?? ''}`)
       }
 
+      // "residentId|YYYY-MM-DD" → earliest startTime among scheduled bookings on that date
+      const existingScheduledMap = new Map<string, Date>()
+      for (const b of existingBookings) {
+        if (b.source !== 'scheduled') continue
+        const t = b.startTime instanceof Date ? b.startTime : new Date(b.startTime)
+        const key = `${b.residentId}|${t.toISOString().slice(0, 10)}`
+        const current = existingScheduledMap.get(key)
+        if (!current || t < current) existingScheduledMap.set(key, t)
+      }
+      // Per-resident per-date sequential slot counter (reset each import run)
+      const slotCountMap = new Map<string, number>()
+
       type InsertRow = typeof bookings.$inferInsert
       const toInsert: InsertRow[] = []
 
@@ -215,7 +227,17 @@ export async function POST(request: Request) {
         const residentId = residentMap.get(key)
         if (!residentId) continue
 
-        const start = serviceDateAtNoonInTz(row.serviceDate, facility.timezone)
+        const dateStr = row.serviceDate.toISOString().slice(0, 10)
+        const slotMapKey = `${residentId}|${dateStr}`
+        const existingStart = existingScheduledMap.get(slotMapKey)
+        let start: Date
+        if (existingStart) {
+          start = existingStart
+        } else {
+          const slotIndex = slotCountMap.get(slotMapKey) ?? 0
+          slotCountMap.set(slotMapKey, slotIndex + 1)
+          start = facilityDateAt9amPlusSlot(row.serviceDate, facility.timezone, slotIndex)
+        }
         const end = new Date(start.getTime() + 30 * 60_000)
         const dedupKey = `${residentId}|${start.toISOString().slice(0, 10)}|${row.servicesPerformed}`
         if (dedupSet.has(dedupKey)) {

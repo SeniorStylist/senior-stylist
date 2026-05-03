@@ -275,6 +275,43 @@ export function serviceDateAtNoonInTz(date: Date, tz: string): Date {
   return new Date(candidate)
 }
 
+// Convert a "service date" to the UTC instant representing
+// 9:00am + slotIndex×30min in the facility's local timezone (DST-aware).
+export function facilityDateAt9amPlusSlot(date: Date, tz: string, slotIndex: number): Date {
+  const y = date.getUTCFullYear()
+  const m = date.getUTCMonth()
+  const d = date.getUTCDate()
+  const targetMinutes = 9 * 60 + slotIndex * 30
+  const targetHour = Math.floor(targetMinutes / 60)
+  const targetMin = targetMinutes % 60
+  let candidate = Date.UTC(y, m, d, targetHour, targetMin, 0)
+  for (let i = 0; i < 2; i++) {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+    const parts = Object.fromEntries(
+      fmt.formatToParts(new Date(candidate)).map((p) => [p.type, p.value]),
+    )
+    const localHour = Number(parts.hour ?? String(targetHour))
+    const localMin = Number(parts.minute ?? String(targetMin))
+    const localY = Number(parts.year)
+    const localM = Number(parts.month) - 1
+    const localD = Number(parts.day)
+    const drift =
+      (Date.UTC(localY, localM, localD, localHour, localMin) -
+        Date.UTC(y, m, d, targetHour, targetMin)) /
+      60_000
+    candidate -= drift * 60_000
+  }
+  return new Date(candidate)
+}
+
 // Resident lookup helper — fuzzy match against an in-memory list at 0.85.
 export function findResidentByName(
   name: string,
