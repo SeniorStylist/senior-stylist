@@ -31,6 +31,7 @@
 - `connect_timeout: 10` (never lower)
 - `prepare: false` is **NOT set** — session-mode pooler (port 5432) supports prepared statements; only transaction-mode (port 6543) requires it
 - `DATABASE_URL` MUST point to Supabase **session-mode** pooler (port 5432); `DIRECT_URL` (port 5432 direct connection, not pooler) is for `drizzle-kit push` only
+- **postgres-js session mode requires ISO string date params** — NEVER pass raw `Date` objects into `sql\`...\`` template interpolations or `db.execute()`. Always use `date.toISOString()`. Transaction mode (port 6543) auto-coerced types; session mode does not. Drizzle ORM `insert().values()` handles `Date` objects correctly (schema type is `Date`); the restriction applies only to raw `sql` template literals and `db.execute()` params.
 
 ### `unstable_cache` registry
 | Key | TTL | Tag | Where |

@@ -1264,7 +1264,7 @@ Backfill historical bookkeeper XLSX service-log files into bookings/residents/se
 - `splitStylistCell(raw)` → `{ stylistCode, stylistName }` from `"ST624 - Senait Edwards"` format.
 - `enumerateCombos<T>(items, maxSize)` — generic combination generator (size 2..maxSize).
 - `matchService(raw, amountCents, services)` — cascade `name → price → combo → unmatched`. Filters out `pricingType === 'addon'` from candidates. Combo cap: size 3 when `services.length ≤ 30`, size 2 otherwise (factorial guard).
-- `serviceDateAtNoonInTz(date, tz)` — DST-aware via `Intl.DateTimeFormat`.
+- `serviceDateAtNoonInTz(date, tz)` — DST-aware via `Intl.DateTimeFormat`. Returns a `Date`; callers must NOT pass this directly into `sql\`\`` template literals — use `.toISOString()` there. Drizzle `insert().values({ startTime: date })` is fine (schema type is `Date`).
 
 **Calendar + daily log H badge**:
 - `BookingForCalendar` and `LogBooking` interfaces gained `source?: string | null` and `importBatch?: { fileName: string } | null`.
