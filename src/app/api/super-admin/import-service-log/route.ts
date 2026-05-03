@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const parsed = parseServiceLogXlsx(buffer)
+    const parsed = parseServiceLogXlsx(buffer, file.name)
     if (parsed.rows.length === 0) {
       return Response.json({ error: 'No usable rows found in file' }, { status: 400 })
     }

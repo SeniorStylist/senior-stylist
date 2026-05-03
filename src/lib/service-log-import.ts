@@ -75,24 +75,35 @@ function toDate(value: unknown): Date | null {
   return null
 }
 
-export function parseServiceLogXlsx(buffer: Buffer): ParsedServiceLog {
+const SKIP_META = new Set(["doesn't fill", 'doesnt fill', "doesn't fill in"])
+
+function mostFrequent(values: string[]): string {
+  const counts = new Map<string, number>()
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1)
+  let best = ''
+  let bestCount = 0
+  for (const [v, c] of counts) {
+    if (c > bestCount) { bestCount = c; best = v }
+  }
+  return best
+}
+
+export function parseServiceLogXlsx(buffer: Buffer, fileName?: string): ParsedServiceLog {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
 
-  let facility = ''
-  let stylistCell = ''
+  // Collect all non-empty, non-skip values for facility and stylist, then pick most frequent.
+  const facilityValues: string[] = []
+  const stylistValues: string[] = []
 
   const rows: ParsedServiceLogRow[] = []
   for (const r of raw) {
-    if (!facility) {
-      const f = String(r['Facility'] ?? '').trim()
-      if (f) facility = f
-    }
-    if (!stylistCell) {
-      const s = String(r['Stylist'] ?? '').trim()
-      if (s) stylistCell = s
-    }
+    const f = String(r['Facility'] ?? '').trim()
+    if (f && !SKIP_META.has(f.toLowerCase())) facilityValues.push(f)
+
+    const s = String(r['Stylist'] ?? '').trim()
+    if (s && !SKIP_META.has(s.toLowerCase())) stylistValues.push(s)
 
     const clientName = String(r['Client Name'] ?? '').trim()
     if (SKIP_CLIENT.has(clientName.toLowerCase())) continue
@@ -119,6 +130,17 @@ export function parseServiceLogXlsx(buffer: Buffer): ParsedServiceLog {
     })
   }
 
+  let facility = mostFrequent(facilityValues)
+
+  // Fallback: parse facility from filename ("F177 - Sunrise of Bethesda.xlsx" → "Sunrise of Bethesda")
+  if (!facility && fileName) {
+    const base = fileName.replace(/\.[^/.]+$/, '') // strip extension
+    const segments = base.split(' - ')
+    const last = segments[segments.length - 1].trim()
+    if (last) facility = last
+  }
+
+  const stylistCell = mostFrequent(stylistValues)
   const { stylistCode, stylistName } = splitStylistCell(stylistCell)
   return { rows, meta: { facility, stylist: stylistName, stylistCode } }
 }
