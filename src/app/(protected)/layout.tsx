@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, facilities, franchises } from '@/db/schema'
+import { facilityUsers, franchises } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -14,73 +14,101 @@ import { DebugBadge } from '@/components/debug/debug-badge'
 import { MobileFacilityHeader } from '@/components/layout/mobile-facility-header'
 import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 
+const LAYOUT_TIMEOUT_MS = 4000
+
+interface LayoutData {
+  facilityName: string | undefined
+  facilityCode: string | null
+  allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[]
+  activeRole: string
+  activeFacilityId: string
+}
+
+async function fetchLayoutData(userId: string): Promise<LayoutData> {
+  const userFacilities = await db.query.facilityUsers.findMany({
+    where: eq(facilityUsers.userId, userId),
+    with: { facility: true },
+    orderBy: (t, { asc }) => [asc(t.createdAt)],
+  })
+
+  let allFacilities = userFacilities
+    .filter((fu) => fu.facility != null)
+    .map((fu) => ({
+      id: fu.facilityId,
+      name: fu.facility!.name,
+      facilityCode: fu.facility!.facilityCode ?? null,
+      role: fu.role,
+    }))
+
+  // For super_admin users, restrict facility switcher to their franchise only
+  const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')
+  if (hasSuperAdminRole) {
+    const franchise = await db.query.franchises.findFirst({
+      where: eq(franchises.ownerUserId, userId),
+      with: { franchiseFacilities: true },
+    })
+    if (franchise) {
+      const franchiseFacilityIds = new Set(franchise.franchiseFacilities.map((ff) => ff.facilityId))
+      allFacilities = allFacilities.filter((f) => franchiseFacilityIds.has(f.id))
+    }
+  }
+
+  const cookieStore = await cookies()
+  const selectedId = cookieStore.get('selected_facility_id')?.value
+  const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
+  const rawRole = active?.role ?? 'admin'
+
+  return {
+    facilityName: active?.name,
+    facilityCode: active?.facilityCode ?? null,
+    allFacilities,
+    activeFacilityId: active?.id ?? '',
+    activeRole: rawRole === 'super_admin' ? 'admin' : rawRole,
+  }
+}
+
 export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  console.log('[layout] start', Date.now())
+
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
+  console.log('[layout] auth done', Date.now())
+
   if (!user) redirect('/login')
 
-  // Load all facilities this user belongs to
   let facilityName: string | undefined
   let facilityCode: string | null = null
   let allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[] = []
   let activeRole: string = 'admin'
   let activeFacilityId: string = ''
 
+  let facilityData: LayoutData | null = null
   try {
-    await Promise.race([
-      (async () => {
-        const userFacilities = await db.query.facilityUsers.findMany({
-          where: eq(facilityUsers.userId, user.id),
-          with: { facility: true },
-          orderBy: (t, { asc }) => [asc(t.createdAt)],
-        })
-
-        allFacilities = userFacilities
-          .filter((fu) => fu.facility != null)
-          .map((fu) => ({
-            id: fu.facilityId,
-            name: fu.facility!.name,
-            facilityCode: fu.facility!.facilityCode ?? null,
-            role: fu.role,
-          }))
-
-        // For super_admin users, restrict facility switcher to their franchise only
-        const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')
-        if (hasSuperAdminRole) {
-          const franchise = await db.query.franchises.findFirst({
-            where: eq(franchises.ownerUserId, user.id),
-            with: { franchiseFacilities: true },
-          })
-          if (franchise) {
-            const franchiseFacilityIds = new Set(franchise.franchiseFacilities.map((ff) => ff.facilityId))
-            allFacilities = allFacilities.filter((f) => franchiseFacilityIds.has(f.id))
-          }
-        }
-
-        // Determine active facility from cookie or first
-        const cookieStore = await cookies()
-        const selectedId = cookieStore.get('selected_facility_id')?.value
-        const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
-        facilityName = active?.name
-        facilityCode = active?.facilityCode ?? null
-        activeFacilityId = active?.id ?? ''
-        const rawRole = active?.role ?? 'admin'
-        activeRole = rawRole === 'super_admin' ? 'admin' : rawRole
-      })(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('layout-timeout')), 5000)
+    facilityData = await Promise.race([
+      fetchLayoutData(user.id),
+      new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), LAYOUT_TIMEOUT_MS)
       ),
     ])
-  } catch (err) {
-    // DB might not be set up yet, or timed out — render with empty defaults
-    console.error('[layout] Failed to load facility data:', err)
+  } catch {
+    // ignore
+  }
+
+  console.log('[layout] data done', Date.now())
+
+  if (facilityData) {
+    facilityName = facilityData.facilityName
+    facilityCode = facilityData.facilityCode
+    allFacilities = facilityData.allFacilities
+    activeRole = facilityData.activeRole
+    activeFacilityId = facilityData.activeFacilityId
   }
 
   const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
