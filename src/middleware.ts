@@ -2,6 +2,25 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Short-circuit: paths with their own auth (or no auth) skip Supabase entirely.
+  // Saves a Supabase network round-trip per request on these high-traffic surfaces.
+  // /family + /portal carry their own session cookies; /invoice + /privacy + /terms
+  // are public; /api/portal + /api/cron have route-level auth (bearer / token).
+  const skipSupabase =
+    pathname.startsWith('/portal') ||
+    pathname.startsWith('/family') ||
+    pathname.startsWith('/invoice') ||
+    pathname.startsWith('/api/portal') ||
+    pathname.startsWith('/api/cron') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/terms')
+
+  if (skipSupabase) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -30,9 +49,9 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
+  // Public routes — no auth required (subset of skipSupabase that still needs
+  // session refresh, e.g. /login redirects authenticated users to /dashboard)
 
-  // Public routes — no auth required
   const isPublic =
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||

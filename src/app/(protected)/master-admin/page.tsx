@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { cookies } from 'next/headers'
 import { db } from '@/db'
-import { residents, stylists, bookings, facilityUsers } from '@/db/schema'
-import { eq, and, gte, count } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { MasterAdminClient } from './master-admin-client'
 
 interface FacilityInfo {
@@ -29,51 +29,86 @@ const getCachedFacilityInfos = unstable_cache(
     const [year, month] = yearMonthKey.split('-').map((s) => Number(s))
     const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0)
 
-    const allFacilities = await db.query.facilities.findMany({
-      orderBy: (t, { desc }) => [desc(t.createdAt)],
-      columns: {
-        id: true,
-        name: true,
-        facilityCode: true,
-        address: true,
-        phone: true,
-        timezone: true,
-        paymentType: true,
-        contactEmail: true,
-        active: true,
-        createdAt: true,
-      },
-    })
-
-    return Promise.all(
-      allFacilities.map(async (f) => {
-        const [resCount, styCount, bookCount, adminUser] = await Promise.all([
-          db.select({ count: count() }).from(residents).where(and(eq(residents.facilityId, f.id), eq(residents.active, true))),
-          db.select({ count: count() }).from(stylists).where(and(eq(stylists.facilityId, f.id), eq(stylists.active, true))),
-          db.select({ count: count() }).from(bookings).where(and(eq(bookings.facilityId, f.id), gte(bookings.startTime, monthStart))),
-          db.query.facilityUsers.findFirst({
-            where: and(eq(facilityUsers.facilityId, f.id), eq(facilityUsers.role, 'admin')),
-            with: { profile: true },
-          }),
-        ])
-        return {
-          id: f.id,
-          name: f.name ?? '',
-          facilityCode: f.facilityCode ?? null,
-          address: f.address,
-          phone: f.phone,
-          timezone: f.timezone,
-          paymentType: f.paymentType,
-          contactEmail: f.contactEmail ?? null,
-          active: f.active,
-          createdAt: f.createdAt?.toISOString() ?? null,
-          residentCount: resCount[0]?.count ?? 0,
-          stylistCount: styCount[0]?.count ?? 0,
-          bookingsThisMonth: bookCount[0]?.count ?? 0,
-          adminEmail: adminUser?.profile?.email ?? null,
-        }
+    // 4 GROUP BY queries instead of 4 × N per-facility queries.
+    // With max:1 connection, the per-facility loop serialized through one socket
+    // (~120 queries for 30 facilities); this keeps it to 5 queries flat.
+    const [allFacilities, residentRows, stylistRows, bookingRows, adminRows] = await Promise.all([
+      db.query.facilities.findMany({
+        orderBy: (t, { desc }) => [desc(t.createdAt)],
+        columns: {
+          id: true,
+          name: true,
+          facilityCode: true,
+          address: true,
+          phone: true,
+          timezone: true,
+          paymentType: true,
+          contactEmail: true,
+          active: true,
+          createdAt: true,
+        },
       }),
-    )
+      db.execute(sql`
+        SELECT facility_id::text AS fid, COUNT(*)::int AS c
+        FROM residents WHERE active = true GROUP BY facility_id
+      `),
+      db.execute(sql`
+        SELECT facility_id::text AS fid, COUNT(*)::int AS c
+        FROM stylists WHERE active = true AND facility_id IS NOT NULL
+        GROUP BY facility_id
+      `),
+      db.execute(sql`
+        SELECT facility_id::text AS fid, COUNT(*)::int AS c
+        FROM bookings
+        WHERE start_time >= ${monthStart.toISOString()} AND active = true
+        GROUP BY facility_id
+      `),
+      db.execute(sql`
+        SELECT DISTINCT ON (fu.facility_id)
+          fu.facility_id::text AS fid, p.email
+        FROM facility_users fu
+        INNER JOIN profiles p ON p.id = fu.user_id
+        WHERE fu.role = 'admin'
+        ORDER BY fu.facility_id, fu.created_at ASC
+      `),
+    ])
+
+    const numMap = (rows: unknown[]): Map<string, number> =>
+      new Map(
+        rows.map((r) => {
+          const row = r as { fid: string; c: number | string }
+          return [row.fid, typeof row.c === 'number' ? row.c : Number(row.c)]
+        }),
+      )
+    const strMap = (rows: unknown[], key: string): Map<string, string> =>
+      new Map(
+        rows.map((r) => {
+          const row = r as { fid: string } & Record<string, unknown>
+          return [row.fid, (row[key] as string | null) ?? '']
+        }),
+      )
+
+    const resMap = numMap(residentRows as unknown[])
+    const styMap = numMap(stylistRows as unknown[])
+    const bookMap = numMap(bookingRows as unknown[])
+    const adminMap = strMap(adminRows as unknown[], 'email')
+
+    return allFacilities.map((f) => ({
+      id: f.id,
+      name: f.name ?? '',
+      facilityCode: f.facilityCode ?? null,
+      address: f.address,
+      phone: f.phone,
+      timezone: f.timezone,
+      paymentType: f.paymentType,
+      contactEmail: f.contactEmail ?? null,
+      active: f.active,
+      createdAt: f.createdAt?.toISOString() ?? null,
+      residentCount: resMap.get(f.id) ?? 0,
+      stylistCount: styMap.get(f.id) ?? 0,
+      bookingsThisMonth: bookMap.get(f.id) ?? 0,
+      adminEmail: adminMap.get(f.id) || null,
+    }))
   },
   ['master-admin-facility-infos'],
   { revalidate: 300, tags: ['facilities'] },
@@ -87,6 +122,32 @@ const getCachedPendingAccessRequests = unstable_cache(
     }),
   ['master-admin-pending-access-requests'],
   { revalidate: 60, tags: ['access-requests'] },
+)
+
+const getCachedActiveFacilitiesList = unstable_cache(
+  () =>
+    db.query.facilities.findMany({
+      where: (t) => eq(t.active, true),
+      orderBy: (t, { asc }) => [asc(t.name)],
+      columns: { id: true, name: true, facilityCode: true },
+    }),
+  ['master-admin-active-facilities-list'],
+  { revalidate: 300, tags: ['facilities'] },
+)
+
+const getCachedFranchiseList = unstable_cache(
+  () =>
+    db.query.franchises.findMany({
+      with: {
+        owner: { columns: { email: true, fullName: true } },
+        franchiseFacilities: {
+          with: { facility: { columns: { id: true, name: true } } },
+        },
+      },
+      orderBy: (t, { asc }) => [asc(t.name)],
+    }),
+  ['master-admin-franchise-list'],
+  { revalidate: 300, tags: ['facilities'] },
 )
 
 export default async function SuperAdminPage() {
@@ -108,20 +169,8 @@ export default async function SuperAdminPage() {
   const [facilityInfos, pendingRequests, activeFacilitiesList, franchiseList] = await Promise.all([
     getCachedFacilityInfos(yearMonthKey),
     getCachedPendingAccessRequests(),
-    db.query.facilities.findMany({
-      where: (t) => eq(t.active, true),
-      orderBy: (t, { asc }) => [asc(t.name)],
-      columns: { id: true, name: true, facilityCode: true },
-    }),
-    db.query.franchises.findMany({
-      with: {
-        owner: { columns: { email: true, fullName: true } },
-        franchiseFacilities: {
-          with: { facility: { columns: { id: true, name: true } } },
-        },
-      },
-      orderBy: (t, { asc }) => [asc(t.name)],
-    }),
+    getCachedActiveFacilitiesList(),
+    getCachedFranchiseList(),
   ])
 
   return (

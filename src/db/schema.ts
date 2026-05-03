@@ -76,6 +76,8 @@ export const facilityUsers = pgTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.userId, t.facilityId] }),
+    // admin-lookup queries (e.g. master-admin "who is the admin of facility X")
+    facilityRoleIdx: index('facility_users_facility_role_idx').on(t.facilityId, t.role),
   })
 )
 
@@ -325,6 +327,8 @@ export const bookings = pgTable('bookings', {
   // Phase 12B: needs-review queue lookup + import batch rollback
   needsReviewIdx: index('bookings_needs_review_idx').on(t.needsReview).where(sql`needs_review = true AND active = true`),
   importBatchIdx: index('bookings_import_batch_idx').on(t.importBatchId).where(sql`import_batch_id IS NOT NULL`),
+  // log + reports filter on (facility_id, status) WHERE active = true
+  facilityStatusIdx: index('bookings_facility_status_idx').on(t.facilityId, t.status).where(sql`active = true`),
 }))
 
 export const invites = pgTable('invites', {
@@ -542,6 +546,8 @@ export const qbInvoices = pgTable('qb_invoices', {
   facilityDateIdx: index('qb_invoices_facility_date_idx').on(t.facilityId, t.invoiceDate.desc()),
   // Phase 12B: cross-reference search — find unmatched invoices for a facility/amount
   unmatchedAmountIdx: index('qb_invoices_unmatched_amount_idx').on(t.facilityId, t.amountCents).where(sql`matched_booking_id IS NULL`),
+  // outstanding-balance queries filter on (facility_id, status) WHERE status != 'paid'
+  facilityOpenStatusIdx: index('qb_invoices_facility_open_status_idx').on(t.facilityId, t.status).where(sql`status != 'paid'`),
 }))
 
 export const qbPayments = pgTable('qb_payments', {

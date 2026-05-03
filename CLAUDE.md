@@ -23,6 +23,46 @@
 
 ---
 
+## Performance (Phase 13)
+
+### DB connection pool (`src/db/index.ts`)
+- Singleton via `globalThis._pgClient` — postgres-js client is reused across requests in the same serverless instance
+- `max: 1` (transaction-mode pgBouncer requirement — never raise)
+- `prepare: false` (transaction-mode pgBouncer requirement)
+- `connect_timeout: 10` (CLAUDE.md floor)
+- `DATABASE_URL` MUST point to Supabase pgBouncer (port 6543); `DIRECT_URL` (port 5432) is for `drizzle-kit push` only
+
+### `unstable_cache` registry
+| Key | TTL | Tag | Where |
+|---|---|---|---|
+| `master-admin-facility-infos` | 5min | `facilities` | master-admin/page.tsx |
+| `master-admin-pending-access-requests` | 1min | `access-requests` | master-admin/page.tsx |
+| `master-admin-active-facilities-list` | 5min | `facilities` | master-admin/page.tsx (Phase 13) |
+| `master-admin-franchise-list` | 5min | `facilities` | master-admin/page.tsx (Phase 13) |
+| `billing-summary` | 2min | `billing` | api/billing/summary/[facilityId] |
+| `cross-facility-summary` | 2min | `billing` | api/billing/cross-facility-summary (Phase 13) |
+| `super-admin-monthly-report` | 5min | `bookings` | api/super-admin/reports/monthly |
+| `super-admin-outstanding-report` | 5min | `bookings` | api/super-admin/reports/outstanding |
+
+Mutation routes MUST call `revalidateTag('<tag>', {})` on success. Tags currently busted: `facilities` (6 mutation routes), `bookings` (booking + log + import-review mutations), `billing` (save-check-payment, Stripe webhook, reconcile, import-review), `pay-periods` (payroll mutations), `access-requests` (access-request POST/PUT).
+
+### Master admin cold-cache pattern (Phase 13)
+Per-facility-loop count queries are FORBIDDEN at scale. With `max: 1` connection, N facilities × 4 queries = N×4 serialized round-trips (2-4s for 30 facilities). Use `GROUP BY` aggregations instead — one `db.execute(sql\`SELECT facility_id, COUNT(*) ... GROUP BY facility_id\`)` returns all counts in one query, then build a `Map<facilityId, count>` in JS and look up per-facility values when shaping the response. The `getCachedFacilityInfos` cache function in `master-admin/page.tsx` is the canonical example.
+
+### Middleware short-circuit (Phase 13)
+`src/middleware.ts` short-circuits before calling `supabase.auth.getUser()` for paths that have their own auth (or no auth):
+- `/portal/*` + `/api/portal/*` (portal session cookie)
+- `/family/*` (portal session cookie)
+- `/invoice/*` (public)
+- `/api/cron/*` (Bearer secret)
+- `/privacy` + `/terms` (public)
+
+When adding a new public path, ALSO add it to the short-circuit list — otherwise every request makes an unnecessary network call to Supabase auth.
+
+The `isPublic` allowlist inside the middleware body is now a SUBSET of routes that still need session refresh (`/login`, `/auth`, `/unauthorized`, `/invite/accept`, `/api/auth/google-calendar/callback`).
+
+---
+
 ## Non-Negotiable Rules
 
 ### Database

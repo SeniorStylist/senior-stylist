@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { sql } from 'drizzle-orm'
@@ -5,21 +6,15 @@ import { sql } from 'drizzle-orm'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-export async function GET() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+const toNum = (v: unknown): number => {
+  if (typeof v === 'number') return v
+  if (typeof v === 'string') return Number(v)
+  if (typeof v === 'bigint') return Number(v)
+  return 0
+}
 
-  const isMaster =
-    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
-    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-  if (!isMaster) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  try {
+const getCachedCrossFacilitySummary = unstable_cache(
+  async () => {
     const [outstandingRows, collectedRows, invoicedRows, overdueRows, revShareRows, netRows] =
       await Promise.all([
         db.execute(sql`
@@ -57,30 +52,36 @@ export async function GET() {
         `),
       ])
 
-    const toNum = (v: unknown): number => {
-      if (typeof v === 'number') return v
-      if (typeof v === 'string') return Number(v)
-      if (typeof v === 'bigint') return Number(v)
-      return 0
+    return {
+      totalOutstandingCents: toNum((outstandingRows[0] as { total?: unknown } | undefined)?.total),
+      collectedThisMonthCents: toNum((collectedRows[0] as { total?: unknown } | undefined)?.total),
+      invoicedThisMonthCents: toNum((invoicedRows[0] as { total?: unknown } | undefined)?.total),
+      facilitiesOverdueCount: toNum((overdueRows[0] as { total?: unknown } | undefined)?.total),
+      totalRevShareCents: toNum((revShareRows[0] as { total?: unknown } | undefined)?.total),
+      totalNetCents: toNum((netRows[0] as { total?: unknown } | undefined)?.total),
     }
+  },
+  ['cross-facility-summary'],
+  { revalidate: 120, tags: ['billing'] },
+)
 
-    const totalOutstandingCents = toNum((outstandingRows[0] as { total?: unknown } | undefined)?.total)
-    const collectedThisMonthCents = toNum((collectedRows[0] as { total?: unknown } | undefined)?.total)
-    const invoicedThisMonthCents = toNum((invoicedRows[0] as { total?: unknown } | undefined)?.total)
-    const facilitiesOverdueCount = toNum((overdueRows[0] as { total?: unknown } | undefined)?.total)
-    const totalRevShareCents = toNum((revShareRows[0] as { total?: unknown } | undefined)?.total)
-    const totalNetCents = toNum((netRows[0] as { total?: unknown } | undefined)?.total)
+export async function GET() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    return Response.json({
-      data: {
-        totalOutstandingCents,
-        collectedThisMonthCents,
-        invoicedThisMonthCents,
-        facilitiesOverdueCount,
-        totalRevShareCents,
-        totalNetCents,
-      },
-    })
+  const isMaster =
+    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  if (!isMaster) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const data = await getCachedCrossFacilitySummary()
+    return Response.json({ data })
   } catch (err) {
     console.error('[billing/cross-facility-summary] DB error:', err)
     return Response.json({ error: 'Internal error' }, { status: 500 })
