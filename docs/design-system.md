@@ -2071,3 +2071,36 @@ const roomKey     = resolveKey('Room#', 'Room')
 
 When a new column header surfaces, extend the `resolveKey(...)` arg list — never replace the existing alias. Old XLSX files in user inboxes outlive every header rename.
 
+
+### Default Tip Picker (`<DefaultTipPicker />` — Phase 12E)
+
+Lives in `src/components/residents/default-tip-picker.tsx`. Three-state toggle for resident tip defaults; reused in admin resident edit form AND family portal `/profile` page. Don't duplicate this UI — extend the component if a new surface needs it.
+
+**Props**:
+```ts
+{ value: { type: 'percentage' | 'fixed' | null; value: number | null }, onChange, disabled? }
+```
+
+**States**:
+- **None** — both fields null. Compact: just the toggle row.
+- **Percentage** — number input (0–100, integer) + 4 quick-select pills `10% 15% 18% 20%`. Active pill: `bg-[#8B2E4A] text-white`; inactive: `bg-stone-100 text-stone-700 hover:bg-stone-200`. Stored as integer percent (e.g. `15`).
+- **Fixed** — dollar input (step `0.01`); component handles cents conversion. Stored as integer cents.
+
+**Toggle buttons**: `rounded-full px-4 py-1.5 text-sm font-medium`; active = burgundy bg + white text + shadow `0 2px 6px rgba(139,46,74,0.22)`; inactive = `bg-stone-100 text-stone-700`. Disabled state: `opacity-50 cursor-not-allowed`.
+
+**Helper line** below the picker: `text-xs text-stone-500 mt-2` reading "Auto-fills the tip field when a new booking is created for this resident."
+
+The same %/$ toggle pattern (smaller — `text-[11px]` pills) is reused inline in the booking modal price-breakdown Tip row.
+
+### Receipt Email Template (`buildBookingReceiptHtml` — Phase 12E)
+
+Lives in `src/lib/email.ts`. Convention for any future post-payment receipt template:
+
+- **Wrapper**: `max-width:520px; margin:40px auto; background:#fff; border-radius:16px; border:1px solid #E7E5E4`. Same as other transactional emails.
+- **Header bar**: `background:#8B2E4A; padding:28px 32px;`. Title white 20px bold (`Receipt`); facility name beneath in `#F5E6EA` 13px.
+- **Greeting**: `Thank you for your visit, ${residentName}!` — single line, 15px, black.
+- **Detail table**: 3 rows (Service / Stylist / Date) with the same uppercase-label / value treatment used in other Senior Stylist emails (label `#78716C 13px 600 uppercase`, value `#1C1917 14px`).
+- **Money table** (separate, below detail): one row per line item — Service, optional Tip (only when `tipCents > 0`), then a top-bordered Total row with the amount in burgundy bold (`#8B2E4A 16px 700`). Optional Payment row beneath.
+- **Footer**: `color:#A8A29E; font-size:12px; line-height:1.5;` — facility address (if present) on first line, then "Questions? Contact ${facilityName} at ${facilityPhone}".
+
+The template skips conditional sections cleanly (empty interpolations). Match this layout for any new receipt-style email.

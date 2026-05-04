@@ -194,6 +194,8 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - **`default_service_id`**: optional FK → `services.id` — auto-set after 3+ completed bookings with same service; also manually settable on resident detail page
 - **`poa_name`**, **`poa_email`**, **`poa_phone`**, **`poa_payment_method`**: nullable text — Power of Attorney info. Editable on resident detail page. `poa_payment_method` one of: `cash | check | credit card | facility billing | insurance`. POA badge on resident list when `poa_name` is set.
 - **`poa_notifications_enabled`**: `boolean NOT NULL DEFAULT true` — when `false`, POA confirmation emails are suppressed for both staff and portal bookings. Staff toggle in resident detail edit mode; self-serve toggle via `PATCH /api/portal/[token]/notifications` from portal preferences section.
+- **`default_tip_type`** (Phase 12E): nullable text, one of `'percentage' | 'fixed'`. When set, drives the booking modal's auto-fill on resident pick.
+- **`default_tip_value`** (Phase 12E): nullable integer. Percent (e.g. `15` = 15%) when type is `'percentage'`; cents (e.g. `200` = $2.00) when type is `'fixed'`. Both fields null means no preference.
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
 
@@ -274,8 +276,9 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 - **`service_names`**: text[], nullable — denormalized service names parallel to `service_ids` for display without re-querying
 - **`total_duration_minutes`**: integer, nullable — sum of all primary services' durations (addons never add duration). Used for endTime + conflict detection on multi-service bookings.
 - **`google_event_id`** (unique), **`sync_error`**
+- **`tip_cents`** (Phase 12E): nullable integer. Stylist-only tip — must NEVER aggregate into facility revenue, rev-share splits, or QB invoice totals. `null` = no tip; never store `0`.
 - Timestamps
-- **`price_cents` is ALWAYS the final fully-resolved total** including add-ons, tier calculation, or option price — never a partial amount
+- **`price_cents` is ALWAYS the final fully-resolved total** including add-ons, tier calculation, or option price — never a partial amount. **`tip_cents` is SEPARATE** from `price_cents` and never enters revenue sums.
 
 ### `invites`
 
@@ -403,6 +406,7 @@ Two Drizzle relations to `stylists` via named `relationName`: `coverage_stylist`
 | `qb_bill_id` | `text`, nullable (Phase 10B) — QuickBooks Bill ID when pushed (one Bill per stylist per period) |
 | `qb_bill_sync_token` | `text`, nullable (Phase 10B) — captured from QB on create; needed for sparse updates |
 | `qb_sync_error` | `text`, nullable (Phase 10B) — last error message if the most recent push failed for this item; cleared on next success |
+| `tip_cents_total` | `integer NOT NULL DEFAULT 0` (Phase 12E) — per-period tip aggregate from `bookings.tip_cents`. Additive to net pay; deductions apply on top. Never enters `gross_revenue_cents` or rev-share math. |
 | `created_at` / `updated_at` | `timestamp`, default now |
 
 Constraint: `UNIQUE(pay_period_id, stylist_id)` (named `stylist_pay_items_period_stylist_unique`).
@@ -1305,6 +1309,56 @@ No schema changes. Polish on the post-import results screen: every stat tile is 
 | Duplicates skipped | tooltip | "Same resident + date + service already imported" |
 
 **Deep-link pattern** (`imports-client.tsx`): reads `?tab=review` on mount via `new URLSearchParams(window.location.search)` in a `useEffect(() => {...}, [])`. Avoids `useSearchParams()` Suspense boundary requirement. Apply this whenever a page needs URL-driven initial tab state.
+
+### Phase 12E — Tips & Receipts (SHIPPED 2026-05-04)
+
+End-to-end tip support and post-payment receipts. Tips go to the stylist only — they MUST never aggregate into facility revenue, rev-share splits, or QB invoice totals.
+
+**Schema additions**:
+- `bookings.tip_cents` integer nullable
+- `residents.default_tip_type` text nullable (`'percentage' | 'fixed' | null`)
+- `residents.default_tip_value` integer nullable (percent when type is percentage, cents when fixed)
+- `stylist_pay_items.tip_cents_total` integer NOT NULL default 0
+
+**Helper**: `src/lib/tips.ts::computeTipCents(priceCents, type, value)`. Single source of truth for tip math.
+
+**Import pipeline**: `POST /api/super-admin/import-service-log` now passes `row.tipsCents` into the booking insert. Parser (`parseServiceLogXlsx`) already populated `ParsedServiceLogRow.tipsCents` from the XLSX `Tips` column — only the insert was discarding it.
+
+**Resident default tip UI**:
+- `src/components/residents/default-tip-picker.tsx` — shared `<DefaultTipPicker />` component (None / % / $ toggle, 4 quick-select pills for percentage mode, dollar input for fixed)
+- Admin: `resident-detail-client.tsx` edit form gains the picker between Preferred Service and POA fields. `PUT /api/residents/[id]` Zod schema accepts `defaultTipType` + `defaultTipValue`
+- Family portal: NEW `/family/[facilityCode]/profile` page (server + client) renders one card per linked resident with embedded picker. New `<UserIcon />` adds a 6th tab in `<PortalNav>` (grid-cols-6).
+- NEW `POST /api/portal/residents/[residentId]/tip-default` — portal-session-gated, cross-resident leak guard, coherence validation (type=null implies value=null). Rate limit: `portalProfileUpdate` 20/h/account.
+
+**Booking modal**:
+- `tipType` / `tipValue` / `tipCleared` state in `src/components/calendar/booking-modal.tsx`
+- Auto-fill effect on resident pick: when not manually cleared, populates from `resident.defaultTipType` + `defaultTipValue`
+- Tip row in price breakdown: %/$ pill toggle + number input + clear (×) + live computed-cents readout. Total includes tip.
+- POST + PUT + recurring + portal-`book` routes accept `tipCents` (Zod `z.number().int().min(0).max(10_000_000).nullable().optional()`). Service-request route (`/api/portal/request-booking`) intentionally skips — admin confirms requests by creating a real booking where tip can be added.
+
+**Payroll integration**:
+- `computeNetPay` extended: `net = base + tipCentsTotal - deductions`
+- `POST /api/pay-periods` aggregates `bookings.tip_cents` per stylist into a separate `tipsByStylist` Map (NEVER mixed into `grossByStylist`); writes `tipCentsTotal` + `netPayCents = commission + tips` on the inserted pay items
+- Per-stylist sub-block on `/payroll/[id]` shows `Tips: $X.XX (added to net)` when `tipCentsTotal > 0`
+- Footer summary line gains `| Tips: $X.XX |` segment when total tips > 0
+- CSV export: new `Tips` column between `Commission Amount` and `Hours Worked`; total row shifted
+
+**QuickBooks Bill split**: `/api/quickbooks/sync-bill/[periodId]` now constructs two Bill `Line` entries per stylist when tips > 0: `<Stylist> — <period> commission` (= netPayCents − tipCentsTotal) and `<Stylist> — <period> tips` (= tipCentsTotal). Lines sum to netPayCents — total unchanged, decomposed for QB reporting.
+
+**Email + SMS receipts**:
+- `src/lib/email.ts::buildBookingReceiptHtml` — house-style template (burgundy header, table layout, conditional tip row, total in burgundy bold, optional payment label + facility footer)
+- `src/lib/sms.ts::sendSms` (Twilio) — gated by `TWILIO_ENABLED='true'` literal (not just truthy); fire-and-forget, never throws. `buildReceiptSms` produces a short summary string.
+- NEW `POST /api/bookings/[id]/receipt` — admin/facility_staff guard, master-admin bypass, `receiptSend` rate-limit (10/h/user). Returns `{ emailSent: boolean, smsSent: boolean }`. Sends email if `resident.poaEmail`, SMS if `resident.poaPhone` AND `TWILIO_ENABLED='true'`. No-contact case: silent.
+- Stripe webhook auto-fires `sendBookingReceipt(bookingId)` after the bookingId paid-flip (fire-and-forget; never blocks the 200).
+- Manual "Send Receipt" button in BookingModal edit mode (admin only) — toasts `"Receipt sent via email + SMS"` / `"Receipt sent via email"` / `"Receipt sent via SMS"` / `"No contact info on file"`.
+
+**SMS Infrastructure**:
+- New env vars: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (e.g. `+12025551234`), `TWILIO_ENABLED` (set to `'true'` to activate). Default `false` until ready.
+- `twilio` ^6.0.0 added to `package.json`.
+
+**Display + revenue guards**:
+- Daily log row: `· Tip $X.XX` inline next to price when `tipCents > 0`. `LogBooking` interface extended.
+- Inline `// price_cents only — never add tip_cents (tips go to stylist, not facility revenue)` comments at all 9 known revenue SUM sites: `src/app/api/portal/request-booking/route.ts:52`, `portal/[token]/book/route.ts:79+98`, `bookings/route.ts:149`, `bookings/[id]/route.ts:217`, `bookings/recurring/route.ts:92`, `export/billing/route.ts:134`, `stats/route.ts:68`, `reports/monthly/route.ts:54`. New SUM sites MUST add the same.
 
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
