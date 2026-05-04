@@ -31,6 +31,7 @@ const updateSchema = z.object({
   selectedQuantity: z.number().int().min(1).max(1000).optional(),
   selectedOption: z.string().max(200).optional(),
   addonChecked: z.boolean().optional(),
+  tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
 })
 
 export async function GET(
@@ -285,6 +286,7 @@ export async function PUT(
     if (updates.selectedOption !== undefined) setPayload.selectedOption = updates.selectedOption
     if (updates.addonServiceIds !== undefined) setPayload.addonServiceIds = updates.addonServiceIds.length > 0 ? updates.addonServiceIds : null
     if (addonTotalCents !== undefined) setPayload.addonTotalCents = addonTotalCents
+    if (updates.tipCents !== undefined) setPayload.tipCents = updates.tipCents
 
     const [updated] = await db
       .update(bookings)

@@ -33,6 +33,7 @@ const createSchema = z.object({
   selectedOption: z.string().max(200).optional(),
   addonChecked: z.boolean().optional(),
   addonServiceIds: z.array(z.string().uuid()).optional().default([]),
+  tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
 }).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
   message: 'serviceId or serviceIds is required',
 })
@@ -261,6 +262,7 @@ export async function POST(request: NextRequest) {
         addonTotalCents: finalAddonTotalCents,
         addonServiceIds: addonServiceIdsInput.length > 0 ? addonServiceIdsInput : null,
         status: 'scheduled',
+        tipCents: parsed.data.tipCents ?? null,
       })
       .returning()
 

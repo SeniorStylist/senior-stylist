@@ -6,6 +6,7 @@ import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { formatCents } from '@/lib/utils'
 import { resolvePrice, formatPricingLabel } from '@/lib/pricing'
+import { computeTipCents } from '@/lib/tips'
 import {
   buildCategoryPriority,
   sortCategoryGroups,
@@ -88,6 +89,11 @@ export function BookingModal({
   const [createResidentRoom, setCreateResidentRoom] = useState('')
   const [creatingResident, setCreatingResident] = useState(false)
   const [createResidentError, setCreateResidentError] = useState<string | null>(null)
+  // Phase 12E — tip
+  const [tipType, setTipType] = useState<'percentage' | 'fixed'>('percentage')
+  const [tipValue, setTipValue] = useState<number | ''>('')
+  // Once the user manually clears the tip we stop auto-filling from the resident default.
+  const [tipCleared, setTipCleared] = useState(false)
 
   const residentInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -149,6 +155,17 @@ export function BookingModal({
       setStartTime(formatDateTimeLocal(booking.startTime))
       setNotes(booking.notes ?? '')
       setResidentSearch(booking.resident?.name ?? '')
+      // Edit mode: surface the existing tip as a fixed amount (we lose the original
+      // %/$ choice but the cents value is authoritative).
+      if (booking.tipCents != null && booking.tipCents > 0) {
+        setTipType('fixed')
+        setTipValue(booking.tipCents)
+        setTipCleared(false)
+      } else {
+        setTipType('percentage')
+        setTipValue('')
+        setTipCleared(true) // existing booking has no tip — don't auto-fill from resident default
+      }
     } else {
       setSelectedResidentId('')
       setSelectedServiceIds([])
@@ -156,6 +173,10 @@ export function BookingModal({
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart) : '')
       setNotes('')
       setResidentSearch('')
+      // Create mode: clear tip; resident-default useEffect below will populate it
+      setTipType('percentage')
+      setTipValue('')
+      setTipCleared(false)
     }
     setPickedStylist(null)
     setAvailableCount(null)
@@ -210,6 +231,26 @@ export function BookingModal({
     }
   }, [selectedServiceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Phase 12E — auto-fill tip from resident's saved default when a resident is picked
+  // (create mode only; only when user hasn't manually cleared the tip)
+  useEffect(() => {
+    if (mode === 'edit') return
+    if (tipCleared) return
+    if (!selectedResidentId) return
+    const r = allResidents.find((r) => r.id === selectedResidentId)
+    if (!r) return
+    if (r.defaultTipType === 'percentage' && r.defaultTipValue != null) {
+      setTipType('percentage')
+      setTipValue(r.defaultTipValue)
+    } else if (r.defaultTipType === 'fixed' && r.defaultTipValue != null) {
+      setTipType('fixed')
+      setTipValue(r.defaultTipValue)
+    } else {
+      setTipType('percentage')
+      setTipValue('')
+    }
+  }, [selectedResidentId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // --- Pricing totals ---
   const primaryResolved = primaryService
     ? resolvePrice(primaryService, {
@@ -234,6 +275,10 @@ export function BookingModal({
     (sum, s) => sum + s.durationMinutes,
     0
   )
+
+  // Phase 12E — tip preview (cents). Drives the Total line + the POST body.
+  const tipNumeric = typeof tipValue === 'number' ? tipValue : 0
+  const tipCentsPreview = tipNumeric > 0 ? computeTipCents(displayPriceCents, tipType, tipNumeric) : 0
 
   const toggleAddonService = (id: string) =>
     setSelectedAddonServiceIds((prev) =>
@@ -356,6 +401,8 @@ export function BookingModal({
         serviceIds: selectedServiceIds,
         startTime: new Date(startTime).toISOString(),
         notes: notes || undefined,
+        // Phase 12E — null clears any existing tip on edit; > 0 sets it
+        tipCents: tipCentsPreview > 0 ? tipCentsPreview : null,
         ...pricingFields,
       }
 
@@ -1038,9 +1085,71 @@ export function BookingModal({
           </div>
         )
       })}
+      {/* Phase 12E — tip row (always visible when a service is picked) */}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-stone-600 text-xs shrink-0">Tip</span>
+          <div className="flex gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setTipType('percentage')}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                tipType === 'percentage' ? 'bg-[#8B2E4A] text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              %
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipType('fixed')}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                tipType === 'fixed' ? 'bg-[#8B2E4A] text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              $
+            </button>
+          </div>
+          <input
+            type="number"
+            min={0}
+            step={tipType === 'percentage' ? 1 : 0.01}
+            inputMode={tipType === 'percentage' ? 'numeric' : 'decimal'}
+            value={
+              tipValue === ''
+                ? ''
+                : tipType === 'percentage'
+                  ? tipNumeric
+                  : (tipNumeric / 100).toFixed(2)
+            }
+            onChange={(e) => {
+              const raw = e.target.value
+              if (raw === '') { setTipValue(''); return }
+              const n = Number(raw)
+              if (!Number.isFinite(n) || n < 0) return
+              setTipValue(tipType === 'percentage' ? Math.round(n) : Math.round(n * 100))
+              setTipCleared(false)
+            }}
+            placeholder={tipType === 'percentage' ? '15' : '2.00'}
+            className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:bg-white focus:border-[#8B2E4A]"
+          />
+          {tipValue !== '' && tipNumeric > 0 && (
+            <button
+              type="button"
+              onClick={() => { setTipValue(''); setTipCleared(true) }}
+              className="text-stone-400 hover:text-stone-600 text-xs"
+              aria-label="Clear tip"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <span className="shrink-0 text-stone-600 text-xs">
+          {tipCentsPreview > 0 ? formatCents(tipCentsPreview) : '—'}
+        </span>
+      </div>
       <div className="flex justify-between font-semibold text-stone-900 border-t border-stone-200 pt-1.5 mt-1.5">
         <span>Total</span>
-        <span>{formatCents(displayPriceCents)}</span>
+        <span>{formatCents(displayPriceCents + tipCentsPreview)}</span>
       </div>
       <div className="flex justify-between text-xs text-stone-500">
         <span>Duration</span>

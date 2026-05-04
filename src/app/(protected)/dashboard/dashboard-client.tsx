@@ -55,6 +55,7 @@ export interface BookingWithRelations {
   syncError: string | null
   source?: string | null
   importBatch?: { fileName: string } | null
+  tipCents: number | null
   resident: Resident
   stylist: Stylist
   service: Service | null

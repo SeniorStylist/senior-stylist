@@ -18,6 +18,7 @@ const bookSchema = z
     selectedQuantity: z.number().int().min(1).max(1000).optional(),
     selectedOption: z.string().max(200).optional(),
     addonServiceIds: z.array(z.string().uuid()).optional().default([]),
+    tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   })
   .refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
     message: 'serviceId or serviceIds is required',
@@ -145,6 +146,7 @@ export async function POST(
         addonTotalCents: addonTotalCents || null,
         status: 'scheduled',
         paymentStatus: 'unpaid',
+        tipCents: parsed.data.tipCents ?? null,
       })
       .returning()
 

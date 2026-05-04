@@ -23,6 +23,7 @@ const recurringSchema = z.object({
   selectedQuantity: z.number().int().min(1).max(1000).optional(),
   selectedOption: z.string().max(200).optional(),
   addonChecked: z.boolean().optional(),
+  tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
 }).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
   message: 'serviceId or serviceIds is required',
 })
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
       recurring: true,
       recurringRule,
       recurringEndDate,
+      tipCents: parsed.data.tipCents ?? null,
     }
 
     type Skipped = { date: string; reason: string }
