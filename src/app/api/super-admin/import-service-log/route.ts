@@ -229,14 +229,14 @@ export async function POST(request: Request) {
         if (!residentId) continue
 
         const dateStr = row.serviceDate.toISOString().slice(0, 10)
-        const slotMapKey = `${residentId}|${dateStr}`
-        const existingStart = existingScheduledMap.get(slotMapKey)
+        const scheduleKey = `${residentId}|${dateStr}` // resident-specific scheduled lookup
+        const existingStart = existingScheduledMap.get(scheduleKey)
         let start: Date
         if (existingStart) {
           start = existingStart
         } else {
-          const slotIndex = slotCountMap.get(slotMapKey) ?? 0
-          slotCountMap.set(slotMapKey, slotIndex + 1)
+          const slotIndex = slotCountMap.get(dateStr) ?? 0
+          slotCountMap.set(dateStr, slotIndex + 1)
           start = facilityDateAt9amPlusSlot(row.serviceDate, facility.timezone, slotIndex)
         }
         const end = new Date(start.getTime() + 30 * 60_000)
