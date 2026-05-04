@@ -45,6 +45,7 @@ interface DetailItem {
   invoiceAmountCents: number | null
   revShareAmountCents: number | null
   revShareType: string | null
+  tipCentsTotal: number
   stylist: DetailStylist
   deductions: DetailDeduction[]
 }
@@ -197,6 +198,7 @@ export function PayrollDetailClient({
     () => items.reduce((s, it) => s + (it.grossRevenueCents ?? 0), 0),
     [items],
   )
+  const totalTips = useMemo(() => items.reduce((s, it) => s + (it.tipCentsTotal ?? 0), 0), [items])
 
   const advanceStatus = async (target: 'processing' | 'paid') => {
     if (advancingStatus) return
@@ -502,14 +504,23 @@ export function PayrollDetailClient({
                 </div>
               </button>
 
-              {showRevShare && (
+              {(showRevShare || item.tipCentsTotal > 0) && (
                 <div className="px-5 pb-2 -mt-1 ml-4 border-l-2 border-stone-100 pl-3 space-y-0.5">
-                  <div className="text-xs text-stone-500">
-                    Rev share: {revSharePercentage}% → {formatDollars(revShareCents)} to facility
-                  </div>
-                  <div className="text-xs text-stone-700 font-semibold">
-                    Net to Senior Stylist: {formatDollars(seniorStylistNet)}
-                  </div>
+                  {item.tipCentsTotal > 0 && (
+                    <div className="text-xs text-stone-500">
+                      Tips: <span className="text-stone-700 font-semibold">{formatDollars(item.tipCentsTotal)}</span> (added to net)
+                    </div>
+                  )}
+                  {showRevShare && (
+                    <>
+                      <div className="text-xs text-stone-500">
+                        Rev share: {revSharePercentage}% → {formatDollars(revShareCents)} to facility
+                      </div>
+                      <div className="text-xs text-stone-700 font-semibold">
+                        Net to Senior Stylist: {formatDollars(seniorStylistNet)}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -597,19 +608,31 @@ export function PayrollDetailClient({
           </div>
         )}
 
-        {(revSharePercentage ?? 0) > 0 && items.length > 0 && (
+        {((revSharePercentage ?? 0) > 0 || totalTips > 0) && items.length > 0 && (
           <div className="px-5 py-3 border-t border-stone-200 bg-stone-50/60 text-xs text-stone-600 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
             <span>
               Total payroll: <span className="font-semibold text-stone-900">{formatDollars(totalGross)}</span>
             </span>
-            <span className="text-stone-300">|</span>
-            <span>
-              Rev share deducted: <span className="font-semibold text-stone-900">{formatDollars(totalRevShare)}</span>
-            </span>
-            <span className="text-stone-300">|</span>
-            <span>
-              Net revenue: <span className="font-semibold text-stone-900">{formatDollars(totalGross - totalRevShare)}</span>
-            </span>
+            {totalTips > 0 && (
+              <>
+                <span className="text-stone-300">|</span>
+                <span>
+                  Tips: <span className="font-semibold text-stone-900">{formatDollars(totalTips)}</span>
+                </span>
+              </>
+            )}
+            {(revSharePercentage ?? 0) > 0 && (
+              <>
+                <span className="text-stone-300">|</span>
+                <span>
+                  Rev share deducted: <span className="font-semibold text-stone-900">{formatDollars(totalRevShare)}</span>
+                </span>
+                <span className="text-stone-300">|</span>
+                <span>
+                  Net revenue: <span className="font-semibold text-stone-900">{formatDollars(totalGross - totalRevShare)}</span>
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -669,6 +692,7 @@ function ItemEditor({
         hoursWorked: hoursWorked || null,
         hourlyRateCents: hourlyRateDollars ? Math.round(parseFloat(hourlyRateDollars) * 100) : null,
         flatAmountCents: flatDollars ? Math.round(parseFloat(flatDollars) * 100) : null,
+        tipCentsTotal: item.tipCentsTotal,
       },
       item.deductions,
     )
@@ -678,6 +702,7 @@ function ItemEditor({
     hourlyRateDollars,
     flatDollars,
     item.commissionAmountCents,
+    item.tipCentsTotal,
     item.deductions,
   ])
 

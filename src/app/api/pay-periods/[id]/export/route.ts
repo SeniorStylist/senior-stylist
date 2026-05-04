@@ -77,6 +77,7 @@ export async function GET(
         'Gross Revenue',
         'Commission Rate',
         'Commission Amount',
+        'Tips',
         'Hours Worked',
         'Hourly Rate',
         'Flat Amount',
@@ -97,6 +98,7 @@ export async function GET(
           dollars(it.grossRevenueCents),
           `${it.commissionRate}%`,
           dollars(it.commissionAmountCents),
+          dollars(it.tipCentsTotal ?? 0),
           it.hoursWorked ?? '',
           it.hourlyRateCents != null ? dollars(it.hourlyRateCents) : '',
           it.flatAmountCents != null ? dollars(it.flatAmountCents) : '',
@@ -109,7 +111,7 @@ export async function GET(
 
     const totalNet = items.reduce((s, it) => s + it.netPayCents, 0)
     lines.push('')
-    lines.push(row('', '', '', '', '', '', '', '', '', '', 'Total', dollars(totalNet), ''))
+    lines.push(row('', '', '', '', '', '', '', '', '', '', '', 'Total', dollars(totalNet), ''))
 
     const csv = lines.join('\r\n')
     const filename = `payroll-${period.startDate}-${period.endDate}.csv`

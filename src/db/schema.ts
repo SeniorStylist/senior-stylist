@@ -482,6 +482,9 @@ export const stylistPayItems = pgTable(
     invoiceAmountCents: integer('invoice_amount_cents'),
     revShareAmountCents: integer('rev_share_amount_cents'),
     revShareType: text('rev_share_type'),
+    // Phase 12E: per-period stylist tip total. Additive to net pay; never enters
+    // facility revenue or rev-share math. Always non-negative.
+    tipCentsTotal: integer('tip_cents_total').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

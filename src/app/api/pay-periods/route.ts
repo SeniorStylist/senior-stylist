@@ -165,12 +165,14 @@ export async function POST(request: NextRequest) {
           residentId: bookings.residentId,
           startTime: bookings.startTime,
           priceCents: bookings.priceCents,
+          tipCents: bookings.tipCents,
         })
         .from(bookings)
         .where(
           and(
             eq(bookings.facilityId, facilityId),
             eq(bookings.status, 'completed'),
+            eq(bookings.active, true),
             inArray(bookings.stylistId, stylistIds),
             gte(bookings.startTime, startInclusive),
             lt(bookings.startTime, endExclusive),
@@ -178,11 +180,18 @@ export async function POST(request: NextRequest) {
         )
 
       const grossByStylist = new Map<string, number>()
+      // Phase 12E: tips are aggregated SEPARATELY from gross revenue. They MUST NOT
+      // mix into grossByStylist or commission/rev-share math will inflate.
+      const tipsByStylist = new Map<string, number>()
       for (const b of completed) {
+        // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
         grossByStylist.set(
           b.stylistId,
           (grossByStylist.get(b.stylistId) ?? 0) + (b.priceCents ?? 0),
         )
+        if (b.tipCents != null && b.tipCents > 0) {
+          tipsByStylist.set(b.stylistId, (tipsByStylist.get(b.stylistId) ?? 0) + b.tipCents)
+        }
       }
 
       // Phase 11L — best-effort booking ↔ invoice match (±30 days, same resident + facility)
@@ -218,6 +227,7 @@ export async function POST(request: NextRequest) {
 
       const values = assignments.map((a) => {
         const gross = grossByStylist.get(a.stylistId) ?? 0
+        const tipsTotal = tipsByStylist.get(a.stylistId) ?? 0
         const rate = resolveCommission(a.defaultCommission, { commissionPercent: a.overrideCommission })
         const commissionAmount = Math.round((gross * rate) / 100)
         const matchedInvoice = invoiceMatchByStylist.get(a.stylistId) ?? null
@@ -230,7 +240,10 @@ export async function POST(request: NextRequest) {
           grossRevenueCents: gross,
           commissionRate: rate,
           commissionAmountCents: commissionAmount,
-          netPayCents: commissionAmount,
+          // Phase 12E: tips are added to net pay (deductions then apply on top — no
+          // deductions yet at create time, so net = commission + tips).
+          netPayCents: commissionAmount + tipsTotal,
+          tipCentsTotal: tipsTotal,
           qbInvoiceId: matchedInvoice?.invoiceId ?? null,
           invoiceAmountCents: matchedInvoice?.invoiceCents ?? null,
           revShareAmountCents: revShareCents,
