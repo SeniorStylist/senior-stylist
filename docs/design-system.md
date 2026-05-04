@@ -43,6 +43,16 @@ Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The 
 
 **FullCalendar hover:** `#72253C`; active: `#5c1e2e`; highlight tint: `rgba(139, 46, 74, 0.1)`.
 
+**FullCalendar time grid config** (`src/components/calendar/calendar-view.tsx`):
+- `slotDuration="00:30:00"` — 30-min grid rows
+- `eventMinHeight={64}` — minimum 64px per event block so resident + service names are always legible. NOTE: FullCalendar 6 uses `eventMinHeight`, NOT `slotMinHeight` (which does not exist in the type definitions).
+- `slotMinTime="07:00:00"` / `slotMaxTime="20:00:00"` — visible hours 7am–8pm (not midnight–midnight)
+- `slotLabelInterval="01:00:00"` — axis labels every hour
+- `scrollTime="08:00:00"` — auto-scrolls to 8am on load
+- `timeZone={facilityTimezone}` — **required**; see Phase 12F timezone rule. Without this, blocks render at viewer's local time row.
+- `selectMirror={false}` — NEVER set to true (squish bug documented in CLAUDE.md)
+- Event block text: resident name `text-xs font-semibold truncate leading-tight`; service name `text-xs opacity-80 truncate leading-tight`. All text must use `truncate` — blocks have fixed height and overflow is hidden.
+
 ### Service Color Palette
 
 Services get assigned colors from this 12-color palette (cycled by category):
