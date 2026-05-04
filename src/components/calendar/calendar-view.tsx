@@ -108,10 +108,12 @@ export default function CalendarView({
         nowIndicator={true}
         expandRows={true}
         height="100%"
-        slotMinTime="09:00:00"
-        slotMaxTime="21:00:00"
+        slotMinTime="07:00:00"
+        slotMaxTime="20:00:00"
         slotDuration="00:30:00"
+        eventMinHeight={64}
         slotLabelInterval="01:00:00"
+        scrollTime="08:00:00"
         headerToolbar={false}
         events={events}
         datesSet={(dateInfo) => {
