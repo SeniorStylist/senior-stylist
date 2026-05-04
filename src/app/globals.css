@@ -137,7 +137,7 @@ body {
 }
 
 .fc .fc-timegrid-slot {
-  height: 2rem !important;
+  height: 4.5rem !important; /* 72px — fits 3 lines of event text cleanly */
 }
 
 .fc .fc-col-header-cell-cushion,

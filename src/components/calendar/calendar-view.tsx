@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
 import { useRef, useEffect } from 'react'
 import { formatCents } from '@/lib/utils'
+import { formatTimeInTz } from '@/lib/time'
 import type { Resident, Stylist, Service } from '@/types'
 
 interface BookingForCalendar {
@@ -49,6 +50,7 @@ interface CalendarViewProps {
   onPrevRef: React.MutableRefObject<(() => void) | null>
   onNextRef: React.MutableRefObject<(() => void) | null>
   onTodayRef: React.MutableRefObject<(() => void) | null>
+  onGotoDateRef: React.MutableRefObject<((date: Date) => void) | null>
   onTitleChange: (title: string) => void
   onDatesSet: (start: Date, end: Date) => void
   onSelectSlot: (start: Date, end: Date) => void
@@ -64,6 +66,7 @@ export default function CalendarView({
   onPrevRef,
   onNextRef,
   onTodayRef,
+  onGotoDateRef,
   onTitleChange,
   onDatesSet,
   onSelectSlot,
@@ -79,6 +82,7 @@ export default function CalendarView({
     onPrevRef.current = () => { fcRef.current?.getApi().prev() }
     onNextRef.current = () => { fcRef.current?.getApi().next() }
     onTodayRef.current = () => { fcRef.current?.getApi().today() }
+    onGotoDateRef.current = (date: Date) => { fcRef.current?.getApi().gotoDate(date) }
   })
 
   const events = bookings
@@ -106,14 +110,16 @@ export default function CalendarView({
         selectable={true}
         allDaySlot={false}
         nowIndicator={true}
-        expandRows={true}
         height="100%"
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
         slotDuration="00:30:00"
         eventMinHeight={64}
+        slotEventOverlap={false}
+        eventOverlap={true}
+        dayMaxEvents={false}
         slotLabelInterval="01:00:00"
-        scrollTime="08:00:00"
+        scrollTime="08:30:00"
         headerToolbar={false}
         events={events}
         datesSet={(dateInfo) => {
@@ -147,6 +153,9 @@ export default function CalendarView({
 
           const primaryLabel = primaryNames.join(' + ')
           const fullLabel = [...primaryNames, ...addonNames].join(' + ')
+          const startTime = arg.event.start
+            ? formatTimeInTz(arg.event.start, facilityTimezone)
+            : ''
 
           if (view === 'dayGridMonth') {
             return (
@@ -163,6 +172,7 @@ export default function CalendarView({
               <div className="px-1 py-0.5 overflow-hidden">
                 <div className="text-xs font-semibold truncate leading-tight">
                   {booking.recurring && <span className="mr-0.5">↻</span>}
+                  {startTime && <span className="opacity-70 font-normal mr-1">{startTime}</span>}
                   {booking.resident?.name}
                 </div>
                 <div className="text-xs opacity-80 truncate leading-tight">
@@ -178,6 +188,7 @@ export default function CalendarView({
               <div className="text-xs font-semibold truncate leading-tight">
                 {booking.recurring && <span className="mr-0.5">↻</span>}
                 {booking.source === 'historical_import' && <HistoricalBadge fileName={booking.importBatch?.fileName} />}
+                {startTime && <span className="opacity-70 font-normal mr-1">{startTime}</span>}
                 {booking.resident?.name}
               </div>
               <div className="text-xs opacity-85 truncate leading-tight">
