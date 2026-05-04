@@ -267,6 +267,8 @@ export async function POST(request: Request) {
           source: 'historical_import',
           importBatchId: batch.id,
           needsReview: match.needsReview,
+          // Phase 12E: parser already populates row.tipsCents from the XLSX 'Tips' column
+          tipCents: row.tipsCents ?? null,
         })
       }
 
