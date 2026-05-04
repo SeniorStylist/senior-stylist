@@ -2042,3 +2042,32 @@ Used on the import results screen to make summary metrics navigable or informati
 
 **Deep-link pattern** (`imports-client.tsx`): reads `?tab=review` on mount via `new URLSearchParams(window.location.search)` in a `useEffect(() => {...}, [])` — avoids the Suspense boundary requirement that `useSearchParams()` imposes. Apply this pattern whenever a page needs to read a URL param for initial tab state.
 
+### XLSX Column Alias Resolution (`resolveKey` in `service-log-import.ts`)
+
+XLSX import parsers should never hardcode a single column name. Bookkeepers rename columns over time (`Facility` → `Facility Name`, `Room` → `Room#`) and a hardcoded key silently drops every row when the header rotates. Use the `resolveKey(...names)` helper pattern:
+
+```ts
+const keyMap = new Map<string, string>() // normalized → actualKey
+for (const k of Object.keys(raw[0] ?? {})) keyMap.set(k.toLowerCase().trim(), k)
+
+const resolveKey = (...names: string[]): string | undefined => {
+  for (const n of names) {
+    const found = keyMap.get(n.toLowerCase().trim())
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+const facilityKey = resolveKey('Facility Name', 'Facility')
+const stylistKey  = resolveKey('Stylist Name', 'Stylist')
+const roomKey     = resolveKey('Room#', 'Room')
+```
+
+**Rules**:
+- Build the `keyMap` once from the first row's keys; reuse for every alias lookup.
+- Pass the most-recent / canonical name first; legacy aliases trail.
+- Normalize via `.toLowerCase().trim()` only — do NOT strip punctuation (the `#` in `Room#` is meaningful).
+- Cell-value normalization (e.g. F-code prefix stripping `"F177 - Sunrise of Bethesda"` → `"Sunrise of Bethesda"`) belongs in the row loop, not in `resolveKey`.
+
+When a new column header surfaces, extend the `resolveKey(...)` arg list — never replace the existing alias. Old XLSX files in user inboxes outlive every header rename.
+

@@ -1283,6 +1283,29 @@ Backfill historical bookkeeper XLSX service-log files into bookings/residents/se
 
 **Cross-cutting type changes**: dropping `bookings.serviceId` NOT NULL forced ~30 call sites (reports, exports, detail pages, Google Calendar sync) to use defensive `b.service?.X ?? <fallback>`. The `Service` type in `BookingForCalendar` / `LogBooking` / `BookingWithRelations` is now `Service | null`. Google Calendar sync sites short-circuit when `service` is null (historical imports never push to GCal).
 
+### Phase 12D — Interactive Import Result Stat Tiles (SHIPPED 2026-05-03)
+
+No schema changes. Polish on the post-import results screen: every stat tile is either navigable (one-click jump to the matching surface), informational (click-toggle tooltip popover), or static. Designed for the "I just imported 200 rows — now what?" moment.
+
+**`ResultTile` component** (`src/app/(protected)/master-admin/imports/service-log/service-log-client.tsx`):
+- Three modes derived from props:
+  1. `href` set → wraps in `<button>`, calls `router.push(href)` on click
+  2. `tooltip` set (no `href`) → `<button>` toggles `showTooltip` state; absolute popover `bg-stone-800 text-white rounded-xl px-3 py-2.5 text-xs w-52 shadow-[var(--shadow-lg)]` below the tile; `mousedown` outside (via `useRef` + `document.addEventListener`) dismisses
+  3. Neither → plain `<div>`
+- Hover style (interactive only): `hover:bg-[#F9EFF2] hover:shadow-[0_0_0_1.5px_rgba(139,46,74,0.15)] transition-[background-color,box-shadow] duration-[120ms]`. Base: `bg-stone-50 rounded-xl px-4 py-3`.
+
+**Tile wiring on the results screen**:
+| Tile | Mode | Target / Tooltip |
+|------|------|------------------|
+| Bookings created | href (always) | `/dashboard` |
+| Need review | href (count > 0), static (count = 0 with tooltip) | `/master-admin/imports?tab=review` |
+| QB invoices linked | href (count > 0) | `/billing` |
+| Services matched | tooltip | "Auto-resolved via name fuzzy / exact price / combo" |
+| Residents upserted | tooltip | "New residents created vs matched against existing" |
+| Duplicates skipped | tooltip | "Same resident + date + service already imported" |
+
+**Deep-link pattern** (`imports-client.tsx`): reads `?tab=review` on mount via `new URLSearchParams(window.location.search)` in a `useEffect(() => {...}, [])`. Avoids `useSearchParams()` Suspense boundary requirement. Apply this whenever a page needs URL-driven initial tab state.
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.
