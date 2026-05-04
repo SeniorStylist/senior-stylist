@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: priceError }, { status: 422 })
     }
     const { priceCents: primaryResolved, addonTotalCents } = resolvePrice(service, priceInput)
+    // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
     const additionalPrimaryTotal = primaryServices
       .slice(1)
       .reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)

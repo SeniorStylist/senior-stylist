@@ -215,6 +215,7 @@ export async function PUT(
         return Response.json({ error: priceError }, { status: 422 })
       }
       const { priceCents: primaryResolved, addonTotalCents: primaryAddon } = resolvePrice(primary, priceInput)
+      // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
       const additionalTotal = ordered.slice(1).reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
 
       // Addon-type services still counted separately below; here we compute primary total

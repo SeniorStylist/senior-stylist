@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
         )
       }
 
+      // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
       const subtotal = groupRows.reduce(
         (sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0),
         0

@@ -37,6 +37,7 @@ interface LogBooking {
   source?: string | null
   rawServiceName?: string | null
   importBatch?: { fileName: string } | null
+  tipCents: number | null
   resident: Resident
   stylist: Stylist
   service: Service | null
@@ -1015,6 +1016,9 @@ export function LogClient({
                             <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">
                               {formatTime(booking.startTime)} · {serviceDisplayName(booking, services)} ·{' '}
                               {formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}
+                              {booking.tipCents != null && booking.tipCents > 0 && (
+                                <span className="text-stone-400"> · Tip {formatCents(booking.tipCents)}</span>
+                              )}
                               {booking.selectedQuantity && booking.selectedQuantity > 1 && (
                                 <span className="text-stone-400"> (qty: {booking.selectedQuantity})</span>
                               )}

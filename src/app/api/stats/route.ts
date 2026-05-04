@@ -65,6 +65,7 @@ export async function GET() {
       }),
     ])
 
+    // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
     const sum = (rows: typeof todayRows) =>
       rows.reduce((s, b) => s + (b.priceCents ?? b.service?.priceCents ?? 0), 0)
 

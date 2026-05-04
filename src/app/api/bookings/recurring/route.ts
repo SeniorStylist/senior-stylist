@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
     const priceError = validatePricingInput(primary, priceInput)
     if (priceError) return Response.json({ error: priceError }, { status: 422 })
     const { priceCents: primaryResolved, addonTotalCents: primaryAddon } = resolvePrice(primary, priceInput)
+    // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
     const additionalTotal = primaryServices.slice(1).reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
 
     // Resolve addon-type services

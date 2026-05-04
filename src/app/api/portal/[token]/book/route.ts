@@ -76,6 +76,7 @@ export async function POST(
       if (addonSvcs.length !== addonServiceIds.length) {
         return Response.json({ error: 'Invalid add-on service' }, { status: 400 })
       }
+      // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
       addonTotalCents = addonSvcs.reduce(
         (sum, s) => sum + (s.addonAmountCents ?? s.priceCents ?? 0),
         0,
@@ -95,6 +96,7 @@ export async function POST(
       if (additionalSvcs.length !== additionalIds.length) {
         return Response.json({ error: 'Invalid service' }, { status: 400 })
       }
+      // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
       additionalPriceCents = additionalSvcs.reduce(
         (sum, s) => sum + resolvePrice(s).priceCents,
         0,

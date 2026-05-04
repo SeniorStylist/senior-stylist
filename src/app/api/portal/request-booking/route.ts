@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       .filter((s): s is NonNullable<typeof s> => !!s)
 
     const totalDurationMinutes = orderedSvcs.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
+    // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
     const priceCents = orderedSvcs.reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
 
     const stylistRow = await db
