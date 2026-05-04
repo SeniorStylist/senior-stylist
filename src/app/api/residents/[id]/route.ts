@@ -18,6 +18,8 @@ const updateSchema = z.object({
   poaPhone: z.string().max(50).optional(),
   poaPaymentMethod: z.string().max(100).optional(),
   poaNotificationsEnabled: z.boolean().optional(),
+  defaultTipType: z.enum(['percentage', 'fixed']).nullable().optional(),
+  defaultTipValue: z.number().int().min(0).max(10_000_000).nullable().optional(),
 })
 
 export async function GET(

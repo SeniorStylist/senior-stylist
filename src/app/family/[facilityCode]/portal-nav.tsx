@@ -17,6 +17,7 @@ export function PortalNav({ facilityCode }: Props) {
     { href: `${base}/appointments`, label: 'Appts', icon: CalendarIcon },
     { href: `${base}/request`, label: 'Request', icon: PlusIcon },
     { href: `${base}/billing`, label: 'Billing', icon: ReceiptIcon },
+    { href: `${base}/profile`, label: 'Profile', icon: UserIcon },
     { href: `${base}/contact`, label: 'Contact', icon: PhoneIcon },
   ]
 
@@ -25,7 +26,7 @@ export function PortalNav({ facilityCode }: Props) {
       className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-stone-200"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="max-w-[640px] mx-auto grid grid-cols-5">
+      <div className="max-w-[640px] mx-auto grid grid-cols-6">
         {tabs.map((t) => {
           const isActive = t.exact ? pathname === t.href : pathname.startsWith(t.href)
           const Icon = t.icon
@@ -84,6 +85,15 @@ function ReceiptIcon({ active }: { active: boolean }) {
       <path d="M5 3h14v18l-3-2-3 2-3-2-3 2-2-2V3z" />
       <line x1="9" y1="8" x2="15" y2="8" />
       <line x1="9" y1="12" x2="15" y2="12" />
+    </svg>
+  )
+}
+
+function UserIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill={active ? '#8B2E4A' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   )
 }

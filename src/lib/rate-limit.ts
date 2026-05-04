@@ -24,6 +24,8 @@ type Bucket =
   | 'portalRequestBooking'
   | 'portalStatement'
   | 'portalCheckout'
+  | 'portalProfileUpdate'
+  | 'receiptSend'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -48,6 +50,8 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   portalRequestBooking: { tokens: 5, window: '1 h' },
   portalStatement: { tokens: 20, window: '1 h' },
   portalCheckout: { tokens: 10, window: '1 h' },
+  portalProfileUpdate: { tokens: 20, window: '1 h' },
+  receiptSend: { tokens: 10, window: '1 h' },
 }
 
 let redis: Redis | null = null

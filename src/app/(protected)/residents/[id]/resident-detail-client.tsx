@@ -8,6 +8,7 @@ import { formatCents, formatDate, formatTime } from '@/lib/utils'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -71,6 +72,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [poaPhone, setPoaPhone] = useState(initialResident.poaPhone ?? '')
   const [poaPaymentMethod, setPoaPaymentMethod] = useState(initialResident.poaPaymentMethod ?? '')
   const [poaNotificationsEnabled, setPoaNotificationsEnabled] = useState(initialResident.poaNotificationsEnabled !== false)
+  const [tipDefault, setTipDefault] = useState<DefaultTipValue>({
+    type: (initialResident.defaultTipType as 'percentage' | 'fixed' | null) ?? null,
+    value: initialResident.defaultTipValue ?? null,
+  })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -145,6 +150,8 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           poaPhone: poaPhone.trim() || undefined,
           poaPaymentMethod: poaPaymentMethod || undefined,
           poaNotificationsEnabled,
+          defaultTipType: tipDefault.type,
+          defaultTipValue: tipDefault.value,
         }),
       })
       const json = await res.json()
@@ -188,6 +195,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     setPoaPhone(resident.poaPhone ?? '')
     setPoaPaymentMethod(resident.poaPaymentMethod ?? '')
     setPoaNotificationsEnabled(resident.poaNotificationsEnabled !== false)
+    setTipDefault({
+      type: (resident.defaultTipType as 'percentage' | 'fixed' | null) ?? null,
+      value: resident.defaultTipValue ?? null,
+    })
     setSaveError(null)
   }
 
@@ -307,6 +318,9 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     </select>
                   </div>
                 )}
+                <div className="pt-1">
+                  <DefaultTipPicker value={tipDefault} onChange={setTipDefault} />
+                </div>
                 {/* POA fields */}
                 <div className="pt-2 border-t border-stone-100">
                   <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Power of Attorney</p>
