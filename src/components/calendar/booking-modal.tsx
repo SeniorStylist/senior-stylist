@@ -94,6 +94,8 @@ export function BookingModal({
   const [tipValue, setTipValue] = useState<number | ''>('')
   // Once the user manually clears the tip we stop auto-filling from the resident default.
   const [tipCleared, setTipCleared] = useState(false)
+  // Phase 12E — manual receipt send
+  const [sendingReceipt, setSendingReceipt] = useState(false)
 
   const residentInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1165,13 +1167,45 @@ export function BookingModal({
         selectedServiceIds.filter((id) => !!id).length > 0 &&
         (loadingStylists || (availableCount !== null && !pickedStylist)))))
 
+  const handleSendReceipt = async () => {
+    if (!booking || mode !== 'edit') return
+    setSendingReceipt(true)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/receipt`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof json.error === 'string' ? json.error : 'Failed to send receipt')
+        return
+      }
+      const { emailSent, smsSent } = json.data ?? {}
+      if (emailSent && smsSent) toast.success('Receipt sent via email + SMS')
+      else if (emailSent) toast.success('Receipt sent via email')
+      else if (smsSent) toast.success('Receipt sent via SMS')
+      else toast('No contact info on file', 'info')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setSendingReceipt(false)
+    }
+  }
+
   const formFooter = (
     <div
       className="bg-white px-6 pt-4 border-t border-stone-100"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
     >
       {breakdown}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        {mode === 'edit' && isAdmin && (
+          <Button
+            variant="secondary"
+            onClick={handleSendReceipt}
+            loading={sendingReceipt}
+            disabled={submitting || cancelling}
+          >
+            Send Receipt
+          </Button>
+        )}
         <Button
           variant="secondary"
           onClick={onClose}

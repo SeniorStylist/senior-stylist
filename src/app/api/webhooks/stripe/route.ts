@@ -3,6 +3,8 @@ import { bookings, qbInvoices, qbPayments, residents } from '@/db/schema'
 import { and, asc, eq, gt, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
+import { sendEmail, buildBookingReceiptHtml } from '@/lib/email'
+import { sendSms, buildReceiptSms } from '@/lib/sms'
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,6 +43,9 @@ export async function POST(request: NextRequest) {
             .update(bookings)
             .set({ paymentStatus: 'paid', updatedAt: new Date() })
             .where(eq(bookings.id, bookingId))
+          // Phase 12E — auto-send receipt after card payment.
+          // Fire-and-forget: never block the webhook 200, never throw.
+          void sendBookingReceipt(bookingId)
         }
       }
     }
@@ -131,4 +136,48 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
 
   revalidateTag('billing', {})
   revalidateTag('bookings', {})
+}
+
+// Phase 12E — fire-and-forget booking receipt after Stripe card payment.
+async function sendBookingReceipt(bookingId: string): Promise<void> {
+  try {
+    const b = await db.query.bookings.findFirst({
+      where: eq(bookings.id, bookingId),
+      with: {
+        resident: { columns: { name: true, poaEmail: true, poaPhone: true } },
+        stylist: { columns: { name: true } },
+        service: { columns: { name: true } },
+        facility: { columns: { name: true, address: true, phone: true } },
+      },
+    })
+    if (!b) return
+    const data = {
+      facilityName: b.facility.name,
+      facilityAddress: b.facility.address,
+      facilityPhone: b.facility.phone,
+      residentName: b.resident.name,
+      serviceName: b.service?.name ?? b.rawServiceName ?? 'Service',
+      stylistName: b.stylist.name,
+      serviceDate: new Date(b.startTime).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+      priceCents: b.priceCents ?? 0,
+      tipCents: b.tipCents,
+      paymentType: 'Card',
+    }
+    if (b.resident.poaEmail) {
+      void sendEmail({
+        to: b.resident.poaEmail,
+        subject: `Receipt — ${b.facility.name}`,
+        html: buildBookingReceiptHtml(data),
+      })
+    }
+    if (b.resident.poaPhone && process.env.TWILIO_ENABLED === 'true') {
+      void sendSms(b.resident.poaPhone, buildReceiptSms(data))
+    }
+  } catch (err) {
+    console.error('[stripe.receipt] failed:', err)
+  }
 }

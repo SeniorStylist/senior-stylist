@@ -559,3 +559,63 @@ export function buildCoverageFilledEmailHtml(params: {
 </body>
 </html>`.trim()
 }
+
+export function buildBookingReceiptHtml(params: {
+  facilityName: string
+  facilityAddress?: string | null
+  facilityPhone?: string | null
+  residentName: string
+  serviceName: string
+  stylistName: string
+  serviceDate: string
+  priceCents: number
+  tipCents: number | null
+  paymentType?: string | null
+}): string {
+  const {
+    facilityName,
+    facilityAddress,
+    facilityPhone,
+    residentName,
+    serviceName,
+    stylistName,
+    serviceDate,
+    priceCents,
+    tipCents,
+    paymentType,
+  } = params
+  const dollars = (c: number) => `$${(c / 100).toFixed(2)}`
+  const tip = tipCents != null && tipCents > 0 ? tipCents : null
+  const total = priceCents + (tip ?? 0)
+  const paymentLabel = paymentType ? paymentType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Receipt</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;color:#1C1917;font-size:15px;">Thank you for your visit, ${residentName}!</p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Service</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${serviceName}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Stylist</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${stylistName}</td></tr>
+        <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Date</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${serviceDate}</td></tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+        <tr><td style="padding:6px 0;color:#78716C;font-size:13px;">Service</td><td style="padding:6px 0;text-align:right;color:#1C1917;font-size:14px;">${dollars(priceCents)}</td></tr>
+        ${tip != null ? `<tr><td style="padding:6px 0;color:#78716C;font-size:13px;">Tip</td><td style="padding:6px 0;text-align:right;color:#1C1917;font-size:14px;">${dollars(tip)}</td></tr>` : ''}
+        <tr><td style="padding:10px 0;border-top:2px solid #E7E5E4;color:#1C1917;font-size:14px;font-weight:700;">Total</td><td style="padding:10px 0;border-top:2px solid #E7E5E4;text-align:right;color:#8B2E4A;font-size:16px;font-weight:700;">${dollars(total)}</td></tr>
+        ${paymentLabel ? `<tr><td style="padding:6px 0;color:#78716C;font-size:13px;">Payment</td><td style="padding:6px 0;text-align:right;color:#1C1917;font-size:13px;">${paymentLabel}</td></tr>` : ''}
+      </table>
+      <p style="margin:24px 0 0;color:#A8A29E;font-size:12px;line-height:1.5;">
+        ${facilityAddress ? `${facilityAddress}<br/>` : ''}
+        Questions? Contact ${facilityName}${facilityPhone ? ` at ${facilityPhone}` : ''}.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`.trim()
+}
