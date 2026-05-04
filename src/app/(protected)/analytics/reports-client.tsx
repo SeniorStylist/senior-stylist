@@ -84,6 +84,7 @@ const STATUS_STYLES: Record<string, string> = {
 interface ReportsClientProps {
   paymentType: string
   facilityId: string
+  facilityTimezone: string
   revShareType?: string | null
   revSharePercentage?: number | null
 }
@@ -91,6 +92,7 @@ interface ReportsClientProps {
 export function ReportsClient({
   paymentType,
   facilityId,
+  facilityTimezone,
   revShareType,
   revSharePercentage,
 }: ReportsClientProps) {
@@ -492,7 +494,7 @@ export function ReportsClient({
                       {new Date(b.startTime).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
-                        timeZone: 'UTC',
+                        timeZone: facilityTimezone,
                       })}
                     </div>
                     <div className="col-span-3 text-sm font-medium text-stone-800 truncate">
@@ -597,7 +599,7 @@ export function ReportsClient({
                         {group.rows.map((b) => (
                           <div key={b.id} className="grid grid-cols-12 gap-2 items-center px-5 py-3">
                             <div className="col-span-2 text-xs text-stone-500">
-                              {new Date(b.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                              {new Date(b.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: facilityTimezone })}
                             </div>
                             <div className="col-span-4 text-sm text-stone-800">{b.service}</div>
                             <div className="col-span-3 text-sm text-stone-500">{b.stylist}</div>

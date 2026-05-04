@@ -34,6 +34,8 @@ const getBillingSummaryData = unstable_cache(
           revSharePercentage: true,
           contactEmail: true,
           address: true,
+          // Phase 12F — facility tz reaches BillingFacility for tz-aware display
+          timezone: true,
           qbAccessToken: true,
           qbRefreshToken: true,
           qbInvoicesLastSyncedAt: true,

@@ -27,6 +27,7 @@ export default async function AnalyticsPage() {
     <ReportsClient
       paymentType={paymentType}
       facilityId={facilityId}
+      facilityTimezone={facility?.timezone ?? 'America/New_York'}
       revShareType={facility?.qbRevShareType ?? null}
       revSharePercentage={facility?.revSharePercentage ?? null}
     />

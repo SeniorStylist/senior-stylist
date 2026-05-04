@@ -42,6 +42,9 @@ interface CalendarViewProps {
   bookings: BookingForCalendar[]
   services?: Service[]
   currentView: CalendarViewType
+  // Phase 12F: facility's IANA timezone — drives FullCalendar grid axis labels
+  // and block positioning. Without this, FullCalendar falls back to browser-local.
+  facilityTimezone: string
   onChangeViewRef: React.MutableRefObject<((view: CalendarViewType) => void) | null>
   onPrevRef: React.MutableRefObject<(() => void) | null>
   onNextRef: React.MutableRefObject<(() => void) | null>
@@ -56,6 +59,7 @@ export default function CalendarView({
   bookings,
   services = [],
   currentView,
+  facilityTimezone,
   onChangeViewRef,
   onPrevRef,
   onNextRef,
@@ -95,6 +99,7 @@ export default function CalendarView({
       <FullCalendar
         ref={fcRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+        timeZone={facilityTimezone}
         initialView={currentView}
         selectMirror={false}
         unselectAuto={true}

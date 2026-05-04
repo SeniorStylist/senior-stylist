@@ -247,6 +247,7 @@ export function RFMSView({
                             reconciling={!!reconciling[p.id]}
                             errorMsg={reconcileErrors[p.id] ?? null}
                             onReconcile={() => handleReconcile(p)}
+                            facilityTimezone={facility.timezone}
                           />
                         </div>
                       )
@@ -381,11 +382,13 @@ function ReconciliationPanel({
   reconciling,
   errorMsg,
   onReconcile,
+  facilityTimezone,
 }: {
   payment: BillingPayment
   reconciling: boolean
   errorMsg: string | null
   onReconcile: () => void
+  facilityTimezone: string
 }) {
   const status = payment.reconciliationStatus ?? 'unreconciled'
   const lines = payment.reconciliationLines ?? []
@@ -468,6 +471,7 @@ function ReconciliationPanel({
               month: 'short',
               day: 'numeric',
               year: 'numeric',
+              timeZone: facilityTimezone,
             })}
           </span>
         )}

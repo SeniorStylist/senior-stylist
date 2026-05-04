@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
+import { getLocalParts, fromDateTimeLocalInTz } from '@/lib/time'
 import { formatPricingLabel } from '@/lib/pricing'
 import {
   buildCategoryPriority,
@@ -61,14 +62,18 @@ interface LogClientProps {
   services: Service[]
   stylistFilter?: string | null
   serviceCategoryOrder?: string[] | null
+  // Phase 12F: facility's IANA timezone — drives row times, finalized timestamp,
+  // walk-in time picker default + submit conversion, "today/yesterday/tomorrow" labels.
+  facilityTimezone: string
   role?: string
 }
 
-// Round a date to nearest 30 min
-function roundToNearest30(date: Date): string {
+// Round a date to nearest 30 min IN THE FACILITY'S TIMEZONE.
+function roundToNearest30(date: Date, tz: string): string {
   const ms = 30 * 60 * 1000
   const rounded = new Date(Math.round(date.getTime() / ms) * ms)
-  return `${rounded.getHours().toString().padStart(2, '0')}:${rounded.getMinutes().toString().padStart(2, '0')}`
+  const p = getLocalParts(rounded, tz)
+  return `${String(p.hours).padStart(2, '0')}:${String(p.minutes).padStart(2, '0')}`
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -94,15 +99,22 @@ function serviceDisplayName(booking: LogBooking, allServices: Service[]): string
   return all.join(' + ')
 }
 
-function formatLogDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  const today = new Date().toISOString().split('T')[0]
+function formatLogDate(dateStr: string, tz: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z')
+  // Phase 12F — "today" anchors to the facility's calendar, not the viewer's
+  const todayParts = getLocalParts(new Date(), tz)
+  const today = `${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`
   const yesterday = addDays(today, -1)
   const tomorrow = addDays(today, 1)
   if (dateStr === today) return 'Today'
   if (dateStr === yesterday) return 'Yesterday'
   if (dateStr === tomorrow) return 'Tomorrow'
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 export function LogClient({
@@ -114,6 +126,7 @@ export function LogClient({
   services,
   stylistFilter,
   serviceCategoryOrder,
+  facilityTimezone,
   role = 'admin',
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
@@ -197,7 +210,7 @@ export function LogClient({
   const [wiResidentId, setWiResidentId] = useState('')
   const [wiServiceId, setWiServiceId] = useState('')
   const [wiStylistId, setWiStylistId] = useState(stylists[0]?.id ?? '')
-  const [wiTime, setWiTime] = useState(() => roundToNearest30(new Date()))
+  const [wiTime, setWiTime] = useState(() => roundToNearest30(new Date(), facilityTimezone))
   const [wiAddonServiceIds, setWiAddonServiceIds] = useState<string[]>([])
   const [wiAdding, setWiAdding] = useState(false)
   const [wiError, setWiError] = useState<string | null>(null)
@@ -414,7 +427,9 @@ export function LogClient({
     setWiAdding(true)
     setWiError(null)
     try {
-      const startTime = new Date(`${date}T${wiTime}:00`)
+      // Phase 12F — interpret wiTime in the facility's tz so a viewer in any
+      // browser tz sees their typed "9:00" land at 9 a.m. facility-local.
+      const startTime = fromDateTimeLocalInTz(`${date}T${wiTime}`, facilityTimezone)
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -437,7 +452,7 @@ export function LogClient({
         setWiResidentId('')
         setWiServiceId('')
         setWiAddonServiceIds([])
-        setWiTime(roundToNearest30(new Date()))
+        setWiTime(roundToNearest30(new Date(), facilityTimezone))
         setLocalNewResidents([])
         setWiCreateOpen(false)
         setWiCreateName('')
@@ -482,7 +497,7 @@ export function LogClient({
               className="text-xl font-normal text-stone-900"
               style={{ fontFamily: "'DM Serif Display', serif" }}
             >
-              {formatLogDate(date)}
+              {formatLogDate(date, facilityTimezone)}
             </h1>
             {loading && (
               <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin shrink-0" />
@@ -1014,7 +1029,7 @@ export function LogClient({
                         ) : (
                           <>
                             <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">
-                              {formatTime(booking.startTime)} · {serviceDisplayName(booking, services)} ·{' '}
+                              {formatTime(booking.startTime, facilityTimezone)} · {serviceDisplayName(booking, services)} ·{' '}
                               {formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}
                               {booking.tipCents != null && booking.tipCents > 0 && (
                                 <span className="text-stone-400"> · Tip {formatCents(booking.tipCents)}</span>
@@ -1152,7 +1167,7 @@ export function LogClient({
               <div className="px-4 py-2 border-t border-green-100 bg-green-50/30 flex items-center justify-between">
                 <p className="text-xs text-green-600">
                   {logEntry?.finalizedAt
-                    ? `Finalized ${new Date(logEntry.finalizedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                    ? `Finalized ${formatTime(logEntry.finalizedAt, facilityTimezone)}`
                     : 'Finalized'}
                 </p>
                 {canWrite && (

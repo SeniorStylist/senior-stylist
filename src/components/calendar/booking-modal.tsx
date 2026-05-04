@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { formatCents } from '@/lib/utils'
 import { resolvePrice, formatPricingLabel } from '@/lib/pricing'
 import { computeTipCents } from '@/lib/tips'
+import { toDateTimeLocalInTz, fromDateTimeLocalInTz, formatDateInTz, formatTimeInTz } from '@/lib/time'
 import {
   buildCategoryPriority,
   sortCategoryGroups,
@@ -27,6 +28,9 @@ interface BookingModalProps {
   residents: Resident[]
   services: Service[]
   facilityId: string
+  // Phase 12F: facility's IANA timezone — drives <input type="datetime-local">
+  // population, error-message formatting, and submit-side UTC conversion.
+  facilityTimezone: string
   onBookingChange: (booking: BookingWithRelations) => void
   onBookingDeleted: (bookingId: string) => void
   isAdmin?: boolean
@@ -39,10 +43,11 @@ interface PickedStylist {
   color: string
 }
 
-function formatDateTimeLocal(date: Date | string): string {
-  const d = new Date(date)
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+// Phase 12F: facility-tz aware. Browser-tz version was the calendar/log
+// display bug: a 9 a.m. EST booking populated the input as "16:00" (4 p.m.)
+// when the viewer was in UTC+3.
+function formatDateTimeLocal(date: Date | string, tz: string): string {
+  return toDateTimeLocalInTz(date, tz)
 }
 
 export function BookingModal({
@@ -55,6 +60,7 @@ export function BookingModal({
   residents,
   services,
   facilityId,
+  facilityTimezone,
   onBookingChange,
   onBookingDeleted,
   isAdmin,
@@ -154,7 +160,7 @@ export function BookingModal({
             : []
       setSelectedServiceIds(existingIds)
       setSelectedAddonServiceIds(booking.addonServiceIds ?? [])
-      setStartTime(formatDateTimeLocal(booking.startTime))
+      setStartTime(formatDateTimeLocal(booking.startTime, facilityTimezone))
       setNotes(booking.notes ?? '')
       setResidentSearch(booking.resident?.name ?? '')
       // Edit mode: surface the existing tip as a fixed amount (we lose the original
@@ -172,7 +178,7 @@ export function BookingModal({
       setSelectedResidentId('')
       setSelectedServiceIds([])
       setSelectedAddonServiceIds([])
-      setStartTime(defaultStart ? formatDateTimeLocal(defaultStart) : '')
+      setStartTime(defaultStart ? formatDateTimeLocal(defaultStart, facilityTimezone) : '')
       setNotes('')
       setResidentSearch('')
       // Create mode: clear tip; resident-default useEffect below will populate it
@@ -401,7 +407,10 @@ export function BookingModal({
       const basePayload = {
         residentId: selectedResidentId,
         serviceIds: selectedServiceIds,
-        startTime: new Date(startTime).toISOString(),
+        // Phase 12F — startTime is a "datetime-local" string in the FACILITY's tz.
+        // Convert via fromDateTimeLocalInTz so a viewer in UTC+3 doesn't shift the
+        // booking by their browser offset on save.
+        startTime: fromDateTimeLocalInTz(startTime, facilityTimezone).toISOString(),
         notes: notes || undefined,
         // Phase 12E — null clears any existing tip on edit; > 0 sets it
         tipCents: tipCentsPreview > 0 ? tipCentsPreview : null,
@@ -964,7 +973,7 @@ export function BookingModal({
             </div>
           ) : (
             <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3.5 py-2.5 text-sm min-h-[44px]">
-              No stylist available for {new Date(startTime).toLocaleDateString('en-US', { weekday: 'long' })} at {new Date(startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. Please choose a different date or time.
+              No stylist available for {formatDateInTz(fromDateTimeLocalInTz(startTime, facilityTimezone), facilityTimezone, { weekday: 'long', month: undefined, day: undefined })} at {formatTimeInTz(fromDateTimeLocalInTz(startTime, facilityTimezone), facilityTimezone)}. Please choose a different date or time.
             </div>
           )}
         </div>

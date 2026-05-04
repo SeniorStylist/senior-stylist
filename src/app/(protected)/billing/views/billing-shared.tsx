@@ -8,6 +8,8 @@ export interface BillingFacility {
   revSharePercentage: number | null
   contactEmail: string | null
   address: string | null
+  // Phase 12F: facility's IANA timezone — drives reconciled-at display etc.
+  timezone: string
   hasQuickBooks: boolean
   qbInvoicesLastSyncedAt: string | null
 }

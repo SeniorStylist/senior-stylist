@@ -10,7 +10,8 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
-import { cn, formatCents } from '@/lib/utils'
+import { cn, formatCents, formatTime } from '@/lib/utils'
+import { formatDateInTz, getLocalParts } from '@/lib/time'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Resident, Stylist, Service, Facility, CoverageRequest } from '@/types'
 import { Spinner } from '@/components/ui'
@@ -224,8 +225,9 @@ export function DashboardClient({
 
   // Export
   const [exportMonth, setExportMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    // Phase 12F — month default in facility tz, not browser tz
+    const p = getLocalParts(new Date(), facility.timezone)
+    return `${p.year}-${String(p.month).padStart(2, '0')}`
   })
   const [exporting, setExporting] = useState(false)
 
@@ -287,6 +289,8 @@ export function DashboardClient({
   }
 
   // FAB tap → open BookingModal with next 30-min slot from now.
+  // setMinutes/setHours operate on browser-local — fine here because the result is
+  // immediately formatted in facility tz by the BookingModal via toDateTimeLocalInTz.
   const openQuickCreate = () => {
     const start = new Date()
     start.setSeconds(0, 0)
@@ -385,13 +389,14 @@ export function DashboardClient({
   // Stylist mobile today-list view
   if (stylistListMode) {
     const greeting = (() => {
-      const h = new Date().getHours()
+      // Phase 12F — greeting hour in facility tz, not viewer's
+      const h = getLocalParts(new Date(), facility.timezone).hours
       if (h < 12) return 'Good morning'
       if (h < 17) return 'Good afternoon'
       return 'Good evening'
     })()
     const firstName = userName.split(' ')[0] || 'there'
-    const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    const todayLabel = formatDateInTz(new Date(), facility.timezone)
 
     return (
       <ErrorBoundary>
@@ -417,7 +422,7 @@ export function DashboardClient({
               </div>
             )}
             {myTodayBookings.map((b) => {
-              const time = new Date(b.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+              const time = formatTime(b.startTime, facility.timezone)
               const isDone = b.status === 'completed'
               return (
                 <div key={b.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-3">
@@ -638,6 +643,7 @@ export function DashboardClient({
             bookings={bookings}
             services={localServices}
             currentView={calendarView}
+            facilityTimezone={facility.timezone}
             onChangeViewRef={changeViewRef}
             onPrevRef={prevRef}
             onNextRef={nextRef}
@@ -671,6 +677,7 @@ export function DashboardClient({
                   todayBookings={todayBookings}
                   todayRevenue={todayRevenue}
                   size={todayCardSize}
+                  facilityTimezone={facility.timezone}
                 />
                 {(workingToday.length > 0 || workingTomorrow.length > 0) && (
                   <div className="shrink-0 mt-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
@@ -785,6 +792,7 @@ export function DashboardClient({
         residents={residents}
         services={localServices}
         facilityId={facility.id}
+        facilityTimezone={facility.timezone}
         onBookingChange={handleBookingChange}
         onBookingDeleted={handleBookingDeleted}
         isAdmin={isAdmin}
@@ -915,16 +923,19 @@ function TodayCard({
   todayBookings,
   todayRevenue,
   size,
+  facilityTimezone,
 }: {
   date: Date
   todayBookings: BookingWithRelations[]
   todayRevenue: number
   size: 'tall' | 'medium' | 'compact'
+  facilityTimezone: string
 }) {
   const completedCount = todayBookings.filter((b) => b.status === 'completed').length
   const pendingCount = todayBookings.filter((b) => b.status !== 'completed').length
-  const longDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-  const shortDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  // Phase 12F — facility-tz dates so "today" matches the facility's clock
+  const longDate = formatDateInTz(date, facilityTimezone, { weekday: 'long', month: 'short', day: 'numeric' })
+  const shortDate = formatDateInTz(date, facilityTimezone, { weekday: undefined, month: 'short', day: 'numeric' })
 
   const isTall = size === 'tall'
 

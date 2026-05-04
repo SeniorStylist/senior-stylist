@@ -69,7 +69,7 @@ export default async function LogPage() {
     }),
     db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
-      columns: { serviceCategoryOrder: true },
+      columns: { serviceCategoryOrder: true, timezone: true },
     }),
   ])
 
@@ -89,6 +89,7 @@ export default async function LogPage() {
       services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}
       serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
+      facilityTimezone={facility?.timezone ?? 'America/New_York'}
       role={facilityUser.role}
     />
   )

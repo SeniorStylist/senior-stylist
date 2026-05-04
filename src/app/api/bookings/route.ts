@@ -336,16 +336,24 @@ export async function POST(request: NextRequest) {
       const fromEmail = process.env.RESEND_FROM_EMAIL
       if (resendApiKey && fromEmail && user.email) {
         const resend = new Resend(resendApiKey)
+        // Phase 12F — confirmation email shows facility-local time
+        const facRow = await db.query.facilities.findFirst({
+          where: eq(facilities.id, facilityId),
+          columns: { timezone: true },
+        })
+        const tz = facRow?.timezone ?? 'America/New_York'
         const dateStr = startTime.toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
           year: 'numeric',
+          timeZone: tz,
         })
         const timeStr = startTime.toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true,
+          timeZone: tz,
         })
         const priceStr = resolvedPrice
           ? `$${(resolvedPrice / 100).toFixed(2)}`

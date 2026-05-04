@@ -112,8 +112,19 @@ export default async function DashboardPage() {
         : Promise.resolve([]),
       facilityUser.role === 'admin'
         ? (async () => {
+            // Phase 12F — "today" / "tomorrow" anchored to facility tz so
+            // a midnight boundary in the viewer's tz can't shift the queried day.
             const today = new Date()
-            const dow = today.getDay()
+            const facilityRow = await db.query.facilities.findFirst({
+              where: eq(facilities.id, facilityUser.facilityId),
+              columns: { timezone: true },
+            })
+            const tz = facilityRow?.timezone ?? 'America/New_York'
+            const localWeekday = new Intl.DateTimeFormat('en-US', {
+              timeZone: tz, weekday: 'short',
+            }).format(today)
+            const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+            const dow = dowMap[localWeekday] ?? today.getDay()
             const tomorrow = (dow + 1) % 7
             const [todayRows, tomorrowRows] = await Promise.all([
               db
