@@ -74,6 +74,7 @@ export async function POST(
         id: stylistPayItems.id,
         stylistId: stylistPayItems.stylistId,
         netPayCents: stylistPayItems.netPayCents,
+        tipCentsTotal: stylistPayItems.tipCentsTotal,
         qbBillId: stylistPayItems.qbBillId,
         periodType: payPeriods.periodType,
         stylistName: stylists.name,
@@ -123,21 +124,44 @@ export async function POST(
         continue
       }
 
+      // Phase 12E — split the Bill into commission/base and tips lines so QB
+      // reporting can break tips out separately. Tips are part of net pay
+      // (engine adds them on top), so the commission line subtracts tips back
+      // out — the two lines sum to item.netPayCents.
+      const tipsTotal = item.tipCentsTotal ?? 0
+      const baseLineCents = item.netPayCents - tipsTotal
+      const billLines: Array<{
+        Amount: number
+        DetailType: 'AccountBasedExpenseLineDetail'
+        AccountBasedExpenseLineDetail: { AccountRef: { value: string } }
+        Description: string
+      }> = [
+        {
+          Amount: baseLineCents / 100,
+          DetailType: 'AccountBasedExpenseLineDetail',
+          AccountBasedExpenseLineDetail: {
+            AccountRef: { value: facility.qbExpenseAccountId },
+          },
+          Description: `${item.stylistName} — ${item.periodType} commission`,
+        },
+      ]
+      if (tipsTotal > 0) {
+        billLines.push({
+          Amount: tipsTotal / 100,
+          DetailType: 'AccountBasedExpenseLineDetail',
+          AccountBasedExpenseLineDetail: {
+            AccountRef: { value: facility.qbExpenseAccountId },
+          },
+          Description: `${item.stylistName} — ${item.periodType} tips`,
+        })
+      }
+
       const payload = {
         VendorRef: { value: vendorId },
         TxnDate: txnDate,
         DueDate: txnDate,
         PrivateNote: note,
-        Line: [
-          {
-            Amount: item.netPayCents / 100,
-            DetailType: 'AccountBasedExpenseLineDetail',
-            AccountBasedExpenseLineDetail: {
-              AccountRef: { value: facility.qbExpenseAccountId },
-            },
-            Description: `${item.stylistName} — ${item.periodType} commission`,
-          },
-        ],
+        Line: billLines,
       }
 
       try {
