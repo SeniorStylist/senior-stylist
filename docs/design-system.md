@@ -45,13 +45,19 @@ Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The 
 
 **FullCalendar time grid config** (`src/components/calendar/calendar-view.tsx`):
 - `slotDuration="00:30:00"` — 30-min grid rows
-- `eventMinHeight={64}` — minimum 64px per event block so resident + service names are always legible. NOTE: FullCalendar 6 uses `eventMinHeight`, NOT `slotMinHeight` (which does not exist in the type definitions).
+- `eventMinHeight={64}` — minimum 64px per event block. NOTE: FullCalendar 6 uses `eventMinHeight`, NOT `slotMinHeight` (which does not exist in the type definitions).
+- `.fc .fc-timegrid-slot { height: 4.5rem !important }` in `globals.css` — 72px per slot, overrides FullCalendar's JS height (CSS `!important` beats inline styles). Do NOT use `expandRows={true}` — it is dead config when this CSS rule is present.
+- `slotEventOverlap={false}` — prevents side-by-side columns for overlapping bookings; overlapping events stack vertically (one pushed below the other in time). This is the stacking rule.
+- `eventOverlap={true}` — allows drag-and-drop events to land on top of other events.
+- `dayMaxEvents={false}` — no "+N more" truncation in month view.
 - `slotMinTime="07:00:00"` / `slotMaxTime="20:00:00"` — visible hours 7am–8pm (not midnight–midnight)
 - `slotLabelInterval="01:00:00"` — axis labels every hour
-- `scrollTime="08:00:00"` — auto-scrolls to 8am on load
+- `scrollTime="08:30:00"` — auto-scrolls to 8:30am on load
 - `timeZone={facilityTimezone}` — **required**; see Phase 12F timezone rule. Without this, blocks render at viewer's local time row.
 - `selectMirror={false}` — NEVER set to true (squish bug documented in CLAUDE.md)
-- Event block text: resident name `text-xs font-semibold truncate leading-tight`; service name `text-xs opacity-80 truncate leading-tight`. All text must use `truncate` — blocks have fixed height and overflow is hidden.
+- **Event block layout**: day view: `[time] ResidentName` / `ServiceName` / `StylistName · $XX.XX` (3 lines). Week view: `[time] ResidentName` / `ServiceName` (2 lines). Month view: `ResidentName` chip only. Time is `formatTimeInTz(arg.event.start!, facilityTimezone)` — `arg.event.start` is already tz-corrected by FullCalendar. Render as `<span className="opacity-70 font-normal mr-1">`. All text uses `truncate`.
+- **Clickable date in calendar header**: button calls `calDateInputRef.current?.showPicker()` on click; `<input type="date" className="sr-only">` hidden but accessible. `onChange` calls `gotoDateRef.current?.(new Date(e.target.value + 'T12:00:00'))`. Date input `value` tracks `calendarStartDate` state, updated on each `datesSet` callback. `gotoDateRef` is a `MutableRefObject` wired to `fcRef.current?.getApi().gotoDate(date)` in CalendarView's `useEffect`. Inline SVG calendar icon (not lucide-react — not installed).
+- **Clickable date in daily log header**: same `showPicker()` pattern. `onChange` calls `navigateDate(e.target.value)` directly (log already works with `YYYY-MM-DD` strings).
 
 ### Service Color Palette
 
