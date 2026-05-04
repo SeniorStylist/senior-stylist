@@ -194,6 +194,7 @@ export async function POST(request: Request) {
       const existingBookings = await tx.query.bookings.findMany({
         where: and(
           eq(bookings.facilityId, facility.id),
+          eq(bookings.active, true),
           sql`${bookings.startTime} >= ${new Date(minDate.getTime() - 86_400_000).toISOString()}`,
           sql`${bookings.startTime} <= ${new Date(maxDate.getTime() + 86_400_000).toISOString()}`,
         ),
