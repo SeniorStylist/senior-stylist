@@ -105,6 +105,10 @@ export const residents = pgTable(
     qbOutstandingBalanceCents: integer('qb_outstanding_balance_cents').default(0),
     residentPaymentType: text('resident_payment_type'),
     lastPortalInviteSentAt: timestamp('last_portal_invite_sent_at', { withTimezone: true }),
+    // Phase 12E: per-resident default tip preference
+    // type='percentage' → value is integer percent (e.g. 15 = 15%); type='fixed' → value is cents
+    defaultTipType: text('default_tip_type'),
+    defaultTipValue: integer('default_tip_value'),
     active: boolean('active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
@@ -315,6 +319,8 @@ export const bookings = pgTable('bookings', {
   needsReview: boolean('needs_review').default(false).notNull(),
   // Phase 12C: soft-delete flag (false = removed via batch rollback or per-booking trash)
   active: boolean('active').default(true).notNull(),
+  // Phase 12E: tip amount in cents (stylist-only — never sums into facility revenue)
+  tipCents: integer('tip_cents'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({

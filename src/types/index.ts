@@ -78,6 +78,8 @@ export interface Resident {
   poaNotificationsEnabled: boolean
   qbCustomerId?: string | null
   lastPortalInviteSentAt?: string | Date | null
+  defaultTipType: string | null
+  defaultTipValue: number | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -215,6 +217,7 @@ export interface Booking {
   recurringParentId: string | null
   googleEventId: string | null
   syncError: string | null
+  tipCents: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
