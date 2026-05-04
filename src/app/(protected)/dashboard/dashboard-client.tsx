@@ -209,7 +209,7 @@ export function DashboardClient({
   const nextRef = useRef<(() => void) | null>(null)
   const todayRef = useRef<(() => void) | null>(null)
   const gotoDateRef = useRef<((date: Date) => void) | null>(null)
-  const calDateInputRef = useRef<HTMLInputElement>(null)
+  const [showCalDatePicker, setShowCalDatePicker] = useState(false)
   const [calendarTitle, setCalendarTitle] = useState('')
   const [calendarStartDate, setCalendarStartDate] = useState<string>(() => {
     const p = getLocalParts(new Date(), facility.timezone)
@@ -595,7 +595,7 @@ export function DashboardClient({
               </button>
               <div className="relative ml-1 flex items-center">
                 <button
-                  onClick={() => calDateInputRef.current?.showPicker()}
+                  onClick={() => setShowCalDatePicker(v => !v)}
                   className="flex items-center gap-1 text-sm font-medium text-stone-700 hover:text-stone-900 cursor-pointer transition-colors"
                   aria-label="Jump to date"
                   title="Jump to date"
@@ -608,16 +608,20 @@ export function DashboardClient({
                     <line x1="3" y1="10" x2="21" y2="10"/>
                   </svg>
                 </button>
-                <input
-                  ref={calDateInputRef}
-                  type="date"
-                  className="sr-only"
-                  value={calendarStartDate}
-                  onChange={(e) => {
-                    if (!e.target.value) return
-                    gotoDateRef.current?.(new Date(e.target.value + 'T12:00:00'))
-                  }}
-                />
+                {showCalDatePicker && (
+                  <input
+                    type="date"
+                    autoFocus
+                    className="absolute top-full left-0 mt-1 z-50 rounded-xl border border-stone-200 shadow-lg bg-white px-3 py-2 text-sm text-stone-700"
+                    value={calendarStartDate}
+                    onChange={(e) => {
+                      if (!e.target.value) return
+                      gotoDateRef.current?.(new Date(e.target.value + 'T12:00:00'))
+                      setShowCalDatePicker(false)
+                    }}
+                    onBlur={() => setShowCalDatePicker(false)}
+                  />
+                )}
               </div>
             </div>
             {/* Right: view switcher + export */}
@@ -691,7 +695,7 @@ export function DashboardClient({
 
       {/* ── Right panel — hidden on mobile ── */}
       <div
-        className="hidden md:flex w-[300px] shrink-0 flex-col h-full p-4 pl-0 gap-3"
+        className="hidden md:flex w-80 shrink-0 flex-col h-full border-l border-stone-100 p-4 pl-3 gap-3"
         style={{ backgroundColor: 'var(--color-panel-bg)' }}
       >
         {isAdmin ? (

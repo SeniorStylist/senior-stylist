@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
@@ -133,7 +133,7 @@ export function LogClient({
   // facility_staff and bookkeeper are read-only on the daily log
   const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist'
   const [date, setDate] = useState(initialDate)
-  const logDateInputRef = useRef<HTMLInputElement>(null)
+  const [showLogDatePicker, setShowLogDatePicker] = useState(false)
   const [bookings, setBookings] = useState(initialBookings)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [loading, setLoading] = useState(false)
@@ -496,7 +496,7 @@ export function LogClient({
           <div className="flex items-center justify-center gap-2">
             <div className="relative inline-flex items-center">
               <button
-                onClick={() => logDateInputRef.current?.showPicker()}
+                onClick={() => setShowLogDatePicker(v => !v)}
                 className="flex items-center gap-1.5 text-xl font-normal text-stone-900 hover:text-stone-600 cursor-pointer transition-colors"
                 style={{ fontFamily: "'DM Serif Display', serif" }}
                 aria-label="Jump to date"
@@ -510,15 +510,21 @@ export function LogClient({
                   <line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
               </button>
-              <input
-                ref={logDateInputRef}
-                type="date"
-                className="sr-only"
-                value={date}
-                onChange={(e) => {
-                  if (e.target.value) navigateDate(e.target.value)
-                }}
-              />
+              {showLogDatePicker && (
+                <input
+                  type="date"
+                  autoFocus
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 rounded-xl border border-stone-200 shadow-lg bg-white px-3 py-2 text-sm text-stone-700"
+                  value={date}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      navigateDate(e.target.value)
+                      setShowLogDatePicker(false)
+                    }
+                  }}
+                  onBlur={() => setShowLogDatePicker(false)}
+                />
+              )}
             </div>
             {loading && (
               <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin shrink-0" />
