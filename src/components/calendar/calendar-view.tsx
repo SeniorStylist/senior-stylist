@@ -5,6 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
+import intlTzPlugin from '@/lib/fullcalendar-tz-plugin'
 import { useRef, useEffect } from 'react'
 import { formatCents } from '@/lib/utils'
 import { formatTimeInTz } from '@/lib/time'
@@ -102,7 +103,7 @@ export default function CalendarView({
     <div className="h-full p-3">
       <FullCalendar
         ref={fcRef}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, intlTzPlugin]}
         timeZone={facilityTimezone}
         initialView={currentView}
         selectMirror={false}
