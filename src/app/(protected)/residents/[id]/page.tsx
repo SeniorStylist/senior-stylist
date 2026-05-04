@@ -36,7 +36,8 @@ export default async function ResidentDetailPage({
   const residentBookings = await db.query.bookings.findMany({
     where: and(
       eq(bookings.residentId, id),
-      eq(bookings.facilityId, facilityUser.facilityId)
+      eq(bookings.facilityId, facilityUser.facilityId),
+      eq(bookings.active, true)
     ),
     with: {
       stylist: true,
