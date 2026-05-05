@@ -56,6 +56,7 @@ interface LogClientProps {
   services: Service[]
   stylistFilter?: string | null
   serviceCategoryOrder?: string[] | null
+  role?: string
 }
 
 // Round a date to nearest 30 min
@@ -104,7 +105,9 @@ export function LogClient({
   services,
   stylistFilter,
   serviceCategoryOrder,
+  role,
 }: LogClientProps) {
+  const canAddWalkIn = role !== 'bookkeeper'
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
   const [date, setDate] = useState(initialDate)
   const [bookings, setBookings] = useState(initialBookings)
@@ -1159,16 +1162,18 @@ export function LogClient({
             </svg>
             Scan log sheet
           </button>
-          <button
-            onClick={() => setShowWalkIn(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add walk-in
-          </button>
+          {canAddWalkIn && (
+            <button
+              onClick={() => setShowWalkIn(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add walk-in
+            </button>
+          )}
         </div>
       )}
 
@@ -1186,16 +1191,18 @@ export function LogClient({
             </svg>
             Scan log sheet
           </button>
-          <button
-            onClick={() => setShowWalkIn(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add walk-in
-          </button>
+          {canAddWalkIn && (
+            <button
+              onClick={() => setShowWalkIn(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add walk-in
+            </button>
+          )}
         </div>
       )}
 

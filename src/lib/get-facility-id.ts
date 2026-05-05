@@ -3,12 +3,26 @@ import { db } from '@/db'
 import { facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 
-/**
- * Normalize 'super_admin' → 'admin' so page guards and API guards
- * work uniformly for franchise owners without touching every call site.
- * The Super Admin page/link is gated by NEXT_PUBLIC_SUPER_ADMIN_EMAIL
- * (email match), not by role, so this normalization is safe.
- */
+export function isAdminOrAbove(role: string): boolean {
+  return role === 'admin' || role === 'super_admin'
+}
+
+export function isFacilityStaff(role: string): boolean {
+  return role === 'facility_staff'
+}
+
+export function canAccessBilling(role: string): boolean {
+  return isAdminOrAbove(role) || role === 'bookkeeper' || role === 'facility_staff'
+}
+
+export function canAccessPayroll(role: string): boolean {
+  return isAdminOrAbove(role) || role === 'bookkeeper'
+}
+
+export function canScanLogs(role: string): boolean {
+  return isAdminOrAbove(role) || role === 'bookkeeper'
+}
+
 function normalizeRole<T extends { role: string }>(fu: T): T {
   return fu.role === 'super_admin' ? { ...fu, role: 'admin' } : fu
 }

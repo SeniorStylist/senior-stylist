@@ -53,6 +53,7 @@
 - `role 'admin'` — full access to everything
 - `role 'stylist'` — calendar, log, own earnings only; no reports, no settings
 - `role 'viewer'` — read-only, no edits
+- `role 'bookkeeper'` — scan log sheets + edit booking fields (service/price/payment/notes/resident); billing + payroll read; CANNOT create bookings, cancel, reschedule, or change stylist. Home page is `/log` (redirected from `/dashboard`). API helpers: `canScanLogs()` gates `/api/log/ocr/*`; bookkeeper PUT `/api/bookings/[id]` enforces field allowlist server-side.
 - `role 'super_admin'` — franchise owner; scoped to only the facilities in their franchise (via `franchises` + `franchise_facilities` tables)
   - Facility switcher in `layout.tsx` filters to franchise facilities only
   - Assigned via `facility_users.role = 'super_admin'` by master admin
@@ -104,6 +105,8 @@
 - `revalidateTag` in Next.js 16 takes TWO args — `revalidateTag('bookings', {})` not `revalidateTag('bookings')`
 - **Date parsing:** Use `new Date(d + 'T00:00:00')` (appending local time) — avoid `new Date('YYYY-MM-DD')` which is UTC-midnight and shifts back one day in negative-UTC-offset timezones
 - **Dashboard Services panel** — NEVER use `formatCents(service.priceCents)` in `services-panel.tsx`; always use `formatPricingLabel(service)` from `src/lib/pricing.ts`. The panel receives a pre-sorted list from `dashboard-client.tsx` (sorted via `service-sort.ts` helpers respecting `facility.serviceCategoryOrder`) — do not sort inside the panel itself
+- **Bookkeeper booking edits** — PUT `/api/bookings/[id]` enforces a field allowlist for the `bookkeeper` role: allowed fields are `residentId, serviceId, serviceIds, addonServiceIds, selectedQuantity, selectedOption, addonChecked, priceCents, notes, paymentStatus`. Any other field (stylistId, startTime, status, cancellationReason) or `cancelFuture=true` returns 403. Do NOT relax this allowlist without explicit approval.
+- **`canScanLogs(role)`** is in `src/lib/get-facility-id.ts` — returns true for `admin`, `super_admin`, `bookkeeper`. Both `/api/log/ocr/route.ts` and `/api/log/ocr/import/route.ts` use it instead of bare `role !== 'admin'`.
 
 ---
 

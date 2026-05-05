@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
 
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!canScanLogs(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     const rl = await checkRateLimit('ocr', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)

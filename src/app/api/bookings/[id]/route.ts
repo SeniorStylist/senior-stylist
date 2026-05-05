@@ -107,6 +107,18 @@ export async function PUT(
 
     const { cancelFuture, ...updates } = parsed.data
 
+    // Bookkeepers can correct service/price/payment data but cannot reschedule, reassign, or cancel
+    if (facilityUser.role === 'bookkeeper') {
+      const BOOKKEEPER_ALLOWED = new Set([
+        'residentId', 'serviceId', 'serviceIds', 'addonServiceIds',
+        'selectedQuantity', 'selectedOption', 'addonChecked',
+        'priceCents', 'notes', 'paymentStatus',
+      ])
+      if (cancelFuture || Object.keys(updates).some(k => !BOOKKEEPER_ALLOWED.has(k))) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     // Handle cancel-future for recurring bookings
     if (cancelFuture && existing.recurringParentId) {
       await db

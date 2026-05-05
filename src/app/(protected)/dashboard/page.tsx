@@ -56,6 +56,9 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
+  // Bookkeepers work in the daily log — redirect them there as home
+  if (facilityUser.role === 'bookkeeper') redirect('/log')
+
   // If stylist, look up linked stylist record for filtering
   let profileStylistId: string | null = null
   if (facilityUser.role === 'stylist') {

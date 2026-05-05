@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { residents, services, bookings } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isMasterAdmin = superAdminEmail && user.email === superAdminEmail
-    if (!isMasterAdmin && facilityUser.role !== 'admin') {
+    if (!isMasterAdmin && !canScanLogs(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

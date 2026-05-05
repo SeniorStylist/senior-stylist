@@ -88,6 +88,7 @@ export default async function LogPage() {
       services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}
       serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
+      role={facilityUser.role}
     />
   )
   } catch (err) {
