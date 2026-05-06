@@ -80,7 +80,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 
 | Route | Guard | Notes |
 |-------|-------|-------|
-| `/dashboard` | bookkeeper → redirect `/billing` | Bookkeeper's home is billing, not the calendar |
+| `/dashboard` | bookkeeper → redirect `/log` | Bookkeeper's home is the daily log (can scan + edit billing fields) |
 | `/billing` | `!canAccessBilling(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
 | `/analytics` | `!canAccessBilling(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
 | `/payroll` | `!canAccessPayroll(role)` → redirect `/dashboard` | Allows admin + bookkeeper |
@@ -119,6 +119,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - `canAccessBilling(role)` — `admin`, `super_admin`, `bookkeeper`
 - `canAccessPayroll(role)` — `admin`, `super_admin`, `bookkeeper`
 - `isFacilityStaff(role)` — `facility_staff`
+- `canScanLogs(role)` — `admin`, `super_admin`, `bookkeeper` (added Phase 11J.1 expansion: bookkeeper can upload + OCR log sheets)
 
 **Routes that allow `bookkeeper` via `canAccessBilling` / `canAccessPayroll`** (Phase 11J.1):
 - `/api/billing/*` (summary, scan-check, save-check-payment, send-statement/*, unresolved, unresolved-count)
@@ -128,12 +129,18 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - `/api/pay-periods/*` (all routes including items + deductions + export)
 - `/api/quickbooks/*` (connect, disconnect, accounts, sync-vendors, sync-bill, sync-status)
 
+**Routes that allow `bookkeeper` via `canScanLogs`** (Phase 11J.1 expansion):
+- `POST /api/log/ocr` — upload + OCR log sheet images
+- `POST /api/log/ocr/import` — commit OCR-reviewed entries to bookings
+
+**`PUT /api/bookings/[id]` — bookkeeper field restriction**: bookkeeper is now allowed but server-side strips disallowed fields. `BOOKKEEPER_ALLOWED` set: `residentId, serviceId, serviceIds, addonServiceIds, addonChecked, priceCents, paymentStatus, notes, tipCents, selectedQuantity, selectedOption`. Fields `stylistId`, `startTime`, `status`, `cancellationReason` are silently dropped — bookkeeper cannot reschedule or cancel bookings.
+
 **Routes that allow `facility_staff` via positive guard** (Phase 11J.1):
 - `POST /api/bookings`, `PUT /api/bookings/[id]`, `DELETE /api/bookings/[id]`, `POST /api/bookings/recurring` — admin OR facility_staff OR stylist (existing stylist-self check on PUT preserved at line 94-98)
 - `POST /api/residents`, `PUT /api/residents/[id]`, `DELETE /api/residents/[id]` — admin OR facility_staff
 - `GET /api/residents`, `GET /api/residents/[id]` — unchanged (any facility user, including bookkeeper)
 
-**Routes that stay strict admin-only**: services (`/api/services/*`), stylists (`/api/stylists/*`), invites (`/api/invites/*`), applicants (`/api/applicants/*`), compliance (`/api/compliance/*`), coverage (`/api/coverage/*`), availability (`/api/availability/*`), super-admin (`/api/super-admin/*`), access-requests (`/api/access-requests/*`), facility (`/api/facility/*`), `/api/log/ocr/*`, portal admin (`/api/portal/create-magic-link`, `/api/portal/send-invite`), `/api/stylists/[id]/invite`. Their existing `role !== 'admin'` guards already exclude `facility_staff`, `bookkeeper`, and `viewer` — no changes needed.
+**Routes that stay strict admin-only**: services (`/api/services/*`), stylists (`/api/stylists/*`), invites (`/api/invites/*`), applicants (`/api/applicants/*`), compliance (`/api/compliance/*`), coverage (`/api/coverage/*`), availability (`/api/availability/*`), super-admin (`/api/super-admin/*`), access-requests (`/api/access-requests/*`), facility (`/api/facility/*`), portal admin (`/api/portal/create-magic-link`, `/api/portal/send-invite`), `/api/stylists/[id]/invite`. Their existing `role !== 'admin'` guards already exclude `facility_staff`, `bookkeeper`, and `viewer` — no changes needed. (Note: `/api/log/ocr/*` was removed from this list — it now uses `canScanLogs` which includes bookkeeper.)
 
 ### Special cases
 
