@@ -95,7 +95,7 @@ The `isPublic` allowlist inside the middleware body is now a SUBSET of routes th
 - `role 'admin'` — full facility access
 - `role 'super_admin'` — franchise owner; scoped to only the facilities in their franchise. **Normalized to `'admin'` by `normalizeRole()` at `getUserFacility()` read time** so all page guards, API guards, and nav filters work uniformly. The Master Admin page/link remains gated by `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` email match (not role).
 - `role 'facility_staff'` (Phase 11J.1) — scheduling and resident management; NO billing/payroll/analytics. Sees Calendar / Residents / Daily Log (read-only) / Settings.
-- `role 'bookkeeper'` (Phase 11J.1) — billing + payroll + analytics; READ-ONLY on residents and daily log. Sees Daily Log (read-only) / Billing / Analytics / Payroll / Settings.
+- `role 'bookkeeper'` (Phase 11J.1, expanded 2026-05-06) — billing + payroll + analytics + log sheet scanning + booking field edits (service/price/paymentStatus/notes/resident — NOT date/time/stylist/cancel). READ-ONLY on residents. Sees Daily Log (scan + edit booking billing fields) / Billing / Analytics / Payroll / Settings. Home page is `/log` (redirected from `/dashboard`).
 - `role 'stylist'` — calendar, daily log (own entries), my account only; no residents, no billing.
 - `role 'viewer'` — legacy read-only role. Kept in the type union for backward compat; **no longer offered in the invite picker**.
 - Master admin email bypasses all role checks via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` env var.
@@ -105,10 +105,11 @@ The `isPublic` allowlist inside the middleware body is now a SUBSET of routes th
 - `canAccessBilling(role)` → true for `admin`, `super_admin`, `bookkeeper` (use on `/api/billing/*`, statement send, scan-check, reports, rev-share, bookkeeper export)
 - `canAccessPayroll(role)` → true for `admin`, `super_admin`, `bookkeeper` (use on `/api/pay-periods/*`, `/api/quickbooks/*`)
 - `isFacilityStaff(role)` → true for `facility_staff` only
-- Use these in route guards instead of bare `role !== 'admin'` whenever bookkeeper or facility_staff should be allowed. Other admin-only routes (services, stylists, invites, applicants, compliance, coverage, availability, super-admin, log/ocr) keep the bare `role !== 'admin'` guard — that already excludes the new roles.
+- `canScanLogs(role)` → true for `admin`, `super_admin`, `bookkeeper` (use on `/api/log/ocr/*`)
+- Use these in route guards instead of bare `role !== 'admin'` whenever bookkeeper or facility_staff should be allowed. Other admin-only routes (services, stylists, invites, applicants, compliance, coverage, availability, super-admin) keep the bare `role !== 'admin'` guard. `/api/log/ocr/*` now uses `canScanLogs` — bookkeeper can scan.
 
 **Server-side page guards** (Phase 11J.1 fix — guards in `page.tsx`, OUTSIDE try/catch):
-- `/dashboard` → bookkeeper: redirect('/billing') (their home is billing, not the calendar)
+- `/dashboard` → bookkeeper: redirect('/log') (their home is the daily log for scan corrections)
 - `/billing`, `/analytics` → `!canAccessBilling(role)`: redirect('/dashboard')
 - `/payroll`, `/payroll/[id]` → `!canAccessPayroll(role)`: redirect('/dashboard')
 - `/settings` → `role === 'stylist' || role === 'viewer'`: redirect('/dashboard') — facility_staff + bookkeeper allowed
@@ -257,17 +258,16 @@ The `isPublic` allowlist inside the middleware body is now a SUBSET of routes th
 - **Admin booking modal is date-driven (2026-04-25)** — `stylistId` is auto-assigned via `resolveAvailableStylists()` + `pickStylistWithLeastLoad()` (the same helpers the resident portal uses). The modal previews the picked stylist read-only via `GET /api/stylists/available?facilityId=…&startTime=…&endTime=…`. The `<select>` dropdown for stylist is GONE — never re-add it. `POST /api/bookings` and `POST /api/bookings/recurring` accept `stylistId` as optional; on omit they auto-resolve, returning 409 (single) or `skipped: [{date, reason}]` (recurring) when no stylist is on schedule. `BookingModal` requires a `facilityId: string` prop (not a `stylists` array)
 - **Sidebar facility switcher is admin-only** — `showSwitcher = allFacilities.length > 1 && role === 'admin'` (`sidebar.tsx:229`). The fallback "+ Add facility" link below the logo is also gated on `role === 'admin'` (line 340 region). Stylists must never see facility-switching or facility-creation UI even if they belong to multiple facilities
 
-### Dashboard right panel resize
-- Dashboard right panel uses `react-resizable-panels` v2 (`PanelGroup direction="vertical" autoSaveId="dashboard-right-panel"`) to split the top zone (Today + Who's Working + Coverage) from the bottom zone (Tabs + list). Stat pills are a `shrink-0` sibling BELOW the PanelGroup — not inside it. `autoSaveId` handles localStorage persistence; no manual read/write.
-- Panel sizes are percentages (not pixels): top `defaultSize={28} minSize={14} maxSize={70}`, bottom `defaultSize={60} minSize={30}`. The top `maxSize=70` is intentionally the complement of the bottom `minSize=30` — the two panels always sum to 100 and neither can be pushed below the other's floor. Bottom has no maxSize (top's minSize of 14 allows bottom to expand up to 86%). Library clamps drags automatically.
-- The Today card has three adaptive layout modes driven by a `ResizeObserver` on the top panel content div: `tall` (>220px, shows 2×2 stat grid), `medium` (140–220px, hides stat grid, keeps date + summary line), `compact` (<140px, single-row flex with big count + date stack). See `TodayCard` component in `dashboard-client.tsx`. Compact uses `px-4 py-2.5` internal padding so the card squishes to ~72px minimum.
-- Non-admins skip the `PanelGroup` entirely — the list zone renders in a plain `flex-1 min-h-0` div. No resize handle.
-- Handle visual: horizontal divider line (`bg-stone-200`) with a white "grab dots" pill centred on top. Uses `group-data-[resize-handle-active]` Tailwind selector to switch to burgundy while dragging (the library sets that data attribute natively).
-- Motion: `[data-panel]` has `transition: flex-basis 180ms cubic-bezier(0.25, 0.46, 0.45, 0.94)` + `will-change: flex-basis` (globals.css). Transition is suppressed during active drag via `[data-panel-group][data-dragging] [data-panel] { transition: none !important }` — the `data-dragging` attribute is toggled on the PanelGroup root via `document.querySelector('[data-panel-group-id="dashboard-right-panel"]')` inside `PanelResizeHandle.onDragging`.
-- Magnetic snap: three resting positions (18 / 28 / 48 percent) with a 5pp threshold. On drag release, `topPanelRef.current.getSize()` is compared to the nearest snap point; if within threshold, `topPanelRef.current.resize(nearest)` triggers the animated settle via the CSS transition. `ImperativePanelHandle` from `react-resizable-panels` provides `getSize` + `resize`.
-- Handle dots wrapper carries `.resize-handle-dots` class; CSS rule scales child dots to `1.4×` and fills them `#8B2E4A` via `[data-resize-handle-active] .resize-handle-dots > div`. Dot divs drop inline hover/active color classes — CSS is the source of truth.
-- `TodayCard` uses a single DOM for `tall` + `medium` so the 2×2 stats grid and the summary line can crossfade via `opacity + max-h + scale` (200ms ease-out). `compact` stays its own branch because flex-direction flips to row.
-- `bottomZoneContent` outer has `overscrollBehavior: 'contain'` + `scroll-smooth` so inner list scroll doesn't bubble into the page.
+### Dashboard right panel layout (2026-05-06 — simplified)
+- **`react-resizable-panels` was removed (2026-05-06).** The right panel is now a simple `flex-col h-full` with three zones: pinned top, scrollable middle, pinned bottom. **NEVER re-add PanelGroup/PanelResizeHandle to this component** — the drag handle caused layout bugs and content cutoff.
+- **Structure** (`dashboard-client.tsx` right panel, lines ~696+):
+  1. **Pinned top** (admin-only `{isAdmin && <> ... </>}`) — `TodayCard` (fixed `size="medium"`), compact "Who's Working Today" strip, Coverage Queue (capped `max-h-[160px]`)
+  2. **Scrollable middle** — `<div className="flex-1 min-h-0 overflow-hidden">` wrapping `bottomZoneContent` (tabs + list)
+  3. **Pinned bottom** — `shrink-0` stats tiles (This Week / This Month for admin, Today count for non-admin)
+- `TodayCard` is always rendered at `size="medium"` — no adaptive `ResizeObserver` or `todayCardSize` state. The 2×2 stat grid lives in the bottom stats tiles, not TodayCard.
+- Who's Working strip is compact: `text-[10px]` header label, flex-wrap row of `[colored dot] FirstName` pairs (first name only via `s.name.split(' ')[0]`). Tomorrow stylists on a single truncated line.
+- `bottomZoneContent` uses `h-full flex flex-col` internally — works correctly inside `flex-1 min-h-0 overflow-hidden`.
+- `overscrollBehavior: 'contain'` + `scroll-smooth` on `bottomZoneContent`'s outer div prevent scroll bubbling.
 
 ### OCR / Gemini
 - Call Gemini REST API **directly via `fetch`** to `v1beta` endpoint — do NOT use the `@google/generative-ai` SDK

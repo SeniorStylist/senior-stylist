@@ -56,7 +56,7 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
-  if (facilityUser.role === 'bookkeeper') redirect('/billing')
+  if (facilityUser.role === 'bookkeeper') redirect('/log')
 
   // If stylist, look up linked stylist record for filtering
   let profileStylistId: string | null = null

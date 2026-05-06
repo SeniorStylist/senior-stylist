@@ -130,8 +130,8 @@ export function LogClient({
   role = 'admin',
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
-  // facility_staff and bookkeeper are read-only on the daily log
-  const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist'
+  // facility_staff is read-only; bookkeeper can scan and edit billing fields
+  const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist' || role === 'bookkeeper'
   const [date, setDate] = useState(initialDate)
   const [showLogDatePicker, setShowLogDatePicker] = useState(false)
   const [bookings, setBookings] = useState(initialBookings)

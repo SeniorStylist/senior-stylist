@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels'
 import { BookingModal } from '@/components/calendar/booking-modal'
 import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -96,8 +95,6 @@ function formatHHMM(t: string): string {
   return `${hour}:${m.toString().padStart(2, '0')}${ampm}`
 }
 
-const SNAP_POINTS = [18, 28, 48] as const
-const SNAP_THRESHOLD = 5
 const TODAY_CARD_BASE = 'shrink-0 rounded-2xl text-white shadow-[var(--shadow-md)] transition-all duration-200 ease-out'
 const TODAY_CARD_GRADIENT = { background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }
 
@@ -147,30 +144,6 @@ export function DashboardClient({
   const [coverageQueue, setCoverageQueue] = useState<CoverageRequest[]>(openCoverageRequests)
   const openCoverageCount = coverageQueue.length
 
-  // Right panel resize — track top panel pixel height for adaptive TodayCard layout
-  const topPanelContentRef = useRef<HTMLDivElement>(null)
-  const topPanelRef = useRef<ImperativePanelHandle>(null)
-  const panelGroupRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => {
-    panelGroupRef.current = document.querySelector('[data-panel-group-id="dashboard-right-panel"]')
-  }, [])
-  const [todayCardSize, setTodayCardSize] = useState<'tall' | 'medium' | 'compact'>('tall')
-
-  useEffect(() => {
-    if (!isAdmin) return
-    const el = topPanelContentRef.current
-    if (!el) return
-    const obs = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const h = entry.contentRect.height
-        const next = h > 220 ? 'tall' : h > 140 ? 'medium' : 'compact'
-        setTodayCardSize((prev) => (prev === next ? prev : next))
-      }
-    })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [isAdmin])
 
   const isMobile = useIsMobile()
   const { toast } = useToast()
@@ -270,22 +243,6 @@ export function DashboardClient({
     }
   }, [])
 
-  const handlePanelDrag = useCallback((isDragging: boolean) => {
-    const group = panelGroupRef.current
-    if (group) {
-      if (isDragging) group.setAttribute('data-dragging', 'true')
-      else group.removeAttribute('data-dragging')
-    }
-    if (!isDragging && topPanelRef.current) {
-      const current = topPanelRef.current.getSize()
-      const nearest = SNAP_POINTS.reduce((a, b) =>
-        Math.abs(b - current) < Math.abs(a - current) ? b : a
-      )
-      if (Math.abs(nearest - current) <= SNAP_THRESHOLD) {
-        topPanelRef.current.resize(nearest)
-      }
-    }
-  }, [])
 
   const openCreateModal = (start: Date, end: Date) => {
     setEditBookingId(null)
@@ -698,102 +655,76 @@ export function DashboardClient({
         className="hidden md:flex w-80 shrink-0 flex-col h-full border-l border-stone-100 p-4 pl-3 gap-3"
         style={{ backgroundColor: 'var(--color-panel-bg)' }}
       >
-        {isAdmin ? (
-          <PanelGroup
-            direction="vertical"
-            autoSaveId="dashboard-right-panel"
-            className="flex-1 min-h-0"
-          >
-            <Panel ref={topPanelRef} id="today-zone" order={1} defaultSize={28} minSize={14} maxSize={70}>
-              <div
-                ref={topPanelContentRef}
-                className="h-full flex flex-col overflow-y-auto pr-0.5"
-              >
-                <TodayCard
-                  date={new Date()}
-                  todayBookings={todayBookings}
-                  todayRevenue={todayRevenue}
-                  size={todayCardSize}
-                  facilityTimezone={facility.timezone}
-                />
-                {(workingToday.length > 0 || workingTomorrow.length > 0) && (
-                  <div className="shrink-0 mt-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
-                    <div className="px-4 py-3 border-b border-stone-100">
-                      <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                        Who&apos;s Working Today
-                      </p>
-                    </div>
-                    <div className="px-4 py-3 space-y-2">
-                      {workingToday.length > 0 ? (
-                        workingToday.map((s) => (
-                          <div key={s.id} className="flex items-center gap-2 text-sm">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: s.color }}
-                            />
-                            <span className="font-medium text-stone-800 flex-1 min-w-0 truncate">{s.name}</span>
-                            <span className="text-stone-400 text-xs shrink-0">
-                              {formatHHMM(s.startTime)}–{formatHHMM(s.endTime)}
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-stone-400 italic">No stylists scheduled today</p>
-                      )}
-                      {workingTomorrow.length > 0 && (
-                        <p className="text-xs text-stone-400 pt-1.5 border-t border-stone-50">
-                          <span className="font-medium">Tomorrow:</span>{' '}
-                          {workingTomorrow.map((s) => s.name).join(', ')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {coverageQueue.length > 0 && (
-                  <div id="coverage-queue" className="shrink-0 mt-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
-                    <div className="px-4 py-3 border-b border-stone-100">
-                      <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                        Coverage Requests
-                      </p>
-                    </div>
-                    <ul className="max-h-[320px] overflow-y-auto divide-y divide-stone-100">
-                      {coverageQueue.map((r) => (
-                        <CoverageQueueRow
-                          key={r.id}
-                          request={r}
-                          stylists={stylists.filter((s) => s.id !== r.stylistId)}
-                          onAssigned={(id) => setCoverageQueue((prev) => prev.filter((x) => x.id !== id))}
+        {/* Pinned top — admin-only */}
+        {isAdmin && (
+          <>
+            <TodayCard
+              date={new Date()}
+              todayBookings={todayBookings}
+              todayRevenue={todayRevenue}
+              size="medium"
+              facilityTimezone={facility.timezone}
+            />
+
+            {(workingToday.length > 0 || workingTomorrow.length > 0) && (
+              <div className="shrink-0 bg-white rounded-2xl border border-stone-100 px-4 py-3 shadow-sm">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-2">
+                  Who&apos;s Working Today
+                </p>
+                {workingToday.length > 0 ? (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                    {workingToday.map((s) => (
+                      <div key={s.id} className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: s.color }}
                         />
-                      ))}
-                    </ul>
+                        <span className="text-[12px] font-medium text-stone-700 truncate">
+                          {s.name.split(' ')[0]}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <p className="text-xs text-stone-400 italic">No stylists today</p>
+                )}
+                {workingTomorrow.length > 0 && (
+                  <p className="text-[11px] text-stone-400 mt-2 pt-1.5 border-t border-stone-50 truncate">
+                    <span className="font-medium">Tomorrow:</span>{' '}
+                    {workingTomorrow.map((s) => s.name.split(' ')[0]).join(', ')}
+                  </p>
                 )}
               </div>
-            </Panel>
+            )}
 
-            <PanelResizeHandle
-              onDragging={handlePanelDrag}
-              className="group relative h-3 -mt-1 flex items-center justify-center cursor-ns-resize touch-none shrink-0 focus-visible:outline-none"
-            >
-              <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-px bg-stone-200 group-hover:bg-[#8B2E4A]/40 group-data-[resize-handle-active]:bg-[#8B2E4A] transition-colors duration-150" />
-              <div className="resize-handle-dots relative z-10 flex items-center gap-[3px] px-2 py-0.5 rounded-full bg-white border border-stone-200 group-hover:border-[#C4687A] group-data-[resize-handle-active]:border-[#8B2E4A] group-data-[resize-handle-active]:bg-[#8B2E4A]/5 transition-all duration-150 shadow-sm">
-                <div className="w-[3px] h-[3px] rounded-full bg-stone-300" />
-                <div className="w-[3px] h-[3px] rounded-full bg-stone-300" />
-                <div className="w-[3px] h-[3px] rounded-full bg-stone-300" />
+            {coverageQueue.length > 0 && (
+              <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-stone-100">
+                  <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">
+                    Coverage Requests
+                  </p>
+                </div>
+                <ul className="max-h-[160px] overflow-y-auto divide-y divide-stone-100">
+                  {coverageQueue.map((r) => (
+                    <CoverageQueueRow
+                      key={r.id}
+                      request={r}
+                      stylists={stylists.filter((s) => s.id !== r.stylistId)}
+                      onAssigned={(id) => setCoverageQueue((prev) => prev.filter((x) => x.id !== id))}
+                    />
+                  ))}
+                </ul>
               </div>
-            </PanelResizeHandle>
-
-            <Panel id="list-zone" order={2} defaultSize={60} minSize={30}>
-              {bottomZoneContent}
-            </Panel>
-          </PanelGroup>
-        ) : (
-          <div className="flex-1 min-h-0">
-            {bottomZoneContent}
-          </div>
+            )}
+          </>
         )}
 
-        {/* Stats pills — pinned at bottom, outside PanelGroup */}
+        {/* Scrollable middle — tabs + list */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {bottomZoneContent}
+        </div>
+
+        {/* Stats tiles — pinned at bottom */}
         <div className="shrink-0 rounded-2xl border border-stone-100 bg-stone-50/70 px-3 py-3 shadow-sm">
           {isAdmin && periodStats ? (
             <div className="grid grid-cols-2 gap-2">

@@ -390,6 +390,7 @@ Per-stylist OAuth2, booking → calendar event sync.
 ## 6. CURRENT STATUS
 
 ### Working
+- Dashboard right panel redesign (2026-05-06): Removed `react-resizable-panels` (PanelGroup / PanelResizeHandle / ImperativePanelHandle) from `dashboard-client.tsx`. The drag handle caused content cutoff and layout jank. Replaced with a simple `flex-col h-full`: pinned top zone (TodayCard at fixed `size="medium"` + compact Who's Working strip + Coverage Queue), scrollable middle (`flex-1 min-h-0 overflow-hidden` wrapping bottomZoneContent), pinned bottom stats tiles. Removed `todayCardSize` state, ResizeObserver useEffect, `topPanelRef`/`panelGroupRef`/`topPanelContentRef` refs, `handlePanelDrag` callback, `SNAP_POINTS`/`SNAP_THRESHOLD` constants. Both admin and non-admin paths now share the same outer structure.
 - Daily log active=true filter (2026-05-04): `GET /api/log/route.ts` was missing `eq(bookings.active, true)` — rolled-back import bookings (`active=false`) leaked into every date-navigation call, showing residents 4× in the log. `page.tsx` initial SSR load was already correct. Also fixed `residents/[id]/page.tsx` which had the same omission (inflating visit count + total spent). Commit: `1ab3a0a`.
 - Mobile date picker + right panel layout (2026-05-04): Replaced `input.showPicker()` (not supported on iOS Safari) with a state-based visible `<input type="date">` that appears inline when the calendar icon is clicked — works natively on iOS/Android/desktop. Pattern: `showCalDatePicker` boolean state in dashboard, `showLogDatePicker` in log; input conditionally rendered with `autoFocus`, `onBlur` closes it. Right panel: `w-[300px]` → `w-80`, added `border-l border-stone-100`, `pl-0` → `pl-3`. Commit: `aa0c656`.
 - FullCalendar timezone plugin (2026-05-04): `timeZone={facilityTimezone}` alone only fixes axis *label* formatting — event block *positioning* still used browser-local `getHours()`/`getMinutes()`. Fixed by registering a custom `NamedTimeZoneImpl` plugin (`src/lib/fullcalendar-tz-plugin.ts`) that uses native `Intl.DateTimeFormat` for UTC→facility-local conversion. Zero new npm dependencies. Key gotcha: FullCalendar's `PluginDefInput` uses `namedTimeZonedImpl` (typo — extra "d") not `namedTimeZoneImpl`. Commit: `84ea21f`.
@@ -513,17 +514,18 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 11N/M/audit all shipped. Next priorities:
+Phase 11N/M/audit + right panel redesign all shipped. Next priorities:
 
-1. **Add Senior Stylist favicon** — place logo as `favicon.ico` + `icon.png` in `src/app/` (Next.js App Router picks these up automatically). Ideally use just the scissor/heart logomark (not the full wordmark) scaled for 32×32 and 180×180. The only existing logo file is `/public/Seniorstylistlogo.jpg` (full wordmark).
-2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
+1. **Expand bookkeeper permissions** (IN PROGRESS — plan approved 2026-05-06): Bookkeepers need log sheet scanning + booking edits. Changes: (a) new `canScanLogs(role)` helper in `get-facility-id.ts`; (b) `/api/log/ocr/*` guards updated from `role !== 'admin'` to `!canScanLogs(role)`; (c) `PUT /api/bookings/[id]` updated to allow bookkeeper with restricted field set (residentId/serviceId/priceCents/paymentType/notes/tipCents only — no status/stylistId/startTime/endTime); (d) `canWrite` in `log-client.tsx` expanded to include bookkeeper; (e) bookkeeper dashboard redirect changed from `/billing` to `/log`.
+2. **Add Senior Stylist favicon** — place logo as `favicon.ico` + `icon.png` in `src/app/` (Next.js App Router picks these up automatically). Ideally use just the scissor/heart logomark (not the full wordmark) scaled for 32×32 and 180×180. The only existing logo file is `/public/Seniorstylistlogo.jpg` (full wordmark).
+3. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel
    - First-time admin: Settings → Integrations → Connect QuickBooks → pick Expense account
-3. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance cron unauthenticated without it.
-4. **(optional)** Upstash Redis for rate limiting — no-op without it.
-5. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
-6. Phase 10B+ backlog: recurring pay period auto-creation, automated retry-with-backoff for transient QB failures.
+4. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance cron unauthenticated without it.
+5. **(optional)** Upstash Redis for rate limiting — no-op without it.
+6. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
+7. Phase 10B+ backlog: recurring pay period auto-creation, automated retry-with-backoff for transient QB failures.
 
 ---
 

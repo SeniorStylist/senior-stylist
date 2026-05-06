@@ -84,7 +84,7 @@ export async function PUT(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
+    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist' && facilityUser.role !== 'bookkeeper') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { facilityId } = facilityUser
@@ -110,6 +110,20 @@ export async function PUT(
     }
 
     const { cancelFuture, ...updates } = parsed.data
+
+    // Bookkeeper: can only correct billing/service data — not scheduling or status
+    if (facilityUser.role === 'bookkeeper') {
+      const BOOKKEEPER_ALLOWED = new Set([
+        'residentId', 'serviceId', 'serviceIds', 'addonServiceIds', 'addonChecked',
+        'priceCents', 'paymentStatus', 'notes', 'tipCents',
+        'selectedQuantity', 'selectedOption',
+      ])
+      for (const key of Object.keys(updates) as Array<keyof typeof updates>) {
+        if (!BOOKKEEPER_ALLOWED.has(key)) {
+          delete updates[key]
+        }
+      }
+    }
 
     // Handle cancel-future for recurring bookings
     if (cancelFuture && existing.recurringParentId) {

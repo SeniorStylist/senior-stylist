@@ -30,6 +30,9 @@ export function canAccessPayroll(role: string): boolean {
 export function isFacilityStaff(role: string): boolean {
   return role === 'facility_staff'
 }
+export function canScanLogs(role: string): boolean {
+  return isAdminOrAbove(role) || role === 'bookkeeper'
+}
 
 /**
  * Returns the facilityUser row for the current user, respecting the
