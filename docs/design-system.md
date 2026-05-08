@@ -2186,5 +2186,12 @@ Two attribute names with non-overlapping semantics:
 
 **Desktop-only tours**: `TourDefinition.desktopOnly: true` blocks the tour entirely on mobile breakpoints with a "best on a larger screen" toast. Used for tours that traverse sidebar nav links hidden on mobile (Stylists for `admin-compliance`, Master Admin for `master-add-facility`).
 
+**`isOnRoute` full-URL comparison** (Phase 12H audit fix): `isOnRoute(stepRoute)` now compares search params when the step route includes a `?`. This is load-bearing for settings-section tours — step routes like `/settings?section=team` require both pathname and search to match before skipping the hard-nav. Without the fix, the engine would accept any `/settings` URL and then fail to find team-section elements (wrong section active).
+
+**Selector safety rules** (Phase 12H audit):
+- **Dynamic-route pages** (`/residents/[id]`, `/stylists/[id]`, `/payroll/[id]`): never target with a CSS selector. Use `element: ''` and describe the page in copy.
+- **Conditional elements** (only in DOM when a modal/form is open): safe ONLY when the immediately preceding step is `isAction: true` and clicking it opens the element. Without that preceding action step, use `element: ''`.
+- **Data-dependent elements** (require async fetch to populate, or visible only to certain roles): always use `element: ''`.
+
 ### Tour popover styling (`.senior-stylist-tour`)
 Already documented in Phase 12G section above. No changes in 12H.

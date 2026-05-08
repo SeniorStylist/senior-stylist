@@ -64,6 +64,23 @@ The `isPublic` allowlist inside the middleware body is now a SUBSET of routes th
 
 ---
 
+## Help Center Sync (Phase 12G/12H)
+
+**Any UI change that adds, renames, moves, or removes a page, nav item, button, modal, or settings section MUST update the Help Center in the same commit.** Failure to sync is a bug, not a nice-to-have.
+
+Specifically, for every such change:
+1. **`src/lib/help/tours.ts`** — update any `TourStep.element` selector that pointed at the renamed/moved element; update `TourStep.route` if the page path changed; update popover copy if the UI label changed. If a new page or major feature is added, add a matching tour definition.
+2. **`TUTORIAL_CATALOG` in `tours.ts`** — add a new card when a new feature, page, or workflow is introduced that users need to learn.
+3. **`<HelpTip>` injections** — add a HelpTip next to any new major workflow entry point (buttons, section headers) that links to a relevant tour.
+4. **`data-tour` and `data-tour-mobile` attributes** — keep these in place on refactored elements. Never strip them as "unused" HTML attributes — the tour engine depends on them.
+
+Rules for stable selectors:
+- **Dynamic-route pages** (`/residents/[id]`, `/stylists/[id]`, `/payroll/[id]`) cannot be targeted by tours. Tour steps for these pages MUST use `element: ''` (info popover) and describe what the user will see, rather than pointing a selector at the detail page.
+- **Conditional elements** (only in DOM when a modal/form is open) are only safe as tour targets when the immediately preceding step is `isAction: true` and clicking it is what opens the element. If there is no such preceding action step, use `element: ''` instead.
+- **Role-gated or data-dependent elements** (e.g. `billing-facility-select` only for master, `billing-invoice-list` only for IP facilities) must use `element: ''` so the tour doesn't show a warning toast to users who don't have the element.
+
+---
+
 ## Non-Negotiable Rules
 
 ### Database

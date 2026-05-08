@@ -1490,6 +1490,25 @@ Full rewrite of the Phase 12G tour engine to make every guided tour navigation-a
 - `stylist-compliance-tab` → `stylist-compliance-section` (page is single-flow, no tabs)
 - `analytics-export` removed entirely from `admin-reports` tour (no export button on /analytics; tour now ends with "By stylist" step)
 
+### Phase 12H Selector Audit (2026-05-07)
+
+Post-ship audit fixed all "Couldn't find that element" errors across 19 tours. Two categories of bugs:
+
+**1. `isOnRoute` query-param blindness fixed** (`src/lib/help/tours.ts`):
+- `isOnRoute(stepRoute)` previously stripped query params before comparing pathnames. Tours with step routes like `/settings?section=team` or `/settings?section=billing` would not hard-nav to the correct section; they'd match any `/settings` URL and then fail to find the team/billing section elements.
+- Fixed: when `stepRoute` contains `?`, the full search string must also match (`window.location.search.replace(/^\?/,'') === stepSearch`). This ensures a hard-nav to `/settings?section=team` when the user is on `/settings` (different section active), and the TourResumer resumes correctly when the page loads at the right URL.
+
+**2. Dynamic-route and conditional elements replaced with `element: ''` info steps**:
+Tours can only target elements that are reliably in the DOM at the time a step fires. Elements that live on dynamic-route pages (`/residents/[id]`, `/stylists/[id]`, `/payroll/[id]`) or that require async data (OCR scan results) or user-action preconditions (duplicates modal with data, billing facility-select for master-only) must use `element: ''` (body-anchored popover) so the tour never errors. Affected tours and steps:
+- `admin-family-portal` steps 3–4: `resident-portal-section` + `resident-portal-send-btn` (on `/residents/[id]`) → `element: ''`
+- `admin-compliance` steps 4–5: `stylist-compliance-section` (on `/stylists/[id]`) → `element: ''`
+- `bookkeeper-payroll` steps 4–6: `payroll-stylist-row`, `payroll-mark-paid-btn`, `payroll-export-btn` (on `/payroll/[id]`) → `element: ''`
+- `bookkeeper-scan-logs` steps 5–7: `ocr-results-table`, `ocr-import-button` (only exist after async Gemini scan completes) → `element: ''`
+- `bookkeeper-duplicates` steps 3–5: `duplicates-pair-card`, `duplicates-merge-btn` (inside modal AND requires duplicate data to exist) → `element: ''`
+- `bookkeeper-billing-dashboard` step 3: `billing-invoice-list` (only in IP-view, not RFMS) → `element: ''`; step 6: `billing-facility-select` (only for master admin) → `element: ''`
+
+**Rule added to CLAUDE.md** — Help Center sync is mandatory: any UI add/rename/move/remove must update `tours.ts` selectors, `TUTORIAL_CATALOG`, and HelpTip placements in the same commit. Dynamic-route and conditional elements must always use `element: ''`.
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.

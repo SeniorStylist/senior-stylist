@@ -369,8 +369,8 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/residents', element: '', isAction: false, title: 'What is the Family Portal', description: 'The Family Portal lets residents\' family members view upcoming appointments and booking history online — no app needed.' },
       { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Open a resident', description: 'Tap any resident\'s name to open their profile, then scroll to the Family Portal section.' },
-      { route: '/residents', element: '[data-tour="resident-portal-section"]', isAction: false, title: 'Portal section', description: 'Inside the resident profile, you\'ll see the Family Portal section. Here you can generate a private portal link for the family.' },
-      { route: '/residents', element: '[data-tour="resident-portal-send-btn"]', isAction: false, title: 'Send the link', description: 'Tap "Send Link" to email the link directly to the POA contact on file.' },
+      { route: '/residents', element: '', isAction: false, title: 'Portal section', description: 'Open any resident\'s profile and scroll down to the "Family Portal" section. There you can generate a private portal link for that resident\'s family.' },
+      { route: '/residents', element: '', isAction: false, title: 'Send the link', description: 'Tap "Send Link" to email the portal link to the POA contact on file. The family receives a private link — no app or password required.' },
       { route: '/residents', element: '', isAction: false, title: 'What the family sees', description: 'The family can view upcoming appointments, past services, and request new bookings. They cannot see billing amounts.' },
     ],
   },
@@ -384,8 +384,8 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: NAV_STYLISTS, isAction: true, title: 'Go to Stylists', description: 'Compliance documents are managed per stylist.', actionHint: 'Tap Stylists to continue.' },
       { route: '/stylists', element: '[data-tour="stylists-table"]', isAction: false, title: 'Stylist list', description: 'Each stylist has a profile where you can track their license, insurance, and contract documents.' },
       { route: '/stylists', element: '[data-tour="stylists-table"]', isAction: false, title: 'Open a stylist', description: 'Tap a stylist\'s name to open their profile.' },
-      { route: '/stylists', element: '[data-tour="stylist-compliance-section"]', isAction: false, title: 'Compliance section', description: 'Inside the stylist profile, scroll to the Compliance section to see all documents on file — license, liability insurance, and contract.' },
-      { route: '/stylists', element: '[data-tour="stylist-compliance-section"]', isAction: false, title: 'Verify documents', description: 'Stylists upload their own documents from My Account. As an admin, click any uploaded doc to verify it and set the expiry date.' },
+      { route: '/stylists', element: '', isAction: false, title: 'Compliance section', description: 'Open any stylist\'s profile and scroll to the Compliance section. You\'ll see their license, liability insurance, and contract documents — each with its expiry status.' },
+      { route: '/stylists', element: '', isAction: false, title: 'Verify documents', description: 'Stylists upload their own documents from My Account. As an admin, click any uploaded document to verify it and set the official expiry date.' },
       { route: '/stylists', element: '', isAction: false, title: 'Expiry alerts', description: 'Senior Stylist automatically alerts you before a document expires so you\'re never caught out of compliance.' },
     ],
   },
@@ -397,10 +397,10 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/dashboard', element: NAV_BILLING, isAction: true, title: 'Go to Billing', description: 'Tap Billing to open the AR dashboard.', actionHint: 'Tap Billing to continue.' },
       { route: '/billing', element: '[data-tour="billing-outstanding"]', isAction: false, title: 'Outstanding balance', description: 'This shows the total unpaid balance for this facility. Green means all caught up; amber means there are outstanding invoices.' },
-      { route: '/billing', element: '[data-tour="billing-invoice-list"]', isAction: false, title: 'Invoice list', description: 'Each row is an invoice. You can see the amount, due date, and payment status at a glance.' },
-      { route: '/billing', element: '[data-tour="billing-filters"]', isAction: false, title: 'Filters', description: 'Use the filters to show only unpaid invoices, or invoices from a specific date range.' },
+      { route: '/billing', element: '', isAction: false, title: 'Invoice list', description: 'The main area shows all invoices or resident balances for this facility — amount, date, and payment status at a glance. Tap any row to expand the full detail.' },
+      { route: '/billing', element: '[data-tour="billing-filters"]', isAction: false, title: 'Filters', description: 'Use the filters to show only unpaid invoices, or limit to a specific date range.' },
       { route: '/billing', element: '[data-tour="billing-send-statement"]', isAction: false, title: 'Send a statement', description: 'Tap "Send Statement" to email a PDF statement to the facility contact or POA.' },
-      { route: '/billing', element: '[data-tour="billing-facility-select"]', isAction: false, title: 'Facility switcher', description: 'If you manage multiple facilities, use this dropdown to switch between them.' },
+      { route: '/billing', element: '', isAction: false, title: 'Facility switcher', description: 'If you manage multiple facilities, a facility switcher at the top of the page lets you view billing for each one individually.' },
     ],
   },
 
@@ -412,10 +412,10 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Tap Daily Log to get started.', actionHint: 'Tap Daily Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'What is OCR scanning', description: 'Senior Stylist can read handwritten or printed daily log sheets using AI. You upload the sheet and it fills in the entries automatically.' },
       { route: '/log', element: '[data-tour="daily-log-scan-sheet"]', isAction: true, title: 'Open the scan tool', description: 'Tap the Scan Sheet button to upload a log image or PDF.', actionHint: 'Tap "Scan log sheet" to continue.' },
-      { route: '/log', element: '[data-tour="ocr-upload-area"]', isAction: false, title: 'Upload', description: 'Take a clear photo of the handwritten log sheet or upload a scanned PDF. The AI will read the resident names, services, and prices.' },
-      { route: '/log', element: '[data-tour="ocr-results-table"]', isAction: false, title: 'Review results', description: 'After scanning, review each extracted entry. Highlighted rows need attention — check the resident name and service match correctly.' },
-      { route: '/log', element: '[data-tour="ocr-results-table"]', isAction: false, title: 'Edit before importing', description: 'Tap any row to correct a misread name, service, or price before importing.' },
-      { route: '/log', element: '[data-tour="ocr-import-button"]', isAction: false, title: 'Import', description: 'When everything looks right, tap Import to create the bookings. This cannot be undone.' },
+      { route: '/log', element: '[data-tour="ocr-upload-area"]', isAction: false, title: 'Upload your log', description: 'Take a clear photo of the handwritten log sheet or upload a scanned PDF. The AI reads resident names, services, and prices automatically.' },
+      { route: '/log', element: '', isAction: false, title: 'Review results', description: 'After scanning, each extracted entry appears in a table. Highlighted rows need your attention — check that the resident name and service match correctly.' },
+      { route: '/log', element: '', isAction: false, title: 'Edit before importing', description: 'Tap any row to correct a misread name, service, or price. Changes are easy here — much harder to fix after you\'ve imported.' },
+      { route: '/log', element: '', isAction: false, title: 'Import', description: 'When everything looks correct, tap Import to create the bookings. Review carefully first — this action cannot be undone.' },
     ],
   },
 
@@ -426,9 +426,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/residents', element: '', isAction: false, title: 'What are duplicates', description: 'Sometimes the same resident gets added twice with slightly different names or room numbers. The Duplicates tool finds and merges these.' },
       { route: '/residents', element: '[data-tour="residents-duplicates-button"]', isAction: true, title: 'Open duplicates', description: 'Tap the Duplicates button to see any potential duplicate residents.', actionHint: 'Tap "Duplicates" to continue.' },
-      { route: '/residents', element: '[data-tour="duplicates-pair-card"]', isAction: false, title: 'Duplicate pairs', description: 'Each card shows two residents that might be the same person. A confidence score tells you how likely it is.' },
-      { route: '/residents', element: '[data-tour="duplicates-pair-card"]', isAction: false, title: 'Review carefully', description: 'Check the names, room numbers, and booking counts. The resident on the right will be merged into the left — the right one is removed.' },
-      { route: '/residents', element: '[data-tour="duplicates-merge-btn"]', isAction: false, title: 'Merge', description: 'Tap Merge to combine the two records. All bookings from the merged resident transfer to the primary record.' },
+      { route: '/residents', element: '', isAction: false, title: 'Duplicate pairs', description: 'Each card shows two residents that might be the same person. A confidence score tells you how likely they are to be the same person.' },
+      { route: '/residents', element: '', isAction: false, title: 'Review carefully', description: 'Check names, room numbers, and booking counts. The resident on the right merges into the left — the right record is removed after merging.' },
+      { route: '/residents', element: '', isAction: false, title: 'Merge', description: 'Tap Merge to combine the two records. All bookings and history from the merged resident transfer to the primary one. This cannot be undone.' },
       { route: '/residents', element: '', isAction: false, title: 'After merging', description: 'The merged resident\'s history is preserved. This cannot be undone, so always review the pair carefully first.' },
     ],
   },
@@ -441,9 +441,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: NAV_PAYROLL, isAction: true, title: 'Go to Payroll', description: 'Tap Payroll to see pay periods.', actionHint: 'Tap Payroll to continue.' },
       { route: '/payroll', element: '[data-tour="payroll-period-list"]', isAction: false, title: 'Pay periods', description: 'Each row is a pay period. Open one to see a detailed breakdown of what each stylist earned.' },
       { route: '/payroll', element: '[data-tour="payroll-period-list"]', isAction: false, title: 'Open a period', description: 'Tap any pay period to open it.' },
-      { route: '/payroll', element: '[data-tour="payroll-stylist-row"]', isAction: false, title: 'Per-stylist breakdown', description: 'Each stylist\'s earnings are shown here — base commission, tips, and any deductions.' },
-      { route: '/payroll', element: '[data-tour="payroll-mark-paid-btn"]', isAction: false, title: 'Mark as paid', description: 'Once you\'ve processed payment, tap "Mark as Paid" to lock the period and record the payment date.' },
-      { route: '/payroll', element: '[data-tour="payroll-export-btn"]', isAction: false, title: 'Export', description: 'Use Export to download a CSV of the pay period for your records or external payroll system.' },
+      { route: '/payroll', element: '', isAction: false, title: 'Per-stylist breakdown', description: 'Tap any pay period to open it. Inside you\'ll see each stylist\'s earnings — base commission, tips, and any deductions applied.' },
+      { route: '/payroll', element: '', isAction: false, title: 'Mark as paid', description: 'Once you\'ve processed payment, tap "Mark as Paid" to lock the period and record the payment date in your history.' },
+      { route: '/payroll', element: '', isAction: false, title: 'Export', description: 'Use Export to download a CSV of the pay period for your records or to import into an external payroll system.' },
     ],
   },
 
@@ -511,10 +511,17 @@ function destroyActiveTour() {
   }
 }
 
-/** Compare a step's stored route to the current path. Search params are NOT compared. */
+/** Compare a step's stored route to the current path and, when the step includes
+ *  query params, the current search string must also match exactly. This ensures
+ *  settings section tours (e.g. route '/settings?section=team') hard-nav to the
+ *  correct section rather than accepting any URL with pathname '/settings'. */
 function isOnRoute(stepRoute: string): boolean {
   if (typeof window === 'undefined') return false
-  const stepPath = stepRoute.split('?')[0]
+  const [stepPath, stepSearch] = stepRoute.split('?')
+  if (stepSearch) {
+    const currentSearch = window.location.search.replace(/^\?/, '')
+    return window.location.pathname === stepPath && currentSearch === stepSearch
+  }
   return window.location.pathname === stepPath
 }
 
