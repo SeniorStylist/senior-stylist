@@ -85,7 +85,7 @@ export default async function StylistsPage() {
           <p className="text-stone-400 text-sm">No stylists yet. Add one from the dashboard.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden" data-tour="stylists-table">
           {stylistsList.map((stylist) => (
             <Link
               key={stylist.id}

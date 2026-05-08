@@ -258,9 +258,9 @@ export function TeamSection({
   const acceptedInvites = invitesList.filter((i) => i.used)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-tour="settings-team-section">
       {/* Invite form */}
-      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]" data-tour="settings-invite-form">
         <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Invite a teammate</p>
         <p className="text-xs text-stone-500 mb-3">
           {isSuperAdmin
@@ -292,6 +292,7 @@ export function TeamSection({
           <select
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value)}
+            data-tour="settings-invite-role-select"
             className="w-40 px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
           >
             <option value="admin">Admin</option>
@@ -303,6 +304,7 @@ export function TeamSection({
           <button
             onClick={handleSendInvite}
             disabled={sendingInvite || !inviteEmail.trim() || (isSuperAdmin && !inviteFacilityId)}
+            data-tour="settings-invite-submit"
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
             style={{ backgroundColor: '#8B2E4A' }}
           >
@@ -413,7 +415,7 @@ export function TeamSection({
 
       {/* Pending invites */}
       {pendingInvites.length > 0 && (
-        <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+        <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]" data-tour="settings-pending-invites">
           <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Pending Invites</p>
           <div className="rounded-2xl border border-stone-100 overflow-hidden">
             {pendingInvites.map((invite, idx) => {

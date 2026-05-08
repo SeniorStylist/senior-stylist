@@ -381,6 +381,9 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     item.href === '/log' ? 'nav-daily-log' :
                     item.href === '/residents' ? 'nav-residents' :
                     item.href === '/billing' ? 'nav-billing' :
+                    item.href === '/analytics' ? 'nav-analytics' :
+                    item.href === '/payroll' ? 'nav-payroll' :
+                    item.href === '/stylists' ? 'nav-stylists' :
                     undefined
                   return (
                     <Link
@@ -453,6 +456,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             <Link
               href="/master-admin"
               prefetch={true}
+              data-tour="nav-master-admin"
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
                 pathname === '/master-admin'

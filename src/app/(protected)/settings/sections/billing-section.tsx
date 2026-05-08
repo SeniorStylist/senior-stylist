@@ -265,6 +265,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
         {!hasQuickBooks && (
           <a
             href="/api/quickbooks/connect"
+            data-tour="settings-qb-connect-btn"
             className="inline-block px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ backgroundColor: '#8B2E4A' }}
           >

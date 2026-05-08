@@ -600,7 +600,7 @@ export function LogClient({
 
       {/* Walk-in form */}
       {showWalkIn && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 mb-4 space-y-3">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 mb-4 space-y-3" data-tour="daily-log-walkin-form">
           <p className="text-sm font-semibold text-stone-700">Add Walk-in</p>
           {wiError && <p className="text-xs text-red-600">{wiError}</p>}
 

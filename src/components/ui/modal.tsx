@@ -9,9 +9,14 @@ interface ModalProps {
   title?: string
   children: ReactNode
   className?: string
+  /** data-* attribute pass-through for tour anchors etc. */
+  [dataAttr: `data-${string}`]: string | boolean | undefined
 }
 
-export function Modal({ open, onClose, title, children, className }: ModalProps) {
+export function Modal({ open, onClose, title, children, className, ...rest }: ModalProps) {
+  const dataProps = Object.fromEntries(
+    Object.entries(rest).filter(([k]) => k.startsWith('data-')),
+  )
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -41,6 +46,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
           'animate-in fade-in slide-in-from-bottom-3 duration-200',
           className
         )}
+        {...dataProps}
       >
         {title && (
           <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-stone-100">

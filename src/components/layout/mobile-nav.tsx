@@ -138,6 +138,8 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
           item.href === '/log' ? 'nav-daily-log' :
           item.href === '/residents' ? 'nav-residents' :
           item.href === '/billing' ? 'nav-billing' :
+          item.href === '/analytics' ? 'nav-analytics' :
+          item.href === '/payroll' ? 'nav-payroll' :
           item.href === '/help' ? 'nav-help' :
           item.href === '/settings' ? 'nav-settings' :
           undefined

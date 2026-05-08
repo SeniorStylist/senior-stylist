@@ -475,6 +475,7 @@ export function OcrImportModal({
           })() : (
             <div className="px-5 py-4 space-y-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
               <div
+                data-tour="ocr-upload-area"
                 className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#8B2E4A] hover:bg-rose-50/30 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -562,7 +563,7 @@ export function OcrImportModal({
 
           {/* ── STEP 2: REVIEW ── */}
           {step === 'review' && sheets.length > 0 && (
-            <div>
+            <div data-tour="ocr-results-table">
               {/* Sheet tabs */}
               {sheets.length > 1 && (
                 <div className="flex gap-1.5 px-5 pt-4 overflow-x-auto shrink-0">
@@ -697,7 +698,7 @@ export function OcrImportModal({
 
                               {/* Duplicate warnings */}
                               {showResDupe && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800">
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800" data-tour="ocr-duplicate-warning">
                                   <p className="font-medium mb-1.5">Did you mean…?</p>
                                   <div className="flex flex-wrap gap-1.5">
                                     {resMatches.map(r => (
@@ -1023,6 +1024,7 @@ export function OcrImportModal({
               <button
                 onClick={handleImport}
                 disabled={importing || summary.bookings === 0}
+                data-tour="ocr-import-button"
                 className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {importing ? (

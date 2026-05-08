@@ -589,6 +589,7 @@ export function BillingClient({
           <select
             value={facilityId}
             onChange={(e) => setFacilityId(e.target.value)}
+            data-tour="billing-facility-select"
             className={`rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
           >
             {facilityOptions.map((f) => (
@@ -709,6 +710,7 @@ export function BillingClient({
                   type="button"
                   disabled={sendLoading || !sendToEmail}
                   onClick={() => handleSendStatement(false)}
+                  data-tour="billing-send-statement"
                   className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-40 disabled:cursor-not-allowed ${btnBase}`}
                   title={!sendToEmail ? 'Enter a recipient email above' : undefined}
                 >
@@ -869,7 +871,7 @@ export function BillingClient({
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2" data-tour="billing-filters">
               {(['month', 'year', 'custom', 'all'] as const).map((p) => {
                 const label =
                   p === 'month'

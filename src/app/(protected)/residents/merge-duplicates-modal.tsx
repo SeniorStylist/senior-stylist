@@ -203,7 +203,7 @@ export function MergeDuplicatesModal({
               const isMerging = merging[key] ?? false
 
               return (
-                <div key={key} className="bg-white rounded-2xl border border-stone-200 p-4 space-y-3 shadow-sm">
+                <div key={key} data-tour="duplicates-pair-card" className="bg-white rounded-2xl border border-stone-200 p-4 space-y-3 shadow-sm">
 
                   {/* Badges */}
                   <div className="flex items-center gap-2 flex-wrap">
@@ -302,6 +302,7 @@ export function MergeDuplicatesModal({
                       <button
                         onClick={() => handleMerge(pair)}
                         disabled={isMerging || !editName[key]?.trim()}
+                        data-tour="duplicates-merge-btn"
                         className="w-full min-h-[40px] bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                       >
                         {isMerging ? (

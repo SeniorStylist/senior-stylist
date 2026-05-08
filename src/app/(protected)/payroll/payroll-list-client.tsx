@@ -172,7 +172,7 @@ export function PayrollListClient({
           </p>
         </div>
       ) : (
-        <div className="rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]">
+        <div className="rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]" data-tour="payroll-period-list">
           <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b border-stone-200 bg-stone-50/60 text-[11px] font-semibold text-stone-400 uppercase tracking-wide">
             <div>Period</div>
             <div>Type</div>

@@ -266,6 +266,7 @@ export function PayrollDetailClient({
         <div className="flex items-center gap-2 flex-wrap">
           <a
             href={`/api/pay-periods/${period.id}/export`}
+            data-tour="payroll-export-btn"
             className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-stone-100 text-stone-800 hover:bg-stone-200 transition-all duration-150"
           >
             Export CSV
@@ -279,6 +280,7 @@ export function PayrollDetailClient({
             <Button
               onClick={() => advanceStatus('paid')}
               loading={advancingStatus}
+              data-tour="payroll-mark-paid-btn"
               className={confirmPaid ? 'bg-red-600 hover:bg-red-700' : undefined}
             >
               {confirmPaid ? 'Click again to confirm' : 'Mark Paid'}
@@ -462,7 +464,7 @@ export function PayrollDetailClient({
           const showRevShare = (revSharePercentage ?? 0) > 0
 
           return (
-            <div key={item.id} className="border-b border-stone-100 last:border-b-0">
+            <div key={item.id} data-tour="payroll-stylist-row" className="border-b border-stone-100 last:border-b-0">
               <button
                 onClick={() => {
                   if (isPaid) return

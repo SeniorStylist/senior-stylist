@@ -198,6 +198,7 @@ export function ReportsClient({
           type="month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
+          data-tour="analytics-date-range"
           className="text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
         />
       </div>
@@ -284,7 +285,7 @@ export function ReportsClient({
           )}
 
           {/* Top stats */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4" data-tour="analytics-revenue-summary">
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
               <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">
                 Total Revenue
@@ -348,7 +349,7 @@ export function ReportsClient({
           {/* Revenue by stylist + busiest days */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* By stylist */}
-            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5" data-tour="analytics-by-stylist">
               <p className="text-sm font-semibold text-stone-700 mb-3">Revenue by Stylist</p>
               {data.byStylist.length === 0 ? (
                 <p className="text-sm text-stone-400">No data</p>

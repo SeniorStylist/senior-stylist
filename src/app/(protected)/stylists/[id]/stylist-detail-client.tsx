@@ -1138,7 +1138,7 @@ export function StylistDetailClient({
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm" data-tour="stylist-compliance-section">
           <div className="px-5 py-4 border-b border-stone-100">
             <h2 className="text-sm font-semibold text-stone-900">Compliance documents</h2>
             <p className="text-xs text-stone-500 mt-0.5">Licensing, insurance, and agreements</p>

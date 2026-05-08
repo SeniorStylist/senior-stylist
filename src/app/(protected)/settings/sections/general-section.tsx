@@ -172,7 +172,7 @@ export function GeneralSection({ facility, role }: Props) {
           </select>
         </div>
 
-        <div>
+        <div data-tour="settings-payment-type">
           <label className="block text-xs font-semibold text-stone-600 mb-1.5">Payment Type</label>
           <select
             value={paymentType}
@@ -261,6 +261,7 @@ export function GeneralSection({ facility, role }: Props) {
           <button
             onClick={handleSave}
             disabled={!isDirty || saving}
+            data-tour="settings-save-button"
             className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
             style={{ backgroundColor: '#8B2E4A' }}
           >

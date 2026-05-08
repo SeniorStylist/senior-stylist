@@ -1242,7 +1242,7 @@ export function BookingModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg">
+    <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg" data-tour="calendar-booking-modal">
       {formFields}
       <div className="sticky bottom-0 bg-white px-6 pb-6 border-t border-stone-100 pt-4">
         {breakdown}

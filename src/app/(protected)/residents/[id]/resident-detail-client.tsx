@@ -436,7 +436,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
             const hoursAgo = inviteAt ? Math.floor((Date.now() - inviteAt.getTime()) / (60 * 60 * 1000)) : null
             const inviteCooldown = hoursAgo !== null && hoursAgo < 24
             return (
-              <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-4">
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-4" data-tour="resident-portal-section">
                 <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Family Portal</p>
                 <p className="text-xs text-stone-400 mb-3">
                   Send a magic link to the POA email for instant portal access.
@@ -454,6 +454,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     onClick={handleSendFamilyInvite}
                     disabled={!resident.poaEmail || sendingFamilyInvite || inviteCooldown}
                     title={!resident.poaEmail ? 'Add POA email first' : undefined}
+                    data-tour="resident-portal-send-btn"
                     className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-xl text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {sendingFamilyInvite ? 'Sending…' : inviteCooldown ? `Sent ${hoursAgo}h ago` : 'Send Link'}

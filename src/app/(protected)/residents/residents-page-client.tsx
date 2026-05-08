@@ -169,6 +169,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
           {canEdit && (
             <button
               onClick={() => setShowMerge(true)}
+              data-tour="residents-duplicates-button"
               className="relative flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
               title="Find duplicate residents"
             >
@@ -188,6 +189,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
             <>
               <Link
                 href="/residents/import"
+                data-tour="residents-import-button"
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -220,7 +222,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
 
       {/* Add form */}
       {showAdd && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 mb-4 space-y-3">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 mb-4 space-y-3" data-tour="residents-add-form">
           <p className="text-sm font-semibold text-stone-700">New Resident</p>
           {addError && <p className="text-xs text-red-600">{addError}</p>}
           <input

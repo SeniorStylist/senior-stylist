@@ -13,6 +13,7 @@ import { NavigationProgress } from '@/components/ui/navigation-progress'
 import { DebugBadge } from '@/components/debug/debug-badge'
 import { MobileFacilityHeader } from '@/components/layout/mobile-facility-header'
 import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
+import { TourResumer } from '@/components/help/tour-resumer'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -134,7 +135,10 @@ export default async function ProtectedLayout({
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
         <div className="main-content flex-1 min-h-0 overflow-auto">
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <TourResumer />
+            {children}
+          </ToastProvider>
         </div>
       </main>
       <MobileNav role={activeRole} debugMode={debugMode} />

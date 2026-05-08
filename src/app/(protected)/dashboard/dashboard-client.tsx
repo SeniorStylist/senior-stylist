@@ -552,6 +552,7 @@ export function DashboardClient({
               </button>
               <button
                 onClick={() => todayRef.current?.()}
+                data-tour="calendar-today-btn"
                 className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-100 transition-colors"
               >
                 Today

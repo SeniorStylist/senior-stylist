@@ -210,7 +210,7 @@ export function IPView({
             No residents set up for this facility yet.
           </div>
         ) : (
-          <>
+          <div data-tour="billing-invoice-list">
             <div className="flex items-center justify-end gap-2 px-5 py-2.5 bg-stone-50 border-b border-stone-100">
               {eligibleCount > 0 ? (
                 <button
@@ -318,7 +318,7 @@ export function IPView({
                 </div>
               )
             })}
-          </>
+          </div>
         )}
       </ExpandableSection>
     </>

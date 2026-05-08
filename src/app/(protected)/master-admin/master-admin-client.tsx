@@ -417,6 +417,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
             {activeTab === 'facilities' && (
               <button
                 onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
+                data-tour="master-add-facility-btn"
                 className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
                 style={{ backgroundColor: '#8B2E4A' }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#72253C')}
@@ -506,6 +507,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
         {showCreateForm && (
           <form
             onSubmit={handleCreateFacility}
+            data-tour="master-facility-form"
             className="bg-white rounded-2xl border border-stone-200 p-6 mb-8 shadow-sm"
           >
             <h2
@@ -703,7 +705,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
         )}
 
         {/* Facility Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour="master-facility-list">
           {sortedFacilities.map((f) => (
             <div
               key={f.id}
