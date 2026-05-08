@@ -234,7 +234,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     title: 'Your Calendar',
     steps: [
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Calendar overview', description: 'Your calendar shows every booked appointment. Appointments are color-coded by stylist.' },
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Reading time slots', description: 'Each column is a stylist. Each row is a 30-minute time slot. Scroll up or down to see earlier or later times.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Reading time slots', description: 'Each highlighted block is a booked appointment. The calendar shows the full week by default — use Day view for a closer look at a single day.' },
       { route: '/dashboard', element: '.fc-timegrid-slot', isAction: true, title: 'Book an appointment', description: 'To book an appointment, tap any empty time slot.', actionHint: 'Tap any empty slot to continue.' },
       { route: '/dashboard', element: '[data-tour="calendar-booking-modal"]', isAction: false, title: 'Booking form', description: 'Fill in the resident, service, and time. Then tap Save.' },
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Editing a booking', description: 'To edit or cancel an existing booking, tap its block on the calendar.' },
