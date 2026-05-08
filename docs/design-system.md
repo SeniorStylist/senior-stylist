@@ -2167,3 +2167,24 @@ Live at the bottom of `globals.css`. **Required because Driver.js's default styl
 ### Help nav placement
 - **Sidebar**: in the divider block at the very bottom, ABOVE Settings (which is admin/facility_staff/bookkeeper-only). Help is visible to ALL roles. Help icon: 16px lucide CircleHelp inline SVG. The divider block is unconditional now (since Help shows to everyone).
 - **MobileNav**: between Payroll and Settings. Visible to all six roles. Admin worst case shows 7 tabs at flex-1 (~51px each on a 360px viewport — tight but readable for a 22px icon + 10px label).
+
+### Driver.js tour anchor convention (Phase 12H)
+Two attribute names with non-overlapping semantics:
+- **`data-tour="X"`** — desktop-only OR shared element. Used on every sidebar nav `<Link>`, every page-level form/section, every shared button (residents-search, residents-new-button).
+- **`data-tour-mobile="X"`** — mobile-only element. Used ONLY on the bottom-tab MobileNav links and on the mobile-only `flex md:hidden` button instances inside `log-client.tsx` (Add Walk-in, Scan Sheet, Finalize). The Finalize button has BOTH attributes because the same `<Button>` component renders identically on both breakpoints inside the per-stylist row.
+
+**Resolution rule**: `resolveQuery()` in `tours.ts` rewrites `[data-tour="X"]` to `[data-tour-mobile="X"], [data-tour="X"]` on mobile breakpoint, so step authors write a single selector. Comma-separated selectors return first match in document order, which works because mobile-only elements (`md:hidden`) and desktop-only ones (`hidden md:flex`) are mutually exclusive in the DOM at any given viewport.
+
+**Action step contract**: `isAction: true` means the user must click the highlighted element to advance. The engine hides the Next button (`showButtons: ['previous','close']`) and attaches a one-time click listener (capture phase) that fires `runStep(def, index + 1)` after a 50ms delay (so React handles the click first — modal opens, route changes, etc).
+
+**Informational step contract**: `isAction: false` shows the standard Driver.js Next button. `actionHint` field is unused on info steps but reserved for "Tap X to continue" sub-text on action steps (currently appended to `description` with `\n\n`).
+
+### Tour navigation across routes
+**Hard-nav model**: when `step.route !== window.location.pathname`, the engine writes `sessionStorage['helpTour'] = JSON.stringify({ tourId, stepIndex, expiresAt: Date.now() + 5*60*1000 })` and does `window.location.href = step.route`. Page reloads. `<TourResumer />` mounted inside `<ToastProvider>` in `(protected)/layout.tsx` reads sessionStorage 100ms after mount and calls `resumePendingTour()`, which calls `startTour(tourId, { resumeFromStep: stepIndex })`.
+
+**Why hard-nav not router.push?** Tours run as a global JS function outside the React tree. Getting access to a `next/navigation` `router` instance from `tours.ts` requires either a global ref (brittle) or running tours from inside a React component (much more complex API). Hard-nav with sessionStorage is conceptually simpler and works for the slow-paced help-center context. UX cost: ~500-800ms full page reload at each cross-route step.
+
+**Desktop-only tours**: `TourDefinition.desktopOnly: true` blocks the tour entirely on mobile breakpoints with a "best on a larger screen" toast. Used for tours that traverse sidebar nav links hidden on mobile (Stylists for `admin-compliance`, Master Admin for `master-add-facility`).
+
+### Tour popover styling (`.senior-stylist-tour`)
+Already documented in Phase 12G section above. No changes in 12H.

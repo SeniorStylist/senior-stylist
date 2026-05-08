@@ -1439,6 +1439,57 @@ End-to-end in-app help system: role-aware tutorial cards, Driver.js-powered guid
 
 **Dependencies added**: `driver.js`, `lucide-react`. Both safe additions; no Radix Popover dep added (rolled simple click-outside in HelpTip).
 
+### Phase 12H — Interactive Guided Tours (SHIPPED 2026-05-08)
+
+Full rewrite of the Phase 12G tour engine to make every guided tour navigation-aware, interactive, and accurate. All 19 catalog tours fully implemented with real step content and selectors that match real DOM elements.
+
+**Engine** (`src/lib/help/tours.ts`):
+- `TourStep` type: `{ element, route, title, description, isAction, actionHint? }`. Steps iterate one at a time; `runStep(def, index)` is recursive.
+- Cross-route navigation: when `step.route !== window.location.pathname`, save `{tourId, stepIndex, expiresAt}` to `sessionStorage['helpTour']` (5-min TTL) and `window.location.href = step.route` (hard nav). `<TourResumer />` mounted in protected layout picks up after reload via `resumePendingTour()`.
+- `waitForElement(selector, 5000ms)` — `requestAnimationFrame` polling, returns null on timeout. On miss, `toastWarning()` dispatches a CustomEvent that TourResumer pipes through `useToast().error()` and the engine skips to the next step.
+- Action steps (`isAction: true`): Driver.js step config sets `showButtons: ['previous','close']` (no Next), and an `onClick` listener (capture phase) is attached to the highlighted element via Driver.js's onHighlighted callback proxy. On click, the engine cleans up the listener, destroys the Driver instance, and recurses into the next step with a 50ms delay so React handles the click first.
+- Informational steps: regular Next button via `onNextClick` callback wired to `runStep(def, index + 1)`.
+- `desktopOnly: true` flag — when true, `startTour` emits "This tour is best viewed on a larger screen" toast and returns early on mobile breakpoints (used for `admin-compliance` and `master-add-facility` — these traverse sidebar/master-admin links not present in MobileNav).
+- `resolveQuery(selector)` — converts `[data-tour="X"]` into `[data-tour-mobile="X"], [data-tour="X"]` on mobile breakpoint so step authors write a single selector and the engine picks the right element.
+- Empty-element steps (`element: ''`) render a popover anchored to `body` for terminal "you're done" copy.
+
+**Resume mechanism** (`src/components/help/tour-resumer.tsx`):
+- Mounted inside `ToastProvider` in `(protected)/layout.tsx` (requires Toast access).
+- 100ms `setTimeout` after mount to let initial paint settle, then calls `resumePendingTour()`.
+- Also bridges the engine's `help-tour-toast` CustomEvent into `useToast()` (engine runs outside React).
+
+**Modal pass-through** (`src/components/ui/modal.tsx`):
+- `ModalProps` extended with `[dataAttr: \`data-${string}\`]: string | boolean | undefined` index signature.
+- All `data-*` keys spread onto the inner card div via `Object.fromEntries(Object.entries(rest).filter(...))`.
+- Used by booking-modal: `<Modal ... data-tour="calendar-booking-modal">` works directly.
+
+**All 19 tours**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. The 5 implemented in Phase 12G are now full multi-step tours; 14 new ones added in Phase 12H. Other ~10 catalog cards (`stylist-account`, `staff-getting-started`, `bookkeeper-quickbooks`, `bookkeeper-financial-reports`, plus 4 master-only) keep `tourId: null` and show "Coming soon" tooltip.
+
+**~30 new `data-tour` attributes added** (zero behavior changes):
+- Sidebar: `nav-analytics`, `nav-payroll`, `nav-stylists`, `nav-master-admin` added to existing tourSlug map
+- Mobile-nav: `nav-analytics`, `nav-payroll` (mobile variants)
+- Dashboard: `calendar-today-btn`
+- Booking modal Modal: `calendar-booking-modal` (via Modal data-* pass-through)
+- Log: `daily-log-walkin-form` (conditional on `showWalkIn`)
+- OCR modal: `ocr-upload-area`, `ocr-results-table`, `ocr-import-button`, `ocr-duplicate-warning`
+- Residents page: `residents-add-form`, `residents-import-button`, `residents-duplicates-button`
+- Resident detail: `resident-portal-section`, `resident-portal-send-btn`
+- Merge duplicates modal: `duplicates-pair-card`, `duplicates-merge-btn`
+- Settings General: `settings-payment-type`, `settings-save-button`
+- Settings Billing: `settings-qb-connect-btn`
+- Settings Team: `settings-team-section`, `settings-invite-form`, `settings-invite-role-select`, `settings-invite-submit`, `settings-pending-invites`
+- Billing: `billing-facility-select`, `billing-filters`, `billing-invoice-list`, `billing-send-statement`
+- Payroll list: `payroll-period-list`
+- Payroll detail: `payroll-stylist-row`, `payroll-mark-paid-btn`, `payroll-export-btn`
+- Analytics: `analytics-revenue-summary`, `analytics-date-range`, `analytics-by-stylist`
+- Stylists page: `stylists-table`
+- Stylist detail: `stylist-compliance-section` (NOT a tab — just an inline section, since stylist detail is single-page)
+- Master Admin: `master-facility-list`, `master-add-facility-btn`, `master-facility-form`
+
+**Substitutions for fictional UI** (referenced in original plan, replaced):
+- `stylist-compliance-tab` → `stylist-compliance-section` (page is single-flow, no tabs)
+- `analytics-export` removed entirely from `admin-reports` tour (no export button on /analytics; tour now ends with "By stylist" step)
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.
