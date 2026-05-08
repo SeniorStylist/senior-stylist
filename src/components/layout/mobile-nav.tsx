@@ -84,6 +84,18 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
     ),
   },
   {
+    href: '/help',
+    label: 'Help',
+    roles: ['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist', 'viewer'],
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    ),
+  },
+  {
     href: '/settings',
     label: 'Settings',
     roles: ['admin', 'facility_staff', 'bookkeeper'],
@@ -121,12 +133,21 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
           ? pendingHref === item.href
           : pathname === item.href ||
             (item.href !== '/dashboard' && pathname.startsWith(item.href))
+        const tourSlug =
+          item.href === '/dashboard' ? 'nav-calendar' :
+          item.href === '/log' ? 'nav-daily-log' :
+          item.href === '/residents' ? 'nav-residents' :
+          item.href === '/billing' ? 'nav-billing' :
+          item.href === '/help' ? 'nav-help' :
+          item.href === '/settings' ? 'nav-settings' :
+          undefined
         return (
           <Link
             key={item.href}
             href={item.href}
             prefetch={true}
             onClick={() => setPendingHref(item.href)}
+            data-tour-mobile={tourSlug}
             className={cn(
               'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',
               isActive ? 'text-[#8B2E4A]' : 'text-stone-400'

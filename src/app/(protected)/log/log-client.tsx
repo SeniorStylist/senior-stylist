@@ -18,6 +18,7 @@ import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { OcrImportModal } from './ocr-import-modal'
+import { HelpTip } from '@/components/ui/help-tip'
 
 interface LogBooking {
   id: string
@@ -529,6 +530,11 @@ export function LogClient({
             {loading && (
               <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin shrink-0" />
             )}
+            <HelpTip
+              tourId="stylist-daily-log"
+              label="Daily Log"
+              description="Each row is one appointment. Edit price/notes inline, add walk-ins, then finalize the day to lock entries."
+            />
           </div>
           <p className="text-xs text-stone-400 mt-0.5">
             {new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
@@ -934,6 +940,8 @@ export function LogClient({
                   variant="secondary"
                   size="sm"
                   onClick={() => handleFinalize(stylist.id)}
+                  data-tour="daily-log-finalize-button"
+                  data-tour-mobile="daily-log-finalize-button"
                 >
                   Finalize
                 </Button>
@@ -944,7 +952,7 @@ export function LogClient({
             {collapsed[stylist.id] ? null : stylistBookings.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-stone-400">No appointments</div>
             ) : (
-              <div className="divide-y divide-stone-50">
+              <div className="divide-y divide-stone-50" data-tour="daily-log-entry-row">
                 {stylistBookings.map((booking) => {
                   const isCompleted = booking.status === 'completed'
                   const isNoShow = booking.status === 'no_show'
@@ -1223,6 +1231,7 @@ export function LogClient({
         >
           <button
             onClick={() => setOcrOpen(true)}
+            data-tour-mobile="daily-log-scan-sheet"
             className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
             title="Import from photo"
           >
@@ -1234,6 +1243,7 @@ export function LogClient({
           </button>
           <button
             onClick={() => setShowWalkIn(true)}
+            data-tour-mobile="daily-log-add-walkin"
             className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -1250,6 +1260,7 @@ export function LogClient({
         <div className="hidden md:flex gap-2 mt-4">
           <button
             onClick={() => setOcrOpen(true)}
+            data-tour="daily-log-scan-sheet"
             className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-sm hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
             title="Import from photo"
           >
@@ -1261,6 +1272,7 @@ export function LogClient({
           </button>
           <button
             onClick={() => setShowWalkIn(true)}
+            data-tour="daily-log-add-walkin"
             className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

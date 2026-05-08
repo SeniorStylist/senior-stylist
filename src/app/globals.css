@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "driver.js/dist/driver.css";
 
 :root {
   --color-bg: #F7F6F2;
@@ -307,4 +308,82 @@ button:active, [role="button"]:active {
   textarea {
     font-size: 16px !important;
   }
+}
+
+/* ───────────────── Driver.js (Help Center tours) — burgundy palette ───────────────── */
+.senior-stylist-tour.driver-popover {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid #E7E5E4; /* stone-200 */
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
+  max-width: 360px;
+}
+.senior-stylist-tour .driver-popover-title {
+  font-family: 'DM Serif Display', serif;
+  font-weight: 400;
+  font-size: 18px;
+  color: #1C1917; /* stone-900 */
+  margin-bottom: 6px;
+}
+.senior-stylist-tour .driver-popover-description {
+  font-size: 15px;
+  color: #57534E; /* stone-600 */
+  line-height: 1.45;
+}
+.senior-stylist-tour .driver-popover-progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8B2E4A;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.senior-stylist-tour .driver-popover-footer {
+  margin-top: 16px;
+  gap: 8px;
+}
+.senior-stylist-tour .driver-popover-next-btn,
+.senior-stylist-tour .driver-popover-prev-btn,
+.senior-stylist-tour .driver-popover-close-btn {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  text-shadow: none;
+  border: none;
+  min-height: 44px; /* tap target */
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.senior-stylist-tour .driver-popover-next-btn {
+  background: #8B2E4A;
+  color: white;
+  box-shadow: 0 2px 6px rgba(139, 46, 74, 0.22);
+}
+.senior-stylist-tour .driver-popover-next-btn:hover {
+  background: #72253C;
+}
+.senior-stylist-tour .driver-popover-next-btn:active {
+  transform: scale(0.97);
+}
+.senior-stylist-tour .driver-popover-prev-btn {
+  background: white;
+  color: #57534E;
+  border: 1px solid #E7E5E4;
+}
+.senior-stylist-tour .driver-popover-prev-btn:hover {
+  background: #F5F5F4;
+}
+.senior-stylist-tour .driver-popover-close-btn {
+  color: #A8A29E;
+  background: transparent;
+  padding: 4px;
+  min-height: auto;
+}
+.senior-stylist-tour .driver-popover-close-btn:hover {
+  color: #57534E;
+}
+.driver-overlay {
+  background: rgba(28, 10, 18, 0.55) !important; /* dark burgundy tint */
 }

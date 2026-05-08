@@ -376,11 +376,18 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     item.href === '/stylists'
                       ? pathname === '/stylists' || (pathname.startsWith('/stylists/') && !pathname.startsWith('/stylists/directory'))
                       : pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                  const tourSlug =
+                    item.href === '/dashboard' ? 'nav-calendar' :
+                    item.href === '/log' ? 'nav-daily-log' :
+                    item.href === '/residents' ? 'nav-residents' :
+                    item.href === '/billing' ? 'nav-billing' :
+                    undefined
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
                       prefetch={true}
+                      data-tour={tourSlug}
                       className={cn(
                         'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
                         isActive
@@ -401,28 +408,47 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         })}
       </nav>
 
-      {/* Settings + Master Admin block — divider above, always last */}
-      {(SETTINGS_ROLES.includes(role as NavRole) ||
-        (process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode)) && (
-        <div className="px-3 pb-2">
-          <div className="border-t border-white/10 mx-1 mb-2" />
-          {SETTINGS_ROLES.includes(role as NavRole) && (
-            <Link
-              href="/settings"
-              prefetch={true}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
-                pathname === '/settings' || pathname.startsWith('/settings/')
-                  ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
-                  : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
-              )}
-            >
-              <span className={cn('transition-colors duration-150', pathname === '/settings' || pathname.startsWith('/settings/') ? 'text-[#E8A0B0]' : 'text-white/50')}>
-                {SettingsIcon}
-              </span>
-              Settings
-            </Link>
+      {/* Help + Settings + Master Admin block — divider above, always last */}
+      <div className="px-3 pb-2">
+        <div className="border-t border-white/10 mx-1 mb-2" />
+        <Link
+          href="/help"
+          prefetch={true}
+          data-tour="nav-help"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
+            pathname === '/help' || pathname.startsWith('/help/')
+              ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
+              : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
           )}
+        >
+          <span className={cn('transition-colors duration-150', pathname === '/help' || pathname.startsWith('/help/') ? 'text-[#E8A0B0]' : 'text-white/50')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </span>
+          Help
+        </Link>
+        {SETTINGS_ROLES.includes(role as NavRole) && (
+          <Link
+            href="/settings"
+            prefetch={true}
+            data-tour="nav-settings"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
+              pathname === '/settings' || pathname.startsWith('/settings/')
+                ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
+                : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
+            )}
+          >
+            <span className={cn('transition-colors duration-150', pathname === '/settings' || pathname.startsWith('/settings/') ? 'text-[#E8A0B0]' : 'text-white/50')}>
+              {SettingsIcon}
+            </span>
+            Settings
+          </Link>
+        )}
           {process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode && (
             <Link
               href="/master-admin"
@@ -443,8 +469,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
               <NeedsReviewBadge />
             </Link>
           )}
-        </div>
-      )}
+      </div>
 
       {/* User */}
       <div className="px-3 py-4 border-t border-white/10">

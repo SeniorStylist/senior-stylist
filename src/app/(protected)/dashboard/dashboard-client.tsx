@@ -16,6 +16,8 @@ import type { Resident, Stylist, Service, Facility, CoverageRequest } from '@/ty
 import { Spinner } from '@/components/ui'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { HelpTip } from '@/components/ui/help-tip'
+import { OnboardingModal } from '@/components/help/onboarding-modal'
 
 const CalendarView = dynamic(() => import('@/components/calendar/calendar-view'), {
   ssr: false,
@@ -86,6 +88,7 @@ interface DashboardClientProps {
   openCoverageRequests?: CoverageRequest[]
   workingToday?: WorkingTodayRow[]
   workingTomorrow?: Array<{ name: string }>
+  showOnboardingModal?: boolean
 }
 
 function formatHHMM(t: string): string {
@@ -112,6 +115,7 @@ export function DashboardClient({
   openCoverageRequests = [],
   workingToday = [],
   workingTomorrow = [],
+  showOnboardingModal = false,
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -363,6 +367,7 @@ export function DashboardClient({
 
     return (
       <ErrorBoundary>
+        {showOnboardingModal && <OnboardingModal role={userRole} />}
         <div className="flex flex-col min-h-screen pb-24" style={{ backgroundColor: 'var(--color-bg)' }}>
           {/* Header */}
           <div className="px-4 pt-6 pb-4">
@@ -488,6 +493,7 @@ export function DashboardClient({
 
   return (
     <ErrorBoundary>
+    {showOnboardingModal && <OnboardingModal role={userRole} />}
     <div className="flex h-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* ── Calendar column ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden p-3 md:p-4 gap-3">
@@ -565,6 +571,11 @@ export function DashboardClient({
                     <line x1="3" y1="10" x2="21" y2="10"/>
                   </svg>
                 </button>
+                <HelpTip
+                  tourId="stylist-calendar"
+                  label="Your Calendar"
+                  description="Click any time slot to start a booking. Drag a block to reschedule."
+                />
                 {showCalDatePicker && (
                   <input
                     type="date"

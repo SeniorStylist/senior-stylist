@@ -100,7 +100,7 @@ export default function CalendarView({
     }))
 
   return (
-    <div className="h-full p-3">
+    <div className="h-full p-3" data-tour="calendar-time-grid">
       <FullCalendar
         ref={fcRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, intlTzPlugin]}

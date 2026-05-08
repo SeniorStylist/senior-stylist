@@ -16,6 +16,7 @@ import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel
 import { ScanCheckModal, ScanResult } from './components/scan-check-modal'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
+import { HelpTip } from '@/components/ui/help-tip'
 import {
   btnBase,
   btnHubInteractive,
@@ -852,11 +853,20 @@ export function BillingClient({
                   </div>
                 )}
               </div>
-              <StatCard
-                label="Outstanding"
-                value={formatDollars(outstandingAnimated)}
-                highlight={totals.outstanding > 0 ? 'amber' : 'default'}
-              />
+              <div data-tour="billing-outstanding" className="relative">
+                <StatCard
+                  label="Outstanding"
+                  value={formatDollars(outstandingAnimated)}
+                  highlight={totals.outstanding > 0 ? 'amber' : 'default'}
+                />
+                <div className="absolute top-2 right-2">
+                  <HelpTip
+                    tourId="bookkeeper-billing-dashboard"
+                    label="Outstanding balance"
+                    description="The total unpaid invoice balance for this facility. Tap to learn how to send a statement or scan a check."
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">

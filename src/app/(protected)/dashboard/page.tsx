@@ -58,12 +58,14 @@ export default async function DashboardPage() {
 
   if (facilityUser.role === 'bookkeeper') redirect('/log')
 
-  // If stylist, look up linked stylist record for filtering
-  let profileStylistId: string | null = null
-  if (facilityUser.role === 'stylist') {
-    const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
-    profileStylistId = profile?.stylistId ?? null
-  }
+  // Fetch profile once: stylistId (for stylist filter) + hasSeenOnboardingTour (welcome modal flag)
+  const profile = await db.query.profiles.findFirst({
+    where: eq(profiles.id, user.id),
+    columns: { stylistId: true, hasSeenOnboardingTour: true },
+  })
+  const profileStylistId =
+    facilityUser.role === 'stylist' ? profile?.stylistId ?? null : null
+  const showOnboardingModal = !profile?.hasSeenOnboardingTour
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
@@ -219,6 +221,7 @@ export default async function DashboardPage() {
           openCoverageRequests={JSON.parse(JSON.stringify(openCoverageRequests))}
           workingToday={JSON.parse(JSON.stringify(working.today))}
           workingTomorrow={JSON.parse(JSON.stringify(working.tomorrow))}
+          showOnboardingModal={showOnboardingModal}
         />
       </>
     )

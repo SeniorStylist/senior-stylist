@@ -24,6 +24,7 @@ export const profiles = pgTable('profiles', {
   avatarUrl: text('avatar_url'),
   role: text('role').default('stylist').notNull(),
   stylistId: uuid('stylist_id').references(() => stylists.id),
+  hasSeenOnboardingTour: boolean('has_seen_onboarding_tour').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PublicFacility } from '@/lib/sanitize'
+import { HelpTip } from '@/components/ui/help-tip'
 
 const TIMEZONES = [
   'America/New_York',
@@ -114,7 +115,7 @@ export function GeneralSection({ facility, role }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)] space-y-5">
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)] space-y-5" data-tour="settings-facility-form">
         <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Facility</p>
 
         <div>
@@ -185,8 +186,15 @@ export function GeneralSection({ facility, role }: Props) {
           </select>
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-stone-600 mb-1.5">Working Hours</label>
+        <div data-tour="settings-working-hours">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <label className="block text-xs font-semibold text-stone-600">Working Hours</label>
+            <HelpTip
+              tourId="admin-facility-setup"
+              label="Working hours"
+              description="Pick the days and hours your facility is open. Bookings can only be created within these times."
+            />
+          </div>
           <div className="space-y-3">
             <div className="flex flex-wrap gap-1.5">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (

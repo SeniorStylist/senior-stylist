@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { PublicFacility } from '@/lib/sanitize'
+import { HelpTip } from '@/components/ui/help-tip'
 
 interface Props {
   facility: PublicFacility
@@ -244,13 +245,18 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
             {qbToast.text}
           </div>
         )}
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2" data-tour="settings-quickbooks">
           <h3 className="text-sm font-semibold text-stone-800">QuickBooks Online</h3>
           {hasQuickBooks && (
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
               ✓ Connected
             </span>
           )}
+          <HelpTip
+            tourId="master-quickbooks-setup"
+            label="QuickBooks Online"
+            description="Connect this facility's QuickBooks account. Once connected, payroll syncs as Bills and invoices flow back automatically."
+          />
         </div>
         <p className="text-xs text-stone-500 mb-4">
           Sync payroll bills and vendor records directly to your QuickBooks Online account.

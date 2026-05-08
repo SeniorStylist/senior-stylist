@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { cn, formatCents, formatDate } from '@/lib/utils'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident } from '@/types'
+import { HelpTip } from '@/components/ui/help-tip'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { MergeDuplicatesModal } from './merge-duplicates-modal'
@@ -198,6 +199,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
               </Link>
               <button
                 onClick={() => setShowAdd((v) => !v)}
+                data-tour="residents-new-button"
                 className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
                 title="Add resident"
               >
@@ -206,6 +208,11 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </button>
+              <HelpTip
+                tourId="stylist-residents"
+                label="Adding residents"
+                description="Tap the + button to add someone new — name, room, and POA contact info."
+              />
             </>
           )}
         </div>
@@ -256,6 +263,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or room..."
+          data-tour="residents-search"
           className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm placeholder:text-stone-400 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all shadow-sm"
         />
       </div>
@@ -286,7 +294,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-[18px] border border-stone-200 shadow-[var(--shadow-sm)]">
+        <div className="bg-white rounded-[18px] border border-stone-200 shadow-[var(--shadow-sm)]" data-tour="residents-table">
           {/* ── DESKTOP: grid table ── */}
           <div className="hidden md:block overflow-hidden rounded-[18px]">
             <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-200 bg-stone-50/60">
