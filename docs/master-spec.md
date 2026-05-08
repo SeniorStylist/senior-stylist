@@ -1390,6 +1390,55 @@ All booking timestamps are stored as UTC; display code was using browser-local t
 
 **Schema-side**: `BillingFacility` gained `timezone: string`; `/api/billing/summary` route now returns it.
 
+### Phase 12G — Help Center (SHIPPED 2026-05-08)
+
+End-to-end in-app help system: role-aware tutorial cards, Driver.js-powered guided tours that highlight real UI elements, contextual `?` icons (HelpTip) inline throughout the app, and a one-time first-login welcome modal.
+
+**Schema (additive)**: `profiles.has_seen_onboarding_tour boolean default false NOT NULL` — drives the welcome modal; flag flips via `POST /api/profile/onboarding-seen`.
+
+**New routes**:
+- `/help` — server component reads `getUserFacility()` + master-admin email, passes role + isMaster to `HelpClient`
+- `/help/loading.tsx` — skeleton matching 3-card grid
+- `POST /api/profile/onboarding-seen` — auth-only, no body; flips flag to true. Returns `{ data: { ok: true } }`. No `revalidateTag` (profile fetched per-request).
+
+**Tour engine** (`src/lib/help/tours.ts`):
+- `TUTORIAL_CATALOG: Tutorial[]` — ~30 cards rendered on `/help`, role-tagged with optional `masterOnly` flag
+- `TOUR_DEFINITIONS: Record<string, TourDefinition>` — 5 fully implemented tours: `stylist-calendar`, `stylist-daily-log`, `stylist-residents`, `admin-facility-setup`, `bookkeeper-scan-logs`. Each ships separate `desktop: DriveStep[]` and `mobile: DriveStep[]` arrays.
+- `startTour(tourName)` — dynamic-imports `driver.js` (~16 KB gzipped), picks desktop or mobile steps via `window.matchMedia('(max-width: 767px)')`, calls `driver.drive()`
+- Driver.js base config: `popoverClass: 'senior-stylist-tour'`, `nextBtnText: 'Next →'`, `prevBtnText: '← Back'`, `doneBtnText: '✓ Done'`, `showProgress: true`, `progressText: 'Step {{current}} of {{total}}'`, `stagePadding: 8`, `stageRadius: 12`, `overlayClickBehavior: 'nextStep'`
+
+**Anchor convention**:
+- `data-tour="X"` for desktop-only or shared elements
+- `data-tour-mobile="X"` for mobile-only elements (bottom-tab MobileNav, mobile-only buttons in `log-client.tsx`)
+- Same selector value on both is forbidden — `querySelector` first-match is unpredictable
+
+**Anchors injected**:
+- Sidebar (`sidebar.tsx`): `nav-calendar`, `nav-daily-log`, `nav-residents`, `nav-billing`, `nav-help`, `nav-settings`
+- MobileNav (`mobile-nav.tsx`): `data-tour-mobile` variants of the same six
+- Calendar: `data-tour="calendar-time-grid"` on FullCalendar wrapper. Slot cells targeted via `.fc-timegrid-slot` CSS selector (FullCalendar has no slot render hook)
+- Daily log (`log-client.tsx`): `daily-log-entry-row` (rows wrapper), `daily-log-add-walkin` / `daily-log-scan-sheet` / `daily-log-finalize-button` (each on both desktop and mobile button instances with the appropriate data-tour or data-tour-mobile attribute)
+- Residents (`residents-page-client.tsx`): `residents-search`, `residents-new-button`, `residents-table`
+- Settings (`general-section.tsx`): `settings-facility-form`, `settings-working-hours`
+- Settings (`billing-section.tsx`): `settings-quickbooks`
+- Billing (`billing-client.tsx`): `billing-outstanding` (wrapper around StatCard)
+
+**Components**:
+- `src/components/help/tutorial-card.tsx` — reusable card: 48px lucide icon (burgundy), DM Serif title, blurb, "~N min" badge, "Watch Demo" (always shows "Coming soon" for now) + "Guided Tour" buttons
+- `src/components/help/onboarding-modal.tsx` — first-login welcome with burgundy gradient header, "Start the Tour" + "Skip for now" buttons, both POST to `/api/profile/onboarding-seen`. Tour selection per-role via `ROLE_TOUR_ID` map (admin→facility-setup, stylist→calendar, etc.)
+- `src/components/ui/help-tip.tsx` — `<HelpTip tourId label description />`. CircleHelp icon (16px). Desktop: click-outside popover (no Radix dep). Mobile: existing `<BottomSheet>`. Both link to `/help?tour=X`
+
+**Help home reads `?tour=X` query param** via `useSearchParams()` and auto-fires `startTour(X)`, then strips the param via `router.replace('/help')`.
+
+**Sidebar Help nav** (`sidebar.tsx`): visible to ALL roles — moved the original Settings/Master Admin divider block to always render, with Help as the first item, then conditionally Settings (admin/facility_staff/bookkeeper) and Master Admin (env email).
+
+**MobileNav Help nav** (`mobile-nav.tsx`): added between `/payroll` and `/settings`, visible to all six roles. Admin worst-case shows 7 tabs at flex-1.
+
+**Style overrides** in `globals.css`: `.senior-stylist-tour.driver-popover` block applies DM Sans, stone palette, burgundy `#8B2E4A` next button with hover lift, stone outline prev button, 15px font min, 16px radius, 20px padding. `.driver-overlay` re-tinted to `rgba(28,10,18,0.55)` (dark burgundy).
+
+**Brand color rule**: NEVER use teal `#0D7377` for Help Center. Burgundy throughout. The original prompt's "teal" was stale.
+
+**Dependencies added**: `driver.js`, `lucide-react`. Both safe additions; no Radix Popover dep added (rolled simple click-outside in HelpTip).
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.

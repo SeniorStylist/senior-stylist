@@ -2121,3 +2121,49 @@ Lives in `src/lib/email.ts`. Convention for any future post-payment receipt temp
 - **Footer**: `color:#A8A29E; font-size:12px; line-height:1.5;` — facility address (if present) on first line, then "Questions? Contact ${facilityName} at ${facilityPhone}".
 
 The template skips conditional sections cleanly (empty interpolations). Match this layout for any new receipt-style email.
+
+---
+
+## Help Center (Phase 12G)
+
+### Tutorial card
+`rounded-2xl border border-stone-100 bg-white shadow-[var(--shadow-sm)] p-5 flex flex-col gap-3`. Header row: 48px square `rounded-xl bg-rose-50` icon container holding a 26px lucide icon in `#8B2E4A` + DM Serif title (18px, font-normal) + `text-[11px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full` "~N min" badge. Body: `text-sm text-stone-500 leading-snug` 1–2 sentence blurb. Footer: two buttons in `flex-col sm:flex-row gap-2`, each `min-h-[48px]` (older-user tap target). "Watch Demo" is stone-outline; "Guided Tour" is burgundy primary with the `shadow-[0_2px_6px_rgba(139,46,74,0.22)]` lift. Coming-soon tooltip is a `bg-stone-800 text-white text-xs px-2.5 py-1.5 rounded-lg` pill anchored `-top-9 left-1/2 -translate-x-1/2`, auto-dismissed at 2000ms.
+
+### Onboarding modal
+First-login welcome. Full-screen `fixed inset-0 z-[100]` overlay with `bg-black/40 backdrop-blur-sm`. Card: `max-w-md` rounded-2xl, white. **Header band** uses the `linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)` burgundy gradient; inside: 40px frosted-glass icon square (`bg-white/15 rounded-xl`) + DM Serif "Welcome to Senior Stylist 👋" (24px) + `text-white/85 text-sm` subhead. **Body**: two stacked buttons, primary "Start the Tour" (`min-h-[52px]`, burgundy with shadow lift) and ghost "Skip for now" (`min-h-[44px]`, stone text). Footer microcopy: `text-[11px] text-stone-400 text-center` "You can always find tutorials in the Help section anytime." Both buttons POST `/api/profile/onboarding-seen` before dismissing — flag persists across devices.
+
+### `<HelpTip>` component
+The contextual `?` icon. Renders a 16px lucide `CircleHelp` icon (`text-stone-400 hover:text-[#8B2E4A]`) inline next to a label/header.
+
+**Desktop**: click opens a local popover anchored `absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 w-72 rounded-2xl border border-stone-200 bg-white p-4 shadow-[var(--shadow-lg)]`. Dismisses on click-outside (mousedown listener) or Escape. Title `text-sm font-semibold text-stone-900` + `text-[13px] text-stone-600 leading-snug` description + `text-[13px] font-medium text-[#8B2E4A]` "See full tutorial →" link.
+
+**Mobile**: opens existing `<BottomSheet>` from `src/components/ui/bottom-sheet.tsx` with the same content. No new mobile sheet code.
+
+Props: `{ tourId, label, description, ariaLabel? }`. The "See full tutorial →" link goes to `/help?tour=<tourId>` which auto-launches the tour on mount.
+
+**Inject inline next to a label**, NOT as a standalone element. Use `flex items-center gap-1.5` on the wrapper. Example:
+```jsx
+<div className="flex items-center gap-1.5 mb-1.5">
+  <label>Working Hours</label>
+  <HelpTip tourId="..." label="..." description="..." />
+</div>
+```
+
+A `<label>` element MUST NOT contain a HelpTip directly (nested interactive content) — wrap them as siblings.
+
+### Driver.js popover overrides (`.senior-stylist-tour`)
+Live at the bottom of `globals.css`. **Required because Driver.js's default styling is generic and clashes with the senior-care UX target.**
+
+- **Popover**: `font-family: 'DM Sans'`, `border-radius: 16px`, `padding: 20px`, `border: 1px solid #E7E5E4`, `max-width: 360px`, soft shadow.
+- **Title**: DM Serif Display, 18px, `#1C1917` (stone-900).
+- **Description**: 15px, `#57534E` (stone-600), line-height 1.45 — minimum readable for older users.
+- **Progress text**: 11px, semibold, uppercase, burgundy.
+- **Next button**: `bg: #8B2E4A`, white text, `box-shadow: 0 2px 6px rgba(139, 46, 74, 0.22)`, `min-height: 44px`, hover `#72253C`, active `scale(0.97)`.
+- **Prev button**: white bg, stone-200 border, `text-stone-600`, `min-height: 44px`.
+- **Overlay**: `rgba(28, 10, 18, 0.55)` — dark burgundy tint, NOT plain black. Matches `--color-sidebar`.
+
+**NEVER** override these with teal — the entire app is on burgundy `#8B2E4A` (CLAUDE.md rule).
+
+### Help nav placement
+- **Sidebar**: in the divider block at the very bottom, ABOVE Settings (which is admin/facility_staff/bookkeeper-only). Help is visible to ALL roles. Help icon: 16px lucide CircleHelp inline SVG. The divider block is unconditional now (since Help shows to everyone).
+- **MobileNav**: between Payroll and Settings. Visible to all six roles. Admin worst case shows 7 tabs at flex-1 (~51px each on a 360px viewport — tight but readable for a 22px icon + 10px label).
