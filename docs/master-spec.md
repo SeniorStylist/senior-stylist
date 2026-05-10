@@ -1463,7 +1463,7 @@ Full rewrite of the Phase 12G tour engine to make every guided tour navigation-a
 - All `data-*` keys spread onto the inner card div via `Object.fromEntries(Object.entries(rest).filter(...))`.
 - Used by booking-modal: `<Modal ... data-tour="calendar-booking-modal">` works directly.
 
-**All 19 tours**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. The 5 implemented in Phase 12G are now full multi-step tours; 14 new ones added in Phase 12H. Other ~10 catalog cards (`stylist-account`, `staff-getting-started`, `bookkeeper-quickbooks`, `bookkeeper-financial-reports`, plus 4 master-only) keep `tourId: null` and show "Coming soon" tooltip.
+**19 tours at Phase 12H ship time**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. The 5 implemented in Phase 12G are now full multi-step tours; 14 new ones added in Phase 12H. Phase 12I added `stylist-my-account` (20). Phase 12K added `staff-getting-started` + `staff-daily-log` and rewrote `facility-staff-scheduling` + `facility-staff-residents` (23 total). Cards with `tourId: null` show "Coming soon" tooltip.
 
 **~30 new `data-tour` attributes added** (zero behavior changes):
 - Sidebar: `nav-analytics`, `nav-payroll`, `nav-stylists`, `nav-master-admin` added to existing tourSlug map
@@ -1578,6 +1578,20 @@ A separate mobile renderer for guided tours that runs alongside Driver.js. Share
 - `help-mobile-tour-close` `{}` — overlay → engine
 
 **Helpers exported from `tours.ts`** (previously module-private, now `export`'d so `mobile-tour.ts` can reuse them without duplication): `SESSION_KEY`, `SESSION_TTL_MS`, `ELEMENT_WAIT_MS`, `SessionState` type, `isMobile`, `resolveQuery`, `waitForElement`, `saveSessionState`, `loadSessionState`, `clearSessionState`, `toastWarning`, `toastInfo`, `isOnRoute`. Behavior unchanged.
+
+### Phase 12K — Facility Staff Tour Audit (SHIPPED 2026-05-10)
+
+Two new tours and two rewrites, all in `src/lib/help/tours.ts`. No other files changed. Tour count: 19 → 23 (21 after 12I, 23 after 12K).
+
+**`staff-getting-started`** (NEW, 7 steps): Starts at `/help` with a `element:''` welcome info step, then a `NAV_CALENDAR` action step → `/dashboard` with `calendar-time-grid` info step → `NAV_RESIDENTS` action step → `/residents` with `residents-table` info step → `NAV_DAILY_LOG` action step → `/log` with `element:''` "You're all set" info step. TUTORIAL_CATALOG flipped from `tourId: null` to `tourId: 'staff-getting-started'`; blurb updated.
+
+**`facility-staff-scheduling`** (REWRITE, 6 steps, all INFO, all on `/dashboard`): Removed the data-conditional `calendar-booking-modal` step (was not preceded by an action step opening it — violates CLAUDE.md selector safety rule) and the cross-route residents hop from the original design. All 6 steps stay on `/dashboard`. Steps: `calendar-time-grid` overview → `calendar-today-btn` navigation → `calendar-time-grid` finding open slots → `calendar-time-grid` create booking (mobile copy: search resident + tap Book) → `element:''` editing a booking → `element:''` "when a resident calls" narrative. Blurb updated in TUTORIAL_CATALOG.
+
+**`facility-staff-residents`** (REWRITE, 7 steps): Added `NAV_RESIDENTS` action step as the opener (was previously jumping straight to `/residents` without a nav step). Added two `element:''` info steps for "View a resident profile" and "Update resident info" (resident detail page is a dynamic route `/residents/[id]` — cannot be targeted by tour; must use `element:''`). Kept `residents-add-form` spotlight on step 7 because the immediately preceding step IS the `residents-new-button` isAction:true step (safe per CLAUDE.md rule). Blurb updated in TUTORIAL_CATALOG.
+
+**`staff-daily-log`** (NEW, 4 steps): Starts at `/help` with `NAV_DAILY_LOG` action step → `/log` with 3 `element:''` info steps (what is the daily log / reading the log / that's it). Daily log entry rows are data-conditional (not in DOM without bookings) — cannot be targeted by tour, so all post-nav steps use `element:''`. New TUTORIAL_CATALOG entry added (5th facility_staff card); `staff-daily-log-readonly` (tourId: null) kept as-is for legacy compatibility.
+
+**`All 23 tours`**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, stylist-my-account, staff-getting-started, facility-staff-scheduling, facility-staff-residents, staff-daily-log, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance, bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility, master-quickbooks-setup. (+ 1 from 12I: stylist-my-account)
 
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 

@@ -174,10 +174,11 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'stylist-my-account', category: 'Account', title: 'My Account', blurb: 'Manage your schedule, upload compliance documents, and request time off.', estMinutes: 3, icon: 'UserCog', roles: ['stylist'], tourId: 'stylist-my-account' },
 
   // FACILITY STAFF
-  { id: 'staff-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Sign in and find your way around.', estMinutes: 2, icon: 'KeyRound', roles: ['facility_staff'], tourId: null },
-  { id: 'facility-staff-residents', category: 'Residents', title: 'Resident List', blurb: 'Find, edit, and manage residents.', estMinutes: 3, icon: 'Users', roles: ['facility_staff'], tourId: 'facility-staff-residents' },
-  { id: 'facility-staff-scheduling', category: 'Scheduling', title: 'Scheduling', blurb: 'Book appointments from the calendar and manage residents.', estMinutes: 3, icon: 'Calendar', roles: ['facility_staff'], tourId: 'facility-staff-scheduling' },
+  { id: 'staff-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation to your calendar, residents, and daily log.', estMinutes: 2, icon: 'KeyRound', roles: ['facility_staff'], tourId: 'staff-getting-started' },
+  { id: 'facility-staff-scheduling', category: 'Scheduling', title: 'Scheduling', blurb: 'Book appointments for residents from the calendar.', estMinutes: 3, icon: 'Calendar', roles: ['facility_staff'], tourId: 'facility-staff-scheduling' },
+  { id: 'facility-staff-residents', category: 'Residents', title: 'Resident List', blurb: 'Find, add, and update resident profiles.', estMinutes: 3, icon: 'Users', roles: ['facility_staff'], tourId: 'facility-staff-residents' },
   { id: 'staff-daily-log-readonly', category: 'Daily Log', title: 'Daily Log (Read-Only)', blurb: 'See what was done today. View-only.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: null },
+  { id: 'staff-daily-log', category: 'Daily Log', title: 'The Daily Log', blurb: 'Understand what the daily log is and how to read it.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: 'staff-daily-log' },
 
   // ADMIN
   { id: 'admin-facility-setup', category: 'Facility', title: 'Facility Setup', blurb: 'Set name, hours, working days, payment type, contact info.', estMinutes: 4, icon: 'Building2', roles: ['admin', 'super_admin'], tourId: 'admin-facility-setup' },
@@ -305,34 +306,62 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   },
 
   // 6
-  'facility-staff-scheduling': {
-    id: 'facility-staff-scheduling',
-    title: 'Scheduling',
+  'staff-getting-started': {
+    id: 'staff-getting-started',
+    title: 'Getting Started',
     steps: [
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Welcome', description: 'As facility staff, you can schedule appointments for residents directly from the calendar.' },
-      { route: '/dashboard', element: '.fc-timegrid-cols', isAction: true, title: 'Pick a time slot', description: 'Tap any empty area on the calendar to start a booking for a resident.', actionHint: 'Tap any empty slot to continue.' },
-      { route: '/dashboard', element: '[data-tour="calendar-booking-modal"]', isAction: false, title: 'Booking form', description: 'Search for the resident by name, choose the service, and confirm the stylist and time. Then tap Save.' },
-      { route: '/dashboard', element: NAV_RESIDENTS, isAction: true, title: 'Go to Residents', description: 'You can also manage residents directly.', actionHint: 'Tap Residents to continue.' },
-      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'From here you can search for residents, view their profile, and see their booking history.' },
-      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: true, title: 'Add a resident', description: 'Need to add someone new? Tap + to add a new resident.', actionHint: 'Tap "+" to continue.' },
-      { route: '/residents', element: '', isAction: false, title: 'You\'re set', description: 'That covers the main scheduling and resident workflows for facility staff.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! As facility staff, your main jobs are booking appointments for residents and keeping the resident list up to date.', mobileDescription: 'Quick orientation to your Calendar, Residents, and Daily Log.' },
+      { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Your Calendar', description: 'The Calendar shows every stylist\'s schedule and all available time slots. You\'ll use it to book appointments for residents.', actionHint: 'Tap Calendar to take a look.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'All stylists, all slots', description: 'You can see every stylist\'s availability here. Colored blocks are booked appointments. Empty areas are open slots.', mobileDescription: 'Empty slots are open for booking. Use the arrows to switch days.' },
+      { route: '/dashboard', element: NAV_RESIDENTS, isAction: true, title: 'Residents', description: 'The Residents section is where you manage resident profiles — names, room numbers, and contact info.', actionHint: 'Tap Residents to continue.' },
+      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'Every resident at your facility is listed here. Tap any name to open their profile and make updates.', mobileDescription: 'Tap any resident\'s name to open their profile and make updates.' },
+      { route: '/residents', element: NAV_DAILY_LOG, isAction: true, title: 'Daily Log', description: 'The Daily Log shows the services recorded each day by the stylists. You have read-only access — great for checking what was done.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'You\'re all set', description: 'That covers the basics! Use the Help section anytime to revisit these tours in more detail.' },
     ],
   },
 
   // 7
-  'facility-staff-residents': {
-    id: 'facility-staff-residents',
-    title: 'Resident List',
+  'facility-staff-scheduling': {
+    id: 'facility-staff-scheduling',
+    title: 'Scheduling',
     steps: [
-      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'This is the full resident list for your facility.' },
-      { route: '/residents', element: '[data-tour="residents-search"]', isAction: true, title: 'Search', description: 'Type a name or room number to find someone quickly.', actionHint: 'Tap the search bar to continue.' },
-      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident profile', description: 'Tap any resident to open their profile, see their POA contact, and view or edit their information.' },
-      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: true, title: 'Add new resident', description: 'Tap + to add a resident who isn\'t in the system yet.', actionHint: 'Tap "+" to continue.' },
-      { route: '/residents', element: '[data-tour="residents-add-form"]', isAction: false, title: 'New resident form', description: 'Enter their name, room number, and POA contact. The POA is the family member or contact responsible for payments.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'The Schedule', description: 'This is the facility calendar. Each column is a stylist and each row is a time slot. Colored blocks are existing bookings — empty areas are open.', mobileDescription: 'See every stylist and every time slot. Tap an empty area to book.' },
+      { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Navigate dates', description: 'Use the arrows to move between days or weeks. Tap Today to jump back to the current date.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Finding an open slot', description: 'Look for an empty area in the column for the stylist you want. The time axis on the left shows the hour.', mobileDescription: 'Empty areas are open. Tap any empty area to book for a resident.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Create a booking', description: 'Tap any empty area on the calendar. A form will appear — search for the resident by name, choose the service and time, then tap Book Appointment.', mobileDescription: 'Search the resident, pick the service and time, then tap Book Appointment.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Editing a booking', description: 'To edit an existing booking, tap the colored block on the calendar. You can update the service, time, or notes. Admins can also cancel bookings from this view.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'When a resident calls', description: 'When a resident or their family calls to book an appointment, find an open slot on the calendar, tap it, search for the resident\'s name, and save. That\'s it.' },
     ],
   },
 
   // 8
+  'facility-staff-residents': {
+    id: 'facility-staff-residents',
+    title: 'Resident List',
+    steps: [
+      { route: '/help', element: NAV_RESIDENTS, isAction: true, title: 'Go to Residents', description: 'Let\'s go to the Residents section.', actionHint: 'Tap Residents to continue.' },
+      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'Every resident at your facility is listed here. You can see their name, room number, and last service date.', mobileDescription: 'Every resident is listed here. Tap any name to open their profile.' },
+      { route: '/residents', element: '[data-tour="residents-search"]', isAction: true, title: 'Find a resident', description: 'Type a name or room number to find someone quickly.', actionHint: 'Tap the search bar to continue.' },
+      { route: '/residents', element: '', isAction: false, title: 'View a resident profile', description: 'Tap any resident\'s name to open their profile. You\'ll see their room number, POA contact, and booking history.' },
+      { route: '/residents', element: '', isAction: false, title: 'Update resident info', description: 'Inside the profile, you can update room number, POA name, phone, and email. Tap Save when done.', mobileDescription: 'Update room number, POA name, phone, and email inside the profile.' },
+      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: true, title: 'Add a new resident', description: 'Tap + to add a resident who isn\'t in the system yet.', actionHint: 'Tap + to continue.' },
+      { route: '/residents', element: '[data-tour="residents-add-form"]', isAction: false, title: 'New resident form', description: 'Enter their name and room number. Add the POA contact info if you have it — they\'ll receive billing notices.', mobileDescription: 'Enter name and room number. Add POA contact info if you have it.' },
+    ],
+  },
+
+  // 9
+  'staff-daily-log': {
+    id: 'staff-daily-log',
+    title: 'The Daily Log',
+    steps: [
+      { route: '/help', element: NAV_DAILY_LOG, isAction: true, title: 'Daily Log', description: 'Let\'s take a look at the Daily Log.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'What is the Daily Log', description: 'The Daily Log shows every service performed at your facility each day, recorded by the stylists. You have read-only access — you can see everything but can\'t edit entries.' },
+      { route: '/log', element: '', isAction: false, title: 'Reading the log', description: 'Each row is one appointment — the resident\'s name, the service provided, and the price. Entries are organized by date.', mobileDescription: 'Each row is one appointment — resident, service, and price. Read-only for you.' },
+      { route: '/log', element: '', isAction: false, title: 'That\'s it', description: 'The Daily Log is reference only for facility staff. If you notice an error, let your admin know and they can make corrections.' },
+    ],
+  },
+
+  // 10
   'admin-facility-setup': {
     id: 'admin-facility-setup',
     title: 'Facility Setup',
