@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { residents, services, bookings } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import crypto from 'crypto'
 
@@ -127,6 +127,14 @@ export async function POST(request: Request) {
                 createdResidents++
               }
             }
+          }
+
+          // If user added a room number during review for a matched resident who has none, update it
+          if (residentId && entry.roomNumber?.trim()) {
+            await tx
+              .update(residents)
+              .set({ roomNumber: entry.roomNumber.trim() })
+              .where(and(eq(residents.id, residentId), isNull(residents.roomNumber)))
           }
 
           // Resolve or create a service by name (shared helper used for primary + additionals)

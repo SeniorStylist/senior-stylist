@@ -195,6 +195,11 @@ Rules for stable selectors:
 
 ---
 
+## UI Consistency Rules
+
+- **Room number must appear wherever a resident is shown**: booking modal selected-state (read-only "Room X" below the resident field), daily log rows (already shown), OCR review (read-only for matched residents who have a room; editable input if matched resident has no room). All new-resident inline forms already have room fields — keep them. When adding a new resident-facing UI surface, include room number.
+- **Facility search must be present on all facility list surfaces**: sidebar switcher dropdown (search input above the list), master admin facility grid (search bar above the grid), billing facility combobox (replaces native `<select>` with searchable inline combobox). The mobile facility header and scan-check modal already have search — don't remove it. When adding a new facility list or picker, add the same `name.includes(q) || facilityCode.includes(q)` filter pattern.
+
 ## Common Bugs to Avoid
 
 - **NEVER** use `new URL(request.url).origin` for redirects on Vercel — use `request.nextUrl.clone()`

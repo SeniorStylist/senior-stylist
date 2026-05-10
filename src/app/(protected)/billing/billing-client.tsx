@@ -121,6 +121,8 @@ export function BillingClient({
   const [tempTo, setTempTo] = useState('')
 
   const [panelType, setPanelType] = useState<PanelType | null>(null)
+  const [facilityComboSearch, setFacilityComboSearch] = useState('')
+  const [facilityComboOpen, setFacilityComboOpen] = useState(false)
 
   const [showScanModal, setShowScanModal] = useState(false)
   const [scanResolveData, setScanResolveData] = useState<
@@ -231,6 +233,13 @@ export function BillingClient({
   }, [isMaster, refreshKey])
 
   const handleRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  const filteredFacilityOptions = useMemo(() => {
+    const q = facilityComboSearch.toLowerCase()
+    return facilityOptions.filter(
+      (f) => !q || f.name.toLowerCase().includes(q) || f.facilityCode?.toLowerCase().includes(q)
+    )
+  }, [facilityOptions, facilityComboSearch])
 
   const totals = useMemo(() => {
     if (!summary) return { billed: 0, received: 0, outstanding: 0, netToSenior: 0 }
@@ -586,18 +595,37 @@ export function BillingClient({
 
       {isMaster && facilityOptions.length > 1 ? (
         <div className="mb-4 flex items-center justify-between gap-3">
-          <select
-            value={facilityId}
-            onChange={(e) => setFacilityId(e.target.value)}
-            data-tour="billing-facility-select"
-            className={`rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
-          >
-            {facilityOptions.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
-              </option>
-            ))}
-          </select>
+          <div className="relative flex-1 max-w-xs" data-tour="billing-facility-select">
+            <input
+              type="text"
+              value={facilityComboOpen
+                ? facilityComboSearch
+                : (() => { const f = facilityOptions.find(f => f.id === facilityId); return f ? (f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name) : '' })()
+              }
+              onChange={(e) => { setFacilityComboSearch(e.target.value); setFacilityComboOpen(true) }}
+              onFocus={() => { setFacilityComboSearch(''); setFacilityComboOpen(true) }}
+              onBlur={() => setTimeout(() => setFacilityComboOpen(false), 150)}
+              placeholder="Search facilities…"
+              className={`w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
+            />
+            {facilityComboOpen && (
+              <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto">
+                {filteredFacilityOptions.length === 0 ? (
+                  <p className="px-3 py-2.5 text-sm text-stone-400">No facilities found</p>
+                ) : filteredFacilityOptions.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onMouseDown={() => { setFacilityId(f.id); setFacilityComboOpen(false); setFacilityComboSearch('') }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${f.id === facilityId ? 'bg-rose-50 text-[#8B2E4A] font-medium' : 'text-stone-900 hover:bg-stone-50'}`}
+                  >
+                    {f.facilityCode && <span className="text-stone-400 font-mono text-xs mr-1.5">{f.facilityCode} ·</span>}
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => { setScanResolveData(null); setShowScanModal(true) }}

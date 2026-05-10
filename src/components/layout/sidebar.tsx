@@ -193,6 +193,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
   const supabase = createClient()
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
+  const [facilitySearch, setFacilitySearch] = useState('')
   const [facilitySortOrder, setFacilitySortOrder] = useState<'fid' | 'name'>(() => {
     if (typeof window === 'undefined') return 'fid'
     return (localStorage.getItem('facilitySortOrder') as 'fid' | 'name') ?? 'fid'
@@ -205,6 +206,13 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
       return numA - numB
     })
   }, [allFacilities, facilitySortOrder])
+  const filteredSwitcherFacilities = useMemo(() => {
+    const q = facilitySearch.trim().toLowerCase()
+    if (!q) return sortedFacilities
+    return sortedFacilities.filter(
+      (f) => f.name?.toLowerCase().includes(q) || f.facilityCode?.toLowerCase().includes(q)
+    )
+  }, [sortedFacilities, facilitySearch])
   const handleSortChange = (order: 'fid' | 'name') => {
     setFacilitySortOrder(order)
     localStorage.setItem('facilitySortOrder', order)
@@ -218,6 +226,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
   const handleSelectFacility = async (facilityId: string) => {
     setSwitching(true)
     setSwitcherOpen(false)
+    setFacilitySearch('')
     await fetch('/api/facilities/select', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -312,8 +321,20 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     </button>
                   ))}
                 </div>
+                <div className="px-2 py-1.5 border-b border-white/10">
+                  <input
+                    type="text"
+                    value={facilitySearch}
+                    onChange={(e) => setFacilitySearch(e.target.value)}
+                    placeholder="Search…"
+                    className="w-full rounded-lg px-2.5 py-1.5 text-xs placeholder:text-white/40 focus:outline-none transition-colors"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.9)' }}
+                  />
+                </div>
               <div className="max-h-[60vh] overflow-y-auto">
-                  {sortedFacilities.map((f) => (
+                  {filteredSwitcherFacilities.length === 0 ? (
+                    <p className="px-3 py-3 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>No facilities found</p>
+                  ) : filteredSwitcherFacilities.map((f) => (
                     <button
                       key={f.id}
                       onClick={() => handleSelectFacility(f.id)}

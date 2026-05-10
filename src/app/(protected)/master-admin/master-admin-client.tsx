@@ -120,6 +120,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   // Show/hide inactive toggle
   const [showInactive, setShowInactive] = useState(false)
   const [facilitySortBy, setFacilitySortBy] = useState<'fid' | 'name'>('fid')
+  const [facilitySearch, setFacilitySearch] = useState('')
 
   // Create form
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -276,6 +277,13 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
       return numA - numB
     })
   }, [visibleFacilities, facilitySortBy])
+  const filteredFacilities = useMemo(() => {
+    const q = facilitySearch.trim().toLowerCase()
+    if (!q) return sortedFacilities
+    return sortedFacilities.filter(
+      (f) => f.name?.toLowerCase().includes(q) || f.facilityCode?.toLowerCase().includes(q)
+    )
+  }, [sortedFacilities, facilitySearch])
 
   const handleEnterFacility = async (facilityId: string) => {
     setEnteringId(facilityId)
@@ -484,6 +492,17 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
               </div>
             )}
           </div>
+          {activeTab === 'facilities' && (
+            <div className="mb-3">
+              <input
+                type="text"
+                value={facilitySearch}
+                onChange={(e) => setFacilitySearch(e.target.value)}
+                placeholder="Search by name or FID…"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+              />
+            </div>
+          )}
           {/* Tab bar */}
           <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1">
             {(['facilities', 'franchises', 'requests', 'merge', 'reports', 'debug'] as const).map((tab) => (
@@ -706,7 +725,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
         {/* Facility Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour="master-facility-list">
-          {sortedFacilities.map((f) => (
+          {filteredFacilities.map((f) => (
             <div
               key={f.id}
               className={cn(
@@ -968,12 +987,14 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
           ))}
         </div>
 
-        {sortedFacilities.length === 0 && (
+        {filteredFacilities.length === 0 && (
           <div className="text-center py-16">
             <p className="text-stone-400 text-sm">
-              {localFacilities.length === 0
-                ? 'No facilities yet. Create one to get started.'
-                : 'No active facilities.'}
+              {facilitySearch.trim()
+                ? 'No facilities match your search.'
+                : localFacilities.length === 0
+                  ? 'No facilities yet. Create one to get started.'
+                  : 'No active facilities.'}
             </p>
           </div>
         )}

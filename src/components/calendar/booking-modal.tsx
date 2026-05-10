@@ -615,6 +615,12 @@ export function BookingModal({
             disabled={submitting}
             className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all duration-150 disabled:opacity-60"
           />
+          {selectedResidentId && (() => {
+            const r = [...residents, ...localNewResidents].find((r) => r.id === selectedResidentId)
+            return r?.roomNumber ? (
+              <p className="text-sm text-stone-500 -mt-0.5">Room {r.roomNumber}</p>
+            ) : null
+          })()}
           {residentDropdownOpen && (
             <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
               {createResidentOpen ? (

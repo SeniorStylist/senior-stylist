@@ -746,8 +746,32 @@ export function OcrImportModal({
                                   )}
                                 </div>
 
-                                {/* Room # — only visible when creating new resident */}
-                                {!entry.residentId ? (
+                                {/* Room # — editable for new residents; read-only or addable for matched residents */}
+                                {entry.residentId ? (() => {
+                                  const matched = residents.find(r => r.id === entry.residentId)
+                                  if (matched?.roomNumber) {
+                                    return (
+                                      <div>
+                                        <label className="text-xs text-stone-500 block mb-0.5">Room #</label>
+                                        <p className="text-xs text-stone-500 px-2 py-2 min-h-[44px] flex items-center">{matched.roomNumber}</p>
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <div>
+                                      <label className="text-xs text-stone-500 block mb-0.5">Room # <span className="text-stone-400">(add)</span></label>
+                                      <input
+                                        type="text"
+                                        placeholder="optional"
+                                        value={entry.roomNumber ?? ''}
+                                        onChange={(e) =>
+                                          updateEntry(activeTab, ei, { roomNumber: e.target.value || null })
+                                        }
+                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
+                                      />
+                                    </div>
+                                  )
+                                })() : (
                                   <div>
                                     <label className="text-xs text-stone-500 block mb-0.5">Room #</label>
                                     <input
@@ -760,8 +784,6 @@ export function OcrImportModal({
                                       className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                     />
                                   </div>
-                                ) : (
-                                  <div />
                                 )}
 
                                 {/* Service select — existing services with fuzzy pre-select */}
