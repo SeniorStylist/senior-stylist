@@ -314,29 +314,29 @@ button:active, [role="button"]:active {
 .senior-stylist-tour.driver-popover {
   font-family: 'DM Sans', system-ui, sans-serif;
   border-radius: 16px;
-  padding: 20px;
+  padding: 24px;
   border: 1px solid #E7E5E4; /* stone-200 */
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
-  max-width: 360px;
+  min-width: 300px;
+  max-width: 380px;
 }
 .senior-stylist-tour .driver-popover-title {
-  font-family: 'DM Serif Display', serif;
-  font-weight: 400;
-  font-size: 18px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
   color: #1C1917; /* stone-900 */
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 .senior-stylist-tour .driver-popover-description {
-  font-size: 15px;
-  color: #57534E; /* stone-600 */
-  line-height: 1.45;
+  font-size: 16px;
+  color: #44403c; /* stone-700 */
+  line-height: 1.6;
 }
 .senior-stylist-tour .driver-popover-progress-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8B2E4A;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 500;
+  color: #78716c; /* stone-500 */
+  margin-top: 12px;
 }
 .senior-stylist-tour .driver-popover-footer {
   margin-top: 16px;
@@ -347,14 +347,38 @@ button:active, [role="button"]:active {
 .senior-stylist-tour .driver-popover-close-btn {
   font-family: 'DM Sans', system-ui, sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 16px;
   padding: 10px 16px;
   border-radius: 12px;
   text-shadow: none;
   border: none;
-  min-height: 44px; /* tap target */
+  min-height: 48px;
   cursor: pointer;
   transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+/* Action step: pulsing TAP THIS badge above the footer buttons */
+.senior-stylist-tour.action-step .driver-popover-footer::before {
+  content: '→ TAP THIS';
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8B2E4A;
+  background: rgba(139, 46, 74, 0.08);
+  border: 1px solid rgba(139, 46, 74, 0.2);
+  border-radius: 999px;
+  padding: 6px 16px;
+  margin-bottom: 8px;
+  animation: action-step-pulse 2s ease-in-out infinite;
+}
+@keyframes action-step-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
 }
 .senior-stylist-tour .driver-popover-next-btn {
   background: #8B2E4A;

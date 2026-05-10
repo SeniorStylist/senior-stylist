@@ -183,7 +183,7 @@ export function MobileTourOverlay() {
 
       {/* Bottom sheet */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-[202] bg-white rounded-t-3xl px-6 pt-5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] pointer-events-auto"
+        className="fixed bottom-0 left-0 right-0 z-[202] bg-stone-50 rounded-t-3xl px-6 pt-5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] pointer-events-auto"
         style={{
           paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
           transform: sheetMounted ? 'translateY(0)' : 'translateY(100%)',
@@ -195,7 +195,7 @@ export function MobileTourOverlay() {
         onTouchEnd={onTouchEnd}
       >
         {/* Handle bar */}
-        <div className="w-10 h-1 bg-stone-200 rounded-full mx-auto mb-4" />
+        <div className="w-16 h-1.5 bg-stone-300 rounded-full mx-auto mb-4" />
 
         {/* Close */}
         <button
@@ -210,54 +210,78 @@ export function MobileTourOverlay() {
           </svg>
         </button>
 
-        {/* Progress dots */}
-        <div className="flex items-center justify-center gap-1 mb-3">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <span
-              key={i}
-              className={`w-2 h-2 rounded-full ${i === stepIndex ? 'bg-[#8B2E4A]' : 'bg-stone-200'}`}
-            />
-          ))}
-        </div>
+        {/* Step counter + progress dots + content */}
+        <div style={{ minHeight: '220px' }}>
+          <div className="flex items-center justify-center gap-2 mb-3">
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <span
+                key={i}
+                className={`rounded-full transition-all duration-200 ${i === stepIndex ? 'w-3 h-3 bg-[#8B2E4A] scale-110' : 'w-3 h-3 bg-stone-200'}`}
+              />
+            ))}
+          </div>
 
-        {/* Title */}
-        <h2
-          className="text-xl font-bold text-stone-900"
-          style={{ fontFamily: "'DM Serif Display', serif" }}
-        >
-          {title}
-        </h2>
-
-        {/* Description */}
-        <p className="text-[15px] text-stone-600 leading-relaxed mt-2">
-          {description}
-        </p>
-
-        {/* Buttons */}
-        {step.isAction ? (
-          <p className="text-sm text-stone-400 italic text-center mt-5 mb-1">
-            {step.actionHint ?? 'Tap the highlighted area to continue'}
+          {/* Step counter */}
+          <p className="text-xs text-stone-400 font-medium tracking-wide mb-1">
+            Step {stepIndex + 1} of {totalSteps}
           </p>
-        ) : (
-          <div className="mt-5 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => (isLastStep ? dispatchClose() : dispatchAdvance('next'))}
-              className="min-h-[52px] w-full bg-[#8B2E4A] text-white rounded-2xl text-base font-semibold shadow-[0_2px_8px_rgba(139,46,74,0.3)] active:scale-[0.98] transition-transform"
-            >
-              {isLastStep ? '✓ Done' : 'Next →'}
-            </button>
-            {!isFirstStep && (
+
+          {/* Title with left accent bar */}
+          <div className="flex items-start gap-3">
+            <div className="w-1 h-7 bg-[#8B2E4A] rounded-full shrink-0 mt-0.5" />
+            <h2 className="text-2xl font-bold text-stone-900 leading-tight">
+              {title}
+            </h2>
+          </div>
+
+          {/* Description */}
+          <p className="text-[17px] text-stone-700 leading-relaxed mt-2">
+            {description}
+          </p>
+
+          {/* Buttons / action indicator */}
+          {step.isAction ? (
+            <div className="flex flex-col items-center gap-2 mt-4 mb-1">
+              <div
+                className="animate-bounce text-[#8B2E4A]"
+                style={{
+                  transform: spotlightRect && spotlightRect.top > window.innerHeight * 0.6
+                    ? 'rotate(180deg)'
+                    : undefined,
+                }}
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5" />
+                  <polyline points="5 12 12 5 19 12" />
+                </svg>
+              </div>
+              <span className="text-sm font-bold tracking-widest uppercase text-[#8B2E4A] px-4 py-1.5 bg-[#8B2E4A]/10 rounded-full border border-[#8B2E4A]/20">
+                TAP HERE
+              </span>
+            </div>
+          ) : (
+            <div className="mt-5 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => dispatchAdvance('prev')}
-                className="min-h-[52px] w-full bg-stone-100 text-stone-700 rounded-2xl text-base font-semibold active:scale-[0.98] transition-transform"
+                onClick={() => (isLastStep ? dispatchClose() : dispatchAdvance('next'))}
+                className="min-h-[52px] w-full bg-[#8B2E4A] text-white rounded-2xl text-[17px] font-semibold shadow-[0_2px_8px_rgba(139,46,74,0.3)] active:scale-[0.98] transition-transform"
               >
-                ← Back
+                {isLastStep ? '✓ Done' : 'Next →'}
               </button>
-            )}
-          </div>
-        )}
+              {!isFirstStep && (
+                <button
+                  type="button"
+                  onClick={() => dispatchAdvance('prev')}
+                  className="min-h-[52px] w-full bg-stone-100 text-stone-700 rounded-2xl text-[17px] font-semibold active:scale-[0.98] transition-transform"
+                >
+                  ← Back
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </>,
     document.body,

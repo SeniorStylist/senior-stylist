@@ -2217,18 +2217,23 @@ A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767p
 - `fixed bottom-0 left-0 right-0 z-[202] bg-white rounded-t-3xl px-6 pt-5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)]`
 - iOS home indicator clearance: `style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}`
 - `maxHeight: 60vh` with `overflowY: 'auto'`
-- Handle bar: `w-10 h-1 bg-stone-200 rounded-full mx-auto mb-4`
+- Handle bar: `w-16 h-1.5 bg-stone-300 rounded-full mx-auto mb-4` (wider and taller than standard for older-user visibility)
 - Close button: `absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-stone-400` with stroke-2.2 X icon (lucide-style inline SVG)
-- Progress dots: `flex items-center justify-center gap-1 mb-3`. Per dot: `w-2 h-2 rounded-full`. Filled = `bg-[#8B2E4A]`, empty = `bg-stone-200`. One dot per step.
-- Title: `text-xl font-bold text-stone-900` with `style={{ fontFamily: "'DM Serif Display', serif" }}` — uses `step.mobileTitle ?? step.title`
-- Description: `text-[15px] text-stone-600 leading-relaxed mt-2` — uses `step.mobileDescription ?? step.description`
+- Bottom sheet background: `bg-stone-50` (not white — the slight contrast helps it feel distinct from the page)
+- Progress dots: `flex items-center justify-center gap-2 mb-3`. Per dot: `w-3 h-3 rounded-full`. Filled = `bg-[#8B2E4A] scale-110`, empty = `bg-stone-200`. Wrapped in a `min-h-[220px]` content div.
+- Step counter: `text-xs text-stone-400 font-medium tracking-wide mb-1` showing `Step {N} of {total}` — appears above the title.
+- Title: `text-2xl font-bold text-stone-900 leading-tight` (DM Sans bold, NOT DM Serif Display) with a `w-1 h-7 bg-[#8B2E4A] rounded-full` left accent bar — wrapped in `flex items-start gap-3`.
+- Description: `text-[17px] text-stone-700 leading-relaxed mt-2` — uses `step.mobileDescription ?? step.description`
 
-**Buttons** (info steps only — action steps replace this with a hint string):
+**Buttons** (info steps only — action steps replace this with TAP HERE indicator):
 - Stacked vertically. Next on top, Back below. Easier to reach with thumb.
-- Next: `min-h-[52px] w-full bg-[#8B2E4A] text-white rounded-2xl text-base font-semibold shadow-[0_2px_8px_rgba(139,46,74,0.3)] active:scale-[0.98] transition-transform`. Text is `Next →` or `✓ Done` on the last step (which dispatches close).
-- Back: `min-h-[52px] w-full bg-stone-100 text-stone-700 rounded-2xl text-base font-semibold mt-2 active:scale-[0.98] transition-transform`. Hidden on first step.
+- Next: `min-h-[52px] w-full bg-[#8B2E4A] text-white rounded-2xl text-[17px] font-semibold shadow-[0_2px_8px_rgba(139,46,74,0.3)] active:scale-[0.98] transition-transform`. Text is `Next →` or `✓ Done` on the last step.
+- Back: `min-h-[52px] w-full bg-stone-100 text-stone-700 rounded-2xl text-[17px] font-semibold active:scale-[0.98] transition-transform`. Hidden on first step.
 
-**Action step hint**: `<p className="text-sm text-stone-400 italic text-center mt-5 mb-1">` showing `step.actionHint ?? 'Tap the highlighted area to continue'`. Replaces the buttons entirely.
+**Action step indicator** (replaces buttons entirely): animated arrow + TAP HERE badge.
+- Arrow: `animate-bounce text-[#8B2E4A]` 28×28px upward arrow SVG. When `spotlightRect.top > window.innerHeight * 0.6` (element below 60% of screen), rotated 180° to point down.
+- Badge: `text-sm font-bold tracking-widest uppercase text-[#8B2E4A] px-4 py-1.5 bg-[#8B2E4A]/10 rounded-full border border-[#8B2E4A]/20`
+- NEVER use italic hint text for action steps — use this indicator instead.
 
 **Swipe gestures**: `onTouchStart` / `onTouchEnd` on the bottom sheet. Compute `dx = endX - startX`, `dy = endY - startY`. Trigger when `|dx| > 50 && |dx| > |dy|`. Left swipe (dx < 0, info step only) → next. Right swipe (dx > 0, not first step) → prev. Vertical scroll inside the sheet is preserved.
 

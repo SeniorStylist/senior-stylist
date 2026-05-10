@@ -678,6 +678,7 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
         title: step.title,
         description,
         showButtons: [...showButtons],
+        ...(step.isAction ? { popoverClass: 'senior-stylist-tour action-step' } : {}),
         // For info steps, advance via Next
         onNextClick: () => {
           destroyActiveTour()
