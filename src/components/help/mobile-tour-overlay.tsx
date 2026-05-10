@@ -52,11 +52,17 @@ export function MobileTourOverlay() {
       setStepIndex(detail.stepIndex)
       setTotalSteps(detail.totalSteps)
 
-      // Resolve target & measure rect
+      // Resolve target & measure rect. If the new step has an element but
+      // querySelector returns null at this exact instant (rare race with React
+      // render), keep the previous rect rather than resetting — the engine
+      // already verified the element exists via waitForElement, and the
+      // resize/scroll listeners will refresh the rect on the next tick.
       if (detail.step.element) {
         const el = document.querySelector<HTMLElement>(resolveQuery(detail.step.element))
-        targetElRef.current = el
-        setSpotlightRect(el ? el.getBoundingClientRect() : null)
+        if (el) {
+          targetElRef.current = el
+          setSpotlightRect(el.getBoundingClientRect())
+        }
       } else {
         targetElRef.current = null
         setSpotlightRect(null)
@@ -118,9 +124,14 @@ export function MobileTourOverlay() {
   const description = step.mobileDescription ?? step.description
   const hasSpotlight = !!spotlightRect
 
-  // Spotlight rect with padding
-  const sx = hasSpotlight ? Math.max(0, spotlightRect!.left - SPOTLIGHT_PADDING) : 0
-  const sy = hasSpotlight ? Math.max(0, spotlightRect!.top - SPOTLIGHT_PADDING) : 0
+  // Spotlight rect with padding. When there's no target element, collapse the
+  // spotlight to a 0×0 point at viewport center so the four panels still cover
+  // the full screen — no conditional re-render means smooth CSS transitions
+  // between sized and collapsed states.
+  const cx = hasSpotlight ? 0 : window.innerWidth / 2
+  const cy = hasSpotlight ? 0 : window.innerHeight / 2
+  const sx = hasSpotlight ? Math.max(0, spotlightRect!.left - SPOTLIGHT_PADDING) : cx
+  const sy = hasSpotlight ? Math.max(0, spotlightRect!.top - SPOTLIGHT_PADDING) : cy
   const sw = hasSpotlight ? spotlightRect!.width + SPOTLIGHT_PADDING * 2 : 0
   const sh = hasSpotlight ? spotlightRect!.height + SPOTLIGHT_PADDING * 2 : 0
 
@@ -142,39 +153,33 @@ export function MobileTourOverlay() {
 
   return createPortal(
     <>
-      {/* Overlay layer(s) */}
-      {hasSpotlight ? (
-        <>
-          {/* Top */}
-          <div
-            className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
-            style={{ top: 0, left: 0, right: 0, height: sy }}
-          />
-          {/* Bottom */}
-          <div
-            className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
-            style={{ top: sy + sh, left: 0, right: 0, bottom: 0 }}
-          />
-          {/* Left */}
-          <div
-            className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
-            style={{ top: sy, left: 0, width: sx, height: sh }}
-          />
-          {/* Right */}
-          <div
-            className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
-            style={{ top: sy, left: sx + sw, right: 0, height: sh }}
-          />
-          {/* Spotlight ring */}
-          <div
-            className={`fixed z-[201] rounded-2xl ring-4 ring-white/30 pointer-events-none transition-all duration-200 ease-out${step.isAction ? ' mobile-tour-spotlight-pulse' : ''}`}
-            style={{ top: sy, left: sx, width: sw, height: sh }}
-          />
-        </>
-      ) : (
-        // No element — single full-screen overlay
-        <div className="fixed inset-0 bg-black/60 z-[200] pointer-events-auto" />
-      )}
+      {/* Four-panel overlay — always rendered, collapses smoothly to a single
+          full-coverage layer when the spotlight is 0×0 (no-element steps). */}
+      {/* Top */}
+      <div
+        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        style={{ top: 0, left: 0, right: 0, height: sy }}
+      />
+      {/* Bottom */}
+      <div
+        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        style={{ top: sy + sh, left: 0, right: 0, bottom: 0 }}
+      />
+      {/* Left */}
+      <div
+        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        style={{ top: sy, left: 0, width: sx, height: sh }}
+      />
+      {/* Right */}
+      <div
+        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        style={{ top: sy, left: sx + sw, right: 0, height: sh }}
+      />
+      {/* Spotlight ring (invisible when sw/sh are 0) */}
+      <div
+        className={`fixed z-[201] rounded-2xl ring-4 ring-white/30 pointer-events-none transition-all duration-200 ease-out${step.isAction && hasSpotlight ? ' mobile-tour-spotlight-pulse' : ''}`}
+        style={{ top: sy, left: sx, width: sw, height: sh }}
+      />
 
       {/* Bottom sheet */}
       <div

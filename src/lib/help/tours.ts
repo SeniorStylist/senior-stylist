@@ -707,11 +707,26 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
  * Phase 12J: when `state.mobile === true`, route directly to `startMobileTour`
  * to keep the renderer sticky to the device the tour started on (avoids
  * flicker if breakpoint detection wobbles across reload).
+ *
+ * Phase 12J bug-fix: this is a ONE-SHOT — read, clear, then start. Without
+ * the immediate clear, an abandoned tour (user navigates away, force-quits,
+ * etc.) leaves state in sessionStorage and every subsequent layout mount
+ * re-launches the tour at the saved step, causing an infinite reload loop
+ * for tours that include cross-route hops. Cross-route hops save fresh state
+ * inside their own engine, so resume still works.
  */
 export async function resumePendingTour(): Promise<void> {
   const state = loadSessionState()
   if (!state) return
-  // Don't auto-clear — startTour will clear when it completes.
+  // Defense in depth: loadSessionState already removes expired state, but
+  // explicitly bail here too so a stale entry never reaches startTour.
+  if (state.expiresAt < Date.now()) {
+    clearSessionState()
+    return
+  }
+  // One-shot: clear the saved state BEFORE starting. The tour run will re-save
+  // for cross-route hops as needed.
+  clearSessionState()
   if (state.mobile) {
     const { startMobileTour } = await import('./mobile-tour')
     await startMobileTour(state.tourId, { resumeFromStep: state.stepIndex })

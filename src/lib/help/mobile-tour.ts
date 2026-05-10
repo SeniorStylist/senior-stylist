@@ -10,8 +10,6 @@
 
 import {
   TOUR_DEFINITIONS,
-  ELEMENT_WAIT_MS,
-  SESSION_TTL_MS,
   isOnRoute,
   resolveQuery,
   waitForElement,
@@ -21,6 +19,13 @@ import {
   type TourDefinition,
 } from './tours'
 
+// Mobile-specific tunables. Mobile waits less than desktop (5s feels broken
+// on a phone) and uses a tighter resume TTL (1 min) to bound stale-state loops.
+const MOBILE_ELEMENT_WAIT_MS = 2000
+const MOBILE_RESUME_TTL = 60_000
+const SCROLL_SETTLE_MS = 50
+
+let activeMobileTourId: string | null = null
 let activeListenerCleanup: (() => void) | null = null
 let activeAdvanceHandler: ((e: Event) => void) | null = null
 let activeCloseHandler: ((e: Event) => void) | null = null
@@ -38,10 +43,16 @@ function destroyActiveMobileTour() {
     window.removeEventListener('help-mobile-tour-close', activeCloseHandler)
     activeCloseHandler = null
   }
+  activeMobileTourId = null
 }
 
 function dispatchHide() {
   window.dispatchEvent(new CustomEvent('help-mobile-tour-hide'))
+}
+
+function isElementInViewport(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect()
+  return r.top >= 0 && r.bottom <= window.innerHeight
 }
 
 export async function startMobileTour(
@@ -54,7 +65,17 @@ export async function startMobileTour(
     console.warn(`[help] No tour definition for "${tourId}"`)
     return
   }
+  // Re-entry guard: if the same tour is already running (e.g. <TourResumer />
+  // fires its effect twice in StrictMode or across a layout remount race),
+  // skip the second call rather than starting a parallel run.
+  if (activeMobileTourId === tourId) return
+  // Wipe any lingering resume state at the START of a tour run. If we got here
+  // via resumePendingTour the state was already consumed; if we got here via a
+  // user-initiated launch from /help any stale state is moot. Cross-route hops
+  // inside runMobileStep re-save state, so resume continues to work.
+  clearSessionState()
   destroyActiveMobileTour()
+  activeMobileTourId = tourId
   const startIndex = Math.max(0, opts.resumeFromStep ?? 0)
   await runMobileStep(def, startIndex)
 }
@@ -70,12 +91,13 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
   const step = def.steps[index]
   const totalSteps = def.steps.length
 
-  // Cross-route hop: persist with mobile flag and hard-nav
+  // Cross-route hop: persist with mobile flag and hard-nav. Use the shorter
+  // mobile TTL so abandoned tours don't loop for 5 minutes.
   if (!isOnRoute(step.route)) {
     saveSessionState({
       tourId: def.id,
       stepIndex: index,
-      expiresAt: Date.now() + SESSION_TTL_MS,
+      expiresAt: Date.now() + MOBILE_RESUME_TTL,
       mobile: true,
     })
     destroyActiveMobileTour()
@@ -87,14 +109,17 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
   // Resolve element (or null for body-anchored info steps)
   let target: HTMLElement | null = null
   if (step.element) {
-    target = await waitForElement(resolveQuery(step.element), ELEMENT_WAIT_MS)
+    target = await waitForElement(resolveQuery(step.element), MOBILE_ELEMENT_WAIT_MS)
     if (!target) {
       toastWarning('Couldn\'t find that element — the app may have changed.')
       return runMobileStep(def, index + 1)
     }
-    // Bring element into view before measuring; small delay so scroll settles.
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    await new Promise((r) => setTimeout(r, 150))
+    // Only scroll + wait if the element is offscreen. When it's already visible,
+    // dispatch immediately for a snappy step transition.
+    if (!isElementInViewport(target)) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      await new Promise((r) => setTimeout(r, SCROLL_SETTLE_MS))
+    }
   }
 
   // Tear down listeners from prior step before binding new ones
