@@ -759,6 +759,39 @@ export const importBatches = pgTable('import_batches', {
   facilityIdx: index('import_batches_facility_idx').on(t.facilityId),
 }))
 
+// ─── Sign-Up Sheet (intake queue → stylist calendar) ────────────────────────
+
+export const signupSheetEntries = pgTable('signup_sheet_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  // Nullable: brand-new resident may be created inline; usually populated.
+  residentId: uuid('resident_id').references(() => residents.id),
+  // Denormalized so the entry is self-describing for display, even if FK is null.
+  residentName: text('resident_name').notNull(),
+  roomNumber: text('room_number'),
+  serviceId: uuid('service_id').references(() => services.id),
+  serviceName: text('service_name').notNull(),
+  // 'HH:MM' string (24-hour); null = no time preference. Tz-agnostic — actual booking time
+  // is set at scheduling time using the facility's tz.
+  requestedTime: text('requested_time'),
+  requestedDate: date('requested_date').notNull(),
+  notes: text('notes'),
+  createdBy: uuid('created_by').references(() => profiles.id).notNull(),
+  assignedToStylistId: uuid('assigned_to_stylist_id').references(() => stylists.id),
+  // 'pending' | 'scheduled' | 'cancelled'
+  status: text('status').default('pending').notNull(),
+  // Set when the entry is converted to a real booking via /convert.
+  bookingId: uuid('booking_id').references((): AnyPgColumn => bookings.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => ({
+  facilityDateIdx: index('signup_sheet_facility_date_idx').on(t.facilityId, t.requestedDate),
+  // Stylist queue lookup — only "pending" entries (matches the panel's filter)
+  assignedPendingIdx: index('signup_sheet_assigned_pending_idx')
+    .on(t.assignedToStylistId, t.requestedDate)
+    .where(sql`status = 'pending'`),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
@@ -802,6 +835,33 @@ export const qbInvoicesRelations = relations(qbInvoices, ({ one }) => ({
     fields: [qbInvoices.matchedBookingId],
     references: [bookings.id],
     relationName: 'qb_invoice_matched_booking',
+  }),
+}))
+
+export const signupSheetEntriesRelations = relations(signupSheetEntries, ({ one }) => ({
+  facility: one(facilities, {
+    fields: [signupSheetEntries.facilityId],
+    references: [facilities.id],
+  }),
+  resident: one(residents, {
+    fields: [signupSheetEntries.residentId],
+    references: [residents.id],
+  }),
+  service: one(services, {
+    fields: [signupSheetEntries.serviceId],
+    references: [services.id],
+  }),
+  assignedStylist: one(stylists, {
+    fields: [signupSheetEntries.assignedToStylistId],
+    references: [stylists.id],
+  }),
+  createdByProfile: one(profiles, {
+    fields: [signupSheetEntries.createdBy],
+    references: [profiles.id],
+  }),
+  booking: one(bookings, {
+    fields: [signupSheetEntries.bookingId],
+    references: [bookings.id],
   }),
 }))
 

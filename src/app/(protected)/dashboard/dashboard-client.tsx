@@ -18,6 +18,10 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { HelpTip } from '@/components/ui/help-tip'
 import { OnboardingModal } from '@/components/help/onboarding-modal'
+import { ClipboardList } from 'lucide-react'
+import { SignupSheetPanel } from '@/components/signup-sheet/signup-sheet-panel'
+import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending-entries'
+import type { SignupSheetEntryWithRelations } from '@/types'
 
 const CalendarView = dynamic(() => import('@/components/calendar/calendar-view'), {
   ssr: false,
@@ -129,6 +133,12 @@ export function DashboardClient({
   const [editBookingId, setEditBookingId] = useState<string | null>(null)
   const [modalStart, setModalStart] = useState<Date | null>(null)
   const [modalEnd, setModalEnd] = useState<Date | null>(null)
+  // Sign-Up Sheet state
+  const [signupSheetOpen, setSignupSheetOpen] = useState(false)
+  const [pendingSignups, setPendingSignups] = useState<SignupSheetEntryWithRelations[]>([])
+  const [schedulingEntryId, setSchedulingEntryId] = useState<string | null>(null)
+  const [prefillResidentId, setPrefillResidentId] = useState<string | null>(null)
+  const [prefillServiceId, setPrefillServiceId] = useState<string | null>(null)
 
   // Local data (mutable without full reload)
   const [residents, setResidents] = useState<Resident[]>(initialResidents)
@@ -192,6 +202,53 @@ export function DashboardClient({
     const p = getLocalParts(new Date(), facility.timezone)
     return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
   })
+
+  const todayDateStr = useMemo(() => {
+    const p = getLocalParts(new Date(), facility.timezone)
+    return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+  }, [facility.timezone])
+
+  // Fetch pending sign-up sheet entries (stylist sees their own + unassigned;
+  // facility staff/admin see them via the slide-over panel only).
+  useEffect(() => {
+    if (userRole !== 'stylist') return
+    let cancelled = false
+    fetch(`/api/signup-sheet?date=${todayDateStr}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return
+        if (Array.isArray(json.data)) setPendingSignups(json.data)
+      })
+      .catch((e) => console.error('Failed to load pending signups:', e))
+    return () => { cancelled = true }
+  }, [userRole, todayDateStr])
+
+  const handleScheduleSignupEntry = useCallback((entry: SignupSheetEntryWithRelations) => {
+    // Build defaultStart from the entry's requested time, else "now" rounded forward.
+    let start = new Date()
+    if (entry.requestedTime) {
+      const [h, m] = entry.requestedTime.split(':').map(Number)
+      const today = new Date()
+      today.setHours(h, m, 0, 0)
+      start = today
+    } else {
+      // Round up to next half-hour
+      const minutes = start.getMinutes()
+      const add = minutes < 30 ? 30 - minutes : 60 - minutes
+      start.setMinutes(start.getMinutes() + add, 0, 0)
+    }
+    setEditBookingId(null)
+    setModalStart(start)
+    setModalEnd(null)
+    setPrefillResidentId(entry.residentId)
+    setPrefillServiceId(entry.serviceId)
+    setSchedulingEntryId(entry.id)
+    // Make sure the resident is in the local list (panel may have created one inline)
+    if (entry.resident && !residents.some((r) => r.id === entry.resident!.id)) {
+      setResidents((prev) => [...prev, entry.resident!])
+    }
+    setModalOpen(true)
+  }, [residents])
 
   // Period stats (week + month)
   const [periodStats, setPeriodStats] = useState<{
@@ -284,6 +341,9 @@ export function DashboardClient({
     setEditBookingId(null)
     setModalStart(null)
     setModalEnd(null)
+    setPrefillResidentId(null)
+    setPrefillServiceId(null)
+    setSchedulingEntryId(null)
   }
 
   const handleBookingChange = (updated: BookingWithRelations) => {
@@ -296,6 +356,10 @@ export function DashboardClient({
       }
       return [...prev, updated]
     })
+    // If we just converted a sign-up sheet entry, drop it from the pending list
+    if (schedulingEntryId) {
+      setPendingSignups((prev) => prev.filter((e) => e.id !== schedulingEntryId))
+    }
     setCalendarFlash(true)
     setTimeout(() => setCalendarFlash(false), 750)
   }
@@ -377,6 +441,16 @@ export function DashboardClient({
             </h1>
           </div>
 
+          {/* Pending sign-up entries */}
+          {pendingSignups.length > 0 && (
+            <div className="px-4 mb-2">
+              <StylistPendingEntries
+                entries={pendingSignups}
+                onSchedule={handleScheduleSignupEntry}
+              />
+            </div>
+          )}
+
           {/* Today's appointments */}
           <div className="px-4 space-y-2">
             {loadingBookings && (
@@ -435,6 +509,27 @@ export function DashboardClient({
 
           <QuickBookFAB onOpen={openQuickCreate} />
         </div>
+
+        {/* Booking modal — needed in stylist mobile mode for both QuickBookFAB and signup-sheet schedule */}
+        <BookingModal
+          open={modalOpen}
+          onClose={closeModal}
+          mode={editBookingId ? 'edit' : 'create'}
+          booking={editBooking}
+          defaultStart={modalStart}
+          defaultEnd={modalEnd}
+          residents={residents}
+          services={localServices}
+          facilityId={facility.id}
+          facilityTimezone={facility.timezone}
+          onBookingChange={handleBookingChange}
+          onBookingDeleted={handleBookingDeleted}
+          isAdmin={isAdmin}
+          serviceCategoryOrder={facility.serviceCategoryOrder}
+          prefillResidentId={prefillResidentId}
+          prefillServiceId={prefillServiceId}
+          signupSheetEntryId={schedulingEntryId}
+        />
       </ErrorBoundary>
     )
   }
@@ -611,6 +706,25 @@ export function DashboardClient({
                   </button>
                 ))}
               </div>
+              {/* Sign-Up Sheet — admin + facility_staff */}
+              {(isAdmin || userRole === 'facility_staff') && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    data-tour="signup-sheet-button"
+                    onClick={() => setSignupSheetOpen(true)}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors"
+                  >
+                    <ClipboardList size={16} />
+                    <span className="hidden sm:inline">Sign-Up Sheet</span>
+                  </button>
+                  <HelpTip
+                    tourId="facility-staff-signup-sheet"
+                    label="Sign-Up Sheet"
+                    description="Quick way to log residents who want appointments without picking a time slot."
+                  />
+                </div>
+              )}
               {/* Export billing — admin only, desktop only */}
               {isAdmin && (
                 <div className="hidden md:flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
@@ -638,6 +752,14 @@ export function DashboardClient({
             </div>
           </div>
         </div>
+
+        {/* Stylist sign-up queue — above calendar grid, only visible when entries exist */}
+        {userRole === 'stylist' && pendingSignups.length > 0 && (
+          <StylistPendingEntries
+            entries={pendingSignups}
+            onSchedule={handleScheduleSignupEntry}
+          />
+        )}
 
         {/* Calendar card */}
         <div className={cn('flex-1 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden min-h-0', calendarFlash && 'calendar-booking-flash')}>
@@ -777,7 +899,25 @@ export function DashboardClient({
         onBookingDeleted={handleBookingDeleted}
         isAdmin={isAdmin}
         serviceCategoryOrder={facility.serviceCategoryOrder}
+        prefillResidentId={prefillResidentId}
+        prefillServiceId={prefillServiceId}
+        signupSheetEntryId={schedulingEntryId}
       />
+
+      {/* Sign-Up Sheet panel — admin + facility_staff */}
+      {(isAdmin || userRole === 'facility_staff') && (
+        <SignupSheetPanel
+          open={signupSheetOpen}
+          onClose={() => setSignupSheetOpen(false)}
+          facilityId={facility.id}
+          facilityTimezone={facility.timezone}
+          residents={residents}
+          services={localServices}
+          stylists={stylists}
+          todayDate={todayDateStr}
+          onResidentCreated={(r) => setResidents((prev) => [...prev, r])}
+        />
+      )}
     </div>
     </ErrorBoundary>
   )

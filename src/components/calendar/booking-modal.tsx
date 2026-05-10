@@ -35,6 +35,12 @@ interface BookingModalProps {
   onBookingDeleted: (bookingId: string) => void
   isAdmin?: boolean
   serviceCategoryOrder?: string[] | null
+  // Sign-Up Sheet integration: pre-fill resident + service when scheduling a pending entry,
+  // and route the create POST through /api/signup-sheet/[id]/convert so the entry is marked
+  // scheduled in the same transaction.
+  prefillResidentId?: string | null
+  prefillServiceId?: string | null
+  signupSheetEntryId?: string | null
 }
 
 interface PickedStylist {
@@ -65,6 +71,9 @@ export function BookingModal({
   onBookingDeleted,
   isAdmin,
   serviceCategoryOrder,
+  prefillResidentId = null,
+  prefillServiceId = null,
+  signupSheetEntryId = null,
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -175,12 +184,17 @@ export function BookingModal({
         setTipCleared(true) // existing booking has no tip — don't auto-fill from resident default
       }
     } else {
-      setSelectedResidentId('')
-      setSelectedServiceIds([])
+      // Pre-fill from sign-up sheet entry (if scheduling one) — resident + service +
+      // requestedTime have already been baked into defaultStart / prefill props.
+      const preResident = prefillResidentId
+        ? residents.find((r) => r.id === prefillResidentId) ?? null
+        : null
+      setSelectedResidentId(preResident?.id ?? '')
+      setResidentSearch(preResident?.name ?? '')
+      setSelectedServiceIds(prefillServiceId ? [prefillServiceId] : [])
       setSelectedAddonServiceIds([])
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart, facilityTimezone) : '')
       setNotes('')
-      setResidentSearch('')
       // Create mode: clear tip; resident-default useEffect below will populate it
       setTipType('percentage')
       setTipValue('')
@@ -414,6 +428,9 @@ export function BookingModal({
         notes: notes || undefined,
         // Phase 12E — null clears any existing tip on edit; > 0 sets it
         tipCents: tipCentsPreview > 0 ? tipCentsPreview : null,
+        // Sign-up sheet convert path requires stylistId in the body — pass the auto-picked
+        // stylist when available (no-op for the regular /api/bookings path which auto-resolves).
+        ...(pickedStylist?.id ? { stylistId: pickedStylist.id } : {}),
         ...pricingFields,
       }
 
@@ -424,7 +441,9 @@ export function BookingModal({
       const url = isCreatingRecurring
         ? '/api/bookings/recurring'
         : mode === 'create'
-          ? '/api/bookings'
+          ? (signupSheetEntryId
+              ? `/api/signup-sheet/${signupSheetEntryId}/convert`
+              : '/api/bookings')
           : `/api/bookings/${booking!.id}`
       const method = mode === 'create' ? 'POST' : 'PUT'
 

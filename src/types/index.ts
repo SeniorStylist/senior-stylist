@@ -228,6 +228,33 @@ export interface BookingWithRelations extends Booking {
   service: Service
 }
 
+export type SignupSheetStatus = 'pending' | 'scheduled' | 'cancelled'
+
+export interface SignupSheetEntry {
+  id: string
+  facilityId: string
+  residentId: string | null
+  residentName: string
+  roomNumber: string | null
+  serviceId: string | null
+  serviceName: string
+  requestedTime: string | null
+  requestedDate: string
+  notes: string | null
+  createdBy: string
+  assignedToStylistId: string | null
+  status: SignupSheetStatus
+  bookingId: string | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+export interface SignupSheetEntryWithRelations extends SignupSheetEntry {
+  resident: Resident | null
+  service: Service | null
+  assignedStylist: Stylist | null
+}
+
 export interface AccessRequest {
   id: string
   facilityId: string | null
