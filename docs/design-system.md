@@ -2195,3 +2195,60 @@ Two attribute names with non-overlapping semantics:
 
 ### Tour popover styling (`.senior-stylist-tour`)
 Already documented in Phase 12G section above. No changes in 12H.
+
+### Mobile tour visual spec (Phase 12J)
+
+A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767px)')`). Driver.js stays on desktop. Mobile uses a four-panel dark overlay with a rounded spotlight cutout + a bottom sheet card. `<MobileTourOverlay />` lives in `src/components/help/mobile-tour-overlay.tsx`, mounted inside `ToastProvider` in `(protected)/layout.tsx`.
+
+**Overlay & spotlight**:
+- Four absolutely-positioned `bg-black/60` panels surround the target element's `getBoundingClientRect()` plus 8px padding. `z-[200]`, `pointer-events: auto` (block underlying clicks), `transition-all duration-200 ease-out`.
+- Spotlight area is the rectangle BETWEEN the four panels — no panel exists there, so taps pass through to the highlighted element naturally.
+- A separate decorative ring sits above: `fixed z-[201] rounded-2xl ring-4 ring-white/30 pointer-events-none transition-all duration-200`. Never absorbs taps.
+- For action steps, the ring carries `mobile-tour-spotlight-pulse` (1.5s ease-in-out infinite). Keyframe is in `globals.css`:
+  ```css
+  @keyframes mobile-tour-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+    50%      { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+  }
+  ```
+- For steps with `element: ''` (no target), the four panels are replaced with a single full-screen `bg-black/60` overlay; no ring.
+
+**Bottom sheet card**:
+- `fixed bottom-0 left-0 right-0 z-[202] bg-white rounded-t-3xl px-6 pt-5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)]`
+- iOS home indicator clearance: `style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}`
+- `maxHeight: 60vh` with `overflowY: 'auto'`
+- Handle bar: `w-10 h-1 bg-stone-200 rounded-full mx-auto mb-4`
+- Close button: `absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-stone-400` with stroke-2.2 X icon (lucide-style inline SVG)
+- Progress dots: `flex items-center justify-center gap-1 mb-3`. Per dot: `w-2 h-2 rounded-full`. Filled = `bg-[#8B2E4A]`, empty = `bg-stone-200`. One dot per step.
+- Title: `text-xl font-bold text-stone-900` with `style={{ fontFamily: "'DM Serif Display', serif" }}` — uses `step.mobileTitle ?? step.title`
+- Description: `text-[15px] text-stone-600 leading-relaxed mt-2` — uses `step.mobileDescription ?? step.description`
+
+**Buttons** (info steps only — action steps replace this with a hint string):
+- Stacked vertically. Next on top, Back below. Easier to reach with thumb.
+- Next: `min-h-[52px] w-full bg-[#8B2E4A] text-white rounded-2xl text-base font-semibold shadow-[0_2px_8px_rgba(139,46,74,0.3)] active:scale-[0.98] transition-transform`. Text is `Next →` or `✓ Done` on the last step (which dispatches close).
+- Back: `min-h-[52px] w-full bg-stone-100 text-stone-700 rounded-2xl text-base font-semibold mt-2 active:scale-[0.98] transition-transform`. Hidden on first step.
+
+**Action step hint**: `<p className="text-sm text-stone-400 italic text-center mt-5 mb-1">` showing `step.actionHint ?? 'Tap the highlighted area to continue'`. Replaces the buttons entirely.
+
+**Swipe gestures**: `onTouchStart` / `onTouchEnd` on the bottom sheet. Compute `dx = endX - startX`, `dy = endY - startY`. Trigger when `|dx| > 50 && |dx| > |dy|`. Left swipe (dx < 0, info step only) → next. Right swipe (dx > 0, not first step) → prev. Vertical scroll inside the sheet is preserved.
+
+**Entrance animation**: bottom sheet `transform: translateY(100%) → translateY(0)` over `300ms cubic-bezier(0.32, 0.72, 0, 1)` (iOS sheet feel). Animated only on the FIRST `help-mobile-tour-show` of a tour run; subsequent step transitions just update content without re-animating. Gated on a component `useRef` (`isFirstShowRef`).
+
+**Reduced motion**: existing `@media (prefers-reduced-motion: reduce)` block in globals.css collapses all animation/transition durations to 0.01ms — applies to entrance and pulse without any extra rule.
+
+**Z-index stack**:
+- Overlay panels: `z-[200]`
+- Spotlight ring: `z-[201]`
+- Bottom sheet: `z-[202]`
+- (Existing chrome: sidebar `z-30`, mobile nav `z-50`, modal `z-50`-`z-60` — all below.)
+
+**Body scroll lock**: while overlay is active, `document.body.style.overflow = 'hidden'`. Restored on hide.
+
+**Mobile-specific copy** (`mobileTitle?` / `mobileDescription?` on `TourStep`): authors only need to add when the desktop description exceeds 120 chars or uses "Click". Currently set on 9 steps across the 5 stylist tours. Mobile titles ≤ 40 chars, descriptions ≤ 120 chars, "Tap" not "Click".
+
+### Mobile tour element resolution + cross-route resume (Phase 12J)
+
+- `resolveQuery(selector)` already auto-maps `[data-tour="X"]` → `[data-tour-mobile="X"], [data-tour="X"]` on mobile. The mobile engine reuses this — no separate selector convention.
+- `waitForElement(resolveQuery(step.element), 5000)` polls via RAF up to 5 seconds. On timeout: `toastWarning("Couldn't find that element — the app may have changed.")` and skip to the next step (same as desktop).
+- After resolving, the engine calls `target.scrollIntoView({ behavior: 'smooth', block: 'center' })` and waits 150ms before measuring the rect. Avoids dispatching with stale coordinates.
+- Cross-route hop: engine writes `SessionState` with `mobile: true`, then `window.location.href = step.route`. `<TourResumer />` calls `resumePendingTour()`, which checks `state.mobile` and routes directly to `startMobileTour()` (bypasses `startTour()`'s `isMobile()` re-check, so the renderer is sticky to the device that started the tour).

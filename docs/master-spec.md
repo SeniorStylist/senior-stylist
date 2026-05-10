@@ -1537,6 +1537,48 @@ Complete rewrite of 4 existing stylist tours; new `stylist-my-account` tour (5 s
 
 **FullCalendar:** `slotLabelFormat={{ hour:'numeric', minute:'2-digit', omitZeroMinute:false, meridiem:'short' }}` in `calendar-view.tsx` — time axis now shows `7:00am`, `8:00am` format instead of `7`, `8`.
 
+### Phase 12J — Mobile Tour System (SHIPPED 2026-05-08)
+
+A separate mobile renderer for guided tours that runs alongside Driver.js. Shares the same `TourStep[]` data and the same sessionStorage resume mechanism, but renders as a four-panel dark overlay with a rounded spotlight cutout + a bottom sheet card. Driver.js stays unchanged on desktop.
+
+**Branching** at `startTour(tourId, opts)` in `src/lib/help/tours.ts`: when `isMobile()` is true (`window.matchMedia('(max-width: 767px)')`) the function dynamic-imports `./mobile-tour` and calls `startMobileTour()`; otherwise the existing Driver.js path runs unchanged.
+
+**Engine** (`src/lib/help/mobile-tour.ts`):
+- `startMobileTour(tourId, opts)` and `runMobileStep(def, index)` mirror the desktop `startTour`/`runStep` shape
+- Cross-route hop: saves `SessionState` with `mobile: true` and hard-navigates; `<TourResumer />` resumes via `resumePendingTour()` which routes mobile-flagged state directly to `startMobileTour()`
+- Element resolution: `waitForElement(resolveQuery(step.element), 5000)` — same helpers as desktop, exported from `tours.ts`
+- After resolving, calls `element.scrollIntoView({ behavior: 'smooth', block: 'center' })` and waits 150ms for scroll to settle before dispatching `help-mobile-tour-show`
+- Action steps attach a one-time capture-phase click listener to the target with a 50ms timeout (same logic as desktop)
+- Info steps wait for `help-mobile-tour-advance` `{ direction }` from the overlay
+
+**Overlay** (`src/components/help/mobile-tour-overlay.tsx`):
+- React component mounted at `(protected)/layout.tsx` inside `ToastProvider`, alongside `<TourResumer />`
+- Listens for `help-mobile-tour-show` / `help-mobile-tour-hide` CustomEvents; renders `null` when no active step
+- Portal target is `document.body` via `react-dom/createPortal`
+- Layout: 4 absolutely-positioned `bg-black/60` panels surrounding the spotlight rect (target rect + 8px padding); separate `ring-4 ring-white/30 rounded-2xl pointer-events-none` div for the visual ring; bottom sheet card pinned to bottom
+- Pointer-events: panels = auto (block underlying clicks), spotlight area = no panel (clicks pass through to highlighted element), ring = none, sheet = auto
+- Bottom sheet contents: handle bar → close button (top-right) → progress dots (filled `#8B2E4A` / empty stone-200, 8px circles, 4px gap) → DM Serif Display title (`text-xl font-bold`) → 15px description → action hint OR stacked Next/Back buttons (52px min-height, `rounded-2xl`, burgundy on top with shadow)
+- Action step branch: hides Next button, shows italic `step.actionHint ?? 'Tap the highlighted area to continue'`
+- Last step: Next button text becomes `✓ Done` and dispatches `help-mobile-tour-close`
+- Swipe gestures (touchstart/touchend on the sheet): horizontal `|dx| > 50 && |dx| > |dy|` advances (left → next, right → prev). Vertical scroll preserved.
+- Entrance: `translateY(100%) → 0` over 300ms `cubic-bezier(0.32, 0.72, 0, 1)` — animated only on the FIRST show event of a tour run (subsequent steps don't re-animate). Tracked via `isFirstShowRef`.
+- Window scroll/resize listeners re-measure rect via `targetElRef.current.getBoundingClientRect()` so the spotlight follows the element under viewport changes.
+- Body scroll is locked while overlay is active (`document.body.style.overflow = 'hidden'`).
+
+**`SessionState.mobile?: boolean`** — added in Phase 12J. When the mobile engine saves state for a cross-route hop it sets `mobile: true`. `resumePendingTour()` reads the flag and routes directly to `startMobileTour()` without re-running breakpoint detection. This makes the renderer sticky to the device that started the tour, so a hard reload doesn't flip from spotlight to Driver.js (or vice versa) if `matchMedia` happens to wobble.
+
+**`mobileTitle?` / `mobileDescription?`** optional fields on `TourStep`. When the mobile overlay renders, it uses `step.mobileTitle ?? step.title` and `step.mobileDescription ?? step.description`. Authors only need to add mobile copy when the desktop description exceeds 120 chars or uses "Click". Currently set on 9 steps across the 5 stylist tours.
+
+**globals.css** gained one keyframe (`mobile-tour-pulse`) and one class (`.mobile-tour-spotlight-pulse`, 1.5s ease-in-out infinite). Applied to the spotlight ring on action steps. Respects `prefers-reduced-motion` via the existing global motion-reduction block (no extra rule needed).
+
+**CustomEvents** (engine ↔ overlay pub/sub, mirroring the existing `help-tour-toast` pattern):
+- `help-mobile-tour-show` `{ tourId, stepIndex, step, totalSteps }` — engine → overlay
+- `help-mobile-tour-hide` `{}` — engine → overlay
+- `help-mobile-tour-advance` `{ direction: 'next' | 'prev' }` — overlay → engine
+- `help-mobile-tour-close` `{}` — overlay → engine
+
+**Helpers exported from `tours.ts`** (previously module-private, now `export`'d so `mobile-tour.ts` can reuse them without duplication): `SESSION_KEY`, `SESSION_TTL_MS`, `ELEMENT_WAIT_MS`, `SessionState` type, `isMobile`, `resolveQuery`, `waitForElement`, `saveSessionState`, `loadSessionState`, `clearSessionState`, `toastWarning`, `toastInfo`, `isOnRoute`. Behavior unchanged.
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.

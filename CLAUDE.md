@@ -79,6 +79,24 @@ Rules for stable selectors:
 - **Conditional elements** (only in DOM when a modal/form is open) are only safe as tour targets when the immediately preceding step is `isAction: true` and clicking it is what opens the element. If there is no such preceding action step, use `element: ''` instead.
 - **Role-gated or data-dependent elements** (e.g. `billing-facility-select` only for master, `billing-invoice-list` only for IP facilities) must use `element: ''` so the tour doesn't show a warning toast to users who don't have the element.
 
+**Phase 12J — Mobile tour system** (`src/lib/help/mobile-tour.ts` + `src/components/help/mobile-tour-overlay.tsx`):
+- `startTour()` in `tours.ts` branches on `isMobile()` (`window.matchMedia('(max-width: 767px)')`). Mobile uses the spotlight + bottom sheet renderer; desktop uses Driver.js. Both share the same `TourStep[]` data and the same sessionStorage resume mechanism.
+- `<MobileTourOverlay />` is mounted in `(protected)/layout.tsx` alongside `<TourResumer />` inside `ToastProvider`. Renders `null` until it receives a `help-mobile-tour-show` CustomEvent.
+- **Renderer**: four absolutely-positioned `bg-black/60 z-[200]` panels surround the spotlight rectangle (target's `getBoundingClientRect()` + 8px padding). A separate `ring-4 ring-white/30 rounded-2xl pointer-events-none z-[201]` div is the visual ring. Bottom sheet card is `z-[202] bg-white rounded-t-3xl` with `env(safe-area-inset-bottom)` padding. The four panels block clicks on non-spotlight UI; the spotlight area passes clicks through to the underlying element naturally (no panel there); the ring is `pointer-events: none`.
+- **Action steps** add the `mobile-tour-spotlight-pulse` class to the ring (1.5s ease-in-out infinite). Bottom sheet hides the Next button and shows `step.actionHint ?? 'Tap the highlighted area to continue'`. The mobile engine attaches a one-time capture-phase `click` listener to the target element with a 50ms timeout (mirrors desktop logic).
+- **Info steps** show stacked vertical buttons: Next on top (burgundy `#8B2E4A`, 52px min-height, `rounded-2xl`, shadow), Back below (`bg-stone-100`, hidden on first step). Last step's Next becomes `✓ Done` and dispatches close.
+- **Swipe gestures** on the bottom sheet: horizontal `|deltaX| > 50px` advances (left → next, right → prev) when `|deltaX| > |deltaY|`. Vertical scroll is preserved.
+- **Entrance animation**: bottom sheet `translateY(100%) → 0` over 300ms `cubic-bezier(0.32, 0.72, 0, 1)` on first show only — step transitions don't re-animate. Respects `prefers-reduced-motion` via the existing globals.css block.
+- **Cross-route resume**: mobile engine saves `SessionState.mobile = true` to sessionStorage before hard-nav. `resumePendingTour()` reads the flag and routes to `startMobileTour()` directly (bypasses `startTour()`'s `isMobile()` re-check, so the renderer is sticky to the device that started the tour).
+- **CustomEvents** (`window.dispatchEvent(new CustomEvent(...))`):
+  - `help-mobile-tour-show` `{ tourId, stepIndex, step, totalSteps }` — engine → overlay
+  - `help-mobile-tour-hide` `{}` — engine → overlay
+  - `help-mobile-tour-advance` `{ direction: 'next' | 'prev' }` — overlay → engine
+  - `help-mobile-tour-close` `{}` — overlay → engine
+- **`mobileTitle?` / `mobileDescription?`** optional fields on `TourStep`. When `isMobile()` is true the overlay uses `step.mobileTitle ?? step.title` and `step.mobileDescription ?? step.description`.
+- **Help-sync rule extension**: when adding a new tour step, include `mobileDescription` if `description.length > 120` or contains "Click". Mobile titles ≤ 40 chars, descriptions ≤ 120 chars. Use "Tap" not "Click" everywhere.
+- **Helpers exported from `tours.ts`** (do NOT duplicate in mobile-tour.ts): `isMobile`, `resolveQuery`, `waitForElement`, `isOnRoute`, `saveSessionState`/`loadSessionState`/`clearSessionState`, `toastWarning`/`toastInfo`, `SESSION_KEY`/`SESSION_TTL_MS`/`ELEMENT_WAIT_MS`, `SessionState` type.
+
 **Phase 12I anchors** — `/my-account` page anchors (all in `my-account-client.tsx`):
 - `data-tour="my-account-schedule"` — outer div of Your Schedule card (always present for stylists)
 - `data-tour="my-account-compliance"` — outer div of Compliance Documents card

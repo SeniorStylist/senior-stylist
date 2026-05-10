@@ -14,6 +14,7 @@ import { DebugBadge } from '@/components/debug/debug-badge'
 import { MobileFacilityHeader } from '@/components/layout/mobile-facility-header'
 import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 import { TourResumer } from '@/components/help/tour-resumer'
+import { MobileTourOverlay } from '@/components/help/mobile-tour-overlay'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -137,6 +138,7 @@ export default async function ProtectedLayout({
         <div className="main-content flex-1 min-h-0 overflow-auto">
           <ToastProvider>
             <TourResumer />
+            <MobileTourOverlay />
             {children}
           </ToastProvider>
         </div>

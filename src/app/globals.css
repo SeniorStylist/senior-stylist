@@ -387,3 +387,13 @@ button:active, [role="button"]:active {
 .driver-overlay {
   background: rgba(28, 10, 18, 0.55) !important; /* dark burgundy tint */
 }
+
+/* ───────────────── Phase 12J — Mobile tour spotlight pulse ───────────────── */
+@keyframes mobile-tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+  50%      { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+}
+
+.mobile-tour-spotlight-pulse {
+  animation: mobile-tour-pulse 1.5s ease-in-out infinite;
+}

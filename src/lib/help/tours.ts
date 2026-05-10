@@ -50,6 +50,10 @@ export type TourStep = {
   isAction: boolean
   /** Sub-text shown below description on action steps, e.g. "Tap Calendar to continue". */
   actionHint?: string
+  /** Optional mobile-specific title; falls back to `title` when omitted (Phase 12J). */
+  mobileTitle?: string
+  /** Optional mobile-specific description; falls back to `description` when omitted (Phase 12J). */
+  mobileDescription?: string
 }
 
 export type TourDefinition = {
@@ -64,11 +68,11 @@ export type TourDefinition = {
 // HELPERS
 // ────────────────────────────────────────────────────────────────────────────
 
-const SESSION_KEY = 'helpTour'
-const SESSION_TTL_MS = 5 * 60 * 1000 // 5 minutes
-const ELEMENT_WAIT_MS = 5000
+export const SESSION_KEY = 'helpTour'
+export const SESSION_TTL_MS = 5 * 60 * 1000 // 5 minutes
+export const ELEMENT_WAIT_MS = 5000
 
-const isMobile = () =>
+export const isMobile = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(max-width: 767px)').matches
 
@@ -76,7 +80,7 @@ const isMobile = () =>
  * On mobile, prefer [data-tour-mobile="X"] but fall back to [data-tour="X"].
  * Lets step authors write a single selector and have it resolve correctly per device.
  */
-function resolveQuery(selector: string): string {
+export function resolveQuery(selector: string): string {
   if (!isMobile()) return selector
   const m = selector.match(/^\[data-tour="([^"]+)"\]$/)
   if (!m) return selector
@@ -84,7 +88,7 @@ function resolveQuery(selector: string): string {
 }
 
 /** Poll for an element via requestAnimationFrame. Returns null on timeout. */
-function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
+export function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs
     const tick = () => {
@@ -103,13 +107,15 @@ function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElemen
   })
 }
 
-type SessionState = {
+export type SessionState = {
   tourId: string
   stepIndex: number
   expiresAt: number
+  /** Sticky to the device that started the tour. When true, resume via mobile renderer. */
+  mobile?: boolean
 }
 
-function saveSessionState(state: SessionState) {
+export function saveSessionState(state: SessionState) {
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(state))
   } catch {
@@ -117,7 +123,7 @@ function saveSessionState(state: SessionState) {
   }
 }
 
-function loadSessionState(): SessionState | null {
+export function loadSessionState(): SessionState | null {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return null
@@ -132,7 +138,7 @@ function loadSessionState(): SessionState | null {
   }
 }
 
-function clearSessionState() {
+export function clearSessionState() {
   try {
     sessionStorage.removeItem(SESSION_KEY)
   } catch {
@@ -143,12 +149,12 @@ function clearSessionState() {
 // Lightweight global toast surface. The Help Center renders inside the
 // protected layout where useToast() is available, but the tour engine runs
 // outside React. We dispatch a CustomEvent that any mounted listener can pick up.
-function toastWarning(message: string) {
+export function toastWarning(message: string) {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('help-tour-toast', { detail: { kind: 'warning', message } }))
 }
 
-function toastInfo(message: string) {
+export function toastInfo(message: string) {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('help-tour-toast', { detail: { kind: 'info', message } }))
 }
@@ -219,7 +225,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-getting-started',
     title: 'Getting Started',
     steps: [
-      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! This quick tour will show you the three things you\'ll use every day: your Calendar, your Daily Log, and your My Account page.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! This quick tour will show you the three things you\'ll use every day: your Calendar, your Daily Log, and your My Account page.', mobileDescription: 'Quick tour of your Calendar, Daily Log, and My Account.' },
       { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Navigate to Calendar', description: 'Your Calendar is your home base — this is where you see your schedule and manage appointments.', actionHint: 'Tap Calendar to take a look.' },
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your schedule', description: 'On mobile you\'ll see today\'s appointments. On desktop you\'ll see the full week. Each colored block is a booked appointment.' },
       { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'The Daily Log is where you record and finalize your work at the end of each day.', actionHint: 'Tap Daily Log to continue.' },
@@ -234,10 +240,10 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-calendar',
     title: 'Your Calendar',
     steps: [
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your calendar', description: 'This is your calendar. On mobile it shows today\'s appointments. On desktop it shows the full week. Use the arrows to move between days.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your calendar', description: 'This is your calendar. On mobile it shows today\'s appointments. On desktop it shows the full week. Use the arrows to move between days.', mobileDescription: 'Your calendar shows today\'s appointments. Use the arrows to switch days.' },
       { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Today button', description: 'Tap Today anytime to jump back to the current date.' },
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Existing appointments', description: 'Each colored block is a booked appointment. Tap any appointment to open it and make changes — update the service, add a note, or adjust the time.' },
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Create a new booking', description: 'To create a new booking, tap any empty area on the calendar. A form will appear where you choose the resident, service, date, and time — then tap Save.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Existing appointments', description: 'Each colored block is a booked appointment. Tap any appointment to open it and make changes — update the service, add a note, or adjust the time.', mobileDescription: 'Each colored block is a booking. Tap one to edit the service, time, or notes.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Create a new booking', description: 'To create a new booking, tap any empty area on the calendar. A form will appear where you choose the resident, service, date, and time — then tap Save.', mobileDescription: 'Tap any empty area to create a new booking. Pick a resident, service, and time, then Save.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'You can also add a walk-in from the Daily Log if a resident comes in without a booking. We\'ll cover that in the Daily Log tour.' },
     ],
   },
@@ -252,7 +258,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/log', element: '', isAction: false, title: 'Each entry', description: 'Each row is one appointment. You can see the resident\'s name, the service, and the price. Tap a row to edit the price or add a note.' },
       { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'If a resident came in without a booking, tap \'Add Walk-in\' to add them to today\'s log.', actionHint: 'Tap Add Walk-in to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Walk-in form', description: 'Search for the resident by name. If they\'re not in the system yet, you can add them as a new resident. Then choose the service and price.' },
-      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'When you\'re done for the day, tap \'Finalize Day\'. This locks your log and submits it to your admin. Double-check everything first — you won\'t be able to edit after finalizing.', actionHint: 'Tap Finalize Day to continue.' },
+      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'When you\'re done for the day, tap \'Finalize Day\'. This locks your log and submits it to your admin. Double-check everything first — you won\'t be able to edit after finalizing.', mobileDescription: 'Tap Finalize Day to lock and submit your log. Double-check first — you can\'t edit after.', actionHint: 'Tap Finalize Day to continue.' },
       { route: '/log', element: '', isAction: false, title: 'After finalizing', description: 'Once finalized, your admin can see the completed log. If you made a mistake, contact your admin and they can make corrections.' },
     ],
   },
@@ -277,7 +283,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Let\'s walk through finalizing your day.', actionHint: 'Tap Daily Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Check entries', description: 'Before finalizing, check that every entry has the right service and price. Tap any row to make a correction.' },
-      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: false, title: 'Check for walk-ins', description: 'Make sure any walk-ins are added. Anyone who came in without a pre-booked appointment needs to be added here before you finalize.' },
+      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: false, title: 'Check for walk-ins', description: 'Make sure any walk-ins are added. Anyone who came in without a pre-booked appointment needs to be added here before you finalize.', mobileDescription: 'Make sure all walk-ins are added before finalizing.' },
       { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize Day', description: 'When everything looks right, tap \'Finalize Day\'.', actionHint: 'Tap Finalize Day to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Log submitted', description: 'Your log is now submitted. Entries are locked — if anything needs correcting, reach out to your admin.' },
     ],
@@ -290,7 +296,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/dashboard', element: NAV_MY_ACCOUNT, isAction: true, title: 'My Account', description: 'Let\'s explore your My Account page — this is where you manage your personal info, schedule, and documents.', actionHint: 'Tap My Account to continue.' },
       { route: '/my-account', element: '[data-tour="my-account-schedule"]', isAction: false, title: 'Your schedule', description: 'Your Schedule shows which days and hours you\'re working at each facility. This is what admins use to assign you bookings.' },
-      { route: '/my-account', element: '', isAction: false, title: 'Edit your hours', description: 'Tap Edit hours next to any day to change your start and end time for that day. Tap Save — changes take effect immediately and your calendar will reflect the new availability.' },
+      { route: '/my-account', element: '', isAction: false, title: 'Edit your hours', description: 'Tap Edit hours next to any day to change your start and end time for that day. Tap Save — changes take effect immediately and your calendar will reflect the new availability.', mobileDescription: 'Tap Edit hours next to a day to change your start and end time. Changes apply right away.' },
       { route: '/my-account', element: '[data-tour="my-account-compliance"]', isAction: false, title: 'Compliance documents', description: 'The Compliance section is where you upload your documents — cosmetology license, liability insurance, W-9, and any other required paperwork.' },
       { route: '/my-account', element: '[data-tour="my-account-compliance-upload"]', isAction: false, title: 'Upload a document', description: 'Tap Upload to add a document. Choose the document type and your admin will be notified to verify it.' },
       { route: '/my-account', element: '[data-tour="my-account-timeoff"]', isAction: false, title: 'Time off requests', description: 'Need a day off? Use the Time Off section to submit a request. Your admin will be notified and can arrange coverage.' },
@@ -532,7 +538,7 @@ function destroyActiveTour() {
  *  query params, the current search string must also match exactly. This ensures
  *  settings section tours (e.g. route '/settings?section=team') hard-nav to the
  *  correct section rather than accepting any URL with pathname '/settings'. */
-function isOnRoute(stepRoute: string): boolean {
+export function isOnRoute(stepRoute: string): boolean {
   if (typeof window === 'undefined') return false
   const [stepPath, stepSearch] = stepRoute.split('?')
   if (stepSearch) {
@@ -545,6 +551,9 @@ function isOnRoute(stepRoute: string): boolean {
 /**
  * Public entry point — fires a tour by id. Resumes mid-tour if `resumeFromStep`
  * is provided (used by <TourResumer /> after hard-nav).
+ *
+ * Phase 12J: branches on `isMobile()` — mobile uses the spotlight + bottom sheet
+ * renderer (`startMobileTour`), desktop uses Driver.js.
  */
 export async function startTour(
   tourId: string,
@@ -560,6 +569,13 @@ export async function startTour(
   // Block desktop-only tours on mobile
   if (def.desktopOnly && isMobile()) {
     toastInfo('This tour is best viewed on a larger screen.')
+    return
+  }
+
+  // Mobile branch — spotlight + bottom sheet renderer
+  if (isMobile()) {
+    const { startMobileTour } = await import('./mobile-tour')
+    await startMobileTour(tourId, opts)
     return
   }
 
@@ -687,10 +703,19 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
 /**
  * Called by <TourResumer /> after hard-nav. Picks up the saved tour state
  * and resumes from the saved step index.
+ *
+ * Phase 12J: when `state.mobile === true`, route directly to `startMobileTour`
+ * to keep the renderer sticky to the device the tour started on (avoids
+ * flicker if breakpoint detection wobbles across reload).
  */
 export async function resumePendingTour(): Promise<void> {
   const state = loadSessionState()
   if (!state) return
   // Don't auto-clear — startTour will clear when it completes.
+  if (state.mobile) {
+    const { startMobileTour } = await import('./mobile-tour')
+    await startMobileTour(state.tourId, { resumeFromStep: state.stepIndex })
+    return
+  }
   await startTour(state.tourId, { resumeFromStep: state.stepIndex })
 }
