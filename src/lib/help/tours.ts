@@ -183,12 +183,13 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'facility-staff-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet', blurb: 'Quickly log residents who want appointments without picking a time.', estMinutes: 2, icon: 'ClipboardList', roles: ['facility_staff'], tourId: 'facility-staff-signup-sheet' },
 
   // ADMIN
-  { id: 'admin-facility-setup', category: 'Facility', title: 'Facility Setup', blurb: 'Set name, hours, working days, payment type, contact info.', estMinutes: 4, icon: 'Building2', roles: ['admin', 'super_admin'], tourId: 'admin-facility-setup' },
-  { id: 'admin-inviting-staff', category: 'Team', title: 'Inviting Staff', blurb: 'Send invites and pick the right role.', estMinutes: 3, icon: 'Mail', roles: ['admin', 'super_admin'], tourId: 'admin-inviting-staff' },
-  { id: 'admin-residents', category: 'Residents', title: 'Residents', blurb: 'Add, search, and manage your facility roster.', estMinutes: 3, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'admin-residents' },
-  { id: 'admin-reports', category: 'Reports', title: 'Reports & Analytics', blurb: 'Run revenue and stylist breakdowns.', estMinutes: 3, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'admin-reports' },
-  { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Send a private portal link to a resident\'s POA.', estMinutes: 4, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
-  { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Documents', blurb: 'Manage stylist licenses, insurance, and contracts.', estMinutes: 3, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance' },
+  { id: 'admin-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Set up your facility, invite your team, and make your first booking.', estMinutes: 4, icon: 'KeyRound', roles: ['admin', 'super_admin'], tourId: 'admin-getting-started' },
+  { id: 'admin-facility-setup', category: 'Facility', title: 'Facility Setup', blurb: 'Configure your facility\'s name, hours, time zone, and payment settings.', estMinutes: 3, icon: 'Building2', roles: ['admin', 'super_admin'], tourId: 'admin-facility-setup' },
+  { id: 'admin-inviting-staff', category: 'Team', title: 'Inviting Staff', blurb: 'Send invite links to facility staff and bookkeepers.', estMinutes: 2, icon: 'Mail', roles: ['admin', 'super_admin'], tourId: 'admin-inviting-staff' },
+  { id: 'admin-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Add residents, set up family portal access, and track service history.', estMinutes: 3, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'admin-residents' },
+  { id: 'admin-reports', category: 'Reports', title: 'Reports & Analytics', blurb: 'Track revenue, bookings, and stylist performance over time.', estMinutes: 2, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'admin-reports' },
+  { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
+  { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance' },
 
   // BOOKKEEPER
   { id: 'bookkeeper-billing-dashboard', category: 'Billing', title: 'Billing Dashboard', blurb: 'Navigate AR, statements, and outstanding balances.', estMinutes: 4, icon: 'CreditCard', roles: ['bookkeeper'], tourId: 'bookkeeper-billing-dashboard' },
@@ -208,7 +209,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
 ]
 
 // ────────────────────────────────────────────────────────────────────────────
-// TOUR DEFINITIONS — 19 fully implemented tours.
+// TOUR DEFINITIONS — 25 fully implemented tours.
 // ────────────────────────────────────────────────────────────────────────────
 
 const NAV_CALENDAR = '[data-tour="nav-calendar"]'
@@ -389,16 +390,31 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     ],
   },
 
+  // 10a
+  'admin-getting-started': {
+    id: 'admin-getting-started',
+    title: 'Getting Started as a Facility Admin',
+    steps: [
+      { route: '/dashboard', element: '', isAction: false, title: 'Welcome, Facility Admin', description: 'As a Facility Admin you manage one facility — residents, bookings, billing, and your team. This tour walks you through the first things to set up.', mobileDescription: 'As a Facility Admin you manage one facility — residents, bookings, billing, and your team.' },
+      { route: '/settings', element: '', isAction: false, title: 'Step 1: Facility Settings', description: 'Head to Settings to confirm your facility name, time zone, and working hours. These affect how bookings are displayed and when slots are available.', mobileDescription: 'Go to Settings to confirm your facility name, time zone, and working hours.' },
+      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: false, title: 'Step 2: Add Residents', description: 'Add your residents from the Residents page. Each resident needs a name and room number. You can add family contact info later for portal access.', mobileDescription: 'Add residents from the Residents page. Each needs a name and room number.' },
+      { route: '/dashboard', element: NAV_CALENDAR, isAction: false, title: 'Step 3: Your Calendar', description: 'The Calendar is your scheduling hub. Bookings are created here and assigned to stylists automatically based on their availability.', mobileDescription: 'The Calendar is your scheduling hub for all bookings.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: false, title: 'Step 4: The Daily Log', description: 'The Daily Log shows every appointment for the day. Use it to track completions, cancellations, and notes. It\'s also where bookkeepers scan checks.', mobileDescription: 'The Daily Log shows all appointments. Use it to track completions and notes.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Step 5: Invite Your Team', description: 'Go to Settings → Team to send invites to facility staff and bookkeepers. Stylists are managed by your Franchise Admin — reach out to them to add or reassign stylists.', mobileDescription: 'Invite facility staff and bookkeepers from Settings → Team. Stylists are managed by your Franchise Admin.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'You\'re ready', description: 'That\'s the core workflow. Explore the Help Center for deeper dives into billing, analytics, and the family portal whenever you\'re ready.', mobileDescription: 'Explore the Help Center for deeper dives into billing, analytics, and more.' },
+    ],
+  },
+
   // 10
   'admin-facility-setup': {
     id: 'admin-facility-setup',
     title: 'Facility Setup',
     steps: [
-      { route: '/dashboard', element: NAV_SETTINGS, isAction: true, title: 'Go to Settings', description: 'Let\'s set up your facility.', actionHint: 'Tap Settings to continue.' },
-      { route: '/settings', element: '[data-tour="settings-facility-form"]', isAction: false, title: 'Facility name & contact', description: 'Start with your facility name, address, phone, and contact email. This information appears on statements sent to families.' },
-      { route: '/settings', element: '[data-tour="settings-working-hours"]', isAction: false, title: 'Working hours', description: 'Set the days and hours your facility is open. Bookings can only be scheduled within these times.' },
-      { route: '/settings', element: '[data-tour="settings-payment-type"]', isAction: false, title: 'Payment type', description: 'Choose how your facility handles payments — facility-billed (invoiced to the facility) or resident-billed (invoiced per resident).' },
-      { route: '/settings', element: '[data-tour="settings-save-button"]', isAction: false, title: 'Save', description: 'Tap Save when you\'re done. Your changes take effect immediately.' },
+      { route: '/settings', element: '', isAction: false, title: 'Settings overview', description: 'Settings is where you configure everything about your facility — name, hours, billing, integrations, and notifications. It\'s split into sections on the left.', mobileDescription: 'Settings is where you configure your facility — name, hours, billing, and more.' },
+      { route: '/settings', element: '[data-tour="settings-nav-general"]', isAction: false, title: 'General', description: 'The General section holds your facility name, address, phone, time zone, and working hours. Time zone is critical — it controls when calendar slots appear for residents.', mobileDescription: 'General holds your facility name, time zone, and working hours. Time zone controls calendar slots.' },
+      { route: '/settings', element: '[data-tour="settings-nav-billing"]', isAction: false, title: 'Billing & Payments', description: 'Set up your payment type (RFMS or IP), Stripe keys for online payments, and revenue share percentage if applicable. Bookkeepers use these settings for reconciliation.', mobileDescription: 'Set up payment type, Stripe, and revenue share in Billing & Payments.' },
+      { route: '/settings', element: '[data-tour="settings-nav-team"]', isAction: false, title: 'Team', description: 'Send invite links to facility staff and bookkeepers from the Team section. Note: stylists are managed by your Franchise Admin, not from here.', mobileDescription: 'Invite facility staff and bookkeepers from the Team section.' },
+      { route: '/settings', element: '', isAction: false, title: 'Done', description: 'Once General and Billing are filled in, your facility is ready for bookings. Come back to Settings any time you need to update hours, payment info, or team members.', mobileDescription: 'Once General and Billing are set, your facility is ready for bookings.' },
     ],
   },
 
@@ -407,26 +423,23 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'admin-inviting-staff',
     title: 'Inviting Staff',
     steps: [
-      { route: '/dashboard', element: NAV_SETTINGS, isAction: true, title: 'Go to Settings', description: 'Let\'s invite a staff member.', actionHint: 'Tap Settings to continue.' },
-      { route: '/settings?section=team', element: '[data-tour="settings-team-section"]', isAction: false, title: 'Team & Roles', description: 'The Team & Roles section shows everyone who has access to your facility and lets you invite new members.' },
-      { route: '/settings?section=team', element: '[data-tour="settings-invite-form"]', isAction: false, title: 'Invite form', description: 'Enter the person\'s email address and choose their role. Facility Staff can manage residents and scheduling. Stylists can access the calendar and daily log.' },
-      { route: '/settings?section=team', element: '[data-tour="settings-invite-role-select"]', isAction: false, title: 'Roles explained', description: 'Facility Staff: scheduling and resident management. Stylist: calendar and daily log only. Bookkeeper: billing and payroll only.' },
-      { route: '/settings?section=team', element: '[data-tour="settings-invite-submit"]', isAction: false, title: 'Send invite', description: 'Tap "Send Invite" to email them an invitation. They\'ll receive a link to set up their account.' },
-      { route: '/settings?section=team', element: '[data-tour="settings-pending-invites"]', isAction: false, title: 'Pending invites', description: 'Sent invites appear here until they\'re accepted. You can resend or cancel them from this list.' },
+      { route: '/settings', element: '', isAction: false, title: 'Who you can invite', description: 'As a Facility Admin you can invite Facility Staff and Bookkeepers. Facility staff handle scheduling and residents. Bookkeepers access billing, payroll, and analytics. Stylists are added by your Franchise Admin.', mobileDescription: 'Facility Admins can invite Facility Staff and Bookkeepers. Stylists are added by your Franchise Admin.' },
+      { route: '/settings', element: '[data-tour="settings-nav-team"]', isAction: false, title: 'Open Team Settings', description: 'Go to Settings → Team. You\'ll see a list of everyone who has access to this facility and an Invite button at the top.', mobileDescription: 'Go to Settings → Team to see your team and invite new members.' },
+      { route: '/settings', element: '', isAction: false, title: 'Send an invite', description: 'Enter the person\'s email and choose their role. They\'ll receive an email with a link to create their account. The invite expires after 7 days.', mobileDescription: 'Enter email and role. They\'ll get an email link that expires in 7 days.' },
+      { route: '/settings', element: '', isAction: false, title: 'Managing access', description: 'You can revoke access from the Team list at any time. If someone needs a different role, revoke their current access and send a new invite.', mobileDescription: 'Revoke access from the Team list at any time. Re-invite to change roles.' },
     ],
   },
 
   // 10
   'admin-residents': {
     id: 'admin-residents',
-    title: 'Residents',
+    title: 'Managing Residents',
     steps: [
-      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'Every resident who receives services at your facility is listed here.' },
-      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: true, title: 'Add a resident', description: 'Tap + to add a new resident to the system.', actionHint: 'Tap "+" to continue.' },
-      { route: '/residents', element: '[data-tour="residents-add-form"]', isAction: false, title: 'Resident form', description: 'Fill in their name, room, and POA contact. The POA receives billing statements and can access the family portal.' },
-      { route: '/residents', element: '[data-tour="residents-search"]', isAction: true, title: 'Search', description: 'Use the search bar to find any resident by name or room.', actionHint: 'Tap the search bar to continue.' },
-      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident profile', description: 'Tap a resident\'s name to open their full profile — booking history, payment status, and portal access.' },
-      { route: '/residents', element: '[data-tour="residents-import-button"]', isAction: false, title: 'Import', description: 'Have a large list? Use the Import button to upload a CSV of residents all at once.' },
+      { route: '/residents', element: '', isAction: false, title: 'Residents overview', description: 'The Residents page lists everyone at your facility. You can search by name, filter by room, and click any resident to see their booking history and contact info.', mobileDescription: 'Residents lists everyone at your facility. Search, filter, and tap to view history.' },
+      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: false, title: 'Adding a resident', description: 'Click the + button to add a new resident. Name and room number are required. You can also add a POA (Power of Attorney) contact email for family portal access.', mobileDescription: 'Tap + to add a resident. Name and room number required. Add a POA email for portal access.' },
+      { route: '/residents', element: '', isAction: false, title: 'Resident detail', description: 'Click any resident row to open their detail page. You\'ll see their full booking history, outstanding balance, service preferences, and tip defaults.', mobileDescription: 'Tap a resident to see their booking history, balance, and preferences.' },
+      { route: '/residents', element: '', isAction: false, title: 'Family portal access', description: 'From the resident detail page, use the Family Portal card to send a magic-link invite to the POA email. They can log in to request bookings and pay their balance online.', mobileDescription: 'Send a portal invite from the resident detail page so family can book and pay online.' },
+      { route: '/residents', element: '', isAction: false, title: 'Bulk import', description: 'If you have a list of residents in a spreadsheet, use the Import button to upload them all at once. Download the CSV template first to match the expected format.', mobileDescription: 'Use Import to upload residents from a spreadsheet. Download the template first.' },
     ],
   },
 
@@ -435,10 +448,10 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'admin-reports',
     title: 'Reports & Analytics',
     steps: [
-      { route: '/dashboard', element: NAV_ANALYTICS, isAction: true, title: 'Go to Analytics', description: 'Tap Analytics to see your facility\'s performance.', actionHint: 'Tap Analytics to continue.' },
-      { route: '/analytics', element: '[data-tour="analytics-revenue-summary"]', isAction: false, title: 'Revenue summary', description: 'This shows your total revenue for the selected period, broken down by service type.' },
-      { route: '/analytics', element: '[data-tour="analytics-date-range"]', isAction: false, title: 'Date range', description: 'Change the date range to see weekly, monthly, or custom reports.' },
-      { route: '/analytics', element: '[data-tour="analytics-by-stylist"]', isAction: false, title: 'By stylist', description: 'Scroll down to see a breakdown of revenue and appointments per stylist.' },
+      { route: '/analytics', element: NAV_ANALYTICS, isAction: false, title: 'Analytics overview', description: 'The Analytics page shows revenue, appointment counts, and stylist performance for any date range you choose. It\'s your facility\'s financial snapshot.', mobileDescription: 'Analytics shows revenue and appointment counts for any date range.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Revenue & bookings', description: 'The top tiles show total revenue, appointment count, and average ticket for the selected period. Use the date picker to zoom in on a specific week or month.', mobileDescription: 'Top tiles show revenue, appointments, and average ticket. Use the date picker to filter.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Stylist breakdown', description: 'Scroll down to see per-stylist totals — bookings completed, revenue generated, and commission owed. This feeds into payroll calculations.', mobileDescription: 'Scroll down for per-stylist totals — bookings, revenue, and commission.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Exporting data', description: 'Use the Export button to download a CSV of the current view. This is useful for sharing with your Franchise Admin or importing into your own spreadsheets.', mobileDescription: 'Use Export to download a CSV of the current view.' },
     ],
   },
 
@@ -447,11 +460,11 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'admin-family-portal',
     title: 'Family Portal',
     steps: [
-      { route: '/residents', element: '', isAction: false, title: 'What is the Family Portal', description: 'The Family Portal lets residents\' family members view upcoming appointments and booking history online — no app needed.' },
-      { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Open a resident', description: 'Tap any resident\'s name to open their profile, then scroll to the Family Portal section.' },
-      { route: '/residents', element: '', isAction: false, title: 'Portal section', description: 'Open any resident\'s profile and scroll down to the "Family Portal" section. There you can generate a private portal link for that resident\'s family.' },
-      { route: '/residents', element: '', isAction: false, title: 'Send the link', description: 'Tap "Send Link" to email the portal link to the POA contact on file. The family receives a private link — no app or password required.' },
-      { route: '/residents', element: '', isAction: false, title: 'What the family sees', description: 'The family can view upcoming appointments, past services, and request new bookings. They cannot see billing amounts.' },
+      { route: '/residents', element: '', isAction: false, title: 'What the portal does', description: 'The Family Portal lets a resident\'s POA (Power of Attorney) contact log in to request bookings, view appointment history, see their balance, and pay online via Stripe.', mobileDescription: 'The Family Portal lets POA contacts request bookings, view history, and pay online.' },
+      { route: '/residents', element: '', isAction: false, title: 'Step 1: Add a POA email', description: 'Open the resident\'s detail page and add a POA email address. This is the email the portal invite will be sent to. One POA account can manage multiple residents.', mobileDescription: 'Add a POA email on the resident detail page. One account can manage multiple residents.' },
+      { route: '/residents', element: '', isAction: false, title: 'Step 2: Send the invite', description: 'From the resident detail page, find the Family Portal card and click Send Link. The POA receives a magic link that logs them in automatically — no password required on first use.', mobileDescription: 'Tap Send Link on the Family Portal card. POA gets a magic link to log in.' },
+      { route: '/residents', element: '', isAction: false, title: 'Booking requests', description: 'When a POA requests a booking through the portal, it appears on your calendar with a "Requested" status. Review and confirm it to move it to Scheduled.', mobileDescription: 'Portal booking requests appear on your calendar with "Requested" status for you to confirm.' },
+      { route: '/residents', element: '', isAction: false, title: 'Online payments', description: 'If Stripe is configured in Settings → Billing, the POA can pay their resident\'s balance online. Payments appear in your Billing view automatically.', mobileDescription: 'With Stripe set up, families can pay online. Payments show in Billing automatically.' },
     ],
   },
 
@@ -459,14 +472,11 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   'admin-compliance': {
     id: 'admin-compliance',
     title: 'Compliance Documents',
-    desktopOnly: true,
     steps: [
-      { route: '/dashboard', element: NAV_STYLISTS, isAction: true, title: 'Go to Stylists', description: 'Compliance documents are managed per stylist.', actionHint: 'Tap Stylists to continue.' },
-      { route: '/stylists', element: '[data-tour="stylists-table"]', isAction: false, title: 'Stylist list', description: 'Each stylist has a profile where you can track their license, insurance, and contract documents.' },
-      { route: '/stylists', element: '[data-tour="stylists-table"]', isAction: false, title: 'Open a stylist', description: 'Tap a stylist\'s name to open their profile.' },
-      { route: '/stylists', element: '', isAction: false, title: 'Compliance section', description: 'Open any stylist\'s profile and scroll to the Compliance section. You\'ll see their license, liability insurance, and contract documents — each with its expiry status.' },
-      { route: '/stylists', element: '', isAction: false, title: 'Verify documents', description: 'Stylists upload their own documents from My Account. As an admin, click any uploaded document to verify it and set the official expiry date.' },
-      { route: '/stylists', element: '', isAction: false, title: 'Expiry alerts', description: 'Senior Stylist automatically alerts you before a document expires so you\'re never caught out of compliance.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'What compliance tracking covers', description: 'Senior Stylist tracks stylist licenses and insurance documents for your facility. You\'ll get email alerts at 60 and 30 days before anything expires.', mobileDescription: 'Senior Stylist tracks stylist licenses and insurance. You\'ll get email alerts before expiry.' },
+      { route: '/stylists', element: '', isAction: false, title: 'Stylist compliance status', description: 'Go to the Stylists page to see each stylist\'s compliance badge — green (verified), amber (expiring soon), or red (expired or missing). Click any stylist to view their documents.', mobileDescription: 'Go to Stylists to see each stylist\'s badge — green, amber, or red. Tap to view documents.' },
+      { route: '/stylists', element: '', isAction: false, title: 'Uploading documents', description: 'Stylists upload their own documents from My Account. Once uploaded, you can verify them from the stylist\'s detail page. Verification marks the document as compliant.', mobileDescription: 'Stylists upload from My Account. You verify from their detail page.' },
+      { route: '/stylists', element: '', isAction: false, title: 'Expiry alerts', description: 'Alerts go to all facility admins at 60 and 30 days before expiry. If a document is not renewed, the badge turns red — a visual flag that compliance action is needed.', mobileDescription: 'Alerts at 60 and 30 days before expiry. Red badge means action is needed.' },
     ],
   },
 
