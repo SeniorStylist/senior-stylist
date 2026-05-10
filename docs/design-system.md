@@ -163,6 +163,70 @@ Desktop only. Structure:
 - Enter animation: `animate-in fade-in slide-in-from-bottom-3 duration-200`
 - Escape key closes; body `overflow: hidden` while open
 
+### Sign-Up Sheet Panel (`src/components/signup-sheet/signup-sheet-panel.tsx`)
+
+A responsive **right-anchored panel on desktop, bottom sheet on mobile** — the closest the codebase has to a slide-over. Pattern (replicate this for any future panel that needs the same shape):
+
+```tsx
+<div className="fixed inset-0 z-50 flex flex-col justify-end md:items-stretch md:justify-end md:py-6 md:pr-6"
+     style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
+  <div onClick={(e) => e.stopPropagation()}
+       className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-lg flex flex-col shadow-2xl"
+       style={{ maxHeight: '90vh' }}>
+    {/* Sticky header (shrink-0) */}
+    {/* Scrollable body (flex-1 min-h-0 overflow-y-auto) */}
+  </div>
+</div>
+```
+
+Key positioning differences from a centered Modal:
+- `md:items-stretch md:justify-end` anchors the card to the right edge on desktop (not centered)
+- `md:py-6 md:pr-6` provides breathing room around the right-anchored card
+- `md:max-w-lg` constrains card width on desktop; mobile is full-width via `w-full` + `rounded-t-3xl` (no top rounding on mobile via the `rounded-t-3xl md:rounded-2xl` switch)
+- Inner card structure: sticky header (close button + title) → `flex-1 min-h-0 overflow-y-auto` body → no separate footer (CTAs live inside the scroll body for this surface)
+
+### Sign-Up Sheet entry card
+
+Used in both the facility-side queue and the stylist-side pending list:
+```tsx
+<div className="rounded-xl border border-stone-100 bg-white p-3 flex items-start justify-between gap-3">
+  <div className="min-w-0 flex-1">
+    <p className="text-sm font-semibold text-stone-900 leading-snug">
+      {residentName}
+      {roomNumber && <span className="text-stone-400 ml-2 text-xs font-normal">Rm {roomNumber}</span>}
+    </p>
+    <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">
+      {serviceName}{requestedTime && <span className="text-stone-500 ml-2">@ {formatTime}</span>}
+    </p>
+    {notes && <p className="text-[11.5px] text-stone-500 mt-1">{notes}</p>}
+    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      Pending
+    </span>
+  </div>
+  {/* trailing button: × cancel (stone-400 → red-600) OR Schedule (burgundy) */}
+</div>
+```
+
+The amber pending badge uses the same palette as the existing `bg-amber-50 text-amber-700 border-amber-200` outstanding-balance row tint — but as a fully-rounded capsule, not a row background.
+
+### Stylist pending entries panel (collapsible, amber)
+
+```tsx
+<div className="rounded-2xl border border-amber-200 bg-amber-50/50 px-4 py-3 mb-3"
+     data-tour="stylist-signup-sheet-panel">
+  <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between">
+    <div className="flex items-center gap-2">
+      <ClipboardList size={16} className="text-amber-700" />
+      <span className="text-sm font-semibold text-amber-900">N pending sign-ups</span>
+    </div>
+    <ChevronDown size={16} className={cn('text-amber-700 transition-transform', expanded && 'rotate-180')} />
+  </button>
+  {expanded && <div className="mt-3 space-y-2">{/* entry cards */}</div>}
+</div>
+```
+
+Hidden when `entries.length === 0` (NEVER render with zero items — the empty amber strip is noise).
+
 ### Bottom Sheet (`src/components/ui/bottom-sheet.tsx`)
 
 Mobile only. All layout uses **inline styles** (no Tailwind). Key properties:

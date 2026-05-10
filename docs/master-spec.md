@@ -1593,6 +1593,41 @@ Two new tours and two rewrites, all in `src/lib/help/tours.ts`. No other files c
 
 **`All 23 tours`**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, stylist-my-account, staff-getting-started, facility-staff-scheduling, facility-staff-residents, staff-daily-log, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance, bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility, master-quickbooks-setup. (+ 1 from 12I: stylist-my-account)
 
+### Sign-Up Sheet (SHIPPED 2026-05-11)
+
+Lightweight intake queue for facility staff to log resident appointment requests without picking a time slot. Stylists later convert pending entries into real bookings via the booking modal.
+
+**Schema** — new `signup_sheet_entries` table in `src/db/schema.ts`:
+- Columns: `id`, `facility_id`, `resident_id` (nullable — denormalized `resident_name`/`room_number` for display), `service_id` (nullable, denormalized `service_name`), `requested_time` (text 'HH:MM' tz-agnostic, nullable), `requested_date` (date), `notes` (max 500 in API), `created_by`, `assigned_to_stylist_id` (nullable), `status` ('pending'|'scheduled'|'cancelled'), `booking_id` (set when entry is converted), timestamps.
+- Indexes: `(facility_id, requested_date)` for the panel queue + partial `(assigned_to_stylist_id, requested_date) WHERE status='pending'` for the stylist lookup.
+- RLS: `service_role_all` only — all access via API routes (no middleware-scoped policy needed).
+
+**API routes** (`src/app/api/signup-sheet/`):
+- `POST /` — admin/facility_staff (master bypass); Zod-validated; verifies resident/service/stylist scope; auto-fills room from resident if not provided; returns full entry with relations.
+- `GET /?date=YYYY-MM-DD` — any role at facility; defaults `date` to today in facility tz; stylists see only entries assigned to them OR unassigned; returns relations (resident/service/assignedStylist).
+- `PATCH /[id]` — admin/facility_staff edit any field; stylists can only PATCH `notes` on entries assigned to them; rejects edits when `status='scheduled'`; allows status flip to 'cancelled'.
+- `POST /[id]/convert` — admin/facility_staff/stylist; accepts the same body shape as `POST /api/bookings` (residentId, serviceIds, startTime, stylistId, tipCents, addonChecked, etc.). Inside `db.transaction`: pricing resolution via `resolvePrice`, conflict check, insert booking, update entry to `status='scheduled'`+`booking_id=newId`. Fires GCal sync after commit (fire-and-forget). Reuses booking-creation logic inline (~80 lines) — extracting a shared helper deferred.
+
+**UI**:
+- `src/components/signup-sheet/signup-sheet-panel.tsx` (`<SignupSheetPanel>`) — facility-side panel. Right-anchored modal on desktop (`md:items-stretch md:justify-end md:pr-6 md:max-w-lg`), bottom sheet on mobile. Top: form (resident typeahead with inline new-resident create, room override, service typeahead — NO inline service create, time `<input type="time">`, stylist `<select>`, notes); bottom: today's queue grouped by stylist with cancel-X.
+- `src/components/signup-sheet/stylist-pending-entries.tsx` (`<StylistPendingEntries>`) — collapsible amber panel above stylist calendar (and above the bookings list in mobile-stylist mode). Hidden when `entries.length === 0`. Each entry has a Schedule button.
+
+**BookingModal integration** — three new optional props:
+- `prefillResidentId?: string | null` — pre-selects resident in create mode
+- `prefillServiceId?: string | null` — pre-selects single service in create mode
+- `signupSheetEntryId?: string | null` — when set, the create POST goes to `/api/signup-sheet/[id]/convert` instead of `/api/bookings`. The basePayload always includes `stylistId: pickedStylist.id` when available (convert endpoint requires it; booking POST treats it as optional).
+
+**Dashboard wiring** (`src/app/(protected)/dashboard/dashboard-client.tsx`):
+- Sign-Up Sheet button in calendar header (admin + facility_staff) with `data-tour="signup-sheet-button"` and a HelpTip
+- `<SignupSheetPanel>` mounted alongside the BookingModal, only for admin + facility_staff
+- `<StylistPendingEntries>` mounted above the calendar card (stylist desktop) AND inside the mobile-stylist early-return path
+- BookingModal also mounted in the mobile-stylist early-return path (was missing — needed for both QuickBookFAB and signup-sheet schedule)
+- New state: `signupSheetOpen`, `pendingSignups`, `schedulingEntryId`, `prefillResidentId`, `prefillServiceId`. `handleScheduleSignupEntry` builds defaultStart from `entry.requestedTime` (or rounds to next half-hour), pre-fills modal, and on success removes entry from `pendingSignups`.
+
+**Help tours** (in `src/lib/help/tours.ts`): two new tours and TUTORIAL_CATALOG entries. `facility-staff-signup-sheet` (6 steps; includes one action step on `[data-tour="signup-sheet-button"]`); `stylist-signup-sheet` (4 steps, all info — panel content is conditional UI per the selector-safety rule). `ClipboardList` added to `TutorialIcon` union and `ICON_MAP` in `tutorial-card.tsx`. **Tour count: 23 → 25**.
+
+**Cache tag**: `'signup-sheet'` busted by all 3 mutation routes; `'bookings'` also busted by convert.
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.
