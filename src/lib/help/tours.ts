@@ -310,7 +310,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     title: 'Scheduling',
     steps: [
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Welcome', description: 'As facility staff, you can schedule appointments for residents directly from the calendar.' },
-      { route: '/dashboard', element: '.fc-timegrid-slot', isAction: true, title: 'Pick a time slot', description: 'Tap any empty time slot to start a booking for a resident.', actionHint: 'Tap any empty slot to continue.' },
+      { route: '/dashboard', element: '.fc-timegrid-cols', isAction: true, title: 'Pick a time slot', description: 'Tap any empty area on the calendar to start a booking for a resident.', actionHint: 'Tap any empty slot to continue.' },
       { route: '/dashboard', element: '[data-tour="calendar-booking-modal"]', isAction: false, title: 'Booking form', description: 'Search for the resident by name, choose the service, and confirm the stylist and time. Then tap Save.' },
       { route: '/dashboard', element: NAV_RESIDENTS, isAction: true, title: 'Go to Residents', description: 'You can also manage residents directly.', actionHint: 'Tap Residents to continue.' },
       { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'From here you can search for residents, view their profile, and see their booking history.' },
