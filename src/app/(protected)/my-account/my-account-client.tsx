@@ -622,7 +622,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
       </div>
 
       {/* Compliance Documents card */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5" data-tour="my-account-compliance">
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">
             Compliance Documents
@@ -630,6 +630,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           {!uploadOpen && (
             <button
               onClick={() => setUploadOpen(true)}
+              data-tour="my-account-compliance-upload"
               className="text-xs font-medium px-2.5 py-1 rounded-lg border border-rose-200 text-[#8B2E4A] hover:bg-rose-50 transition-colors"
             >
               + Upload Document
@@ -762,7 +763,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
       </div>
 
       {linked && stylistId && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5" data-tour="my-account-schedule">
           <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-4">
             Your Schedule
           </p>
@@ -825,6 +826,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                           </span>
                           <button
                             type="button"
+                            data-tour="my-account-schedule-edit"
                             onClick={() => {
                               setEditingDayOfWeek(dow)
                               setEditStartTime(avail.startTime)
@@ -855,7 +857,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
       )}
 
       {linked && stylistId && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5" data-tour="my-account-timeoff">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">
               Time Off &amp; Coverage Requests

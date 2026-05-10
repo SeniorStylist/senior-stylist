@@ -120,6 +120,7 @@ export default function CalendarView({
         eventOverlap={true}
         dayMaxEvents={false}
         slotLabelInterval="01:00:00"
+        slotLabelFormat={{ hour: 'numeric', minute: '2-digit', omitZeroMinute: false, meridiem: 'short' }}
         scrollTime="08:30:00"
         headerToolbar={false}
         events={events}

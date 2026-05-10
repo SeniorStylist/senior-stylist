@@ -160,12 +160,12 @@ function toastInfo(message: string) {
 
 export const TUTORIAL_CATALOG: Tutorial[] = [
   // STYLIST
-  { id: 'stylist-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Quick orientation: sign in, the calendar, and the daily log.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started' },
-  { id: 'stylist-calendar', category: 'Scheduling', title: 'Your Calendar', blurb: 'Read your schedule and book residents from any time slot.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar' },
-  { id: 'stylist-daily-log', category: 'Daily Log', title: 'Daily Log', blurb: 'Record services, prices, and notes for the day.', estMinutes: 4, icon: 'FileText', roles: ['stylist'], tourId: 'stylist-daily-log' },
+  { id: 'stylist-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your calendar, daily log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started' },
+  { id: 'stylist-calendar', category: 'Scheduling', title: 'Your Calendar', blurb: 'Read your schedule, tap appointments to edit them, and create new bookings.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar' },
+  { id: 'stylist-daily-log', category: 'Daily Log', title: 'Daily Log', blurb: 'Record services, add walk-ins, and finalize your log at end of shift.', estMinutes: 3, icon: 'FileText', roles: ['stylist'], tourId: 'stylist-daily-log' },
   { id: 'stylist-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Find, edit, and add residents at your facility.', estMinutes: 3, icon: 'Users', roles: ['stylist'], tourId: 'stylist-residents' },
-  { id: 'stylist-finalize-day', category: 'Daily Log', title: 'Finalizing the Day', blurb: 'How and when to lock the daily log and submit to your admin.', estMinutes: 2, icon: 'CheckCircle2', roles: ['stylist'], tourId: 'stylist-finalize-day' },
-  { id: 'stylist-account', category: 'Account', title: 'Your Account', blurb: 'Edit your profile, hours, and contact info.', estMinutes: 2, icon: 'UserCog', roles: ['stylist'], tourId: null },
+  { id: 'stylist-finalize-day', category: 'Daily Log', title: 'Finalizing the Day', blurb: 'Step-by-step guide to reviewing and locking the daily log.', estMinutes: 2, icon: 'CheckCircle2', roles: ['stylist'], tourId: 'stylist-finalize-day' },
+  { id: 'stylist-my-account', category: 'Account', title: 'My Account', blurb: 'Manage your schedule, upload compliance documents, and request time off.', estMinutes: 3, icon: 'UserCog', roles: ['stylist'], tourId: 'stylist-my-account' },
 
   // FACILITY STAFF
   { id: 'staff-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Sign in and find your way around.', estMinutes: 2, icon: 'KeyRound', roles: ['facility_staff'], tourId: null },
@@ -211,6 +211,7 @@ const NAV_ANALYTICS = '[data-tour="nav-analytics"]'
 const NAV_PAYROLL = '[data-tour="nav-payroll"]'
 const NAV_STYLISTS = '[data-tour="nav-stylists"]'
 const NAV_MASTER_ADMIN = '[data-tour="nav-master-admin"]'
+const NAV_MY_ACCOUNT = '[data-tour="nav-my-account"]'
 
 export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   // 1
@@ -218,13 +219,13 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-getting-started',
     title: 'Getting Started',
     steps: [
-      { route: '/help', element: '[data-tour="help-home"]', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! This short tour will show you the key things you\'ll do every day as a stylist.' },
-      { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Navigate to Calendar', description: 'This is your Calendar.', actionHint: 'Tap Calendar to continue.' },
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your schedule', description: 'Each block is a booked appointment. You can see all your upcoming appointments here.' },
-      { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Today\'s date', description: 'Tap "Today" anytime to jump back to the current date.' },
-      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Now let\'s look at the Daily Log.', actionHint: 'Tap Daily Log to continue.' },
-      { route: '/log', element: '[data-tour="daily-log-entry-row"]', isAction: false, title: 'Daily Log overview', description: 'The Daily Log is where you record services after each appointment. Every resident you saw today will appear here.' },
-      { route: '/log', element: '', isAction: false, title: 'You\'re ready', description: 'That\'s the overview! Use the Help section anytime to revisit these tours or explore specific workflows.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! This quick tour will show you the three things you\'ll use every day: your Calendar, your Daily Log, and your My Account page.' },
+      { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Navigate to Calendar', description: 'Your Calendar is your home base — this is where you see your schedule and manage appointments.', actionHint: 'Tap Calendar to take a look.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your schedule', description: 'On mobile you\'ll see today\'s appointments. On desktop you\'ll see the full week. Each colored block is a booked appointment.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'The Daily Log is where you record and finalize your work at the end of each day.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Daily Log overview', description: 'Each row is an appointment from your calendar. At the end of your shift, you\'ll review these and tap Finalize Day.' },
+      { route: '/log', element: NAV_MY_ACCOUNT, isAction: true, title: 'My Account', description: 'My Account is where you manage your schedule, upload your license and documents, and request time off.', actionHint: 'Tap My Account to continue.' },
+      { route: '/my-account', element: '', isAction: false, title: 'You\'re ready', description: 'That\'s the overview! Use the Help section anytime to revisit any of these tours in more detail.' },
     ],
   },
 
@@ -233,12 +234,11 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-calendar',
     title: 'Your Calendar',
     steps: [
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Calendar overview', description: 'Your calendar shows every booked appointment. Appointments are color-coded by stylist.' },
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Reading time slots', description: 'Each highlighted block is a booked appointment. The calendar shows the full week by default — use Day view for a closer look at a single day.' },
-      { route: '/dashboard', element: '.fc-timegrid-slot', isAction: true, title: 'Book an appointment', description: 'To book an appointment, tap any empty time slot.', actionHint: 'Tap any empty slot to continue.' },
-      { route: '/dashboard', element: '[data-tour="calendar-booking-modal"]', isAction: false, title: 'Booking form', description: 'Fill in the resident, service, and time. Then tap Save.' },
-      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Editing a booking', description: 'To edit or cancel an existing booking, tap its block on the calendar.' },
-      { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Navigate dates', description: 'Use the arrow buttons to move between days or weeks. Tap Today to jump back to now.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your calendar', description: 'This is your calendar. On mobile it shows today\'s appointments. On desktop it shows the full week. Use the arrows to move between days.' },
+      { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Today button', description: 'Tap Today anytime to jump back to the current date.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Existing appointments', description: 'Each colored block is a booked appointment. Tap any appointment to open it and make changes — update the service, add a note, or adjust the time.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Create a new booking', description: 'To create a new booking, tap any empty area on the calendar. A form will appear where you choose the resident, service, date, and time — then tap Save.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'You can also add a walk-in from the Daily Log if a resident comes in without a booking. We\'ll cover that in the Daily Log tour.' },
     ],
   },
 
@@ -247,12 +247,13 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-daily-log',
     title: 'Daily Log',
     steps: [
-      { route: '/log', element: '[data-tour="daily-log-entry-row"]', isAction: false, title: 'What is the Daily Log', description: 'The Daily Log is your record of every service completed today. Fill this in before finalizing at the end of your shift.' },
-      { route: '/log', element: '[data-tour="daily-log-entry-row"]', isAction: false, title: 'Each entry', description: 'Each row is one resident. Tap a row to edit the price or add notes.' },
-      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'If a resident wasn\'t pre-booked, tap "Add Walk-in" to add them to today\'s log.', actionHint: 'Tap "Add Walk-in" to continue.' },
-      { route: '/log', element: '[data-tour="daily-log-walkin-form"]', isAction: false, title: 'Walk-in form', description: 'Search for the resident by name. If they don\'t exist yet, you can add them as a new resident. Then pick the service and price.' },
-      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'When you\'re done for the day, tap Finalize. This locks the log so it can be submitted.', actionHint: 'Tap "Finalize" to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'What finalized means', description: 'Once finalized, entries are locked and sent to your admin. You can still ask your admin to make corrections if needed.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Let\'s go to your Daily Log.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'What is the Daily Log', description: 'The Daily Log shows every appointment from your calendar for today. At the end of your shift, you\'ll review and finalize these entries.' },
+      { route: '/log', element: '', isAction: false, title: 'Each entry', description: 'Each row is one appointment. You can see the resident\'s name, the service, and the price. Tap a row to edit the price or add a note.' },
+      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'If a resident came in without a booking, tap \'Add Walk-in\' to add them to today\'s log.', actionHint: 'Tap Add Walk-in to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Walk-in form', description: 'Search for the resident by name. If they\'re not in the system yet, you can add them as a new resident. Then choose the service and price.' },
+      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'When you\'re done for the day, tap \'Finalize Day\'. This locks your log and submits it to your admin. Double-check everything first — you won\'t be able to edit after finalizing.', actionHint: 'Tap Finalize Day to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'After finalizing', description: 'Once finalized, your admin can see the completed log. If you made a mistake, contact your admin and they can make corrections.' },
     ],
   },
 
@@ -274,10 +275,26 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-finalize-day',
     title: 'Finalizing the Day',
     steps: [
-      { route: '/log', element: '[data-tour="daily-log-entry-row"]', isAction: false, title: 'Before you finalize', description: 'Before finalizing, make sure every entry has the correct service and price. Tap any row to make edits.' },
-      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: false, title: 'Check for walk-ins', description: 'Did anyone come in without a booking? Make sure all walk-ins are added before you finalize.' },
-      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Tap Finalize', description: 'When everything looks right, tap Finalize to submit today\'s log.', actionHint: 'Tap "Finalize" to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'What happens next', description: 'Your admin will see the finalized log. Once submitted, entries are locked. If you made a mistake, contact your admin to make corrections.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Let\'s walk through finalizing your day.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Check entries', description: 'Before finalizing, check that every entry has the right service and price. Tap any row to make a correction.' },
+      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: false, title: 'Check for walk-ins', description: 'Make sure any walk-ins are added. Anyone who came in without a pre-booked appointment needs to be added here before you finalize.' },
+      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize Day', description: 'When everything looks right, tap \'Finalize Day\'.', actionHint: 'Tap Finalize Day to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Log submitted', description: 'Your log is now submitted. Entries are locked — if anything needs correcting, reach out to your admin.' },
+    ],
+  },
+
+  // 5b
+  'stylist-my-account': {
+    id: 'stylist-my-account',
+    title: 'My Account',
+    steps: [
+      { route: '/dashboard', element: NAV_MY_ACCOUNT, isAction: true, title: 'My Account', description: 'Let\'s explore your My Account page — this is where you manage your personal info, schedule, and documents.', actionHint: 'Tap My Account to continue.' },
+      { route: '/my-account', element: '[data-tour="my-account-schedule"]', isAction: false, title: 'Your schedule', description: 'Your Schedule shows which days and hours you\'re working at each facility. This is what admins use to assign you bookings.' },
+      { route: '/my-account', element: '', isAction: false, title: 'Edit your hours', description: 'Tap Edit hours next to any day to change your start and end time for that day. Tap Save — changes take effect immediately and your calendar will reflect the new availability.' },
+      { route: '/my-account', element: '[data-tour="my-account-compliance"]', isAction: false, title: 'Compliance documents', description: 'The Compliance section is where you upload your documents — cosmetology license, liability insurance, W-9, and any other required paperwork.' },
+      { route: '/my-account', element: '[data-tour="my-account-compliance-upload"]', isAction: false, title: 'Upload a document', description: 'Tap Upload to add a document. Choose the document type and your admin will be notified to verify it.' },
+      { route: '/my-account', element: '[data-tour="my-account-timeoff"]', isAction: false, title: 'Time off requests', description: 'Need a day off? Use the Time Off section to submit a request. Your admin will be notified and can arrange coverage.' },
+      { route: '/my-account', element: '', isAction: false, title: 'Keep documents current', description: 'Keep your documents up to date — you\'ll receive an alert before anything expires so you\'re never caught off guard.' },
     ],
   },
 

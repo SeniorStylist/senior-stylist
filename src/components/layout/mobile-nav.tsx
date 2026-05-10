@@ -142,6 +142,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
           item.href === '/payroll' ? 'nav-payroll' :
           item.href === '/help' ? 'nav-help' :
           item.href === '/settings' ? 'nav-settings' :
+          item.href === '/my-account' ? 'nav-my-account' :
           undefined
         return (
           <Link

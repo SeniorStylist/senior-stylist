@@ -79,6 +79,17 @@ Rules for stable selectors:
 - **Conditional elements** (only in DOM when a modal/form is open) are only safe as tour targets when the immediately preceding step is `isAction: true` and clicking it is what opens the element. If there is no such preceding action step, use `element: ''` instead.
 - **Role-gated or data-dependent elements** (e.g. `billing-facility-select` only for master, `billing-invoice-list` only for IP facilities) must use `element: ''` so the tour doesn't show a warning toast to users who don't have the element.
 
+**Phase 12I anchors** — `/my-account` page anchors (all in `my-account-client.tsx`):
+- `data-tour="my-account-schedule"` — outer div of Your Schedule card (always present for stylists)
+- `data-tour="my-account-compliance"` — outer div of Compliance Documents card
+- `data-tour="my-account-compliance-upload"` — Upload button (always present in card header)
+- `data-tour="my-account-schedule-edit"` — Edit hours button inside day row map (data-conditional — tours use `element: ''`)
+- `data-tour="my-account-timeoff"` — outer div of Time Off card
+- `data-tour="sidebar-avatar"` — sidebar user info `<div className="flex items-center gap-3 px-3 py-2 rounded-xl">` (display-only, not a link)
+- `NAV_MY_ACCOUNT = '[data-tour="nav-my-account"]'` — wired in both `sidebar.tsx` and `mobile-nav.tsx` tourSlug maps
+- `stylist-my-account` tour is fully implemented (was `tourId: null` before Phase 12I)
+- FullCalendar `slotLabelFormat={{ hour:'numeric', minute:'2-digit', omitZeroMinute:false, meridiem:'short' }}` in `calendar-view.tsx` — axis shows `7:00am`, `8:00am` format
+
 ---
 
 ## Non-Negotiable Rules

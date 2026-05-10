@@ -384,6 +384,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     item.href === '/analytics' ? 'nav-analytics' :
                     item.href === '/payroll' ? 'nav-payroll' :
                     item.href === '/stylists' ? 'nav-stylists' :
+                    item.href === '/my-account' ? 'nav-my-account' :
                     undefined
                   return (
                     <Link
@@ -483,7 +484,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             View Only
           </div>
         )}
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl">
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl" data-tour="sidebar-avatar">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
             style={{ backgroundColor: 'rgba(139, 46, 74, 0.2)', color: '#C4687A' }}

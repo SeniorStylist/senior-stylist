@@ -1509,6 +1509,34 @@ Tours can only target elements that are reliably in the DOM at the time a step f
 
 **Rule added to CLAUDE.md** — Help Center sync is mandatory: any UI add/rename/move/remove must update `tours.ts` selectors, `TUTORIAL_CATALOG`, and HelpTip placements in the same commit. Dynamic-route and conditional elements must always use `element: ''`.
 
+### Phase 12I — Stylist Tour Audit & My Account Tour (SHIPPED 2026-05-08)
+
+Complete rewrite of 4 existing stylist tours; new `stylist-my-account` tour (5 stylist cards total, none "Coming soon").
+
+**Tours rewritten:**
+- `stylist-getting-started` (7 steps): info popover → Calendar nav action → calendar-time-grid info → Daily Log nav action → log overview info → My Account nav action → done info
+- `stylist-calendar` (5 steps, was 6): removed fragile `.fc-timegrid-slot` action step and `calendar-booking-modal` step; replaced with `calendar-time-grid` info steps. No action step — stylists advance with Next button throughout.
+- `stylist-daily-log` (7 steps, was 6): now starts at `/dashboard` with NAV_DAILY_LOG action; `daily-log-entry-row` → `element:''`; `daily-log-walkin-form` → `element:''`; `daily-log-finalize-button` action step kept.
+- `stylist-finalize-day` (5 steps, was 4): now starts at `/dashboard` with NAV_DAILY_LOG action; `daily-log-entry-row` → `element:''`.
+
+**New tour — `stylist-my-account`** (7 steps): NAV_MY_ACCOUNT action from `/dashboard` → `my-account-schedule` info → edit-hours info (`element:''`) → `my-account-compliance` info → `my-account-compliance-upload` info (not action — avoids opening upload modal mid-tour) → `my-account-timeoff` info → keep-current info.
+
+**TUTORIAL_CATALOG:** `stylist-account` entry updated: `id` → `stylist-my-account`, `tourId` → `'stylist-my-account'` (was null), `title` → `'My Account'`, blurb → `'Manage your schedule, upload compliance documents, and request time off.'`, `estMinutes: 3`. Blurbs updated on all 5 stylist cards.
+
+**New `data-tour` attributes** (zero behavior change, `my-account-client.tsx`):
+- `my-account-schedule` on Your Schedule card outer div
+- `my-account-compliance` on Compliance Documents card outer div
+- `my-account-compliance-upload` on Upload button
+- `my-account-schedule-edit` on Edit hours button inside day row map (data-conditional — tours use `element:''`)
+- `my-account-timeoff` on Time Off card outer div
+
+**New anchors in nav:**
+- `sidebar-avatar` on `<div className="flex items-center gap-3 px-3 py-2 rounded-xl">` in `sidebar.tsx` (display-only user info)
+- `NAV_MY_ACCOUNT = '[data-tour="nav-my-account"]'` constant in `tours.ts`
+- `nav-my-account` tourSlug added to `sidebar.tsx` and `mobile-nav.tsx` tourSlug maps
+
+**FullCalendar:** `slotLabelFormat={{ hour:'numeric', minute:'2-digit', omitZeroMinute:false, meridiem:'short' }}` in `calendar-view.tsx` — time axis now shows `7:00am`, `8:00am` format instead of `7`, `8`.
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.
