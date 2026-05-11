@@ -18,6 +18,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { HelpTip } from '@/components/ui/help-tip'
 import { OnboardingModal } from '@/components/help/onboarding-modal'
+import { OnboardingChecklist } from '@/components/help/onboarding-checklist'
 import { ClipboardList } from 'lucide-react'
 import { SignupSheetPanel } from '@/components/signup-sheet/signup-sheet-panel'
 import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending-entries'
@@ -93,6 +94,9 @@ interface DashboardClientProps {
   workingToday?: WorkingTodayRow[]
   workingTomorrow?: Array<{ name: string }>
   showOnboardingModal?: boolean
+  completedTours?: string[]
+  isMaster?: boolean
+  userId?: string
 }
 
 function formatHHMM(t: string): string {
@@ -120,6 +124,9 @@ export function DashboardClient({
   workingToday = [],
   workingTomorrow = [],
   showOnboardingModal = false,
+  completedTours = [],
+  isMaster = false,
+  userId = '',
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -432,6 +439,7 @@ export function DashboardClient({
     return (
       <ErrorBoundary>
         {showOnboardingModal && <OnboardingModal role={userRole} />}
+        <OnboardingChecklist role={userRole} completedTours={completedTours} isMaster={isMaster} userId={userId} />
         <div className="flex flex-col min-h-screen pb-24" style={{ backgroundColor: 'var(--color-bg)' }}>
           {/* Header */}
           <div className="px-4 pt-6 pb-4">
@@ -589,6 +597,7 @@ export function DashboardClient({
   return (
     <ErrorBoundary>
     {showOnboardingModal && <OnboardingModal role={userRole} />}
+    <OnboardingChecklist role={userRole} completedTours={completedTours} isMaster={isMaster} userId={userId} />
     <div className="flex h-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* ── Calendar column ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden p-3 md:p-4 gap-3">

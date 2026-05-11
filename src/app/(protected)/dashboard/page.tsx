@@ -61,11 +61,14 @@ export default async function DashboardPage() {
   // Fetch profile once: stylistId (for stylist filter) + hasSeenOnboardingTour (welcome modal flag)
   const profile = await db.query.profiles.findFirst({
     where: eq(profiles.id, user.id),
-    columns: { stylistId: true, hasSeenOnboardingTour: true },
+    columns: { stylistId: true, hasSeenOnboardingTour: true, completedTours: true },
   })
   const profileStylistId =
     facilityUser.role === 'stylist' ? profile?.stylistId ?? null : null
   const showOnboardingModal = !profile?.hasSeenOnboardingTour
+  const isMaster =
+    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
@@ -222,6 +225,9 @@ export default async function DashboardPage() {
           workingToday={JSON.parse(JSON.stringify(working.today))}
           workingTomorrow={JSON.parse(JSON.stringify(working.tomorrow))}
           showOnboardingModal={showOnboardingModal}
+          completedTours={profile?.completedTours ?? []}
+          isMaster={isMaster}
+          userId={user.id}
         />
       </>
     )

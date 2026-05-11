@@ -236,6 +236,36 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
 ]
 
 // ────────────────────────────────────────────────────────────────────────────
+// ONBOARDING CHECKLIST — role-specific first-run tour sequence shown on /dashboard
+// super_admin maps to admin; master admin and unlisted roles skip the checklist
+// ────────────────────────────────────────────────────────────────────────────
+
+export const ONBOARDING_CHECKLIST: Record<string, { tourId: string; label: string }[]> = {
+  stylist: [
+    { tourId: 'stylist-getting-started', label: 'Learn the basics' },
+    { tourId: 'stylist-calendar', label: 'Understand your calendar' },
+    { tourId: 'stylist-daily-log', label: 'Complete your first daily log' },
+    { tourId: 'stylist-my-account', label: 'Set up your account' },
+  ],
+  facility_staff: [
+    { tourId: 'staff-getting-started', label: 'Learn the basics' },
+    { tourId: 'facility-staff-scheduling', label: 'Book your first appointment' },
+    { tourId: 'facility-staff-residents', label: 'Manage residents' },
+  ],
+  admin: [
+    { tourId: 'admin-getting-started', label: 'Learn the basics' },
+    { tourId: 'admin-facility-setup', label: 'Configure your facility' },
+    { tourId: 'admin-inviting-staff', label: 'Invite your team' },
+    { tourId: 'admin-residents', label: 'Add your first residents' },
+  ],
+  bookkeeper: [
+    { tourId: 'bookkeeper-getting-started', label: 'Learn the basics' },
+    { tourId: 'bookkeeper-scan-logs', label: 'Scan your first log sheet' },
+    { tourId: 'bookkeeper-billing-dashboard', label: 'Review the billing dashboard' },
+  ],
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // TOUR DEFINITIONS — 31 fully implemented tours.
 // ────────────────────────────────────────────────────────────────────────────
 

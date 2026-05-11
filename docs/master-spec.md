@@ -1821,6 +1821,35 @@ Properties:
 - New: `src/lib/help/tour-router.ts`, `src/components/help/tour-router-provider.tsx`
 - Modified: `src/app/(protected)/layout.tsx` (TourRouterProvider mount), `src/lib/help/tours.ts` (`waitForElement` rewrite + `runStep` cross-route block), `src/lib/help/mobile-tour.ts` (`runMobileStep` cross-route block)
 
+### Phase 12R — Onboarding Checklist Widget (SHIPPED 2026-05-11)
+
+A fixed bottom-right `<OnboardingChecklist />` widget on `/dashboard` surfaces 3-4 role-specific first-run tours to guide new users without requiring them to navigate to `/help`.
+
+**Config** — `ONBOARDING_CHECKLIST: Record<string, { tourId: string; label: string }[]>` exported from `src/lib/help/tours.ts` (after `TUTORIAL_CATALOG`). Roles: `stylist` (4 items), `facility_staff` (3), `admin` (4), `bookkeeper` (3). `super_admin` normalizes to `admin`; master admin and unlisted roles get no checklist (component returns null).
+
+**Component** (`src/components/help/onboarding-checklist.tsx`) — client component. Props: `role: string`, `completedTours: string[]`, `isMaster: boolean`, `userId: string`. `z-[100]` (below tour overlays at `z-[200+]`). Width: `w-72`. Only mounted in `DashboardClient` (both mobile-stylist and desktop render paths), NOT in global layout.
+
+**State & persistence**:
+- `localCompleted: string[]` — initialized from `completedTours` prop; updated by `tour-completed` CustomEvent listener (same event Phase 12Q fires).
+- `dismissed: boolean` — lazy `useState` init reads `localStorage.getItem('onboardingChecklistDismissed:{userId}')`. User-specific key ensures one user's dismissal doesn't affect another on a shared device.
+- `collapsed: boolean` — lazy `useState` init reads `localStorage.getItem('onboardingChecklistCollapsed')`. Shared across users (collapse preference is aesthetic, not personal).
+- `visible: boolean` — false on mount, set true via `setTimeout(..., 1000)` for a 1-second entrance delay.
+- `allDoneMsg: boolean` — briefly true (1.5s) when `completedCount === totalCount`.
+
+**Entrance animation**: `transform: translateY(120%) → translateY(0)` driven by `visible` state + `transition-transform duration-300`. `120%` ensures the shadow/border is also off-screen. Bottom position: `style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}` per CLAUDE.md fixed-bottom rule — no Tailwind `bottom-N` on the same element.
+
+**Auto-dismiss**: when `completedCount === totalCount` (driven by `completedCount` recomputed from `localCompleted`), `allDoneMsg` → true, then after 1500ms sets `localStorage.setItem('onboardingChecklistDismissed:{userId}', 'true')` and flips `dismissed` → true. The widget slides off via `translateY(120%)` (it's already rendered; the `dismissed` guard returns null on the next render). × button does the same immediately.
+
+**Mount wiring**:
+- `dashboard/page.tsx` extends profile query to `columns: { stylistId, hasSeenOnboardingTour, completedTours }`, adds `const isMaster = !!...SUPER_ADMIN_EMAIL && user.email === ...`, passes `completedTours`, `isMaster`, `userId` to `<DashboardClient />`.
+- `DashboardClientProps` gains `completedTours?: string[]`, `isMaster?: boolean`, `userId?: string`.
+
+**Files**:
+- Modified: `src/lib/help/tours.ts` (`ONBOARDING_CHECKLIST` export)
+- New: `src/components/help/onboarding-checklist.tsx`
+- Modified: `src/app/(protected)/dashboard/page.tsx` (profile query + 3 new props)
+- Modified: `src/app/(protected)/dashboard/dashboard-client.tsx` (3 new props + widget render)
+
 ### Phase 12Q — Tour Completion Tracking (SHIPPED 2026-05-11)
 
 Completed tours are persisted on `profiles.completed_tours text[] NOT NULL DEFAULT '{}'`. The Help page shows a `✓ Done` badge on cards whose tour the user has finished.
