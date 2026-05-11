@@ -73,6 +73,7 @@ export type TourDefinition = {
 export const SESSION_KEY = 'helpTour'
 export const SESSION_TTL_MS = 5 * 60 * 1000 // 5 minutes
 export const ELEMENT_WAIT_MS = 5000
+const DESKTOP_ELEMENT_WAIT_MS = 2000
 
 export const isMobile = () =>
   typeof window !== 'undefined' &&
@@ -669,6 +670,13 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
 // ENGINE — runTour
 // ────────────────────────────────────────────────────────────────────────────
 
+// Lazy singleton — Driver.js is only loaded once per page session, not on every step.
+let _driverModule: Awaited<typeof import('driver.js')> | null = null
+async function getDriverModule() {
+  if (!_driverModule) _driverModule = await import('driver.js')
+  return _driverModule
+}
+
 const driverConfig = {
   animate: true,
   smoothScroll: true,
@@ -782,7 +790,7 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
   // Same route — find the element (or no element for terminal info steps)
   let target: HTMLElement | null = null
   if (step.element) {
-    target = await waitForElement(resolveQuery(step.element), ELEMENT_WAIT_MS)
+    target = await waitForElement(resolveQuery(step.element), DESKTOP_ELEMENT_WAIT_MS)
     if (!target) {
       toastWarning('Couldn\'t find that element — the app may have changed.')
       // Skip to next step
@@ -790,8 +798,8 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
     }
   }
 
-  // Lazy-load Driver.js
-  const { driver } = await import('driver.js')
+  // Lazy-load Driver.js (singleton — module is cached after first import)
+  const { driver } = await getDriverModule()
 
   // Compose description (with action hint as a separate paragraph)
   const description = step.actionHint

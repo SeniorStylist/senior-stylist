@@ -26,15 +26,13 @@ function roleLabel(role: string): string {
 function visibleFor(role: string, isMaster: boolean, browseAll: boolean): Tutorial[] {
   if (browseAll || isMaster) return TUTORIAL_CATALOG.filter((t) => isMaster || !t.masterOnly)
 
-  // Admin (and normalized super_admin) sees admin + facility_staff + stylist content
+  // Admin (and normalized super_admin) sees only admin/super_admin-tagged content.
+  // Other role sections are accessible via the "Browse all" toggle.
   if (role === 'admin' || role === 'super_admin') {
     return TUTORIAL_CATALOG.filter(
       (t) =>
         !t.masterOnly &&
-        (t.roles.includes('admin') ||
-          t.roles.includes('super_admin') ||
-          t.roles.includes('facility_staff') ||
-          t.roles.includes('stylist')),
+        (t.roles.includes('admin') || t.roles.includes('super_admin')),
     )
   }
   return TUTORIAL_CATALOG.filter((t) => !t.masterOnly && t.roles.includes(role as Tutorial['roles'][number]))
