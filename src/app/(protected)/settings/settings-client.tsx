@@ -31,6 +31,17 @@ interface CategoryDef {
   badge?: number
 }
 
+// Static tour-anchor slugs per category — keeps the literal strings discoverable
+// to scripts/check-tours.ts (template-literal construction would hide them).
+const TOUR_SLUGS: Record<CategoryId, string> = {
+  general: 'settings-nav-general',
+  team: 'settings-nav-team',
+  billing: 'settings-nav-billing',
+  integrations: 'settings-nav-integrations',
+  notifications: 'settings-nav-notifications',
+  advanced: 'settings-nav-advanced',
+}
+
 // Map legacy ?tab= values to new ?section= values for back-compat with saved bookmarks
 const TAB_TO_SECTION: Record<string, CategoryId> = {
   general: 'general',
@@ -147,6 +158,7 @@ export function SettingsClient({
                 <li key={cat.id}>
                   <button
                     onClick={() => selectCategory(cat.id)}
+                    data-tour={TOUR_SLUGS[cat.id]}
                     className={cn(
                       'px-3 py-2 text-sm rounded-xl w-full text-left flex items-center justify-between transition-colors duration-150',
                       active
