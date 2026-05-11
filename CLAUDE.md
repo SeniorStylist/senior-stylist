@@ -96,6 +96,9 @@ Rules for stable selectors:
 - **`mobileTitle?` / `mobileDescription?`** optional fields on `TourStep`. When `isMobile()` is true the overlay uses `step.mobileTitle ?? step.title` and `step.mobileDescription ?? step.description`.
 - **Help-sync rule extension**: when adding a new tour step, include `mobileDescription` if `description.length > 120` or contains "Click". Mobile titles ≤ 40 chars, descriptions ≤ 120 chars. Use "Tap" not "Click" everywhere.
 - **Helpers exported from `tours.ts`** (do NOT duplicate in mobile-tour.ts): `isMobile`, `resolveQuery`, `waitForElement`, `isOnRoute`, `saveSessionState`/`loadSessionState`/`clearSessionState`, `toastWarning`/`toastInfo`, `SESSION_KEY`/`SESSION_TTL_MS`/`ELEMENT_WAIT_MS`, `SessionState` type.
+- **`DESKTOP_ELEMENT_WAIT_MS = 2000`** (non-exported, `tours.ts` only) is what the desktop engine uses for `waitForElement`. `ELEMENT_WAIT_MS = 5000` is kept exported for backward compat but is NOT used inside `runStep()`. Mobile uses `MOBILE_ELEMENT_WAIT_MS = 2000` (in `mobile-tour.ts`). Do not revert desktop to 5000ms.
+- **Driver.js lazy singleton**: `_driverModule` + `getDriverModule()` at module level in `tours.ts` cache the dynamic import after the first load. `runStep()` calls `getDriverModule()` — do NOT revert to `await import('driver.js')` inline.
+- **`/help` role isolation** (`help-client.tsx::visibleFor()`): admin/super_admin see only `roles.includes('admin') || roles.includes('super_admin')` cards by default — NOT facility_staff or stylist cards. The "Browse all" toggle expands to all non-masterOnly tutorials. Other roles see only their own tagged cards. Do NOT expand the admin filter to include other roles.
 
 **Phase 12I anchors** — `/my-account` page anchors (all in `my-account-client.tsx`):
 - `data-tour="my-account-schedule"` — outer div of Your Schedule card (always present for stylists)
