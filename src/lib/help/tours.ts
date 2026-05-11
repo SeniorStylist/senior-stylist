@@ -5,6 +5,8 @@
 // on user click for action steps. Driver.js is dynamic-imported on first use.
 
 import type { Driver } from 'driver.js'
+import { installTourFetchInterceptor } from './tour-fetch-interceptor'
+import { setTourModeActive } from './tour-mode'
 
 // ────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -266,9 +268,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Let\'s go to your Daily Log.', actionHint: 'Tap Daily Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'What is the Daily Log', description: 'The Daily Log shows every appointment from your calendar for today. At the end of your shift, you\'ll review and finalize these entries.' },
       { route: '/log', element: '', isAction: false, title: 'Each entry', description: 'Each row is one appointment. You can see the resident\'s name, the service, and the price. Tap a row to edit the price or add a note.' },
-      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'If a resident came in without a booking, tap \'Add Walk-in\' to add them to today\'s log.', actionHint: 'Tap Add Walk-in to continue.' },
+      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'If a resident came in without a booking, tap \'Add Walk-in\' to add them to today\'s log.', actionHint: 'Go ahead and tap — nothing will be saved for real.' },
       { route: '/log', element: '', isAction: false, title: 'Walk-in form', description: 'Search for the resident by name. If they\'re not in the system yet, you can add them as a new resident. Then choose the service and price.' },
-      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'When you\'re done for the day, tap \'Finalize Day\'. This locks your log and submits it to your admin. Double-check everything first — you won\'t be able to edit after finalizing.', mobileDescription: 'Tap Finalize Day to lock and submit your log. Double-check first — you can\'t edit after.', actionHint: 'Tap Finalize Day to continue.' },
+      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'When you\'re done for the day, tap \'Finalize Day\'. This locks your log and submits it to your admin. Double-check everything first — you won\'t be able to edit after finalizing.', mobileDescription: 'Tap Finalize Day to lock and submit your log. Double-check first — you can\'t edit after.', actionHint: 'Tap Finalize Day — this is just a demo, your real log won\'t be affected.' },
       { route: '/log', element: '', isAction: false, title: 'After finalizing', description: 'Once finalized, your admin can see the completed log. If you made a mistake, contact your admin and they can make corrections.' },
     ],
   },
@@ -294,7 +296,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Let\'s walk through finalizing your day.', actionHint: 'Tap Daily Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Check entries', description: 'Before finalizing, check that every entry has the right service and price. Tap any row to make a correction.' },
       { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: false, title: 'Check for walk-ins', description: 'Make sure any walk-ins are added. Anyone who came in without a pre-booked appointment needs to be added here before you finalize.', mobileDescription: 'Make sure all walk-ins are added before finalizing.' },
-      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize Day', description: 'When everything looks right, tap \'Finalize Day\'.', actionHint: 'Tap Finalize Day to continue.' },
+      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize Day', description: 'When everything looks right, tap \'Finalize Day\'.', actionHint: 'Tap Finalize Day — this is just a demo, your real log won\'t be affected.' },
       { route: '/log', element: '', isAction: false, title: 'Log submitted', description: 'Your log is now submitted. Entries are locked — if anything needs correcting, reach out to your admin.' },
     ],
   },
@@ -522,7 +524,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'When you receive a paper log sheet, start here.', actionHint: 'Tap Daily Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'What you\'re scanning', description: 'A paper log sheet is a handwritten or printed record of services a stylist performed at a facility. Your job is to get this data into Senior Stylist so invoices can be generated correctly.' },
-      { route: '/log', element: '[data-tour="daily-log-scan-sheet"]', isAction: true, title: 'Open the scan tool', description: 'Tap \'Scan log sheet\' to open the OCR scanner. You\'ll upload a photo or PDF of the paper log sheet.', actionHint: 'Tap Scan log sheet to continue.' },
+      { route: '/log', element: '[data-tour="daily-log-scan-sheet"]', isAction: true, title: 'Open the scan tool', description: 'Tap \'Scan log sheet\' to open the OCR scanner. You\'ll upload a photo or PDF of the paper log sheet.', actionHint: 'Tap Scan log sheet to see how it works — no real data will change.' },
       { route: '/log', element: '[data-tour="ocr-upload-area"]', isAction: false, title: 'Upload your sheet', description: 'Take a clear, well-lit photo of the log sheet or upload a scanned PDF. Lay the sheet flat with no shadows for the best results. The AI will read resident names, services, and prices automatically.', mobileDescription: 'Upload a clear photo or PDF. Flat, well-lit, no shadows for best results.' },
       { route: '/log', element: '', isAction: false, title: 'Reviewing the results', description: 'After scanning, every extracted entry appears in a table. Review each row carefully — the AI is good but not perfect, especially with handwriting.' },
       { route: '/log', element: '', isAction: false, title: 'What to check', description: 'For each row, verify: (1) the resident name matches a real resident, (2) the service is correct, (3) the price matches what was written. Highlighted rows need extra attention.', mobileDescription: 'Check: resident name matches, service is correct, price is right.' },
@@ -556,7 +558,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/residents', element: '', isAction: false, title: 'Why duplicates happen', description: 'When scanning log sheets, the same resident can get entered with slightly different names — \'Mary Smith\' and \'Mary S.\' end up as two separate records. Duplicate residents cause split billing and confusing history.', mobileDescription: 'Scanning creates duplicates when the same resident\'s name is spelled differently.' },
       { route: '/residents', element: NAV_RESIDENTS, isAction: true, title: 'Go to Residents', description: 'Duplicate detection lives in the Residents section.', actionHint: 'Tap Residents to continue.' },
-      { route: '/residents', element: '[data-tour="residents-duplicates-button"]', isAction: true, title: 'Find duplicates', description: 'Tap the Duplicates button to scan for potential duplicate residents. Senior Stylist compares names, room numbers, and booking history to find likely matches.', actionHint: 'Tap Duplicates to continue.' },
+      { route: '/residents', element: '[data-tour="residents-duplicates-button"]', isAction: true, title: 'Find duplicates', description: 'Tap the Duplicates button to scan for potential duplicate residents. Senior Stylist compares names, room numbers, and booking history to find likely matches.', actionHint: 'Tap Duplicates to see the result — this is just a demo.' },
       { route: '/residents', element: '', isAction: false, title: 'Reviewing pairs', description: 'Each card shows two residents that might be the same person. A confidence score tells you how likely it is. Review the names, room numbers, and booking counts for each pair.' },
       { route: '/residents', element: '', isAction: false, title: 'Before you merge', description: 'Check both records carefully. The resident on the LEFT becomes the primary — all bookings from the right transfer to the left. The right record is then removed. Make sure the left record has the correct name and room number.', mobileDescription: 'The LEFT record becomes primary. Make sure it has the correct name and room.' },
       { route: '/residents', element: '', isAction: false, title: 'Merging', description: 'Tap Merge to combine the records. All booking history transfers to the primary record. This cannot be undone — if you\'re unsure, skip the pair and ask your admin.', mobileDescription: 'Tap Merge to combine. Can\'t be undone — skip if unsure and ask your admin.' },
@@ -643,7 +645,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/settings', element: '', isAction: false, title: 'QuickBooks Setup', description: 'QuickBooks Online connects Senior Stylist to your accounting system. Once connected, payroll syncs as Bills and invoice data flows automatically. This is set up per facility.', mobileDescription: 'QuickBooks connects per facility. Payroll syncs as Bills, invoices sync back.' },
       { route: '/settings', element: NAV_SETTINGS, isAction: true, title: 'Go to Settings', description: 'QuickBooks is configured in each facility\'s Settings. Navigate there for the facility you want to connect.', actionHint: 'Tap Settings to continue.' },
       { route: '/settings?section=billing', element: '[data-tour="settings-quickbooks"]', isAction: false, title: 'QuickBooks section', description: 'Scroll to the QuickBooks section in the Billing tab of Settings. This is where you connect and manage the QB integration for this facility.', mobileDescription: 'Find the QuickBooks section in Settings → Billing tab.' },
-      { route: '/settings?section=billing', element: '[data-tour="settings-qb-connect-btn"]', isAction: true, title: 'Connect QuickBooks', description: 'Tap \'Connect QuickBooks\' to start the OAuth login. You\'ll be redirected to Intuit to authorize Senior Stylist to access this facility\'s QuickBooks account.', actionHint: 'Tap Connect QuickBooks to continue.' },
+      { route: '/settings?section=billing', element: '[data-tour="settings-qb-connect-btn"]', isAction: true, title: 'Connect QuickBooks', description: 'Tap \'Connect QuickBooks\' to start the OAuth login. You\'ll be redirected to Intuit to authorize Senior Stylist to access this facility\'s QuickBooks account.', actionHint: 'Tap Connect QuickBooks to see the flow — no real connection will be made.' },
       { route: '/settings?section=billing', element: '', isAction: false, title: 'After connecting', description: 'Once connected, payroll data syncs automatically as Bills in QuickBooks. Invoice data flows back into Senior Stylist. If you see a discrepancy, use the manual sync button to force a refresh.', mobileDescription: 'Connected: payroll syncs as Bills automatically. Use manual sync if you see issues.' },
       { route: '/settings?section=billing', element: '', isAction: false, title: 'Per-facility setup', description: 'Each facility needs its own QuickBooks connection — they may use separate QB accounts or separate companies within one account. Repeat this process for each facility you want to connect.' },
     ],
@@ -745,6 +747,10 @@ export async function startTour(
     return
   }
 
+  // Phase 12O — engage demo-mode write interception for the duration of the tour
+  installTourFetchInterceptor()
+  setTourModeActive(true)
+
   // Tear down any existing tour
   destroyActiveTour()
   const startIndex = Math.max(0, opts.resumeFromStep ?? 0)
@@ -755,6 +761,7 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
   if (index >= def.steps.length) {
     destroyActiveTour()
     clearSessionState()
+    setTourModeActive(false)
     return
   }
   const step = def.steps[index]
@@ -805,6 +812,7 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
     onCloseClick: () => {
       destroyActiveTour()
       clearSessionState()
+      setTourModeActive(false)
     },
   })
 

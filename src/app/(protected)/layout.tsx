@@ -15,6 +15,7 @@ import { MobileFacilityHeader } from '@/components/layout/mobile-facility-header
 import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 import { TourResumer } from '@/components/help/tour-resumer'
 import { MobileTourOverlay } from '@/components/help/mobile-tour-overlay'
+import { TourModeBanner } from '@/components/help/tour-mode-banner'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -128,6 +129,7 @@ export default async function ProtectedLayout({
 
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+      <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />

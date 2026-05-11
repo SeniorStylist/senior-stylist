@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { resumePendingTour } from '@/lib/help/tours'
+import { installTourFetchInterceptor } from '@/lib/help/tour-fetch-interceptor'
 
 /**
  * Mounted at the protected layout level so tours that hard-nav between routes
@@ -29,6 +30,12 @@ export function TourResumer() {
   }, [toast])
 
   useEffect(() => {
+    // Phase 12O — re-install the fetch interceptor on every protected-layout
+    // mount. Page reloads (cross-route tour hops) wipe module state, so the
+    // patch needs to be re-applied before resumePendingTour() fires off any
+    // restoration flow. setTourModeActive(true) is handled inside startTour /
+    // startMobileTour, so we don't duplicate it here.
+    installTourFetchInterceptor()
     // Run after first paint so the page is mounted before the tour highlights anything
     const t = setTimeout(() => {
       void resumePendingTour()

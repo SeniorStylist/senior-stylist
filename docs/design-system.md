@@ -2321,3 +2321,20 @@ A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767p
 - `waitForElement(resolveQuery(step.element), 5000)` polls via RAF up to 5 seconds. On timeout: `toastWarning("Couldn't find that element — the app may have changed.")` and skip to the next step (same as desktop).
 - After resolving, the engine calls `target.scrollIntoView({ behavior: 'smooth', block: 'center' })` and waits 150ms before measuring the rect. Avoids dispatching with stale coordinates.
 - Cross-route hop: engine writes `SessionState` with `mobile: true`, then `window.location.href = step.route`. `<TourResumer />` calls `resumePendingTour()`, which checks `state.mobile` and routes directly to `startMobileTour()` (bypasses `startTour()`'s `isMobile()` re-check, so the renderer is sticky to the device that started the tour).
+
+### Tour Mode Banner (Phase 12O)
+
+`<TourModeBanner />` (`src/components/help/tour-mode-banner.tsx`) — the visibility affordance for demo mode while a guided tour is active. Mounted at the very top of `src/app/(protected)/layout.tsx`'s outer `<div>` (BEFORE `<NavigationProgress />`, OUTSIDE `<main>`, OUTSIDE `<ToastProvider>`) so the fixed-position element is not clipped by the inner scroll container's `overflow: auto`.
+
+**Visual spec**:
+- Position: `fixed top-0 left-0 right-0`
+- z-index: `z-[250]` (above Driver.js overlay `z-[200]` and mobile tour overlay `z-[202]`)
+- Background: `bg-[#8B2E4A]/90 backdrop-blur-sm` (translucent burgundy, lets UI underneath bleed through subtly)
+- Padding: `py-1.5 px-4` (height ~28–32px including text)
+- Content: centered flex row with `🎓 Tutorial Mode — changes won't be saved` in `text-white text-xs font-medium`
+- Transition: `transition-transform duration-200 ease-out`, slides between `translateY(0)` (active) and `translateY(-100%)` (inactive)
+- No close button — banner dismisses automatically when the tour ends
+- Accessibility: `role="status"` `aria-live="polite"` `aria-hidden={!active}`
+- `pointer-events: auto` when active, `none` when inactive — the banner is short enough not to obstruct meaningful UI, but pointer-events on the off-screen state prevents accidental click capture during the slide-out animation
+
+**State**: listens to the `tour-mode-change` CustomEvent (dispatched by `setTourModeActive()` in `src/lib/help/tour-mode.ts`). Always rendered — toggling the transform handles the slide animation in both directions without unmount.

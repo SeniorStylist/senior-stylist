@@ -1686,6 +1686,56 @@ Lightweight intake queue for facility staff to log resident appointment requests
 
 **Cache tag**: `'signup-sheet'` busted by all 3 mutation routes; `'bookings'` also busted by convert.
 
+### Phase 12O — Tour Mode Write Interception (SHIPPED 2026-05-11)
+
+Guided tours now run in "demo mode": while a tour is active, every write (`POST`/`PUT`/`PATCH`/`DELETE`) to a same-origin `/api/*` route is intercepted client-side and returns a fake success response. `GET`/`HEAD` and external URLs (Supabase auth, Resend, Intuit OAuth) always pass through. A burgundy banner pinned to `top: 0` makes the demo state visible.
+
+**Why**: tour copy says "tap Save", "tap Finalize Day", "tap Add Walk-in" — and before this phase those clicks actually wrote to the database. Users hesitated to follow action steps, and admins running tours for staff accidentally created demo bookings, residents, and finalized logs in production.
+
+**Architecture** — three small modules, no DB or API changes:
+- `src/lib/help/tour-mode.ts` — module-level `_tourModeActive` flag. `setTourModeActive(active)` dispatches `tour-mode-change` CustomEvent (`detail: { active }`) on change. `isTourModeActive()` returns the flag. Lives outside React so both engines + the fetch interceptor read it without prop drilling.
+- `src/lib/help/tour-fetch-interceptor.ts::installTourFetchInterceptor()` — patches `window.fetch` exactly once (`_installed` module guard). When tour mode is off, the patch is a pass-through. When on, only same-origin `/api/*` writes are intercepted; reads + external URLs are untouched. `buildFakeResponse(url, method)` returns minimal realistic shapes for the highest-traffic write paths and falls back to `{ data: {}, ok: true }`.
+- `src/components/help/tour-mode-banner.tsx` — `<TourModeBanner />` listens to `tour-mode-change` CustomEvent, mounts at the top of `(protected)/layout.tsx` outside `<main>` (otherwise the inner scroll container's `overflow: auto` would clip it). Always rendered; toggles `translateY(0)` ↔ `translateY(-100%)` with 200ms ease-out transition.
+
+**Smart fake response shapes** (URL substring match in `tour-fetch-interceptor.ts`, order matters — more specific URLs first):
+
+| URL match | Method | Fake `Response` body |
+|---|---|---|
+| `/api/bookings` + `/receipt` | POST | `{ data: { emailSent: true, smsSent: false } }` |
+| `/api/log/ocr/import` | POST | `{ data: { created: { bookings: 0 } } }` |
+| `/api/log/ocr` | POST | `{ data: { sheets: [] } }` |
+| `/api/log[/...]` | POST/PUT | `{ data: { id: 'demo-<ts>', finalized: true, finalizedAt, notes: '' } }` |
+| `/api/bookings` | POST | `{ data: { id: 'demo-<ts>', status: 'scheduled' } }` |
+| `/api/bookings/[id]` | PUT/PATCH | `{ data: { id: 'demo-<ts>', status: 'completed', paymentStatus: 'paid', priceCents: 0 } }` |
+| `/api/residents` | any write | `{ data: { id: 'demo-<ts>', name: 'Demo Resident' } }` |
+| else | any write | `{ data: {}, ok: true }` |
+
+**Known limitation**: the codebase has zero optimistic-update sites — every client write reads the response and destructures specific fields. Any route not covered by `buildFakeResponse()` returns the generic `{ data: {}, ok: true }`; client code that tries to read `data.X.Y` will throw. Accepted tradeoff — the tour copy guides the user through the click and the tour engine advances regardless of the resulting DOM state. If a tour step regularly leaves the user stuck, add a route-specific shape.
+
+**Engine wire-up — flag flip placement**:
+- `setTourModeActive(true)` is called at the **top** of `startTour()` (after the mobile branch) and the **top** of `startMobileTour()` (after the re-entry guard). The interceptor install happens here too, before the flip.
+- `setTourModeActive(false)` is called at exactly **two paths per engine** — the truly terminal exits, NOT inside the destroy helpers:
+  - Desktop: terminal-step branch in `runStep` (`if (index >= def.steps.length)`) and `onCloseClick`
+  - Mobile: terminal-step branch in `runMobileStep` and `activeCloseHandler`
+- Internal step-transition cleanups (info next/prev, action auto-advance) still call `destroyActiveTour()` / `destroyActiveMobileTour()` but do NOT flip tour mode off. Putting the flip in the destroy helpers would briefly drop demo mode between every step.
+- Cross-route hard-nav does NOT need an explicit flip: `window.location.href = …` wipes all JS module state on reload, so the flag returns to `false` naturally. `TourResumer` re-installs and `startTour`/`startMobileTour` re-flip to `true`.
+
+**Resume safety**: `tour-resumer.tsx` calls `installTourFetchInterceptor()` BEFORE `resumePendingTour()` inside its mount effect. This re-applies the patch after a hard-nav reload during the window between layout mount and the actual `startTour` / `startMobileTour` call. `setTourModeActive(true)` is NOT duplicated in the resumer — the engines handle it.
+
+**Tour copy reassurance**: 6 write-action steps had their `actionHint` updated to make it explicit that the action is safe to try in tour mode:
+- `stylist-daily-log` "Add a walk-in" → "Go ahead and tap — nothing will be saved for real."
+- `stylist-daily-log` "Finalize the day" → "Tap Finalize Day — this is just a demo, your real log won't be affected."
+- `stylist-finalize-day` "Finalize Day" → same
+- `bookkeeper-scan-logs` "Open the scan tool" → "Tap Scan log sheet to see how it works — no real data will change."
+- `bookkeeper-duplicates` "Find duplicates" → "Tap Duplicates to see the result — this is just a demo."
+- `master-quickbooks-setup` "Connect QuickBooks" → "Tap Connect QuickBooks to see the flow — no real connection will be made."
+
+**Special case — `master-quickbooks-setup`**: the "Connect QuickBooks" action does a top-level navigation to `accounts.intuit.com`, an external URL. The interceptor's `/api/*` prefix check means external navigation is not blocked. The new copy honestly says "see the flow" — users can dismiss the Intuit page and the tour resumes via sessionStorage. Short-circuiting the OAuth handler with a `tour-mode` check would be an API change and was left out of Phase 12O scope.
+
+**Files**:
+- New: `src/lib/help/tour-mode.ts`, `src/lib/help/tour-fetch-interceptor.ts`, `src/components/help/tour-mode-banner.tsx`
+- Modified: `src/lib/help/tours.ts` (3 sites + 6 actionHint updates), `src/lib/help/mobile-tour.ts` (3 sites), `src/components/help/tour-resumer.tsx` (interceptor install), `src/app/(protected)/layout.tsx` (banner mount)
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.

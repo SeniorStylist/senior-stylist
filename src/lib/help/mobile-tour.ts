@@ -18,6 +18,8 @@ import {
   toastWarning,
   type TourDefinition,
 } from './tours'
+import { installTourFetchInterceptor } from './tour-fetch-interceptor'
+import { setTourModeActive } from './tour-mode'
 
 // Mobile-specific tunables. Mobile waits less than desktop (5s feels broken
 // on a phone) and uses a tighter resume TTL (1 min) to bound stale-state loops.
@@ -69,6 +71,9 @@ export async function startMobileTour(
   // fires its effect twice in StrictMode or across a layout remount race),
   // skip the second call rather than starting a parallel run.
   if (activeMobileTourId === tourId) return
+  // Phase 12O — engage demo-mode write interception for the duration of the tour
+  installTourFetchInterceptor()
+  setTourModeActive(true)
   // Wipe any lingering resume state at the START of a tour run. If we got here
   // via resumePendingTour the state was already consumed; if we got here via a
   // user-initiated launch from /help any stale state is moot. Cross-route hops
@@ -86,6 +91,7 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
     destroyActiveMobileTour()
     clearSessionState()
     dispatchHide()
+    setTourModeActive(false)
     return
   }
   const step = def.steps[index]
@@ -137,6 +143,7 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
     destroyActiveMobileTour()
     clearSessionState()
     dispatchHide()
+    setTourModeActive(false)
   }
   window.addEventListener('help-mobile-tour-close', activeCloseHandler)
 
