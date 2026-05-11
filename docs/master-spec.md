@@ -1736,6 +1736,91 @@ Guided tours now run in "demo mode": while a tour is active, every write (`POST`
 - New: `src/lib/help/tour-mode.ts`, `src/lib/help/tour-fetch-interceptor.ts`, `src/components/help/tour-mode-banner.tsx`
 - Modified: `src/lib/help/tours.ts` (3 sites + 6 actionHint updates), `src/lib/help/mobile-tour.ts` (3 sites), `src/components/help/tour-resumer.tsx` (interceptor install), `src/app/(protected)/layout.tsx` (banner mount)
 
+### Phase 12P — Client-Side Tour Navigation (SHIPPED 2026-05-11)
+
+Tour engines now use Next.js `router.push()` for cross-route step transitions, replacing the previous `window.location.href` hard-reload. The layout, sidebar, and all tour engine module state (`_tourModeActive`, the patched `window.fetch`, the Driver.js singleton, mobile engine `activeMobileTourId`) survive the SPA transition. Combined with a `MutationObserver`-based `waitForElement`, cross-route steps now advance in tens of milliseconds instead of 500–800ms with a white flash.
+
+**Why**: Phase 12H's hard-nav + sessionStorage resume worked but wasted 500–800ms per cross-route step on reload + `<TourResumer />`'s 100ms paint-settle delay + new module state reinitialization. For multi-route tours (e.g. `admin-getting-started` spans `/help` → `/master-admin` → `/settings`) that's several seconds of latency the user sees as "the tour is laggy".
+
+**Module-level router ref pattern** — tour engines run outside the React tree and can't call `useRouter()` directly:
+- `src/lib/help/tour-router.ts` — `let _router: AppRouter | null = null` + `setTourRouter(router)` / `getTourRouter()`. `AppRouter` is typed as `ReturnType<typeof useRouter>` from `next/navigation` to avoid the brittle `next/dist/shared/lib/app-router-context.shared-runtime` deep import.
+- `src/components/help/tour-router-provider.tsx` — `'use client'`, calls `setTourRouter(useRouter())` inside `useEffect` and renders null. Mounted in `(protected)/layout.tsx` inside `<ToastProvider>` directly above `<TourResumer />`.
+
+**Engine wire-up** — both `tours.ts::runStep` (around line 770) and `mobile-tour.ts::runMobileStep` (around line 102) replace the cross-route block:
+
+```ts
+if (!isOnRoute(step.route)) {
+  destroyActiveTour() // or destroyActiveMobileTour() + dispatchHide() on mobile
+  const router = getTourRouter()
+  if (router) {
+    router.push(step.route)
+    // Fall through — waitForElement (MutationObserver) resolves on render.
+  } else {
+    // Fallback only: router ref not yet populated (SSR race)
+    saveSessionState({ ... }) // unchanged shape, includes expiresAt
+    window.location.href = step.route
+    return
+  }
+}
+```
+
+Critical invariants for the `router.push()` branch — do not break:
+- **No `saveSessionState()`**: the engine stays alive in memory, no resume needed.
+- **No `return`**: control falls through to the existing `waitForElement` call, which now resolves via MutationObserver when the new route renders.
+- **Destroy first**: the previous step's highlight is destroyed BEFORE `router.push` so the old overlay clears before the new route's DOM appears.
+
+**`waitForElement` rewrite** (`tours.ts`, lines ~93–125) — `MutationObserver`-based:
+
+```ts
+export function waitForElement(selector, timeoutMs) {
+  return new Promise((resolve) => {
+    const existing = document.querySelector(selector)
+    if (existing && existing.offsetParent !== null) {
+      resolve(existing); return  // instant resolve — no rAF tick
+    }
+    let settled = false
+    const observer = new MutationObserver(() => {
+      if (settled) return
+      const el = document.querySelector(selector)
+      if (el && el.offsetParent !== null) {
+        settled = true; clearTimeout(timer); observer.disconnect(); resolve(el)
+      }
+    })
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true; observer.disconnect(); resolve(null)
+    }, timeoutMs)
+    observer.observe(document.body, { childList: true, subtree: true })
+  })
+}
+```
+
+Properties:
+- **Instant resolve** when the element is already in the DOM — no requestAnimationFrame minimum delay.
+- **Always disconnects** the observer (on resolve OR timeout) — no observer leaks.
+- **Same signature** — `mobile-tour.ts` calls `waitForElement(resolveQuery(step.element), MOBILE_ELEMENT_WAIT_MS)` unchanged.
+- **Visibility guard preserved**: both the initial sync check and the observer callback verify `offsetParent !== null` (hidden elements don't satisfy the wait, matches old polling behavior).
+- `DESKTOP_ELEMENT_WAIT_MS = 2000` and `MOBILE_ELEMENT_WAIT_MS = 2000` remain the timeout budgets.
+
+**Fallback hierarchy** (in priority order):
+1. `getTourRouter()` returns a router → SPA `router.push`, no sessionStorage, fall through to MutationObserver wait.
+2. `getTourRouter()` returns null → save sessionStorage with `expiresAt` and `mobile?` flag, `window.location.href` hard-nav, `<TourResumer />` reads sessionStorage on next mount and re-launches via `startTour` / `startMobileTour`.
+3. Manual browser refresh during a tour → same sessionStorage path as (2) — but only resumes if sessionStorage was actually written (i.e., a previous fallback fired). The SPA path doesn't write sessionStorage, so a refresh during a router.push tour loses progress. Acceptable tradeoff — re-launch from `/help`.
+
+**`<TourResumer />` unchanged** — still exists, still calls `resumePendingTour()` 100ms after layout mount, still re-installs the fetch interceptor. It just has nothing to resume in the normal SPA flow because sessionStorage was never written. It remains load-bearing for: manual refreshes, the no-router-ref fallback, and external `window.location.href` writes (debug routes).
+
+**`isOnRoute()` unchanged** — reads `window.location.pathname` + `window.location.search`. After `router.push`, both update synchronously before render. The decoupling that makes this safe is `waitForElement`: the engine doesn't trust the URL alone, it waits for the DOM.
+
+**Phase 12J / 12O integration**:
+- `setTourModeActive(true)` placement unchanged (top of `startTour` / `startMobileTour`).
+- `setTourModeActive(false)` placement unchanged (two terminal exits per engine).
+- Fetch interceptor `installTourFetchInterceptor()` still called at engine start AND on `<TourResumer />` mount — the second call is now mostly redundant in the SPA path (module state never wiped), but stays as a safety net for the hard-nav fallback.
+- Mobile bottom-sheet entrance animation: only runs on first show; the new SPA flow doesn't dispatch `help-mobile-tour-hide` between cross-route steps any more, so consecutive steps don't re-animate.
+
+**Files**:
+- New: `src/lib/help/tour-router.ts`, `src/components/help/tour-router-provider.tsx`
+- Modified: `src/app/(protected)/layout.tsx` (TourRouterProvider mount), `src/lib/help/tours.ts` (`waitForElement` rewrite + `runStep` cross-route block), `src/lib/help/mobile-tour.ts` (`runMobileStep` cross-route block)
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.

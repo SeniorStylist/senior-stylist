@@ -16,6 +16,7 @@ import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 import { TourResumer } from '@/components/help/tour-resumer'
 import { MobileTourOverlay } from '@/components/help/mobile-tour-overlay'
 import { TourModeBanner } from '@/components/help/tour-mode-banner'
+import { TourRouterProvider } from '@/components/help/tour-router-provider'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -139,6 +140,7 @@ export default async function ProtectedLayout({
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
         <div className="main-content flex-1 min-h-0 overflow-auto">
           <ToastProvider>
+            <TourRouterProvider />
             <TourResumer />
             <MobileTourOverlay />
             {children}

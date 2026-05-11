@@ -7,6 +7,7 @@
 import type { Driver } from 'driver.js'
 import { installTourFetchInterceptor } from './tour-fetch-interceptor'
 import { setTourModeActive } from './tour-mode'
+import { getTourRouter } from './tour-router'
 
 // ────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -90,23 +91,40 @@ export function resolveQuery(selector: string): string {
   return `[data-tour-mobile="${m[1]}"], [data-tour="${m[1]}"]`
 }
 
-/** Poll for an element via requestAnimationFrame. Returns null on timeout. */
+/**
+ * Phase 12P — MutationObserver-based element wait. Resolves the instant the
+ * selector matches a visible element, or null after `timeoutMs`. Returns
+ * immediately when the element is already in the DOM (no requestAnimationFrame
+ * delay). Always disconnects the observer on resolve OR timeout.
+ */
 export function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
   return new Promise((resolve) => {
-    const deadline = Date.now() + timeoutMs
-    const tick = () => {
+    const existing = document.querySelector<HTMLElement>(selector)
+    if (existing && existing.offsetParent !== null) {
+      resolve(existing)
+      return
+    }
+
+    let settled = false
+    const observer = new MutationObserver(() => {
+      if (settled) return
       const el = document.querySelector<HTMLElement>(selector)
       if (el && el.offsetParent !== null) {
+        settled = true
+        clearTimeout(timer)
+        observer.disconnect()
         resolve(el)
-        return
       }
-      if (Date.now() > deadline) {
-        resolve(null)
-        return
-      }
-      requestAnimationFrame(tick)
-    }
-    tick()
+    })
+
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      observer.disconnect()
+      resolve(null)
+    }, timeoutMs)
+
+    observer.observe(document.body, { childList: true, subtree: true })
   })
 }
 
@@ -775,16 +793,25 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
   const step = def.steps[index]
   const totalSteps = def.steps.length
 
-  // Cross-route hop: persist state and hard-nav
+  // Cross-route hop: SPA nav via router.push when available; module state
+  // survives, waitForElement (MutationObserver) resolves once the new page
+  // renders the target. Falls back to hard-nav + sessionStorage resume only
+  // when the router ref hasn't been populated yet (SSR race).
   if (!isOnRoute(step.route)) {
-    saveSessionState({
-      tourId: def.id,
-      stepIndex: index,
-      expiresAt: Date.now() + SESSION_TTL_MS,
-    })
     destroyActiveTour()
-    window.location.href = step.route
-    return // Page will reload; <TourResumer /> picks up.
+    const router = getTourRouter()
+    if (router) {
+      router.push(step.route)
+      // Fall through — waitForElement below picks up the new route's DOM.
+    } else {
+      saveSessionState({
+        tourId: def.id,
+        stepIndex: index,
+        expiresAt: Date.now() + SESSION_TTL_MS,
+      })
+      window.location.href = step.route
+      return // Page will reload; <TourResumer /> picks up.
+    }
   }
 
   // Same route — find the element (or no element for terminal info steps)

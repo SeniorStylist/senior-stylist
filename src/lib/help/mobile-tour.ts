@@ -20,6 +20,7 @@ import {
 } from './tours'
 import { installTourFetchInterceptor } from './tour-fetch-interceptor'
 import { setTourModeActive } from './tour-mode'
+import { getTourRouter } from './tour-router'
 
 // Mobile-specific tunables. Mobile waits less than desktop (5s feels broken
 // on a phone) and uses a tighter resume TTL (1 min) to bound stale-state loops.
@@ -97,19 +98,26 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
   const step = def.steps[index]
   const totalSteps = def.steps.length
 
-  // Cross-route hop: persist with mobile flag and hard-nav. Use the shorter
-  // mobile TTL so abandoned tours don't loop for 5 minutes.
+  // Cross-route hop: SPA nav via router.push when available; module state
+  // survives across the transition. Falls back to hard-nav + sessionStorage
+  // resume (with shorter mobile TTL) only when the router ref isn't set yet.
   if (!isOnRoute(step.route)) {
-    saveSessionState({
-      tourId: def.id,
-      stepIndex: index,
-      expiresAt: Date.now() + MOBILE_RESUME_TTL,
-      mobile: true,
-    })
     destroyActiveMobileTour()
     dispatchHide()
-    window.location.href = step.route
-    return // Page reloads; <TourResumer /> resumes via startMobileTour.
+    const router = getTourRouter()
+    if (router) {
+      router.push(step.route)
+      // Fall through — waitForElement below picks up the new route's DOM.
+    } else {
+      saveSessionState({
+        tourId: def.id,
+        stepIndex: index,
+        expiresAt: Date.now() + MOBILE_RESUME_TTL,
+        mobile: true,
+      })
+      window.location.href = step.route
+      return // Page reloads; <TourResumer /> resumes via startMobileTour.
+    }
   }
 
   // Resolve element (or null for body-anchored info steps)
