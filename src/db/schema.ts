@@ -776,6 +776,8 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
   // is set at scheduling time using the facility's tz.
   requestedTime: text('requested_time'),
   requestedDate: date('requested_date').notNull(),
+  // Phase 12S — optional date the resident prefers; drives auto-assignment.
+  preferredDate: date('preferred_date'),
   notes: text('notes'),
   createdBy: uuid('created_by').references(() => profiles.id).notNull(),
   assignedToStylistId: uuid('assigned_to_stylist_id').references(() => stylists.id),

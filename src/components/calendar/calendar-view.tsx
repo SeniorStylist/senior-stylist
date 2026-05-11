@@ -56,6 +56,8 @@ interface CalendarViewProps {
   onDatesSet: (start: Date, end: Date) => void
   onSelectSlot: (start: Date, end: Date) => void
   onEventClick: (bookingId: string) => void
+  /** Phase 12S — fires when a signup-sheet entry is dropped onto a calendar slot. */
+  onSignupDrop?: (entryId: string, date: Date) => void
 }
 
 export default function CalendarView({
@@ -72,6 +74,7 @@ export default function CalendarView({
   onDatesSet,
   onSelectSlot,
   onEventClick,
+  onSignupDrop,
 }: CalendarViewProps) {
   const fcRef = useRef<FullCalendar>(null)
 
@@ -123,6 +126,11 @@ export default function CalendarView({
         slotLabelFormat={{ hour: 'numeric', minute: '2-digit', omitZeroMinute: false, meridiem: 'short' }}
         scrollTime="08:30:00"
         headerToolbar={false}
+        droppable={!!onSignupDrop}
+        drop={(arg) => {
+          const entryId = (arg.draggedEl as HTMLElement).dataset.signupEntryId
+          if (entryId && onSignupDrop) onSignupDrop(entryId, arg.date)
+        }}
         events={events}
         datesSet={(dateInfo) => {
           onDatesSet(dateInfo.start, dateInfo.end)

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import { NeedsReviewBadge } from '@/components/layout/needs-review-badge'
+import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
@@ -423,7 +424,8 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                       <span className={cn('transition-colors duration-150', isActive ? 'text-[#E8A0B0]' : 'text-white/50')}>
                         {item.icon}
                       </span>
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {item.href === '/dashboard' && <PendingSignupBadge role={role} />}
                     </Link>
                   )
                 })}

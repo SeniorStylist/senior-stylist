@@ -1821,6 +1821,48 @@ Properties:
 - New: `src/lib/help/tour-router.ts`, `src/components/help/tour-router-provider.tsx`
 - Modified: `src/app/(protected)/layout.tsx` (TourRouterProvider mount), `src/lib/help/tours.ts` (`waitForElement` rewrite + `runStep` cross-route block), `src/lib/help/mobile-tour.ts` (`runMobileStep` cross-route block)
 
+### Phase 12S — Signup Sheet v2 (SHIPPED 2026-05-11)
+
+Completes the signup-sheet workflow: server-side auto-assignment, preferred-date field, drag-to-calendar, pending-count badge on Calendar nav, and admin cross-stylist view.
+
+**Schema** — added `preferred_date date` (nullable) to `signup_sheet_entries`. The existing `assigned_to_stylist_id` and `notes` columns (already present from initial signup-sheet ship) are reused. No duplicate columns. No new indexes.
+
+**Auto-assignment** — `src/lib/signup-sheet-assignment.ts::resolveAssignedStylist(facilityId, preferredDate, db)`:
+1. **Date-aware path**: queries `stylists ⨯ stylist_facility_assignments ⨯ stylist_availability` for stylists with active availability for the day-of-week of `preferred_date`. If multiple candidates → least-loaded (fewest non-cancelled bookings on that date). If exactly one → return them.
+2. **Fallback**: most-recently-updated active stylist assigned to the facility.
+3. Returns null when no candidates exist.
+
+**API changes**:
+- `POST /api/signup-sheet` — accepts `preferredDate: 'YYYY-MM-DD' | null`. When caller omits `assignedToStylistId`, auto-resolves via `resolveAssignedStylist`. The Zod-validated `notes` cap is 500 server-side; client UI caps at 300.
+- `GET /api/signup-sheet`:
+  - **Canonical filter**: `status='pending'` (was `!= 'cancelled'`). Scheduled entries are real bookings on the calendar and would inflate the badge / pollute admin views.
+  - `?scope=all` — admin/facility_staff only (stylists get 403); skips the per-stylist filter and the date filter. Returns all facility-wide pending entries for the admin "Pending requests" view.
+  - `?countOnly=true` — returns `{data:{count:n}}` instead of the entry list. Skips the date filter so the badge counts future requests too. Same per-stylist scoping as the list path.
+- No new DELETE — cancellation continues via existing `PATCH /[id] {status:'cancelled'}`.
+
+**UI — `<SignupSheetPanel>`**:
+- New preferred-date `<input type="date" min={todayDate}>` row.
+- Notes upgraded from `<input>` to `<textarea rows={2} maxLength={300}>` with placeholder "e.g. prefers morning, needs extra time".
+- New `<AdminPendingSection>` (inline-defined at the bottom of the same file) at the TOP of the scroll body, visible to admin/super_admin/facility_staff. Fetches `?scope=all` on mount. Shows resident, service, preferred-date chip, assigned stylist name, notes (italic, truncated). Per-row × button calls `PATCH .../[id] {status:'cancelled'}`. Collapses behind "Show all (N)" toggle when N>5.
+- Data-tour anchors added: `signup-sheet-panel`, `signup-sheet-form`, `signup-sheet-preferred-date`, `signup-sheet-notes`, `signup-sheet-submit`.
+
+**UI — `<StylistPendingEntries>`**:
+- Now `forwardRef<HTMLDivElement>` — `dashboard-client.tsx` passes the ref to FullCalendar's `Draggable` registration.
+- New props: `facilityTimezone` (drives preferred-date chip formatting via `formatDateInTz`) and `viewAsAdmin?: boolean`.
+- Each entry card: `draggable={true}` with `data-signup-entry-id`, a `<GripVertical>` drag handle (`hidden md:flex` — desktop only), preferred-date chip with lucide `<Calendar size={12}>`, notes (italic gray, 80-char truncate), assigned-stylist name when `viewAsAdmin`, and a "Pick time →" button (renamed from "Schedule").
+- Outer panel anchor renamed `stylist-signup-sheet-panel` → `stylist-pending-panel`. Entry-level anchors added: `stylist-pending-entry`, `stylist-pending-convert`.
+
+**Drag-to-calendar** — `calendar-view.tsx::CalendarView` gains an optional `onSignupDrop?: (entryId: string, date: Date) => void` prop. `<FullCalendar>` is set `droppable={!!onSignupDrop}` with a `drop` callback reading `arg.draggedEl.dataset.signupEntryId` and the dropped date. `dashboard-client.tsx` instantiates FC `Draggable` once via `useEffect` keyed on `pendingSignups.length`, lazy-importing `@fullcalendar/interaction` to keep FC out of non-stylist bundles. The drop handler opens BookingModal with `prefillResidentId`/`prefillServiceId`/`signupSheetEntryId` + the dropped date as `modalStart`. Mobile is "Pick time →" only (drag handle hidden).
+
+**Pending count badge** — `src/components/signup-sheet/pending-signup-badge.tsx`. Stylist-only (returns null otherwise). Fetches `?countOnly=true` on mount. Renders burgundy `bg-[#8B2E4A] text-white rounded-full` pill. Mounted inline in `sidebar.tsx` after the Calendar nav label (uses `flex-1` on the label span so the badge sits on the right), and absolute-positioned at the top-right of the Calendar icon in `mobile-nav.tsx`. Mirrors `<NeedsReviewBadge />`.
+
+**Tours**: both signup-sheet tours rewritten with the new anchors and copy reflecting auto-assignment + drag-to-calendar. `facility-staff-signup-sheet`: 7 steps. `stylist-signup-sheet`: 6 steps. `TUTORIAL_CATALOG` blurbs refreshed. `ONBOARDING_CHECKLIST.facility_staff` gains `facility-staff-signup-sheet` as item #2 (between Getting Started and Scheduling).
+
+**Files**:
+- Schema: `src/db/schema.ts` (`preferred_date` column)
+- New: `src/lib/signup-sheet-assignment.ts`, `src/components/signup-sheet/pending-signup-badge.tsx`
+- Modified: `src/app/api/signup-sheet/route.ts` (POST auto-assign + new GET params), `src/components/signup-sheet/signup-sheet-panel.tsx`, `src/components/signup-sheet/stylist-pending-entries.tsx`, `src/components/calendar/calendar-view.tsx`, `src/app/(protected)/dashboard/dashboard-client.tsx`, `src/components/layout/sidebar.tsx`, `src/components/layout/mobile-nav.tsx`, `src/lib/help/tours.ts`, `src/types/index.ts`
+
 ### Phase 12R — Onboarding Checklist Widget (SHIPPED 2026-05-11)
 
 A fixed bottom-right `<OnboardingChecklist />` widget on `/dashboard` surfaces 3-4 role-specific first-run tours to guide new users without requiring them to navigate to `/help`.

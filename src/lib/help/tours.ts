@@ -193,7 +193,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'stylist-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Find, edit, and add residents at your facility.', estMinutes: 3, icon: 'Users', roles: ['stylist'], tourId: 'stylist-residents' },
   { id: 'stylist-finalize-day', category: 'Daily Log', title: 'Finalizing the Day', blurb: 'Step-by-step guide to reviewing and locking the daily log.', estMinutes: 2, icon: 'CheckCircle2', roles: ['stylist'], tourId: 'stylist-finalize-day' },
   { id: 'stylist-my-account', category: 'Account', title: 'My Account', blurb: 'Manage your schedule, upload compliance documents, and request time off.', estMinutes: 3, icon: 'UserCog', roles: ['stylist'], tourId: 'stylist-my-account' },
-  { id: 'stylist-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet Queue', blurb: 'Pick up pending requests from facility staff and place them on your calendar.', estMinutes: 2, icon: 'ClipboardList', roles: ['stylist'], tourId: 'stylist-signup-sheet' },
+  { id: 'stylist-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet Queue', blurb: 'Pick up auto-assigned requests, pick a time, or drag them onto the calendar.', estMinutes: 2, icon: 'ClipboardList', roles: ['stylist'], tourId: 'stylist-signup-sheet' },
 
   // FACILITY STAFF
   { id: 'staff-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation to your calendar, residents, and daily log.', estMinutes: 2, icon: 'KeyRound', roles: ['facility_staff'], tourId: 'staff-getting-started' },
@@ -201,7 +201,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'facility-staff-residents', category: 'Residents', title: 'Resident List', blurb: 'Find, add, and update resident profiles.', estMinutes: 3, icon: 'Users', roles: ['facility_staff'], tourId: 'facility-staff-residents' },
   { id: 'staff-daily-log-readonly', category: 'Daily Log', title: 'Daily Log (Read-Only)', blurb: 'See what was done today. View-only.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: null },
   { id: 'staff-daily-log', category: 'Daily Log', title: 'The Daily Log', blurb: 'Understand what the daily log is and how to read it.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: 'staff-daily-log' },
-  { id: 'facility-staff-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet', blurb: 'Quickly log residents who want appointments without picking a time.', estMinutes: 2, icon: 'ClipboardList', roles: ['facility_staff'], tourId: 'facility-staff-signup-sheet' },
+  { id: 'facility-staff-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet', blurb: 'Log resident requests — the right stylist gets auto-assigned based on the preferred date.', estMinutes: 2, icon: 'ClipboardList', roles: ['facility_staff'], tourId: 'facility-staff-signup-sheet' },
 
   // ADMIN
   { id: 'admin-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Set up your facility, invite your team, and make your first booking.', estMinutes: 4, icon: 'KeyRound', roles: ['admin', 'super_admin'], tourId: 'admin-getting-started' },
@@ -249,6 +249,7 @@ export const ONBOARDING_CHECKLIST: Record<string, { tourId: string; label: strin
   ],
   facility_staff: [
     { tourId: 'staff-getting-started', label: 'Learn the basics' },
+    { tourId: 'facility-staff-signup-sheet', label: 'Log your first sign-up' },
     { tourId: 'facility-staff-scheduling', label: 'Book your first appointment' },
     { tourId: 'facility-staff-residents', label: 'Manage residents' },
   ],
@@ -426,12 +427,13 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'facility-staff-signup-sheet',
     title: 'Sign-Up Sheet',
     steps: [
-      { route: '/dashboard', element: '', isAction: false, title: 'What it is', description: 'The sign-up sheet is a quick intake queue. Log residents who want appointments without picking an exact time — the stylist takes care of scheduling.', mobileDescription: 'A quick intake queue — log residents, the stylist schedules.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Where it lives', description: 'The sign-up sheet lives on your dashboard. When a resident calls asking for an appointment, you log the request here — no need to find a time slot yourself.', mobileDescription: 'Sign-up sheet lives on your dashboard.' },
       { route: '/dashboard', element: '[data-tour="signup-sheet-button"]', isAction: true, title: 'Open the sheet', description: 'Tap Sign-Up Sheet to open the panel.', actionHint: 'Tap Sign-Up Sheet to continue.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Add a resident', description: 'Type the resident\'s name. If they\'re not in the system, you can add them right here.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Pick a service', description: 'Choose the service they want from the list. New services need to be added by your admin first.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Submit', description: 'Tap Add to Sheet and you\'re done. The entry shows up in the queue below.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'What happens next', description: 'The stylist sees the entry on their calendar page. They\'ll schedule it for an actual time slot when they\'re ready.' },
+      { route: '/dashboard', element: '[data-tour="signup-sheet-form"]', isAction: false, title: 'Add a resident + service', description: 'Type the resident\'s name and pick the service they want. If the resident is new, you can add them right from this form.', mobileDescription: 'Pick the resident and the service they want.' },
+      { route: '/dashboard', element: '[data-tour="signup-sheet-preferred-date"]', isAction: false, title: 'Preferred date', description: 'Add a preferred date if the resident mentioned one — this helps the system auto-assign the right stylist based on who works that day.', mobileDescription: 'Add a preferred date — it helps auto-assign the right stylist.' },
+      { route: '/dashboard', element: '[data-tour="signup-sheet-notes"]', isAction: false, title: 'Notes for stylist', description: 'Add anything the stylist should know — "prefers morning", "needs extra time", "wheelchair access", etc.', mobileDescription: 'Add notes the stylist should know.' },
+      { route: '/dashboard', element: '[data-tour="signup-sheet-submit"]', isAction: true, title: 'Add to queue', description: 'Tap Add to Sheet. The system will auto-assign the right stylist and they\'ll pick it up when they log in.', actionHint: 'Tap Add to Sheet to continue.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'What happens next', description: 'The stylist sees a count badge on their Calendar nav when requests are waiting. They schedule it for a real time slot — at that point it disappears from this queue automatically.' },
     ],
   },
 
@@ -440,10 +442,12 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-signup-sheet',
     title: 'Sign-Up Sheet Queue',
     steps: [
-      { route: '/dashboard', element: '', isAction: false, title: 'Pending sign-ups', description: 'When facility staff add residents to the sign-up sheet, you\'ll see an amber panel above your calendar showing pending requests.', mobileDescription: 'Amber panel above your calendar shows pending requests.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Open the queue', description: 'Tap the panel to expand it. Each card shows the resident, service, and any preferred time.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Schedule one', description: 'Tap Schedule on a pending entry. The booking form opens pre-filled — you just pick the exact time and save.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'It\'s done', description: 'Once you save, the entry moves off the sign-up sheet and onto the calendar as a real booking.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'How it works', description: 'When facility staff logs a resident request, it gets auto-assigned to you based on your schedule. A count badge on your Calendar nav shows how many are waiting.', mobileDescription: 'Requests get auto-assigned to you. Badge on Calendar shows count.' },
+      { route: '/dashboard', element: '[data-tour="stylist-pending-panel"]', isAction: false, title: 'Your pending requests', description: 'Pending requests appear in this amber panel above your calendar. Each card shows the resident, service, preferred date, and any notes from staff.', mobileDescription: 'Pending requests appear in the amber panel above your calendar.' },
+      { route: '/dashboard', element: '[data-tour="stylist-pending-entry"]', isAction: false, title: 'Read the request', description: 'Review the request. If there\'s a preferred date chip, try to fit them in around that day.' },
+      { route: '/dashboard', element: '[data-tour="stylist-pending-convert"]', isAction: true, title: 'Pick a time', description: 'Tap "Pick time →" — the booking form opens pre-filled with this resident and service. Just choose a time and save.', actionHint: 'Tap Pick time → to continue.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Drag onto the calendar (desktop)', description: 'On desktop, you can also drag a request card directly onto a calendar slot — it opens the booking form pre-filled at that exact time.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Done', description: 'Once you save the booking, the request disappears from this list and the badge count decreases. That\'s the full workflow.' },
     ],
   },
 

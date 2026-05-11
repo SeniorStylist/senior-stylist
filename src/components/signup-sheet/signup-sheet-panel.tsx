@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Calendar } from 'lucide-react'
 import type { Resident, Service, SignupSheetEntryWithRelations, Stylist } from '@/types'
 import { useToast } from '@/components/ui/toast'
+import { formatDateInTz } from '@/lib/time'
 
 interface SignupSheetPanelProps {
   open: boolean
@@ -14,6 +16,8 @@ interface SignupSheetPanelProps {
   stylists: Stylist[]
   /** ISO date 'YYYY-MM-DD' in facility tz */
   todayDate: string
+  /** Role of the current user — drives the admin "Pending requests" section visibility */
+  role: string
   onResidentCreated?: (resident: Resident) => void
 }
 
@@ -21,10 +25,12 @@ export function SignupSheetPanel({
   open,
   onClose,
   facilityId,
+  facilityTimezone,
   residents,
   services,
   stylists,
   todayDate,
+  role,
   onResidentCreated,
 }: SignupSheetPanelProps) {
   const { toast } = useToast()
@@ -47,6 +53,7 @@ export function SignupSheetPanel({
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
 
   const [requestedTime, setRequestedTime] = useState('')
+  const [preferredDate, setPreferredDate] = useState('')
   const [assignedStylistId, setAssignedStylistId] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -89,6 +96,7 @@ export function SignupSheetPanel({
     setSelectedServiceId('')
     setServiceDropdownOpen(false)
     setRequestedTime('')
+    setPreferredDate('')
     setAssignedStylistId('')
     setNotes('')
   }, [open])
@@ -198,6 +206,7 @@ export function SignupSheetPanel({
           serviceName: service.name,
           requestedTime: requestedTime || null,
           requestedDate: todayDate,
+          preferredDate: preferredDate || null,
           notes: notes.trim() || null,
           assignedToStylistId: assignedStylistId || null,
         }),
@@ -215,6 +224,7 @@ export function SignupSheetPanel({
       setServiceSearch('')
       setSelectedServiceId('')
       setRequestedTime('')
+      setPreferredDate('')
       setAssignedStylistId('')
       setNotes('')
       toast.success('Added to sign-up sheet')
@@ -267,6 +277,7 @@ export function SignupSheetPanel({
     >
       <div
         ref={containerRef}
+        data-tour="signup-sheet-panel"
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-lg flex flex-col shadow-2xl"
         style={{ maxHeight: '90vh' }}
@@ -294,8 +305,13 @@ export function SignupSheetPanel({
 
         {/* Scroll body: form + queue */}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Admin "Pending requests" section (cross-stylist view) */}
+          {(role === 'admin' || role === 'super_admin' || role === 'facility_staff') && (
+            <AdminPendingSection facilityTimezone={facilityTimezone} />
+          )}
+
           {/* Form */}
-          <div className="space-y-3">
+          <div data-tour="signup-sheet-form" className="space-y-3">
             {/* Resident */}
             <div className="flex flex-col gap-1.5 relative">
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
@@ -475,6 +491,19 @@ export function SignupSheetPanel({
               )}
             </div>
 
+            {/* Preferred date (Phase 12S — drives auto-assignment) */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Preferred date (optional)</label>
+              <input
+                type="date"
+                data-tour="signup-sheet-preferred-date"
+                value={preferredDate}
+                min={todayDate}
+                onChange={(e) => setPreferredDate(e.target.value)}
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+              />
+            </div>
+
             {/* Time + Stylist */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
@@ -501,22 +530,24 @@ export function SignupSheetPanel({
               </div>
             </div>
 
-            {/* Notes */}
+            {/* Notes (Phase 12S — textarea with placeholder copy) */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Notes</label>
-              <input
-                type="text"
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Notes for stylist (optional)</label>
+              <textarea
+                data-tour="signup-sheet-notes"
+                rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything the stylist should know"
-                maxLength={500}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+                placeholder="e.g. prefers morning, needs extra time"
+                maxLength={300}
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
             </div>
 
             {/* Submit */}
             <button
               type="button"
+              data-tour="signup-sheet-submit"
               disabled={!canSubmit}
               onClick={handleSubmit}
               className="w-full min-h-[48px] bg-[#8B2E4A] text-white rounded-xl text-sm font-semibold shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -606,4 +637,122 @@ function formatHm(hhmm: string): string {
   const period = h >= 12 ? 'pm' : 'am'
   const h12 = h % 12 === 0 ? 12 : h % 12
   return `${h12}:${String(m).padStart(2, '0')}${period}`
+}
+
+// "YYYY-MM-DD" → "Mon Jun 3" in the facility tz
+function formatDateChip(yyyymmdd: string, tz: string): string {
+  const [y, m, d] = yyyymmdd.split('-').map(Number)
+  if (!y || !m || !d) return yyyymmdd
+  // Anchor at noon UTC of that date so tz conversion doesn't shift the weekday
+  const anchor = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
+  return formatDateInTz(anchor, tz)
+}
+
+/**
+ * Phase 12S — admin/facility_staff cross-stylist view.
+ * Fetches all pending entries for the facility via ?scope=all.
+ */
+function AdminPendingSection({ facilityTimezone }: { facilityTimezone: string }) {
+  const { toast } = useToast()
+  const [entries, setEntries] = useState<SignupSheetEntryWithRelations[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/signup-sheet?scope=all')
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return
+        if (Array.isArray(j.data)) setEntries(j.data)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true) })
+    return () => { cancelled = true }
+  }, [])
+
+  const handleCancel = async (id: string) => {
+    try {
+      const res = await fetch(`/api/signup-sheet/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+      if (!res.ok) {
+        const j = await res.json()
+        toast.error(typeof j.error === 'string' ? j.error : 'Failed to cancel')
+        return
+      }
+      setEntries((prev) => prev.filter((e) => e.id !== id))
+    } catch {
+      toast.error('Network error.')
+    }
+  }
+
+  if (!loaded) return null
+
+  const visible = showAll ? entries : entries.slice(0, 5)
+
+  return (
+    <div className="border-b border-stone-100 pb-4">
+      <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
+        Pending requests ({entries.length})
+      </h3>
+      {entries.length === 0 ? (
+        <p className="text-sm text-stone-400">No pending requests.</p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {visible.map((entry) => (
+              <div key={entry.id} className="rounded-xl border border-stone-100 bg-white p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-stone-900 leading-snug">
+                    {entry.residentName}
+                    {entry.roomNumber && (
+                      <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>
+                    )}
+                  </p>
+                  <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">{entry.serviceName}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {entry.preferredDate && (
+                      <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-600 rounded-full px-2 py-0.5">
+                        <Calendar size={12} />
+                        {formatDateChip(entry.preferredDate, facilityTimezone)}
+                      </span>
+                    )}
+                    {entry.assignedStylist && (
+                      <span className="text-[11px] text-stone-400">→ {entry.assignedStylist.name}</span>
+                    )}
+                  </div>
+                  {entry.notes && (
+                    <p className="text-[11.5px] text-stone-500 italic mt-1 truncate">{entry.notes}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCancel(entry.id)}
+                  aria-label="Cancel"
+                  className="shrink-0 w-7 h-7 flex items-center justify-center text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          {entries.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-2 text-xs font-medium text-[#8B2E4A] hover:underline"
+            >
+              {showAll ? 'Show fewer' : `Show all (${entries.length})`}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
 }

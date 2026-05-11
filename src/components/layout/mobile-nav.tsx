@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
@@ -156,7 +157,14 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
               isActive ? 'text-[#8B2E4A]' : 'text-stone-400'
             )}
           >
-            <span>{item.icon}</span>
+            <span className="relative">
+              {item.icon}
+              {item.href === '/dashboard' && (
+                <span className="absolute -top-1 -right-2">
+                  <PendingSignupBadge role={role} />
+                </span>
+              )}
+            </span>
             {item.label}
             {isActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5" />}
           </Link>

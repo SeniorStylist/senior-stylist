@@ -240,6 +240,7 @@ export interface SignupSheetEntry {
   serviceName: string
   requestedTime: string | null
   requestedDate: string
+  preferredDate: string | null
   notes: string | null
   createdBy: string
   assignedToStylistId: string | null

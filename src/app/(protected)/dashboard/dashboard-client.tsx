@@ -230,6 +230,46 @@ export function DashboardClient({
     return () => { cancelled = true }
   }, [userRole, todayDateStr])
 
+  // Phase 12S — ref + FC Draggable for drag-to-calendar (desktop)
+  const stylistPanelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!stylistPanelRef.current) return
+    let draggable: { destroy: () => void } | null = null
+    let cancelled = false
+    ;(async () => {
+      const mod = await import('@fullcalendar/interaction')
+      if (cancelled || !stylistPanelRef.current) return
+      draggable = new mod.Draggable(stylistPanelRef.current, {
+        itemSelector: '[data-signup-entry-id]',
+        eventData: (eventEl) => ({
+          title: 'pending',
+          duration: '00:30',
+          extendedProps: { signupEntryId: (eventEl as HTMLElement).dataset.signupEntryId },
+        }),
+      })
+    })()
+    return () => {
+      cancelled = true
+      draggable?.destroy()
+    }
+  }, [pendingSignups.length])
+
+  const handleSignupDrop = useCallback((entryId: string, date: Date) => {
+    const entry = pendingSignups.find((e) => e.id === entryId)
+    if (!entry) return
+    setEditBookingId(null)
+    setModalStart(date)
+    setModalEnd(null)
+    setPrefillResidentId(entry.residentId)
+    setPrefillServiceId(entry.serviceId)
+    setSchedulingEntryId(entry.id)
+    if (entry.resident && !residents.some((r) => r.id === entry.resident!.id)) {
+      setResidents((prev) => [...prev, entry.resident!])
+    }
+    setModalOpen(true)
+  }, [pendingSignups, residents])
+
   const handleScheduleSignupEntry = useCallback((entry: SignupSheetEntryWithRelations) => {
     // Build defaultStart from the entry's requested time, else "now" rounded forward.
     let start = new Date()
@@ -453,8 +493,11 @@ export function DashboardClient({
           {pendingSignups.length > 0 && (
             <div className="px-4 mb-2">
               <StylistPendingEntries
+                ref={stylistPanelRef}
                 entries={pendingSignups}
                 onSchedule={handleScheduleSignupEntry}
+                facilityTimezone={facility.timezone}
+                viewAsAdmin={isAdmin || userRole === 'facility_staff'}
               />
             </div>
           )}
@@ -765,8 +808,11 @@ export function DashboardClient({
         {/* Stylist sign-up queue — above calendar grid, only visible when entries exist */}
         {userRole === 'stylist' && pendingSignups.length > 0 && (
           <StylistPendingEntries
+            ref={stylistPanelRef}
             entries={pendingSignups}
             onSchedule={handleScheduleSignupEntry}
+            facilityTimezone={facility.timezone}
+            viewAsAdmin={false}
           />
         )}
 
@@ -789,6 +835,7 @@ export function DashboardClient({
             }}
             onSelectSlot={openCreateModal}
             onEventClick={openEditModal}
+            onSignupDrop={handleSignupDrop}
           />
         </div>
       </div>
@@ -924,6 +971,7 @@ export function DashboardClient({
           services={localServices}
           stylists={stylists}
           todayDate={todayDateStr}
+          role={userRole}
           onResidentCreated={(r) => setResidents((prev) => [...prev, r])}
         />
       )}

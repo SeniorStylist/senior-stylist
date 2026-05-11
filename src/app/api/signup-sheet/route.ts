@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { signupSheetEntries, residents, services, stylists, stylistFacilityAssignments } from '@/db/schema'
+import { signupSheetEntries, residents, services, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
-import { eq, and, ne, asc, isNull, or } from 'drizzle-orm'
+import { eq, and, asc, count, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getLocalParts } from '@/lib/time'
 import { facilities, profiles } from '@/db/schema'
+import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 
 const createSchema = z.object({
   residentId: z.string().uuid().nullable(),
@@ -17,6 +18,7 @@ const createSchema = z.object({
   serviceName: z.string().min(1).max(200),
   requestedTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
   requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
   assignedToStylistId: z.string().uuid().nullable().optional(),
 })
@@ -76,6 +78,12 @@ export async function POST(request: NextRequest) {
       if (!assignment) return Response.json({ error: 'Stylist is not assigned to this facility' }, { status: 404 })
     }
 
+    // Phase 12S — auto-assign when caller didn't pick a stylist
+    let assignedToStylistId = parsed.data.assignedToStylistId ?? null
+    if (!assignedToStylistId) {
+      assignedToStylistId = await resolveAssignedStylist(facilityId, parsed.data.preferredDate ?? null)
+    }
+
     const [created] = await db
       .insert(signupSheetEntries)
       .values({
@@ -87,9 +95,10 @@ export async function POST(request: NextRequest) {
         serviceName: parsed.data.serviceName,
         requestedTime: parsed.data.requestedTime ?? null,
         requestedDate: parsed.data.requestedDate,
+        preferredDate: parsed.data.preferredDate ?? null,
         notes: parsed.data.notes ?? null,
         createdBy: user.id,
-        assignedToStylistId: parsed.data.assignedToStylistId ?? null,
+        assignedToStylistId,
         status: 'pending',
       })
       .returning()
@@ -119,9 +128,16 @@ export async function GET(request: NextRequest) {
     const { facilityId, role } = facilityUser
 
     const { searchParams } = new URL(request.url)
-    let date = searchParams.get('date')
+    const scope = searchParams.get('scope')
+    const countOnly = searchParams.get('countOnly') === 'true'
 
-    if (!date) {
+    if (scope === 'all' && role === 'stylist') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Resolve today's date in facility tz (used unless scope=all or countOnly)
+    let date = searchParams.get('date')
+    if (!date && !countOnly && scope !== 'all') {
       const facility = await db.query.facilities.findFirst({
         where: eq(facilities.id, facilityId),
         columns: { timezone: true },
@@ -130,15 +146,20 @@ export async function GET(request: NextRequest) {
       const parts = getLocalParts(new Date(), tz)
       date = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return Response.json({ error: 'Invalid date' }, { status: 422 })
     }
 
+    // Phase 12S — canonical filter is status='pending' (excludes scheduled + cancelled).
     const conditions = [
       eq(signupSheetEntries.facilityId, facilityId),
-      eq(signupSheetEntries.requestedDate, date),
-      ne(signupSheetEntries.status, 'cancelled'),
+      eq(signupSheetEntries.status, 'pending'),
     ]
+
+    // Date filter: skip when countOnly (badge wants all future) OR scope=all (admin full pile).
+    if (!countOnly && scope !== 'all' && date) {
+      conditions.push(eq(signupSheetEntries.requestedDate, date))
+    }
 
     // Stylists only see entries assigned to them OR unassigned.
     if (role === 'stylist') {
@@ -148,7 +169,7 @@ export async function GET(request: NextRequest) {
       })
       const myStylistId = myProfile?.stylistId
       if (!myStylistId) {
-        return Response.json({ data: [] })
+        return Response.json(countOnly ? { data: { count: 0 } } : { data: [] })
       }
       conditions.push(
         or(
@@ -156,6 +177,14 @@ export async function GET(request: NextRequest) {
           isNull(signupSheetEntries.assignedToStylistId),
         )!
       )
+    }
+
+    if (countOnly) {
+      const [row] = await db
+        .select({ n: count() })
+        .from(signupSheetEntries)
+        .where(and(...conditions))
+      return Response.json({ data: { count: Number(row?.n ?? 0) } })
     }
 
     const data = await db.query.signupSheetEntries.findMany({
