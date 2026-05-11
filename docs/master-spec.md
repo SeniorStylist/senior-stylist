@@ -1463,7 +1463,7 @@ Full rewrite of the Phase 12G tour engine to make every guided tour navigation-a
 - All `data-*` keys spread onto the inner card div via `Object.fromEntries(Object.entries(rest).filter(...))`.
 - Used by booking-modal: `<Modal ... data-tour="calendar-booking-modal">` works directly.
 
-**19 tours at Phase 12H ship time**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. Phase 12I added `stylist-my-account` (20). Phase 12K added `staff-getting-started` + `staff-daily-log` and rewrote `facility-staff-scheduling` + `facility-staff-residents` (23 total). Phase 12L (sign-up sheet) added `facility-staff-signup-sheet` + `stylist-signup-sheet` (25). Phase 12L (admin audit) added `admin-getting-started` and rewrote 6 admin tours; removed `desktopOnly` from `admin-compliance` (26 total). Cards with `tourId: null` show "Coming soon" tooltip.
+**19 tours at Phase 12H ship time**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. Phase 12I added `stylist-my-account` (20). Phase 12K added `staff-getting-started` + `staff-daily-log` and rewrote `facility-staff-scheduling` + `facility-staff-residents` (23 total). Phase 12L (sign-up sheet) added `facility-staff-signup-sheet` + `stylist-signup-sheet` (25). Phase 12L (admin audit) added `admin-getting-started` and rewrote 6 admin tours; removed `desktopOnly` from `admin-compliance` (25 actual — sign-up sheet tours previously counted). Phase 12M added `bookkeeper-getting-started` + `bookkeeper-manual-entry` and rewrote 4 bookkeeper tours (27 total). Cards with `tourId: null` show "Coming soon" tooltip.
 
 **~30 new `data-tour` attributes added** (zero behavior changes):
 - Sidebar: `nav-analytics`, `nav-payroll`, `nav-stylists`, `nav-master-admin` added to existing tourSlug map
@@ -1609,7 +1609,27 @@ Two new tours and two rewrites, all in `src/lib/help/tours.ts`. No other files c
 
 **TUTORIAL_CATALOG** updates: `admin-getting-started` added (new card). All 7 admin cards updated: blurbs rewritten, estMinutes adjusted (facility-setup 4→3, inviting-staff 3→2, reports 3→2, family-portal 4→3, compliance 3→2), all include `super_admin` in roles (franchise admins now see admin tutorials). `admin-compliance` title shortened to "Compliance Docs".
 
-**Tour count: 25 → 26**.
+**Tour count: 24 → 25** (corrected from earlier docs which said 25 → 26; sign-up sheet tours brought the count to 25 before 12L ran).
+
+### Phase 12M — Bookkeeper Tour Audit (SHIPPED 2026-05-11)
+
+2 new tours + 4 rewrites in `src/lib/help/tours.ts` and `src/components/help/tutorial-card.tsx`. No schema, API, or UI changes.
+
+**New tours**:
+- `bookkeeper-getting-started` (7 steps): /log info → `nav-daily-log` action → two-ways-to-enter info → `nav-billing` action → `billing-outstanding` info → `nav-payroll` action → /payroll you're-all-set info.
+- `bookkeeper-manual-entry` (8 steps): `nav-daily-log` action → manual-entry info → `daily-log-add-walkin` action → filling-in info → work-through info → check-the-date info → `daily-log-finalize-button` info → manual-vs-scan info.
+
+**Rewrites**:
+- `bookkeeper-billing-dashboard` (6 steps): `nav-billing` action → `billing-outstanding` info → invoice-list info → `billing-filters` info → `billing-send-statement` info → monthly-routine info. First step now starts at /billing (not /dashboard).
+- `bookkeeper-scan-logs` (10 steps, expanded from 7): `nav-daily-log` action → what-scanning info → `daily-log-scan-sheet` action → `ocr-upload-area` info → reviewing-results info → what-to-check info → editing-misread info → resident-not-found info → import-when-ready info → after-importing info.
+- `bookkeeper-duplicates` (7 steps, expanded from 6): why-duplicates-happen info → `nav-residents` action (new opener) → `residents-duplicates-button` action → reviewing-pairs info → before-you-merge info → merging info → after-merging info.
+- `bookkeeper-payroll` (6 steps): `nav-payroll` action → `payroll-period-list` info → reviewing-period info → marking-as-paid info → exporting info → quickbooks-sync info (new step).
+
+**TUTORIAL_CATALOG** changes: entire bookkeeper block replaced. `bookkeeper-getting-started` added first (KeyRound, 3 min). `bookkeeper-manual-entry` added after `scan-logs` (PenLine, 4 min). All 6 live entries updated with new blurbs/estMinutes. `bookkeeper-quickbooks` + `bookkeeper-financial-reports` remain `tourId: null`. Ordering: getting-started → scan-logs → manual-entry → duplicates → billing-dashboard → payroll → quickbooks → financial-reports.
+
+**`PenLine` icon**: added to `TutorialIcon` union in `tours.ts`; added to lucide-react import + `ICON_MAP` in `tutorial-card.tsx`.
+
+**Tour count: 25 → 27**.
 
 ### Sign-Up Sheet (SHIPPED 2026-05-11)
 

@@ -5,7 +5,7 @@ import {
   KeyRound, Calendar, FileText, Users, UserPlus, CheckCircle2, UserCog,
   Building2, Mail, BarChart3, HeartHandshake, ShieldCheck, CreditCard,
   ScanLine, GitMerge, Database, FileSpreadsheet, Wallet, PlusSquare,
-  Network, BookOpen, CircleHelp, ClipboardList, Play, Compass,
+  Network, BookOpen, CircleHelp, ClipboardList, PenLine, Play, Compass,
 } from 'lucide-react'
 import type { Tutorial, TutorialIcon } from '@/lib/help/tours'
 import { startTour } from '@/lib/help/tours'
@@ -14,7 +14,7 @@ const ICON_MAP: Record<TutorialIcon, typeof KeyRound> = {
   KeyRound, Calendar, FileText, Users, UserPlus, CheckCircle2, UserCog,
   Building2, Mail, BarChart3, HeartHandshake, ShieldCheck, CreditCard,
   ScanLine, GitMerge, Database, FileSpreadsheet, Wallet, PlusSquare,
-  Network, BookOpen, CircleHelp, ClipboardList,
+  Network, BookOpen, CircleHelp, ClipboardList, PenLine,
 }
 
 interface TutorialCardProps {

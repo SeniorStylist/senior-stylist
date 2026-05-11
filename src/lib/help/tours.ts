@@ -23,7 +23,7 @@ export type TutorialIcon =
   | 'CheckCircle2' | 'UserCog' | 'Building2' | 'Mail' | 'BarChart3'
   | 'HeartHandshake' | 'ShieldCheck' | 'CreditCard' | 'ScanLine'
   | 'GitMerge' | 'Database' | 'FileSpreadsheet' | 'Wallet' | 'PlusSquare'
-  | 'Network' | 'BookOpen' | 'CircleHelp' | 'ClipboardList'
+  | 'Network' | 'BookOpen' | 'CircleHelp' | 'ClipboardList' | 'PenLine'
 
 export type Tutorial = {
   id: string
@@ -192,12 +192,14 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance' },
 
   // BOOKKEEPER
-  { id: 'bookkeeper-billing-dashboard', category: 'Billing', title: 'Billing Dashboard', blurb: 'Navigate AR, statements, and outstanding balances.', estMinutes: 4, icon: 'CreditCard', roles: ['bookkeeper'], tourId: 'bookkeeper-billing-dashboard' },
-  { id: 'bookkeeper-scan-logs', category: 'Daily Log', title: 'Scanning Daily Logs', blurb: 'Upload paper logs and let OCR fill the entries.', estMinutes: 5, icon: 'ScanLine', roles: ['bookkeeper'], tourId: 'bookkeeper-scan-logs' },
-  { id: 'bookkeeper-duplicates', category: 'Residents', title: 'Duplicate Resolution', blurb: 'Find and merge duplicate resident records.', estMinutes: 3, icon: 'GitMerge', roles: ['bookkeeper'], tourId: 'bookkeeper-duplicates' },
+  { id: 'bookkeeper-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Overview of the Daily Log, Billing, and Payroll — your three main areas.', estMinutes: 3, icon: 'KeyRound', roles: ['bookkeeper'], tourId: 'bookkeeper-getting-started' },
+  { id: 'bookkeeper-scan-logs', category: 'Daily Log', title: 'Scanning Daily Logs', blurb: 'Scan paper log sheets with OCR, review extracted entries, and import.', estMinutes: 5, icon: 'ScanLine', roles: ['bookkeeper'], tourId: 'bookkeeper-scan-logs' },
+  { id: 'bookkeeper-manual-entry', category: 'Daily Log', title: 'Manual Entry', blurb: 'Enter paper log sheet services manually when scanning isn\'t an option.', estMinutes: 4, icon: 'PenLine', roles: ['bookkeeper'], tourId: 'bookkeeper-manual-entry' },
+  { id: 'bookkeeper-duplicates', category: 'Residents', title: 'Duplicate Resolution', blurb: 'Find and merge duplicate residents created by scanning errors.', estMinutes: 3, icon: 'GitMerge', roles: ['bookkeeper'], tourId: 'bookkeeper-duplicates' },
+  { id: 'bookkeeper-billing-dashboard', category: 'Billing', title: 'Billing Dashboard', blurb: 'Review outstanding balances, filter invoices, and send monthly statements.', estMinutes: 4, icon: 'CreditCard', roles: ['bookkeeper'], tourId: 'bookkeeper-billing-dashboard' },
+  { id: 'bookkeeper-payroll', category: 'Payroll', title: 'Payroll & Pay Periods', blurb: 'Review pay periods, check stylist earnings, and mark periods as paid.', estMinutes: 3, icon: 'Wallet', roles: ['bookkeeper'], tourId: 'bookkeeper-payroll' },
   { id: 'bookkeeper-quickbooks', category: 'Billing', title: 'QuickBooks Data', blurb: 'Import QB data and read balances.', estMinutes: 4, icon: 'Database', roles: ['bookkeeper'], tourId: null },
   { id: 'bookkeeper-financial-reports', category: 'Reports', title: 'Financial Reports', blurb: 'Run and export reports for accounting.', estMinutes: 3, icon: 'FileSpreadsheet', roles: ['bookkeeper'], tourId: null },
-  { id: 'bookkeeper-payroll', category: 'Payroll', title: 'Payroll & Pay Periods', blurb: 'Review pay periods and confirm payments.', estMinutes: 4, icon: 'Wallet', roles: ['bookkeeper'], tourId: 'bookkeeper-payroll' },
 
   // MASTER ADMIN (master-only)
   { id: 'master-add-facility', category: 'Facilities', title: 'Adding a Facility', blurb: 'Create and configure a new facility.', estMinutes: 4, icon: 'PlusSquare', roles: ['admin', 'super_admin'], tourId: 'master-add-facility', masterOnly: true },
@@ -209,7 +211,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
 ]
 
 // ────────────────────────────────────────────────────────────────────────────
-// TOUR DEFINITIONS — 25 fully implemented tours.
+// TOUR DEFINITIONS — 27 fully implemented tours.
 // ────────────────────────────────────────────────────────────────────────────
 
 const NAV_CALENDAR = '[data-tour="nav-calendar"]'
@@ -481,59 +483,94 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   },
 
   // 14
-  'bookkeeper-billing-dashboard': {
-    id: 'bookkeeper-billing-dashboard',
-    title: 'Billing Dashboard',
+  'bookkeeper-getting-started': {
+    id: 'bookkeeper-getting-started',
+    title: 'Getting Started as a Bookkeeper',
     steps: [
-      { route: '/dashboard', element: NAV_BILLING, isAction: true, title: 'Go to Billing', description: 'Tap Billing to open the AR dashboard.', actionHint: 'Tap Billing to continue.' },
-      { route: '/billing', element: '[data-tour="billing-outstanding"]', isAction: false, title: 'Outstanding balance', description: 'This shows the total unpaid balance for this facility. Green means all caught up; amber means there are outstanding invoices.' },
-      { route: '/billing', element: '', isAction: false, title: 'Invoice list', description: 'The main area shows all invoices or resident balances for this facility — amount, date, and payment status at a glance. Tap any row to expand the full detail.' },
-      { route: '/billing', element: '[data-tour="billing-filters"]', isAction: false, title: 'Filters', description: 'Use the filters to show only unpaid invoices, or limit to a specific date range.' },
-      { route: '/billing', element: '[data-tour="billing-send-statement"]', isAction: false, title: 'Send a statement', description: 'Tap "Send Statement" to email a PDF statement to the facility contact or POA.' },
-      { route: '/billing', element: '', isAction: false, title: 'Facility switcher', description: 'If you manage multiple facilities, a facility switcher at the top of the page lets you view billing for each one individually.' },
+      { route: '/log', element: '', isAction: false, title: 'Welcome, Bookkeeper', description: 'Your main job in Senior Stylist is getting daily log sheets into the system and making sure invoices go out correctly each month. This tour will show you where everything lives.', mobileDescription: 'Your job: get log sheets into the system and send invoices monthly.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Daily Log — your home base', description: 'The Daily Log is where you\'ll spend most of your time. This is where you scan or manually enter paper log sheets from stylists.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Two ways to enter logs', description: 'When you receive a paper log sheet, you have two options: scan it with the OCR tool (fastest) or enter each service manually. Both lead to the same result — bookings recorded in the system.', mobileDescription: 'Scan paper log sheets with OCR, or enter services manually. Both work.' },
+      { route: '/log', element: NAV_BILLING, isAction: true, title: 'Billing', description: 'The Billing section is where you review invoices, check outstanding balances, and send statements to facilities and residents each month.', actionHint: 'Tap Billing to continue.' },
+      { route: '/billing', element: '[data-tour="billing-outstanding"]', isAction: false, title: 'Outstanding balances', description: 'This shows what\'s owed across your facilities. Green means all caught up — amber means there are unpaid invoices that need attention.', mobileDescription: 'Amber means unpaid invoices need attention. Green means all caught up.' },
+      { route: '/billing', element: NAV_PAYROLL, isAction: true, title: 'Payroll', description: 'Payroll is where you review pay periods for each stylist and mark them as paid once payment is processed.', actionHint: 'Tap Payroll to continue.' },
+      { route: '/payroll', element: '', isAction: false, title: 'You\'re all set', description: 'Those are your three main areas — Daily Log, Billing, and Payroll. Use the Help section anytime for detailed tours of each workflow.' },
     ],
   },
 
   // 15
-  'bookkeeper-scan-logs': {
-    id: 'bookkeeper-scan-logs',
-    title: 'Scanning Daily Logs',
+  'bookkeeper-billing-dashboard': {
+    id: 'bookkeeper-billing-dashboard',
+    title: 'Billing Dashboard',
     steps: [
-      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'Tap Daily Log to get started.', actionHint: 'Tap Daily Log to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'What is OCR scanning', description: 'Senior Stylist can read handwritten or printed daily log sheets using AI. You upload the sheet and it fills in the entries automatically.' },
-      { route: '/log', element: '[data-tour="daily-log-scan-sheet"]', isAction: true, title: 'Open the scan tool', description: 'Tap the Scan Sheet button to upload a log image or PDF.', actionHint: 'Tap "Scan log sheet" to continue.' },
-      { route: '/log', element: '[data-tour="ocr-upload-area"]', isAction: false, title: 'Upload your log', description: 'Take a clear photo of the handwritten log sheet or upload a scanned PDF. The AI reads resident names, services, and prices automatically.' },
-      { route: '/log', element: '', isAction: false, title: 'Review results', description: 'After scanning, each extracted entry appears in a table. Highlighted rows need your attention — check that the resident name and service match correctly.' },
-      { route: '/log', element: '', isAction: false, title: 'Edit before importing', description: 'Tap any row to correct a misread name, service, or price. Changes are easy here — much harder to fix after you\'ve imported.' },
-      { route: '/log', element: '', isAction: false, title: 'Import', description: 'When everything looks correct, tap Import to create the bookings. Review carefully first — this action cannot be undone.' },
+      { route: '/billing', element: NAV_BILLING, isAction: true, title: 'Go to Billing', description: 'The Billing section is where you manage invoices and send statements. You\'ll use this monthly.', actionHint: 'Tap Billing to continue.' },
+      { route: '/billing', element: '[data-tour="billing-outstanding"]', isAction: false, title: 'Outstanding balance', description: 'This shows the total unpaid amount for this facility. Your job each month is to make sure this number is moving toward zero — either by confirming payment was received or sending reminders.', mobileDescription: 'Total unpaid for this facility. Your goal: get this to zero each month.' },
+      { route: '/billing', element: '', isAction: false, title: 'Invoice list', description: 'Below the summary you\'ll see all invoices for this facility — each one shows the amount, the date, and whether it\'s been paid. Tap any invoice to see the full breakdown.' },
+      { route: '/billing', element: '[data-tour="billing-filters"]', isAction: false, title: 'Filtering invoices', description: 'Use the date range filters to focus on a specific period — a single month, a quarter, or a custom range. Use the status filter to show only unpaid invoices when chasing overdue payments.', mobileDescription: 'Filter by date range or status to focus on unpaid invoices.' },
+      { route: '/billing', element: '[data-tour="billing-send-statement"]', isAction: false, title: 'Sending statements', description: 'At the end of each month, tap Send Statement to email a PDF to the facility contact or resident POA. Always verify the recipient email is correct before sending.', mobileDescription: 'Tap Send Statement to email a PDF to the facility or resident. Check the email first.' },
+      { route: '/billing', element: '', isAction: false, title: 'Monthly routine', description: 'At the start of each month: (1) review all unpaid invoices from last month, (2) send statements to any facility or resident with an outstanding balance, (3) confirm payments received and update records accordingly.', mobileDescription: 'Monthly: review unpaid invoices → send statements → confirm payments received.' },
     ],
   },
 
   // 16
-  'bookkeeper-duplicates': {
-    id: 'bookkeeper-duplicates',
-    title: 'Duplicate Resolution',
+  'bookkeeper-scan-logs': {
+    id: 'bookkeeper-scan-logs',
+    title: 'Scanning Daily Logs',
     steps: [
-      { route: '/residents', element: '', isAction: false, title: 'What are duplicates', description: 'Sometimes the same resident gets added twice with slightly different names or room numbers. The Duplicates tool finds and merges these.' },
-      { route: '/residents', element: '[data-tour="residents-duplicates-button"]', isAction: true, title: 'Open duplicates', description: 'Tap the Duplicates button to see any potential duplicate residents.', actionHint: 'Tap "Duplicates" to continue.' },
-      { route: '/residents', element: '', isAction: false, title: 'Duplicate pairs', description: 'Each card shows two residents that might be the same person. A confidence score tells you how likely they are to be the same person.' },
-      { route: '/residents', element: '', isAction: false, title: 'Review carefully', description: 'Check names, room numbers, and booking counts. The resident on the right merges into the left — the right record is removed after merging.' },
-      { route: '/residents', element: '', isAction: false, title: 'Merge', description: 'Tap Merge to combine the two records. All bookings and history from the merged resident transfer to the primary one. This cannot be undone.' },
-      { route: '/residents', element: '', isAction: false, title: 'After merging', description: 'The merged resident\'s history is preserved. This cannot be undone, so always review the pair carefully first.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'When you receive a paper log sheet, start here.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'What you\'re scanning', description: 'A paper log sheet is a handwritten or printed record of services a stylist performed at a facility. Your job is to get this data into Senior Stylist so invoices can be generated correctly.' },
+      { route: '/log', element: '[data-tour="daily-log-scan-sheet"]', isAction: true, title: 'Open the scan tool', description: 'Tap \'Scan log sheet\' to open the OCR scanner. You\'ll upload a photo or PDF of the paper log sheet.', actionHint: 'Tap Scan log sheet to continue.' },
+      { route: '/log', element: '[data-tour="ocr-upload-area"]', isAction: false, title: 'Upload your sheet', description: 'Take a clear, well-lit photo of the log sheet or upload a scanned PDF. Lay the sheet flat with no shadows for the best results. The AI will read resident names, services, and prices automatically.', mobileDescription: 'Upload a clear photo or PDF. Flat, well-lit, no shadows for best results.' },
+      { route: '/log', element: '', isAction: false, title: 'Reviewing the results', description: 'After scanning, every extracted entry appears in a table. Review each row carefully — the AI is good but not perfect, especially with handwriting.' },
+      { route: '/log', element: '', isAction: false, title: 'What to check', description: 'For each row, verify: (1) the resident name matches a real resident, (2) the service is correct, (3) the price matches what was written. Highlighted rows need extra attention.', mobileDescription: 'Check: resident name matches, service is correct, price is right.' },
+      { route: '/log', element: '', isAction: false, title: 'Editing a misread entry', description: 'Tap any row to correct it. You can fix the resident name (it will search for matching residents), change the service, or adjust the price. Always fix errors before importing — it\'s much harder to correct after.', mobileDescription: 'Tap any row to fix a misread name, service, or price. Fix before importing.' },
+      { route: '/log', element: '', isAction: false, title: 'Resident not found?', description: 'If the AI read a name that doesn\'t match any resident, you\'ll see a warning. Either correct the spelling to match an existing resident, or add them as a new resident first. Never import with an unresolved resident.', mobileDescription: 'Unresolved residents block import. Fix the spelling or add the resident first.' },
+      { route: '/log', element: '', isAction: false, title: 'Import when ready', description: 'Once every row looks correct, tap Import. This creates the bookings in the system and they\'ll appear on invoices. This cannot be undone — double-check everything first.', mobileDescription: 'All rows correct? Tap Import. Double-check first — this can\'t be undone.' },
+      { route: '/log', element: '', isAction: false, title: 'After importing', description: 'After a successful import, check the daily log to confirm all entries appear correctly. If something looks wrong, contact your admin — they can make corrections.' },
+    ],
+  },
+
+  // 16b
+  'bookkeeper-manual-entry': {
+    id: 'bookkeeper-manual-entry',
+    title: 'Manual Log Entry',
+    steps: [
+      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'When a paper log sheet is too messy to scan or you don\'t have a camera handy, you can enter services manually.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Manual entry', description: 'Manual entry means adding each service from the paper sheet one by one as a walk-in entry. It takes longer than scanning but gives you full control over every field.', mobileDescription: 'Add each service from the paper sheet one at a time as walk-in entries.' },
+      { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add Walk-in', description: 'Tap \'Add Walk-in\' for each service on the paper sheet. You\'ll add them one at a time.', actionHint: 'Tap Add Walk-in to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Filling in the entry', description: 'Search for the resident by name. If they\'re not in the system, add them as a new resident first. Then choose the service and enter the price exactly as it appears on the paper sheet.' },
+      { route: '/log', element: '', isAction: false, title: 'Work through the sheet', description: 'Go row by row through the paper sheet, adding one walk-in per service. Take your time — accuracy matters more than speed here. Each entry becomes a line item on the invoice.', mobileDescription: 'One walk-in per service, row by row. Accuracy matters more than speed.' },
+      { route: '/log', element: '', isAction: false, title: 'Check the date', description: 'Make sure you\'re entering services on the correct date. Use the date navigation at the top of the Daily Log to switch to the date the services were performed — not today\'s date.', mobileDescription: 'Use the date navigation to enter services on the date they were performed.' },
+      { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: false, title: 'Finalize when done', description: 'Once you\'ve entered every service from the sheet, review the list carefully and tap \'Finalize Day\'. This locks the entries and makes them available for invoicing.', mobileDescription: 'Entered everything? Review and tap Finalize Day to lock the entries.' },
+      { route: '/log', element: '', isAction: false, title: 'Manual vs scan', description: 'Manual entry and scanning produce the same result — bookings in the system. Use scanning when possible for speed. Use manual entry when the scan quality is poor or you need precise control.' },
     ],
   },
 
   // 17
+  'bookkeeper-duplicates': {
+    id: 'bookkeeper-duplicates',
+    title: 'Duplicate Resolution',
+    steps: [
+      { route: '/residents', element: '', isAction: false, title: 'Why duplicates happen', description: 'When scanning log sheets, the same resident can get entered with slightly different names — \'Mary Smith\' and \'Mary S.\' end up as two separate records. Duplicate residents cause split billing and confusing history.', mobileDescription: 'Scanning creates duplicates when the same resident\'s name is spelled differently.' },
+      { route: '/residents', element: NAV_RESIDENTS, isAction: true, title: 'Go to Residents', description: 'Duplicate detection lives in the Residents section.', actionHint: 'Tap Residents to continue.' },
+      { route: '/residents', element: '[data-tour="residents-duplicates-button"]', isAction: true, title: 'Find duplicates', description: 'Tap the Duplicates button to scan for potential duplicate residents. Senior Stylist compares names, room numbers, and booking history to find likely matches.', actionHint: 'Tap Duplicates to continue.' },
+      { route: '/residents', element: '', isAction: false, title: 'Reviewing pairs', description: 'Each card shows two residents that might be the same person. A confidence score tells you how likely it is. Review the names, room numbers, and booking counts for each pair.' },
+      { route: '/residents', element: '', isAction: false, title: 'Before you merge', description: 'Check both records carefully. The resident on the LEFT becomes the primary — all bookings from the right transfer to the left. The right record is then removed. Make sure the left record has the correct name and room number.', mobileDescription: 'The LEFT record becomes primary. Make sure it has the correct name and room.' },
+      { route: '/residents', element: '', isAction: false, title: 'Merging', description: 'Tap Merge to combine the records. All booking history transfers to the primary record. This cannot be undone — if you\'re unsure, skip the pair and ask your admin.', mobileDescription: 'Tap Merge to combine. Can\'t be undone — skip if unsure and ask your admin.' },
+      { route: '/residents', element: '', isAction: false, title: 'After merging', description: 'The merged resident\'s full history is now on one record. Invoices will reflect the correct totals going forward. Make duplicate resolution a regular habit — check after every batch of log sheet imports.' },
+    ],
+  },
+
+  // 18
   'bookkeeper-payroll': {
     id: 'bookkeeper-payroll',
     title: 'Payroll & Pay Periods',
     steps: [
-      { route: '/dashboard', element: NAV_PAYROLL, isAction: true, title: 'Go to Payroll', description: 'Tap Payroll to see pay periods.', actionHint: 'Tap Payroll to continue.' },
-      { route: '/payroll', element: '[data-tour="payroll-period-list"]', isAction: false, title: 'Pay periods', description: 'Each row is a pay period. Open one to see a detailed breakdown of what each stylist earned.' },
-      { route: '/payroll', element: '[data-tour="payroll-period-list"]', isAction: false, title: 'Open a period', description: 'Tap any pay period to open it.' },
-      { route: '/payroll', element: '', isAction: false, title: 'Per-stylist breakdown', description: 'Tap any pay period to open it. Inside you\'ll see each stylist\'s earnings — base commission, tips, and any deductions applied.' },
-      { route: '/payroll', element: '', isAction: false, title: 'Mark as paid', description: 'Once you\'ve processed payment, tap "Mark as Paid" to lock the period and record the payment date in your history.' },
-      { route: '/payroll', element: '', isAction: false, title: 'Export', description: 'Use Export to download a CSV of the pay period for your records or to import into an external payroll system.' },
+      { route: '/payroll', element: NAV_PAYROLL, isAction: true, title: 'Go to Payroll', description: 'Payroll is where pay periods for stylists are tracked and marked as paid.', actionHint: 'Tap Payroll to continue.' },
+      { route: '/payroll', element: '[data-tour="payroll-period-list"]', isAction: false, title: 'Pay periods', description: 'Each row is a pay period for a facility. You can see the period dates, total amount owed to stylists, and whether it\'s been paid. Open any period to see the full stylist breakdown.', mobileDescription: 'Each row is a pay period. Tap any to see per-stylist earnings and status.' },
+      { route: '/payroll', element: '', isAction: false, title: 'Reviewing a period', description: 'Tap any pay period to open it. Inside you\'ll see each stylist\'s earnings — their base commission, any tips, and deductions. Review this carefully before marking as paid.' },
+      { route: '/payroll', element: '', isAction: false, title: 'Marking as paid', description: 'Once payment has been processed and sent to the stylists, tap \'Mark as Paid\' to lock the period. This records the payment date and prevents further edits. Note: admins and franchise admins can also do this — coordinate with your team so it isn\'t done twice.', mobileDescription: 'Tap Mark as Paid once payment is sent. Coordinate with admins — don\'t double-mark.' },
+      { route: '/payroll', element: '', isAction: false, title: 'Exporting', description: 'Use the Export button to download a CSV of any pay period. Useful for your own records or if you need to import into an external payroll or accounting system.', mobileDescription: 'Export a CSV for your records or external payroll systems.' },
+      { route: '/payroll', element: '', isAction: false, title: 'QuickBooks sync', description: 'If your facility is connected to QuickBooks, payroll data syncs automatically as Bills. If you notice a discrepancy between Senior Stylist and QuickBooks, contact your franchise admin — the QB connection is managed at their level.' },
     ],
   },
 
