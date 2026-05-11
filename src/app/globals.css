@@ -339,7 +339,7 @@ button:active, [role="button"]:active {
   margin-top: 12px;
 }
 .senior-stylist-tour .driver-popover-footer {
-  margin-top: 16px;
+  margin-top: 12px;
   gap: 8px;
 }
 .senior-stylist-tour .driver-popover-next-btn,
@@ -357,28 +357,32 @@ button:active, [role="button"]:active {
   transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
-/* Action step: pulsing TAP THIS badge above the footer buttons */
-.senior-stylist-tour.action-step .driver-popover-footer::before {
-  content: '→ TAP THIS';
-  display: block;
-  width: 100%;
-  text-align: center;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+/* Action step: styled hint text (last line of description) */
+.senior-stylist-tour .driver-popover-description .tour-action-hint {
   color: #8B2E4A;
-  background: rgba(139, 46, 74, 0.08);
-  border: 1px solid rgba(139, 46, 74, 0.2);
-  border-radius: 999px;
-  padding: 6px 16px;
-  margin-bottom: 8px;
-  animation: action-step-pulse 2s ease-in-out infinite;
+  font-weight: 600;
+  font-size: 13px;
+  margin-top: 10px;
+  display: block;
 }
-@keyframes action-step-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.55; }
+
+/* Pulsing burgundy ring on the Driver.js highlighted element */
+.driver-highlighted-element {
+  position: relative;
+}
+.driver-highlighted-element::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid #8B2E4A;
+  animation: tour-element-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 10000;
+}
+@keyframes tour-element-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(139, 46, 74, 0.4); }
+  50%       { opacity: 0.8; box-shadow: 0 0 0 6px rgba(139, 46, 74, 0); }
 }
 .senior-stylist-tour .driver-popover-next-btn {
   background: #8B2E4A;
@@ -410,6 +414,11 @@ button:active, [role="button"]:active {
 }
 .driver-overlay {
   background: rgba(28, 10, 18, 0.55) !important; /* dark burgundy tint */
+}
+.driver-stage {
+  background: transparent !important;
+  box-shadow: 0 0 0 9999px rgba(28, 10, 18, 0.65) !important;
+  border-radius: 8px !important;
 }
 
 /* ───────────────── Phase 12J — Mobile tour spotlight pulse ───────────────── */

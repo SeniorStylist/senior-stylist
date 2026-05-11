@@ -788,7 +788,7 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
 
   // Compose description (with action hint as a separate paragraph)
   const description = step.actionHint
-    ? `${step.description}\n\n${step.actionHint}`
+    ? `${step.description}<br><br><span class="tour-action-hint">${step.actionHint}</span>`
     : step.description
 
   // For action steps: hide the Next button so the user must click the highlighted element
