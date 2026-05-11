@@ -93,6 +93,13 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
     clearSessionState()
     dispatchHide()
     setTourModeActive(false)
+    // Fire AFTER setTourModeActive(false) so the Phase 12O fetch interceptor is off
+    window.dispatchEvent(new CustomEvent('tour-completed', { detail: { tourId: def.id } }))
+    fetch('/api/profile/complete-tour', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tourId: def.id }),
+    }).catch(() => {})
     return
   }
   const step = def.steps[index]

@@ -1821,6 +1821,45 @@ Properties:
 - New: `src/lib/help/tour-router.ts`, `src/components/help/tour-router-provider.tsx`
 - Modified: `src/app/(protected)/layout.tsx` (TourRouterProvider mount), `src/lib/help/tours.ts` (`waitForElement` rewrite + `runStep` cross-route block), `src/lib/help/mobile-tour.ts` (`runMobileStep` cross-route block)
 
+### Phase 12Q — Tour Completion Tracking (SHIPPED 2026-05-11)
+
+Completed tours are persisted on `profiles.completed_tours text[] NOT NULL DEFAULT '{}'`. The Help page shows a `✓ Done` badge on cards whose tour the user has finished.
+
+**Schema**: `profiles.completed_tours text[] NOT NULL DEFAULT '{}'` — Drizzle column: `text('completed_tours').array().notNull().default(sql\`'{}'\`)`.
+
+**API route** `POST /api/profile/complete-tour`:
+- Auth-gated (Supabase `getUser()`), rate-limited under `completeTour` bucket (20/hr/user).
+- Validates `tourId` against the exported `TOUR_DEFINITIONS` map — returns 400 for unknown IDs.
+- Idempotent `array_append` via raw SQL: `UPDATE profiles SET completed_tours = array_append(completed_tours, $tourId), updated_at = now() WHERE id = $userId AND NOT ($tourId = ANY(completed_tours))`. Uses Drizzle `db.execute(sql\`...\`)` — the ORM's `.set()` has no native `array_append` helper. Uses the service-role key (all DB writes do); `auth.uid()` / SECURITY DEFINER RPCs are not used.
+
+**Engine wiring** — terminal step branch in both `tours.ts::runStep` and `mobile-tour.ts::runMobileStep`:
+
+```ts
+setTourModeActive(false)
+// Fire AFTER setTourModeActive(false) — Phase 12O interceptor blocks /api/* POSTs while active
+window.dispatchEvent(new CustomEvent('tour-completed', { detail: { tourId: def.id } }))
+fetch('/api/profile/complete-tour', { method: 'POST', ... }).catch(() => {})
+return
+```
+
+The `tour-completed` CustomEvent gives the `/help` page an optimistic badge update without waiting for the server round-trip.
+
+**Client-side state** (`help-client.tsx`):
+- `HelpClientProps` gains `completedTours: string[]` (server-fetched on each `/help` page load via `db.query.profiles.findFirst({ columns: { completedTours: true } })`).
+- `HelpInner` owns `localCompleted: string[]` initialized from the prop; a `useEffect` subscribes to `tour-completed` events and appends new IDs.
+- `<TutorialCard completed={localCompleted.includes(t.tourId ?? '')} />` — `tourId ?? ''` is always false for Coming Soon cards (no false positives).
+
+**Badge** (`tutorial-card.tsx`): `completed` prop → `<span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 size={12} /> Done</span>` rendered in the card header next to the `~N min` chip.
+
+**Files**:
+- Schema: `src/db/schema.ts` (profiles `completedTours` column)
+- New route: `src/app/api/profile/complete-tour/route.ts`
+- Rate-limit: `src/lib/rate-limit.ts` (`completeTour` bucket)
+- Engine: `src/lib/help/tours.ts`, `src/lib/help/mobile-tour.ts` (terminal step completion dispatch)
+- Server component: `src/app/(protected)/help/page.tsx` (query + pass `completedTours` prop)
+- Client: `src/app/(protected)/help/help-client.tsx` (state + event listener + prop pass-through)
+- UI: `src/components/help/tutorial-card.tsx` (`completed` prop + badge)
+
 ### Phase 13 — Performance Pass (SHIPPED 2026-05-03)
 
 Root cause of app-wide serverless timeouts diagnosed and fixed. **Root cause**: `DATABASE_URL` was pointing at the transaction-mode pgBouncer pooler (port 6543); the session-mode pooler (port 5432) was correct for this setup. Switched `DATABASE_URL` → port 5432; removed `prepare: false` from `src/db/index.ts` (session mode supports prepared statements natively). `connect_timeout: 10`, `max: 1` unchanged.

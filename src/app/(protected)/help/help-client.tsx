@@ -8,6 +8,7 @@ import { TutorialCard } from '@/components/help/tutorial-card'
 interface HelpClientProps {
   role: string
   isMaster: boolean
+  completedTours: string[]
 }
 
 function roleLabel(role: string): string {
@@ -47,10 +48,20 @@ function groupByCategory(items: Tutorial[]): Record<string, Tutorial[]> {
   return out
 }
 
-function HelpInner({ role, isMaster }: HelpClientProps) {
+function HelpInner({ role, isMaster, completedTours }: HelpClientProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [browseAll, setBrowseAll] = useState(false)
+  const [localCompleted, setLocalCompleted] = useState<string[]>(completedTours)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ tourId: string }>).detail?.tourId
+      if (id) setLocalCompleted((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    }
+    window.addEventListener('tour-completed', handler)
+    return () => window.removeEventListener('tour-completed', handler)
+  }, [])
 
   const tourParam = searchParams.get('tour')
   useEffect(() => {
@@ -105,7 +116,11 @@ function HelpInner({ role, isMaster }: HelpClientProps) {
               <h3 className="text-[13px] font-semibold text-stone-700 mb-3">{category}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {items.map((t) => (
-                  <TutorialCard key={t.id} tutorial={t} />
+                  <TutorialCard
+                    key={t.id}
+                    tutorial={t}
+                    completed={localCompleted.includes(t.tourId ?? '')}
+                  />
                 ))}
               </div>
             </div>

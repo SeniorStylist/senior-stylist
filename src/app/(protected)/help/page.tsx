@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { db } from '@/db'
+import { profiles } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { HelpClient } from './help-client'
 
 export default async function HelpPage() {
@@ -19,5 +22,16 @@ export default async function HelpPage() {
     !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
     user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
-  return <HelpClient role={facilityUser.role} isMaster={isMaster} />
+  const profile = await db.query.profiles.findFirst({
+    where: eq(profiles.id, user.id),
+    columns: { completedTours: true },
+  })
+
+  return (
+    <HelpClient
+      role={facilityUser.role}
+      isMaster={isMaster}
+      completedTours={profile?.completedTours ?? []}
+    />
+  )
 }

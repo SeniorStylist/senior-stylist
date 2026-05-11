@@ -19,9 +19,10 @@ const ICON_MAP: Record<TutorialIcon, typeof KeyRound> = {
 
 interface TutorialCardProps {
   tutorial: Tutorial
+  completed?: boolean
 }
 
-export function TutorialCard({ tutorial }: TutorialCardProps) {
+export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
   const Icon = ICON_MAP[tutorial.icon] ?? CircleHelp
   const [comingSoonOpen, setComingSoonOpen] = useState<'video' | 'tour' | null>(null)
 
@@ -52,9 +53,17 @@ export function TutorialCard({ tutorial }: TutorialCardProps) {
           >
             {tutorial.title}
           </h3>
-          <span className="inline-block mt-1 text-[11px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
-            ~{tutorial.estMinutes} min
-          </span>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <span className="inline-block text-[11px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
+              ~{tutorial.estMinutes} min
+            </span>
+            {completed && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 size={12} />
+                Done
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
