@@ -1449,7 +1449,7 @@ Full rewrite of the Phase 12G tour engine to make every guided tour navigation-a
 - `waitForElement(selector, 5000ms)` — `requestAnimationFrame` polling, returns null on timeout. On miss, `toastWarning()` dispatches a CustomEvent that TourResumer pipes through `useToast().error()` and the engine skips to the next step.
 - Action steps (`isAction: true`): Driver.js step config sets `showButtons: ['previous','close']` (no Next), and an `onClick` listener (capture phase) is attached to the highlighted element via Driver.js's onHighlighted callback proxy. On click, the engine cleans up the listener, destroys the Driver instance, and recurses into the next step with a 50ms delay so React handles the click first.
 - Informational steps: regular Next button via `onNextClick` callback wired to `runStep(def, index + 1)`.
-- `desktopOnly: true` flag — when true, `startTour` emits "This tour is best viewed on a larger screen" toast and returns early on mobile breakpoints (used for `master-add-facility` — traverses master-admin nav link not present in MobileNav). `admin-compliance` had this flag removed in Phase 12L — it now uses `route: '/stylists', element: ''` info steps instead of a sidebar action step.
+- `desktopOnly: true` flag — when true, `startTour` emits "This tour is best viewed on a larger screen" toast and returns early on mobile breakpoints. **No tours currently use this flag** — `master-add-facility` had it removed in Phase 12N (step 1 is now a `/master-admin` info step); `admin-compliance` had it removed in Phase 12L.
 - `resolveQuery(selector)` — converts `[data-tour="X"]` into `[data-tour-mobile="X"], [data-tour="X"]` on mobile breakpoint so step authors write a single selector and the engine picks the right element.
 - Empty-element steps (`element: ''`) render a popover anchored to `body` for terminal "you're done" copy.
 
@@ -1463,7 +1463,7 @@ Full rewrite of the Phase 12G tour engine to make every guided tour navigation-a
 - All `data-*` keys spread onto the inner card div via `Object.fromEntries(Object.entries(rest).filter(...))`.
 - Used by booking-modal: `<Modal ... data-tour="calendar-booking-modal">` works directly.
 
-**19 tours at Phase 12H ship time**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. Phase 12I added `stylist-my-account` (20). Phase 12K added `staff-getting-started` + `staff-daily-log` and rewrote `facility-staff-scheduling` + `facility-staff-residents` (23 total). Phase 12L (sign-up sheet) added `facility-staff-signup-sheet` + `stylist-signup-sheet` (25). Phase 12L (admin audit) added `admin-getting-started` and rewrote 6 admin tours; removed `desktopOnly` from `admin-compliance` (25 actual — sign-up sheet tours previously counted). Phase 12M added `bookkeeper-getting-started` + `bookkeeper-manual-entry` and rewrote 4 bookkeeper tours (27 total). Cards with `tourId: null` show "Coming soon" tooltip.
+**19 tours at Phase 12H ship time**: stylist-getting-started, stylist-calendar, stylist-daily-log, stylist-residents, stylist-finalize-day, facility-staff-scheduling, facility-staff-residents, admin-facility-setup, admin-inviting-staff, admin-residents, admin-reports, admin-family-portal, admin-compliance (desktop-only), bookkeeper-billing-dashboard, bookkeeper-scan-logs, bookkeeper-duplicates, bookkeeper-payroll, master-add-facility (desktop-only), master-quickbooks-setup. Phase 12I added `stylist-my-account` (20). Phase 12K added `staff-getting-started` + `staff-daily-log` and rewrote `facility-staff-scheduling` + `facility-staff-residents` (23 total). Phase 12L (sign-up sheet) added `facility-staff-signup-sheet` + `stylist-signup-sheet` (25). Phase 12L (admin audit) added `admin-getting-started` and rewrote 6 admin tours; removed `desktopOnly` from `admin-compliance` (25 actual — sign-up sheet tours previously counted). Phase 12M added `bookkeeper-getting-started` + `bookkeeper-manual-entry` and rewrote 4 bookkeeper tours (27 total). Phase 12N added `master-getting-started`, `master-stylist-directory`, `master-applicant-pipeline`, `master-analytics` and rewrote `master-add-facility` + `master-quickbooks-setup`; removed `desktopOnly` from `master-add-facility` (31 total). Cards with `tourId: null` show "Coming soon" tooltip.
 
 **~30 new `data-tour` attributes added** (zero behavior changes):
 - Sidebar: `nav-analytics`, `nav-payroll`, `nav-stylists`, `nav-master-admin` added to existing tourSlug map
@@ -1630,6 +1630,26 @@ Two new tours and two rewrites, all in `src/lib/help/tours.ts`. No other files c
 **`PenLine` icon**: added to `TutorialIcon` union in `tours.ts`; added to lucide-react import + `ICON_MAP` in `tutorial-card.tsx`.
 
 **Tour count: 25 → 27**.
+
+### Phase 12N — Master Admin Tour Audit (SHIPPED 2026-05-11)
+
+4 new tours + 2 rewrites in `src/lib/help/tours.ts`. No schema, API, UI, or other file changes.
+
+**New tours**:
+- `master-getting-started` (7 steps): /master-admin info → `NAV_MASTER_ADMIN` action → `master-facility-list` info → what-you-oversee info → `NAV_STYLISTS` action (route: /stylists/directory) → `stylists-table` info → you're-ready info.
+- `master-stylist-directory` (6 steps): all on /stylists/directory — intro info → `stylists-table` info → status-types info → changing-status info → assigning-to-facilities info → franchise-pool info.
+- `master-applicant-pipeline` (6 steps): all on /stylists/directory — intro info → import-from-indeed info → applicants-tab info → reviewing info → promoting info → after-promoting info.
+- `master-analytics` (5 steps): `NAV_ANALYTICS` action → `analytics-revenue-summary` info → `analytics-date-range` info → `analytics-by-stylist` info → comparing-facilities info.
+
+**Rewrites**:
+- `master-add-facility` (6 steps, was 5): `desktopOnly: true` **removed**. Step 1 is now `/master-admin` info (engine hard-navs via route field — no sidebar action needed). Added new step 6 "Assigning stylists" info. Updated all blurbs.
+- `master-quickbooks-setup` (6 steps, was 4): Step 1 added as `/settings` info intro. Step 2 is `NAV_SETTINGS` action on `/settings`. Step 4 `settings-qb-connect-btn` changed to `isAction: true`. Two new closing steps (after-connecting info, per-facility-setup info).
+
+**TUTORIAL_CATALOG** changes: entire master block replaced with 10 entries (6 live, 4 Coming Soon). New entries: `master-getting-started` (first, KeyRound, 3 min), `master-stylist-directory` (Users, 4 min), `master-applicant-pipeline` (UserPlus, 4 min), `master-analytics` (BarChart3, 3 min). Updated blurbs/estMinutes on `master-add-facility` and `master-quickbooks-setup`. Ordering: getting-started → add-facility → stylist-directory → applicant-pipeline → quickbooks-setup → analytics → franchise (null) → cross-facility-analytics (null) → merge-duplicates (null) → team-roster (null).
+
+**`desktopOnly` note**: no tours now carry `desktopOnly: true` — both `master-add-facility` (Phase 12N) and `admin-compliance` (Phase 12L) had it removed.
+
+**Tour count: 27 → 31**.
 
 ### Sign-Up Sheet (SHIPPED 2026-05-11)
 

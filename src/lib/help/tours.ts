@@ -202,8 +202,12 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'bookkeeper-financial-reports', category: 'Reports', title: 'Financial Reports', blurb: 'Run and export reports for accounting.', estMinutes: 3, icon: 'FileSpreadsheet', roles: ['bookkeeper'], tourId: null },
 
   // MASTER ADMIN (master-only)
-  { id: 'master-add-facility', category: 'Facilities', title: 'Adding a Facility', blurb: 'Create and configure a new facility.', estMinutes: 4, icon: 'PlusSquare', roles: ['admin', 'super_admin'], tourId: 'master-add-facility', masterOnly: true },
-  { id: 'master-quickbooks-setup', category: 'Billing', title: 'QuickBooks Setup', blurb: 'Connect QuickBooks per facility.', estMinutes: 5, icon: 'Database', roles: ['admin', 'super_admin'], tourId: 'master-quickbooks-setup', masterOnly: true },
+  { id: 'master-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Overview of Master Admin — facilities, stylists, analytics, and platform tools.', estMinutes: 3, icon: 'KeyRound', roles: ['admin', 'super_admin'], tourId: 'master-getting-started', masterOnly: true },
+  { id: 'master-add-facility', category: 'Facilities', title: 'Adding a Facility', blurb: 'Create a new facility, configure it, and assign stylists.', estMinutes: 3, icon: 'PlusSquare', roles: ['admin', 'super_admin'], tourId: 'master-add-facility', masterOnly: true },
+  { id: 'master-stylist-directory', category: 'Stylists', title: 'Stylist Directory', blurb: 'Manage stylist status, facility assignments, and the franchise pool.', estMinutes: 4, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'master-stylist-directory', masterOnly: true },
+  { id: 'master-applicant-pipeline', category: 'Stylists', title: 'Applicant Pipeline', blurb: 'Import Indeed applicants, review them, and promote the best ones to active stylists.', estMinutes: 4, icon: 'UserPlus', roles: ['admin', 'super_admin'], tourId: 'master-applicant-pipeline', masterOnly: true },
+  { id: 'master-quickbooks-setup', category: 'Billing', title: 'QuickBooks Setup', blurb: 'Connect each facility\'s QuickBooks account and understand what syncs.', estMinutes: 3, icon: 'Database', roles: ['admin', 'super_admin'], tourId: 'master-quickbooks-setup', masterOnly: true },
+  { id: 'master-analytics', category: 'Analytics', title: 'Cross-Facility Analytics', blurb: 'View revenue, stylist performance, and trends across all your facilities.', estMinutes: 3, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'master-analytics', masterOnly: true },
   { id: 'master-franchise', category: 'Franchise', title: 'Franchise Management', blurb: 'Manage franchises and super admin assignments.', estMinutes: 4, icon: 'Network', roles: ['admin', 'super_admin'], tourId: null, masterOnly: true },
   { id: 'master-cross-facility-analytics', category: 'Reports', title: 'Cross-Facility Analytics', blurb: 'View revenue and KPIs across facilities.', estMinutes: 3, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: null, masterOnly: true },
   { id: 'master-merge-duplicates', category: 'Residents', title: 'Merging Duplicates', blurb: 'Merge duplicate facilities and residents.', estMinutes: 4, icon: 'GitMerge', roles: ['admin', 'super_admin'], tourId: null, masterOnly: true },
@@ -211,7 +215,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
 ]
 
 // ────────────────────────────────────────────────────────────────────────────
-// TOUR DEFINITIONS — 27 fully implemented tours.
+// TOUR DEFINITIONS — 31 fully implemented tours.
 // ────────────────────────────────────────────────────────────────────────────
 
 const NAV_CALENDAR = '[data-tour="nav-calendar"]'
@@ -575,28 +579,86 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   },
 
   // 18
-  'master-add-facility': {
-    id: 'master-add-facility',
-    title: 'Adding a Facility',
-    desktopOnly: true,
+  'master-getting-started': {
+    id: 'master-getting-started',
+    title: 'Getting Started as Master Admin',
     steps: [
-      { route: '/dashboard', element: NAV_MASTER_ADMIN, isAction: true, title: 'Go to Master Admin', description: 'The Master Admin section is where you manage all facilities.', actionHint: 'Tap Master Admin to continue.' },
-      { route: '/master-admin', element: '[data-tour="master-facility-list"]', isAction: false, title: 'Facility list', description: 'Every facility in the system is listed here with its status and code.' },
-      { route: '/master-admin', element: '[data-tour="master-add-facility-btn"]', isAction: true, title: 'Add facility', description: 'Tap "Add Facility" to create a new one.', actionHint: 'Tap "Add Facility" to continue.' },
-      { route: '/master-admin', element: '[data-tour="master-facility-form"]', isAction: false, title: 'Facility form', description: 'Fill in the facility name, address, and contact information. The facility code is auto-generated.' },
-      { route: '/master-admin', element: '', isAction: false, title: 'After creating', description: 'After creating the facility, go to Settings to finish setup — working hours, payment type, and invite the admin.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'Welcome, Lisa', description: 'As Master Admin, you have full access to every facility, stylist, and financial report across Senior Stylist. This tour will show you the platform-level tools that only you can access.', mobileDescription: 'Full access to every facility, stylist, and report across Senior Stylist.' },
+      { route: '/master-admin', element: NAV_MASTER_ADMIN, isAction: true, title: 'Master Admin', description: 'The Master Admin section is your control center — add and manage facilities, view cross-facility data, and oversee the whole platform from here.', actionHint: 'Tap Master Admin to continue.' },
+      { route: '/master-admin', element: '[data-tour="master-facility-list"]', isAction: false, title: 'All facilities', description: 'Every facility on the platform is listed here. You can see their status, facility code, and key details at a glance. Tap any facility to open it and manage it.', mobileDescription: 'Every facility on the platform. Tap any to open and manage it.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'What you oversee', description: 'From Master Admin you can: add new facilities, manage franchise admins, review cross-facility analytics, set up QuickBooks connections, and merge duplicate facilities or residents.', mobileDescription: 'Add facilities, manage franchise admins, analytics, QuickBooks, and more.' },
+      { route: '/stylists/directory', element: NAV_STYLISTS, isAction: true, title: 'Stylist Directory', description: 'The Stylist Directory is where you manage your entire stylist workforce — active stylists, their assignments, and your applicant pipeline.', actionHint: 'Tap Stylists to continue.' },
+      { route: '/stylists/directory', element: '[data-tour="stylists-table"]', isAction: false, title: 'Your stylists', description: 'Every active stylist across all your facilities is here. Filter by status, facility, or search by name. Use bulk actions to update status or reassign multiple stylists at once.', mobileDescription: 'Every stylist across all facilities. Filter by status or search by name.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'You\'re ready', description: 'Those are the key areas. Use the Help section for detailed tours of each workflow — adding facilities, the applicant pipeline, QuickBooks setup, and cross-facility analytics.' },
     ],
   },
 
   // 19
+  'master-add-facility': {
+    id: 'master-add-facility',
+    title: 'Adding a Facility',
+    steps: [
+      { route: '/master-admin', element: '', isAction: false, title: 'Adding a Facility', description: 'When you onboard a new facility, you create it here in Master Admin. This assigns it a facility code, sets up its profile, and makes it available to assign stylists to.', mobileDescription: 'Create new facilities here. Each gets a code and is ready to assign stylists.' },
+      { route: '/master-admin', element: '[data-tour="master-facility-list"]', isAction: false, title: 'Facility list', description: 'Every existing facility is listed here. Before adding a new one, check this list to make sure it doesn\'t already exist under a different name.' },
+      { route: '/master-admin', element: '[data-tour="master-add-facility-btn"]', isAction: true, title: 'Add a facility', description: 'Tap \'Add Facility\' to open the creation form.', actionHint: 'Tap Add Facility to continue.' },
+      { route: '/master-admin', element: '[data-tour="master-facility-form"]', isAction: false, title: 'Facility form', description: 'Fill in the facility name, address, and contact information. The facility code is auto-generated — you can customize it if needed. Choose the franchise this facility belongs to.', mobileDescription: 'Enter facility name, address, and contact info. The code is auto-generated.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'After creating', description: 'Once created, the facility appears in the list. Next steps: go to the facility\'s Settings to set working hours and payment type, then invite their facility admin from the Team section.', mobileDescription: 'Next: set working hours in Settings, then invite their facility admin.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'Assigning stylists', description: 'After the facility is set up, go to the Stylist Directory and assign stylists to it. Stylists in the franchise pool can be assigned to any facility.' },
+    ],
+  },
+
+  // 20
+  'master-stylist-directory': {
+    id: 'master-stylist-directory',
+    title: 'Stylist Directory',
+    steps: [
+      { route: '/stylists/directory', element: '', isAction: false, title: 'The Stylist Directory', description: 'The Stylist Directory is your full workforce roster — every stylist across all franchises. Use it to manage status, assignments, and who\'s available at each facility.' },
+      { route: '/stylists/directory', element: '[data-tour="stylists-table"]', isAction: false, title: 'Stylist list', description: 'Each row shows the stylist\'s code, name, assigned facility (or Franchise Pool if unassigned), and status. Unassigned stylists are in the pool — available to be placed at any facility.', mobileDescription: 'Each row shows stylist code, name, assigned facility, and status.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Status types', description: 'Stylists have four statuses: Active (working), On Leave (temporarily away), Inactive (not currently working), and Terminated (no longer with the company). Only Active stylists appear on booking surfaces.', mobileDescription: 'Active = working. On Leave = temp away. Inactive = not working. Terminated = gone.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Changing a stylist\'s status', description: 'Tap any stylist\'s name to open their profile. The status dropdown is in the top info card — change it and tap Save. For multiple stylists, use the checkboxes to select them and the bulk action bar to update all at once.', mobileDescription: 'Open a stylist\'s profile to change their status. Use bulk select for multiple.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Assigning to facilities', description: 'Open a stylist\'s profile and find the Assignments card. Add a facility assignment there and set their commission rate for that location. A stylist can be assigned to multiple facilities.', mobileDescription: 'Open the profile → Assignments card → add facility + set commission rate.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'The franchise pool', description: 'Stylists with no facility assignment sit in the Franchise Pool. They\'re available for coverage shifts but won\'t appear in any facility\'s regular calendar. Assign them to a facility when you need them permanently placed.' },
+    ],
+  },
+
+  // 21
+  'master-applicant-pipeline': {
+    id: 'master-applicant-pipeline',
+    title: 'Applicant Pipeline',
+    steps: [
+      { route: '/stylists/directory', element: '', isAction: false, title: 'The Applicant Pipeline', description: 'When stylists apply through Indeed, you import their applications here and move them through a review pipeline before promoting the best ones to active stylists.', mobileDescription: 'Import Indeed applicants, review them, and promote the best ones to stylists.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Import from Indeed', description: 'Export your applicants from Indeed as a CSV file. Then tap the \'Import CSV\' button on the Applicants tab to upload it. Senior Stylist reads the name, contact info, location, experience, and qualifications automatically.', mobileDescription: 'Export CSV from Indeed → tap Import CSV on the Applicants tab → upload.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'The Applicants tab', description: 'Switch to the Applicants tab at the top of the Directory page. You\'ll see every applicant with their status — New, Reviewing, Contacting, Hired, or Rejected. Filter by status to focus on who needs attention.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Reviewing an applicant', description: 'Tap any applicant to expand their details — experience, education, qualifications, and their answers to Indeed screening questions. Add notes as you review. Update their status to track where they are in the process.', mobileDescription: 'Tap to expand: experience, qualifications, Q&A. Add notes, update status.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Promoting to stylist', description: 'When you\'ve decided to hire someone, tap \'Promote to Stylist\' on their applicant record. This creates a new stylist profile for them automatically — you\'ll get a link to their profile to finish setup (add license info, assign to a facility, set commission).', mobileDescription: 'Tap Promote to Stylist to create their profile. Then assign facility and set commission.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'After promoting', description: 'The applicant\'s status changes to Hired and their row is removed from the active list. Their new stylist profile is in the Active status in the Directory. Send them an account invite from their stylist profile so they can log in.' },
+    ],
+  },
+
+  // 22
   'master-quickbooks-setup': {
     id: 'master-quickbooks-setup',
     title: 'QuickBooks Setup',
     steps: [
-      { route: '/dashboard', element: NAV_SETTINGS, isAction: true, title: 'Go to Settings → Billing', description: 'QuickBooks is set up per facility in Settings.', actionHint: 'Tap Settings to continue.' },
-      { route: '/settings?section=billing', element: '[data-tour="settings-quickbooks"]', isAction: false, title: 'Billing section', description: 'Scroll to the QuickBooks section. This connects this facility\'s invoices and payroll to QuickBooks Online.' },
-      { route: '/settings?section=billing', element: '[data-tour="settings-qb-connect-btn"]', isAction: false, title: 'Connect', description: 'Tap "Connect QuickBooks" to begin the OAuth login flow. You\'ll be taken to Intuit to authorize the connection.' },
-      { route: '/settings?section=billing', element: '', isAction: false, title: 'After connecting', description: 'Once connected, payroll sync and invoice sync are available. You can trigger a sync manually or it runs automatically on a schedule.' },
+      { route: '/settings', element: '', isAction: false, title: 'QuickBooks Setup', description: 'QuickBooks Online connects Senior Stylist to your accounting system. Once connected, payroll syncs as Bills and invoice data flows automatically. This is set up per facility.', mobileDescription: 'QuickBooks connects per facility. Payroll syncs as Bills, invoices sync back.' },
+      { route: '/settings', element: NAV_SETTINGS, isAction: true, title: 'Go to Settings', description: 'QuickBooks is configured in each facility\'s Settings. Navigate there for the facility you want to connect.', actionHint: 'Tap Settings to continue.' },
+      { route: '/settings?section=billing', element: '[data-tour="settings-quickbooks"]', isAction: false, title: 'QuickBooks section', description: 'Scroll to the QuickBooks section in the Billing tab of Settings. This is where you connect and manage the QB integration for this facility.', mobileDescription: 'Find the QuickBooks section in Settings → Billing tab.' },
+      { route: '/settings?section=billing', element: '[data-tour="settings-qb-connect-btn"]', isAction: true, title: 'Connect QuickBooks', description: 'Tap \'Connect QuickBooks\' to start the OAuth login. You\'ll be redirected to Intuit to authorize Senior Stylist to access this facility\'s QuickBooks account.', actionHint: 'Tap Connect QuickBooks to continue.' },
+      { route: '/settings?section=billing', element: '', isAction: false, title: 'After connecting', description: 'Once connected, payroll data syncs automatically as Bills in QuickBooks. Invoice data flows back into Senior Stylist. If you see a discrepancy, use the manual sync button to force a refresh.', mobileDescription: 'Connected: payroll syncs as Bills automatically. Use manual sync if you see issues.' },
+      { route: '/settings?section=billing', element: '', isAction: false, title: 'Per-facility setup', description: 'Each facility needs its own QuickBooks connection — they may use separate QB accounts or separate companies within one account. Repeat this process for each facility you want to connect.' },
+    ],
+  },
+
+  // 23
+  'master-analytics': {
+    id: 'master-analytics',
+    title: 'Cross-Facility Analytics',
+    steps: [
+      { route: '/analytics', element: NAV_ANALYTICS, isAction: true, title: 'Go to Analytics', description: 'The Analytics section shows performance data for your facilities. As Master Admin, you can view reports across all facilities.', actionHint: 'Tap Analytics to continue.' },
+      { route: '/analytics', element: '[data-tour="analytics-revenue-summary"]', isAction: false, title: 'Revenue overview', description: 'This shows total revenue for the selected facility and date range — broken down by service type. Use this to understand which services drive the most income at each location.', mobileDescription: 'Total revenue by service type for the selected facility and period.' },
+      { route: '/analytics', element: '[data-tour="analytics-date-range"]', isAction: false, title: 'Date range', description: 'Change the date range to compare performance week over week, month over month, or across custom periods. Use this to spot trends and seasonal patterns.', mobileDescription: 'Change the date range to compare performance across weeks or months.' },
+      { route: '/analytics', element: '[data-tour="analytics-by-stylist"]', isAction: false, title: 'Per-stylist breakdown', description: 'Scroll down for a per-stylist breakdown — appointments completed, revenue generated, and average per appointment. Use this to identify top performers and facilities that may need more stylist coverage.', mobileDescription: 'Per-stylist: appointments, revenue, and average. Spot top performers and gaps.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Comparing facilities', description: 'To compare facilities, switch the facility selector at the top of the page and run the same report for each one. Note which facilities are growing and which need attention.', mobileDescription: 'Switch the facility selector at the top to run the same report for each facility.' },
     ],
   },
 }
