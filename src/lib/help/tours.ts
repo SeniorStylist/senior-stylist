@@ -74,7 +74,18 @@ export type TourDefinition = {
 export const SESSION_KEY = 'helpTour'
 export const SESSION_TTL_MS = 5 * 60 * 1000 // 5 minutes
 export const ELEMENT_WAIT_MS = 5000
-const DESKTOP_ELEMENT_WAIT_MS = 2000
+const DESKTOP_ELEMENT_WAIT_MS = 2000   // fast client-rendered elements
+const SLOW_PAGE_WAIT_MS = 5000         // server-rendered pages with data fetching
+
+function isSlowRoute(route: string): boolean {
+  return (
+    route.startsWith('/master-admin') ||
+    route.startsWith('/stylists/directory') ||
+    route.startsWith('/billing') ||
+    route.startsWith('/analytics') ||
+    route.startsWith('/payroll')
+  )
+}
 
 export const isMobile = () =>
   typeof window !== 'undefined' &&
@@ -640,10 +651,10 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     steps: [
       { route: '/master-admin', element: '', isAction: false, title: 'Welcome, Lisa', description: 'As Master Admin, you have full access to every facility, stylist, and financial report across Senior Stylist. This tour will show you the platform-level tools that only you can access.', mobileDescription: 'Full access to every facility, stylist, and report across Senior Stylist.' },
       { route: '/master-admin', element: NAV_MASTER_ADMIN, isAction: true, title: 'Master Admin', description: 'The Master Admin section is your control center — add and manage facilities, view cross-facility data, and oversee the whole platform from here.', actionHint: 'Tap Master Admin to continue.' },
-      { route: '/master-admin', element: '[data-tour="master-facility-list"]', isAction: false, title: 'All facilities', description: 'Every facility on the platform is listed here. You can see their status, facility code, and key details at a glance. Tap any facility to open it and manage it.', mobileDescription: 'Every facility on the platform. Tap any to open and manage it.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'All facilities', description: 'Every facility on the platform is listed here. You can see their status, facility code, and key details at a glance. Tap any facility to open it and manage it.', mobileDescription: 'Every facility on the platform. Tap any to open and manage it.' },
       { route: '/master-admin', element: '', isAction: false, title: 'What you oversee', description: 'From Master Admin you can: add new facilities, manage franchise admins, review cross-facility analytics, set up QuickBooks connections, and merge duplicate facilities or residents.', mobileDescription: 'Add facilities, manage franchise admins, analytics, QuickBooks, and more.' },
       { route: '/stylists/directory', element: NAV_STYLISTS, isAction: true, title: 'Stylist Directory', description: 'The Stylist Directory is where you manage your entire stylist workforce — active stylists, their assignments, and your applicant pipeline.', actionHint: 'Tap Stylists to continue.' },
-      { route: '/stylists/directory', element: '[data-tour="stylists-table"]', isAction: false, title: 'Your stylists', description: 'Every active stylist across all your facilities is here. Filter by status, facility, or search by name. Use bulk actions to update status or reassign multiple stylists at once.', mobileDescription: 'Every stylist across all facilities. Filter by status or search by name.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Your stylists', description: 'Every active stylist across all your facilities is here. Filter by status, facility, or search by name. Use bulk actions to update status or reassign multiple stylists at once.', mobileDescription: 'Every stylist across all facilities. Filter by status or search by name.' },
       { route: '/stylists/directory', element: '', isAction: false, title: 'You\'re ready', description: 'Those are the key areas. Use the Help section for detailed tours of each workflow — adding facilities, the applicant pipeline, QuickBooks setup, and cross-facility analytics.' },
     ],
   },
@@ -654,9 +665,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     title: 'Adding a Facility',
     steps: [
       { route: '/master-admin', element: '', isAction: false, title: 'Adding a Facility', description: 'When you onboard a new facility, you create it here in Master Admin. This assigns it a facility code, sets up its profile, and makes it available to assign stylists to.', mobileDescription: 'Create new facilities here. Each gets a code and is ready to assign stylists.' },
-      { route: '/master-admin', element: '[data-tour="master-facility-list"]', isAction: false, title: 'Facility list', description: 'Every existing facility is listed here. Before adding a new one, check this list to make sure it doesn\'t already exist under a different name.' },
-      { route: '/master-admin', element: '[data-tour="master-add-facility-btn"]', isAction: true, title: 'Add a facility', description: 'Tap \'Add Facility\' to open the creation form.', actionHint: 'Tap Add Facility to continue.' },
-      { route: '/master-admin', element: '[data-tour="master-facility-form"]', isAction: false, title: 'Facility form', description: 'Fill in the facility name, address, and contact information. The facility code is auto-generated — you can customize it if needed. Choose the franchise this facility belongs to.', mobileDescription: 'Enter facility name, address, and contact info. The code is auto-generated.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'Facility list', description: 'Every existing facility is listed here. Before adding a new one, check this list to make sure it doesn\'t already exist under a different name.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'Add a facility', description: 'Tap \'Add Facility\' to open the creation form. Then come back here and tap Next to continue.' },
+      { route: '/master-admin', element: '', isAction: false, title: 'Facility form', description: 'Fill in the facility name, address, and contact information. The facility code is auto-generated — you can customize it if needed. Choose the franchise this facility belongs to.', mobileDescription: 'Enter facility name, address, and contact info. The code is auto-generated.' },
       { route: '/master-admin', element: '', isAction: false, title: 'After creating', description: 'Once created, the facility appears in the list. Next steps: go to the facility\'s Settings to set working hours and payment type, then invite their facility admin from the Team section.', mobileDescription: 'Next: set working hours in Settings, then invite their facility admin.' },
       { route: '/master-admin', element: '', isAction: false, title: 'Assigning stylists', description: 'After the facility is set up, go to the Stylist Directory and assign stylists to it. Stylists in the franchise pool can be assigned to any facility.' },
     ],
@@ -668,7 +679,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     title: 'Stylist Directory',
     steps: [
       { route: '/stylists/directory', element: '', isAction: false, title: 'The Stylist Directory', description: 'The Stylist Directory is your full workforce roster — every stylist across all franchises. Use it to manage status, assignments, and who\'s available at each facility.' },
-      { route: '/stylists/directory', element: '[data-tour="stylists-table"]', isAction: false, title: 'Stylist list', description: 'Each row shows the stylist\'s code, name, assigned facility (or Franchise Pool if unassigned), and status. Unassigned stylists are in the pool — available to be placed at any facility.', mobileDescription: 'Each row shows stylist code, name, assigned facility, and status.' },
+      { route: '/stylists/directory', element: '', isAction: false, title: 'Stylist list', description: 'Each row shows the stylist\'s code, name, assigned facility (or Franchise Pool if unassigned), and status. Unassigned stylists are in the pool — available to be placed at any facility.', mobileDescription: 'Each row shows stylist code, name, assigned facility, and status.' },
       { route: '/stylists/directory', element: '', isAction: false, title: 'Status types', description: 'Stylists have four statuses: Active (working), On Leave (temporarily away), Inactive (not currently working), and Terminated (no longer with the company). Only Active stylists appear on booking surfaces.', mobileDescription: 'Active = working. On Leave = temp away. Inactive = not working. Terminated = gone.' },
       { route: '/stylists/directory', element: '', isAction: false, title: 'Changing a stylist\'s status', description: 'Tap any stylist\'s name to open their profile. The status dropdown is in the top info card — change it and tap Save. For multiple stylists, use the checkboxes to select them and the bulk action bar to update all at once.', mobileDescription: 'Open a stylist\'s profile to change their status. Use bulk select for multiple.' },
       { route: '/stylists/directory', element: '', isAction: false, title: 'Assigning to facilities', description: 'Open a stylist\'s profile and find the Assignments card. Add a facility assignment there and set their commission rate for that location. A stylist can be assigned to multiple facilities.', mobileDescription: 'Open the profile → Assignments card → add facility + set commission rate.' },
@@ -710,9 +721,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     title: 'Cross-Facility Analytics',
     steps: [
       { route: '/analytics', element: NAV_ANALYTICS, isAction: true, title: 'Go to Analytics', description: 'The Analytics section shows performance data for your facilities. As Master Admin, you can view reports across all facilities.', actionHint: 'Tap Analytics to continue.' },
-      { route: '/analytics', element: '[data-tour="analytics-revenue-summary"]', isAction: false, title: 'Revenue overview', description: 'This shows total revenue for the selected facility and date range — broken down by service type. Use this to understand which services drive the most income at each location.', mobileDescription: 'Total revenue by service type for the selected facility and period.' },
-      { route: '/analytics', element: '[data-tour="analytics-date-range"]', isAction: false, title: 'Date range', description: 'Change the date range to compare performance week over week, month over month, or across custom periods. Use this to spot trends and seasonal patterns.', mobileDescription: 'Change the date range to compare performance across weeks or months.' },
-      { route: '/analytics', element: '[data-tour="analytics-by-stylist"]', isAction: false, title: 'Per-stylist breakdown', description: 'Scroll down for a per-stylist breakdown — appointments completed, revenue generated, and average per appointment. Use this to identify top performers and facilities that may need more stylist coverage.', mobileDescription: 'Per-stylist: appointments, revenue, and average. Spot top performers and gaps.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Revenue overview', description: 'This shows total revenue for the selected facility and date range — broken down by service type. Use this to understand which services drive the most income at each location.', mobileDescription: 'Total revenue by service type for the selected facility and period.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Date range', description: 'Change the date range to compare performance week over week, month over month, or across custom periods. Use this to spot trends and seasonal patterns.', mobileDescription: 'Change the date range to compare performance across weeks or months.' },
+      { route: '/analytics', element: '', isAction: false, title: 'Per-stylist breakdown', description: 'Scroll down for a per-stylist breakdown — appointments completed, revenue generated, and average per appointment. Use this to identify top performers and facilities that may need more stylist coverage.', mobileDescription: 'Per-stylist: appointments, revenue, and average. Spot top performers and gaps.' },
       { route: '/analytics', element: '', isAction: false, title: 'Comparing facilities', description: 'To compare facilities, switch the facility selector at the top of the page and run the same report for each one. Note which facilities are growing and which need attention.', mobileDescription: 'Switch the facility selector at the top to run the same report for each facility.' },
     ],
   },
@@ -858,7 +869,8 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
   // Same route — find the element (or no element for terminal info steps)
   let target: HTMLElement | null = null
   if (step.element) {
-    target = await waitForElement(resolveQuery(step.element), DESKTOP_ELEMENT_WAIT_MS)
+    const waitMs = isSlowRoute(step.route) ? SLOW_PAGE_WAIT_MS : DESKTOP_ELEMENT_WAIT_MS
+    target = await waitForElement(resolveQuery(step.element), waitMs)
     if (!target) {
       toastWarning('Couldn\'t find that element — the app may have changed.')
       // Skip to next step

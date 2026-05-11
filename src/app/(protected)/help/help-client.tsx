@@ -25,7 +25,9 @@ function roleLabel(role: string): string {
 }
 
 function visibleFor(role: string, isMaster: boolean, browseAll: boolean): Tutorial[] {
-  if (browseAll || isMaster) return TUTORIAL_CATALOG.filter((t) => isMaster || !t.masterOnly)
+  if (browseAll) return TUTORIAL_CATALOG.filter((t) => isMaster || !t.masterOnly)
+  // Master admin sees only master-only cards by default; "Browse all" reveals the rest.
+  if (isMaster) return TUTORIAL_CATALOG.filter((t) => t.masterOnly)
 
   // Admin (and normalized super_admin) sees only admin/super_admin-tagged content.
   // Other role sections are accessible via the "Browse all" toggle.

@@ -25,6 +25,17 @@ import { getTourRouter } from './tour-router'
 // Mobile-specific tunables. Mobile waits less than desktop (5s feels broken
 // on a phone) and uses a tighter resume TTL (1 min) to bound stale-state loops.
 const MOBILE_ELEMENT_WAIT_MS = 2000
+const SLOW_PAGE_WAIT_MS = 5000   // server-rendered pages with data fetching
+
+function isSlowRoute(route: string): boolean {
+  return (
+    route.startsWith('/master-admin') ||
+    route.startsWith('/stylists/directory') ||
+    route.startsWith('/billing') ||
+    route.startsWith('/analytics') ||
+    route.startsWith('/payroll')
+  )
+}
 const MOBILE_RESUME_TTL = 60_000
 const SCROLL_SETTLE_MS = 50
 
@@ -130,7 +141,8 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
   // Resolve element (or null for body-anchored info steps)
   let target: HTMLElement | null = null
   if (step.element) {
-    target = await waitForElement(resolveQuery(step.element), MOBILE_ELEMENT_WAIT_MS)
+    const waitMs = isSlowRoute(step.route) ? SLOW_PAGE_WAIT_MS : MOBILE_ELEMENT_WAIT_MS
+    target = await waitForElement(resolveQuery(step.element), waitMs)
     if (!target) {
       toastWarning('Couldn\'t find that element — the app may have changed.')
       return runMobileStep(def, index + 1)
