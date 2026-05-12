@@ -130,14 +130,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const scope = searchParams.get('scope')
     const countOnly = searchParams.get('countOnly') === 'true'
+    const allDates = searchParams.get('allDates') === 'true'
 
     if (scope === 'all' && role === 'stylist') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Resolve today's date in facility tz (used unless scope=all or countOnly)
+    // Resolve today's date in facility tz (used unless scope=all, countOnly, or allDates)
     let date = searchParams.get('date')
-    if (!date && !countOnly && scope !== 'all') {
+    if (!date && !countOnly && scope !== 'all' && !allDates) {
       const facility = await db.query.facilities.findFirst({
         where: eq(facilities.id, facilityId),
         columns: { timezone: true },
@@ -156,8 +157,8 @@ export async function GET(request: NextRequest) {
       eq(signupSheetEntries.status, 'pending'),
     ]
 
-    // Date filter: skip when countOnly (badge wants all future) OR scope=all (admin full pile).
-    if (!countOnly && scope !== 'all' && date) {
+    // Date filter: skip when countOnly, scope=all, or allDates (stylist panel wants all future).
+    if (!countOnly && scope !== 'all' && !allDates && date) {
       conditions.push(eq(signupSheetEntries.requestedDate, date))
     }
 

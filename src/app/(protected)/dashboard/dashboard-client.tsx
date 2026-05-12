@@ -234,7 +234,7 @@ export function DashboardClient({
   useEffect(() => {
     if (userRole !== 'stylist') return
     let cancelled = false
-    fetch(`/api/signup-sheet?date=${todayDateStr}`)
+    fetch(`/api/signup-sheet?allDates=true`)
       .then((r) => r.json())
       .then((json) => {
         if (cancelled) return

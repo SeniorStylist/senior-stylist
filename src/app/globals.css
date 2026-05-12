@@ -32,6 +32,10 @@
   --surface-card: #FFFFFF;
   --surface-raised: #FFFFFF;
   --surface-sunken: #F3F1EC;
+
+  /* Mobile layout constants */
+  --mobile-nav-height: 72px;
+  --mobile-header-height: 56px;
 }
 
 /* Phase 12U — prevent iOS rubber-band bounce globally */
@@ -58,7 +62,8 @@ body {
 
 /* Main content — account for mobile nav + safe area at bottom */
 .main-content {
-  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  padding-top: 0;
+  padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
   -webkit-overflow-scrolling: touch;
 }
 @media (min-width: 768px) {
