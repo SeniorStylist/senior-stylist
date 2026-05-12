@@ -34,8 +34,13 @@
   --surface-sunken: #F3F1EC;
 }
 
-/* Phase 12U — prevent iOS rubber-band bounce on the document root */
-html, body {
+/* Phase 12U — prevent iOS rubber-band bounce globally */
+*,
+html,
+body,
+.main-content,
+#__next,
+[data-nextjs-scroll-focus-boundary] {
   overscroll-behavior: none;
 }
 
