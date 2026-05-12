@@ -2376,16 +2376,38 @@ No component, route, or schema changes. CSS-only.
 
 ---
 
+## Command Palette (Phase 12V — SHIPPED 2026-05-12)
+
+**Sidebar trigger** (`src/components/layout/sidebar.tsx`, top of `<nav>`):
+- `hidden md:flex w-full items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white/50 hover:text-white/80 text-sm mb-3`.
+- Layout: inline search SVG (14px) + `Search...` placeholder text (left-aligned, takes flex-1) + `⌘K` keyboard hint badge `bg-white/10 rounded px-1.5 py-0.5 text-[10px]`.
+- Desktop-only (`hidden md:flex`). Gated to admin + bookkeeper roles only.
+- Inline SVG icon (NOT lucide) — matches the rest of the dark sidebar which uses SVG everywhere.
+
+**Palette panel** (`src/components/command-palette/command-palette.tsx`):
+- Backdrop: `fixed inset-0 bg-black/40 backdrop-blur-sm z-[290]` — clicking it closes the palette.
+- Card: `fixed top-[15%] left-1/2 -translate-x-1/2 z-[300] w-[560px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden`. `z-[300]` puts it above all existing overlays (tour overlays sit at `z-[200]`–`z-[202]`; tour-mode banner at `z-[250]`).
+- Search row: `flex items-center gap-3 px-4 py-3 border-b border-stone-100`. Left lucide `Search` icon (16px, `text-stone-400`), middle input `text-sm text-stone-900 placeholder:text-stone-400 outline-none bg-transparent`, right `<Loader2>` spinner (14px, `text-stone-400 animate-spin`) only while loading, and a static `ESC` kbd badge `bg-stone-100 rounded border border-stone-200`.
+- Results container: `max-h-[360px] overflow-y-auto overscroll-contain`.
+
+**Section headers**: `px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400`. One per group (Pages / Residents / Stylists).
+
+**Result rows**: `px-4 py-2.5 flex items-center gap-3 cursor-pointer transition-colors`. Active row (selected by keyboard or hover): `bg-[#F9EFF2]` (project-standard burgundy blush). Each row carries `data-result-index={N}` for `scrollIntoView({ block: 'nearest' })` when keyboard nav moves past the visible viewport.
+- Left: small lucide icon (14px, `text-stone-400`).
+- Middle: label `text-sm font-medium text-stone-900 truncate` + secondary `text-xs text-stone-500 truncate`.
+- Secondary text content: pages show `description`; residents show `Room N` (or `Room N · Facility Name` for master); stylists show `<stylistCode>` (or `<stylistCode> · Facility Name` for master).
+
+**Empty states**:
+- `query.length >= 2 && !loading && all groups empty` → centered `px-4 py-8 text-sm text-stone-400`: `No results for "<query>"`.
+- `!query && filteredPages.length === 0` (rare — only if role-filtered list is empty) → centered: `Start typing to search`.
+
+**Keyboard behavior**: `↑/↓` moves `activeIndex` across the flat `[pages, residents, stylists]` list. `Enter` does `router.push(item.route)` (SPA nav, not hard reload). `Esc` closes. CMD+K (or CTRL+K) toggles open/closed globally — listener is `window` `keydown` capture. The input is autofocused via `requestAnimationFrame` on open.
+
+---
+
 ## Upcoming UI Phases
 
 Design/interaction notes for phases not yet shipped. Update this section when implementation begins.
-
-### Phase 12V — CMD+K Command Palette
-- `hidden md:block` — desktop only.
-- Full-screen backdrop `bg-black/40 backdrop-blur-sm z-[300]` (above all existing overlays).
-- Centered `bg-white rounded-2xl shadow-2xl w-[560px] max-h-[420px]` panel with search input at top, scrollable results below.
-- Result rows: icon + primary label + secondary label (room/code/path). Keyboard nav (↑/↓, Enter, Esc).
-- Available to admin, bookkeeper, master admin. Not shown for stylist or facility_staff.
 
 ### Phase 12W — Peek Drawer
 - `<PeekDrawer />`: fixed right-side panel `w-[380px] h-full bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)]`, `z-[80]` (below modals).

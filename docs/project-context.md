@@ -404,10 +404,13 @@ End-to-end "I'm Here" check-in for stylists. New `stylist_checkins` table (`styl
 
 CSS-only pass in `src/app/globals.css`. Four changes: `html, body { overscroll-behavior: none }` (stops iOS rubber-band bounce on the document root), `* { -webkit-tap-highlight-color: transparent }` (removes tap highlight flash), `button, [role="button"], a, label { user-select: none; -webkit-user-select: none }` (prevents accidental text selection on interactive elements), `.main-content { -webkit-overflow-scrolling: touch }` (smooth momentum scroll on the main content area). Zero TypeScript changes — pure CSS. TSC clean.
 
-### Phase 12V–12Z and 13A–13P — Upcoming
+### Phase 12V — CMD+K Command Palette (SHIPPED 2026-05-12)
+
+Global desktop command palette for admin / bookkeeper / master admin. CMD+K (Mac) / CTRL+K (Windows) — or click the sidebar Search button — opens a centered panel that fuzzy-searches residents, stylists, and pages. Pages filter client-side instantly; residents/stylists fire a debounced (150ms, ≥2 chars) request to `GET /api/search?q=…` which returns top-8 of each. New rate-limit bucket `search` (60/min/user). Static page table at `src/lib/command-palette-pages.ts`; new `<CommandPalette />` mounted globally in `(protected)/layout.tsx` inside `<ToastProvider>` (gated by role). Sidebar trigger (`data-tour="cmd-k-trigger"`, `hidden md:flex`) dispatches `'open-command-palette'` CustomEvent. New tour `admin-command-palette` (4 steps, desktopOnly). `Search` icon added to `TutorialIcon` union + `ICON_MAP`. Master admin sees results across ALL facilities with a `Facility Name` chip in the secondary line; non-master is scoped to the active facility. TSC clean (0 errors); tour health 83/83.
+
+### Phase 12W–12Z and 13A–13P — Upcoming
 
 **Immediate (next up):**
-- **Phase 12V** — CMD+K Command Palette (desktop only). Fuzzy search: residents, stylists, facilities, pages. Admin / bookkeeper / master admin only.
 - **Phase 12W** — Resident/Stylist Peek Drawer. Right-side `<PeekDrawer />` triggered by name clicks in daily log, billing, calendar.
 - **Phase 12X** — Fluid typography + polish pass. `clamp()` on DM Serif Display headings. Skeleton loading state audit.
 
@@ -618,9 +621,9 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12U shipped (2026-05-12). Next priorities:
+Phase 12V shipped (2026-05-12). Next priorities:
 
-1. **Phase 12V — CMD+K Command Palette** — next feature up. Desktop-only fuzzy search over residents, stylists, facilities, and pages. Admin / bookkeeper / master admin only.
+1. **Phase 12W — Resident/Stylist Peek Drawer** — next feature up. Reusable `<PeekDrawer />` component — right-side slide-out drawer that loads a resident or stylist profile without navigating away. Mobile counterpart to the desktop-only command palette.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

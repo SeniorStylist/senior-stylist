@@ -27,7 +27,7 @@ export type TutorialIcon =
   | 'HeartHandshake' | 'ShieldCheck' | 'CreditCard' | 'ScanLine'
   | 'GitMerge' | 'Database' | 'FileSpreadsheet' | 'Wallet' | 'PlusSquare'
   | 'Network' | 'BookOpen' | 'CircleHelp' | 'ClipboardList' | 'PenLine'
-  | 'Clock'
+  | 'Clock' | 'Search'
 
 export type Tutorial = {
   id: string
@@ -224,6 +224,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-reports', category: 'Reports', title: 'Reports & Analytics', blurb: 'Track revenue, bookings, and stylist performance over time.', estMinutes: 2, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'admin-reports' },
   { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
   { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance' },
+  { id: 'admin-command-palette', category: 'Navigation', title: 'Command Palette', blurb: 'Press CMD+K to instantly search residents, stylists, and pages.', estMinutes: 1, icon: 'Search', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-command-palette' },
 
   // BOOKKEEPER
   { id: 'bookkeeper-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Overview of the Daily Log, Billing, and Payroll — your three main areas.', estMinutes: 3, icon: 'KeyRound', roles: ['bookkeeper'], tourId: 'bookkeeper-getting-started' },
@@ -566,6 +567,18 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/stylists', element: '', isAction: false, title: 'Stylist compliance status', description: 'Go to the Stylists page to see each stylist\'s compliance badge — green (verified), amber (expiring soon), or red (expired or missing). Click any stylist to view their documents.', mobileDescription: 'Go to Stylists to see each stylist\'s badge — green, amber, or red. Tap to view documents.' },
       { route: '/stylists', element: '', isAction: false, title: 'Uploading documents', description: 'Stylists upload their own documents from My Account. Once uploaded, you can verify them from the stylist\'s detail page. Verification marks the document as compliant.', mobileDescription: 'Stylists upload from My Account. You verify from their detail page.' },
       { route: '/stylists', element: '', isAction: false, title: 'Expiry alerts', description: 'Alerts go to all facility admins at 60 and 30 days before expiry. If a document is not renewed, the badge turns red — a visual flag that compliance action is needed.', mobileDescription: 'Alerts at 60 and 30 days before expiry. Red badge means action is needed.' },
+    ],
+  },
+
+  'admin-command-palette': {
+    id: 'admin-command-palette',
+    title: 'Command Palette',
+    desktopOnly: true,
+    steps: [
+      { route: '/dashboard', element: '[data-tour="cmd-k-trigger"]', isAction: false, title: 'Command palette trigger', description: 'This is your command palette trigger. Click it or press CMD+K (CTRL+K on Windows) to open it from anywhere in the app.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Search anything', description: 'Type to search across residents, stylists, and pages. Pages match instantly; residents and stylists appear after a short delay.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Keyboard navigation', description: 'Use ↑/↓ arrow keys to navigate results and Enter to jump to any result. Press Esc to close.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Works from any page', description: 'The command palette works from any page — you never need to navigate to search first.' },
     ],
   },
 

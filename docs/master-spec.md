@@ -2139,11 +2139,53 @@ Drizzle definition mirrors `logEntries` shape and lives in `src/db/schema.ts` be
 
 ---
 
-## Upcoming Phases
-
 ### Phase 12U — Overscroll Lock + Native Touch Polish (SHIPPED 2026-05-12)
 
 CSS-only pass in `src/app/globals.css`. Changes: `html, body { overscroll-behavior: none }` prevents iOS elastic rubber-band bounce on document root; `* { -webkit-tap-highlight-color: transparent }` eliminates the blue/grey tap flash on tappable elements; `button, [role="button"], a, label { user-select: none; -webkit-user-select: none }` prevents accidental text selection on interactive elements; `.main-content { -webkit-overflow-scrolling: touch }` enables momentum scroll on the main content container. No component, route, or schema changes.
+
+---
+
+### Phase 12V — CMD+K Command Palette (SHIPPED 2026-05-12)
+
+Global desktop command palette for fast jump-to-resident, jump-to-stylist, and page navigation.
+
+**API** — `GET /api/search?q=<2-100 chars>` (`src/app/api/search/route.ts`):
+- Auth-gated; allowed roles: `admin`, `bookkeeper`, master admin (env-email match). Returns 403 for stylist/facility_staff.
+- `q` validated via Zod (`z.string().min(2).max(100)`); 400 on fail.
+- Rate-limit: new `search` bucket — `{ tokens: 60, window: '1 m' }`, keyed on `user.id` (new sub-minute window — possible because the `Bucket` window type already supports `s | m | h | d`).
+- Residents: `SELECT id, name, room_number, facility_id, facilities.name FROM residents INNER JOIN facilities WHERE active = true AND name ILIKE %q% [AND facility_id = facilityUser.facilityId]` — master skips the facility predicate. `LIMIT 8`, ordered by name.
+- Stylists (non-master): `selectDistinct` from `stylists` INNER JOIN `stylist_facility_assignments` (active, scoped to caller's facility) INNER JOIN `facilities` — match on `name ILIKE %q% OR stylist_code ILIKE %q%`. DISTINCT covers multi-facility stylists that would otherwise dupe.
+- Stylists (master): no assignments join — `LEFT JOIN facilities ON stylists.facility_id` (home facility, nullable for franchise-pool stylists). Same OR-match.
+- Response: `{ data: { residents: [...], stylists: [...] } }`.
+
+**Static pages table** — `src/lib/command-palette-pages.ts` exports `PALETTE_ROUTES: PaletteRoute[]` covering 10 pages (Calendar, Residents, Daily Log, Stylists, Billing, Analytics, Payroll, Settings, Master Admin, Stylist Directory). Each route declares its `roles: string[]`; master-only entries (Master Admin, Stylist Directory) have `roles: []` and only pass the `isMaster || p.roles.includes(role)` filter when isMaster is true. Page icons reference lucide names; the component maps them to actual `LucideIcon` components via a local `PAGE_ICON_MAP`.
+
+**Component** — `<CommandPalette role isMaster facilityId />` (`src/components/command-palette/command-palette.tsx`, client). Mounted in `(protected)/layout.tsx` inside `<ToastProvider>` (alongside the tour providers), gated at the mount site:
+```tsx
+{(activeRole === 'admin' || activeRole === 'bookkeeper' || isMaster) && (
+  <CommandPalette role={activeRole} isMaster={isMaster} facilityId={activeFacilityId} />
+)}
+```
+super_admin is normalized to `'admin'` at `getUserFacility()` read time, so it gets the palette automatically.
+
+Behavior:
+- CMD+K / CTRL+K toggles open/closed (also `Esc` closes).
+- Listens for `'open-command-palette'` CustomEvent (fired by sidebar button) to open programmatically.
+- Auto-focus input on open via `requestAnimationFrame`. Clears state on close.
+- Debounced search: 150ms timer + AbortController cleanup. Fires only at `query.length >= 2`.
+- Filtered pages computed client-side from the role-filtered `PALETTE_ROUTES` plus a `query.includes(...)` filter on label/description.
+- Flat `allItems` list (pages → residents → stylists) drives keyboard navigation. `activeIndex` resets on every query change. `↑/↓` moves with auto-`scrollIntoView({ block: 'nearest' })`. `Enter` selects via `router.push(item.route)` (SPA nav, NOT `window.location.href`).
+- Backdrop `bg-black/40 backdrop-blur-sm z-[290]`. Panel `top-[15%] left-1/2 -translate-x-1/2 z-[300] w-[560px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden`.
+- Active result row: `bg-[#F9EFF2]` (blush). Each row carries `data-result-index={globalIndex}` for scroll targeting.
+- Master admin: resident/stylist rows show secondary `Room 3 · Sunrise Bethesda` (with facility chip). Non-master: just `Room 3` or stylist code alone (no facility chip — there's only one).
+
+**Sidebar trigger** — `src/components/layout/sidebar.tsx`, top of the `<nav>` element (line ~388). Gated `role === 'admin' || role === 'bookkeeper'`. `hidden md:flex` — desktop only. Inline SVG search icon (sidebar uses SVG, not lucide). On click: `window.dispatchEvent(new CustomEvent('open-command-palette'))`. Tour anchor `data-tour="cmd-k-trigger"`.
+
+**Tour** — `admin-command-palette` (4 steps, `desktopOnly: true`): step 1 highlights the `[data-tour="cmd-k-trigger"]` button; steps 2-4 are info popovers explaining typing, keyboard nav, and global access. Added to `TUTORIAL_CATALOG` with `category: 'Navigation'`, `icon: 'Search'`, `roles: ['admin', 'super_admin', 'bookkeeper']`. NOT added to `ONBOARDING_CHECKLIST` (discovery feature, not first-day mandatory).
+
+**Icon plumbing**: `Search` added to `TutorialIcon` union (`src/lib/help/tours.ts`) and to `tutorial-card.tsx`'s `ICON_MAP` + lucide imports. Tour-check passed at 83 selectors (was 82).
+
+**Non-goals** — no mobile trigger (Phase 12W Peek Drawer will cover mobile jump-to-resident); no recent/frequent items; no "create new resident" command-style actions; multi-facility stylist for master admin returns home `facilityId` only (clicking through to the stylist detail page shows full assignment info).
 
 ---
 
@@ -2151,7 +2193,6 @@ CSS-only pass in `src/app/globals.css`. Changes: `html, body { overscroll-behavi
 
 ### Immediate (next up)
 
-- **Phase 12V** — CMD+K Command Palette (desktop only). `hidden md:block`. Global fuzzy search: residents by name, stylists by name, facilities by name/code, app pages. Triggered by CMD+K (Mac) / CTRL+K (Windows). Available to admin, bookkeeper, master admin roles. Stylist and facility_staff do not see it.
 - **Phase 12W** — Resident/Stylist Peek Drawer. Reusable `<PeekDrawer />` component — right-side slide-out drawer that loads a resident or stylist profile without navigating away from the current page. Triggered by clicking a resident or stylist name in daily log, billing, and calendar views.
 - **Phase 12X** — Fluid typography + polish pass. `clamp()` on all DM Serif Display `<h1>` headings. Comprehensive skeleton loading state audit — every data surface that can be empty on first render gets a shimmer skeleton.
 

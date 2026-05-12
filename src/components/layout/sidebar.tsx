@@ -384,6 +384,23 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
 
       {/* Nav */}
       <nav className="flex-1 min-h-0 px-3 py-3 overflow-y-auto">
+        {(role === 'admin' || role === 'bookkeeper') && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+            data-tour="cmd-k-trigger"
+            className="hidden md:flex w-full items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white/50 hover:text-white/80 text-sm mb-3"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span className="flex-1 text-left text-xs">Search...</span>
+            <kbd className="flex items-center gap-0.5 text-[10px] bg-white/10 rounded px-1.5 py-0.5">
+              <span>⌘</span><span>K</span>
+            </kbd>
+          </button>
+        )}
         {navGroups.map((group) => {
           const visibleItems = group.items.filter((item) => item.roles.includes(role as NavRole))
           if (visibleItems.length === 0) return null
