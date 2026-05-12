@@ -396,10 +396,13 @@ Completes the signup-sheet workflow. New schema column `preferred_date` (only ad
 - **fix: master admin help page filtering + tour element timeouts** (d81a23f) — `visibleFor()` now shows only `masterOnly: true` cards for master admin by default; `SLOW_PAGE_WAIT_MS = 5000` added for data-heavy routes; four master tours converted fragile element selectors to `element: ''` info popovers.
 - **fix: debug impersonation help filter + tour health check script** (d03286c) — `/help/page.tsx` reads `__debug_role` cookie server-side and passes `effectiveRole` + corrected `isMaster` to `<HelpClient />`; new `scripts/check-tours.ts` static analyzer (80+ selectors, 0 missing on ship); settings sidebar category buttons got `data-tour={TOUR_SLUGS[cat.id]}` anchors.
 
-### Phase 12T–12Z and 13A–13P — Upcoming
+### Phase 12T — Stylist Check-In + Smart Day Rescheduling (SHIPPED 2026-05-12)
+
+End-to-end "I'm Here" check-in for stylists. New `stylist_checkins` table (`stylistId`, `facilityId`, `date`, `checkedInAt`, `delayMinutes`, unique on the first three, RLS service_role_all). `POST /api/checkin` is stylist-only, rate-limited (`checkin` 10/h), and idempotent — re-tap returns the original row's `delayMinutes`. `PUT /api/bookings/bulk-reschedule` accepts `{bookingIds[], shiftMinutes}`, validates per-row (ownership/facility/status/date-today), shifts start+end inside a single `db.transaction()`, and busts `revalidateTag('bookings')`. New components `src/components/checkin/{checkin-banner,reschedule-sheet}.tsx`. Banner mounts in BOTH mobile-stylist and desktop calendar paths of `dashboard-client.tsx`, immediately above `<StylistPendingEntries />`. Server-side prop is `checkinTodayBookings` (NOT `todayBookings` — that name collides with an existing local). `dayRangeInTimezone` was extracted from `reconciliation.ts` to `src/lib/time.ts` for reuse. New tour `stylist-checkin` (6 steps, anchors `data-tour="checkin-banner"` + `data-tour="checkin-button"`), `Clock` lucide icon added to `TutorialIcon` union + `tutorial-card.tsx` ICON_MAP. ONBOARDING_CHECKLIST.stylist now has 5 items (check-in inserted as #4). New rate-limit buckets `checkin` + `bulkReschedule`. TSC clean (0 errors), tour health check clean (82 selectors, 0 missing). **Internal only — no POA/family notification. No GCal sync on bulk reschedule.**
+
+### Phase 12U–12Z and 13A–13P — Upcoming
 
 **Immediate (next up):**
-- **Phase 12T** — "I'm Here" stylist check-in with smart day rescheduling. `stylist_checkins` table, `POST /api/checkin`, `PUT /api/bookings/bulk-reschedule`. Button visible on days with appointments, before check-in today.
 - **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none`, `user-select: none`, `-webkit-tap-highlight-color: transparent`. ~20-min CSS pass.
 - **Phase 12V** — CMD+K Command Palette (desktop only). Fuzzy search: residents, stylists, facilities, pages. Admin / bookkeeper / master admin only.
 - **Phase 12W** — Resident/Stylist Peek Drawer. Right-side `<PeekDrawer />` triggered by name clicks in daily log, billing, calendar.
@@ -612,9 +615,9 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12S + tour fixes all shipped (2026-05-12). Next priorities:
+Phase 12T shipped (2026-05-12). Next priorities:
 
-1. **Phase 12T — "I'm Here" check-in** — next feature up. New `stylist_checkins` table, `POST /api/checkin`, `PUT /api/bookings/bulk-reschedule`, dashboard button (stylist-only, days with appointments, before today's check-in).
+1. **Phase 12U — Overscroll lock + native touch polish** — next feature up. ~20-min CSS pass: `overscroll-behavior-y: none` on main layout, `user-select: none` and `-webkit-tap-highlight-color: transparent` on interactive elements.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

@@ -22,6 +22,7 @@ import { OnboardingChecklist } from '@/components/help/onboarding-checklist'
 import { ClipboardList } from 'lucide-react'
 import { SignupSheetPanel } from '@/components/signup-sheet/signup-sheet-panel'
 import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending-entries'
+import { CheckInBanner } from '@/components/checkin/checkin-banner'
 import type { SignupSheetEntryWithRelations } from '@/types'
 
 const CalendarView = dynamic(() => import('@/components/calendar/calendar-view'), {
@@ -79,6 +80,15 @@ interface WorkingTodayRow {
   endTime: string
 }
 
+interface TodayBooking {
+  id: string
+  startTime: string
+  endTime: string
+  status: string
+  residentName: string
+  serviceName: string
+}
+
 interface DashboardClientProps {
   facilityId: string
   facility: Facility
@@ -97,6 +107,8 @@ interface DashboardClientProps {
   completedTours?: string[]
   isMaster?: boolean
   userId?: string
+  alreadyCheckedIn?: boolean
+  checkinTodayBookings?: TodayBooking[]
 }
 
 function formatHHMM(t: string): string {
@@ -127,6 +139,8 @@ export function DashboardClient({
   completedTours = [],
   isMaster = false,
   userId = '',
+  alreadyCheckedIn = false,
+  checkinTodayBookings = [],
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -489,6 +503,20 @@ export function DashboardClient({
             </h1>
           </div>
 
+          {/* Phase 12T — "I'm Here" check-in banner */}
+          {userRole === 'stylist' && (
+            <div className="px-4">
+              <CheckInBanner
+                role={userRole}
+                facilityId={facility.id}
+                facilityTimezone={facility.timezone}
+                todayDate={todayDateStr}
+                todayBookings={checkinTodayBookings}
+                alreadyCheckedIn={alreadyCheckedIn}
+              />
+            </div>
+          )}
+
           {/* Pending sign-up entries */}
           {pendingSignups.length > 0 && (
             <div className="px-4 mb-2">
@@ -804,6 +832,18 @@ export function DashboardClient({
             </div>
           </div>
         </div>
+
+        {/* Phase 12T — "I'm Here" check-in banner (desktop calendar view) */}
+        {userRole === 'stylist' && (
+          <CheckInBanner
+            role={userRole}
+            facilityId={facility.id}
+            facilityTimezone={facility.timezone}
+            todayDate={todayDateStr}
+            todayBookings={checkinTodayBookings}
+            alreadyCheckedIn={alreadyCheckedIn}
+          />
+        )}
 
         {/* Stylist sign-up queue — above calendar grid, only visible when entries exist */}
         {userRole === 'stylist' && pendingSignups.length > 0 && (

@@ -795,6 +795,21 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
     .where(sql`status = 'pending'`),
 }))
 
+// ─── Stylist Check-Ins (Phase 12T — "I'm Here" + smart day rescheduling) ────
+
+export const stylistCheckins = pgTable('stylist_checkins', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  stylistId: uuid('stylist_id').notNull().references(() => stylists.id, { onDelete: 'cascade' }),
+  facilityId: uuid('facility_id').notNull().references(() => facilities.id, { onDelete: 'cascade' }),
+  date: date('date').notNull(),
+  checkedInAt: timestamp('checked_in_at', { withTimezone: true }).notNull().defaultNow(),
+  delayMinutes: integer('delay_minutes').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniq: unique().on(t.stylistId, t.facilityId, t.date),
+  stylistDateIdx: index('stylist_checkins_stylist_date_idx').on(t.stylistId, t.date),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
@@ -905,6 +920,18 @@ export const stylistsRelations = relations(stylists, ({ one, many }) => ({
   coveringRequests: many(coverageRequests, { relationName: 'coverage_substitute' }),
   assignments: many(stylistFacilityAssignments),
   notes: many(stylistNotes),
+  checkins: many(stylistCheckins),
+}))
+
+export const stylistCheckinsRelations = relations(stylistCheckins, ({ one }) => ({
+  stylist: one(stylists, {
+    fields: [stylistCheckins.stylistId],
+    references: [stylists.id],
+  }),
+  facility: one(facilities, {
+    fields: [stylistCheckins.facilityId],
+    references: [facilities.id],
+  }),
 }))
 
 export const stylistFacilityAssignmentsRelations = relations(

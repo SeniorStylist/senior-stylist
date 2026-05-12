@@ -2339,14 +2339,33 @@ A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767p
 
 ---
 
+## Check-In Banner & Reschedule Sheet (Phase 12T — SHIPPED 2026-05-12)
+
+**Banner** (`src/components/checkin/checkin-banner.tsx`) — burgundy attention surface above the stylist's calendar:
+- Container: `rounded-2xl bg-[#8B2E4A] text-white px-4 py-3 mb-3` with `shadow-[var(--shadow-sm)]` and a `transition-opacity duration-500` for the fade-out exit.
+- Left content: `text-sm font-semibold` for "📍 You have N appointment(s) today" + `text-xs text-white/70` subline "First appointment at H:MMam" (rendered via `formatTimeInTz`).
+- Right CTA: `bg-white text-[#8B2E4A] text-sm font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform` — labeled "I'm Here →" (transitions to "Checking in…" while submitting; `disabled:opacity-60`).
+- Mounted in BOTH dashboard render paths (mobile-stylist + desktop calendar), wrapped in a `px-4` div in the mobile path to match horizontal padding of surrounding panels.
+- Self-managed visibility — returns null for non-stylist role, already-checked-in, empty bookings, or end-of-day.
+
+**Reschedule Sheet** (`src/components/checkin/reschedule-sheet.tsx`) — uses `useIsMobile()` to pick `<BottomSheet>` on mobile vs `<Modal>` on desktop:
+- Header: DM Serif Display `<h2 className="text-2xl font-normal">` (`font-normal` per CLAUDE.md rule for serif counters) — "You're N minutes late". Subline `text-sm text-stone-500 mt-1`.
+- Booking rows: `flex items-center justify-between py-2 border-b border-stone-100 last:border-b-0`.
+  - Left: resident name `text-sm font-semibold text-stone-900 truncate` + service `text-xs text-stone-500 truncate`.
+  - Right: original time `text-xs text-stone-400 line-through` stacked over new time `text-sm font-bold text-stone-900`.
+- Footer: ghost "Keep original times" + primary burgundy "Confirm new times" — stack vertically on mobile, side-by-side on desktop.
+- Edge case (all in progress): "All appointments are already in progress — no rescheduling needed." + single primary "Got it" button.
+- Both confirm and dismiss paths trigger the banner's fade-out — check-in is recorded regardless.
+
+**Filter rule**: only bookings with `startTime > now` AND `status !== 'cancelled'` appear in the reschedule list. Completed and in-progress bookings are excluded.
+
+**Tour anchors**: `data-tour="checkin-banner"` on the banner root div; `data-tour="checkin-button"` on the "I'm Here →" button. Both validated by `scripts/check-tours.ts`.
+
+---
+
 ## Upcoming UI Phases
 
 Design/interaction notes for phases not yet shipped. Update this section when implementation begins.
-
-### Phase 12T — Check-In Review Sheet
-- "I'm Here" button on stylist dashboard: `bg-[#8B2E4A] text-white`, only visible on days with appointments before check-in. Hidden after check-in.
-- Late check-in triggers a bottom sheet (mobile) / modal (desktop) review sheet listing remaining appointments with shifted times. Each row: original time → new time (amber `→` arrow). "Confirm shift" / "Keep original" CTA pair.
-- `stylist_checkins` table — no UI exposure beyond the button and review sheet.
 
 ### Phase 12U — Overscroll Lock + Touch Polish
 - Add to `globals.css`: `body, .main-content { overscroll-behavior-y: none; }`.

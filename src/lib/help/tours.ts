@@ -27,6 +27,7 @@ export type TutorialIcon =
   | 'HeartHandshake' | 'ShieldCheck' | 'CreditCard' | 'ScanLine'
   | 'GitMerge' | 'Database' | 'FileSpreadsheet' | 'Wallet' | 'PlusSquare'
   | 'Network' | 'BookOpen' | 'CircleHelp' | 'ClipboardList' | 'PenLine'
+  | 'Clock'
 
 export type Tutorial = {
   id: string
@@ -201,6 +202,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'stylist-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your calendar, daily log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started' },
   { id: 'stylist-calendar', category: 'Scheduling', title: 'Your Calendar', blurb: 'Read your schedule, tap appointments to edit them, and create new bookings.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar' },
   { id: 'stylist-daily-log', category: 'Daily Log', title: 'Daily Log', blurb: 'Record services, add walk-ins, and finalize your log at end of shift.', estMinutes: 3, icon: 'FileText', roles: ['stylist'], tourId: 'stylist-daily-log' },
+  { id: 'stylist-checkin', category: 'Scheduling', title: "I'm Here Check-In", blurb: "Tap when you arrive. If you're running late, your schedule adjusts automatically.", estMinutes: 2, icon: 'Clock', roles: ['stylist'], tourId: 'stylist-checkin' },
   { id: 'stylist-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Find, edit, and add residents at your facility.', estMinutes: 3, icon: 'Users', roles: ['stylist'], tourId: 'stylist-residents' },
   { id: 'stylist-finalize-day', category: 'Daily Log', title: 'Finalizing the Day', blurb: 'Step-by-step guide to reviewing and locking the daily log.', estMinutes: 2, icon: 'CheckCircle2', roles: ['stylist'], tourId: 'stylist-finalize-day' },
   { id: 'stylist-my-account', category: 'Account', title: 'My Account', blurb: 'Manage your schedule, upload compliance documents, and request time off.', estMinutes: 3, icon: 'UserCog', roles: ['stylist'], tourId: 'stylist-my-account' },
@@ -256,6 +258,7 @@ export const ONBOARDING_CHECKLIST: Record<string, { tourId: string; label: strin
     { tourId: 'stylist-getting-started', label: 'Learn the basics' },
     { tourId: 'stylist-calendar', label: 'Understand your calendar' },
     { tourId: 'stylist-daily-log', label: 'Complete your first daily log' },
+    { tourId: 'stylist-checkin', label: "Try the I'm Here check-in" },
     { tourId: 'stylist-my-account', label: 'Set up your account' },
   ],
   facility_staff: [
@@ -459,6 +462,20 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: '[data-tour="stylist-pending-convert"]', isAction: true, title: 'Pick a time', description: 'Tap "Pick time →" — the booking form opens pre-filled with this resident and service. Just choose a time and save.', actionHint: 'Tap Pick time → to continue.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Drag onto the calendar (desktop)', description: 'On desktop, you can also drag a request card directly onto a calendar slot — it opens the booking form pre-filled at that exact time.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Done', description: 'Once you save the booking, the request disappears from this list and the badge count decreases. That\'s the full workflow.' },
+    ],
+  },
+
+  // Phase 12T
+  'stylist-checkin': {
+    id: 'stylist-checkin',
+    title: "I'm Here Check-In",
+    steps: [
+      { route: '/dashboard', element: '', isAction: false, title: 'Check in when you arrive', description: "When you arrive at a facility, you'll see this banner at the top of your calendar if you have appointments today.", mobileDescription: "Tap the banner at the top of your calendar when you arrive at a facility." },
+      { route: '/dashboard', element: '[data-tour="checkin-banner"]', isAction: false, title: 'Your daily summary', description: 'This shows how many appointments you have and when the first one starts.', mobileDescription: 'Shows your appointment count and first start time.' },
+      { route: '/dashboard', element: '[data-tour="checkin-button"]', isAction: true, title: "Tap I'm Here", description: "Tap 'I'm Here' to check in. The app records your arrival time.", actionHint: "Tap I'm Here to continue.", mobileDescription: "Tap I'm Here to record your arrival." },
+      { route: '/dashboard', element: '', isAction: false, title: 'On time?', description: "If you're on time or early, you'll see a confirmation and the banner disappears.", mobileDescription: "On time? You'll see a confirmation and the banner disappears." },
+      { route: '/dashboard', element: '', isAction: false, title: 'Running late?', description: "If you're running late, you'll see a review sheet showing all your remaining appointments with updated times — shifted forward by how late you are.", mobileDescription: "Running late? A sheet shows your remaining appointments shifted forward." },
+      { route: '/dashboard', element: '', isAction: false, title: 'Confirm or keep', description: "Review the new times and tap 'Confirm new times' — or keep the originals if you prefer. Either way, your check-in is recorded.", mobileDescription: "Tap Confirm new times to shift, or Keep original times. Either way your check-in is saved." },
     ],
   },
 

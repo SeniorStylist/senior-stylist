@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability, stylistCheckins, bookings } from '@/db/schema'
+import { eq, and, gte, lt, notInArray, asc } from 'drizzle-orm'
+import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
@@ -72,7 +73,18 @@ export default async function DashboardPage() {
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
-    const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working] = await Promise.all([
+    // Phase 12T — pre-compute facility timezone + today's date range so the
+    // stylist check-in + today's bookings queries below can use them.
+    const facilityTzRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityUser.facilityId),
+      columns: { timezone: true },
+    })
+    const facilityTz = facilityTzRow?.timezone ?? 'America/New_York'
+    const todayParts = getLocalParts(new Date(), facilityTz)
+    const todayDateStr = `${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`
+    const todayRange = dayRangeInTimezone(todayDateStr, facilityTz)
+
+    const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
       }),
@@ -186,6 +198,35 @@ export default async function DashboardPage() {
             return { today: todayRows, tomorrow: tomorrowRows }
           })()
         : Promise.resolve({ today: [] as Array<{ id: string; name: string; color: string; startTime: string; endTime: string }>, tomorrow: [] as Array<{ name: string }> }),
+      // Phase 12T — stylist-only: today's check-in row (null if not yet checked in)
+      profileStylistId
+        ? db.query.stylistCheckins.findFirst({
+            where: and(
+              eq(stylistCheckins.stylistId, profileStylistId),
+              eq(stylistCheckins.facilityId, facilityUser.facilityId),
+              eq(stylistCheckins.date, todayDateStr),
+            ),
+          })
+        : Promise.resolve(null),
+      // Phase 12T — stylist-only: today's bookings (for banner + reschedule sheet)
+      profileStylistId && todayRange
+        ? db.query.bookings.findMany({
+            where: and(
+              eq(bookings.stylistId, profileStylistId),
+              eq(bookings.facilityId, facilityUser.facilityId),
+              eq(bookings.active, true),
+              gte(bookings.startTime, todayRange.start),
+              lt(bookings.startTime, todayRange.end),
+              notInArray(bookings.status, ['cancelled']),
+            ),
+            columns: { id: true, startTime: true, endTime: true, status: true },
+            with: {
+              resident: { columns: { id: true, name: true } },
+              service: { columns: { id: true, name: true } },
+            },
+            orderBy: [asc(bookings.startTime)],
+          })
+        : Promise.resolve([]),
     ])
 
     if (!facility) redirect('/login')
@@ -194,6 +235,16 @@ export default async function DashboardPage() {
     const residentsWithUsage = residentsList.map((r) => ({
       ...r,
       mostUsedServiceId: mostUsedMap.get(r.id) ?? null,
+    }))
+
+    // Phase 12T — shape today's bookings for the check-in banner / reschedule sheet
+    const todayBookingsForClient = (todayStylistBookings ?? []).map((b) => ({
+      id: b.id,
+      startTime: new Date(b.startTime).toISOString(),
+      endTime: new Date(b.endTime).toISOString(),
+      status: b.status,
+      residentName: b.resident?.name ?? 'Resident',
+      serviceName: b.service?.name ?? 'Service',
     }))
 
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
@@ -228,6 +279,8 @@ export default async function DashboardPage() {
           completedTours={profile?.completedTours ?? []}
           isMaster={isMaster}
           userId={user.id}
+          alreadyCheckedIn={!!todayCheckin}
+          checkinTodayBookings={todayBookingsForClient}
         />
       </>
     )

@@ -2049,11 +2049,100 @@ The last three were claimed by Phase 11J.4 documentation but had never been crea
 
 ---
 
+### Phase 12T — Stylist Check-In + Smart Day Rescheduling (SHIPPED 2026-05-12)
+
+**Schema** — `stylist_checkins` table:
+- `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+- `stylist_id uuid NOT NULL REFERENCES stylists(id) ON DELETE CASCADE`
+- `facility_id uuid NOT NULL REFERENCES facilities(id) ON DELETE CASCADE`
+- `date date NOT NULL`
+- `checked_in_at timestamptz NOT NULL DEFAULT now()`
+- `delay_minutes integer NOT NULL DEFAULT 0`
+- `created_at timestamptz NOT NULL DEFAULT now()`
+- `UNIQUE(stylist_id, facility_id, date)` — idempotency key
+- `CREATE INDEX stylist_checkins_stylist_date_idx ON stylist_checkins(stylist_id, date)`
+- RLS enabled with `service_role_all` policy
+
+Drizzle definition mirrors `logEntries` shape and lives in `src/db/schema.ts` between `signupSheetEntries` and the relations section. `stylistsRelations` gains a `checkins: many(stylistCheckins)` reference; a dedicated `stylistCheckinsRelations` exists for the inverse.
+
+**API — `POST /api/checkin`** (`src/app/api/checkin/route.ts`):
+- `export const dynamic = 'force-dynamic'`
+- Stylist role only (403 otherwise)
+- Rate-limit bucket `checkin` (10/h/user)
+- Body Zod: `{ facilityId: uuid, date: 'YYYY-MM-DD' }`
+- Guards: `facilityId === facilityUser.facilityId`, `profile.stylistId` present, `stylistFacilityAssignments` row exists with `active=true`
+- Inside `db.transaction()`:
+  1. SELECT existing checkin for `(stylistId, facilityId, date)`. If present → return its `delayMinutes`/`checkedInAt`.
+  2. Otherwise SELECT today's earliest non-cancelled booking (using `dayRangeInTimezone(date, facility.timezone)` for window)
+  3. `delayMinutes = max(0, floor((now - firstBookingStart) / 60_000))`. Wall-clock UTC math.
+  4. INSERT new row.
+- Response: `{ data: { checkedIn: true, delayMinutes: number, firstAppointmentTime: string | null } }`
+
+**API — `PUT /api/bookings/bulk-reschedule`** (`src/app/api/bookings/bulk-reschedule/route.ts`):
+- `export const dynamic = 'force-dynamic'`
+- Stylist role only
+- Rate-limit bucket `bulkReschedule` (20/h/user)
+- Body Zod: `{ bookingIds: uuid[] (min 1, max 50), shiftMinutes: int 1–480 }`
+- Inside `db.transaction()`:
+  - Fetch all candidate rows in one `findMany({ where: inArray(id, bookingIds) })`
+  - Validate per row: ownership (`stylistId === profile.stylistId`), facility scope, `status ∉ {cancelled, completed}`, `bookingKey === todayKey` in facility tz
+  - On any failure: throw `INVALID:<json>` (handled by outer catch → 422 with `invalid: [{id, reason}]`)
+  - On all-valid: `UPDATE bookings SET start_time = start_time + shift, end_time = end_time + shift WHERE id = ?` for each
+- After commit: `revalidateTag('bookings', {})`
+- **No Google Calendar sync** — accepted tradeoff for first ship; can be wired in fire-and-forget later if real-world testing surfaces desync
+- Response: `{ data: { updated: number } }`
+
+**`dayRangeInTimezone(dateStr, timezone, dayShift?)`** — extracted from `src/lib/reconciliation.ts` to `src/lib/time.ts` as a public export. DST-safe two-step offset derivation. Returns `{ start: Date; end: Date } | null`.
+
+**Dashboard wiring** (`src/app/(protected)/dashboard/page.tsx`):
+- Pre-`Promise.all`: a single `db.query.facilities.findFirst` for timezone, then `getLocalParts(new Date(), tz)` → `todayDateStr`, then `dayRangeInTimezone(todayDateStr, tz)` → `todayRange`.
+- Two new entries in the existing `Promise.all`, both gated on `profileStylistId !== null`:
+  1. `db.query.stylistCheckins.findFirst({ where: and(stylistId, facilityId, date=todayDateStr) })`
+  2. `db.query.bookings.findMany({ where: stylist-scoped + active + date-range + not cancelled, columns: minimal, with: { resident, service } columns whitelisted, orderBy: asc(startTime) })`
+- Bookings are serialized to `{ id, startTime, endTime, status, residentName, serviceName }` before passing to client.
+- New props passed to `<DashboardClient />`: `alreadyCheckedIn` (boolean), `checkinTodayBookings` (TodayBooking[]).
+
+**`<DashboardClient />`** (`src/app/(protected)/dashboard/dashboard-client.tsx`):
+- `DashboardClientProps` gains two optional props.
+- **Naming caveat**: prop is `checkinTodayBookings` NOT `todayBookings` — the latter collides with an existing local `const todayBookings = bookings.filter(...)` at line ~462. The existing local `todayDateStr` useMemo is reused (no separate prop).
+- `<CheckInBanner />` is mounted in BOTH render paths, immediately above `<StylistPendingEntries />`:
+  1. Mobile stylist-list view (around line 506)
+  2. Desktop calendar view (around line 836)
+
+**`<CheckInBanner />`** (`src/components/checkin/checkin-banner.tsx`):
+- Returns null for: non-stylist role, `alreadyCheckedIn`, empty today bookings, or now > last booking end.
+- Burgundy `bg-[#8B2E4A]` rounded-2xl card with "📍 You have N appointment(s) today" + "First appointment at HH:MMam" + "I'm Here →" white button.
+- Tour anchors: `data-tour="checkin-banner"` on root, `data-tour="checkin-button"` on button.
+- On submit:
+  - `delayMinutes <= 0` → toast "Welcome! Have a great day 🎉" + fade-out + unmount
+  - `delayMinutes > 0` → opens `<RescheduleSheet />`
+- After RescheduleSheet confirm OR dismiss → same fade-out flow (check-in is recorded either way).
+
+**`<RescheduleSheet />`** (`src/components/checkin/reschedule-sheet.tsx`):
+- `useIsMobile()` chooses `<BottomSheet>` vs `<Modal>` shell.
+- Header: "You're N minutes late" in DM Serif Display (`font-normal`).
+- Filters todayBookings to future-only (`startTime > now`) and non-cancelled.
+- Each row: resident + service on left; original time `line-through text-stone-400` over new time `font-bold text-stone-900` on right.
+- Edge case: if all bookings have already started → "All appointments are already in progress" + single "Got it" button.
+- Footer (when actionable): ghost "Keep original times" + primary "Confirm new times" → POSTs to `/api/bookings/bulk-reschedule`.
+- All time formatting via `formatTimeInTz` in facility timezone.
+
+**Tour** (`src/lib/help/tours.ts`):
+- New `stylist-checkin` entry in TUTORIAL_CATALOG (icon: `Clock`).
+- `TutorialIcon` union extended with `'Clock'`. `tutorial-card.tsx` imports `Clock` from lucide-react and adds to `ICON_MAP`.
+- Six-step tour anchored to `checkin-banner` + `checkin-button` with one `isAction: true` step on the button.
+- `ONBOARDING_CHECKLIST.stylist` extended to 5 items — `stylist-checkin` inserted as #4 (between daily-log and my-account).
+
+**Rate-limit buckets** (`src/lib/rate-limit.ts`) — added to `Bucket` union and `LIMITS` record:
+- `checkin: { tokens: 10, window: '1 h' }`
+- `bulkReschedule: { tokens: 20, window: '1 h' }`
+
+---
+
 ## Upcoming Phases
 
 ### Immediate (next up)
 
-- **Phase 12T** — "I'm Here" stylist check-in + smart day rescheduling. New `stylist_checkins` table (`stylist_id`, `facility_id`, `date` date, `checked_in_at` timestamptz, `delay_minutes` integer). `POST /api/checkin` (stylist-only, idempotent per date). `PUT /api/bookings/bulk-reschedule` (accepts `bookingIds[]` + `shiftMinutes`). Dashboard button only shown on days stylist has appointments AND before check-in today. Late check-in (after first appointment) triggers a review sheet showing remaining appointments shifted by delay; stylist confirms or keeps original times. Internal only — no POA/family notifications.
 - **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none` on main layout scroll container. `user-select: none` and `-webkit-tap-highlight-color: transparent` on all `button`, `[role="button"]`, `a` elements via globals.css. ~20-min CSS-only pass.
 - **Phase 12V** — CMD+K Command Palette (desktop only). `hidden md:block`. Global fuzzy search: residents by name, stylists by name, facilities by name/code, app pages. Triggered by CMD+K (Mac) / CTRL+K (Windows). Available to admin, bookkeeper, master admin roles. Stylist and facility_staff do not see it.
 - **Phase 12W** — Resident/Stylist Peek Drawer. Reusable `<PeekDrawer />` component — right-side slide-out drawer that loads a resident or stylist profile without navigating away from the current page. Triggered by clicking a resident or stylist name in daily log, billing, and calendar views.

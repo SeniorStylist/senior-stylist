@@ -2,6 +2,7 @@ import { db } from '@/db'
 import { qbPayments, bookings, residents, facilities } from '@/db/schema'
 import { and, eq, gte, lt, notInArray } from 'drizzle-orm'
 import type { ReconciliationLine, ReconciliationStatus } from '@/types'
+import { dayRangeInTimezone } from '@/lib/time'
 
 const EXCLUDED_BOOKING_STATUSES = ['cancelled', 'no_show', 'requested']
 
@@ -11,43 +12,6 @@ interface ReconcileResult {
   matchedCount: number
   unmatchedCount: number
   notes: string
-}
-
-// Convert YYYY-MM-DD + IANA timezone → [dayStartUtc, dayEndUtc) using
-// Intl.DateTimeFormat to derive the offset for that calendar day. Handles DST.
-function dayRangeInTimezone(dateStr: string, timezone: string, dayShift = 0): { start: Date; end: Date } | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
-  if (!m) return null
-  const baseUtc = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-  const shifted = new Date(baseUtc + dayShift * 86_400_000)
-  const y = shifted.getUTCFullYear()
-  const mo = shifted.getUTCMonth()
-  const d = shifted.getUTCDate()
-
-  // Find the UTC instant that, when rendered in `timezone`, is exactly midnight on (y, mo, d).
-  // Two-step: pick a candidate, measure its rendered local date, adjust by the offset diff.
-  const candidate = new Date(Date.UTC(y, mo, d, 0, 0, 0))
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-  const parts = fmt.formatToParts(candidate)
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0')
-  const localY = get('year')
-  const localMo = get('month') - 1
-  const localD = get('day')
-  const localH = get('hour') === 24 ? 0 : get('hour')
-  const localMin = get('minute')
-  const localUtc = Date.UTC(localY, localMo, localD, localH, localMin)
-  const offsetMs = candidate.getTime() - localUtc
-  const start = new Date(Date.UTC(y, mo, d, 0, 0, 0) + offsetMs)
-  const end = new Date(start.getTime() + 86_400_000)
-  return { start, end }
 }
 
 async function findBookingForDate(
