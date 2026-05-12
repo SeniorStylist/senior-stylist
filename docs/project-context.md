@@ -400,10 +400,13 @@ Completes the signup-sheet workflow. New schema column `preferred_date` (only ad
 
 End-to-end "I'm Here" check-in for stylists. New `stylist_checkins` table (`stylistId`, `facilityId`, `date`, `checkedInAt`, `delayMinutes`, unique on the first three, RLS service_role_all). `POST /api/checkin` is stylist-only, rate-limited (`checkin` 10/h), and idempotent — re-tap returns the original row's `delayMinutes`. `PUT /api/bookings/bulk-reschedule` accepts `{bookingIds[], shiftMinutes}`, validates per-row (ownership/facility/status/date-today), shifts start+end inside a single `db.transaction()`, and busts `revalidateTag('bookings')`. New components `src/components/checkin/{checkin-banner,reschedule-sheet}.tsx`. Banner mounts in BOTH mobile-stylist and desktop calendar paths of `dashboard-client.tsx`, immediately above `<StylistPendingEntries />`. Server-side prop is `checkinTodayBookings` (NOT `todayBookings` — that name collides with an existing local). `dayRangeInTimezone` was extracted from `reconciliation.ts` to `src/lib/time.ts` for reuse. New tour `stylist-checkin` (6 steps, anchors `data-tour="checkin-banner"` + `data-tour="checkin-button"`), `Clock` lucide icon added to `TutorialIcon` union + `tutorial-card.tsx` ICON_MAP. ONBOARDING_CHECKLIST.stylist now has 5 items (check-in inserted as #4). New rate-limit buckets `checkin` + `bulkReschedule`. TSC clean (0 errors), tour health check clean (82 selectors, 0 missing). **Internal only — no POA/family notification. No GCal sync on bulk reschedule.**
 
-### Phase 12U–12Z and 13A–13P — Upcoming
+### Phase 12U — Overscroll Lock + Native Touch Polish (SHIPPED 2026-05-12)
+
+CSS-only pass in `src/app/globals.css`. Four changes: `html, body { overscroll-behavior: none }` (stops iOS rubber-band bounce on the document root), `* { -webkit-tap-highlight-color: transparent }` (removes tap highlight flash), `button, [role="button"], a, label { user-select: none; -webkit-user-select: none }` (prevents accidental text selection on interactive elements), `.main-content { -webkit-overflow-scrolling: touch }` (smooth momentum scroll on the main content area). Zero TypeScript changes — pure CSS. TSC clean.
+
+### Phase 12V–12Z and 13A–13P — Upcoming
 
 **Immediate (next up):**
-- **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none`, `user-select: none`, `-webkit-tap-highlight-color: transparent`. ~20-min CSS pass.
 - **Phase 12V** — CMD+K Command Palette (desktop only). Fuzzy search: residents, stylists, facilities, pages. Admin / bookkeeper / master admin only.
 - **Phase 12W** — Resident/Stylist Peek Drawer. Right-side `<PeekDrawer />` triggered by name clicks in daily log, billing, calendar.
 - **Phase 12X** — Fluid typography + polish pass. `clamp()` on DM Serif Display headings. Skeleton loading state audit.
@@ -615,9 +618,9 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12T shipped (2026-05-12). Next priorities:
+Phase 12U shipped (2026-05-12). Next priorities:
 
-1. **Phase 12U — Overscroll lock + native touch polish** — next feature up. ~20-min CSS pass: `overscroll-behavior-y: none` on main layout, `user-select: none` and `-webkit-tap-highlight-color: transparent` on interactive elements.
+1. **Phase 12V — CMD+K Command Palette** — next feature up. Desktop-only fuzzy search over residents, stylists, facilities, and pages. Admin / bookkeeper / master admin only.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

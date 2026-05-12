@@ -34,6 +34,11 @@
   --surface-sunken: #F3F1EC;
 }
 
+/* Phase 12U — prevent iOS rubber-band bounce on the document root */
+html, body {
+  overscroll-behavior: none;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -41,9 +46,15 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
+/* Phase 12U — remove tap highlight flash on all interactive elements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Main content — account for mobile nav + safe area at bottom */
 .main-content {
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
 }
 @media (min-width: 768px) {
   .main-content {
@@ -242,6 +253,12 @@ body {
 [data-resize-handle-active] .resize-handle-dots > div {
   background-color: #8B2E4A !important;
   transform: scale(1.4);
+}
+
+/* Phase 12U — prevent accidental text selection on interactive elements */
+button, [role="button"], a, label {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Global interaction baseline — applies to all clickable elements */

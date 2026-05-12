@@ -2141,9 +2141,16 @@ Drizzle definition mirrors `logEntries` shape and lives in `src/db/schema.ts` be
 
 ## Upcoming Phases
 
+### Phase 12U — Overscroll Lock + Native Touch Polish (SHIPPED 2026-05-12)
+
+CSS-only pass in `src/app/globals.css`. Changes: `html, body { overscroll-behavior: none }` prevents iOS elastic rubber-band bounce on document root; `* { -webkit-tap-highlight-color: transparent }` eliminates the blue/grey tap flash on tappable elements; `button, [role="button"], a, label { user-select: none; -webkit-user-select: none }` prevents accidental text selection on interactive elements; `.main-content { -webkit-overflow-scrolling: touch }` enables momentum scroll on the main content container. No component, route, or schema changes.
+
+---
+
+## Upcoming Phases
+
 ### Immediate (next up)
 
-- **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none` on main layout scroll container. `user-select: none` and `-webkit-tap-highlight-color: transparent` on all `button`, `[role="button"]`, `a` elements via globals.css. ~20-min CSS-only pass.
 - **Phase 12V** — CMD+K Command Palette (desktop only). `hidden md:block`. Global fuzzy search: residents by name, stylists by name, facilities by name/code, app pages. Triggered by CMD+K (Mac) / CTRL+K (Windows). Available to admin, bookkeeper, master admin roles. Stylist and facility_staff do not see it.
 - **Phase 12W** — Resident/Stylist Peek Drawer. Reusable `<PeekDrawer />` component — right-side slide-out drawer that loads a resident or stylist profile without navigating away from the current page. Triggered by clicking a resident or stylist name in daily log, billing, and calendar views.
 - **Phase 12X** — Fluid typography + polish pass. `clamp()` on all DM Serif Display `<h1>` headings. Comprehensive skeleton loading state audit — every data surface that can be empty on first render gets a shimmer skeleton.

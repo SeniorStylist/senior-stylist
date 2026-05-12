@@ -2363,14 +2363,22 @@ A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767p
 
 ---
 
+## Native Touch Polish (Phase 12U — SHIPPED 2026-05-12)
+
+All changes in `src/app/globals.css`:
+
+- `html, body { overscroll-behavior: none }` — stops iOS elastic rubber-band bounce when scrolling past the document edge.
+- `* { -webkit-tap-highlight-color: transparent }` — removes the default blue/grey tap-flash that appears on all tappable elements in iOS Safari/WebKit.
+- `button, [role="button"], a, label { user-select: none; -webkit-user-select: none }` — prevents accidental text selection when tapping or long-pressing interactive elements. Labels included because form labels are common tap targets.
+- `.main-content { -webkit-overflow-scrolling: touch }` — enables momentum (inertia) scrolling on the primary content scroll container.
+
+No component, route, or schema changes. CSS-only.
+
+---
+
 ## Upcoming UI Phases
 
 Design/interaction notes for phases not yet shipped. Update this section when implementation begins.
-
-### Phase 12U — Overscroll Lock + Touch Polish
-- Add to `globals.css`: `body, .main-content { overscroll-behavior-y: none; }`.
-- Add to global interaction baseline: `-webkit-tap-highlight-color: transparent; user-select: none;` on `button, [role="button"], a`.
-- CSS-only — no component changes.
 
 ### Phase 12V — CMD+K Command Palette
 - `hidden md:block` — desktop only.
