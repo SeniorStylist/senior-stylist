@@ -412,13 +412,16 @@ Global desktop command palette for admin / bookkeeper / master admin. CMD+K (Mac
 
 Slide-out drawer that loads a quick read-only resident or stylist profile without leaving the current page. Triggered by clicking a resident or stylist name in daily log rows, daily log stylist headers, billing IP view, and the dashboard mobile stylist booking list. New `GET /api/peek?type=resident|stylist&id=...` route (all roles except viewer, `peek` rate-limit 120/min/user, cross-facility scope returns 404 to avoid existence leak). Module-level state `src/lib/peek-drawer.ts` mirrors the `tour-router.ts` pattern: `setPeekHandler` + `openPeek` let any component anywhere trigger the drawer without prop drilling. `<PeekDrawer />` mounted globally in `(protected)/layout.tsx` for all roles. `useIsMobile()` branches between a desktop right-side drawer (`transform: translateX(100%) ↔ translateX(0)` over 260ms) and the existing `<BottomSheet>` on mobile. Resident peek shows POA contact + recent visits + next visit + optional "View Full Profile" (hidden for `role === 'stylist'`). Stylist peek shows status pill + availability days + today/week booking counts + "View Full Profile" (only for admin/bookkeeper/master). `getInitials` extracted from `avatar.tsx` to `src/lib/get-initials.ts` (single source of truth). Booking modal SKIPPED (typeahead input — no read-only display). New tour `admin-peek-drawer` (4 steps). `PanelRight` icon added to `TutorialIcon` union + `ICON_MAP`. TSC clean (0 errors); tour health 84/84.
 
-### Phase 12X–12Z and 13A–13P — Upcoming
+### Phase 12X — Fluid Typography + Skeleton/Page-Enter Audit (SHIPPED 2026-05-12)
+
+CSS-only typography scaling + filling the last gaps in the skeleton-loading audit + adding the `page-enter` mount animation to four laggard page clients. Fluid typography: global `h1 { font-size: clamp(1.625rem, 4vw, 2.25rem) }` scales DM Serif Display headings 26px → 36px; `.dashboard-greeting { clamp(1.75rem, 5vw, 2.5rem) }` bumps the homepage greeting to 28px → 40px. Source-order cascade overrides Tailwind's `text-2xl` without `!important`. Skeleton audit confirmed all previously claimed `loading.tsx` files exist on disk; only `/stylists/directory/loading.tsx` was genuinely missing — created with header + search bar + 8 row skeletons. Drill-down billing routes inherit the parent `loading.tsx` via Next.js cascade. `page-enter` class added to `master-admin-client.tsx`, `services-page-client.tsx`, `analytics/reports-client.tsx`, and `residents/import/import-client.tsx`. Dashboard remains excluded by design; `onboarding-client.tsx` excluded (centered wizard layout would fight the entrance animation). 1 new file, 5 file edits, 0 schema changes. TSC clean.
+
+### Phase 12Y–13P — Upcoming
 
 **Immediate (next up):**
-- **Phase 12X** — Fluid typography + polish pass. `clamp()` on DM Serif Display headings. Skeleton loading state audit.
+- **Phase 12Y** — Push notifications (Web Push API + service worker). Stylist booking alerts.
 
 **Medium term:**
-- **Phase 12Y** — Push notifications (Web Push API + service worker). Stylist booking alerts.
 - **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
 - **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state.
 - **Phase 13B** — Optimistic UI (mark pay period paid, finalize log, add resident).
@@ -624,9 +627,9 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12W shipped (2026-05-12). Next priorities:
+Phase 12X shipped (2026-05-12). Next priorities:
 
-1. **Phase 12X — Fluid typography + polish pass** — next feature up. `clamp()` on all DM Serif Display `<h1>` headings. Comprehensive skeleton loading state audit — every data surface that can be empty on first render gets a shimmer skeleton.
+1. **Phase 12Y — Push notifications** — next feature up. Web Push API + service worker. Stylist receives a browser notification when a new booking is added to their calendar.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

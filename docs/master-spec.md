@@ -2248,17 +2248,39 @@ Renderer branches on `useIsMobile()`. Mobile: `<BottomSheet isOpen onClose>` (no
 
 **Tour** — `admin-peek-drawer` (4 steps, NOT desktopOnly): step 1 is an action step on `/log` targeting `[data-tour="peek-resident-trigger"]`; steps 2–4 are info popovers. `PanelRight` lucide icon added to `TutorialIcon` union (`tours.ts`) and `ICON_MAP` (`tutorial-card.tsx`). Tour-check passed at 84 selectors (was 83). NOT added to `ONBOARDING_CHECKLIST` — discovery feature.
 
+### Phase 12X — Fluid Typography + Skeleton/Page-Enter Audit (SHIPPED 2026-05-12)
+
+A small, focused polish pass: CSS-only typography scaling + filling the last gaps in the skeleton-loading audit + bringing four laggard page clients into compliance with the `page-enter` mount animation convention.
+
+**Fluid typography** (`src/app/globals.css`):
+- Global `h1 { font-size: clamp(1.625rem, 4vw, 2.25rem) }` — scales from 26px (320px viewport) → 36px (large monitors).
+- `.dashboard-greeting { font-size: clamp(1.75rem, 5vw, 2.5rem) }` — applied to the homepage "Good morning, Lisa" heading, scales 28px → 40px. Heading carries both `dashboard-greeting` and the existing `text-2xl` Tailwind class; the custom rule wins on `font-size` via source-order cascade (globals.css is loaded after the Tailwind import). `text-2xl` retains its `line-height` side-effect.
+- New rules placed alongside the Phase 12U tap-highlight block in globals.css.
+
+**Skeleton audit:** Inventory in CLAUDE.md was 95% complete. Created the one genuinely missing file: `src/app/(protected)/stylists/directory/loading.tsx` — header + search bar + 8 row skeletons using `.skeleton rounded-2xl` per design-system rules. Verified all other claimed paths exist on disk. Confirmed Next.js's loading.tsx cascade handles drill-down billing routes via the parent. Confirmed `/residents/import`, `/services/import`, `/master-admin/import-*`, and `/onboarding` are client-side flows with no SSR data fetch — no skeleton needed.
+
+**`page-enter` mount animation audit:** Four page clients missed during the design-system rollout. Added the existing `page-enter` class as the FIRST class in each outermost `<div>` (keeping all other classes intact, per the existing CLAUDE.md rule):
+- `src/app/(protected)/master-admin/master-admin-client.tsx` line 408
+- `src/app/(protected)/services/services-page-client.tsx` line 201
+- `src/app/(protected)/analytics/reports-client.tsx` line 185
+- `src/app/(protected)/residents/import/import-client.tsx` line 217
+
+**Intentional skips:**
+- `dashboard-client.tsx` — excluded by design per existing rule (the page has its own custom mount animation logic).
+- `onboarding-client.tsx` — full-height centered wizard (`min-h-screen flex items-center justify-center`); the `translateY 6px → 0` entrance animation would fight the layout. Skipped.
+
+**Net diff:** 1 new file, 5 file edits, 0 new APIs, 0 new dependencies, 0 schema changes.
+
 ---
 
 ## Upcoming Phases
 
 ### Immediate (next up)
 
-- **Phase 12X** — Fluid typography + polish pass. `clamp()` on all DM Serif Display `<h1>` headings. Comprehensive skeleton loading state audit — every data surface that can be empty on first render gets a shimmer skeleton.
+- **Phase 12Y** — Push notifications via Web Push API + service worker. Stylists receive booking alerts when new bookings are added to their calendar.
 
 ### Medium Term
 
-- **Phase 12Y** — Push notifications via Web Push API + service worker. Stylists receive booking alerts when new bookings are added to their calendar.
 - **Phase 12Z** — Toast action buttons. Success toasts gain inline action buttons ("Booking saved — Undo | View").
 - **Phase 13A** — "What's New" changelog widget. Bell icon in header, per-user read state persisted on `profiles`, surfaces new features when phases ship.
 - **Phase 13B** — Optimistic UI on key actions: mark pay period paid, finalize log day, add resident. Immediate UI feedback before server round-trip.

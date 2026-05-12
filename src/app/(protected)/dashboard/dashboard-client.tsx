@@ -499,7 +499,7 @@ export function DashboardClient({
           {/* Header */}
           <div className="px-4 pt-6 pb-4">
             <p className="text-xs text-stone-400 font-medium uppercase tracking-wide">{todayLabel}</p>
-            <h1 className="text-2xl font-normal text-stone-900 mt-0.5" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            <h1 className="dashboard-greeting text-2xl font-normal text-stone-900 mt-0.5" style={{ fontFamily: "'DM Serif Display', serif" }}>
               {greeting}, {firstName}
             </h1>
           </div>

@@ -2425,9 +2425,28 @@ Design/interaction notes for phases not yet shipped. Update this section when im
 - **Hover pattern for triggers**: `hover:underline hover:text-[#8B2E4A] transition-colors`. Uses `text-left` so multi-word names don't center.
 - **Tour**: `admin-peek-drawer` (4 steps, NOT desktopOnly). Step 1 is the action on `[data-tour="peek-resident-trigger"]` (auto-resolves to `data-tour-mobile` if present, but we don't add the mobile variant — desktop and mobile share the same JSX). Steps 2–4 are info popovers. `PanelRight` lucide icon added to `TutorialIcon` union + `tutorial-card.tsx` ICON_MAP.
 
-### Phase 12X — Fluid Typography
-- All DM Serif Display `<h1>` headings get `font-size: clamp(1.5rem, 4vw, 2.25rem)`.
-- After the change, audit every protected page for skeleton loading states — any page that renders a blank white screen before data resolves needs a `loading.tsx` with `.skeleton` shimmer blocks.
+### Phase 12X — Fluid Typography + Skeleton & Page-Enter Polish (SHIPPED 2026-05-12)
+
+**Fluid typography (`src/app/globals.css`):**
+```css
+h1 {
+  font-size: clamp(1.625rem, 4vw, 2.25rem);
+}
+.dashboard-greeting {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+}
+```
+Global `h1` ranges 26px → 36px; the homepage greeting bumps to 28px → 40px. Defined **after** the Tailwind import so source-order cascade overrides utilities like `text-2xl` without `!important`. The dashboard greeting now carries both classes (`dashboard-greeting text-2xl ...`) — Tailwind's `text-2xl` stays for the line-height side-effect; `.dashboard-greeting` only sets `font-size`.
+
+**Skeleton audit:** A previous CLAUDE.md inventory missed `/stylists/directory` — a `loading.tsx` was added (header + search bar + 8 `.skeleton rounded-2xl h-14` rows). All other routes claimed by the inventory verified present on disk. Drill-down routes (`/billing/{collected,invoiced,outstanding,overdue}`) inherit the parent `/billing/loading.tsx` via Next.js's loading.tsx cascade — no per-drill-down file needed. Import flows (`/residents/import`, `/services/import`, `/master-admin/import-*`) and `/onboarding` are client-side forms/wizards with no SSR data fetch — no skeleton required.
+
+**`page-enter` mount animation audit:** Four page clients added during Phases 12A–12W were missed when the design-system rolled out `.page-enter`. Added the class as a prefix (keeping all other classes intact):
+- `src/app/(protected)/master-admin/master-admin-client.tsx`
+- `src/app/(protected)/services/services-page-client.tsx`
+- `src/app/(protected)/analytics/reports-client.tsx`
+- `src/app/(protected)/residents/import/import-client.tsx`
+
+`dashboard-client.tsx` remains excluded per the existing CLAUDE.md rule. `onboarding-client.tsx` excluded — its `min-h-screen flex items-center justify-center` centered-wizard layout would fight the translate-Y entrance.
 
 ### Phase 12Z — Toast Action Buttons
 - `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`
