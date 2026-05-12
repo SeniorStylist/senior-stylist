@@ -851,7 +851,7 @@ export function DirectoryClient({
           <p className="text-stone-400 text-sm">No stylists match this filter.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-y-auto overscroll-contain">
           {/* Select-all header */}
           <div className="flex items-center gap-3 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
             <input
@@ -906,7 +906,7 @@ export function DirectoryClient({
             return (
               <div
                 key={s.id}
-                className={`touch-pan-y flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${
+                className={`[touch-action:manipulation] flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${
                   dupMode && dupInfo.dupCodeIds.has(s.id)
                     ? 'bg-red-50'
                     : dupMode && dupInfo.dupNameIds.has(s.id)
@@ -928,7 +928,7 @@ export function DirectoryClient({
                 {/* Row content — clickable link */}
                 <Link
                   href={`/stylists/${s.id}`}
-                  className="flex items-center gap-3 flex-1 min-w-0"
+                  className="[touch-action:manipulation] flex items-center gap-3 flex-1 min-w-0"
                   onClick={(e) => {
                     // Don't navigate if clicking within the row but the checkbox was just used
                     if (isSelected) e.stopPropagation()
@@ -1112,7 +1112,7 @@ export function DirectoryClient({
                 <div key={a.id} className="group border-b border-stone-50 last:border-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out">
                   {/* Summary row */}
                   <div
-                    className="touch-pan-y grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"
+                    className="[touch-action:manipulation] grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"
                     onClick={() => handleAppExpand(a)}
                   >
                     <div className="min-w-0 pr-2">
