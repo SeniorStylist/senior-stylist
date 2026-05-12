@@ -17,6 +17,7 @@ import { ExpandableSection } from './expandable-section'
 import { transitionBase } from '@/lib/animations'
 import { useToast } from '@/components/ui/toast'
 import { Avatar } from '@/components/ui/avatar'
+import { openPeek } from '@/lib/peek-drawer'
 
 type SortKey = 'name' | 'room' | 'lastService' | 'billed' | 'outstanding'
 type SortDir = 'asc' | 'desc'
@@ -270,9 +271,15 @@ export function IPView({
                 >
                   <div className="md:col-span-3 flex items-center gap-3 min-w-0">
                     <Avatar name={r.name} size="md" />
-                    <span className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate">
-                      {r.name}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openPeek({ type: 'resident', id: r.id })}
+                      className="text-left min-w-0 hover:underline hover:text-[#8B2E4A] transition-colors"
+                    >
+                      <span className="text-[13.5px] font-semibold text-stone-900 leading-snug truncate block">
+                        {r.name}
+                      </span>
+                    </button>
                   </div>
                   <div className="md:col-span-1 text-[11.5px] text-stone-500 leading-snug">
                     {r.roomNumber ?? '—'}

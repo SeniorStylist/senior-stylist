@@ -19,6 +19,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { OcrImportModal } from './ocr-import-modal'
 import { HelpTip } from '@/components/ui/help-tip'
+import { openPeek } from '@/lib/peek-drawer'
 
 interface LogBooking {
   id: string
@@ -899,7 +900,16 @@ export function LogClient({
             >
               <Avatar name={stylist.name} color={stylist.color} size="sm" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-stone-900">{stylist.name}</p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openPeek({ type: 'stylist', id: stylist.id })
+                  }}
+                  className="text-left hover:underline hover:text-[#8B2E4A] transition-colors"
+                >
+                  <p className="text-sm font-semibold text-stone-900">{stylist.name}</p>
+                </button>
                 {stylistBookings.length > 0 && (
                   <p className="text-xs text-stone-500">
                     {stylistCompleted.length}/{stylistBookings.filter(b => b.status !== 'cancelled').length} done
@@ -979,14 +989,21 @@ export function LogClient({
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p
-                            className={cn(
-                              'text-[13.5px] font-semibold text-stone-900 leading-snug',
-                              (isNoShow || isCancelled) && 'line-through text-stone-400'
-                            )}
+                          <button
+                            type="button"
+                            data-tour="peek-resident-trigger"
+                            onClick={() => openPeek({ type: 'resident', id: booking.resident.id })}
+                            className="text-left hover:underline hover:text-[#8B2E4A] transition-colors"
                           >
-                            {booking.resident.name}
-                          </p>
+                            <p
+                              className={cn(
+                                'text-[13.5px] font-semibold text-stone-900 leading-snug',
+                                (isNoShow || isCancelled) && 'line-through text-stone-400'
+                              )}
+                            >
+                              {booking.resident.name}
+                            </p>
+                          </button>
                           {isCompleted && (
                             <span className="shrink-0 w-4 h-4 rounded-full bg-green-100 flex items-center justify-center" title="Completed">
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3.5">

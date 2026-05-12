@@ -2409,11 +2409,21 @@ No component, route, or schema changes. CSS-only.
 
 Design/interaction notes for phases not yet shipped. Update this section when implementation begins.
 
-### Phase 12W — Peek Drawer
-- `<PeekDrawer />`: fixed right-side panel `w-[380px] h-full bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)]`, `z-[80]` (below modals).
-- Slide-in from right: `translateX(100%) → translateX(0)` over `260ms cubic-bezier(0.25,0.46,0.45,0.94)`.
-- Semi-transparent backdrop `bg-black/20 z-[79]`; clicking backdrop closes drawer.
-- Triggered by any resident or stylist name link across daily log, billing, calendar.
+### Phase 12W — Peek Drawer (SHIPPED 2026-05-12)
+- `<PeekDrawer />` (`src/components/peek-drawer/peek-drawer.tsx`): globally mounted in `(protected)/layout.tsx` inside `<ToastProvider>` next to `<CommandPalette />`. Always rendered for all roles (the `/api/peek` 403s viewers; stylists can peek their colleagues but the "View Full Profile" button is hidden).
+- **Desktop** (`useIsMobile() === false`): fixed right-side panel `w-[380px] max-w-[92vw] h-full bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)]`, `z-[80]`. Slide via inline `style.transform` toggling between `translateX(100%)` and `translateX(0)` over `260ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`. Semi-transparent backdrop `bg-black/20 z-[79]` with `opacity` transition; `pointer-events: none` when closed; click-to-close. Close button is a circular `w-9 h-9` rounded-full ghost in the top-right corner. Escape key closes.
+- **Mobile** (`useIsMobile() === true`): reuses the existing `<BottomSheet>` from `src/components/ui/bottom-sheet.tsx` with NO `title` prop — the avatar header renders inside the scroll area so the sheet's drag handle is the only chrome on top. Drag-to-dismiss + escape handling come from the BottomSheet itself.
+- **Close timing**: closing sets `open: false` immediately and uses a `setTimeout(..., 300)` to clear `target`/`data`/`loading` so the slide-out animation completes before unmount.
+- **Loading state**: avatar skeleton (`w-12 h-12 rounded-full`) + two text skeletons + two block skeletons via the existing `<Skeleton>` component.
+- **Resident content**: 48px avatar (`bg-[#F9EFF2] text-[#8B2E4A] font-semibold text-lg`, initials) + name (`text-lg font-semibold`) + "Room X · Facility Name". POA contact card (`rounded-xl bg-stone-50 px-4 py-3`) when `poaName` is set — uppercase tracking-wide label, name, optional phone, optional email. Recent visits list (`text-xs uppercase tracking-wide` section header + per-row service name + short-date in stone-400). Next visit highlight card (`bg-[#F9EFF2]` with burgundy uppercase label). Burgundy "View Full Profile →" button at the bottom, hidden when `role === 'stylist'`.
+- **Stylist content**: 48px avatar (`bg-stone-100 text-stone-600`) + name + `stylistCode · facilityName` (code in `font-mono`). Status pill: emerald when `active`, stone when otherwise. Availability card listing days (`Works Mon, Tue, Thu`) when `availableDays.length > 0`. 2-tile stat grid (Today / This week, large 2xl numbers). "View Full Profile →" button visible only for `role === 'admin' || role === 'bookkeeper' || isMaster`.
+- **Trigger sites** wired in Phase 12W:
+  - Daily log resident name (`log-client.tsx`): wraps the `<p>` in a button with `data-tour="peek-resident-trigger"` (the tour engine's anchor — only this one site needs the attribute).
+  - Daily log stylist section header (`log-client.tsx`): `e.stopPropagation()` on the button click since the parent row's `onClick` toggles collapsed state.
+  - Billing IP view resident name (`ip-view.tsx`): the `<Avatar>` stays outside the button (decorative); only the `<span>` becomes clickable. Burgundy hover underline.
+  - Dashboard mobile stylist booking list (`dashboard-client.tsx`): guarded on `b.residentId` truthy.
+- **Hover pattern for triggers**: `hover:underline hover:text-[#8B2E4A] transition-colors`. Uses `text-left` so multi-word names don't center.
+- **Tour**: `admin-peek-drawer` (4 steps, NOT desktopOnly). Step 1 is the action on `[data-tour="peek-resident-trigger"]` (auto-resolves to `data-tour-mobile` if present, but we don't add the mobile variant — desktop and mobile share the same JSX). Steps 2–4 are info popovers. `PanelRight` lucide icon added to `TutorialIcon` union + `tutorial-card.tsx` ICON_MAP.
 
 ### Phase 12X — Fluid Typography
 - All DM Serif Display `<h1>` headings get `font-size: clamp(1.5rem, 4vw, 2.25rem)`.

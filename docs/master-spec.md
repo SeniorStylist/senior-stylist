@@ -2187,13 +2187,73 @@ Behavior:
 
 **Non-goals** — no mobile trigger (Phase 12W Peek Drawer will cover mobile jump-to-resident); no recent/frequent items; no "create new resident" command-style actions; multi-facility stylist for master admin returns home `facilityId` only (clicking through to the stylist detail page shows full assignment info).
 
+### Phase 12W — Resident/Stylist Peek Drawer (SHIPPED 2026-05-12)
+
+A globally mounted slide-out drawer that loads a quick read-only profile for a resident or stylist without navigating away from the current page. Triggered by clicking a resident or stylist name from daily log, billing, calendar, or dashboard mobile views.
+
+**API** — `GET /api/peek?type=resident|stylist&id=<uuid>` (`src/app/api/peek/route.ts`). Auth-gated; viewers return 403; all other roles return 404 when the target is missing or out of scope (master bypasses scope). Rate-limited `peek` bucket: 120/min/user. `dynamic = 'force-dynamic'`.
+
+**Scope rules**:
+- Master admin (env-email match) can peek any resident/stylist.
+- All other roles are restricted to `facilityUser.facilityId`. Resident scope: simple `eq(residents.facilityId, callerFacilityId)`. Stylist scope: INNER JOIN `stylistFacilityAssignments` filtered to `(stylistId, callerFacilityId, active=true)` — handles franchise-pool stylists whose `stylists.facilityId` may be null.
+- 404 (not 403) on scope mismatch — avoid leaking resident/stylist existence across facilities.
+
+**Resident payload**:
+```ts
+{ data: { type: 'resident', facilityTimezone: string,
+  resident: {
+    id, name, roomNumber, facilityName,
+    poaName, poaPhone, poaEmail,
+    lastVisits: Array<{ startTime, serviceName, stylistName }>,  // up to 3, completed, active, newest first
+    nextVisit: { startTime, serviceName, stylistName } | null,  // status=scheduled, active, startTime > now()
+  }
+} }
+```
+Service name resolves through `service?.name ?? rawServiceName ?? 'Unknown service'` (Phase 12B null-service guard). `residents` has no `facility` Drizzle relation (only `bookings`), so the route does a separate `facilities.findFirst` rather than adding a relation that isn't used elsewhere.
+
+**Stylist payload**:
+```ts
+{ data: { type: 'stylist', facilityTimezone: string,
+  stylist: {
+    id, name, stylistCode, facilityName, status,
+    availableDays: string[],          // ['Mon','Tue','Thu']
+    todayCount: number,               // bookings today, !cancelled, active
+    weekCount: number,                // Monday-start week, !cancelled, active
+  }
+} }
+```
+Today/week counts use two `db.execute(sql\`SELECT COUNT(*)::int AS n FROM bookings WHERE ...\`)` queries. Date ranges via `dayRangeInTimezone(date, tz, dayShift?)` from `src/lib/time.ts` (Phase 12T export, now public). Monday-start week computed by taking the localized weekday string from `getLocalParts` and shifting `(weekdayIdx + 6) % 7`. **Postgres-js driver returns iterable rows directly — no `.rows` wrapper**: `(result as unknown as Array<{ n: number | string }>)[0]?.n`.
+
+**Always filter `eq(bookings.active, true)`** on both visit queries and count queries (non-negotiable per CLAUDE.md).
+
+**Module-level state** (`src/lib/peek-drawer.ts`): mirrors `tour-router.ts`.
+```ts
+export type PeekTarget = { type: 'resident'; id: string } | { type: 'stylist'; id: string }
+export function setPeekHandler(fn: (target: PeekTarget) => void): void
+export function openPeek(target: PeekTarget): void
+```
+Any component anywhere in the tree calls `openPeek({...})` without prop drilling.
+
+**Component** (`src/components/peek-drawer/peek-drawer.tsx`): mounted globally in `(protected)/layout.tsx` inside `<ToastProvider>` next to `<CommandPalette />`. Mounted for all roles. Props: `role`, `isMaster`. State: `target`, `data`, `loading`, `open`, plus a `clearTimerRef` for the 300ms cleanup delay after close. `useToast()` returns `{ toast }` — destructure: `const { toast } = useToast()`.
+
+Renderer branches on `useIsMobile()`. Mobile: `<BottomSheet isOpen onClose>` (no `title` prop, avatar header renders inside scroll area). Desktop: always-mounted right-side drawer with inline `transform` toggle.
+
+**`getInitials` extracted** from `src/components/ui/avatar.tsx` to `src/lib/get-initials.ts`. `<Avatar>` now imports from the new module — single source of truth. Peek drawer uses it directly for its 48px header circle (Avatar has no `xl` size and the burgundy/gray fills differ from Avatar's per-letter palette).
+
+**Trigger sites** wired in Phase 12W:
+- `src/app/(protected)/log/log-client.tsx` — resident name (with `data-tour="peek-resident-trigger"` — the tour engine's anchor) and stylist section header (with `e.stopPropagation()` because the parent row toggles collapsed state).
+- `src/app/(protected)/billing/views/ip-view.tsx` — resident name in invoice/payment rows.
+- `src/app/(protected)/dashboard/dashboard-client.tsx` — mobile stylist's "today's bookings" cards (guarded on `b.residentId` truthy).
+- **Booking modal SKIPPED** — the selected-resident UI is the typeahead input value, not a separate read-only display. Adding a peek chip there is UX churn for a flow already covered by daily log / calendar / billing triggers.
+
+**Tour** — `admin-peek-drawer` (4 steps, NOT desktopOnly): step 1 is an action step on `/log` targeting `[data-tour="peek-resident-trigger"]`; steps 2–4 are info popovers. `PanelRight` lucide icon added to `TutorialIcon` union (`tours.ts`) and `ICON_MAP` (`tutorial-card.tsx`). Tour-check passed at 84 selectors (was 83). NOT added to `ONBOARDING_CHECKLIST` — discovery feature.
+
 ---
 
 ## Upcoming Phases
 
 ### Immediate (next up)
 
-- **Phase 12W** — Resident/Stylist Peek Drawer. Reusable `<PeekDrawer />` component — right-side slide-out drawer that loads a resident or stylist profile without navigating away from the current page. Triggered by clicking a resident or stylist name in daily log, billing, and calendar views.
 - **Phase 12X** — Fluid typography + polish pass. `clamp()` on all DM Serif Display `<h1>` headings. Comprehensive skeleton loading state audit — every data surface that can be empty on first render gets a shimmer skeleton.
 
 ### Medium Term

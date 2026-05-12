@@ -24,6 +24,7 @@ import { SignupSheetPanel } from '@/components/signup-sheet/signup-sheet-panel'
 import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending-entries'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
 import type { SignupSheetEntryWithRelations } from '@/types'
+import { openPeek } from '@/lib/peek-drawer'
 
 const CalendarView = dynamic(() => import('@/components/calendar/calendar-view'), {
   ssr: false,
@@ -549,7 +550,17 @@ export function DashboardClient({
                 <div key={b.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-[#8B2E4A] mb-0.5">{time}</p>
-                    <p className="text-sm font-semibold text-stone-900 truncate">{b.resident?.name ?? '—'}</p>
+                    {b.residentId ? (
+                      <button
+                        type="button"
+                        onClick={() => openPeek({ type: 'resident', id: b.residentId })}
+                        className="text-left w-full hover:underline hover:text-[#8B2E4A] transition-colors"
+                      >
+                        <p className="text-sm font-semibold text-stone-900 truncate">{b.resident?.name ?? '—'}</p>
+                      </button>
+                    ) : (
+                      <p className="text-sm font-semibold text-stone-900 truncate">{b.resident?.name ?? '—'}</p>
+                    )}
                     <p className="text-xs text-stone-400 truncate">{b.service?.name ?? '—'}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

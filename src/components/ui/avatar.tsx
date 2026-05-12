@@ -1,17 +1,12 @@
 import { cn } from '@/lib/utils'
 import { getAvatarColor } from '@/lib/avatar-colors'
+import { getInitials } from '@/lib/get-initials'
 
 interface AvatarProps {
   name: string
   color?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
 const sizes = {

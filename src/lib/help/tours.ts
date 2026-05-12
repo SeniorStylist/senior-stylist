@@ -27,7 +27,7 @@ export type TutorialIcon =
   | 'HeartHandshake' | 'ShieldCheck' | 'CreditCard' | 'ScanLine'
   | 'GitMerge' | 'Database' | 'FileSpreadsheet' | 'Wallet' | 'PlusSquare'
   | 'Network' | 'BookOpen' | 'CircleHelp' | 'ClipboardList' | 'PenLine'
-  | 'Clock' | 'Search'
+  | 'Clock' | 'Search' | 'PanelRight'
 
 export type Tutorial = {
   id: string
@@ -225,6 +225,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
   { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance' },
   { id: 'admin-command-palette', category: 'Navigation', title: 'Command Palette', blurb: 'Press CMD+K to instantly search residents, stylists, and pages.', estMinutes: 1, icon: 'Search', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-command-palette' },
+  { id: 'admin-peek-drawer', category: 'Navigation', title: 'Quick Profile Peek', blurb: 'Click any resident or stylist name to see their profile without leaving the page.', estMinutes: 1, icon: 'PanelRight', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-peek-drawer' },
 
   // BOOKKEEPER
   { id: 'bookkeeper-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Overview of the Daily Log, Billing, and Payroll — your three main areas.', estMinutes: 3, icon: 'KeyRound', roles: ['bookkeeper'], tourId: 'bookkeeper-getting-started' },
@@ -579,6 +580,17 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: '', isAction: false, title: 'Search anything', description: 'Type to search across residents, stylists, and pages. Pages match instantly; residents and stylists appear after a short delay.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Keyboard navigation', description: 'Use ↑/↓ arrow keys to navigate results and Enter to jump to any result. Press Esc to close.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Works from any page', description: 'The command palette works from any page — you never need to navigate to search first.' },
+    ],
+  },
+
+  'admin-peek-drawer': {
+    id: 'admin-peek-drawer',
+    title: 'Quick Profile Peek',
+    steps: [
+      { route: '/log', element: '[data-tour="peek-resident-trigger"]', isAction: true, title: 'Click any resident name', description: 'Resident names are clickable anywhere in the app — daily log, billing, calendar. Click one to peek at their profile without leaving the page.', actionHint: 'Click the resident name to continue.', mobileDescription: 'Resident names are tappable anywhere. Tap one to peek.' },
+      { route: '/log', element: '', isAction: false, title: 'Profile at a glance', description: 'A panel slides in showing the resident\'s room, POA contact, recent visits, and next appointment — no navigation needed.' },
+      { route: '/log', element: '', isAction: false, title: 'Same trick for stylists', description: 'Stylist names work the same way. Click a stylist anywhere — log header, calendar, billing — to see their schedule load and availability.' },
+      { route: '/log', element: '', isAction: false, title: 'View Full Profile or just close', description: 'Click "View Full Profile" if you need to go to the full page, or just close the panel and stay where you were.' },
     ],
   },
 
