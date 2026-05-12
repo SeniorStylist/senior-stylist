@@ -906,7 +906,7 @@ export function DirectoryClient({
             return (
               <div
                 key={s.id}
-                className={`flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${
+                className={`touch-pan-y flex items-center gap-2 px-4 py-3.5 border-b border-stone-50 last:border-0 transition-colors duration-[120ms] ease-out ${
                   dupMode && dupInfo.dupCodeIds.has(s.id)
                     ? 'bg-red-50'
                     : dupMode && dupInfo.dupNameIds.has(s.id)
@@ -1112,7 +1112,7 @@ export function DirectoryClient({
                 <div key={a.id} className="group border-b border-stone-50 last:border-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out">
                   {/* Summary row */}
                   <div
-                    className="grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"
+                    className="touch-pan-y grid grid-cols-[1fr_140px_120px_100px_100px_32px] items-center px-4 py-3.5 cursor-pointer"
                     onClick={() => handleAppExpand(a)}
                   >
                     <div className="min-w-0 pr-2">
