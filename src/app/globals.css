@@ -73,6 +73,9 @@ h1 {
   padding-top: 0;
   padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
   -webkit-overflow-scrolling: touch;
+  /* Promote to its own compositing layer so row :hover repaints
+     don't block the scroll gesture on trackpads. */
+  will-change: scroll-position;
 }
 @media (min-width: 768px) {
   .main-content {
