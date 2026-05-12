@@ -2046,3 +2046,47 @@ The last three were claimed by Phase 11J.4 documentation but had never been crea
 - `MobileDebugButton` (`src/components/layout/mobile-debug-button.tsx`): `md:hidden`, master-admin only (`isMaster` prop), positioned `left-4` at `bottom: calc(env(safe-area-inset-bottom)+88px)`. Receives `currentFacilityId: string` from `layout.tsx` (the facility currently driving the session, accounting for active debug impersonation). Facility dropdown initializes to `currentFacilityId` via `useState(currentFacilityId)`. BottomSheet with role picker + facility select → `window.location.href='/dashboard'`. In debug mode shows amber pill with inline change/exit.
 - `DebugTab` (`src/app/(protected)/master-admin/debug-tab.tsx`): receives `currentFacilityId: string` from `master-admin/page.tsx` (reads `selected_facility_id` httpOnly cookie). Lazy `useState` initializer validates `currentFacilityId` against `eligible` (facilities with facilityCode) before defaulting — ineligible facilities stay blank.
 - `InstallBanner` bottom raised to `96px` (from `80px`); banner now fully tappable (no separate "Show me how →" button — it overlapped the `+` FAB).
+
+---
+
+## Upcoming Phases
+
+### Immediate (next up)
+
+- **Phase 12T** — "I'm Here" stylist check-in + smart day rescheduling. New `stylist_checkins` table (`stylist_id`, `facility_id`, `date` date, `checked_in_at` timestamptz, `delay_minutes` integer). `POST /api/checkin` (stylist-only, idempotent per date). `PUT /api/bookings/bulk-reschedule` (accepts `bookingIds[]` + `shiftMinutes`). Dashboard button only shown on days stylist has appointments AND before check-in today. Late check-in (after first appointment) triggers a review sheet showing remaining appointments shifted by delay; stylist confirms or keeps original times. Internal only — no POA/family notifications.
+- **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none` on main layout scroll container. `user-select: none` and `-webkit-tap-highlight-color: transparent` on all `button`, `[role="button"]`, `a` elements via globals.css. ~20-min CSS-only pass.
+- **Phase 12V** — CMD+K Command Palette (desktop only). `hidden md:block`. Global fuzzy search: residents by name, stylists by name, facilities by name/code, app pages. Triggered by CMD+K (Mac) / CTRL+K (Windows). Available to admin, bookkeeper, master admin roles. Stylist and facility_staff do not see it.
+- **Phase 12W** — Resident/Stylist Peek Drawer. Reusable `<PeekDrawer />` component — right-side slide-out drawer that loads a resident or stylist profile without navigating away from the current page. Triggered by clicking a resident or stylist name in daily log, billing, and calendar views.
+- **Phase 12X** — Fluid typography + polish pass. `clamp()` on all DM Serif Display `<h1>` headings. Comprehensive skeleton loading state audit — every data surface that can be empty on first render gets a shimmer skeleton.
+
+### Medium Term
+
+- **Phase 12Y** — Push notifications via Web Push API + service worker. Stylists receive booking alerts when new bookings are added to their calendar.
+- **Phase 12Z** — Toast action buttons. Success toasts gain inline action buttons ("Booking saved — Undo | View").
+- **Phase 13A** — "What's New" changelog widget. Bell icon in header, per-user read state persisted on `profiles`, surfaces new features when phases ship.
+- **Phase 13B** — Optimistic UI on key actions: mark pay period paid, finalize log day, add resident. Immediate UI feedback before server round-trip.
+- **Phase 13C** — Skeleton loading audit. Every data surface uses shimmer skeletons — no blank white screens on any protected route.
+- **Phase 13D** — Keyboard shortcuts system. Esc closes any open modal. N = new booking from anywhere. ? = shortcut help overlay listing all bindings.
+- **Phase 13E** — Daily 8am summary email to Lisa via Resend + Vercel cron. Covers yesterday's bookings, outstanding balances, upcoming coverage gaps.
+
+### Longer Term
+
+- **Phase 13F** — Time-off approval + coverage finder. Admin approval flow for stylist time-off requests. Coverage finder uses ZIP radius matching to surface nearby substitute stylists.
+- **Phase 13G** — Resident photo uploads. Optional resident headshot stored in Supabase Storage private bucket; shown in resident detail and booking modal.
+- **Phase 13H** — Large-print accessibility mode for family portal. Toggleable via `/family/[code]/settings`; scales font sizes and touch targets for elderly users.
+- **Phase 13I** — Offline mode / service worker caching. Pre-caches today's schedule for stylists working in facilities with unreliable WiFi.
+- **Phase 13J** — Drag-to-reorder services and categories. Admin can reorder service list and category order via drag handle; persisted to `facilities.serviceCategoryOrder`.
+- **Phase 13K** — Bulk actions on mobile. Long-press on a list row enters multi-select mode; floating action bar offers bulk operations.
+- **Phase 13L** — Branded invoice/receipt templates. Custom HTML templates for PDF invoices and email receipts, gated on DNS verification for `noreply@seniorstylist.com`.
+- **Phase 13M** — QB API live sync (after Intuit production approval). Automated invoice pull on a schedule; flip `QB_INVOICE_SYNC_ENABLED='true'` in Vercel to activate.
+- **Phase 13N** — Franchise layer. Full DB schema for franchise management, super_admin UI overhaul, bookkeeper role scoped to franchise.
+- **Phase 13O** — Per-stylist Google Calendar integration. Each stylist OAuth-connects their personal Google Calendar; bookings sync as events.
+- **Phase 13P** — Facility merge tool. UI-driven consolidation of duplicate facility records, building on the existing `POST /api/super-admin/merge-facilities` engine.
+
+### Coming Soon Tours (unlock when features ship)
+
+- `bookkeeper-quickbooks` → after Phase 13M (Intuit production approval)
+- `bookkeeper-financial-reports` → after analytics expansion
+- `master-franchise` → after Phase 13N
+- `master-merge-duplicates` → after Phase 13P
+- Time-off approval tour → after Phase 13F

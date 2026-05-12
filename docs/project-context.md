@@ -391,6 +391,42 @@ End-to-end tip support and post-payment receipts. `bookings.tip_cents` (nullable
 ### Phase 12S — Signup Sheet v2 (SHIPPED 2026-05-11)
 Completes the signup-sheet workflow. New schema column `preferred_date` (only addition — `notes` and `assigned_to_stylist_id` already existed). New `resolveAssignedStylist` helper auto-assigns the right stylist based on day-of-week availability + least-load on the preferred date, with a most-recently-updated fallback. POST auto-assigns when caller omits `assignedToStylistId`. GET adds `?scope=all` (admin cross-stylist view) and `?countOnly=true` (badge). GET filter tightened from `!= 'cancelled'` to `= 'pending'`. Form gains preferred-date input and `<textarea>` notes (was single-line). Stylist queue cards gain drag handle (desktop only), preferred-date chip, notes display, "Pick time →" rename. Drag-to-calendar via FullCalendar `Draggable` from `@fullcalendar/interaction`, lazy-imported in `dashboard-client.tsx`. New `<PendingSignupBadge />` (stylist-only) on Calendar nav in sidebar + mobile-nav. Admin "Pending requests" cross-stylist section at top of `<SignupSheetPanel>`. Both signup-sheet tours rewritten with new anchors and copy. `ONBOARDING_CHECKLIST.facility_staff` gains signup-sheet as item #2. TSC clean. Schema push pending (network blocked from dev environment — run `! npx dotenv -e .env.local -- npx drizzle-kit push`).
 
+### Recent Bug Fixes (shipped without brain update)
+
+- **fix: master admin help page filtering + tour element timeouts** (d81a23f) — `visibleFor()` now shows only `masterOnly: true` cards for master admin by default; `SLOW_PAGE_WAIT_MS = 5000` added for data-heavy routes; four master tours converted fragile element selectors to `element: ''` info popovers.
+- **fix: debug impersonation help filter + tour health check script** (d03286c) — `/help/page.tsx` reads `__debug_role` cookie server-side and passes `effectiveRole` + corrected `isMaster` to `<HelpClient />`; new `scripts/check-tours.ts` static analyzer (80+ selectors, 0 missing on ship); settings sidebar category buttons got `data-tour={TOUR_SLUGS[cat.id]}` anchors.
+
+### Phase 12T–12Z and 13A–13P — Upcoming
+
+**Immediate (next up):**
+- **Phase 12T** — "I'm Here" stylist check-in with smart day rescheduling. `stylist_checkins` table, `POST /api/checkin`, `PUT /api/bookings/bulk-reschedule`. Button visible on days with appointments, before check-in today.
+- **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none`, `user-select: none`, `-webkit-tap-highlight-color: transparent`. ~20-min CSS pass.
+- **Phase 12V** — CMD+K Command Palette (desktop only). Fuzzy search: residents, stylists, facilities, pages. Admin / bookkeeper / master admin only.
+- **Phase 12W** — Resident/Stylist Peek Drawer. Right-side `<PeekDrawer />` triggered by name clicks in daily log, billing, calendar.
+- **Phase 12X** — Fluid typography + polish pass. `clamp()` on DM Serif Display headings. Skeleton loading state audit.
+
+**Medium term:**
+- **Phase 12Y** — Push notifications (Web Push API + service worker). Stylist booking alerts.
+- **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
+- **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state.
+- **Phase 13B** — Optimistic UI (mark pay period paid, finalize log, add resident).
+- **Phase 13C** — Skeleton loading audit across all data surfaces.
+- **Phase 13D** — Keyboard shortcuts system (Esc, N = new booking, ? = help overlay).
+- **Phase 13E** — Daily 8am summary email to Lisa (Resend + Vercel cron).
+
+**Longer term:**
+- **Phase 13F** — Time-off approval + coverage finder (zip proximity matching).
+- **Phase 13G** — Resident photo uploads (Supabase Storage).
+- **Phase 13H** — Large-print accessibility mode for family portal.
+- **Phase 13I** — Offline mode / service worker caching.
+- **Phase 13J** — Drag-to-reorder services and categories.
+- **Phase 13K** — Bulk actions on mobile (long-press to select).
+- **Phase 13L** — Branded invoice/receipt templates (after DNS verification).
+- **Phase 13M** — QB API live sync (after Intuit production approval).
+- **Phase 13N** — Franchise layer (DB schema, super_admin UI, bookkeeper role).
+- **Phase 13O** — Google Calendar integration per stylist.
+- **Phase 13P** — Facility merge tool.
+
 ### Phase 12R — Onboarding Checklist Widget (SHIPPED 2026-05-11)
 Fixed bottom-right `<OnboardingChecklist />` widget on `/dashboard` shows 3-4 role-specific first-run tours. Items check off instantly via `tour-completed` CustomEvent (no reload). Auto-dismisses when all complete (1.5s "🎉 You're all set!" then slides off). × button for manual dismissal. Collapsed/dismissed state in localStorage. Entrance: `translateY(120%) → 0` after 1s mount delay. `ONBOARDING_CHECKLIST` config exported from `tours.ts`. `DashboardClient` extended with `completedTours`, `isMaster`, `userId` props (fetched in `dashboard/page.tsx`). TSC clean.
 
@@ -576,16 +612,16 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 11N/M/audit + right panel redesign + bookkeeper permissions + favicon all shipped. Next priorities:
+Phase 12S + tour fixes all shipped (2026-05-12). Next priorities:
 
-1. **QuickBooks manual config** — still required before end-to-end Bill sync works:
+1. **Phase 12T — "I'm Here" check-in** — next feature up. New `stylist_checkins` table, `POST /api/checkin`, `PUT /api/bookings/bulk-reschedule`, dashboard button (stylist-only, days with appointments, before today's check-in).
+2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel
    - First-time admin: Settings → Integrations → Connect QuickBooks → pick Expense account
-4. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance cron unauthenticated without it.
-5. **(optional)** Upstash Redis for rate limiting — no-op without it.
-6. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
-7. Phase 10B+ backlog: recurring pay period auto-creation, automated retry-with-backoff for transient QB failures.
+3. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance cron unauthenticated without it.
+4. **(optional)** Upstash Redis for rate limiting — no-op without it.
+5. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
 
 ---
 

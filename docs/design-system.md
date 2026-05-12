@@ -2337,4 +2337,49 @@ A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767p
 - Accessibility: `role="status"` `aria-live="polite"` `aria-hidden={!active}`
 - `pointer-events: auto` when active, `none` when inactive — the banner is short enough not to obstruct meaningful UI, but pointer-events on the off-screen state prevents accidental click capture during the slide-out animation
 
+---
+
+## Upcoming UI Phases
+
+Design/interaction notes for phases not yet shipped. Update this section when implementation begins.
+
+### Phase 12T — Check-In Review Sheet
+- "I'm Here" button on stylist dashboard: `bg-[#8B2E4A] text-white`, only visible on days with appointments before check-in. Hidden after check-in.
+- Late check-in triggers a bottom sheet (mobile) / modal (desktop) review sheet listing remaining appointments with shifted times. Each row: original time → new time (amber `→` arrow). "Confirm shift" / "Keep original" CTA pair.
+- `stylist_checkins` table — no UI exposure beyond the button and review sheet.
+
+### Phase 12U — Overscroll Lock + Touch Polish
+- Add to `globals.css`: `body, .main-content { overscroll-behavior-y: none; }`.
+- Add to global interaction baseline: `-webkit-tap-highlight-color: transparent; user-select: none;` on `button, [role="button"], a`.
+- CSS-only — no component changes.
+
+### Phase 12V — CMD+K Command Palette
+- `hidden md:block` — desktop only.
+- Full-screen backdrop `bg-black/40 backdrop-blur-sm z-[300]` (above all existing overlays).
+- Centered `bg-white rounded-2xl shadow-2xl w-[560px] max-h-[420px]` panel with search input at top, scrollable results below.
+- Result rows: icon + primary label + secondary label (room/code/path). Keyboard nav (↑/↓, Enter, Esc).
+- Available to admin, bookkeeper, master admin. Not shown for stylist or facility_staff.
+
+### Phase 12W — Peek Drawer
+- `<PeekDrawer />`: fixed right-side panel `w-[380px] h-full bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)]`, `z-[80]` (below modals).
+- Slide-in from right: `translateX(100%) → translateX(0)` over `260ms cubic-bezier(0.25,0.46,0.45,0.94)`.
+- Semi-transparent backdrop `bg-black/20 z-[79]`; clicking backdrop closes drawer.
+- Triggered by any resident or stylist name link across daily log, billing, calendar.
+
+### Phase 12X — Fluid Typography
+- All DM Serif Display `<h1>` headings get `font-size: clamp(1.5rem, 4vw, 2.25rem)`.
+- After the change, audit every protected page for skeleton loading states — any page that renders a blank white screen before data resolves needs a `loading.tsx` with `.skeleton` shimmer blocks.
+
+### Phase 12Z — Toast Action Buttons
+- `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`
+- Toast component grows a right-side action zone: `border-l border-stone-100 pl-3 ml-3 shrink-0` with a small `text-[#8B2E4A] font-medium text-sm` button.
+- "Undo" actions fire a DELETE and optimistically revert UI; if the DELETE fails, toast an error and restore state.
+
+### Phase 13D — Keyboard Shortcuts
+- `useKeyboardShortcuts()` hook in `src/lib/keyboard-shortcuts.ts` — attaches `keydown` listener, ignores when focus is inside `input/textarea/select`.
+- `Esc`: close the topmost open modal/drawer/sheet (walk down a z-index stack via a global registry).
+- `N`: open New Booking modal (admin/facility_staff only, when not already in a modal).
+- `?`: open shortcut help overlay — centered card listing all bindings.
+- Shortcut overlay: `z-[350]`, closes on Esc or outside click. Rendered in `(protected)/layout.tsx`.
+
 **State**: listens to the `tour-mode-change` CustomEvent (dispatched by `setTourModeActive()` in `src/lib/help/tour-mode.ts`). Always rendered — toggling the transform handles the slide animation in both directions without unmount.

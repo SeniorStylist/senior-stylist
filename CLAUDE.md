@@ -669,6 +669,13 @@ Rules for stable selectors:
 
 ---
 
+## Recent Bug Fixes (shipped without brain update)
+
+- **fix: master admin help page filtering + tour element timeouts** (d81a23f) — `visibleFor()` now shows only `masterOnly: true` cards for master admin by default; `SLOW_PAGE_WAIT_MS = 5000` added for data-heavy routes so tours wait longer before timing out; four master tours (master-add-facility, master-quickbooks-setup, master-analytics, master-stylist-directory) converted fragile `[data-tour="..."]` element selectors to `element: ''` info popovers where the DOM element was unreliable.
+- **fix: debug impersonation help filter + tour health check script** (d03286c) — `/help/page.tsx` reads `__debug_role` cookie server-side and passes `effectiveRole` + corrected `isMaster` boolean to `<HelpClient />` so impersonated sessions see the correct filtered tour catalog; new `scripts/check-tours.ts` static analyzer validates all 80+ tour step selectors against `data-tour` attributes in source (0 missing on ship); settings sidebar category buttons got `data-tour={TOUR_SLUGS[cat.id]}` anchors so settings-section tours can target them reliably.
+
+---
+
 ## Locked Phase Roadmap
 
 > These phases are locked and must not be re-ordered or re-scoped without explicit user instruction.
@@ -690,10 +697,46 @@ Rules for stable selectors:
 - **Phase 12R** (SHIPPED 2026-05-11) — Onboarding Checklist Widget: fixed bottom-right `<OnboardingChecklist />` on `/dashboard` shows role-specific first-run tour list. Checks off instantly via `tour-completed` CustomEvent. Auto-dismisses when all items complete; × button for manual dismissal. localStorage-persisted collapsed/dismissed state.
 - **Phase 12S** (SHIPPED 2026-05-11) — Signup Sheet v2: `signup_sheet_entries.preferred_date` column, `resolveAssignedStylist` auto-assignment helper (date-aware least-load → fallback), POST auto-assigns when caller omits stylist, GET supports `scope=all` (admin/staff cross-stylist) + `countOnly=true` (badge). Form gains preferred-date input and notes textarea; stylist panel cards gain drag handle + preferred-date chip + notes + "Pick time →" + drag-to-calendar via FC `Draggable`. New `<PendingSignupBadge />` on Calendar nav (stylist-only). Admin "Pending requests" cross-stylist section at top of panel. Both signup-sheet tours rewritten with new anchors (`stylist-signup-sheet-panel` → `stylist-pending-panel`, etc.).
 - **Phase 13** (SHIPPED 2026-05-04) — Performance Pass: `DATABASE_URL` switched to session-mode pooler (port 5432), `prepare: false` removed, `Promise.race` resolve-not-reject in `layout.tsx` (`LAYOUT_TIMEOUT_MS = 8000`), master-admin cold-cache rewritten as 5 flat `GROUP BY` queries (was 4×N), 4 cached functions wrapped in try/catch returning `[]`, cross-facility summary cached (2min, `billing` tag), 3 new partial indexes, middleware short-circuit for `/portal/*` + `/family/*` + `/api/cron/*` + `/api/portal/*` + `/invoice/*` + `/privacy` + `/terms`
-- **Phase 14** — Facility Contact Portal: `facility_contact` role, `service_change_requests` table (add_day|cancel_day|…), restricted nav (Schedule read-only, Visit Summaries, Invoices, Submit Request)
-- **Phase 15** — QuickBooks Polish: automated retry-with-backoff worker for transient failures, optional invoice push for non-Stripe facilities. (`quickbooks_sync_log` audit table shipped in Phase 11N.)
-- **Phase 16** — Per-Stylist Google Calendar Integration: per-stylist OAuth2 connect, bookings sync as calendar events
-- **Phase 17** — Advanced KPI Dashboard: no schema changes, new metrics (cancellation rate, avg ticket, utilization, concentration risk, MoM/YoY), region filtering, weekly email digest, PDF export
+
+### Upcoming — Immediate
+
+- **Phase 12T** — "I'm Here" stylist check-in with smart day rescheduling. Stylist taps "I'm Here" on their dashboard on days they have appointments. App records check-in time; if late (after first appointment time) shows a review sheet with remaining appointments shifted forward by the delay. Stylist confirms or keeps original times. Internal only — no POA notifications. New `stylist_checkins` table (`stylistId`, `facilityId`, `date`, `checkedInAt`, `delayMinutes`). New `POST /api/checkin`. New `PUT /api/bookings/bulk-reschedule`. Button only visible on days with appointments, before check-in today.
+- **Phase 12U** — Overscroll lock + native touch polish. `overscroll-behavior-y: none` on main layout, `user-select: none` and `-webkit-tap-highlight-color: transparent` on all interactive elements. ~20-minute CSS fix for iOS rubber-band bounce.
+- **Phase 12V** — CMD+K Command Palette (desktop only). Global fuzzy search triggered by CMD+K / CTRL+K. Searches residents by name, stylists by name, facilities by name/code, any page. `hidden md:block`. Available to admin, bookkeeper, master admin roles.
+- **Phase 12W** — Resident/Stylist Peek Drawer. Right-side slide-out drawer loading a resident or stylist profile without navigating away. Triggered by clicking resident/stylist name anywhere in the app (daily log, billing, calendar). Reusable `<PeekDrawer />` component.
+- **Phase 12X** — Fluid typography + polish pass. `clamp()` on all DM Serif Display headings. Audit every data surface for skeleton loading states.
+
+### Upcoming — Medium Term
+
+- **Phase 12Y** — Push notifications via Web Push API + service worker. Stylist booking alerts when new bookings are added to their calendar.
+- **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
+- **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state, surfaces new features when phases ship.
+- **Phase 13B** — Optimistic UI on key actions (mark pay period paid, finalize log, add resident).
+- **Phase 13C** — Skeleton loading audit. Every data surface uses shimmer skeletons — no blank white screens.
+- **Phase 13D** — Keyboard shortcuts system (Esc closes modals, N = new booking, ? = shortcut help overlay).
+- **Phase 13E** — Daily summary email to Lisa (8am digest via Resend + Vercel cron).
+
+### Upcoming — Longer Term
+
+- **Phase 13F** — Time-off approval + coverage finder (zip proximity matching).
+- **Phase 13G** — Resident photo uploads (Supabase Storage).
+- **Phase 13H** — Large-print accessibility mode for the family portal.
+- **Phase 13I** — Offline mode / service worker caching for unreliable facility WiFi.
+- **Phase 13J** — Drag-to-reorder services and categories.
+- **Phase 13K** — Bulk actions on mobile (long-press to select).
+- **Phase 13L** — Branded invoice/receipt templates (after DNS verification for noreply@seniorstylist.com).
+- **Phase 13M** — QB API live sync (after Intuit production approval).
+- **Phase 13N** — Franchise layer (DB schema, super_admin UI, bookkeeper role).
+- **Phase 13O** — Google Calendar integration per stylist.
+- **Phase 13P** — Facility merge tool.
+
+### Coming Soon tours (unlock when features ship)
+
+- `bookkeeper-quickbooks` → after Phase 13M (Intuit production approval)
+- `bookkeeper-financial-reports` → after analytics expansion
+- `master-franchise` → after Phase 13N
+- `master-merge-duplicates` → after Phase 13P
+- Time-off approval tour → after Phase 13F
 
 ---
 
