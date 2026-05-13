@@ -319,6 +319,62 @@ Rules for stable selectors:
 
 ---
 
+## Layout Shell (Phase 12Y)
+
+The protected layout (`src/app/(protected)/layout.tsx`) is a 3-zone vertical flexbox shell (4-zone with desktop sidebar). The OUTER container is `h-[100dvh] flex overflow-hidden`. The INNER column is `flex-1 min-w-0 flex flex-col overflow-hidden`, containing in order: `<MobileFacilityHeader>` (shrink-0, mobile-only), `<TopBar>` (shrink-0, desktop-only), `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">`, `<MobileNav>` (shrink-0, mobile-only). **`<main>` is the ONLY vertical scroll container in the protected layout** — no nested overflow-auto.
+
+**`.main-content` carries `transform: translateZ(0)`** in `globals.css`. This:
+1. Promotes the element to its own GPU compositing layer (replaces the old `will-change: scroll-position` which broke trackpad wheel-event delegation on Safari — Phase 12Y also fixes the stylist directory scroll bug this way).
+2. Establishes `<main>` as a **containing block for `position: fixed` descendants**. So FABs, the toast container, the OnboardingChecklist widget, MobileDebugButton, and InstallBanner can use plain `className="fixed bottom-4 ..."` (no inline `calc(env(safe-area-inset-bottom) + 80px)` offsets) and they naturally sit above the nav. The nav handles its own safe-area-bottom internally.
+
+**Global overlays that must cover the FULL viewport** — and therefore CANNOT be contained by `<main>` — portal to `document.body` via `createPortal`. Currently portaled:
+- `<PeekDrawer>` (`peek-drawer.tsx`)
+- `<CommandPalette>` (`command-palette.tsx`)
+- `<MobileTourOverlay>` (`mobile-tour-overlay.tsx`)
+
+**Outer-shell siblings** (outside `<main>`, viewport-anchored, NOT portaled): `<TourModeBanner>` (top, `top: env(safe-area-inset-top)`), `<DebugBadge>` (top-right, desktop). These sit at the outer flex container level so their `fixed` positioning is viewport-relative.
+
+**CSS variables (`globals.css` `:root`):** `--app-header-height: 56px`, `--app-nav-height: 72px`, `--app-safe-top: env(safe-area-inset-top)`, `--app-safe-bottom: env(safe-area-inset-bottom)`. The old `--mobile-nav-height` and `--mobile-header-height` are DELETED — `--app-*` is the canonical naming.
+
+**Body has NO `padding-top: env(safe-area-inset-top)` anymore.** Safe-area-top is handled internally by `<MobileFacilityHeader>` (`paddingTop: 'var(--app-safe-top)'`). Safe-area-bottom is handled internally by `<MobileNav>` (`paddingBottom: 'calc(0.5rem + var(--app-safe-bottom))'`).
+
+**FAB positioning rule (Phase 12Y):** Any `fixed` element INSIDE `.main-content` (FABs, toasts, OnboardingChecklist, MobileDebugButton, InstallBanner) uses plain Tailwind `bottom-4` (or `bottom-6` on desktop via `md:bottom-6`). No inline `calc()` offsets. The transform-induced containing block does the work. If you add a new floating component, MOUNT IT INSIDE `<main>` (or via the `<ToastProvider>` subtree) and use `bottom-4`. NEVER hardcode `bottom: 'calc(env(safe-area-inset-bottom) + 80px)'` anywhere.
+
+---
+
+## Tour System Platform Awareness (Phase 12Y)
+
+The tour engine no longer fires user-facing "Couldn't find that element" toasts. When `waitForElement` returns null:
+- Desktop (`tours.ts` `runStep`): `console.warn` + silent `runStep(def, index + 1)`.
+- Mobile (`mobile-tour.ts` `runMobileStep`): same.
+
+Use `console.warn` to surface drift to developers. End users never see the broken-element toast.
+
+**`Tutorial.platform?: 'mobile' | 'desktop' | 'both'`** field gates the help catalog. `visibleFor()` in `help-client.tsx` filters by viewport via `useIsMobile()`. Undefined platform = `'both'` (default). `desktopOnly` on `TourDefinition` is REMOVED — the catalog filter is the single source of truth.
+
+**`PLATFORM_TOUR_ALIASES`** (`tours.ts`) maps base tour ids to their platform variants:
+```ts
+'stylist-getting-started' → { mobile: 'stylist-getting-started-mobile', desktop: 'stylist-getting-started-desktop' }
+'stylist-calendar' → { mobile: 'stylist-calendar-mobile', desktop: 'stylist-calendar-desktop' }
+```
+At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it resolves to the right variant via `isMobile()`. This lets `ONBOARDING_CHECKLIST`, the `<HelpTip tourId="stylist-calendar">` injection points, and external `?tour=stylist-calendar` query params continue to work without per-call-site changes.
+
+**`isTourCompleted(baseId, completedTours)`** helper exported from `tours.ts` — checks if either the base id or any of its platform variants appear in the user's `completed_tours` array. Used by `<OnboardingChecklist>` so completing `stylist-calendar-mobile` checks off the `stylist-calendar` checklist row.
+
+**Stylist tours split into mobile + desktop variants:**
+- `stylist-getting-started-mobile` / `-desktop` (the calendar overview step diverges — mobile targets `[data-tour="stylist-mobile-booking-list"]`, desktop targets `[data-tour="calendar-time-grid"]`).
+- `stylist-calendar-mobile` / `-desktop` (FullCalendar grid on desktop vs today's-bookings list on mobile).
+
+**Other stylist tours stay as `platform: 'both'`**: `stylist-daily-log`, `stylist-checkin`, `stylist-residents`, `stylist-finalize-day`, `stylist-my-account`, `stylist-signup-sheet`. They render the same UI on both viewports.
+
+**`admin-command-palette`** is `platform: 'desktop'` (CMD+K trigger is desktop-only).
+
+**New `data-tour` anchors** in `dashboard-client.tsx` stylist mobile view: `stylist-mobile-booking-list` on the booking-cards wrapper, `stylist-mobile-booking-card` on the first card (or empty-state card).
+
+**`scripts/check-tours.ts`** extended with a platform-consistency pass: for each tour tagged `mobile` or `desktop`, scan the anchor element's source-file context for `md:hidden` (mobile-only) or `hidden md:flex|block|grid|inline` (desktop-only) class patterns. Emits warnings on mismatch; does not fail the script (heuristic, false positives possible).
+
+---
+
 ## UI Consistency Rules
 
 - **Room number must appear wherever a resident is shown**: booking modal selected-state (read-only "Room X" below the resident field), daily log rows (already shown), OCR review (read-only for matched residents who have a room; editable input if matched resident has no room). All new-resident inline forms already have room fields — keep them. When adding a new resident-facing UI surface, include room number.
@@ -751,12 +807,13 @@ Rules for stable selectors:
 - **Phase 12V** (SHIPPED 2026-05-12) — CMD+K Command Palette (desktop only). `GET /api/search?q=…` (admin/bookkeeper/master only, `search` rate-limit 60/min/user, residents inner-joined to facilities, stylists DISTINCT-joined to assignments for non-master, LEFT-joined to facilities for master). New `<CommandPalette />` mounted in `(protected)/layout.tsx` inside ToastProvider, gated on role. Sidebar search trigger (`data-tour="cmd-k-trigger"`, `hidden md:flex`) dispatches `'open-command-palette'` CustomEvent. New static `PALETTE_ROUTES` table in `src/lib/command-palette-pages.ts`. Tour `admin-command-palette` (4 steps, desktopOnly) added. `Search` lucide icon added to `TutorialIcon` union + `ICON_MAP`.
 - **Phase 12W** (SHIPPED 2026-05-12) — Resident/Stylist Peek Drawer. `GET /api/peek?type=resident|stylist&id=<uuid>` (all roles except viewer, `peek` rate-limit 120/min/user, cross-facility peeks return 404 to avoid existence leak). New module-level state `src/lib/peek-drawer.ts` (mirrors `tour-router.ts`) with `setPeekHandler` + `openPeek`. `<PeekDrawer />` mounted globally in `(protected)/layout.tsx` for all roles — `useIsMobile()` branches between desktop right-drawer (`translateX` 260ms) and the existing `<BottomSheet>` on mobile. `getInitials` extracted from `avatar.tsx` to `src/lib/get-initials.ts`. Trigger anchors wired: daily log resident name (with `data-tour="peek-resident-trigger"`), daily log stylist header, billing IP view resident name, dashboard mobile stylist booking list. Booking modal SKIPPED (typeahead input — no read-only display). Tour `admin-peek-drawer` (4 steps) added; `PanelRight` lucide icon added to `TutorialIcon` union + `ICON_MAP`. NOT in `ONBOARDING_CHECKLIST` — discovery feature like 12V.
 - **Phase 12X** (SHIPPED 2026-05-12) — Fluid Typography + Skeleton/page-enter Audit. CSS-only changes plus 4 className additions and 1 new `loading.tsx`. Global `h1 { font-size: clamp(1.625rem, 4vw, 2.25rem) }` in `globals.css` scales DM Serif Display headings from 26px (320px phone) → 36px (large monitor); a more aggressive `.dashboard-greeting { font-size: clamp(1.75rem, 5vw, 2.5rem) }` is applied to the homepage greeting (alongside its existing `text-2xl` Tailwind class — source-order cascade lets the custom rule win). Skeleton audit: `stylists/directory/loading.tsx` was the only missing route — created with header + search bar + 8 row skeletons using `.skeleton rounded-2xl`. Audit confirmed all other routes flagged by prior CLAUDE.md inventory are present on disk. `page-enter` mount animation added to four newer page clients that were missed during the design-system rollout: `master-admin-client.tsx` (line 408), `services-page-client.tsx` (line 201), `analytics/reports-client.tsx` (line 185), `residents/import/import-client.tsx` (line 217). Dashboard explicitly excluded per existing rule. `onboarding-client.tsx` excluded — full-height centered wizard layout would fight the translate-Y entrance.
+- **Phase 12Y** (SHIPPED 2026-05-13) — Mobile Layout Shell + Tour System Overhaul + Directory Scroll Fix. Three-part polish landing together. **Shell:** `(protected)/layout.tsx` restructured to 3-zone flexbox shell — outer `h-[100dvh] flex overflow-hidden`, inner column with `<MobileFacilityHeader>` / `<main>` / `<MobileNav>` as flex siblings. MobileNav no longer `position: fixed`. `.main-content` carries `transform: translateZ(0)` (replaces `will-change: scroll-position`) — creates a containing block for `position: fixed` descendants AND a compositor layer for scroll. Eight floating components dropped their inline `calc(env(safe-area-inset-bottom) + 80px)` offsets and use plain Tailwind `bottom-4` (toast, OnboardingChecklist, QuickBookFAB, log/services/directory FABs, MobileDebugButton, InstallBanner). MobileDebugButton + InstallBanner moved INSIDE `<main>` so they benefit from the containing block. `<CommandPalette>`, `<PeekDrawer>`, `<MobileTourOverlay>` portaled via `createPortal(document.body)` to remain viewport-spanning. Renamed CSS vars: `--mobile-nav-height` → `--app-nav-height`, `--mobile-header-height` → `--app-header-height`; added `--app-safe-top` / `--app-safe-bottom`. Removed `body { padding-top: env(safe-area-inset-top) }` — header handles it internally. **Tour engine:** `waitForElement` returning null now silently `console.warn` + advances; no more user-facing "Couldn't find that element" toast. **Type changes:** `Tutorial.platform?: 'mobile' | 'desktop' | 'both'` field added; `TourDefinition.desktopOnly` REMOVED (catalog filter is single source of truth). `help-client.tsx::visibleFor()` extended with `useIsMobile()` viewport filter. `PLATFORM_TOUR_ALIASES` map resolves base tour ids to platform variants in `startTour()`; `isTourCompleted(baseId, completed[])` helper checks completion across variants for ONBOARDING_CHECKLIST. **Stylist tour splits:** `stylist-getting-started` + `stylist-calendar` each split into `-mobile` and `-desktop` variants targeting platform-specific anchors (`[data-tour="stylist-mobile-booking-list"]` + `[data-tour="stylist-mobile-booking-card"]` on mobile; `[data-tour="calendar-time-grid"]` + `[data-tour="calendar-today-btn"]` on desktop). `admin-command-palette` migrated to `platform: 'desktop'`. **Directory scroll:** root-cause was the `will-change: scroll-position` on `.main-content` blocking wheel-event delegation on Safari/macOS trackpad; replaced with `transform: translateZ(0)` (same compositor promotion, no event blocking). **`scripts/check-tours.ts`** extended with a platform-consistency pass that scans anchor-element source context for `md:hidden` (mobile-only) / `hidden md:flex` (desktop-only) class patterns and emits warnings on platform-tour mismatches (heuristic, doesn't fail the script).
 
 ### Upcoming — Immediate
 
 ### Upcoming — Medium Term
 
-- **Phase 12Y** — Push notifications via Web Push API + service worker. Stylist booking alerts when new bookings are added to their calendar.
+- **Phase 13Q** — Push notifications via Web Push API + service worker. Stylist booking alerts when new bookings are added to their calendar.
 - **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
 - **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state, surfaces new features when phases ship.
 - **Phase 13B** — Optimistic UI on key actions (mark pay period paid, finalize log, add resident).

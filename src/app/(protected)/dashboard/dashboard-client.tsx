@@ -532,22 +532,26 @@ export function DashboardClient({
           )}
 
           {/* Today's appointments */}
-          <div className="px-4 space-y-2">
+          <div className="px-4 space-y-2" data-tour="stylist-mobile-booking-list">
             {loadingBookings && (
               <div className="flex items-center justify-center py-10">
                 <Spinner className="text-[#8B2E4A]" />
               </div>
             )}
             {!loadingBookings && myTodayBookings.length === 0 && (
-              <div className="bg-white rounded-2xl border border-stone-100 p-6 text-center">
+              <div className="bg-white rounded-2xl border border-stone-100 p-6 text-center" data-tour="stylist-mobile-booking-card">
                 <p className="text-stone-500 text-sm">No appointments today</p>
               </div>
             )}
-            {myTodayBookings.map((b) => {
+            {myTodayBookings.map((b, bookingIdx) => {
               const time = formatTime(b.startTime, facility.timezone)
               const isDone = b.status === 'completed'
               return (
-                <div key={b.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-3">
+                <div
+                  key={b.id}
+                  className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-3"
+                  data-tour={bookingIdx === 0 ? 'stylist-mobile-booking-card' : undefined}
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-[#8B2E4A] mb-0.5">{time}</p>
                     {b.residentId ? (

@@ -2271,17 +2271,84 @@ A small, focused polish pass: CSS-only typography scaling + filling the last gap
 
 **Net diff:** 1 new file, 5 file edits, 0 new APIs, 0 new dependencies, 0 schema changes.
 
+### Phase 12Y — Mobile Layout Shell + Tour System Overhaul + Directory Scroll Fix (SHIPPED 2026-05-13)
+
+Three related polish items landed together. CSS + layout architecture + tour system tweaks. No schema, no API.
+
+**Shell architecture (`src/app/(protected)/layout.tsx` + `globals.css`):**
+- Outer container: `<div className="h-[100dvh] flex overflow-hidden">` (was `flex h-screen`). `100dvh` corrects iOS Safari address-bar dynamics.
+- Inner column: `<div className="flex-1 min-w-0 flex flex-col overflow-hidden">` containing `<MobileFacilityHeader>` / `<TopBar>` / `<main>` / `<MobileNav>` as flex siblings.
+- `<MobileNav>` moved INTO the inner column as the last flex child (`shrink-0`). No longer `position: fixed`.
+- `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">` is THE only vertical scroll container.
+
+**`.main-content` carries `transform: translateZ(0)`** — this single CSS rule:
+1. Promotes the element to its own GPU compositor layer (this REPLACES the broken `will-change: scroll-position` which interfered with wheel-event delegation on Safari/macOS trackpads; that's the root cause of the directory scroll regression).
+2. Creates a **containing block for `position: fixed` descendants**.
+
+**`position: fixed` descendants of `<main>` use plain Tailwind `bottom-4`** (`md:bottom-6` for desktop). They naturally sit above the nav because `<main>`'s bottom edge IS the nav's top edge (nav is the next flex sibling in the inner column). No more inline `calc(env(safe-area-inset-bottom) + 80px)` offsets anywhere in the codebase. Eight components updated to follow this rule (toast, OnboardingChecklist, QuickBookFAB, log/services/directory FABs, MobileDebugButton, InstallBanner). MobileDebugButton + InstallBanner additionally MOVED inside `<main>` so they get the containing-block treatment.
+
+**Global modal/drawer overlays portal to `document.body`** via `createPortal` so they aren't constrained by `<main>`'s containing block — they need to span the full viewport:
+- `<CommandPalette>` (`src/components/command-palette/command-palette.tsx`)
+- `<PeekDrawer>` (`src/components/peek-drawer/peek-drawer.tsx`)
+- `<MobileTourOverlay>` (`src/components/help/mobile-tour-overlay.tsx`, already portaled prior to 12Y)
+
+**Outer-shell viewport-anchored chrome** (NOT portaled, OUTSIDE `<main>`, sibling of the inner column): `<TourModeBanner>` (top, `top: env(safe-area-inset-top)`), `<DebugBadge>` (top-right, desktop-only).
+
+**CSS variables in `:root` renamed (`globals.css`):**
+- DELETED: `--mobile-nav-height`, `--mobile-header-height`.
+- ADDED: `--app-header-height: 56px`, `--app-nav-height: 72px`, `--app-safe-top: env(safe-area-inset-top)`, `--app-safe-bottom: env(safe-area-inset-bottom)`.
+
+**Body padding-top removed.** `body { padding-top: env(safe-area-inset-top) }` is gone. The `<MobileFacilityHeader>` handles safe-area-top internally via `paddingTop: 'var(--app-safe-top)'`. Eliminates the double-pad/overflow bug.
+
+**Tour engine — silent skip on missing element:**
+- `src/lib/help/tours.ts` `runStep` (line ~917 area) and `src/lib/help/mobile-tour.ts` `runMobileStep` (line ~147 area) no longer fire `toastWarning('Couldn\'t find that element …')`. They `console.warn(\`[tour] \${def.id}[\${index}] target not found: \${step.element} — skipping\`)` and recursively call the next step.
+- `toastWarning` export remains in tours.ts (still used by `<TourResumer>` for legitimate user-facing errors via the `help-tour-toast` CustomEvent bridge). Import removed from mobile-tour.ts.
+
+**`Tutorial.platform?: 'mobile' | 'desktop' | 'both'`** field added to the `Tutorial` type (line ~32). `TourDefinition.desktopOnly` REMOVED — the catalog filter is the single source of truth. Engine-level desktopOnly gating in `startTour` REMOVED.
+
+**`help-client.tsx::visibleFor(role, isMaster, browseAll, isMobile)`** extended with a viewport filter. Tours tagged `platform: 'mobile'` hide on desktop; `'desktop'` hides on mobile; `'both'` (or undefined) always show.
+
+**`PLATFORM_TOUR_ALIASES`** map in `tours.ts` (exported) resolves base tour ids to platform variants at `startTour()` call time:
+```ts
+'stylist-getting-started' → { mobile: 'stylist-getting-started-mobile', desktop: 'stylist-getting-started-desktop' }
+'stylist-calendar' → { mobile: 'stylist-calendar-mobile', desktop: 'stylist-calendar-desktop' }
+```
+External consumers (`<HelpTip tourId="stylist-calendar">`, `ONBOARDING_CHECKLIST`, `?tour=stylist-calendar` query param) continue to work without per-call-site changes.
+
+**`isTourCompleted(baseId, completedTours)`** helper exported from `tours.ts`. Checks if either the base id OR any of its platform variants appears in the user's `completed_tours` array. Used by `<OnboardingChecklist>` so completing a variant tour ticks off the base-id checklist row.
+
+**Stylist tour splits:**
+- `stylist-getting-started-mobile` targets `[data-tour="stylist-mobile-booking-list"]` for the calendar-overview step (rest of the tour uses shared sidebar nav anchors).
+- `stylist-getting-started-desktop` targets `[data-tour="calendar-time-grid"]` for the same step.
+- `stylist-calendar-mobile` (4 steps) covers the today's-bookings list view.
+- `stylist-calendar-desktop` (5 steps) covers the FullCalendar grid + toolbar.
+- All other stylist tours (`stylist-daily-log`, `stylist-checkin`, `stylist-residents`, `stylist-finalize-day`, `stylist-my-account`, `stylist-signup-sheet`) remain single tours with implicit `platform: 'both'`.
+
+**`admin-command-palette`** catalog entry tagged `platform: 'desktop'` (CMD+K trigger is desktop-only).
+
+**New `data-tour` anchors in `dashboard-client.tsx`:**
+- `data-tour="stylist-mobile-booking-list"` on the booking-list wrapper inside the stylist mobile view.
+- `data-tour="stylist-mobile-booking-card"` on the first card (or on the empty-state card when no bookings).
+
+**`scripts/check-tours.ts`** extended:
+- New `tutorialPlatform` map built by regex-matching `tourId: '...'` + `platform: '...'` pairs in TUTORIAL_CATALOG.
+- New `detectContext(value)` helper that scans the source file containing the matching `data-tour="..."` attribute for `md:hidden` (mobile-only) or `hidden md:(flex|block|grid|inline)` (desktop-only) class patterns in ~600 chars before the attribute (same JSX element).
+- Mismatch warnings emitted but the script does NOT fail on warnings — heuristic with possible false positives.
+
+**Verification (Phase 12Y):**
+- `npx tsc --noEmit`: 0 errors.
+- `npx tsx scripts/check-tours.ts`: 90/90 selectors found, 0 platform-consistency warnings.
+
 ---
 
 ## Upcoming Phases
 
 ### Immediate (next up)
 
-- **Phase 12Y** — Push notifications via Web Push API + service worker. Stylists receive booking alerts when new bookings are added to their calendar.
+- **Phase 12Z** — Toast action buttons. Success toasts gain inline action buttons ("Booking saved — Undo | View").
 
 ### Medium Term
 
-- **Phase 12Z** — Toast action buttons. Success toasts gain inline action buttons ("Booking saved — Undo | View").
 - **Phase 13A** — "What's New" changelog widget. Bell icon in header, per-user read state persisted on `profiles`, surfaces new features when phases ship.
 - **Phase 13B** — Optimistic UI on key actions: mark pay period paid, finalize log day, add resident. Immediate UI feedback before server round-trip.
 - **Phase 13C** — Skeleton loading audit. Every data surface uses shimmer skeletons — no blank white screens on any protected route.

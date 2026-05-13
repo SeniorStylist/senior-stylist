@@ -1243,8 +1243,8 @@ export function LogClient({
       {/* Mobile footer bar — pinned above nav bar */}
       {!showWalkIn && canWrite && (
         <div
-          className="md:hidden fixed left-0 right-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)', paddingTop: '8px', paddingBottom: '8px' }}
+          className="md:hidden fixed left-0 right-0 bottom-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
+          style={{ paddingTop: '8px', paddingBottom: '8px' }}
         >
           <button
             onClick={() => setOcrOpen(true)}

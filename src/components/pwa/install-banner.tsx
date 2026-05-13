@@ -82,11 +82,8 @@ export default function InstallBanner() {
   return (
     <>
       <div
-        className="md:hidden fixed left-3 right-3 z-30 rounded-2xl shadow-lg flex items-center"
-        style={{
-          bottom: 'calc(env(safe-area-inset-bottom) + 96px)',
-          backgroundColor: '#1C0A12',
-        }}
+        className="md:hidden fixed left-3 right-3 bottom-4 z-30 rounded-2xl shadow-lg flex items-center"
+        style={{ backgroundColor: '#1C0A12' }}
       >
         {/* Tappable main area — opens install guide */}
         <button

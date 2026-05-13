@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { setPeekHandler, type PeekTarget } from '@/lib/peek-drawer'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -123,15 +124,13 @@ export function PeekDrawer({ role, isMaster }: PeekDrawerProps) {
 
   const content = renderContent({ data, loading, role, isMaster, router, close })
 
-  if (isMobile) {
-    return (
-      <BottomSheet isOpen={open} onClose={close}>
-        {content}
-      </BottomSheet>
-    )
-  }
+  if (typeof document === 'undefined') return null
 
-  return (
+  const ui = isMobile ? (
+    <BottomSheet isOpen={open} onClose={close}>
+      {content}
+    </BottomSheet>
+  ) : (
     <>
       <div
         onClick={close}
@@ -165,6 +164,10 @@ export function PeekDrawer({ role, isMaster }: PeekDrawerProps) {
       </aside>
     </>
   )
+
+  // Phase 12Y — portal to body so .main-content's transform-induced containing
+  // block doesn't constrain the drawer/backdrop to the scroll area.
+  return createPortal(ui, document.body)
 }
 
 function renderContent({

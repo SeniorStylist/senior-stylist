@@ -70,7 +70,10 @@ export function MobileFacilityHeader({
 
   return (
     <>
-      <div className="md:hidden flex items-center justify-between px-4 shrink-0 border-b border-stone-100 bg-white" style={{ height: 56 }}>
+      <div
+        className="md:hidden flex items-center justify-between px-4 shrink-0 border-b border-stone-100 bg-white"
+        style={{ minHeight: 'var(--app-header-height)', paddingTop: 'var(--app-safe-top)' }}
+      >
         <Link href="/dashboard">
           <Image
             src="/seniorstylistlogo.jpg"

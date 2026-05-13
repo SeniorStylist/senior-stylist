@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { TUTORIAL_CATALOG, startTour, type Tutorial } from '@/lib/help/tours'
 import { TutorialCard } from '@/components/help/tutorial-card'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 interface HelpClientProps {
   role: string
@@ -24,10 +25,18 @@ function roleLabel(role: string): string {
   )
 }
 
-function visibleFor(role: string, isMaster: boolean, browseAll: boolean): Tutorial[] {
-  if (browseAll) return TUTORIAL_CATALOG.filter((t) => isMaster || !t.masterOnly)
+function matchesPlatform(t: Tutorial, isMobile: boolean): boolean {
+  // Phase 12Y — undefined platform = both. Tours tagged 'mobile' hide on
+  // desktop, 'desktop' tours hide on mobile.
+  if (!t.platform || t.platform === 'both') return true
+  return t.platform === (isMobile ? 'mobile' : 'desktop')
+}
+
+function visibleFor(role: string, isMaster: boolean, browseAll: boolean, isMobile: boolean): Tutorial[] {
+  const platformFilter = (t: Tutorial) => matchesPlatform(t, isMobile)
+  if (browseAll) return TUTORIAL_CATALOG.filter((t) => (isMaster || !t.masterOnly) && platformFilter(t))
   // Master admin sees only master-only cards by default; "Browse all" reveals the rest.
-  if (isMaster) return TUTORIAL_CATALOG.filter((t) => t.masterOnly)
+  if (isMaster) return TUTORIAL_CATALOG.filter((t) => t.masterOnly && platformFilter(t))
 
   // Admin (and normalized super_admin) sees only admin/super_admin-tagged content.
   // Other role sections are accessible via the "Browse all" toggle.
@@ -35,10 +44,16 @@ function visibleFor(role: string, isMaster: boolean, browseAll: boolean): Tutori
     return TUTORIAL_CATALOG.filter(
       (t) =>
         !t.masterOnly &&
-        (t.roles.includes('admin') || t.roles.includes('super_admin')),
+        (t.roles.includes('admin') || t.roles.includes('super_admin')) &&
+        platformFilter(t),
     )
   }
-  return TUTORIAL_CATALOG.filter((t) => !t.masterOnly && t.roles.includes(role as Tutorial['roles'][number]))
+  return TUTORIAL_CATALOG.filter(
+    (t) =>
+      !t.masterOnly &&
+      t.roles.includes(role as Tutorial['roles'][number]) &&
+      platformFilter(t),
+  )
 }
 
 function groupByCategory(items: Tutorial[]): Record<string, Tutorial[]> {
@@ -53,6 +68,7 @@ function groupByCategory(items: Tutorial[]): Record<string, Tutorial[]> {
 function HelpInner({ role, isMaster, completedTours }: HelpClientProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const isMobile = useIsMobile()
   const [browseAll, setBrowseAll] = useState(false)
   const [localCompleted, setLocalCompleted] = useState<string[]>(completedTours)
 
@@ -74,8 +90,8 @@ function HelpInner({ role, isMaster, completedTours }: HelpClientProps) {
   }, [tourParam, router])
 
   const tutorials = useMemo(
-    () => visibleFor(role, isMaster, browseAll),
-    [role, isMaster, browseAll],
+    () => visibleFor(role, isMaster, browseAll, isMobile),
+    [role, isMaster, browseAll, isMobile],
   )
   const grouped = useMemo(() => groupByCategory(tutorials), [tutorials])
   const adminLike = role === 'admin' || role === 'super_admin' || isMaster

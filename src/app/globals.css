@@ -33,9 +33,11 @@
   --surface-raised: #FFFFFF;
   --surface-sunken: #F3F1EC;
 
-  /* Mobile layout constants */
-  --mobile-nav-height: 72px;
-  --mobile-header-height: 56px;
+  /* App layout constants — Phase 12Y shell */
+  --app-header-height: 56px;
+  --app-nav-height: 72px;
+  --app-safe-top: env(safe-area-inset-top);
+  --app-safe-bottom: env(safe-area-inset-bottom);
 }
 
 /* Phase 12U — prevent iOS rubber-band bounce globally */
@@ -52,7 +54,7 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   font-family: 'DM Sans', sans-serif;
-  padding-top: env(safe-area-inset-top);
+  /* Phase 12Y — safe-area-top is handled by <MobileFacilityHeader>, not body. */
 }
 
 /* Phase 12U — remove tap highlight flash on all interactive elements */
@@ -68,37 +70,21 @@ h1 {
   font-size: clamp(1.75rem, 5vw, 2.5rem);
 }
 
-/* Toast container — clear mobile nav + safe area on phones, anchor at standard
-   bottom on desktop. Single class + media query avoids inline-style vs
-   Tailwind-class precedence conflicts. */
-.toast-floor {
-  bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px);
-}
-@media (min-width: 768px) {
-  .toast-floor {
-    bottom: 1.5rem;
-  }
-}
-
-/* Main content — account for mobile nav + safe area at bottom */
+/* Phase 12Y — Main content is the ONLY vertical scroll container in the shell.
+   `transform: translateZ(0)` (a) promotes to its own GPU compositor layer so
+   row :hover repaints don't block trackpad scroll (replaces the old
+   `will-change: scroll-position` which broke wheel-event delegation on Safari),
+   AND (b) establishes a containing block for `position: fixed` descendants —
+   so FABs/toasts inside this element use plain `bottom-4` and naturally sit
+   above the mobile nav (which is the sibling flexbox child below). */
 .main-content {
-  padding-top: 0;
-  padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
   -webkit-overflow-scrolling: touch;
-  /* Promote to its own compositing layer so row :hover repaints
-     don't block the scroll gesture on trackpads. */
-  will-change: scroll-position;
-}
-@media (min-width: 768px) {
-  .main-content {
-    padding-bottom: 0;
-  }
+  transform: translateZ(0);
 }
 
 /* Landscape phone — hide nav, expand sheet */
 @media (max-height: 500px) and (orientation: landscape) {
   .mobile-nav { display: none !important; }
-  .main-content { padding-bottom: 0 !important; }
   .bottom-sheet { max-height: 98dvh !important; }
   .bottom-sheet-overlay { align-items: center !important; }
 }

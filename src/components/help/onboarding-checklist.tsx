@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react'
-import { ONBOARDING_CHECKLIST, startTour } from '@/lib/help/tours'
+import { ONBOARDING_CHECKLIST, startTour, isTourCompleted } from '@/lib/help/tours'
 
 interface OnboardingChecklistProps {
   role: string
@@ -30,7 +30,7 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
   const [visible, setVisible] = useState(false)
   const [allDoneMsg, setAllDoneMsg] = useState(false)
 
-  const completedCount = items.filter((item) => localCompleted.includes(item.tourId)).length
+  const completedCount = items.filter((item) => isTourCompleted(item.tourId, localCompleted)).length
   const totalCount = items.length
 
   // Entrance delay — slide up 1s after mount
@@ -79,9 +79,8 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
     <div
       role="complementary"
       aria-label="Getting started checklist"
-      className="fixed right-4 md:right-6 z-[100] w-72 bg-white rounded-2xl border border-stone-200 shadow-lg transition-transform duration-300"
+      className="fixed right-4 md:right-6 bottom-4 z-[100] w-72 bg-white rounded-2xl border border-stone-200 shadow-lg transition-transform duration-300"
       style={{
-        bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
         transform: visible ? 'translateY(0)' : 'translateY(120%)',
       }}
     >
@@ -126,7 +125,7 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
       {!collapsed && (
         <ul className="px-4 py-3 space-y-3">
           {items.map((item) => {
-            const done = localCompleted.includes(item.tourId)
+            const done = isTourCompleted(item.tourId, localCompleted)
             return (
               <li key={item.tourId} className="flex items-center gap-3">
                 <CheckCircle2

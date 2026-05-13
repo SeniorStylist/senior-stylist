@@ -15,7 +15,6 @@ import {
   waitForElement,
   saveSessionState,
   clearSessionState,
-  toastWarning,
   type TourDefinition,
 } from './tours'
 import { installTourFetchInterceptor } from './tour-fetch-interceptor'
@@ -144,7 +143,8 @@ async function runMobileStep(def: TourDefinition, index: number): Promise<void> 
     const waitMs = isSlowRoute(step.route) ? SLOW_PAGE_WAIT_MS : MOBILE_ELEMENT_WAIT_MS
     target = await waitForElement(resolveQuery(step.element), waitMs)
     if (!target) {
-      toastWarning('Couldn\'t find that element — the app may have changed.')
+      // Phase 12Y — silently skip when a target is missing. No user-facing toast.
+      console.warn(`[mobile-tour] ${def.id}[${index}] target not found: ${step.element} — skipping`)
       return runMobileStep(def, index + 1)
     }
     // Only scroll + wait if the element is offscreen. When it's already visible,

@@ -416,13 +416,30 @@ Slide-out drawer that loads a quick read-only resident or stylist profile withou
 
 CSS-only typography scaling + filling the last gaps in the skeleton-loading audit + adding the `page-enter` mount animation to four laggard page clients. Fluid typography: global `h1 { font-size: clamp(1.625rem, 4vw, 2.25rem) }` scales DM Serif Display headings 26px → 36px; `.dashboard-greeting { clamp(1.75rem, 5vw, 2.5rem) }` bumps the homepage greeting to 28px → 40px. Source-order cascade overrides Tailwind's `text-2xl` without `!important`. Skeleton audit confirmed all previously claimed `loading.tsx` files exist on disk; only `/stylists/directory/loading.tsx` was genuinely missing — created with header + search bar + 8 row skeletons. Drill-down billing routes inherit the parent `loading.tsx` via Next.js cascade. `page-enter` class added to `master-admin-client.tsx`, `services-page-client.tsx`, `analytics/reports-client.tsx`, and `residents/import/import-client.tsx`. Dashboard remains excluded by design; `onboarding-client.tsx` excluded (centered wizard layout would fight the entrance animation). 1 new file, 5 file edits, 0 schema changes. TSC clean.
 
-### Phase 12Y–13P — Upcoming
+### Phase 12Y — Mobile Layout Shell + Tour System Overhaul + Directory Scroll Fix (SHIPPED 2026-05-13)
+
+Three related polish items landed together: a proper 3-zone flexbox shell, platform-aware tours that never show users a broken-element toast, and the root-cause fix for the stylist directory scroll regression.
+
+**Shell:** Restructured `(protected)/layout.tsx` into outer `h-[100dvh] flex overflow-hidden` + inner column with `MobileFacilityHeader` / `<main>` / `MobileNav` as flex siblings. `MobileNav` no longer `position: fixed` — it's `shrink-0` in flow. `.main-content` carries `transform: translateZ(0)` which (a) replaces the broken `will-change: scroll-position` (the actual cause of the directory scroll regression — `will-change: scroll-position` interferes with wheel-event delegation on Safari/macOS trackpads when combined with hover transitions on row children), and (b) establishes a containing block for `position: fixed` descendants. Eight floating components dropped their inline `calc(env(safe-area-inset-bottom) + 80px)` offsets and use plain Tailwind `bottom-4` (toast, OnboardingChecklist, QuickBookFAB, log/services/directory FABs, MobileDebugButton, InstallBanner). MobileDebugButton + InstallBanner moved INSIDE `<main>` so they get the containing-block treatment. `<CommandPalette>`, `<PeekDrawer>`, `<MobileTourOverlay>` portal to `document.body` via `createPortal` to remain viewport-spanning. CSS vars renamed: `--mobile-*` → `--app-*` (`--app-header-height`, `--app-nav-height`, `--app-safe-top`, `--app-safe-bottom`). Removed `body { padding-top: env(safe-area-inset-top) }` — header handles it internally now. Removed the `.toast-floor` utility class.
+
+**Tour engine silent-skip:** `waitForElement` returning null now logs `console.warn` and silently advances to the next step on both desktop (`tours.ts`) and mobile (`mobile-tour.ts`). End users never see a "Couldn't find that element" toast.
+
+**Platform field:** New `Tutorial.platform?: 'mobile' | 'desktop' | 'both'` field gates the help catalog by viewport. `TourDefinition.desktopOnly` REMOVED — the catalog filter is the single source of truth. `help-client.tsx::visibleFor()` extended with `useIsMobile()` filter.
+
+**Platform aliases:** New `PLATFORM_TOUR_ALIASES` map in `tours.ts` resolves base tour ids (`stylist-getting-started`, `stylist-calendar`) to their platform variants at `startTour()` call time. `isTourCompleted(baseId, completed)` helper exported so `<OnboardingChecklist>` can recognize variant completions for base-id checklist items.
+
+**Stylist tour splits:** `stylist-getting-started` → `-mobile` (targets `[data-tour="stylist-mobile-booking-list"]`) and `-desktop` (targets `[data-tour="calendar-time-grid"]`). `stylist-calendar` → `-mobile` and `-desktop` variants. All other stylist tours stay as a single tour with `platform: 'both'`. `admin-command-palette` migrated to `platform: 'desktop'`. New `data-tour="stylist-mobile-booking-list"` + `stylist-mobile-booking-card"` anchors in `dashboard-client.tsx` stylist mobile view.
+
+**`scripts/check-tours.ts`** extended with a platform-consistency pass that scans anchor-element source context for `md:hidden` / `hidden md:flex|block|grid|inline` class patterns and emits warnings on platform-tour mismatches (heuristic, doesn't fail the script).
+
+**Verification:** TSC clean (0 errors); tour health 90/90; 0 platform-consistency warnings.
+
+### Phase 12Z–13P — Upcoming
 
 **Immediate (next up):**
-- **Phase 12Y** — Push notifications (Web Push API + service worker). Stylist booking alerts.
+- **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
 
 **Medium term:**
-- **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
 - **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state.
 - **Phase 13B** — Optimistic UI (mark pay period paid, finalize log, add resident).
 - **Phase 13C** — Skeleton loading audit across all data surfaces.
@@ -627,9 +644,9 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12X shipped (2026-05-12). Next priorities:
+Phase 12Y shipped (2026-05-13). Next priorities:
 
-1. **Phase 12Y — Push notifications** — next feature up. Web Push API + service worker. Stylist receives a browser notification when a new booking is added to their calendar.
+1. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

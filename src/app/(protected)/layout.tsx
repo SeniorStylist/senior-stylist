@@ -131,16 +131,20 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="h-[100dvh] flex overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      {/* Phase 12Y shell — header / scroll / nav as flexbox siblings. MobileNav
+          is now in flow (shrink-0), not fixed. .main-content has
+          transform: translateZ(0), making it the containing block for any
+          `position: fixed` descendants (FABs, toasts) so they sit above the nav. */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
-        <div className="main-content flex-1 min-h-0 overflow-auto">
+        <main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <ToastProvider>
             <TourRouterProvider />
             <TourResumer />
@@ -153,13 +157,16 @@ export default async function ProtectedLayout({
               />
             )}
             <PeekDrawer role={activeRole} isMaster={isMaster} />
+            {/* MobileDebugButton + InstallBanner live INSIDE main so .main-content's
+                transform-induced containing block lets them use plain `bottom-4`
+                and sit above the nav without inline calc() offsets. */}
+            <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
+            <InstallBanner />
             {children}
           </ToastProvider>
-        </div>
-      </main>
-      <MobileNav role={activeRole} debugMode={debugMode} />
-      <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
-      <InstallBanner />
+        </main>
+        <MobileNav role={activeRole} debugMode={debugMode} />
+      </div>
       <DebugBadge />
     </div>
   )

@@ -1281,8 +1281,7 @@ export function DirectoryClient({
       {/* Floating bulk action bar */}
       {selected.size > 0 && (
         <div
-          className="fixed left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg max-w-[calc(100vw-32px)]"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
+          className="fixed left-1/2 -translate-x-1/2 bottom-4 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg max-w-[calc(100vw-32px)]"
         >
           <span className="text-sm font-medium text-stone-700 shrink-0">
             {selected.size} selected

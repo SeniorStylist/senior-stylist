@@ -59,6 +59,15 @@ for (const line of toursSrc.split('\n')) {
   }
 }
 
+// 2b. Phase 12Y — extract `platform: 'mobile' | 'desktop' | 'both'` per tutorial
+//     from TUTORIAL_CATALOG. Map tutorial.id → platform. The tutorial.tourId
+//     points to a TOUR_DEFINITION; we use that to associate the platform tag
+//     with each tour definition.
+const tutorialPlatform = new Map<string, 'mobile' | 'desktop' | 'both'>()
+for (const m of toursSrc.matchAll(/\{[^}]*?\btourId:\s*'([^']+)'[^}]*?\bplatform:\s*'(mobile|desktop|both)'[^}]*?\}/g)) {
+  tutorialPlatform.set(m[1], m[2] as 'mobile' | 'desktop' | 'both')
+}
+
 // 3. Collect .ts/.tsx files under src/ (excluding tours.ts itself).
 function walk(dir: string, out: string[]): string[] {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -94,10 +103,39 @@ function found(value: string): boolean {
   return hit
 }
 
+// 4b. Phase 12Y — platform context detector. For each selector value, find the
+//     source file containing the matching data-tour attribute and look at the
+//     surrounding ~12 lines for className patterns that suggest the element is
+//     mobile-only (`md:hidden`) or desktop-only (`hidden md:flex/block/grid/inline`).
+//     Heuristic only — emits warnings, doesn't fail the script.
+type PlatformContext = 'mobile-only' | 'desktop-only' | 'both' | 'unknown'
+
+function detectContext(value: string): PlatformContext {
+  const needle = `data-tour="${value}"`
+  const altNeedle = `data-tour-mobile="${value}"`
+  for (const f of files) {
+    const text = fs.readFileSync(f, 'utf8')
+    const idx = text.indexOf(needle)
+    const altIdx = text.indexOf(altNeedle)
+    const hit = idx >= 0 ? idx : altIdx
+    if (hit < 0) continue
+    // Look at ~600 chars before the attribute for class hints in the same JSX element
+    const window = text.slice(Math.max(0, hit - 600), hit + 200)
+    const isMobileOnly = /\bmd:hidden\b/.test(window)
+    const isDesktopOnly = /\bhidden\s+md:(flex|block|grid|inline)\b/.test(window)
+    if (isMobileOnly && !isDesktopOnly) return 'mobile-only'
+    if (isDesktopOnly && !isMobileOnly) return 'desktop-only'
+    return 'both'
+  }
+  return 'unknown'
+}
+
 // 5. Report.
 let checked = 0
 let okCount = 0
 const missing: Ref[] = []
+const platformWarnings: { ref: Ref; ctx: PlatformContext; tagged: 'mobile' | 'desktop' | 'both' }[] = []
+
 for (const ref of refs) {
   if (ref.value == null) continue
   checked++
@@ -108,10 +146,30 @@ for (const ref of refs) {
     missing.push(ref)
     console.log(`  ❌ ${ref.tourId}[${ref.stepIndex}]  data-tour="${ref.value}"  NOT FOUND in src/`)
   }
+
+  // Platform-consistency check
+  const tagged = tutorialPlatform.get(ref.tourId) ?? 'both'
+  if (tagged === 'both') continue
+  const ctx = detectContext(ref.value)
+  if (ctx === 'unknown' || ctx === 'both') continue
+  if (tagged === 'mobile' && ctx === 'desktop-only') {
+    platformWarnings.push({ ref, ctx, tagged })
+  } else if (tagged === 'desktop' && ctx === 'mobile-only') {
+    platformWarnings.push({ ref, ctx, tagged })
+  }
 }
 
 console.log()
 console.log(`Tour health check — checked ${checked} selectors, ${okCount} found, ${missing.length} missing.`)
+
+if (platformWarnings.length > 0) {
+  console.log()
+  console.log(`Platform-consistency warnings (${platformWarnings.length}):`)
+  for (const w of platformWarnings) {
+    console.log(`  ⚠️  ${w.ref.tourId}[${w.ref.stepIndex}]  data-tour="${w.ref.value}"  tagged ${w.tagged} but anchor element is ${w.ctx}`)
+  }
+}
+
 if (missing.length > 0) {
   console.log()
   console.log('Missing anchors:')

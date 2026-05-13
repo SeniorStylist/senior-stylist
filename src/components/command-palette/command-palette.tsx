@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
   Search,
@@ -220,6 +221,7 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
   }
 
   if (!open) return null
+  if (typeof document === 'undefined') return null
 
   let cursor = 0
   const pageOffset = cursor
@@ -237,7 +239,7 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
 
   const showInitial = !query && filteredPages.length === 0
 
-  return (
+  return createPortal(
     <>
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[290]"
@@ -374,7 +376,8 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
 

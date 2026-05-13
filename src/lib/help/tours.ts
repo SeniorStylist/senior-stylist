@@ -41,6 +41,8 @@ export type Tutorial = {
   tourId: string | null
   /** Master-admin (env-email) only. */
   masterOnly?: boolean
+  /** Phase 12Y — viewport gate. Defaults to 'both' when omitted. */
+  platform?: 'mobile' | 'desktop' | 'both'
 }
 
 export type TourStep = {
@@ -63,8 +65,6 @@ export type TourStep = {
 export type TourDefinition = {
   id: string
   title: string
-  /** When true, tour is disabled on mobile breakpoints (sidebar-only navigation, etc). */
-  desktopOnly?: boolean
   steps: TourStep[]
 }
 
@@ -199,8 +199,14 @@ export function toastInfo(message: string) {
 
 export const TUTORIAL_CATALOG: Tutorial[] = [
   // STYLIST
-  { id: 'stylist-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your calendar, daily log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started' },
-  { id: 'stylist-calendar', category: 'Scheduling', title: 'Your Calendar', blurb: 'Read your schedule, tap appointments to edit them, and create new bookings.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar' },
+  // Phase 12Y — Getting Started and Calendar are split into mobile/desktop pairs
+  // because the calendar UI differs entirely (FullCalendar grid on desktop vs
+  // today's-bookings list on mobile). The catalog filter hides the wrong-platform
+  // variant. All other stylist tours share UI across platforms.
+  { id: 'stylist-getting-started-mobile', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your daily appointment list, log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started-mobile', platform: 'mobile' },
+  { id: 'stylist-getting-started-desktop', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your calendar, daily log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started-desktop', platform: 'desktop' },
+  { id: 'stylist-calendar-mobile', category: 'Scheduling', title: 'Your Schedule', blurb: 'Read your daily list, tap appointments to mark them done, and book new ones.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar-mobile', platform: 'mobile' },
+  { id: 'stylist-calendar-desktop', category: 'Scheduling', title: 'Your Calendar', blurb: 'Read the weekly grid, click appointments to edit, and create new bookings.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar-desktop', platform: 'desktop' },
   { id: 'stylist-daily-log', category: 'Daily Log', title: 'Daily Log', blurb: 'Record services, add walk-ins, and finalize your log at end of shift.', estMinutes: 3, icon: 'FileText', roles: ['stylist'], tourId: 'stylist-daily-log' },
   { id: 'stylist-checkin', category: 'Scheduling', title: "I'm Here Check-In", blurb: "Tap when you arrive. If you're running late, your schedule adjusts automatically.", estMinutes: 2, icon: 'Clock', roles: ['stylist'], tourId: 'stylist-checkin' },
   { id: 'stylist-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Find, edit, and add residents at your facility.', estMinutes: 3, icon: 'Users', roles: ['stylist'], tourId: 'stylist-residents' },
@@ -224,7 +230,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-reports', category: 'Reports', title: 'Reports & Analytics', blurb: 'Track revenue, bookings, and stylist performance over time.', estMinutes: 2, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'admin-reports' },
   { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
   { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance' },
-  { id: 'admin-command-palette', category: 'Navigation', title: 'Command Palette', blurb: 'Press CMD+K to instantly search residents, stylists, and pages.', estMinutes: 1, icon: 'Search', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-command-palette' },
+  { id: 'admin-command-palette', category: 'Navigation', title: 'Command Palette', blurb: 'Press CMD+K to instantly search residents, stylists, and pages.', estMinutes: 1, icon: 'Search', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-command-palette', platform: 'desktop' },
   { id: 'admin-peek-drawer', category: 'Navigation', title: 'Quick Profile Peek', blurb: 'Click any resident or stylist name to see their profile without leaving the page.', estMinutes: 1, icon: 'PanelRight', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-peek-drawer' },
 
   // BOOKKEEPER
@@ -298,31 +304,57 @@ const NAV_MASTER_ADMIN = '[data-tour="nav-master-admin"]'
 const NAV_MY_ACCOUNT = '[data-tour="nav-my-account"]'
 
 export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
-  // 1
-  'stylist-getting-started': {
-    id: 'stylist-getting-started',
+  // Phase 12Y — Stylist Getting Started: mobile + desktop variants. The mobile
+  // version targets the today's-bookings list; the desktop version targets the
+  // FullCalendar grid. Both share the same Daily Log + My Account flow.
+  'stylist-getting-started-mobile': {
+    id: 'stylist-getting-started-mobile',
     title: 'Getting Started',
     steps: [
-      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! This quick tour will show you the three things you\'ll use every day: your Calendar, your Daily Log, and your My Account page.', mobileDescription: 'Quick tour of your Calendar, Daily Log, and My Account.' },
-      { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Navigate to Calendar', description: 'Your Calendar is your home base — this is where you see your schedule and manage appointments.', actionHint: 'Tap Calendar to take a look.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Your schedule', description: 'On mobile you\'ll see today\'s appointments. On desktop you\'ll see the full week. Each colored block is a booked appointment.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Quick tour of your daily list, Daily Log, and My Account.' },
+      { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Go to your schedule', description: 'Your Calendar tab is where you see today\'s appointments.', actionHint: 'Tap Calendar to continue.' },
+      { route: '/dashboard', element: '[data-tour="stylist-mobile-booking-list"]', isAction: false, title: 'Today\'s appointments', description: 'This is the list of appointments you have today. Each card shows the time, resident, and service.' },
       { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'The Daily Log is where you record and finalize your work at the end of each day.', actionHint: 'Tap Daily Log to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'Daily Log overview', description: 'Each row is an appointment from your calendar. At the end of your shift, you\'ll review these and tap Finalize Day.' },
+      { route: '/log', element: '', isAction: false, title: 'Daily Log overview', description: 'Each row is an appointment. At the end of your shift, review these and tap Finalize Day.' },
       { route: '/log', element: NAV_MY_ACCOUNT, isAction: true, title: 'My Account', description: 'My Account is where you manage your schedule, upload your license and documents, and request time off.', actionHint: 'Tap My Account to continue.' },
-      { route: '/my-account', element: '', isAction: false, title: 'You\'re ready', description: 'That\'s the overview! Use the Help section anytime to revisit any of these tours in more detail.' },
+      { route: '/my-account', element: '', isAction: false, title: 'You\'re ready', description: 'That\'s the overview! Use the Help section anytime to revisit any of these tours.' },
+    ],
+  },
+  'stylist-getting-started-desktop': {
+    id: 'stylist-getting-started-desktop',
+    title: 'Getting Started',
+    steps: [
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'Welcome to Senior Stylist! This quick tour shows the three things you\'ll use every day: your Calendar, your Daily Log, and your My Account page.' },
+      { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Navigate to Calendar', description: 'Your Calendar is your home base — where you see your schedule and manage appointments.', actionHint: 'Click Calendar to take a look.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your weekly grid', description: 'This is your week-at-a-glance. Each colored block is a booked appointment.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Go to Daily Log', description: 'The Daily Log is where you record and finalize your work at the end of each day.', actionHint: 'Click Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Daily Log overview', description: 'Each row is an appointment from your calendar. At the end of your shift, review these and click Finalize Day.' },
+      { route: '/log', element: NAV_MY_ACCOUNT, isAction: true, title: 'My Account', description: 'My Account is where you manage your schedule, upload your license and documents, and request time off.', actionHint: 'Click My Account to continue.' },
+      { route: '/my-account', element: '', isAction: false, title: 'You\'re ready', description: 'That\'s the overview! Use the Help section anytime to revisit any of these tours.' },
     ],
   },
 
-  // 2
-  'stylist-calendar': {
-    id: 'stylist-calendar',
+  // Phase 12Y — Stylist Calendar: mobile + desktop variants. Mobile = list of
+  // today's bookings; desktop = FullCalendar grid + toolbar.
+  'stylist-calendar-mobile': {
+    id: 'stylist-calendar-mobile',
+    title: 'Your Schedule',
+    steps: [
+      { route: '/dashboard', element: '[data-tour="stylist-mobile-booking-list"]', isAction: false, title: 'Today\'s appointments', description: 'Your schedule for today appears here as a list, sorted by time.' },
+      { route: '/dashboard', element: '[data-tour="stylist-mobile-booking-card"]', isAction: false, title: 'Each card', description: 'Each card shows the time, resident, and service. Tap the green check to mark an appointment as done.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'New bookings', description: 'To add a new booking, tap the burgundy + button at the bottom-right of the screen. A form appears to pick the resident, service, and time.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'For walk-ins (a resident who arrives without a booking), use the Daily Log\'s Add Walk-in button. We cover that in the Daily Log tour.' },
+    ],
+  },
+  'stylist-calendar-desktop': {
+    id: 'stylist-calendar-desktop',
     title: 'Your Calendar',
     steps: [
-      { route: '/dashboard', element: '', isAction: false, title: 'Your calendar', description: 'This is your calendar. On mobile it shows today\'s appointments. On desktop it shows the full week. Use the arrows to move between days.', mobileDescription: 'Your calendar shows today\'s appointments. Use the arrows to switch days.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Today button', description: 'Tap Today anytime to jump back to the current date.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Existing appointments', description: 'Each colored block is a booked appointment. Tap any appointment to open it and make changes — update the service, add a note, or adjust the time.', mobileDescription: 'Each colored block is a booking. Tap one to edit the service, time, or notes.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Create a new booking', description: 'To create a new booking, tap any empty area on the calendar. A form will appear where you choose the resident, service, date, and time — then tap Save.', mobileDescription: 'Tap any empty area to create a new booking. Pick a resident, service, and time, then Save.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'You can also add a walk-in from the Daily Log if a resident comes in without a booking. We\'ll cover that in the Daily Log tour.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your calendar', description: 'This is the weekly view. Use the arrows in the toolbar to switch weeks.' },
+      { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Today button', description: 'Click Today anytime to jump back to the current date.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Existing appointments', description: 'Each colored block is a booked appointment. Click any appointment to open it and make changes — update the service, add a note, or adjust the time.' },
+      { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Create a new booking', description: 'To create a new booking, click any empty area on the calendar. A form appears where you choose the resident, service, date, and time, then click Save.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'You can also add a walk-in from the Daily Log if a resident comes in without a booking. We cover that in the Daily Log tour.' },
     ],
   },
 
@@ -574,7 +606,6 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   'admin-command-palette': {
     id: 'admin-command-palette',
     title: 'Command Palette',
-    desktopOnly: true,
     steps: [
       { route: '/dashboard', element: '[data-tour="cmd-k-trigger"]', isAction: false, title: 'Command palette trigger', description: 'This is your command palette trigger. Click it or press CMD+K (CTRL+K on Windows) to open it from anywhere in the app.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Search anything', description: 'Type to search across residents, stylists, and pages. Pages match instantly; residents and stylists appear after a short delay.' },
@@ -836,22 +867,50 @@ export function isOnRoute(stepRoute: string): boolean {
  * Phase 12J: branches on `isMobile()` — mobile uses the spotlight + bottom sheet
  * renderer (`startMobileTour`), desktop uses Driver.js.
  */
+// Phase 12Y — Platform-aware tour aliases. ONBOARDING_CHECKLIST, external
+// `?tour=` query params, and any code that references the unsuffixed tour id
+// is resolved to the right `-mobile`/`-desktop` variant at runtime.
+export const PLATFORM_TOUR_ALIASES: Record<string, { mobile: string; desktop: string }> = {
+  'stylist-getting-started': {
+    mobile: 'stylist-getting-started-mobile',
+    desktop: 'stylist-getting-started-desktop',
+  },
+  'stylist-calendar': {
+    mobile: 'stylist-calendar-mobile',
+    desktop: 'stylist-calendar-desktop',
+  },
+}
+
+/**
+ * Returns true when the given base tour id (or either of its platform
+ * variants) appears in the user's completed tour list. Use this anywhere
+ * completion needs to be checked against ONBOARDING_CHECKLIST base ids.
+ */
+export function isTourCompleted(baseId: string, completed: string[]): boolean {
+  if (completed.includes(baseId)) return true
+  const alias = PLATFORM_TOUR_ALIASES[baseId]
+  if (!alias) return false
+  return completed.includes(alias.mobile) || completed.includes(alias.desktop)
+}
+
 export async function startTour(
   tourId: string,
   opts: { resumeFromStep?: number } = {},
 ): Promise<void> {
   if (typeof window === 'undefined') return
+  // Resolve platform-aware aliases before looking up the definition.
+  const alias = PLATFORM_TOUR_ALIASES[tourId]
+  if (alias) tourId = isMobile() ? alias.mobile : alias.desktop
   const def = TOUR_DEFINITIONS[tourId]
   if (!def) {
     console.warn(`[help] No tour definition for "${tourId}"`)
     return
   }
 
-  // Block desktop-only tours on mobile
-  if (def.desktopOnly && isMobile()) {
-    toastInfo('This tour is best viewed on a larger screen.')
-    return
-  }
+  // Phase 12Y — engine-level desktopOnly gating removed; the help catalog
+  // filter now hides incompatible tours. If a tour is started programmatically
+  // on the wrong platform (e.g. ?tour= query param), it silently runs with
+  // whatever elements it can find; missing-element steps are skipped.
 
   // Mobile branch — spotlight + bottom sheet renderer
   if (isMobile()) {
@@ -914,8 +973,9 @@ async function runStep(def: TourDefinition, index: number): Promise<void> {
     const waitMs = isSlowRoute(step.route) ? SLOW_PAGE_WAIT_MS : DESKTOP_ELEMENT_WAIT_MS
     target = await waitForElement(resolveQuery(step.element), waitMs)
     if (!target) {
-      toastWarning('Couldn\'t find that element — the app may have changed.')
-      // Skip to next step
+      // Phase 12Y — silently skip when a target is missing. The user never sees
+      // a "Couldn't find that element" toast; developers see a console.warn.
+      console.warn(`[tour] ${def.id}[${index}] target not found: ${step.element} — skipping`)
       return runStep(def, index + 1)
     }
   }

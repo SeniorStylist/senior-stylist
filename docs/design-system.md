@@ -2448,6 +2448,53 @@ Global `h1` ranges 26px → 36px; the homepage greeting bumps to 28px → 40px. 
 
 `dashboard-client.tsx` remains excluded per the existing CLAUDE.md rule. `onboarding-client.tsx` excluded — its `min-h-screen flex items-center justify-center` centered-wizard layout would fight the translate-Y entrance.
 
+### Phase 12Y — Mobile Layout Shell + Tour System Overhaul + Directory Scroll Fix (SHIPPED 2026-05-13)
+
+**Shell architecture.** The protected layout is now a 3-zone vertical flexbox shell (4-zone with desktop sidebar). The outer container is `<div className="h-[100dvh] flex overflow-hidden">`; the inner column is `<div className="flex-1 min-w-0 flex flex-col overflow-hidden">` with three flex children in order: `<MobileFacilityHeader>` (shrink-0, mobile-only), `<TopBar>` (shrink-0, desktop-only), `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">`, `<MobileNav>` (shrink-0, mobile-only). The `<main>` element is THE only vertical scroll container — no nested overflow-auto.
+
+**Mobile chrome safe-area handling (Phase 12Y):**
+- `<MobileFacilityHeader>` internal `paddingTop: 'var(--app-safe-top)'` + `minHeight: 'var(--app-header-height)'` → total height = 56px + safe-area-top.
+- `<MobileNav>` internal `paddingBottom: 'calc(0.5rem + var(--app-safe-bottom))'` → total height = ~72px + safe-area-bottom.
+- Body NO LONGER has `padding-top: env(safe-area-inset-top)` — the header handles it. This eliminates the double-pad / overflow bug.
+
+**`.main-content` `transform: translateZ(0)` trick.** This CSS rule replaces the prior `will-change: scroll-position` (which broke Safari/macOS trackpad scrolling when hovering over rows with hover transitions — the Phase 12Y "Directory Scroll Fix"). It serves two purposes:
+1. Promotes `.main-content` to its own GPU compositor layer (decouples row hover repaints from scroll).
+2. Creates a **containing block for `position: fixed` descendants**. Floating components inside `<main>` use plain `className="fixed bottom-4 ..."` and naturally sit above the nav (which is OUTSIDE main, as the next flex sibling).
+
+**FAB positioning rule (Phase 12Y):** Any `fixed` element INSIDE `.main-content` uses plain Tailwind `bottom-4` (or `md:bottom-6` for desktop). The transform-induced containing block does the work. Components updated to follow this rule:
+- `toast.tsx` ToastContainer (`.toast-floor` class deleted)
+- `onboarding-checklist.tsx`
+- `quick-book-fab.tsx`
+- `mobile-debug-button.tsx` (also MOVED inside `<main>`)
+- `pwa/install-banner.tsx` (also MOVED inside `<main>`)
+- `log-client.tsx` mobile footer bar
+- `services-page-client.tsx` bulk action bar
+- `stylists/directory/directory-client.tsx` bulk action bar
+
+**Global overlays portaled to `document.body`** so they're NOT contained by `<main>` and can span the full viewport:
+- `<PeekDrawer>` (`peek-drawer.tsx`) — `createPortal` wraps the entire return
+- `<CommandPalette>` (`command-palette.tsx`) — `createPortal` wraps the open-state fragment
+- `<MobileTourOverlay>` (`mobile-tour-overlay.tsx`) — already portaled prior to 12Y
+
+**Outer-shell siblings, NOT portaled** (viewport-anchored chrome at the outer flex level): `<TourModeBanner>` (top, `top: env(safe-area-inset-top)`), `<DebugBadge>` (top-right, desktop).
+
+**CSS variables in `:root` (Phase 12Y):**
+```css
+--app-header-height: 56px;
+--app-nav-height: 72px;
+--app-safe-top: env(safe-area-inset-top);
+--app-safe-bottom: env(safe-area-inset-bottom);
+```
+The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
+
+**Tour system platform awareness.**
+- Engine silently skips on missing element (no more "Couldn't find that element" toast). `console.warn` for developer visibility only.
+- New `Tutorial.platform?: 'mobile' | 'desktop' | 'both'` field on the catalog gates by viewport. `TourDefinition.desktopOnly` REMOVED.
+- `help-client.tsx::visibleFor()` filters by `useIsMobile()` to hide wrong-platform tours.
+- `PLATFORM_TOUR_ALIASES` map resolves base ids → variants at `startTour()` time. `isTourCompleted(baseId, completed)` helper checks completion across variants.
+- `stylist-getting-started` + `stylist-calendar` split into `-mobile` and `-desktop` variants. New `data-tour="stylist-mobile-booking-list"` / `"stylist-mobile-booking-card"` anchors in `dashboard-client.tsx`. Other stylist tours stay `platform: 'both'`.
+- `admin-command-palette` is `platform: 'desktop'`.
+
 ### Phase 12Z — Toast Action Buttons
 - `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`
 - Toast component grows a right-side action zone: `border-l border-stone-100 pl-3 ml-3 shrink-0` with a small `text-[#8B2E4A] font-medium text-sm` button.
