@@ -851,7 +851,7 @@ export function DirectoryClient({
           <p className="text-stone-400 text-sm">No stylists match this filter.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-y-auto overscroll-contain">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
           {/* Select-all header */}
           <div className="flex items-center gap-3 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
             <input
