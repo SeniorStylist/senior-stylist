@@ -129,9 +129,9 @@ function ToastContainer({
   return (
     <div
       className={cn(
-        'fixed z-[9999] flex flex-col gap-2 pointer-events-none',
-        'bottom-20 left-1/2 -translate-x-1/2 items-center',
-        'md:bottom-5 md:right-5 md:top-auto md:left-auto md:translate-x-0 md:items-end'
+        'toast-floor fixed z-[9999] flex flex-col gap-2 pointer-events-none',
+        'left-1/2 -translate-x-1/2 items-center',
+        'md:right-5 md:top-auto md:left-auto md:translate-x-0 md:items-end'
       )}
       aria-live="polite"
     >

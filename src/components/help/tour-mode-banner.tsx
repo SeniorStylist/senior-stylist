@@ -23,8 +23,9 @@ export function TourModeBanner() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[250] bg-[#8B2E4A]/90 backdrop-blur-sm py-1.5 px-4 flex items-center justify-center gap-2 transition-transform duration-200 ease-out"
+      className="fixed left-0 right-0 z-[250] bg-[#8B2E4A]/90 backdrop-blur-sm py-1.5 px-4 flex items-center justify-center gap-2 transition-transform duration-200 ease-out"
       style={{
+        top: 'env(safe-area-inset-top)',
         transform: active ? 'translateY(0)' : 'translateY(-100%)',
         pointerEvents: active ? 'auto' : 'none',
       }}

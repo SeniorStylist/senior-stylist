@@ -68,6 +68,18 @@ h1 {
   font-size: clamp(1.75rem, 5vw, 2.5rem);
 }
 
+/* Toast container — clear mobile nav + safe area on phones, anchor at standard
+   bottom on desktop. Single class + media query avoids inline-style vs
+   Tailwind-class precedence conflicts. */
+.toast-floor {
+  bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px);
+}
+@media (min-width: 768px) {
+  .toast-floor {
+    bottom: 1.5rem;
+  }
+}
+
 /* Main content — account for mobile nav + safe area at bottom */
 .main-content {
   padding-top: 0;
