@@ -420,7 +420,7 @@ CSS-only typography scaling + filling the last gaps in the skeleton-loading audi
 
 Three related polish items landed together: a proper 3-zone flexbox shell, platform-aware tours that never show users a broken-element toast, and the root-cause fix for the stylist directory scroll regression.
 
-**Shell:** Restructured `(protected)/layout.tsx` into outer `h-[100dvh] flex overflow-hidden` + inner column with `MobileFacilityHeader` / `<main>` / `MobileNav` as flex siblings. `MobileNav` no longer `position: fixed` — it's `shrink-0` in flow. `.main-content` carries `transform: translateZ(0)` which (a) replaces the broken `will-change: scroll-position` (the actual cause of the directory scroll regression — `will-change: scroll-position` interferes with wheel-event delegation on Safari/macOS trackpads when combined with hover transitions on row children), and (b) establishes a containing block for `position: fixed` descendants. Eight floating components dropped their inline `calc(env(safe-area-inset-bottom) + 80px)` offsets and use plain Tailwind `bottom-4` (toast, OnboardingChecklist, QuickBookFAB, log/services/directory FABs, MobileDebugButton, InstallBanner). MobileDebugButton + InstallBanner moved INSIDE `<main>` so they get the containing-block treatment. `<CommandPalette>`, `<PeekDrawer>`, `<MobileTourOverlay>` portal to `document.body` via `createPortal` to remain viewport-spanning. CSS vars renamed: `--mobile-*` → `--app-*` (`--app-header-height`, `--app-nav-height`, `--app-safe-top`, `--app-safe-bottom`). Removed `body { padding-top: env(safe-area-inset-top) }` — header handles it internally now. Removed the `.toast-floor` utility class.
+**Shell:** Restructured `(protected)/layout.tsx` into outer `h-[100dvh] flex overflow-hidden` + inner column with `MobileFacilityHeader` / `<main>` / `MobileNav` as flex siblings. `MobileNav` no longer `position: fixed` — it's `shrink-0` in flow. CSS vars renamed: `--mobile-*` → `--app-*`. Removed `body { padding-top: env(safe-area-inset-top) }` — header handles it internally now. Removed the `.toast-floor` utility class. _(Note: the 12Y `transform: translateZ(0)` containing-block trick on `.main-content` and "move floating chrome inside `<main>`" approach were both REVERTED in the 12Y followups below — they made fixed chrome scroll with content.)_
 
 **Tour engine silent-skip:** `waitForElement` returning null now logs `console.warn` and silently advances to the next step on both desktop (`tours.ts`) and mobile (`mobile-tour.ts`). End users never see a "Couldn't find that element" toast.
 
@@ -433,6 +433,20 @@ Three related polish items landed together: a proper 3-zone flexbox shell, platf
 **`scripts/check-tours.ts`** extended with a platform-consistency pass that scans anchor-element source context for `md:hidden` / `hidden md:flex|block|grid|inline` class patterns and emits warnings on platform-tour mismatches (heuristic, doesn't fail the script).
 
 **Verification:** TSC clean (0 errors); tour health 90/90; 0 platform-consistency warnings.
+
+### Phase 12Y followups — Layout Shell Fixes + Tour Audit + Tour Speed (SHIPPED 2026-05-13)
+
+Real-device testing surfaced 7 regressions from the 12Y shell — fixed together:
+
+1. **Bottom nav gap** — `html, body { height: 100% }` added so the `h-[100dvh]` shell fills the viewport.
+2. **Containing-block trick reversed** — `transform: translateZ(0)` removed from `.main-content` (it made `position: fixed` chrome scroll with content). Replaced with centralized `--app-nav-clearance` + `--app-floating-bottom` CSS vars (with `md:` overrides for the no-nav desktop case). All 8 floating components switched from plain `bottom-4` to `style={{ bottom: 'var(--app-floating-bottom)' }}`; the daily-log footer bar uses `var(--app-nav-clearance)`.
+3. **MobileDebugButton + InstallBanner moved OUT of `<main>`** back to outer-shell siblings (viewport-anchored chrome).
+4. **Tour banner notch fix + hidden-state fix** — `top: env(...)` → `top: 0` + `paddingTop: calc(0.375rem + env(safe-area-inset-top))`. Background fills edge-to-edge under the notch, text sits below; `translateY(-100%)` now fully hides it.
+5. **Directory scroll** — removed `transform: translateZ(0)` (leading cause) + moved the `selectAllRef.current.indeterminate` write out of the `directory-client.tsx` render body into a `useEffect`. Documented fallbacks if it persists.
+6. **Mobile tour audit** — 11 catalog entries tagged `platform: 'desktop'` (admin-reports, admin-compliance, 3 bookkeeper, all 6 master-*). bookkeeper scan-logs/manual-entry/duplicates stay `'both'`.
+7. **Tour speed** — `SLOW_PAGE_WAIT_MS` 5000 → 3000 (both engines); `SCROLL_SETTLE_MS` 50 → 25 (mobile).
+
+**Verification:** TSC clean (0 errors); tour health 90/90; 0 platform-consistency warnings. iPhone smoke test pending on the user's device.
 
 ### Phase 12Z–13P — Upcoming
 
@@ -644,9 +658,10 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12Y shipped (2026-05-13). Next priorities:
+Phase 12Y + 12Y followups shipped (2026-05-13). Next priorities:
 
-1. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.
+1. **iPhone smoke test of the 12Y followups** — verify on a physical device: bottom nav flush at viewport bottom, tour banner only shows during tours + clears the notch, debug button stays anchored when scrolling, mobile help center hides desktop-only tours. Stylist directory desktop scroll fix also needs trackpad verification.
+2. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

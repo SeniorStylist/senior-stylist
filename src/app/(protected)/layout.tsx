@@ -138,9 +138,9 @@ export default async function ProtectedLayout({
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
       {/* Phase 12Y shell — header / scroll / nav as flexbox siblings. MobileNav
-          is now in flow (shrink-0), not fixed. .main-content has
-          transform: translateZ(0), making it the containing block for any
-          `position: fixed` descendants (FABs, toasts) so they sit above the nav. */}
+          is in flow (shrink-0), not fixed. Floating chrome (debug button,
+          install banner, toasts, FABs) is viewport-anchored via the
+          `--app-floating-bottom` CSS var, NOT a containing-block trick. */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
@@ -157,16 +157,16 @@ export default async function ProtectedLayout({
               />
             )}
             <PeekDrawer role={activeRole} isMaster={isMaster} />
-            {/* MobileDebugButton + InstallBanner live INSIDE main so .main-content's
-                transform-induced containing block lets them use plain `bottom-4`
-                and sit above the nav without inline calc() offsets. */}
-            <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
-            <InstallBanner />
             {children}
           </ToastProvider>
         </main>
         <MobileNav role={activeRole} debugMode={debugMode} />
       </div>
+      {/* Viewport-anchored chrome — outside the scroll container so it stays
+          fixed to the viewport (not the scrolling <main>). Clears the nav via
+          the --app-floating-bottom var. */}
+      <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
+      <InstallBanner />
       <DebugBadge />
     </div>
   )

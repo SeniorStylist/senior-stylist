@@ -2281,24 +2281,32 @@ Three related polish items landed together. CSS + layout architecture + tour sys
 - `<MobileNav>` moved INTO the inner column as the last flex child (`shrink-0`). No longer `position: fixed`.
 - `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">` is THE only vertical scroll container.
 
-**`.main-content` carries `transform: translateZ(0)`** — this single CSS rule:
-1. Promotes the element to its own GPU compositor layer (this REPLACES the broken `will-change: scroll-position` which interfered with wheel-event delegation on Safari/macOS trackpads; that's the root cause of the directory scroll regression).
-2. Creates a **containing block for `position: fixed` descendants**.
+> **`.main-content` `transform: translateZ(0)` was REVERTED in the 12Y followups** — it made the element a containing block, so `position: fixed` chrome scrolled with content. See the followups section below for the corrected approach.
 
-**`position: fixed` descendants of `<main>` use plain Tailwind `bottom-4`** (`md:bottom-6` for desktop). They naturally sit above the nav because `<main>`'s bottom edge IS the nav's top edge (nav is the next flex sibling in the inner column). No more inline `calc(env(safe-area-inset-bottom) + 80px)` offsets anywhere in the codebase. Eight components updated to follow this rule (toast, OnboardingChecklist, QuickBookFAB, log/services/directory FABs, MobileDebugButton, InstallBanner). MobileDebugButton + InstallBanner additionally MOVED inside `<main>` so they get the containing-block treatment.
+**Global modal/drawer overlays portal to `document.body`** via `createPortal` (`<CommandPalette>`, `<PeekDrawer>`, `<MobileTourOverlay>`). Kept from 12Y; harmless and correct.
 
-**Global modal/drawer overlays portal to `document.body`** via `createPortal` so they aren't constrained by `<main>`'s containing block — they need to span the full viewport:
-- `<CommandPalette>` (`src/components/command-palette/command-palette.tsx`)
-- `<PeekDrawer>` (`src/components/peek-drawer/peek-drawer.tsx`)
-- `<MobileTourOverlay>` (`src/components/help/mobile-tour-overlay.tsx`, already portaled prior to 12Y)
+**Outer-shell viewport-anchored chrome** (OUTSIDE `<main>`, sibling of the inner column): `<TourModeBanner>` (top), `<DebugBadge>` (top-right, desktop), and — after the followups — `<MobileDebugButton>` + `<InstallBanner>`.
 
-**Outer-shell viewport-anchored chrome** (NOT portaled, OUTSIDE `<main>`, sibling of the inner column): `<TourModeBanner>` (top, `top: env(safe-area-inset-top)`), `<DebugBadge>` (top-right, desktop-only).
-
-**CSS variables in `:root` renamed (`globals.css`):**
+**CSS variables in `:root` (`globals.css`):**
 - DELETED: `--mobile-nav-height`, `--mobile-header-height`.
-- ADDED: `--app-header-height: 56px`, `--app-nav-height: 72px`, `--app-safe-top: env(safe-area-inset-top)`, `--app-safe-bottom: env(safe-area-inset-bottom)`.
+- ADDED: `--app-header-height: 56px`, `--app-nav-height: 72px`, `--app-safe-top`, `--app-safe-bottom`, plus (followups) `--app-nav-clearance` + `--app-floating-bottom` with `@media (min-width: 768px)` overrides.
 
 **Body padding-top removed.** `body { padding-top: env(safe-area-inset-top) }` is gone. The `<MobileFacilityHeader>` handles safe-area-top internally via `paddingTop: 'var(--app-safe-top)'`. Eliminates the double-pad/overflow bug.
+
+### Phase 12Y followups — Layout Shell Fixes + Tour Audit + Tour Speed (SHIPPED 2026-05-13)
+
+Fixed 7 regressions surfaced by real-device testing of the 12Y shell.
+
+1. **Bottom nav gap** — added `html, body { height: 100% }` so the `h-[100dvh]` shell fills the viewport (defends against ancestor collapse on iOS).
+2. **Containing-block trick reversed** — `transform: translateZ(0)` REMOVED from `.main-content` (it made `position: fixed` chrome scroll with content). `.main-content` now carries only `-webkit-overflow-scrolling: touch`.
+3. **Centralized nav-clearance vars** — `--app-nav-clearance: calc(var(--app-nav-height) + var(--app-safe-bottom))` (md: `0px`) and `--app-floating-bottom: calc(var(--app-nav-clearance) + 1rem)` (md: `1.5rem`). All 8 floating components switched from plain `bottom-4` to `style={{ bottom: 'var(--app-floating-bottom)' }}`; the daily-log mobile footer bar uses `var(--app-nav-clearance)`.
+4. **`<MobileDebugButton>` + `<InstallBanner>` moved OUT of `<main>`** back to outer-shell siblings — viewport-anchored chrome.
+5. **`<TourModeBanner>` fix** — `top: env(safe-area-inset-top)` → `top: 0` + `paddingTop: calc(0.375rem + env(safe-area-inset-top))`. Fixes both the notch cutoff (text sits below the safe area, bg fills under it) AND the "banner peeks ~19px when hidden" bug (`translateY(-100%)` now fully clears it because the box starts at `top: 0`). `viewportFit: 'cover'` confirmed present in the root `layout.tsx` viewport export.
+6. **Directory scroll** — removed `transform: translateZ(0)` (leading cause + a failed prior fix) AND moved the `selectAllRef.current.indeterminate` write out of the `directory-client.tsx` render body into a `useEffect` (an imperative DOM write during render thrashes layout). Documented fallbacks if it persists: `page-enter`'s retained `transform: translateY(0)`, or the row hover transitions.
+7. **Tour audit** — 11 catalog entries tagged `platform: 'desktop'` (admin-reports, admin-compliance, bookkeeper-getting-started, bookkeeper-billing-dashboard, bookkeeper-payroll, all 6 master-*). `bookkeeper-scan-logs` / `-manual-entry` / `-duplicates` stay `'both'` (target `/log` + `/residents`, mobile-reachable).
+8. **Tour speed** — `SLOW_PAGE_WAIT_MS` 5000 → 3000 (`tours.ts` + `mobile-tour.ts`); `SCROLL_SETTLE_MS` 50 → 25 (`mobile-tour.ts`). `waitForElement` was already MutationObserver-based (instant resolve); these constants only bound the worst case.
+
+**Verification:** `npx tsc --noEmit` 0 errors; `npx tsx scripts/check-tours.ts` 90/90 selectors, 0 platform-consistency warnings.
 
 **Tour engine — silent skip on missing element:**
 - `src/lib/help/tours.ts` `runStep` (line ~917 area) and `src/lib/help/mobile-tour.ts` `runMobileStep` (line ~147 area) no longer fire `toastWarning('Couldn\'t find that element …')`. They `console.warn(\`[tour] \${def.id}[\${index}] target not found: \${step.element} — skipping\`)` and recursively call the next step.

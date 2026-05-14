@@ -24,7 +24,7 @@ import { getTourRouter } from './tour-router'
 // Mobile-specific tunables. Mobile waits less than desktop (5s feels broken
 // on a phone) and uses a tighter resume TTL (1 min) to bound stale-state loops.
 const MOBILE_ELEMENT_WAIT_MS = 2000
-const SLOW_PAGE_WAIT_MS = 5000   // server-rendered pages with data fetching
+const SLOW_PAGE_WAIT_MS = 3000   // server-rendered pages with data fetching (Phase 12Y followups: 5000 → 3000)
 
 function isSlowRoute(route: string): boolean {
   return (
@@ -36,7 +36,7 @@ function isSlowRoute(route: string): boolean {
   )
 }
 const MOBILE_RESUME_TTL = 60_000
-const SCROLL_SETTLE_MS = 50
+const SCROLL_SETTLE_MS = 25   // Phase 12Y followups: 50 → 25
 
 let activeMobileTourId: string | null = null
 let activeListenerCleanup: (() => void) | null = null

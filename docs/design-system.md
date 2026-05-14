@@ -2457,33 +2457,32 @@ Global `h1` ranges 26px → 36px; the homepage greeting bumps to 28px → 40px. 
 - `<MobileNav>` internal `paddingBottom: 'calc(0.5rem + var(--app-safe-bottom))'` → total height = ~72px + safe-area-bottom.
 - Body NO LONGER has `padding-top: env(safe-area-inset-top)` — the header handles it. This eliminates the double-pad / overflow bug.
 
-**`.main-content` `transform: translateZ(0)` trick.** This CSS rule replaces the prior `will-change: scroll-position` (which broke Safari/macOS trackpad scrolling when hovering over rows with hover transitions — the Phase 12Y "Directory Scroll Fix"). It serves two purposes:
-1. Promotes `.main-content` to its own GPU compositor layer (decouples row hover repaints from scroll).
-2. Creates a **containing block for `position: fixed` descendants**. Floating components inside `<main>` use plain `className="fixed bottom-4 ..."` and naturally sit above the nav (which is OUTSIDE main, as the next flex sibling).
+> **CORRECTED in Phase 12Y followups (2026-05-13).** The original 12Y `transform: translateZ(0)` "containing-block trick" on `.main-content` was reverted — it made `position: fixed` chrome scroll with content. See the corrections below; the rest of this section (shell architecture, safe-area handling) still stands.
 
-**FAB positioning rule (Phase 12Y):** Any `fixed` element INSIDE `.main-content` uses plain Tailwind `bottom-4` (or `md:bottom-6` for desktop). The transform-induced containing block does the work. Components updated to follow this rule:
-- `toast.tsx` ToastContainer (`.toast-floor` class deleted)
-- `onboarding-checklist.tsx`
-- `quick-book-fab.tsx`
-- `mobile-debug-button.tsx` (also MOVED inside `<main>`)
-- `pwa/install-banner.tsx` (also MOVED inside `<main>`)
-- `log-client.tsx` mobile footer bar
-- `services-page-client.tsx` bulk action bar
-- `stylists/directory/directory-client.tsx` bulk action bar
+**`.main-content` has NO `transform`.** It carries only `-webkit-overflow-scrolling: touch` (plus `overflow-y-auto overscroll-contain` Tailwind classes on the element). The 12Y `transform: translateZ(0)` was removed: a transformed scroll container makes its `position: fixed` descendants behave like `position: absolute` and scroll with content.
 
-**Global overlays portaled to `document.body`** so they're NOT contained by `<main>` and can span the full viewport:
-- `<PeekDrawer>` (`peek-drawer.tsx`) — `createPortal` wraps the entire return
-- `<CommandPalette>` (`command-palette.tsx`) — `createPortal` wraps the open-state fragment
-- `<MobileTourOverlay>` (`mobile-tour-overlay.tsx`) — already portaled prior to 12Y
+**`html, body { height: 100% }`** in `globals.css` — guarantees the `h-[100dvh]` shell fills the viewport (the mobile nav was sitting above the viewport bottom without it).
 
-**Outer-shell siblings, NOT portaled** (viewport-anchored chrome at the outer flex level): `<TourModeBanner>` (top, `top: env(safe-area-inset-top)`), `<DebugBadge>` (top-right, desktop).
+**FAB / floating-chrome positioning rule (12Y followups — canonical):** Floating components are `position: fixed`, viewport-anchored, and clear the mobile nav via centralized `:root` CSS vars:
+- `--app-nav-clearance: calc(var(--app-nav-height) + var(--app-safe-bottom))` — full-width bars that butt against the nav. Desktop: `0px`.
+- `--app-floating-bottom: calc(var(--app-nav-clearance) + 1rem)` — FABs / toasts / widgets, 1rem gap above the nav. Desktop: `1.5rem`.
 
-**CSS variables in `:root` (Phase 12Y):**
+Every floating component uses `style={{ bottom: 'var(--app-floating-bottom)' }}` (or `var(--app-nav-clearance)`). Components on `--app-floating-bottom`: `toast.tsx` (`.toast-floor` class deleted), `onboarding-checklist.tsx`, `quick-book-fab.tsx`, `mobile-debug-button.tsx`, `pwa/install-banner.tsx`, `services-page-client.tsx` bulk bar, `directory-client.tsx` bulk bar. On `--app-nav-clearance`: `log-client.tsx` mobile footer bar. NEVER use plain `bottom-4` for nav-clearing chrome; NEVER hardcode `calc(env(safe-area-inset-bottom) + 80px)`.
+
+**Where floating chrome mounts:** viewport-anchored chrome (`<MobileDebugButton>`, `<InstallBanner>`, `<TourModeBanner>`, `<DebugBadge>`) are **outer-shell siblings** of the inner column — OUTSIDE `<main>`. (12Y briefly moved MobileDebugButton + InstallBanner inside `<main>`; followups moved them back out.)
+
+**Global overlays portaled to `document.body`** (`<PeekDrawer>`, `<CommandPalette>`, `<MobileTourOverlay>`) — kept from 12Y. Harmless and correct even without the containing-block trick.
+
+**`<TourModeBanner>` safe-area pattern (12Y followups):** `fixed top-0 left-0 right-0` with `paddingTop: 'calc(0.375rem + env(safe-area-inset-top))'`. The burgundy background fills edge-to-edge under the notch; the text sits below the safe area. Hides via `transform: translateY(-100%)` which fully clears the viewport because the box starts at `top: 0`. The 12Y `top: env(...)` version left the banner peeking ~19px when "hidden" — never put `top: env(...)` on a slide-up banner. Requires `viewportFit: 'cover'` in the root `layout.tsx` viewport export (already set).
+
+**CSS variables in `:root`:**
 ```css
 --app-header-height: 56px;
 --app-nav-height: 72px;
 --app-safe-top: env(safe-area-inset-top);
 --app-safe-bottom: env(safe-area-inset-bottom);
+--app-nav-clearance: calc(var(--app-nav-height) + var(--app-safe-bottom));  /* md: 0px */
+--app-floating-bottom: calc(var(--app-nav-clearance) + 1rem);                /* md: 1.5rem */
 ```
 The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 

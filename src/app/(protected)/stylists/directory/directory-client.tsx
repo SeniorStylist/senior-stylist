@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Applicant, ApplicantStatus, Stylist, StylistStatus } from '@/types'
@@ -376,12 +376,17 @@ export function DirectoryClient({
     })
   }, [filtered, sortKey, sortDir, facilityById])
 
-  // Keep selectAll checkbox indeterminate state in sync
+  // Keep selectAll checkbox indeterminate state in sync.
+  // Phase 12Y followups — this MUST run in an effect, not the render body.
+  // An imperative DOM write during render thrashes layout and was a suspected
+  // contributor to the directory scroll-jank bug.
   const allVisibleSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
   const someSelected = filtered.some((s) => selected.has(s.id))
-  if (selectAllRef.current) {
-    selectAllRef.current.indeterminate = someSelected && !allVisibleSelected
-  }
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected && !allVisibleSelected
+    }
+  }, [someSelected, allVisibleSelected])
 
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
@@ -1281,7 +1286,8 @@ export function DirectoryClient({
       {/* Floating bulk action bar */}
       {selected.size > 0 && (
         <div
-          className="fixed left-1/2 -translate-x-1/2 bottom-4 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg max-w-[calc(100vw-32px)]"
+          className="fixed left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-stone-200 shadow-lg max-w-[calc(100vw-32px)]"
+          style={{ bottom: 'var(--app-floating-bottom)' }}
         >
           <span className="text-sm font-medium text-stone-700 shrink-0">
             {selected.size} selected

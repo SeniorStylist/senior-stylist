@@ -79,8 +79,9 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
     <div
       role="complementary"
       aria-label="Getting started checklist"
-      className="fixed right-4 md:right-6 bottom-4 z-[100] w-72 bg-white rounded-2xl border border-stone-200 shadow-lg transition-transform duration-300"
+      className="fixed right-4 md:right-6 z-[100] w-72 bg-white rounded-2xl border border-stone-200 shadow-lg transition-transform duration-300"
       style={{
+        bottom: 'var(--app-floating-bottom)',
         transform: visible ? 'translateY(0)' : 'translateY(120%)',
       }}
     >

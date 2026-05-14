@@ -130,9 +130,10 @@ function ToastContainer({
     <div
       className={cn(
         'fixed z-[9999] flex flex-col gap-2 pointer-events-none',
-        'bottom-4 left-1/2 -translate-x-1/2 items-center',
-        'md:bottom-6 md:right-6 md:left-auto md:translate-x-0 md:items-end'
+        'left-1/2 -translate-x-1/2 items-center',
+        'md:right-6 md:left-auto md:translate-x-0 md:items-end'
       )}
+      style={{ bottom: 'var(--app-floating-bottom)' }}
       aria-live="polite"
     >
       {toasts.map((t) => (

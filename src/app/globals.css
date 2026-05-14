@@ -38,6 +38,24 @@
   --app-nav-height: 72px;
   --app-safe-top: env(safe-area-inset-top);
   --app-safe-bottom: env(safe-area-inset-bottom);
+  /* Phase 12Y followups — centralized nav-clearance for viewport-fixed chrome.
+     --app-nav-clearance: bars that butt directly against the nav (no gap).
+     --app-floating-bottom: FABs/toasts/widgets that float 1rem above the nav. */
+  --app-nav-clearance: calc(var(--app-nav-height) + var(--app-safe-bottom));
+  --app-floating-bottom: calc(var(--app-nav-clearance) + 1rem);
+}
+@media (min-width: 768px) {
+  :root {
+    /* Desktop: no mobile nav — chrome anchors to the viewport bottom directly. */
+    --app-nav-clearance: 0px;
+    --app-floating-bottom: 1.5rem;
+  }
+}
+
+/* Phase 12Y followups — guaranteed height chain so the h-[100dvh] shell
+   always fills the viewport (defends against ancestor collapse on iOS). */
+html, body {
+  height: 100%;
 }
 
 /* Phase 12U — prevent iOS rubber-band bounce globally */
@@ -70,16 +88,14 @@ h1 {
   font-size: clamp(1.75rem, 5vw, 2.5rem);
 }
 
-/* Phase 12Y — Main content is the ONLY vertical scroll container in the shell.
-   `transform: translateZ(0)` (a) promotes to its own GPU compositor layer so
-   row :hover repaints don't block trackpad scroll (replaces the old
-   `will-change: scroll-position` which broke wheel-event delegation on Safari),
-   AND (b) establishes a containing block for `position: fixed` descendants —
-   so FABs/toasts inside this element use plain `bottom-4` and naturally sit
-   above the mobile nav (which is the sibling flexbox child below). */
+/* Phase 12Y followups — Main content is the ONLY vertical scroll container in
+   the shell. The Phase 12Y `transform: translateZ(0)` was REMOVED: it made
+   `.main-content` a containing block, so `position: fixed` chrome (debug
+   button, FABs) scrolled with content instead of staying viewport-anchored.
+   Floating chrome now uses the `--app-floating-bottom` / `--app-nav-clearance`
+   vars for nav clearance instead of the containing-block trick. */
 .main-content {
   -webkit-overflow-scrolling: touch;
-  transform: translateZ(0);
 }
 
 /* Landscape phone — hide nav, expand sheet */
