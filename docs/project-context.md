@@ -466,6 +466,22 @@ Bookkeepers were re-keying daily logs into their accounting workflow. Phase 12Z 
 
 **Verification:** TSC clean. Tour audit 91/91 selectors found. Formatter helpers passed 20 unit assertions on `formatServices`, `paymentTypeLabel`, `dollarsNumber`, `tipsCell`, `facilityLabel`, `stylistLabel`, `notesCell`, `roomCell`.
 
+### iOS Safari Shell Fix (SHIPPED 2026-05-17)
+
+**Bug:** Cold-loaded protected pages on iOS Safari showed an empty gap below the mobile bottom nav. Rotating to landscape and back to portrait permanently fixed it for that session.
+
+**Root cause:** `h-[100dvh]` on the protected layout shell evaluates incorrectly on iOS Safari's first paint — Safari measures dvh before its URL-bar state is finalized, so the shell ends up too tall and pushes the nav off-screen. Rotation forces a reflow with the corrected URL-bar state.
+
+**Fix:** swap the shell from `h-[100dvh] flex overflow-hidden` to `fixed inset-0 flex overflow-hidden` in `src/app/(protected)/layout.tsx`. The shell now anchors directly to the visual viewport — Safari computes this reliably on first paint and adjusts when the URL bar collapses/expands. Standard pattern for native-feeling mobile web apps (Twitter Lite, Linear mobile, Facebook Lite).
+
+**Companion:** new client component `src/components/layout/protected-body-lock.tsx` mounted as the first child of the shell. It flips `document.body.style.overflow = 'hidden'` (and `documentElement`) on mount, restores on unmount. Required because the shell is taken out of normal flow; without this iOS could bounce-scroll the empty document behind the shell on aggressive swipes. Scoped to the protected layout — `/login`, `/family/*`, `(public)/*`, invoice/portal routes keep normal body scroll.
+
+**Safety:** `position: fixed` on the shell does NOT make it a containing block for `position: fixed` descendants (only `transform`/`perspective`/`filter`/`backdrop-filter`/`will-change`/`contain` do). Verified clean ancestor chain (no transform on html, body, .main-content, or the shell). All four `fixed` chrome siblings (`TourModeBanner`, `MobileDebugButton`, `InstallBanner`, `DebugBadge`) still anchor to the visual viewport.
+
+**Not touched:** `--app-floating-bottom` / `--app-nav-clearance` CSS vars still serve floating chrome that needs to clear the nav. Reverting them was a separate opt-in cleanup deferred to a future pass — keeping them avoids a 12Y-followups-style regression.
+
+**Verification:** TSC clean. Tour audit 91/91. Manual iPhone smoke pending on user's device.
+
 ### Phase 12ZZ–13P — Upcoming
 
 **Immediate (next up):**
@@ -676,7 +692,7 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12Z shipped (2026-05-17) — Daily Log Excel Export. Phase 12Y + 12Y followups shipped (2026-05-13). Next priorities:
+iOS Safari shell fix shipped (2026-05-17) — `position: fixed; inset: 0` replaces `h-[100dvh]` to dodge the first-paint dvh measurement bug. Phase 12Z shipped (2026-05-17) — Daily Log Excel Export. Phase 12Y + 12Y followups shipped (2026-05-13). Next priorities:
 
 1. **iPhone smoke test of the 12Y followups** — verify on a physical device: bottom nav flush at viewport bottom, tour banner only shows during tours + clears the notch, debug button stays anchored when scrolling, mobile help center hides desktop-only tours. Stylist directory desktop scroll fix also needs trackpad verification.
 2. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.

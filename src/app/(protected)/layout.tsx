@@ -19,6 +19,7 @@ import { TourModeBanner } from '@/components/help/tour-mode-banner'
 import { TourRouterProvider } from '@/components/help/tour-router-provider'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
+import { ProtectedBodyLock } from '@/components/layout/protected-body-lock'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -131,7 +132,12 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="h-[100dvh] flex overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
+    // Shell anchors to the visual viewport via `position: fixed; inset: 0`
+    // instead of `h-[100dvh]` to dodge the iOS Safari first-paint dvh bug
+    // (Safari measures dvh before its URL-bar state settles, pushing the
+    // mobile nav off-screen on cold loads until a rotation forces a reflow).
+    <div className="fixed inset-0 flex overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
+      <ProtectedBodyLock />
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">

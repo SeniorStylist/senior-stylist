@@ -2278,7 +2278,8 @@ A small, focused polish pass: CSS-only typography scaling + filling the last gap
 Three related polish items landed together. CSS + layout architecture + tour system tweaks. No schema, no API.
 
 **Shell architecture (`src/app/(protected)/layout.tsx` + `globals.css`):**
-- Outer container: `<div className="h-[100dvh] flex overflow-hidden">` (was `flex h-screen`). `100dvh` corrects iOS Safari address-bar dynamics.
+- Outer container: `<div className="fixed inset-0 flex overflow-hidden">`. Anchors directly to the visual viewport — Safari computes this reliably on first paint. Was `h-[100dvh]` through 12Y / 12Y followups, but `100dvh` was measured by iOS Safari BEFORE its URL-bar state settled on first paint, leaving a gap below the bottom nav until a rotation forced a reflow. The fixed-shell pattern is the standard fix (Twitter Lite, Linear mobile, Facebook Lite). The shell's `position: fixed` does NOT create a containing block for its `position: fixed` descendants (only transform/perspective/filter/backdrop-filter/will-change/contain do), so the four chrome siblings inside still anchor to the visual viewport.
+- Body lock: `<ProtectedBodyLock />` (first child of the shell, `src/components/layout/protected-body-lock.tsx`) flips `document.body.style.overflow` / `document.documentElement.style.overflow` to `'hidden'` on mount and restores on unmount. Scoped to the protected layout so login/family/(public)/invoice/portal routes keep normal-flow scroll. Mirrors the existing body-overflow flip in `Modal` and `BottomSheet`.
 - Inner column: `<div className="flex-1 min-w-0 flex flex-col overflow-hidden">` containing `<MobileFacilityHeader>` / `<TopBar>` / `<main>` / `<MobileNav>` as flex siblings.
 - `<MobileNav>` moved INTO the inner column as the last flex child (`shrink-0`). No longer `position: fixed`.
 - `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">` is THE only vertical scroll container.

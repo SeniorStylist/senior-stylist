@@ -2496,7 +2496,7 @@ Global `h1` ranges 26px → 36px; the homepage greeting bumps to 28px → 40px. 
 
 ### Phase 12Y — Mobile Layout Shell + Tour System Overhaul + Directory Scroll Fix (SHIPPED 2026-05-13)
 
-**Shell architecture.** The protected layout is now a 3-zone vertical flexbox shell (4-zone with desktop sidebar). The outer container is `<div className="h-[100dvh] flex overflow-hidden">`; the inner column is `<div className="flex-1 min-w-0 flex flex-col overflow-hidden">` with three flex children in order: `<MobileFacilityHeader>` (shrink-0, mobile-only), `<TopBar>` (shrink-0, desktop-only), `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">`, `<MobileNav>` (shrink-0, mobile-only). The `<main>` element is THE only vertical scroll container — no nested overflow-auto.
+**Shell architecture.** The protected layout is a 3-zone vertical flexbox shell (4-zone with desktop sidebar). The outer container is `<div className="fixed inset-0 flex overflow-hidden">` (changed from `h-[100dvh]` on 2026-05-17 to fix the iOS Safari first-paint dvh measurement bug — see "Layout Shell" in CLAUDE.md for the safety analysis of why `position: fixed` on the shell doesn't break the four `position: fixed` chrome siblings inside it). The inner column is `<div className="flex-1 min-w-0 flex flex-col overflow-hidden">` with three flex children in order: `<MobileFacilityHeader>` (shrink-0, mobile-only), `<TopBar>` (shrink-0, desktop-only), `<main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">`, `<MobileNav>` (shrink-0, mobile-only). The `<main>` element is THE only vertical scroll container — no nested overflow-auto. A `<ProtectedBodyLock />` client component is mounted as the first child of the shell to flip body/html `overflow: hidden` while the protected layout is in scope, restoring on unmount so login/public/family routes retain normal-flow scroll.
 
 **Mobile chrome safe-area handling (Phase 12Y):**
 - `<MobileFacilityHeader>` internal `paddingTop: 'var(--app-safe-top)'` + `minHeight: 'var(--app-header-height)'` → total height = 56px + safe-area-top.
@@ -2507,7 +2507,7 @@ Global `h1` ranges 26px → 36px; the homepage greeting bumps to 28px → 40px. 
 
 **`.main-content` has NO `transform`.** It carries only `-webkit-overflow-scrolling: touch` (plus `overflow-y-auto overscroll-contain` Tailwind classes on the element). The 12Y `transform: translateZ(0)` was removed: a transformed scroll container makes its `position: fixed` descendants behave like `position: absolute` and scroll with content.
 
-**`html, body { height: 100% }`** in `globals.css` — guarantees the `h-[100dvh]` shell fills the viewport (the mobile nav was sitting above the viewport bottom without it).
+**`html, body { height: 100% }`** in `globals.css` — historically required to give the `h-[100dvh]` shell something to fill. Kept after the 2026-05-17 switch to `fixed inset-0` because it still anchors non-protected layouts (login, public, invoice) that rely on `min-h-screen`. Harmless under the fixed shell since the shell ignores its parent's height.
 
 **FAB / floating-chrome positioning rule (12Y followups — canonical):** Floating components are `position: fixed`, viewport-anchored, and clear the mobile nav via centralized `:root` CSS vars:
 - `--app-nav-clearance: calc(var(--app-nav-height) + var(--app-safe-bottom))` — full-width bars that butt against the nav. Desktop: `0px`.
