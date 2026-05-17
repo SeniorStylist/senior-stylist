@@ -35,7 +35,7 @@
 
   /* App layout constants — Phase 12Y shell */
   --app-header-height: 56px;
-  --app-nav-height: 49px;
+  --app-nav-height: 42px;
   --app-safe-top: env(safe-area-inset-top);
   --app-safe-bottom: env(safe-area-inset-bottom);
   /* Phase 12Y followups — centralized nav-clearance for viewport-fixed chrome.

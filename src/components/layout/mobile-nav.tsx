@@ -126,9 +126,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
 
   return (
     <nav
-      data-debug-nav
       className="mobile-nav shrink-0 flex border-t border-stone-200 bg-white md:hidden"
-      style={{ paddingBottom: 'var(--app-safe-bottom)' }}
     >
       {filtered.map((item) => {
         const isActive = pendingHref
@@ -154,7 +152,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
             onClick={() => setPendingHref(item.href)}
             data-tour-mobile={tourSlug}
             className={cn(
-              'relative flex-1 flex flex-col items-center justify-center pt-2 pb-[6px] gap-[3px] leading-none text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',
+              'flex-1 flex flex-col items-center justify-center py-1 gap-[3px] leading-none text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',
               isActive ? 'text-[#8B2E4A]' : 'text-stone-400'
             )}
           >
@@ -167,7 +165,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
               )}
             </span>
             {item.label}
-            {isActive && <span className="absolute bottom-[5px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#8B2E4A]" />}
+            {isActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A]" />}
           </Link>
         )
       })}
