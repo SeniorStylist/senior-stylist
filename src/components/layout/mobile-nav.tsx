@@ -126,6 +126,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
 
   return (
     <nav
+      data-debug-nav
       className="mobile-nav shrink-0 flex border-t border-stone-200 bg-white md:hidden"
       style={{ paddingBottom: 'calc(0.5rem + var(--app-safe-bottom))' }}
     >
