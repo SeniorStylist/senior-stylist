@@ -31,6 +31,7 @@ type Bucket =
   | 'bulkReschedule'
   | 'search'
   | 'peek'
+  | 'exportExcel'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -62,6 +63,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   bulkReschedule: { tokens: 20, window: '1 h' },
   search: { tokens: 60, window: '1 m' },
   peek: { tokens: 120, window: '1 m' },
+  exportExcel: { tokens: 10, window: '1 m' },
 }
 
 let redis: Redis | null = null

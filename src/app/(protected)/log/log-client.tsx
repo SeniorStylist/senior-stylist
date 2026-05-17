@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/toast'
 import { OcrImportModal } from './ocr-import-modal'
 import { HelpTip } from '@/components/ui/help-tip'
 import { openPeek } from '@/lib/peek-drawer'
+import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 
 interface LogBooking {
   id: string
@@ -67,6 +68,8 @@ interface LogClientProps {
   // Phase 12F: facility's IANA timezone — drives row times, finalized timestamp,
   // walk-in time picker default + submit conversion, "today/yesterday/tomorrow" labels.
   facilityTimezone: string
+  facilityId: string
+  facilityName: string
   role?: string
 }
 
@@ -129,6 +132,8 @@ export function LogClient({
   stylistFilter,
   serviceCategoryOrder,
   facilityTimezone,
+  facilityId,
+  facilityName,
   role = 'admin',
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
@@ -136,6 +141,7 @@ export function LogClient({
   const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist' || role === 'bookkeeper'
   const [date, setDate] = useState(initialDate)
   const [showLogDatePicker, setShowLogDatePicker] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
   const [bookings, setBookings] = useState(initialBookings)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [loading, setLoading] = useState(false)
@@ -551,6 +557,23 @@ export function LogClient({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="9 18 15 12 9 6" />
           </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowExportModal(true)}
+          data-tour="log-export-excel"
+          data-tour-mobile="log-export-excel"
+          title="Export to Excel"
+          aria-label="Export to Excel"
+          className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="12" y2="17"/>
+            <line x1="12" y1="13" x2="8" y2="17"/>
+          </svg>
+          <span className="hidden md:inline">Export</span>
         </button>
       </div>
 
@@ -1309,6 +1332,13 @@ export function LogClient({
         stylists={stylists}
         services={services}
         date={date}
+      />
+
+      <ExportDailyLogsModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        facilityId={facilityId}
+        facilityName={facilityName}
       />
     </div>
     </ErrorBoundary>

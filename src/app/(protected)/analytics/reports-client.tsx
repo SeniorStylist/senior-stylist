@@ -6,6 +6,10 @@ import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { SkeletonStatCard, Skeleton } from '@/components/ui/skeleton'
+import {
+  ExportDailyLogsMultiModal,
+  type ExportFacilityOption,
+} from '@/components/exports/export-daily-logs-multi-modal'
 
 type ReportTab = 'analytics' | 'invoice'
 
@@ -87,6 +91,7 @@ interface ReportsClientProps {
   facilityTimezone: string
   revShareType?: string | null
   revSharePercentage?: number | null
+  exportFacilities: ExportFacilityOption[]
 }
 
 export function ReportsClient({
@@ -95,7 +100,9 @@ export function ReportsClient({
   facilityTimezone,
   revShareType,
   revSharePercentage,
+  exportFacilities,
 }: ReportsClientProps) {
+  const [showExportModal, setShowExportModal] = useState(false)
   const [activeTab, setActiveTab] = useState<ReportTab>('analytics')
   const [month, setMonth] = useState(() => {
     const now = new Date()
@@ -194,13 +201,32 @@ export function ReportsClient({
           </h1>
           <p className="text-sm text-stone-500 mt-0.5">Monthly revenue &amp; activity</p>
         </div>
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          data-tour="analytics-date-range"
-          className="text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            data-tour="analytics-date-range"
+            className="text-sm text-stone-700 bg-white border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+          />
+          {exportFacilities.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              data-tour="analytics-export-excel"
+              title="Export Daily Logs to Excel"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="8" y1="13" x2="12" y2="17"/>
+                <line x1="12" y1="13" x2="8" y2="17"/>
+              </svg>
+              Export
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -624,6 +650,13 @@ export function ReportsClient({
           })()}
         </div>
       )}
+
+      <ExportDailyLogsMultiModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        facilities={exportFacilities}
+        defaultSelectedId={exportFacilities.length === 1 ? exportFacilities[0].id : facilityId}
+      />
     </div>
     </ErrorBoundary>
   )

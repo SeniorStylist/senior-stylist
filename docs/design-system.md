@@ -2363,6 +2363,52 @@ A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767p
 
 ---
 
+## Daily Log Excel Export (Phase 12Z — SHIPPED 2026-05-17)
+
+A styled `.xlsx` export of the daily log, matching the bookkeeper's existing accounting workflow (`F177 - Sunrise of Bethesda.xlsx` was the reference sheet).
+
+### Workbook contract (every row in the file MUST follow these rules)
+
+- **Sheet name:** `Daily Log` (single worksheet).
+- **14 columns in this exact order:** `No.` / `Mail Subject` / `Mail date` / `Mail Time` / `Service Date` / `Facility Name` / `Stylist Name` / `Client Name` / `Room#` / `Services Performed` / `Amount` / `Notes` / `Tips` / `Payment Type`.
+- **Header row** — yellow fill (`{ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }`), Calibri font, bold on every header **except B/C/D** (`Mail Subject` / `Mail date` / `Mail Time` are intentionally non-bold per the sample's quirk).
+- **Column widths** — exact values from the reference sheet: A=5, B=22, C=11.33, D=9.66, E=12.89, F=26.66, G=20.55, H=22.44, I=8, J=32, K=10, L=24, M=8, N=14.22.
+- **One row per booking** (not per service). Multi-service bookings concatenate the service names: `"Shampoo, Blowdry & Manicure"` (comma joins, last separator is ` & `). Use `bookings.serviceNames[]` (denormalized array from Phase 12B) with a fallback to `bookings.service.name`.
+- **`"Doesn't Fill"` placeholder** — string `"Doesn't Fill"` (NOT empty string, NOT null) is used for: empty/whitespace `roomNumber`, empty `notes`, null or zero `tipCents`, unknown payment type, and missing services. Matches the sample exactly.
+- **Facility name format** — `"F177 - Sunrise of Bethesda"` when `facility_code` is set, falls back to bare `facility.name` when null.
+- **Stylist name format** — `"ST624 - Senait Edwards"` (always — `stylist_code` is `NOT NULL`).
+- **Amount + Tips columns** are numeric (no `$` prefix, no formatting) so Excel SUMs work directly. Tips column shows `"Doesn't Fill"` when null/zero.
+- **Payment Type mapping:** `unpaid → "Invoice"`, `paid → "Other"`, `waived → "Other"`, null → `"Doesn't Fill"`. No `qb_payments.payment_method` join — accepted tradeoff to keep the query simple.
+
+### UI surfaces
+
+- **`/log` Export Excel button** — in the header next to the date arrows, with `data-tour="log-export-excel"` + `data-tour-mobile="log-export-excel"`. Icon-only on mobile (`<span className="hidden md:inline">Export</span>`), icon+text on `md+`. Opens `<ExportDailyLogsModal>` (`src/components/exports/export-daily-logs-modal.tsx`) — single-facility, date range only.
+- **`/analytics` Export Excel button** — in the header next to the month picker, with `data-tour="analytics-export-excel"`. Opens `<ExportDailyLogsMultiModal>` (`src/components/exports/export-daily-logs-multi-modal.tsx`) — multi-facility checkbox list + date range. Master admin sees all active facilities; admin/bookkeeper see their `facilityUsers` memberships.
+- Both modals branch desktop `<Modal>` vs mobile `<BottomSheet>` via `useIsMobile()` — same component, two render paths. Date-range defaults to month-to-date.
+- Both submit via `window.open('/api/exports/daily-logs?facilityIds=…&startDate=…&endDate=…')` to trigger the browser download. No client-side blob handling.
+
+### Dependency
+
+- **`exceljs`** is the only library that can write styled `.xlsx` cells in this codebase. The existing `xlsx` (SheetJS Community Edition) dependency is **read-only** — its open-source build can't set `cell.fill` / `cell.font.bold` / `!cols` widths on write (those are paid Pro features). `xlsx` is kept for the import paths (`src/lib/service-log-import.ts`, `src/app/api/super-admin/import-quickbooks/route.ts`, `src/app/api/stylists/import/route.ts`); `exceljs` is the new canonical export library.
+
+### Formatter helpers (`src/lib/exports/daily-log-format.ts`)
+
+Pure functions, no I/O — reused by the route and by future format tests:
+
+| Function | Behavior |
+|---|---|
+| `formatServices(names)` | Joins with `", "` and ` & ` for last; trims whitespace, drops empty entries; returns `NOT_FILLED` when empty |
+| `paymentTypeLabel(status)` | `unpaid → "Invoice"`, `paid`/`waived → "Other"`, else `NOT_FILLED` |
+| `dollarsNumber(cents)` | `(cents ?? 0) / 100` — numeric (Excel-friendly), not formatted |
+| `tipsCell(cents)` | Returns `NOT_FILLED` when null or 0; otherwise numeric dollars |
+| `facilityLabel(code, name)` | `"CODE - Name"` or bare `name` when code is null |
+| `stylistLabel(code, name)` | Always `"CODE - Name"` (stylist_code is NOT NULL) |
+| `notesCell(notes)` / `roomCell(room)` | Trim + fallback to `NOT_FILLED` |
+
+When adding similar export routes in the future (other accounting formats, payroll Excel, etc.), reuse this module — don't reinvent `"Doesn't Fill"` semantics or the service join syntax.
+
+---
+
 ## Native Touch Polish (Phase 12U — SHIPPED 2026-05-12)
 
 All changes in `src/app/globals.css`:

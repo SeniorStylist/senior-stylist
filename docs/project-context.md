@@ -448,10 +448,28 @@ Real-device testing surfaced 7 regressions from the 12Y shell — fixed together
 
 **Verification:** TSC clean (0 errors); tour health 90/90; 0 platform-consistency warnings. iPhone smoke test pending on the user's device.
 
-### Phase 12Z–13P — Upcoming
+### Phase 12Z — Daily Log Excel Export (SHIPPED 2026-05-17)
+
+Bookkeepers were re-keying daily logs into their accounting workflow. Phase 12Z adds a styled `.xlsx` export matching their reference sheet (`F177 - Sunrise of Bethesda.xlsx`) so they can drop the file straight into accounting.
+
+**New route:** `GET /api/exports/daily-logs?facilityIds=...&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` — emits an Excel file with 14 columns: `No., Mail Subject, Mail date, Mail Time, Service Date, Facility Name, Stylist Name, Client Name, Room#, Services Performed, Amount, Notes, Tips, Payment Type`. Yellow header fill (`FFFFFF00` solid), Calibri, bold on every header except B/C/D (matches the sample's intentional inconsistency). Column widths per spec. Filters to `bookings.status = 'completed'` + `bookings.active = true` in the requested date range (per-facility tz via `dayRangeInTimezone`, widest-UTC over-fetch + per-row tz re-filter). No `log_entries.finalized` filter — every completed booking exports. Stylist role auto-scoped to own bookings via `profiles.stylistId`. Master admin bypasses facility scope. Rate-limited via new `exportExcel` bucket (10/min/user).
+
+**Dependency:** Added `exceljs` because the open-source `xlsx` package can't write styled cells. `xlsx` is kept for the existing import paths.
+
+**UI:** `/log` gets an Export button in the header (next to date arrows, icon-only on mobile). `/analytics` gets an Export button next to the month picker with a multi-facility checkbox list (admin/bookkeeper see their facilities; master sees all active facilities). Both use `ExportDailyLogsModal` / `ExportDailyLogsMultiModal` in `src/components/exports/` which branch desktop `<Modal>` vs mobile `<BottomSheet>` via `useIsMobile()`.
+
+**Payment Type mapping** (col N) — `bookings.payment_status` only: `unpaid → "Invoice"`, `paid → "Other"`, `waived → "Other"`, null → `"Doesn't Fill"`. No `qb_payments` join; accepted tradeoff to keep the query simple. If bookkeepers need Cash/Check distinction later, revisit.
+
+**Stylist code:** Already existed as `stylists.stylist_code TEXT NOT NULL UNIQUE` (ST### per `/^ST\d{3,}$/`). No migration.
+
+**Tour:** `bookkeeper-export-logs` (3 steps, both platforms, `bookkeeper`/`admin`/`super_admin` roles, `FileSpreadsheet` icon). Not in `ONBOARDING_CHECKLIST` — discovery feature like 12V/12W.
+
+**Verification:** TSC clean. Tour audit 91/91 selectors found. Formatter helpers passed 20 unit assertions on `formatServices`, `paymentTypeLabel`, `dollarsNumber`, `tipsCell`, `facilityLabel`, `stylistLabel`, `notesCell`, `roomCell`.
+
+### Phase 12ZZ–13P — Upcoming
 
 **Immediate (next up):**
-- **Phase 12Z** — Toast action buttons ("Booking saved — Undo | View").
+- **Phase 12ZZ** — Toast action buttons ("Booking saved — Undo | View"). (Previously labeled 12Z — renamed because 12Z shipped as the Excel export.)
 
 **Medium term:**
 - **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state.
@@ -658,7 +676,7 @@ Per-stylist OAuth2, booking → calendar event sync.
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 12Y + 12Y followups shipped (2026-05-13). Next priorities:
+Phase 12Z shipped (2026-05-17) — Daily Log Excel Export. Phase 12Y + 12Y followups shipped (2026-05-13). Next priorities:
 
 1. **iPhone smoke test of the 12Y followups** — verify on a physical device: bottom nav flush at viewport bottom, tour banner only shows during tours + clears the notch, debug button stays anchored when scrolling, mobile help center hides desktop-only tours. Stylist directory desktop scroll fix also needs trackpad verification.
 2. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.

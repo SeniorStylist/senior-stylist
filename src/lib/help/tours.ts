@@ -240,6 +240,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'bookkeeper-duplicates', category: 'Residents', title: 'Duplicate Resolution', blurb: 'Find and merge duplicate residents created by scanning errors.', estMinutes: 3, icon: 'GitMerge', roles: ['bookkeeper'], tourId: 'bookkeeper-duplicates' },
   { id: 'bookkeeper-billing-dashboard', category: 'Billing', title: 'Billing Dashboard', blurb: 'Review outstanding balances, filter invoices, and send monthly statements.', estMinutes: 4, icon: 'CreditCard', roles: ['bookkeeper'], tourId: 'bookkeeper-billing-dashboard', platform: 'desktop' },
   { id: 'bookkeeper-payroll', category: 'Payroll', title: 'Payroll & Pay Periods', blurb: 'Review pay periods, check stylist earnings, and mark periods as paid.', estMinutes: 3, icon: 'Wallet', roles: ['bookkeeper'], tourId: 'bookkeeper-payroll', platform: 'desktop' },
+  { id: 'bookkeeper-export-logs', category: 'Reports', title: 'Export Daily Logs to Excel', blurb: 'Download a styled spreadsheet matching your accounting format.', estMinutes: 1, icon: 'FileSpreadsheet', roles: ['bookkeeper', 'admin', 'super_admin'], tourId: 'bookkeeper-export-logs' },
   { id: 'bookkeeper-quickbooks', category: 'Billing', title: 'QuickBooks Data', blurb: 'Import QB data and read balances.', estMinutes: 4, icon: 'Database', roles: ['bookkeeper'], tourId: null },
   { id: 'bookkeeper-financial-reports', category: 'Reports', title: 'Financial Reports', blurb: 'Run and export reports for accounting.', estMinutes: 3, icon: 'FileSpreadsheet', roles: ['bookkeeper'], tourId: null },
 
@@ -714,6 +715,17 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/payroll', element: '', isAction: false, title: 'Marking as paid', description: 'Once payment has been processed and sent to the stylists, tap \'Mark as Paid\' to lock the period. This records the payment date and prevents further edits. Note: admins and franchise admins can also do this — coordinate with your team so it isn\'t done twice.', mobileDescription: 'Tap Mark as Paid once payment is sent. Coordinate with admins — don\'t double-mark.' },
       { route: '/payroll', element: '', isAction: false, title: 'Exporting', description: 'Use the Export button to download a CSV of any pay period. Useful for your own records or if you need to import into an external payroll or accounting system.', mobileDescription: 'Export a CSV for your records or external payroll systems.' },
       { route: '/payroll', element: '', isAction: false, title: 'QuickBooks sync', description: 'If your facility is connected to QuickBooks, payroll data syncs automatically as Bills. If you notice a discrepancy between Senior Stylist and QuickBooks, contact your franchise admin — the QB connection is managed at their level.' },
+    ],
+  },
+
+  // 18b — Phase 12Z
+  'bookkeeper-export-logs': {
+    id: 'bookkeeper-export-logs',
+    title: 'Export Daily Logs to Excel',
+    steps: [
+      { route: '/log', element: '', isAction: false, title: 'Excel export for accounting', description: 'You can download the daily log as a styled Excel file that matches the bookkeeper accounting format — facility code, stylist code, services, totals, tips, and payment type, all in one sheet.', mobileDescription: 'Download daily logs as Excel in the bookkeeper accounting format.' },
+      { route: '/log', element: '[data-tour="log-export-excel"]', isAction: true, title: 'Open the exporter', description: 'Tap Export to choose a date range. The button is in the Daily Log header, next to the date navigation arrows.', actionHint: 'Tap Export to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Pick a range and download', description: 'Choose a start and end date (defaults to month-to-date), then tap Export. The file downloads instantly. Only completed bookings are included. You can also export across multiple facilities at once from the Reports page.', mobileDescription: 'Pick a date range, tap Export. Only completed bookings are included.' },
     ],
   },
 
