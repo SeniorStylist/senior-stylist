@@ -96,6 +96,12 @@ h1 {
    vars for nav clearance instead of the containing-block trick. */
 .main-content {
   -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .main-content {
+    padding-bottom: 0;
+  }
 }
 
 /* Landscape phone — hide nav, expand sheet */

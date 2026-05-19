@@ -143,10 +143,6 @@ export default async function ProtectedLayout({
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
-      {/* Phase 12Y shell — header / scroll / nav as flexbox siblings. MobileNav
-          is in flow (shrink-0), not fixed. Floating chrome (debug button,
-          install banner, toasts, FABs) is viewport-anchored via the
-          `--app-floating-bottom` CSS var, NOT a containing-block trick. */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
@@ -166,8 +162,8 @@ export default async function ProtectedLayout({
             {children}
           </ToastProvider>
         </main>
-        <MobileNav role={activeRole} debugMode={debugMode} />
       </div>
+      <MobileNav role={activeRole} debugMode={debugMode} />
       {/* Viewport-anchored chrome — outside the scroll container so it stays
           fixed to the viewport (not the scrolling <main>). Clears the nav via
           the --app-floating-bottom var. */}

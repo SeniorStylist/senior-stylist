@@ -126,7 +126,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
 
   return (
     <nav
-      className="mobile-nav shrink-0 flex border-t border-stone-200 bg-white md:hidden"
+      className="mobile-nav fixed bottom-0 left-0 right-0 z-[60] flex border-t border-stone-200 bg-white md:hidden"
       style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
     >
       {filtered.map((item) => {
