@@ -52,11 +52,6 @@
   }
 }
 
-/* Phase 12Y followups — guaranteed height chain so the h-[100dvh] shell
-   always fills the viewport (defends against ancestor collapse on iOS). */
-html, body {
-  height: 100%;
-}
 
 /* Phase 12U — prevent iOS rubber-band bounce globally */
 *,

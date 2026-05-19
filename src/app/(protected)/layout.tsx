@@ -136,7 +136,7 @@ export default async function ProtectedLayout({
     // instead of `h-[100dvh]` to dodge the iOS Safari first-paint dvh bug
     // (Safari measures dvh before its URL-bar state settles, pushing the
     // mobile nav off-screen on cold loads until a rotation forces a reflow).
-    <div className="fixed inset-0 flex overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <ProtectedBodyLock />
       <TourModeBanner />
       <NavigationProgress />
