@@ -131,29 +131,31 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
-      <main className="main-content flex-1 min-w-0 overflow-auto">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
-        <ToastProvider>
-          <TourRouterProvider />
-          <TourResumer />
-          <MobileTourOverlay />
-          {(activeRole === 'admin' || activeRole === 'bookkeeper' || isMaster) && (
-            <CommandPalette
-              role={activeRole}
-              isMaster={isMaster}
-              facilityId={activeFacilityId}
-            />
-          )}
-          <PeekDrawer role={activeRole} isMaster={isMaster} />
-          {children}
-        </ToastProvider>
+        <div className="main-content flex-1 min-h-0 overflow-auto">
+          <ToastProvider>
+            <TourRouterProvider />
+            <TourResumer />
+            <MobileTourOverlay />
+            {(activeRole === 'admin' || activeRole === 'bookkeeper' || isMaster) && (
+              <CommandPalette
+                role={activeRole}
+                isMaster={isMaster}
+                facilityId={activeFacilityId}
+              />
+            )}
+            <PeekDrawer role={activeRole} isMaster={isMaster} />
+            {children}
+          </ToastProvider>
+        </div>
       </main>
       <MobileNav role={activeRole} debugMode={debugMode} />
       <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
