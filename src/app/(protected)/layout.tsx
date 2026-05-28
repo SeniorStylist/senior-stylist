@@ -19,7 +19,6 @@ import { TourModeBanner } from '@/components/help/tour-mode-banner'
 import { TourRouterProvider } from '@/components/help/tour-router-provider'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
-import { ProtectedBodyLock } from '@/components/layout/protected-body-lock'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -137,7 +136,6 @@ export default async function ProtectedLayout({
     // (Safari measures dvh before its URL-bar state settles, pushing the
     // mobile nav off-screen on cold loads until a rotation forces a reflow).
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
-      <ProtectedBodyLock />
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">
