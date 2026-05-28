@@ -141,26 +141,24 @@ export default async function ProtectedLayout({
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
       </div>
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <main className="main-content flex-1 min-w-0 overflow-auto">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
-        <main className="main-content flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <ToastProvider>
-            <TourRouterProvider />
-            <TourResumer />
-            <MobileTourOverlay />
-            {(activeRole === 'admin' || activeRole === 'bookkeeper' || isMaster) && (
-              <CommandPalette
-                role={activeRole}
-                isMaster={isMaster}
-                facilityId={activeFacilityId}
-              />
-            )}
-            <PeekDrawer role={activeRole} isMaster={isMaster} />
-            {children}
-          </ToastProvider>
-        </main>
-      </div>
+        <ToastProvider>
+          <TourRouterProvider />
+          <TourResumer />
+          <MobileTourOverlay />
+          {(activeRole === 'admin' || activeRole === 'bookkeeper' || isMaster) && (
+            <CommandPalette
+              role={activeRole}
+              isMaster={isMaster}
+              facilityId={activeFacilityId}
+            />
+          )}
+          <PeekDrawer role={activeRole} isMaster={isMaster} />
+          {children}
+        </ToastProvider>
+      </main>
       <MobileNav role={activeRole} debugMode={debugMode} />
       {/* Viewport-anchored chrome — outside the scroll container so it stays
           fixed to the viewport (not the scrolling <main>). Clears the nav via

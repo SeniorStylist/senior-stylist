@@ -30,7 +30,7 @@ export function TopBar({ facilityName, facilityCode, role = 'admin' }: TopBarPro
   }
 
   return (
-    <div className="hidden md:flex h-12 shrink-0 items-center gap-1 px-5 border-b border-stone-200 bg-white/80 backdrop-blur-sm relative">
+    <div className="hidden md:flex sticky top-0 z-20 h-12 items-center gap-1 px-5 border-b border-stone-200 bg-white/80 backdrop-blur-sm">
       <nav className="flex items-center gap-1 h-full">
         {visibleTabs.map((tab) => {
           const active = isActive(tab.href)
