@@ -181,6 +181,7 @@ Rules for stable selectors:
   - If you add a new table that middleware needs to query, add a scoped `authenticated` SELECT policy for it
 
 ### Git
+- **ALWAYS work directly on the `main` branch** — NEVER create a new branch, NEVER run `git checkout -b`, `git switch -c`, or any command that creates or switches to a new branch. All commits go directly to `main`.
 - ALWAYS use `git add -A` — project path has parentheses that break zsh globs
 - NEVER commit `.env.local`
 - Always run `npx tsc --noEmit` before committing — fix all errors first
