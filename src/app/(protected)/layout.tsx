@@ -131,10 +131,6 @@ export default async function ProtectedLayout({
   }
 
   return (
-    // Shell anchors to the visual viewport via `position: fixed; inset: 0`
-    // instead of `h-[100dvh]` to dodge the iOS Safari first-paint dvh bug
-    // (Safari measures dvh before its URL-bar state settles, pushing the
-    // mobile nav off-screen on cold loads until a rotation forces a reflow).
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <TourModeBanner />
       <NavigationProgress />
@@ -160,9 +156,6 @@ export default async function ProtectedLayout({
         </ToastProvider>
       </main>
       <MobileNav role={activeRole} debugMode={debugMode} />
-      {/* Viewport-anchored chrome — outside the scroll container so it stays
-          fixed to the viewport (not the scrolling <main>). Clears the nav via
-          the --app-floating-bottom var. */}
       <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
       <InstallBanner />
       <DebugBadge />

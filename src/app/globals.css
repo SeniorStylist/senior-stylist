@@ -83,12 +83,7 @@ h1 {
   font-size: clamp(1.75rem, 5vw, 2.5rem);
 }
 
-/* Phase 12Y followups — Main content is the ONLY vertical scroll container in
-   the shell. The Phase 12Y `transform: translateZ(0)` was REMOVED: it made
-   `.main-content` a containing block, so `position: fixed` chrome (debug
-   button, FABs) scrolled with content instead of staying viewport-anchored.
-   Floating chrome now uses the `--app-floating-bottom` / `--app-nav-clearance`
-   vars for nav clearance instead of the containing-block trick. */
+/* Main content — account for mobile nav + safe area at bottom */
 .main-content {
   -webkit-overflow-scrolling: touch;
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
@@ -102,6 +97,7 @@ h1 {
 /* Landscape phone — hide nav, expand sheet */
 @media (max-height: 500px) and (orientation: landscape) {
   .mobile-nav { display: none !important; }
+  .main-content { padding-bottom: 0 !important; }
   .bottom-sheet { max-height: 98dvh !important; }
   .bottom-sheet-overlay { align-items: center !important; }
 }
