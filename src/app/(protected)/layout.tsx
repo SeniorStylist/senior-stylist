@@ -19,6 +19,7 @@ import { TourModeBanner } from '@/components/help/tour-mode-banner'
 import { TourRouterProvider } from '@/components/help/tour-router-provider'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
+import { ScriptedTourOverlay } from '@/components/help/scripted-tour/scripted-tour-overlay'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -153,6 +154,7 @@ export default async function ProtectedLayout({
               />
             )}
             <PeekDrawer role={activeRole} isMaster={isMaster} />
+            <ScriptedTourOverlay />
             {children}
           </ToastProvider>
         </div>
