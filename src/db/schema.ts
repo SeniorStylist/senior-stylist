@@ -827,6 +827,19 @@ export const stylistCheckins = pgTable('stylist_checkins', {
   stylistDateIdx: index('stylist_checkins_stylist_date_idx').on(t.stylistId, t.date),
 }))
 
+export const helpStepEvents = pgTable('help_step_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+  userId: uuid('user_id').references(() => profiles.id, { onDelete: 'set null' }),
+  tourId: text('tour_id').notNull(),
+  stepIndex: integer('step_index').notNull(),
+  action: text('action').notNull(), // 'shown' | 'completed' | 'abandoned' | 'skipped'
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  tourStepActionIdx: index('help_step_events_tour_step_action_idx').on(t.tourId, t.stepIndex, t.action),
+  facilityCreatedIdx: index('help_step_events_facility_created_idx').on(t.facilityId, t.createdAt),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({

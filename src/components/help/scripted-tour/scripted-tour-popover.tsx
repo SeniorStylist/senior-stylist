@@ -62,6 +62,7 @@ export function ScriptedTourPopover({
   popoverRef,
 }: ScriptedTourPopoverProps) {
   const posRef = useRef({ left: 0, top: 0 })
+  const nextBtnRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     const el = popoverRef.current
@@ -71,6 +72,12 @@ export function ScriptedTourPopover({
     el.style.left = `${pos.left}px`
     el.style.top = `${pos.top}px`
   })
+
+  // Focus the Next button when step changes so keyboard users can advance immediately
+  useEffect(() => {
+    const t = requestAnimationFrame(() => nextBtnRef.current?.focus())
+    return () => cancelAnimationFrame(t)
+  }, [stepIndex])
 
   // Keyboard navigation
   useEffect(() => {
@@ -185,6 +192,7 @@ export function ScriptedTourPopover({
             </button>
           )}
           <button
+            ref={nextBtnRef}
             aria-label={isLast ? 'Complete tutorial' : 'Next step'}
             onClick={onNext}
             style={{
