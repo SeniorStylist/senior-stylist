@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
+import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -42,8 +43,12 @@ export async function GET(request: NextRequest) {
       facilityId = facilityUser.facilityId
     }
 
+    // is_demo filter — Phase 13. Relaxed during a scripted tour.
+    const residentConds = [eq(residents.facilityId, facilityId), eq(residents.active, true)]
+    if (!isTutorialRequest(request)) residentConds.push(eq(residents.isDemo, false))
+
     const data = await db.query.residents.findMany({
-      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, false)), // is_demo filter — Phase 13
+      where: and(...residentConds),
       columns: paramFacilityId
         ? { id: true, name: true, roomNumber: true }
         : undefined,
@@ -83,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     const [created] = await db
       .insert(residents)
-      .values({ facilityId, name, roomNumber: roomNumber ?? null, phone: phone ?? null, portalToken })
+      .values({ facilityId, name, roomNumber: roomNumber ?? null, phone: phone ?? null, portalToken, isDemo: isTutorialRequest(request) })
       .returning()
 
     return Response.json({ data: created }, { status: 201 })

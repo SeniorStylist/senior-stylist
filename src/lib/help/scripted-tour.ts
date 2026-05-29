@@ -4,7 +4,7 @@
 
 import type { ScriptedTour, ScriptedTourState } from './scripted-tour-types'
 import { setScriptedTourActive } from './tour-mode'
-import { installTutorialFetchWrapper } from './tour-tutorial-fetch'
+import { setTutorialCookie, clearTutorialCookie } from './tutorial-cookie'
 import { getTourRouter } from './tour-router'
 import { waitForElement, resolveQuery } from './tours'
 
@@ -50,9 +50,10 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
     return
   }
 
-  // Scripted tours let real writes through (tagged is_demo via the X-Tutorial-Mode
-  // header) — they do NOT install the legacy write-faking interceptor.
-  installTutorialFetchWrapper()
+  // Scripted tours let real writes through (tagged is_demo via the tutorial-mode
+  // cookie the server reads) — they do NOT install the legacy write-faking
+  // interceptor.
+  setTutorialCookie()
   setScriptedTourActive(true)
 
   _activeTour = tour
@@ -107,6 +108,7 @@ export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
   }
   clearActiveListener()
   setScriptedTourActive(false)
+  clearTutorialCookie()
   clearSessionState()
   _activeTour = null
   _activeState = null
@@ -120,9 +122,10 @@ function completeTour() {
   clearActiveListener()
   // Dispatch completion event (same pattern as legacy engine)
   window.dispatchEvent(new CustomEvent('tour-completed', { detail: { tourId } }))
-  // Mark completed in profiles (fire-and-forget). Fire AFTER flipping the flag
-  // off so the wrapper doesn't tag this telemetry write as a tutorial write.
+  // Mark completed in profiles (fire-and-forget). Clear tutorial mode FIRST so
+  // this write isn't tagged is_demo.
   setScriptedTourActive(false)
+  clearTutorialCookie()
   fetch('/api/profile/complete-tour', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

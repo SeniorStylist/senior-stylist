@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
 import { inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'endTime must be after startTime' }, { status: 422 })
     }
 
-    const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime })
+    const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, includeDemo: await isTutorialModeActive() })
     if (candidates.length === 0) {
       return Response.json({ data: { available: [], picked: null } })
     }

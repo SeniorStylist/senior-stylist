@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
+import { isTutorialRequest, isTutorialModeActive } from '@/lib/help/tutorial-request'
 
 const pricingTierSchema = z.object({
   minQty: z.number().int().min(1),
@@ -46,8 +47,10 @@ export async function GET() {
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
+    // is_demo filter — Phase 13. Relaxed during an active scripted tour.
+    const tut = await isTutorialModeActive()
     const data = await db.query.services.findMany({
-      where: and(eq(services.facilityId, facilityId), eq(services.active, true)),
+      where: and(eq(services.facilityId, facilityId), eq(services.active, true), ...(tut ? [] : [eq(services.isDemo, false)])),
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 
@@ -95,6 +98,7 @@ export async function POST(request: NextRequest) {
         addonAmountCents: addonAmountCents ?? null,
         pricingTiers: pricingTiers ?? null,
         pricingOptions: pricingOptions ?? null,
+        isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created service
       })
       .returning()
 

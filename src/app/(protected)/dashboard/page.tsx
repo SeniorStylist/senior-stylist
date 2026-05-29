@@ -5,6 +5,7 @@ import { facilities, residents, stylists, services, invites, accessRequests, pro
 import { eq, and, gte, lt, notInArray, asc } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { DashboardClient } from './dashboard-client'
@@ -84,6 +85,10 @@ export default async function DashboardPage() {
     const todayDateStr = `${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`
     const todayRange = dayRangeInTimezone(todayDateStr, facilityTz)
 
+    // Phase 13 — when a scripted tour is active, surface demo records so the
+    // tutorial's seeded resident/service/booking appear in the booking modal etc.
+    const tutorialMode = await isTutorialModeActive()
+
     const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
@@ -92,7 +97,7 @@ export default async function DashboardPage() {
         where: and(
           eq(residents.facilityId, facilityUser.facilityId),
           eq(residents.active, true),
-          eq(residents.isDemo, false) // is_demo filter — Phase 13
+          ...(tutorialMode ? [] : [eq(residents.isDemo, false)]) // is_demo filter — Phase 13
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
@@ -100,7 +105,7 @@ export default async function DashboardPage() {
         where: and(
           eq(stylists.facilityId, facilityUser.facilityId),
           eq(stylists.active, true),
-          eq(stylists.isDemo, false) // is_demo filter — Phase 13
+          ...(tutorialMode ? [] : [eq(stylists.isDemo, false)]) // is_demo filter — Phase 13
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
@@ -108,7 +113,7 @@ export default async function DashboardPage() {
         where: and(
           eq(services.facilityId, facilityUser.facilityId),
           eq(services.active, true),
-          eq(services.isDemo, false) // is_demo filter — Phase 13
+          ...(tutorialMode ? [] : [eq(services.isDemo, false)]) // is_demo filter — Phase 13
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
@@ -218,7 +223,7 @@ export default async function DashboardPage() {
               eq(bookings.stylistId, profileStylistId),
               eq(bookings.facilityId, facilityUser.facilityId),
               eq(bookings.active, true),
-              eq(bookings.isDemo, false), // is_demo filter — Phase 13
+              ...(tutorialMode ? [] : [eq(bookings.isDemo, false)]), // is_demo filter — Phase 13
               gte(bookings.startTime, todayRange.start),
               lt(bookings.startTime, todayRange.end),
               notInArray(bookings.status, ['cancelled']),

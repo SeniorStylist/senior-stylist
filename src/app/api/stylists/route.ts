@@ -7,6 +7,7 @@ import { eq, and, isNull, inArray, notInArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { isTutorialRequest, isTutorialModeActive } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -125,8 +126,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // is_demo filter — Phase 13. Relaxed during an active scripted tour.
+    const tut = await isTutorialModeActive()
     const rows = await db.query.stylists.findMany({
-      where: whereClause,
+      where: tut ? whereClause : and(whereClause, eq(stylists.isDemo, false)),
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 
@@ -222,6 +225,7 @@ export async function POST(request: NextRequest) {
           stylistCode,
           facilityId,
           franchiseId,
+          isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created stylist
           ...(parsed.data.color ? { color: parsed.data.color } : {}),
           ...(parsed.data.commissionPercent != null
             ? { commissionPercent: parsed.data.commissionPercent }

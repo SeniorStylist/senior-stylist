@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { bookings, logEntries, residents, stylists, services, profiles, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { eq, and, gte, lt } from 'drizzle-orm'
@@ -31,6 +32,9 @@ export default async function LogPage() {
   const dayStart = new Date(today + 'T00:00:00.000Z')
   const dayEnd = new Date(today + 'T23:59:59.999Z')
 
+  // Phase 13 — surface demo records during an active scripted tour.
+  const tutorialMode = await isTutorialModeActive()
+
   const [
     todayBookings,
     todayLogEntries,
@@ -43,7 +47,7 @@ export default async function LogPage() {
       where: and(
         eq(bookings.facilityId, facilityId),
         eq(bookings.active, true),
-        eq(bookings.isDemo, false), // is_demo filter — Phase 13
+        ...(tutorialMode ? [] : [eq(bookings.isDemo, false)]), // is_demo filter — Phase 13
         gte(bookings.startTime, dayStart),
         lt(bookings.startTime, dayEnd)
       ),
@@ -53,20 +57,20 @@ export default async function LogPage() {
     db.query.logEntries.findMany({
       where: and(
         eq(logEntries.facilityId, facilityId),
-        eq(logEntries.isDemo, false), // is_demo filter — Phase 13
+        ...(tutorialMode ? [] : [eq(logEntries.isDemo, false)]), // is_demo filter — Phase 13
         eq(logEntries.date, today)
       ),
     }),
     db.query.residents.findMany({
-      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, false)), // is_demo filter — Phase 13
+      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), ...(tutorialMode ? [] : [eq(residents.isDemo, false)])), // is_demo filter — Phase 13
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.stylists.findMany({
-      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true), eq(stylists.isDemo, false)), // is_demo filter — Phase 13
+      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true), ...(tutorialMode ? [] : [eq(stylists.isDemo, false)])), // is_demo filter — Phase 13
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.services.findMany({
-      where: and(eq(services.facilityId, facilityId), eq(services.active, true), eq(services.isDemo, false)), // is_demo filter — Phase 13
+      where: and(eq(services.facilityId, facilityId), eq(services.active, true), ...(tutorialMode ? [] : [eq(services.isDemo, false)])), // is_demo filter — Phase 13
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.facilities.findFirst({

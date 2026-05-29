@@ -21,6 +21,7 @@ import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
+import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -54,7 +55,10 @@ export async function GET(request: NextRequest) {
     const startParam = searchParams.get('start')
     const endParam = searchParams.get('end')
 
-    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true), eq(bookings.isDemo, false)] // is_demo filter — Phase 13
+    // is_demo filter — Phase 13. During a scripted tour (X-Tutorial-Mode header),
+    // include demo bookings so the tour-created appointment is visible.
+    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true)]
+    if (!isTutorialRequest(request)) conditions.push(eq(bookings.isDemo, false))
 
     if (startParam) {
       conditions.push(gte(bookings.startTime, new Date(startParam)))
@@ -103,6 +107,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { residentId, stylistId, startTime: startTimeStr, notes } = parsed.data
+    const isDemo = isTutorialRequest(request) // Phase 13 — tutorial-created booking
 
     // Normalize to an ordered list of primary service IDs (first = primary)
     const primaryServiceIds: string[] =
@@ -176,7 +181,7 @@ export async function POST(request: NextRequest) {
     if (stylistId) {
       resolvedStylistId = stylistId
     } else {
-      const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime })
+      const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, includeDemo: isDemo })
       if (candidates.length === 0) {
         return Response.json(
           { error: 'No stylist available for this date and time' },
@@ -264,12 +269,13 @@ export async function POST(request: NextRequest) {
         addonServiceIds: addonServiceIdsInput.length > 0 ? addonServiceIdsInput : null,
         status: 'scheduled',
         tipCents: parsed.data.tipCents ?? null,
+        isDemo,
       })
       .returning()
 
-    // Attempt GCal sync
+    // Attempt GCal sync — never for demo (tutorial) bookings
     try {
-      if (isCalendarConfigured()) {
+      if (!isDemo && isCalendarConfigured()) {
         const facility = await db.query.facilities.findFirst({
           where: eq(facilities.id, facilityId),
         })
@@ -301,8 +307,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Per-stylist calendar sync — fire-and-forget
-    if (stylist.googleRefreshToken && stylist.googleCalendarId) {
+    // Per-stylist calendar sync — fire-and-forget (skipped for demo bookings)
+    if (!isDemo && stylist.googleRefreshToken && stylist.googleCalendarId) {
       createStylistCalendarEvent(stylist.googleRefreshToken, stylist.googleCalendarId, {
         id: booking.id,
         startTime: booking.startTime,
@@ -330,11 +336,11 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Send confirmation email — fire-and-forget
+    // Send confirmation email — fire-and-forget (skipped for demo bookings)
     try {
       const resendApiKey = process.env.RESEND_API_KEY
       const fromEmail = process.env.RESEND_FROM_EMAIL
-      if (resendApiKey && fromEmail && user.email) {
+      if (!isDemo && resendApiKey && fromEmail && user.email) {
         const resend = new Resend(resendApiKey)
         // Phase 12F — confirmation email shows facility-local time
         const facRow = await db.query.facilities.findFirst({

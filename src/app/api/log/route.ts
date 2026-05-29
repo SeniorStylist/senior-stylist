@@ -6,6 +6,7 @@ import { eq, and, gte, lt } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { toClientJson } from '@/lib/sanitize'
+import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
   stylistId: z.string().uuid(),
@@ -34,24 +35,27 @@ export async function GET(request: NextRequest) {
     const dayStart = new Date(dateParam + 'T00:00:00.000Z')
     const dayEnd = new Date(dateParam + 'T23:59:59.999Z')
 
+    // is_demo filter — Phase 13. Relax during a scripted tour so the tour's demo
+    // booking + log entry are visible.
+    const includeDemo = isTutorialRequest(request)
+    const bookingConds = [
+      eq(bookings.facilityId, facilityId),
+      eq(bookings.active, true),
+      gte(bookings.startTime, dayStart),
+      lt(bookings.startTime, dayEnd),
+    ]
+    if (!includeDemo) bookingConds.push(eq(bookings.isDemo, false))
+    const logConds = [eq(logEntries.facilityId, facilityId), eq(logEntries.date, dateParam)]
+    if (!includeDemo) logConds.push(eq(logEntries.isDemo, false))
+
     const [dayBookings, dayLogEntries] = await Promise.all([
       db.query.bookings.findMany({
-        where: and(
-          eq(bookings.facilityId, facilityId),
-          eq(bookings.active, true),
-          eq(bookings.isDemo, false), // is_demo filter — Phase 13
-          gte(bookings.startTime, dayStart),
-          lt(bookings.startTime, dayEnd)
-        ),
+        where: and(...bookingConds),
         with: { resident: true, stylist: true, service: true },
         orderBy: (t, { asc }) => [asc(t.startTime)],
       }),
       db.query.logEntries.findMany({
-        where: and(
-          eq(logEntries.facilityId, facilityId),
-          eq(logEntries.isDemo, false), // is_demo filter — Phase 13
-          eq(logEntries.date, dateParam)
-        ),
+        where: and(...logConds),
       }),
     ])
 
@@ -123,6 +127,7 @@ export async function POST(request: NextRequest) {
         notes: notes ?? null,
         finalized: finalized ?? false,
         finalizedAt: finalized ? new Date() : null,
+        isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created log entry
       })
       .returning()
 
