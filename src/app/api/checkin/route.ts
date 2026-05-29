@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
           eq(bookings.stylistId, stylistId),
           eq(bookings.facilityId, facilityId),
           eq(bookings.active, true),
+          eq(bookings.isDemo, false), // is_demo filter — Phase 13
           gte(bookings.startTime, range.start),
           lt(bookings.startTime, range.end),
           notInArray(bookings.status, ['cancelled']),

@@ -91,21 +91,24 @@ export default async function DashboardPage() {
       db.query.residents.findMany({
         where: and(
           eq(residents.facilityId, facilityUser.facilityId),
-          eq(residents.active, true)
+          eq(residents.active, true),
+          eq(residents.isDemo, false) // is_demo filter — Phase 13
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
       db.query.stylists.findMany({
         where: and(
           eq(stylists.facilityId, facilityUser.facilityId),
-          eq(stylists.active, true)
+          eq(stylists.active, true),
+          eq(stylists.isDemo, false) // is_demo filter — Phase 13
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
       db.query.services.findMany({
         where: and(
           eq(services.facilityId, facilityUser.facilityId),
-          eq(services.active, true)
+          eq(services.active, true),
+          eq(services.isDemo, false) // is_demo filter — Phase 13
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
@@ -215,6 +218,7 @@ export default async function DashboardPage() {
               eq(bookings.stylistId, profileStylistId),
               eq(bookings.facilityId, facilityUser.facilityId),
               eq(bookings.active, true),
+              eq(bookings.isDemo, false), // is_demo filter — Phase 13
               gte(bookings.startTime, todayRange.start),
               lt(bookings.startTime, todayRange.end),
               notInArray(bookings.status, ['cancelled']),

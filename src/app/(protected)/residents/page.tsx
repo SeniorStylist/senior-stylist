@@ -22,7 +22,8 @@ export default async function ResidentsPage() {
     db.query.residents.findMany({
       where: and(
         eq(residents.facilityId, facilityUser.facilityId),
-        eq(residents.active, true)
+        eq(residents.active, true),
+        eq(residents.isDemo, false) // is_demo filter — Phase 13
       ),
       orderBy: (t, { asc }) => [asc(t.name)],
     }),

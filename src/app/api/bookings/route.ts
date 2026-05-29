@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     const startParam = searchParams.get('start')
     const endParam = searchParams.get('end')
 
-    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true)]
+    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true), eq(bookings.isDemo, false)] // is_demo filter — Phase 13
 
     if (startParam) {
       conditions.push(gte(bookings.startTime, new Date(startParam)))

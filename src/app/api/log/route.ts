@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
         where: and(
           eq(bookings.facilityId, facilityId),
           eq(bookings.active, true),
+          eq(bookings.isDemo, false), // is_demo filter — Phase 13
           gte(bookings.startTime, dayStart),
           lt(bookings.startTime, dayEnd)
         ),
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
       db.query.logEntries.findMany({
         where: and(
           eq(logEntries.facilityId, facilityId),
+          eq(logEntries.isDemo, false), // is_demo filter — Phase 13
           eq(logEntries.date, dateParam)
         ),
       }),

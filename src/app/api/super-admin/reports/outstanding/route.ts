@@ -29,7 +29,8 @@ export async function GET() {
           where: and(
             inArray(bookings.facilityId, facilityIds),
             eq(bookings.status, 'completed'),
-            eq(bookings.paymentStatus, 'unpaid')
+            eq(bookings.paymentStatus, 'unpaid'),
+            eq(bookings.isDemo, false) // is_demo filter — Phase 13
           ),
           with: {
             resident: { columns: { id: true, name: true, roomNumber: true } },

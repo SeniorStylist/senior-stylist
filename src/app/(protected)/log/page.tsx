@@ -43,6 +43,7 @@ export default async function LogPage() {
       where: and(
         eq(bookings.facilityId, facilityId),
         eq(bookings.active, true),
+        eq(bookings.isDemo, false), // is_demo filter — Phase 13
         gte(bookings.startTime, dayStart),
         lt(bookings.startTime, dayEnd)
       ),
@@ -52,19 +53,20 @@ export default async function LogPage() {
     db.query.logEntries.findMany({
       where: and(
         eq(logEntries.facilityId, facilityId),
+        eq(logEntries.isDemo, false), // is_demo filter — Phase 13
         eq(logEntries.date, today)
       ),
     }),
     db.query.residents.findMany({
-      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, false)), // is_demo filter — Phase 13
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.stylists.findMany({
-      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)),
+      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true), eq(stylists.isDemo, false)), // is_demo filter — Phase 13
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.services.findMany({
-      where: and(eq(services.facilityId, facilityId), eq(services.active, true)),
+      where: and(eq(services.facilityId, facilityId), eq(services.active, true), eq(services.isDemo, false)), // is_demo filter — Phase 13
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.facilities.findFirst({

@@ -173,6 +173,7 @@ export async function POST(request: NextRequest) {
             eq(bookings.facilityId, facilityId),
             eq(bookings.status, 'completed'),
             eq(bookings.active, true),
+            eq(bookings.isDemo, false), // is_demo filter — Phase 13
             inArray(bookings.stylistId, stylistIds),
             gte(bookings.startTime, startInclusive),
             lt(bookings.startTime, endExclusive),

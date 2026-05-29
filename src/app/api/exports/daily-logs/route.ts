@@ -197,6 +197,7 @@ export async function GET(request: NextRequest) {
     const whereParts = [
       inArray(bookings.facilityId, targetFacilityIds),
       eq(bookings.active, true),
+      eq(bookings.isDemo, false), // is_demo filter — Phase 13
       eq(bookings.status, 'completed'),
       gte(bookings.startTime, minStartUtc),
       lt(bookings.startTime, maxEndUtc),

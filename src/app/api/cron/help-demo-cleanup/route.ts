@@ -1,0 +1,42 @@
+import { db } from '@/db'
+import { residents, stylists, services, bookings, logEntries, stylistCheckins } from '@/db/schema'
+import { and, eq, lt, sql } from 'drizzle-orm'
+
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
+// Weekly cron: delete demo records inactive for 90+ days to prevent DB bloat
+export async function GET(request: Request) {
+  if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+
+  try {
+    const [r, s, sv, b, le, sc] = await Promise.all([
+      db.delete(residents).where(and(eq(residents.isDemo, true), eq(residents.active, false), lt(residents.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: residents.id }),
+      db.delete(stylists).where(and(eq(stylists.isDemo, true), eq(stylists.active, false), lt(stylists.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: stylists.id }),
+      db.delete(services).where(and(eq(services.isDemo, true), eq(services.active, false), lt(services.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: services.id }),
+      db.delete(bookings).where(and(eq(bookings.isDemo, true), eq(bookings.active, false), lt(bookings.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: bookings.id }),
+      db.delete(logEntries).where(and(eq(logEntries.isDemo, true), eq(logEntries.finalized, true), lt(logEntries.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: logEntries.id }),
+      db.delete(stylistCheckins).where(and(eq(stylistCheckins.isDemo, true), lt(stylistCheckins.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: stylistCheckins.id }),
+    ])
+
+    return Response.json({
+      data: {
+        deleted: {
+          residents: r.length,
+          stylists: s.length,
+          services: sv.length,
+          bookings: b.length,
+          logEntries: le.length,
+          checkins: sc.length,
+        },
+      },
+    })
+  } catch (err) {
+    console.error('[help-demo-cleanup]', err)
+    return Response.json({ error: 'Cleanup failed' }, { status: 500 })
+  }
+}

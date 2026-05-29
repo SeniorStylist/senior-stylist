@@ -26,6 +26,9 @@ export const profiles = pgTable('profiles', {
   stylistId: uuid('stylist_id').references(() => stylists.id),
   hasSeenOnboardingTour: boolean('has_seen_onboarding_tour').default(false).notNull(),
   completedTours: text('completed_tours').array().notNull().default(sql`'{}'`),
+  // Phase 13-Tutorial: scripted tour first-launch + cross-session resume
+  hasSeenFirstTour: boolean('has_seen_first_tour').default(false).notNull(),
+  helpProgress: jsonb('help_progress').$type<{ tourId: string; stepIndex: number; scenarioState: Record<string, string> } | null>(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -112,12 +115,16 @@ export const residents = pgTable(
     defaultTipType: text('default_tip_type'),
     defaultTipValue: integer('default_tip_value'),
     active: boolean('active').default(true).notNull(),
+    // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
+    isDemo: boolean('is_demo').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
   (t) => ({
     // billing summary + cross-facility queries filter on facility_id WHERE active = true
     facilityActiveIdx: index('residents_facility_active_idx').on(t.facilityId).where(sql`active = true`),
+    // tutorial demo records — fast lookup when filtering or seeding
+    demoIdx: index('residents_demo_idx').on(t.facilityId).where(sql`is_demo = true`),
   })
 )
 
@@ -148,6 +155,8 @@ export const stylists = pgTable('stylists', {
   specialties: jsonb('specialties').$type<string[]>().default([]).notNull(),
   lastInviteSentAt: timestamp('last_invite_sent_at'),
   qbVendorId: text('qb_vendor_id'),
+  // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -273,6 +282,8 @@ export const services = pgTable('services', {
   pricingTiers: jsonb('pricing_tiers').$type<Array<{ minQty: number; maxQty: number; unitPriceCents: number }>>(),
   pricingOptions: jsonb('pricing_options').$type<Array<{ name: string; priceCents: number }>>(),
   active: boolean('active').default(true).notNull(),
+  // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -323,6 +334,8 @@ export const bookings = pgTable('bookings', {
   active: boolean('active').default(true).notNull(),
   // Phase 12E: tip amount in cents (stylist-only — never sums into facility revenue)
   tipCents: integer('tip_cents'),
+  // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
@@ -377,6 +390,8 @@ export const logEntries = pgTable(
     notes: text('notes'),
     finalized: boolean('finalized').default(false).notNull(),
     finalizedAt: timestamp('finalized_at'),
+    // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
+    isDemo: boolean('is_demo').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
@@ -804,6 +819,8 @@ export const stylistCheckins = pgTable('stylist_checkins', {
   date: date('date').notNull(),
   checkedInAt: timestamp('checked_in_at', { withTimezone: true }).notNull().defaultNow(),
   delayMinutes: integer('delay_minutes').notNull().default(0),
+  // Phase 13-Tutorial: demo seed record
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniq: unique().on(t.stylistId, t.facilityId, t.date),

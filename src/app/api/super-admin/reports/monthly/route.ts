@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
                 and(
                   eq(bookings.facilityId, f.id),
                   eq(bookings.status, 'completed'),
+                  eq(bookings.isDemo, false), // is_demo filter — Phase 13
                   gte(bookings.startTime, start),
                   lt(bookings.startTime, end)
                 )

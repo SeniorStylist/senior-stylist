@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await db.query.residents.findMany({
-      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, false)), // is_demo filter — Phase 13
       columns: paramFacilityId
         ? { id: true, name: true, roomNumber: true }
         : undefined,
