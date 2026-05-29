@@ -336,6 +336,7 @@ export function SignupSheetPanel({
                   setTimeout(() => setResidentDropdownOpen(false), 150)
                 }}
                 placeholder="Search by name or room…"
+                data-tour="signup-sheet-resident"
                 className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
               />
               {selectedResident?.roomNumber && (
@@ -384,6 +385,7 @@ export function SignupSheetPanel({
                         <button
                           key={r.id}
                           type="button"
+                          data-tour="signup-sheet-resident-option"
                           onMouseDown={() => handleSelectResident(r)}
                           className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 border-b border-stone-50 last:border-0"
                         >
@@ -470,6 +472,7 @@ export function SignupSheetPanel({
                   setTimeout(() => setServiceDropdownOpen(false), 150)
                 }}
                 placeholder="Search services…"
+                data-tour="signup-sheet-service"
                 className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
               {serviceDropdownOpen && (
@@ -480,6 +483,7 @@ export function SignupSheetPanel({
                     <button
                       key={s.id}
                       type="button"
+                      data-tour="signup-sheet-service-option"
                       onMouseDown={() => handleSelectService(s)}
                       className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 border-b border-stone-50 last:border-0"
                     >

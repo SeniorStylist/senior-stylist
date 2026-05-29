@@ -9,6 +9,7 @@ import { revalidateTag } from 'next/cache'
 import { getLocalParts } from '@/lib/time'
 import { facilities, profiles } from '@/db/schema'
 import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
+import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
   residentId: z.string().uuid().nullable(),
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
         createdBy: user.id,
         assignedToStylistId,
         status: 'pending',
+        isDemo: isTutorialRequest(request),
       })
       .returning()
 
@@ -152,9 +154,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Phase 12S — canonical filter is status='pending' (excludes scheduled + cancelled).
+    // is_demo filter — Phase 13: tutorial mode shows demo entries only; otherwise hide them.
     const conditions = [
       eq(signupSheetEntries.facilityId, facilityId),
       eq(signupSheetEntries.status, 'pending'),
+      eq(signupSheetEntries.isDemo, isTutorialRequest(request)),
     ]
 
     // Date filter: skip when countOnly, scope=all, or allDates (stylist panel wants all future).

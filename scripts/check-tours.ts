@@ -165,6 +165,9 @@ const SCRIPTED_FILES = [
   path.join(REPO_ROOT, 'src/lib/help/tours-stylist-mobile.ts'),
   path.join(REPO_ROOT, 'src/lib/help/tours-stylist-desktop.ts'),
   path.join(REPO_ROOT, 'src/lib/help/tours-master.ts'),
+  path.join(REPO_ROOT, 'src/lib/help/tours-facility-staff.ts'),
+  path.join(REPO_ROOT, 'src/lib/help/tours-admin.ts'),
+  path.join(REPO_ROOT, 'src/lib/help/tours-bookkeeper.ts'),
 ]
 type ScriptedRef = { file: string; value: string }
 const scriptedRefs: ScriptedRef[] = []

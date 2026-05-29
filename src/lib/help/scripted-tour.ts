@@ -44,7 +44,17 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   const { STYLIST_MOBILE_TOURS } = await import('./tours-stylist-mobile')
   const { STYLIST_DESKTOP_TOURS } = await import('./tours-stylist-desktop')
   const { MASTER_TOURS } = await import('./tours-master')
-  const allTours = [...STYLIST_MOBILE_TOURS, ...STYLIST_DESKTOP_TOURS, ...MASTER_TOURS]
+  const { FACILITY_STAFF_TOURS } = await import('./tours-facility-staff')
+  const { ADMIN_TOURS } = await import('./tours-admin')
+  const { BOOKKEEPER_TOURS } = await import('./tours-bookkeeper')
+  const allTours = [
+    ...STYLIST_MOBILE_TOURS,
+    ...STYLIST_DESKTOP_TOURS,
+    ...MASTER_TOURS,
+    ...FACILITY_STAFF_TOURS,
+    ...ADMIN_TOURS,
+    ...BOOKKEEPER_TOURS,
+  ]
   const tour = allTours.find((t) => t.id === tourId)
   if (!tour) {
     console.warn('[scripted-tour] Unknown tour:', tourId)
@@ -97,11 +107,16 @@ function resolveTypeValue(raw: string): string {
   const m = raw.match(/^\{\{(.+)\}\}$/)
   if (!m) return raw
   const key = m[1]
+  const pad = (n: number) => String(n).padStart(2, '0')
   if (key === 'tomorrow-10am') {
     const d = new Date()
     d.setDate(d.getDate() + 1)
-    const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`
+  }
+  if (key === 'tomorrow') {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   }
   return _activeState?.scenarioState?.[key] ?? raw
 }

@@ -649,6 +649,7 @@ export function LogClient({
                 setTimeout(() => setWiResidentDropOpen(false), 150)
               }}
               placeholder="Search resident..."
+              data-tour="walkin-resident-search"
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
             />
             {wiResidentDropOpen && (
@@ -731,6 +732,7 @@ export function LogClient({
                       <button
                         key={r.id}
                         type="button"
+                        data-tour="walkin-resident-option"
                         onMouseDown={() => {
                           setWiResidentId(r.id)
                           setWiResidentSearch(r.name)
@@ -791,6 +793,7 @@ export function LogClient({
             <select
               value={wiServiceId}
               onChange={(e) => setWiServiceId(e.target.value)}
+              data-tour="walkin-service-select"
               className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             >
               <option value="">Select a service</option>
@@ -868,7 +871,7 @@ export function LogClient({
             <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null); setLocalNewResidents([]); setWiCreateOpen(false); setWiCreateName(''); setWiCreateRoom(''); setWiCreateError(null) }} disabled={wiAdding}>
               Cancel
             </Button>
-            <Button size="sm" loading={wiAdding} onClick={handleAddWalkIn}>
+            <Button size="sm" loading={wiAdding} onClick={handleAddWalkIn} data-tour="walkin-submit">
               Add walk-in
             </Button>
           </div>

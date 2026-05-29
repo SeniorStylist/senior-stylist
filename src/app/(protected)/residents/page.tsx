@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { residents, bookings } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { eq, and, ne } from 'drizzle-orm'
 import { ResidentsPageClient } from './residents-page-client'
 
@@ -17,13 +18,15 @@ export default async function ResidentsPage() {
   if (!facilityUser) redirect('/dashboard')
   if (facilityUser.role === 'stylist') redirect('/dashboard')
 
+  const tutorialMode = await isTutorialModeActive()
+
   try {
   const [residentsList, bookingsList] = await Promise.all([
     db.query.residents.findMany({
       where: and(
         eq(residents.facilityId, facilityUser.facilityId),
         eq(residents.active, true),
-        eq(residents.isDemo, false) // is_demo filter — Phase 13
+        eq(residents.isDemo, tutorialMode) // is_demo filter — Phase 13
       ),
       orderBy: (t, { asc }) => [asc(t.name)],
     }),

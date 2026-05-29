@@ -230,6 +230,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder="Full name *"
+            data-tour="residents-add-name"
             className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
           />
           <div className="flex gap-2">
@@ -251,7 +252,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
             <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setAddError(null); setName(''); setRoomNumber(''); setPhone('') }} disabled={adding}>
               Cancel
             </Button>
-            <Button size="sm" loading={adding} onClick={handleAdd}>
+            <Button size="sm" loading={adding} onClick={handleAdd} data-tour="residents-add-submit">
               Add
             </Button>
           </div>

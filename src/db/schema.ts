@@ -801,6 +801,8 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
   status: text('status').default('pending').notNull(),
   // Set when the entry is converted to a real booking via /convert.
   bookingId: uuid('booking_id').references((): AnyPgColumn => bookings.id),
+  // Phase 13-Tutorial: demo seed record (interactive sign-up-sheet tour)
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({

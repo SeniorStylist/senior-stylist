@@ -24,12 +24,23 @@ const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
   // Master admin tours (desktop-only — no mobile variant; same id for both)
   'master-add-facility': { mobile: 'scripted-master-add-facility', desktop: 'scripted-master-add-facility' },
   'master-stylist-directory': { mobile: 'scripted-master-add-stylist', desktop: 'scripted-master-add-stylist' },
+  // Facility-staff + admin residents (same UI on both platforms; resolveQuery maps anchors)
+  'facility-staff-residents': { mobile: 'scripted-facility-staff-residents', desktop: 'scripted-facility-staff-residents' },
+  'admin-residents': { mobile: 'scripted-admin-residents', desktop: 'scripted-admin-residents' },
+  // Facility-staff scheduling (FAB on mobile, calendar grid on desktop)
+  'facility-staff-scheduling': { mobile: 'scripted-facility-staff-scheduling-mobile', desktop: 'scripted-facility-staff-scheduling-desktop' },
+  // Facility-staff sign-up sheet (same panel on both platforms)
+  'facility-staff-signup-sheet': { mobile: 'scripted-facility-staff-signup-sheet', desktop: 'scripted-facility-staff-signup-sheet' },
+  // Bookkeeper manual walk-in entry (same UI on both platforms)
+  'bookkeeper-manual-entry': { mobile: 'scripted-bookkeeper-manual-entry', desktop: 'scripted-bookkeeper-manual-entry' },
 }
 
 // Tours that create their own demo records through the UI flow — no pre-seeding needed.
 const UNSEEDED_SCRIPTED_TOURS = new Set([
   'scripted-master-add-facility',
   'scripted-master-add-stylist',
+  'scripted-facility-staff-residents',
+  'scripted-admin-residents',
 ])
 
 const ICON_MAP: Record<TutorialIcon, typeof KeyRound> = {

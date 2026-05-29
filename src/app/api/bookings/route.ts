@@ -94,7 +94,14 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
+    // Bookkeeper does manual log-sheet entry (the walk-in form) — same outcome as
+    // the OCR import path they already use, so they may create bookings too.
+    if (
+      !isAdminOrAbove(facilityUser.role) &&
+      !isFacilityStaff(facilityUser.role) &&
+      facilityUser.role !== 'stylist' &&
+      facilityUser.role !== 'bookkeeper'
+    ) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { facilityId } = facilityUser

@@ -191,7 +191,9 @@ export function BookingModal({
         : null
       setSelectedResidentId(preResident?.id ?? '')
       setResidentSearch(preResident?.name ?? '')
-      setSelectedServiceIds(prefillServiceId ? [prefillServiceId] : [])
+      // Default to one empty service row so the dropdown is visible immediately
+      // (and so guided tours can target it). Empty ids are filtered before submit.
+      setSelectedServiceIds(prefillServiceId ? [prefillServiceId] : [''])
       setSelectedAddonServiceIds([])
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart, facilityTimezone) : '')
       setNotes('')

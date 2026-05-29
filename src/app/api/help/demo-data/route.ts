@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries as logEntriesTable, stylistCheckins } from '@/db/schema'
+import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries as logEntriesTable, stylistCheckins, signupSheetEntries } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 
 // Admin-only: soft-delete all is_demo=true records for the facility.
@@ -35,6 +35,9 @@ export async function DELETE() {
     // stylistCheckins has no active column — hard-delete (same as cron cleanup)
     db.delete(stylistCheckins)
       .where(and(eq(stylistCheckins.facilityId, fid), eq(stylistCheckins.isDemo, true))),
+    // signupSheetEntries has no active column — hard-delete demo entries
+    db.delete(signupSheetEntries)
+      .where(and(eq(signupSheetEntries.facilityId, fid), eq(signupSheetEntries.isDemo, true))),
     db.update(residents)
       .set({ active: false })
       .where(and(eq(residents.facilityId, fid), eq(residents.isDemo, true))),

@@ -1904,6 +1904,8 @@ Completes the signup-sheet workflow: server-side auto-assignment, preferred-date
 
 **Schema** — added `preferred_date date` (nullable) to `signup_sheet_entries`. The existing `assigned_to_stylist_id` and `notes` columns (already present from initial signup-sheet ship) are reused. No duplicate columns. No new indexes.
 
+**`is_demo`** (Phase 13-Tutorial Batch 4, 2026-05-29): `boolean NOT NULL DEFAULT false` (`drizzle/0003_signup_sheet_is_demo.sql`). `GET /api/signup-sheet` filters `eq(isDemo, isTutorialRequest(request))` (was missing any demo filter — latent leak). `POST` tags `isDemo`. No `active` column — demo entries are hard-deleted by `DELETE /api/help/demo-data` + the weekly `help-demo-cleanup` cron. Powers the interactive `scripted-facility-staff-signup-sheet` tour.
+
 **Auto-assignment** — `src/lib/signup-sheet-assignment.ts::resolveAssignedStylist(facilityId, preferredDate, db)`:
 1. **Date-aware path**: queries `stylists ⨯ stylist_facility_assignments ⨯ stylist_availability` for stylists with active availability for the day-of-week of `preferred_date`. If multiple candidates → least-loaded (fewest non-cancelled bookings on that date). If exactly one → return them.
 2. **Fallback**: most-recently-updated active stylist assigned to the facility.
