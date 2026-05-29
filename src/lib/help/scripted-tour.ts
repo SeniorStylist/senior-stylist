@@ -206,22 +206,36 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
   if (step.type === 'click') {
     void waitForElement(selector, STEP_WAIT_MS).then((target) => {
       if (!target || _activeState?.stepIndex !== index) return
-      // Listen for pointerdown AND click (capture). pointerdown is essential for
-      // targets that vanish on mousedown (e.g. a typeahead option that closes its
-      // own dropdown) — a click would never land. Fire once.
       let fired = false
-      const onActivate = () => {
+      const advance = () => {
         if (fired) return
         fired = true
         clearActiveListener()
-        // 50ms lets React process the interaction first (modal opens, nav fires).
+        // 50ms lets React flush the click's onClick (open modal, fire nav) before we
+        // re-render the next step's spotlight mask.
         setTimeout(() => advanceStep(), 50)
       }
-      target.addEventListener('pointerdown', onActivate, true)
-      target.addEventListener('click', onActivate, true)
+      // Primary path: advance on the completed click. The full gesture
+      // (pointerdown → pointerup → click) is done by the time `click` fires, so the
+      // user has already released the button — the next step's mask can't steal the
+      // tail of the gesture, and the target's real React onClick has run (form/modal
+      // is opening). Advancing on pointerdown instead caused the mask to cover the
+      // button mid-press, so the release landed on the mask and onClick never fired.
+      const onClick = () => advance()
+      // Fallback for elements that remove themselves from the DOM on mousedown (e.g. a
+      // typeahead option that closes its own dropdown) — `click` never lands. If the
+      // target detaches shortly after pointerdown, advance anyway; the selection it
+      // triggered already happened on mousedown.
+      const onPointerDown = () => {
+        setTimeout(() => {
+          if (!fired && !document.contains(target)) advance()
+        }, 120)
+      }
+      target.addEventListener('click', onClick)
+      target.addEventListener('pointerdown', onPointerDown, true)
       _activeListenerCleanup = () => {
-        target.removeEventListener('pointerdown', onActivate, true)
-        target.removeEventListener('click', onActivate, true)
+        target.removeEventListener('click', onClick)
+        target.removeEventListener('pointerdown', onPointerDown, true)
       }
     })
     return

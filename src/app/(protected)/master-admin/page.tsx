@@ -25,7 +25,7 @@ interface FacilityInfo {
 }
 
 const getCachedFacilityInfos = unstable_cache(
-  async (yearMonthKey: string): Promise<FacilityInfo[]> => {
+  async (yearMonthKey: string, tutorialMode: boolean): Promise<FacilityInfo[]> => {
     try {
       const [year, month] = yearMonthKey.split('-').map((s) => Number(s))
       const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0)
@@ -33,9 +33,12 @@ const getCachedFacilityInfos = unstable_cache(
       // 4 GROUP BY queries instead of 4 × N per-facility queries.
       // With max:1 connection, the per-facility loop serialized through one socket
       // (~120 queries for 30 facilities); this keeps it to 5 queries flat.
+      // During a tutorial, show demo facilities alongside real ones so the just-created
+      // practice facility appears in the list (cookie can't be read inside unstable_cache,
+      // so tutorialMode is passed in and rides the cache key).
       const [allFacilities, residentRows, stylistRows, bookingRows, adminRows] = await Promise.all([
         db.query.facilities.findMany({
-          where: eq(facilities.isDemo, false),
+          where: tutorialMode ? undefined : eq(facilities.isDemo, false),
           orderBy: (t, { desc }) => [desc(t.createdAt)],
           columns: {
             id: true,
@@ -189,9 +192,10 @@ export default async function SuperAdminPage() {
 
   const cookieStore = await cookies()
   const currentFacilityId = cookieStore.get('selected_facility_id')?.value ?? ''
+  const tutorialMode = cookieStore.get('ss_tutorial_mode')?.value === '1'
 
   const [facilityInfos, pendingRequests, activeFacilitiesList, franchiseList] = await Promise.all([
-    getCachedFacilityInfos(yearMonthKey),
+    getCachedFacilityInfos(yearMonthKey, tutorialMode),
     getCachedPendingAccessRequests(),
     getCachedActiveFacilitiesList(),
     getCachedFranchiseList(),
