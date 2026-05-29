@@ -159,8 +159,41 @@ for (const ref of refs) {
   }
 }
 
+// 5b. Phase 13 — validate scripted-tour selectors (tours-stylist-{mobile,desktop}.ts).
+//     Each step has `selector: '[data-tour="X"]'` or `[data-tour-mobile="X"]`.
+const SCRIPTED_FILES = [
+  path.join(REPO_ROOT, 'src/lib/help/tours-stylist-mobile.ts'),
+  path.join(REPO_ROOT, 'src/lib/help/tours-stylist-desktop.ts'),
+]
+type ScriptedRef = { file: string; value: string }
+const scriptedRefs: ScriptedRef[] = []
+for (const file of SCRIPTED_FILES) {
+  if (!fs.existsSync(file)) continue
+  const src = fs.readFileSync(file, 'utf8')
+  for (const m of src.matchAll(/selector:\s*'\[data-tour(?:-mobile)?="([^"]+)"\]'/g)) {
+    scriptedRefs.push({ file: path.basename(file), value: m[1] })
+  }
+}
+const scriptedMissing: ScriptedRef[] = []
+for (const ref of scriptedRefs) {
+  checked++
+  if (found(ref.value)) {
+    okCount++
+    console.log(`  ✅ ${ref.file}  data-tour="${ref.value}"`)
+  } else {
+    scriptedMissing.push(ref)
+    console.log(`  ❌ ${ref.file}  data-tour="${ref.value}"  NOT FOUND in src/`)
+  }
+}
+
 console.log()
-console.log(`Tour health check — checked ${checked} selectors, ${okCount} found, ${missing.length} missing.`)
+console.log(`Tour health check — checked ${checked} selectors, ${okCount} found, ${missing.length + scriptedMissing.length} missing.`)
+
+if (scriptedMissing.length > 0) {
+  console.log()
+  console.log('Missing scripted-tour anchors:')
+  for (const r of scriptedMissing) console.log(`  - ${r.file}  data-tour="${r.value}"`)
+}
 
 if (platformWarnings.length > 0) {
   console.log()
@@ -174,6 +207,6 @@ if (missing.length > 0) {
   console.log()
   console.log('Missing anchors:')
   for (const r of missing) console.log(`  - ${r.tourId}[${r.stepIndex}]  data-tour="${r.value}"`)
-  process.exit(1)
 }
+if (missing.length > 0 || scriptedMissing.length > 0) process.exit(1)
 process.exit(0)

@@ -89,11 +89,20 @@ export async function seedAndStart(tourId: string): Promise<void> {
   await startScriptedTour(tourId, scenarioState)
 }
 
-// Resolve {{slug}} placeholders in a type step's value against scenarioState.
+// Resolve {{slug}} placeholders in a type step's value. Special token
+// {{tomorrow-10am}} → a datetime-local string for tomorrow at 10:00; everything
+// else resolves against the seeded scenarioState IDs.
 function resolveTypeValue(raw: string): string {
   const m = raw.match(/^\{\{(.+)\}\}$/)
   if (!m) return raw
-  return _activeState?.scenarioState?.[m[1]] ?? raw
+  const key = m[1]
+  if (key === 'tomorrow-10am') {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`
+  }
+  return _activeState?.scenarioState?.[key] ?? raw
 }
 
 export function advanceStep() {
