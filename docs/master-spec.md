@@ -160,6 +160,10 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `email`, `full_name`, `avatar_url` | Optional text |
 | `role` | `text`, default **`'stylist'`** |
 | `stylist_id` | Optional FK → `stylists.id` |
+| `completed_tours` | `text[] NOT NULL DEFAULT '{}'` (Phase 12Q) — array of completed tour IDs; idempotent `array_append` via `POST /api/profile/complete-tour` |
+| `has_seen_onboarding_tour` | `boolean NOT NULL DEFAULT false` (Phase 12G) — drives first-login welcome modal; flipped via `POST /api/profile/onboarding-seen` |
+| `has_seen_first_tour` | `boolean NOT NULL DEFAULT false` (Phase 13-Tutorial) — drives `<FirstTourAutoLauncher>` on dashboard; flipped via `POST /api/profile/first-tour-seen` |
+| `help_progress` | `jsonb`, nullable (Phase 13-Tutorial) — scripted tour resume state `{ tourId, stepIndex, scenarioState } \| null`; cleared on tour close/complete |
 | `created_at`, `updated_at` | Timestamps |
 
 ### `facilities`
@@ -203,6 +207,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - **`poa_notifications_enabled`**: `boolean NOT NULL DEFAULT true` — when `false`, POA confirmation emails are suppressed for both staff and portal bookings. Staff toggle in resident detail edit mode; self-serve toggle via `PATCH /api/portal/[token]/notifications` from portal preferences section.
 - **`default_tip_type`** (Phase 12E): nullable text, one of `'percentage' | 'fixed'`. When set, drives the booking modal's auto-fill on resident pick.
 - **`default_tip_value`** (Phase 12E): nullable integer. Percent (e.g. `15` = 15%) when type is `'percentage'`; cents (e.g. `200` = $2.00) when type is `'fixed'`. Both fields null means no preference.
+- **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — records seeded by the tutorial engine. Filtered out of all user-facing list queries (`eq(residents.isDemo, false)`). Partial index `residents_demo_idx (facility_id) WHERE is_demo = true` accelerates per-facility demo cleanup.
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
 
@@ -224,6 +229,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - **`specialties`** (jsonb NOT NULL DEFAULT `[]`, Phase 9) — string tag list, e.g. `["color", "cut", "perm"]`
 - **`last_invite_sent_at`** (timestamptz nullable, Phase 9 Prompt 4) — timestamp of the last successful Supabase Admin invite email sent from Stylist Detail. Used to enforce the 24h rate limit in `POST /api/stylists/[id]/invite`. Updated server-side after a successful invite; never trusted from client.
 - **`qb_vendor_id`** (text, nullable, Phase 10B) — QuickBooks Vendor ID mapping. Set on first Vendor sync or inline when pushing a Bill for a stylist with no mapping. Null = never synced to QB.
+- **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — tutorial-seeded stylist. Filtered out of user-facing list queries.
 - **`active`**, timestamps
 
 ### `stylist_facility_assignments` (Phase 9)
@@ -262,6 +268,7 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 - **`addon_amount_cents`**: integer, nullable — add-on surcharge for `addon` type
 - **`pricing_tiers`**: jsonb, nullable — array of `{ minQty, maxQty, unitPriceCents }` for `tiered` type
 - **`pricing_options`**: jsonb, nullable — array of `{ name, priceCents }` for `multi_option` type
+- **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — tutorial-seeded service. Filtered from user-facing lists.
 
 ### `bookings`
 
@@ -284,6 +291,7 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 - **`total_duration_minutes`**: integer, nullable — sum of all primary services' durations (addons never add duration). Used for endTime + conflict detection on multi-service bookings.
 - **`google_event_id`** (unique), **`sync_error`**
 - **`tip_cents`** (Phase 12E): nullable integer. Stylist-only tip — must NEVER aggregate into facility revenue, rev-share splits, or QB invoice totals. `null` = no tip; never store `0`.
+- **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — tutorial-seeded booking. Filtered from calendar, daily log, and all aggregation queries.
 - Timestamps
 - **`price_cents` is ALWAYS the final fully-resolved total** including add-ons, tier calculation, or option price — never a partial amount. **`tip_cents` is SEPARATE** from `price_cents` and never enters revenue sums.
 
@@ -296,6 +304,7 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 
 - **`facility_id`**, **`stylist_id`**, **`date`** (date), **`notes`**
 - **`finalized`**, **`finalized_at`**
+- **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false`. No `active` column — demo log entries are **hard-deleted** (not soft-deleted) by the reset endpoint and the weekly cron.
 - Timestamps
 - Unique: **`(facility_id, stylist_id, date)`**
 
@@ -550,6 +559,20 @@ RLS enabled. `service_role_all` policy. Indexes on `(document_type, field_name)`
 
 RLS enabled. `service_role_all` policy. Append-only audit log — no updates or deletes from application code. Written atomically as the final step of the merge transaction in `POST /api/super-admin/merge-facilities`.
 
+### `help_step_events` (Phase 13-Tutorial)
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` `defaultRandom()` |
+| `facility_id` | FK → `facilities.id` ON DELETE SET NULL, nullable |
+| `user_id` | FK → `profiles.id` ON DELETE SET NULL, nullable |
+| `tour_id` | `text` NOT NULL — matches `ScriptedTour.id` |
+| `step_index` | `integer` NOT NULL |
+| `action` | `text` NOT NULL — e.g. `'advance'`, `'retreat'`, `'close'`, `'complete'`, `'start'` |
+| `created_at` | `timestamptz` NOT NULL default now |
+
+Indexes: `help_step_events_tour_step_action_idx (tour_id, step_index, action)` + `help_step_events_facility_created_idx (facility_id, created_at)`. RLS enabled with `service_role_all`. Written fire-and-forget by the scripted tour engine via `POST /api/help/track`.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -730,6 +753,8 @@ Upstash Redis sliding-window limiter behind `checkRateLimit(bucket, identifier)`
 | `sendPortalLink` | 10 / hour | user id | `POST /api/residents/[id]/send-portal-link` |
 | `invites` | 30 / hour | user id | `POST /api/invites` |
 | `exportExcel` | 10 / minute | user id | `GET /api/exports/daily-logs` (Phase 12Z) |
+| `helpSeed` | 5 / hour | user id | `POST /api/help/seed-demo-data` (Phase 13-Tutorial) |
+| `helpTrack` | 60 / minute | user id | `POST /api/help/track` (Phase 13-Tutorial) |
 
 ### Upload caps
 
@@ -859,6 +884,37 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `GET /api/portal/statement/[residentId]` | Authed (Phase 11I), rate-limited `portalStatement` | Verifies resident in session. Reuses `buildResidentStatementHtml`. Returns HTML with `@media print` CSS + `<button onclick="window.print()">`. `Content-Type: text/html`. |
 | `POST /api/portal/stripe/create-checkout` | Authed (Phase 11I), rate-limited `portalCheckout` | Body `{ residentId, amountCents }` (50–10_000_000). Stripe key = `facility.stripeSecretKey ?? STRIPE_SECRET_KEY`. Creates Checkout session with `metadata.type='portal_balance'`, `metadata.residentId`, `metadata.facilityId`, `metadata.facilityCode`. Returns `{ data: { checkoutUrl } }`. |
 | `GET /api/cron/portal-cleanup` | **Vercel Cron** (Phase 11I, `Bearer CRON_SECRET`) | Daily 04:00 UTC. Deletes `portal_magic_links` rows older than 7 days past expiry; deletes expired `portal_sessions`. `maxDuration=30`. |
+| `POST /api/help/seed-demo-data` | Authenticated; rate-limited `helpSeed` (5/hr/user) (Phase 13-Tutorial) | Idempotent demo data seeder. Seeds `is_demo=true` records: Mrs. Margaret Smith (Rm 12), Mr. Robert Johnson (Rm 8), Wash & Set $35, Haircut $25, Demo Sarah stylist (Mon–Fri availability). Checks by name+`is_demo` before inserting — safe to call multiple times. Returns `{ data: { seeded: boolean, ids: { residentIds, stylistId, serviceIds } } }`. |
+| `POST /api/help/track` | Authenticated; rate-limited `helpTrack` (60/min/user) (Phase 13-Tutorial) | Writes one row to `help_step_events`. Body: `{ tourId, stepIndex, action }`. Fire-and-forget from the scripted tour engine — 200 always returned; errors swallowed server-side. |
+| `DELETE /api/help/demo-data` | Authenticated; admin-only (Phase 13-Tutorial) | Soft-deletes (`active=false`) all `is_demo=true` residents, stylists, services, and bookings for the caller's facility. Hard-deletes demo `log_entries` and `stylist_checkins` (no `active` column on those tables). Called from Settings → Advanced "Tutorial Data" card after two-step confirmation. |
+| `POST /api/profile/first-tour-seen` | Authenticated (Phase 13-Tutorial) | Flips `profiles.has_seen_first_tour = true` for the caller. No body required. Returns `{ data: { ok: true } }`. |
+| `GET /api/cron/help-demo-cleanup` | **Vercel Cron** (`Bearer CRON_SECRET`) (Phase 13-Tutorial) | Weekly Sunday 03:00 UTC. Hard-deletes all `is_demo=true AND active=false` records older than 90 days from residents/stylists/services/bookings. Hard-deletes orphaned demo log_entries and stylist_checkins older than 90 days. `maxDuration=60`. |
+
+---
+
+## Scripted Tour Engine (Phase 13-Tutorial)
+
+The scripted tour system coexists with the legacy Driver.js engine. The 10 new scripted tours use the new engine; all ~31 legacy tours use Driver.js unchanged.
+
+**Core modules:**
+- `src/lib/help/scripted-tour-types.ts` — type definitions: `ScriptedStepType = 'highlight' | 'type' | 'click' | 'navigate' | 'celebrate'`; `ScriptedStep { type, selector?, title, description, typeValue?, route?, placement? }`; `ScriptedTour { id, title, scenarioSummary, platform, role, steps, learnings }`; `ScriptedTourState { tourId, stepIndex, scenarioState, startedAt }`.
+- `src/lib/help/scripted-tour.ts` — engine. Key exports: `startScriptedTour(tourId, scenarioState?)`, `advanceStep()`, `retreatStep()`, `closeTour()`, `resumeScriptedTour()`, `registerScriptedTourUI()`, `getActiveTour()`, `getActiveState()`, `getPausedSessionInfo()`. Session stored in `sessionStorage['scriptedTour']` with 10min TTL. Reuses `setTourModeActive` (write-interception), `installTourFetchInterceptor`, and `getTourRouter` (SPA nav). Fires telemetry to `POST /api/help/track`. On completion fires `tour-completed` CustomEvent + `POST /api/profile/complete-tour`.
+- `src/lib/help/demo-seeder.ts` — `seedFacilityDemoData(facilityId)` and `getDemoIds(facilityId)`. Idempotent — checks by `name + is_demo` before inserting.
+
+**Tour files:**
+- `src/lib/help/tours-stylist-mobile.ts` — 5 mobile tours (`scripted-stylist-getting-started-mobile`, `scripted-stylist-calendar-mobile`, `scripted-stylist-daily-log-mobile`, `scripted-stylist-checkin-mobile`, `scripted-stylist-finalize-day-mobile`). Use `data-tour-mobile` selectors and "Tap" not "Click".
+- `src/lib/help/tours-stylist-desktop.ts` — 5 desktop tours (same names without `-mobile` suffix). Use `data-tour` selectors and "Click".
+
+**Overlay components** (`src/components/help/scripted-tour/`):
+- `scripted-tour-overlay.tsx` — React root; dynamic imports sub-components; polls target rect at 300ms interval.
+- `spotlight-mask.tsx` — full-viewport SVG with cutout rect; backdrop opacity 0.72; click-through to dismiss.
+- `spotlight-ring.tsx` — `position: fixed` ring matching target BoundingClientRect; pulsing `box-shadow` animation; respects `prefers-reduced-motion`.
+- `target-arrow.tsx` — SVG quadratic bezier arrow from popover edge to target element edge; `nearestEdgeMidpoint()` helper chooses closest edge pair; rotating arrowhead.
+- `scripted-tour-popover.tsx` — 320px desktop card; Floating UI-style auto-positioning; keyboard nav (Esc closes, ArrowRight/Left advances/retreats); ARIA roles; focuses Next button on step change.
+- `scripted-tour-sheet.tsx` — mobile bottom sheet; horizontal swipe gestures; `env(safe-area-inset-bottom)` padding; progress dots.
+- `tutorial-celebration.tsx` — CSS-only confetti; learnings list; "Try it for real →" + "Do another tutorial →" CTAs.
+
+**Auto-launch:** `src/components/help/first-tour-auto-launcher.tsx` mounts in `DashboardClient` for both mobile and desktop paths when `hasSeenFirstTour` is false. Waits 1.5s then starts the appropriate scripted tour via `startScriptedTour()`. Uses a 3s MutationObserver timeout for the target element. Dashboard page query extended to include `hasSeenFirstTour` from the profile.
 
 ---
 

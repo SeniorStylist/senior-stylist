@@ -486,6 +486,7 @@ Bookkeepers were re-keying daily logs into their accounting workflow. Phase 12Z 
 
 **Immediate (next up):**
 - **Phase 12ZZ** — Toast action buttons ("Booking saved — Undo | View"). (Previously labeled 12Z — renamed because 12Z shipped as the Excel export.)
+- **Phase 13-Tutorial follow-up** — Expand scripted tours to admin/bookkeeper roles. Currently only 10 stylist tours exist. Admin check-in tour, bookkeeper billing tour are obvious next candidates.
 
 **Medium term:**
 - **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state.
@@ -540,14 +541,16 @@ Separate mobile renderer for guided tours, running alongside Driver.js (no repla
 ### Phase 12I — Stylist Tour Audit & My Account Tour (SHIPPED 2026-05-08)
 Audited and rewrote all 4 existing stylist tours with accurate copy; added the new `stylist-my-account` tour (5th stylist card, previously "Coming soon"). **Tours rewritten**: `stylist-getting-started` (7 steps, starts at /help, walks through Calendar → Daily Log → My Account), `stylist-calendar` (5 steps, removed fragile `.fc-timegrid-slot` and `calendar-booking-modal` steps — replaced with info steps on `calendar-time-grid`), `stylist-daily-log` (7 steps, now starts with nav action at `/dashboard`; `daily-log-entry-row` and `daily-log-walkin-form` replaced with `element:''`), `stylist-finalize-day` (5 steps, starts at `/dashboard` with nav action; `daily-log-entry-row` → `element:''`). **New tour**: `stylist-my-account` (7 steps: NAV_MY_ACCOUNT action → schedule card → edit hours info → compliance card → upload button info → time-off card → keep-current info). **TUTORIAL_CATALOG**: `stylist-account` entry flipped from `tourId: null` to `tourId: 'stylist-my-account'`, updated id/title/blurb/estMinutes; blurbs on all 5 stylist cards updated. **New anchors**: `data-tour="my-account-schedule"`, `my-account-compliance"`, `my-account-compliance-upload"`, `my-account-schedule-edit"` (data-conditional, tours use `element:''`), `my-account-timeoff"` on `my-account-client.tsx`. `data-tour="sidebar-avatar"` on sidebar user info div. `NAV_MY_ACCOUNT` constant + `nav-my-account` tourSlug added to both sidebar and mobile-nav. **FullCalendar**: `slotLabelFormat={{ hour:'numeric', minute:'2-digit', omitZeroMinute:false, meridiem:'short' }}` — time axis now shows `7:00am`, `8:00am` instead of `7`, `8`. `npx tsc --noEmit` zero errors.
 
-### Phase 13 — Per-Stylist Google Calendar (PLANNED — Sonnet)
-Per-stylist OAuth2, booking → calendar event sync.
+### Phase 13-Tutorial — Scripted Tutorials with Demo Characters (SHIPPED 2026-05-29)
+
+End-to-end overhaul of the help/onboarding system. New `is_demo boolean NOT NULL DEFAULT false` column on `residents`, `stylists`, `services`, `bookings`, `log_entries`, `stylist_checkins`. New `profiles` columns: `has_seen_first_tour` and `help_progress`. New `help_step_events` telemetry table. New scripted tour engine (`src/lib/help/scripted-tour.ts`) coexisting with legacy Driver.js — 10 new tours defined in `tours-stylist-mobile.ts` and `tours-stylist-desktop.ts`. New visual overlay stack (`spotlight-mask`, `spotlight-ring`, `target-arrow`, `scripted-tour-popover`, `scripted-tour-sheet`, `tutorial-celebration`). Demo seeder (`src/lib/help/demo-seeder.ts`) seeds warm character data idempotently. `<FirstTourAutoLauncher>` on the dashboard auto-starts the right tour for new users after 1.5s. Help page upgraded with search bar + resume banner. Settings → Advanced gains a "Tutorial Data" wipe card. New crons and API routes for seeding, tracking, reset, and weekly cleanup. All `is_demo=true` records filtered from the ~14 user-facing list queries. Schema push required: `npx dotenv -e .env.local -- npx drizzle-kit push`.
 
 ---
 
 ## 6. CURRENT STATUS
 
 ### Working
+- **Phase 13-Tutorial — Scripted Tutorials** (2026-05-29): New `is_demo` column on 6 tables, new scripted tour engine, 10 warm-character tours, `<FirstTourAutoLauncher>` for new-user onboarding, demo data seeder/reset, help page search + resume banner, Settings → Advanced tutorial data wipe. Schema push required.
 - Phase 12S — Signup Sheet v2 (2026-05-11): preferred-date column, server auto-assign (`resolveAssignedStylist`), drag-to-calendar via FC `Draggable`, stylist-only `<PendingSignupBadge />` on Calendar nav, admin cross-stylist "Pending requests" view, both signup-sheet tours rewritten. GET filter tightened to `status='pending'`. TSC clean. Schema push pending (run `! npx dotenv -e .env.local -- npx drizzle-kit push`).
 - Phase 12R — Onboarding Checklist Widget (2026-05-11): fixed bottom-right widget on `/dashboard`, role-specific 3-4 tour checklist, live updates via CustomEvent, auto-dismiss on completion, localStorage persistence. TSC clean.
 - Phase 12Q — Tour Completion Tracking (2026-05-11): `profiles.completed_tours text[]`, `POST /api/profile/complete-tour`, `✓ Done` badge on Help page cards, optimistic via `tour-completed` CustomEvent. Schema push pending (network unreachable from dev environment — run `! npx dotenv -e .env.local -- npx drizzle-kit push`). TSC clean.

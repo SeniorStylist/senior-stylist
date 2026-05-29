@@ -757,6 +757,36 @@ Used when a list is too long for a plain `<select>` and needs typeahead filterin
 - Dropdown: `absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-48 overflow-y-auto`
 - Each option: `px-2 py-1.5 text-xs hover:bg-stone-50 cursor-pointer`
 
+---
+
+## 8. Scripted Tour Components (Phase 13-Tutorial)
+
+All components live under `src/components/help/scripted-tour/`. The `<ScriptedTourOverlay>` root is mounted in `(protected)/layout.tsx` via `createPortal(document.body)` alongside `<PeekDrawer>` and `<CommandPalette>`.
+
+### SpotlightMask (`spotlight-mask.tsx`)
+
+Full-viewport `<svg>` positioned `fixed inset-0 z-[200]`. Uses an SVG `<clipPath>` with a rect cutout matching the target element's `getBoundingClientRect()` plus 8px padding. Background fill `rgba(0,0,0,0.72)` outside the cutout. Click events on the mask dismiss the tour (backdrop dismiss). The cutout area passes pointer events through to the underlying element naturally.
+
+### SpotlightRing (`spotlight-ring.tsx`)
+
+`position: fixed` div matching the target's `getBoundingClientRect()` + 8px padding. `z-[201]`. Visual: `ring-4 ring-white/30 rounded-2xl pointer-events-none`. Active/action steps add a pulsing `box-shadow: 0 0 0 4px rgba(139,46,74,0.5)` animation. Respects `prefers-reduced-motion` — animation disabled when reduced-motion is set. Updated on a 300ms `setInterval` by the overlay root to track elements that move during scroll or layout shift.
+
+### TargetArrow (`target-arrow.tsx`)
+
+SVG arrow from the popover's nearest edge midpoint to the target element's nearest edge midpoint. `nearestEdgeMidpoint(popoverRect, targetRect)` computes the closest pair of edge midpoints (top/bottom/left/right × 4 combinations, picks minimum Euclidean distance). Bezier control point offset = 40% of the straight-line distance, perpendicular to the line. Arrowhead is a `<polygon>` rotated to point along the line's terminal tangent. Stroke: `#8B2E4A`, `strokeWidth=2`, `fill=none` on path, `fill=#8B2E4A` on arrowhead.
+
+### ScriptedTourPopover (`scripted-tour-popover.tsx`)
+
+Desktop-only 320px card. `position: fixed z-[202]`. Auto-positioning: prefers the side of the target with the most viewport space; falls back through `right → left → bottom → top` order. Content: step title (`text-base font-semibold text-stone-900`), description (`text-sm text-stone-600 mt-1 leading-relaxed`), progress dots (filled burgundy `#8B2E4A` for current, `bg-stone-200` for future), Back + Next buttons (Next is primary burgundy, Back is ghost). Keyboard handlers: Esc → close, ArrowRight → advance, ArrowLeft → retreat. ARIA: `role="dialog"`, `aria-modal="true"`, `aria-label={step.title}`. Next button receives focus on every step change via `useEffect` + `ref.focus()`.
+
+### ScriptedTourSheet (`scripted-tour-sheet.tsx`)
+
+Mobile bottom sheet. `position: fixed bottom-0 left-0 right-0 z-[202] bg-white rounded-t-3xl`. Entrance: `translateY(100%) → 0` over 300ms `cubic-bezier(0.32, 0.72, 0, 1)` on first show; step transitions do not re-animate. `paddingBottom: calc(1rem + env(safe-area-inset-bottom))`. Swipe gestures: `touchstart`/`touchmove`/`touchend` — horizontal `|deltaX| > 50px` and `|deltaX| > |deltaY|` advances left→next or right→prev. Vertical scroll is preserved (no interception when `|deltaY| > |deltaX|`). Progress dots same as desktop popover. Info steps show stacked Back + Next buttons (Next on top, burgundy 52px min-height `rounded-2xl`). Action steps hide both buttons and show an animated `animate-bounce text-[#8B2E4A]` UP arrow + "TAP HERE" badge; arrow rotates 180° when `spotlightRect.top > window.innerHeight * 0.6`.
+
+### TutorialCelebration (`tutorial-celebration.tsx`)
+
+Full-panel celebration rendered as the final step type `'celebrate'`. CSS-only confetti: 20 absolutely positioned `div` elements with randomized `background`, `width/height` (4–12px), `left` position, and `animation-delay` (0–1.5s). Animation: `keyframes { 0%: translateY(-20px) rotate(0deg) opacity(0); 100%: translateY(calc(100% + 20px)) rotate(360deg) opacity(0) }` over 2s `ease-in` infinite. Respects `prefers-reduced-motion` (static confetti, no animation). Below confetti: learnings list (`ScriptedTour.learnings`, checkmark bullets `text-[#8B2E4A]`), primary CTA "Try it for real →" (`router.push` to the relevant route, closes tour), secondary CTA "Do another tutorial →" (navigates to `/help`). Auto-fires `tour-completed` CustomEvent + `POST /api/profile/complete-tour` on mount.
+
 **Shared across both:**
 - Selected option: `bg-rose-50 text-[#8B2E4A] font-medium`
 - Room number prefix: `<span className="text-stone-400 mr-1">{roomNumber} ·</span>` before the name
