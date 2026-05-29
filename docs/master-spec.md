@@ -916,6 +916,25 @@ The scripted tour system coexists with the legacy Driver.js engine. The 10 new s
 
 **Auto-launch:** `src/components/help/first-tour-auto-launcher.tsx` mounts in `DashboardClient` for both mobile and desktop paths when `hasSeenFirstTour` is false. Waits 1.5s then starts the appropriate scripted tour via `startScriptedTour()`. Uses a 3s MutationObserver timeout for the target element. Dashboard page query extended to include `hasSeenFirstTour` from the profile.
 
+### Interactive tutorial mode (Phase 13-Tutorial-Interactive)
+
+The 5 stylist scripted tours are genuinely interactive — the user clicks real buttons and text auto-fills, and the tour creates REAL throwaway `is_demo` records instead of faking writes.
+
+**`ss_tutorial_mode` cookie (NOT a header):** `ss_tutorial_mode=1` (15-min TTL) is set by `src/lib/help/tutorial-cookie.ts::setTutorialCookie()` on tour start and cleared on close/complete. A cookie (not a header) is used because cookies ride every request automatically, so BOTH server components (SSR page queries feeding props such as the booking modal's resident/service lists) and API route handlers can read it. A client-set request header would be invisible to SSR.
+- Server readers (`src/lib/help/tutorial-request.ts`): `isTutorialRequest(request)` parses the cookie header inside route handlers; `isTutorialModeActive()` reads it from `next/headers` cookies inside server components.
+
+**Reads are DEMO-ONLY during a tour** (`eq(table.isDemo, tutorialMode)`, not demo+real) — a clean sandbox that also prevents accidentally mutating a real booking during the mark-paid step. Applied at: GET `/api/bookings`, `/api/log`, `/api/residents`, `/api/services`, `/api/stylists`; SSR `dashboard/page.tsx` + `log/page.tsx`; and `resolveAvailableStylists({ demoOnly })`. (`/api/services` and `/api/stylists` GET previously had no `is_demo` filter — added so demo records can't leak into real lists once seeded.)
+
+**Writes tag `is_demo=true`** when `isTutorialRequest(request)`: POST `/api/bookings` (also skips Google Calendar sync + the confirmation email when `isDemo`), `/api/log`, `/api/residents`, `/api/services`, `/api/stylists`.
+
+**Demo booking assignment:** the seed route looks up the viewer's `profiles.stylistId` and assigns the demo booking to the VIEWER (not Demo Sarah) — the daily log + dashboard filter to `profile.stylistId` (`stylistFilter`), so a Sarah-owned booking would be invisible to the stylist running the tour. `seedFacilityDemoData(facilityId, viewerStylistId?)` also seeds a TODAY booking for Mrs. Smith so daily-log/check-in tours have a row. `seedAndStart(tourId)` seeds the demo data, passes the resulting IDs as `scenarioState`, and the launcher + `TutorialCard` call it then `router.refresh()` so SSR re-renders with demo props.
+
+**Engine wiring (`scripted-tour.ts`):** `wireStep` per step — `type:'click'` waits for the element then attaches a one-time capture-phase listener on **both `pointerdown` AND `click`** (pointerdown is essential for targets that vanish on mousedown, e.g. the resident typeahead option that closes its own dropdown), settles 50ms, then `advanceStep`. `type:'type'` waits then `autoFillInput` (native setter; handles `<input>`/`<textarea>`/`<select>`). `typeValue` supports `{{slug}}` placeholders resolved against seeded `scenarioState` IDs plus the special `{{tomorrow-10am}}` token.
+
+**New `data-tour` anchors:** `booking-modal-resident`, `booking-modal-resident-option`, `booking-modal-service`, `booking-modal-date`, `booking-modal-submit`; `dashboard-new-booking-fab` (mobile FAB; desktop new-booking uses the existing `calendar-time-grid` dateClick); `log-payment-toggle`.
+
+**Schema migration:** applied via the committed idempotent SQL file `drizzle/0001_phase13_demo_tutorial.sql`, run directly with `psql "$DIRECT_URL" -f drizzle/0001_phase13_demo_tutorial.sql` — NOT `drizzle-kit push` (it aborts on its interactive prompt).
+
 ---
 
 ## Access Request Flow

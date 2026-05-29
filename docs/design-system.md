@@ -787,6 +787,15 @@ Mobile bottom sheet. `position: fixed bottom-0 left-0 right-0 z-[202] bg-white r
 
 Full-panel celebration rendered as the final step type `'celebrate'`. CSS-only confetti: 20 absolutely positioned `div` elements with randomized `background`, `width/height` (4–12px), `left` position, and `animation-delay` (0–1.5s). Animation: `keyframes { 0%: translateY(-20px) rotate(0deg) opacity(0); 100%: translateY(calc(100% + 20px)) rotate(360deg) opacity(0) }` over 2s `ease-in` infinite. Respects `prefers-reduced-motion` (static confetti, no animation). Below confetti: learnings list (`ScriptedTour.learnings`, checkmark bullets `text-[#8B2E4A]`), primary CTA "Try it for real →" (`router.push` to the relevant route, closes tour), secondary CTA "Do another tutorial →" (navigates to `/help`). Auto-fires `tour-completed` CustomEvent + `POST /api/profile/complete-tour` on mount.
 
+### Interactive click-through spotlight (Phase 13-Tutorial-Interactive)
+
+Because the interactive stylist tours require the user to click the real highlighted element, the spotlight must let clicks reach the target instead of swallowing them.
+
+- **Four-panel mask, NOT an SVG `<mask>`/`<clipPath>`:** `spotlight-mask.tsx` now renders four absolutely-positioned dark `bg-black/60`-style panels (top / bottom / left / right) framing the cutout rectangle (target `getBoundingClientRect()` + padding). The cutout region has no panel over it, so real pointer events pass straight through to the highlighted element. (The old single-`<svg>` clipPath approach blocked clicks.) On action steps, backdrop-click dismiss is suppressed so a stray click on a panel doesn't abort the tour.
+- **Action vs info differentiation** (`step.type === 'click'` is an action step): `spotlight-ring` and `target-arrow` take an `isAction` flag. **Action steps** get a bright white highlight + a glowing pulse animation on the ring and a bigger (**18px**) solid, full-opacity arrow pointing at the target. **Info steps** stay subtle (the standard `ring-white/30` and a thinner low-emphasis arrow).
+- **Popover / sheet hint:** on action steps the `scripted-tour-popover` and `scripted-tour-sheet` hide the "Next" button and instead show a "👆 click the highlighted spot" hint; keyboard/swipe forward-advance is disabled on action steps so the user must perform the real click.
+- **Reduced motion:** the glow pulse and arrow animation respect `@media (prefers-reduced-motion: reduce)` — the bright highlight remains, only the motion is suppressed.
+
 **Shared across both:**
 - Selected option: `bg-rose-50 text-[#8B2E4A] font-medium`
 - Room number prefix: `<span className="text-stone-400 mr-1">{roomNumber} ·</span>` before the name
