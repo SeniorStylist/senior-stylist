@@ -541,6 +541,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                 <input
                   type="text"
                   required
+                  data-tour="master-facility-form-name"
                   value={formData.name}
                   onChange={(e) => { setFormData((d) => ({ ...d, name: e.target.value })); setCreateError(null) }}
                   className={cn(
@@ -592,6 +593,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
               <button
                 type="submit"
                 disabled={creating}
+                data-tour="master-facility-form-submit"
                 className="px-5 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors disabled:opacity-50"
                 style={{ backgroundColor: '#8B2E4A' }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}

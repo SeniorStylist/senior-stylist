@@ -12,7 +12,7 @@ import type { Tutorial, TutorialIcon } from '@/lib/help/tours'
 import { startTour } from '@/lib/help/tours'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 
-// Stylist tours that have an interactive scripted version (Phase 13). Clicking
+// Tours that have an interactive scripted version (Phase 13). Clicking
 // "Guided Tour" launches the scripted engine (real demo writes) instead of the
 // legacy Driver.js walkthrough, picking the platform variant by viewport.
 const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
@@ -21,7 +21,16 @@ const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
   'stylist-daily-log': { mobile: 'scripted-stylist-daily-log-mobile', desktop: 'scripted-stylist-daily-log-desktop' },
   'stylist-checkin': { mobile: 'scripted-stylist-checkin-mobile', desktop: 'scripted-stylist-checkin-desktop' },
   'stylist-finalize-day': { mobile: 'scripted-stylist-finalize-day-mobile', desktop: 'scripted-stylist-finalize-day-desktop' },
+  // Master admin tours (desktop-only — no mobile variant; same id for both)
+  'master-add-facility': { mobile: 'scripted-master-add-facility', desktop: 'scripted-master-add-facility' },
+  'master-stylist-directory': { mobile: 'scripted-master-add-stylist', desktop: 'scripted-master-add-stylist' },
 }
+
+// Tours that create their own demo records through the UI flow — no pre-seeding needed.
+const UNSEEDED_SCRIPTED_TOURS = new Set([
+  'scripted-master-add-facility',
+  'scripted-master-add-stylist',
+])
 
 const ICON_MAP: Record<TutorialIcon, typeof KeyRound> = {
   KeyRound, Calendar, FileText, Users, UserPlus, CheckCircle2, UserCog,
@@ -49,7 +58,13 @@ export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
     const scripted = SCRIPTED_TOUR_MAP[tutorial.tourId]
     if (scripted) {
       const id = isMobile ? scripted.mobile : scripted.desktop
-      void import('@/lib/help/scripted-tour').then((m) => m.seedAndStart(id))
+      void import('@/lib/help/scripted-tour').then((m) => {
+        if (UNSEEDED_SCRIPTED_TOURS.has(id)) {
+          // Tour creates its own demo records through the UI — no pre-seeding needed
+          return m.startScriptedTour(id)
+        }
+        return m.seedAndStart(id)
+      })
     } else {
       void startTour(tutorial.tourId)
     }

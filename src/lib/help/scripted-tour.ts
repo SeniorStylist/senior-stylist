@@ -43,7 +43,8 @@ export function getActiveState() {
 export async function startScriptedTour(tourId: string, scenarioState: Record<string, string> = {}) {
   const { STYLIST_MOBILE_TOURS } = await import('./tours-stylist-mobile')
   const { STYLIST_DESKTOP_TOURS } = await import('./tours-stylist-desktop')
-  const allTours = [...STYLIST_MOBILE_TOURS, ...STYLIST_DESKTOP_TOURS]
+  const { MASTER_TOURS } = await import('./tours-master')
+  const allTours = [...STYLIST_MOBILE_TOURS, ...STYLIST_DESKTOP_TOURS, ...MASTER_TOURS]
   const tour = allTours.find((t) => t.id === tourId)
   if (!tour) {
     console.warn('[scripted-tour] Unknown tour:', tourId)

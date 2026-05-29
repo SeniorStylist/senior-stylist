@@ -614,6 +614,7 @@ export function DirectoryClient({
           </button>
           <button
             onClick={() => setAddOpen(true)}
+            data-tour="directory-add-stylist-btn"
             className="px-3 py-2 rounded-xl text-sm font-medium text-white transition-colors"
             style={{ backgroundColor: '#8B2E4A' }}
           >
@@ -684,6 +685,7 @@ export function DirectoryClient({
               <label className="text-xs font-medium text-stone-600 block mb-1">Name *</label>
               <input
                 autoFocus
+                data-tour="directory-add-stylist-name"
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
                 maxLength={200}
@@ -742,6 +744,7 @@ export function DirectoryClient({
             <button
               type="submit"
               disabled={!addName.trim() || addSubmitting}
+              data-tour="directory-add-stylist-submit"
               className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-colors"
               style={{ backgroundColor: '#8B2E4A' }}
             >

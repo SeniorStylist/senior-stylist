@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { facilities, franchises, franchiseFacilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 /**
  * Returns the list of facility IDs the caller is authorized to query.
@@ -17,7 +17,7 @@ export async function getSuperAdminFacilities(
     const all = await db
       .select({ id: facilities.id })
       .from(facilities)
-      .where(eq(facilities.active, true))
+      .where(and(eq(facilities.active, true), eq(facilities.isDemo, false)))
     return all.map((f) => f.id)
   }
 

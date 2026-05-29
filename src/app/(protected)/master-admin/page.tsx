@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { cookies } from 'next/headers'
 import { db } from '@/db'
-import { sql } from 'drizzle-orm'
-import { eq } from 'drizzle-orm'
+import { facilities } from '@/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { MasterAdminClient } from './master-admin-client'
 
 interface FacilityInfo {
@@ -35,6 +35,7 @@ const getCachedFacilityInfos = unstable_cache(
       // (~120 queries for 30 facilities); this keeps it to 5 queries flat.
       const [allFacilities, residentRows, stylistRows, bookingRows, adminRows] = await Promise.all([
         db.query.facilities.findMany({
+          where: eq(facilities.isDemo, false),
           orderBy: (t, { desc }) => [desc(t.createdAt)],
           columns: {
             id: true,
@@ -139,7 +140,7 @@ const getCachedActiveFacilitiesList = unstable_cache(
   async () => {
     try {
       return await db.query.facilities.findMany({
-        where: (t) => eq(t.active, true),
+        where: (t) => and(eq(t.active, true), eq(t.isDemo, false)),
         orderBy: (t, { asc }) => [asc(t.name)],
         columns: { id: true, name: true, facilityCode: true },
       })

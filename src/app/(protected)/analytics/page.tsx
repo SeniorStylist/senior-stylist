@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, facilityUsers } from '@/db/schema'
-import { eq, inArray, asc } from 'drizzle-orm'
+import { and, eq, inArray, asc } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { ReportsClient } from './reports-client'
 
@@ -30,7 +30,7 @@ export default async function AnalyticsPage() {
   let exportFacilities: { id: string; name: string; facilityCode: string | null }[] = []
   if (isMaster) {
     const rows = await db.query.facilities.findMany({
-      where: eq(facilities.active, true),
+      where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
       columns: { id: true, name: true, facilityCode: true },
       orderBy: [asc(facilities.name)],
     })
@@ -43,7 +43,7 @@ export default async function AnalyticsPage() {
     const ids = memberships.map((m) => m.facilityId)
     if (ids.length > 0) {
       const rows = await db.query.facilities.findMany({
-        where: inArray(facilities.id, ids),
+        where: and(inArray(facilities.id, ids), eq(facilities.isDemo, false)),
         columns: { id: true, name: true, facilityCode: true },
         orderBy: [asc(facilities.name)],
       })

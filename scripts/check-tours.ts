@@ -159,11 +159,12 @@ for (const ref of refs) {
   }
 }
 
-// 5b. Phase 13 — validate scripted-tour selectors (tours-stylist-{mobile,desktop}.ts).
+// 5b. Phase 13 — validate scripted-tour selectors (tours-stylist-{mobile,desktop}.ts + tours-master.ts).
 //     Each step has `selector: '[data-tour="X"]'` or `[data-tour-mobile="X"]`.
 const SCRIPTED_FILES = [
   path.join(REPO_ROOT, 'src/lib/help/tours-stylist-mobile.ts'),
   path.join(REPO_ROOT, 'src/lib/help/tours-stylist-desktop.ts'),
+  path.join(REPO_ROOT, 'src/lib/help/tours-master.ts'),
 ]
 type ScriptedRef = { file: string; value: string }
 const scriptedRefs: ScriptedRef[] = []

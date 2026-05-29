@@ -1,6 +1,6 @@
 import { db } from '@/db'
-import { residents, stylists, services, bookings, logEntries, stylistCheckins } from '@/db/schema'
-import { and, eq, lt, sql } from 'drizzle-orm'
+import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries, stylistCheckins } from '@/db/schema'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -23,6 +23,19 @@ export async function GET(request: Request) {
       db.delete(stylistCheckins).where(and(eq(stylistCheckins.isDemo, true), lt(stylistCheckins.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: stylistCheckins.id }),
     ])
 
+    // Demo facilities: delete facilityUsers FK first, then the facility rows
+    const demoFacilities = await db
+      .select({ id: facilities.id })
+      .from(facilities)
+      .where(and(eq(facilities.isDemo, true), eq(facilities.active, false), lt(facilities.createdAt, sql`${cutoff}::timestamptz`)))
+    let facilityCount = 0
+    if (demoFacilities.length > 0) {
+      const ids = demoFacilities.map((f) => f.id)
+      await db.delete(facilityUsers).where(inArray(facilityUsers.facilityId, ids))
+      const deleted = await db.delete(facilities).where(inArray(facilities.id, ids)).returning({ id: facilities.id })
+      facilityCount = deleted.length
+    }
+
     return Response.json({
       data: {
         deleted: {
@@ -32,6 +45,7 @@ export async function GET(request: Request) {
           bookings: b.length,
           logEntries: le.length,
           checkins: sc.length,
+          facilities: facilityCount,
         },
       },
     })

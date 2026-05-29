@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { BillingClient } from './billing-client'
@@ -24,7 +24,7 @@ export default async function BillingPage() {
     isMaster ? Promise.resolve(null) : getUserFacility(user.id),
     isMaster
       ? db.query.facilities.findMany({
-          where: eq(facilities.active, true),
+          where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
           columns: { id: true, name: true, facilityCode: true },
         })
       : Promise.resolve(null),

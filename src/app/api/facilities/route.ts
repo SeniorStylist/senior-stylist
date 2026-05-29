@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, facilityUsers, profiles } from '@/db/schema'
 import { and, eq, sql, asc } from 'drizzle-orm'
+import { isTutorialRequest } from '@/lib/help/tutorial-request'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
@@ -28,7 +29,7 @@ export async function GET() {
 
     if (isSuperAdmin) {
       const allFacilities = await db.query.facilities.findMany({
-        where: eq(facilities.active, true),
+        where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
         orderBy: [asc(facilities.name)],
       })
       return Response.json({ data: allFacilities.map((f) => ({ ...f, role: 'admin' })) })
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const isDemo = isTutorialRequest(request)
+
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
@@ -68,15 +71,18 @@ export async function POST(request: NextRequest) {
 
     const { name, address, phone, timezone } = parsed.data
 
-    // Check for duplicate name (case-insensitive) among active facilities only
-    const existing = await db.query.facilities.findFirst({
-      where: (t, { and, eq }) => and(
-        sql`lower(${t.name}) = lower(${name})`,
-        eq(t.active, true)
-      ),
-    })
-    if (existing) {
-      return Response.json({ error: 'A facility with this name already exists' }, { status: 409 })
+    // Check for duplicate name (case-insensitive) among active non-demo facilities only
+    if (!isDemo) {
+      const existing = await db.query.facilities.findFirst({
+        where: (t, { and, eq }) => and(
+          sql`lower(${t.name}) = lower(${name})`,
+          eq(t.active, true),
+          eq(t.isDemo, false),
+        ),
+      })
+      if (existing) {
+        return Response.json({ error: 'A facility with this name already exists' }, { status: 409 })
+      }
     }
 
     const [facility] = await db
@@ -86,6 +92,7 @@ export async function POST(request: NextRequest) {
         address: address ?? null,
         phone: phone ?? null,
         timezone: timezone ?? 'America/New_York',
+        isDemo,
       })
       .returning()
 
