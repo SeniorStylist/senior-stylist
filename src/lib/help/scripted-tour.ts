@@ -3,12 +3,17 @@
 // character-driven tutorials. Lazy-loaded to keep the main bundle clean.
 
 import type { ScriptedTour, ScriptedTourState } from './scripted-tour-types'
-import { setTourModeActive } from './tour-mode'
-import { installTourFetchInterceptor } from './tour-fetch-interceptor'
+import { setScriptedTourActive } from './tour-mode'
+import { installTutorialFetchWrapper } from './tour-tutorial-fetch'
 import { getTourRouter } from './tour-router'
+import { waitForElement, resolveQuery } from './tours'
 
 const SESSION_KEY = 'scriptedTour'
 const SESSION_TTL = 10 * 60 * 1000 // 10 minutes
+const STEP_WAIT_MS = 3000 // worst-case wait for a step's target to mount
+
+// Active capture-phase click listener for the current action step (if any).
+let _activeListenerCleanup: (() => void) | null = null
 
 let _activeTour: ScriptedTour | null = null
 let _activeState: ScriptedTourState | null = null
@@ -45,8 +50,10 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
     return
   }
 
-  installTourFetchInterceptor()
-  setTourModeActive(true)
+  // Scripted tours let real writes through (tagged is_demo via the X-Tutorial-Mode
+  // header) — they do NOT install the legacy write-faking interceptor.
+  installTutorialFetchWrapper()
+  setScriptedTourActive(true)
 
   _activeTour = tour
   _activeState = { tourId, stepIndex: 0, scenarioState, startedAt: Date.now() }
@@ -54,6 +61,7 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   saveSessionState()
   _setUiState?.({ tourId, stepIndex: 0 })
   trackStep(tourId, 0, 'shown')
+  wireStep(tour.steps[0], 0)
 }
 
 export function advanceStep() {
@@ -70,25 +78,18 @@ export function advanceStep() {
   saveSessionState()
 
   const step = _activeTour.steps[nextIndex]
-  if (step) {
-    // Navigate if the step requires a different route
-    if (step.route) {
-      const router = getTourRouter()
-      if (router) {
-        router.push(step.route)
-      } else {
-        window.location.href = step.route
-      }
+  if (step?.route) {
+    const router = getTourRouter()
+    if (router) {
+      router.push(step.route)
+    } else {
+      window.location.href = step.route
     }
   }
 
   _setUiState?.({ tourId: _activeState.tourId, stepIndex: nextIndex })
   trackStep(_activeState.tourId, nextIndex, 'shown')
-
-  // Auto-fill for type steps
-  if (step?.type === 'type' && step.selector && step.typeValue) {
-    setTimeout(() => autoFillInput(step.selector!, step.typeValue!), 150)
-  }
+  wireStep(step, nextIndex)
 }
 
 export function retreatStep() {
@@ -97,13 +98,15 @@ export function retreatStep() {
   _activeState = { ..._activeState, stepIndex: prevIndex }
   saveSessionState()
   _setUiState?.({ tourId: _activeState.tourId, stepIndex: prevIndex })
+  wireStep(_activeTour.steps[prevIndex], prevIndex)
 }
 
 export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
   if (_activeState) {
     trackStep(_activeState.tourId, _activeState.stepIndex, reason)
   }
-  setTourModeActive(false)
+  clearActiveListener()
+  setScriptedTourActive(false)
   clearSessionState()
   _activeTour = null
   _activeState = null
@@ -114,33 +117,75 @@ function completeTour() {
   if (!_activeTour || !_activeState) return
   const tourId = _activeTour.id
   trackStep(tourId, _activeState.stepIndex, 'completed')
+  clearActiveListener()
   // Dispatch completion event (same pattern as legacy engine)
   window.dispatchEvent(new CustomEvent('tour-completed', { detail: { tourId } }))
-  // Mark completed in profiles (fire-and-forget)
+  // Mark completed in profiles (fire-and-forget). Fire AFTER flipping the flag
+  // off so the wrapper doesn't tag this telemetry write as a tutorial write.
+  setScriptedTourActive(false)
   fetch('/api/profile/complete-tour', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tourId }),
   }).catch(() => {})
-  setTourModeActive(false)
   clearSessionState()
   _activeState = null
   // Show celebration — UI stays mounted with stepIndex = totalSteps
   _setUiState?.({ tourId, stepIndex: _activeTour.steps.length })
 }
 
-// Auto-fill a React controlled input using the native setter trick
-function autoFillInput(selector: string, value: string) {
-  const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)
-  if (!input) return
-  const nativeInputValueSetter =
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ??
-    Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
-  if (nativeInputValueSetter) {
-    nativeInputValueSetter.call(input, value)
+// ─── Step wiring ──────────────────────────────────────────────────────────
+// Runs whenever we land on a step. Click steps wait for the real element and
+// advance on the user's real click; type steps auto-fill the field (the popover
+// shows Next so the user reads what happened, then advances). Info/highlight
+// steps need nothing — the popover's Next button drives them.
+function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number) {
+  clearActiveListener()
+  if (!step?.selector) return
+  const selector = resolveQuery(step.selector)
+
+  if (step.type === 'click') {
+    void waitForElement(selector, STEP_WAIT_MS).then((target) => {
+      if (!target || _activeState?.stepIndex !== index) return
+      const onClick = () => {
+        clearActiveListener()
+        // 50ms lets React process the click first (modal opens, nav fires).
+        setTimeout(() => advanceStep(), 50)
+      }
+      target.addEventListener('click', onClick, true)
+      _activeListenerCleanup = () => target.removeEventListener('click', onClick, true)
+    })
+    return
   }
-  input.dispatchEvent(new InputEvent('input', { bubbles: true }))
-  input.dispatchEvent(new Event('change', { bubbles: true }))
+
+  if (step.type === 'type' && step.typeValue != null) {
+    void waitForElement(selector, STEP_WAIT_MS).then((el) => {
+      if (!el || _activeState?.stepIndex !== index) return
+      autoFillInput(el, step.typeValue!)
+    })
+  }
+}
+
+function clearActiveListener() {
+  if (_activeListenerCleanup) {
+    _activeListenerCleanup()
+    _activeListenerCleanup = null
+  }
+}
+
+// Auto-fill a React controlled input/textarea/select using the native setter
+// trick so the controlled component's onChange fires.
+function autoFillInput(el: HTMLElement, value: string) {
+  const proto =
+    el instanceof HTMLSelectElement
+      ? window.HTMLSelectElement.prototype
+      : el instanceof HTMLTextAreaElement
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+  if (setter) setter.call(el, value)
+  el.dispatchEvent(new InputEvent('input', { bubbles: true }))
+  el.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
 // Session persistence — survive soft navigations
@@ -169,9 +214,10 @@ export function resumeScriptedTour(): boolean {
     }
     startScriptedTour(saved.tourId, saved.scenarioState)
     // Jump to the saved step
-    if (_activeState && saved.stepIndex > 0) {
+    if (_activeTour && _activeState && saved.stepIndex > 0) {
       _activeState.stepIndex = saved.stepIndex
       _setUiState?.({ tourId: saved.tourId, stepIndex: saved.stepIndex })
+      wireStep(_activeTour.steps[saved.stepIndex], saved.stepIndex)
     }
     return true
   } catch {

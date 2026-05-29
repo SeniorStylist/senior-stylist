@@ -7,6 +7,7 @@ interface ScriptedTourSheetProps {
   step: ScriptedStep
   stepIndex: number
   totalSteps: number
+  isAction?: boolean
   onNext: () => void
   onPrev: () => void
   onClose: () => void
@@ -17,6 +18,7 @@ export function ScriptedTourSheet({
   step,
   stepIndex,
   totalSteps,
+  isAction = false,
   onNext,
   onPrev,
   onClose,
@@ -37,7 +39,8 @@ export function ScriptedTourSheet({
       const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current
       const dy = (e.changedTouches[0]?.clientY ?? 0) - touchStartY.current
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-        if (dx < 0) onNext()
+        // On action steps, forward swipe must not skip the real tap.
+        if (dx < 0) { if (!isAction) onNext() }
         else onPrev()
       }
     }
@@ -47,7 +50,7 @@ export function ScriptedTourSheet({
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchend', onTouchEnd)
     }
-  }, [onNext, onPrev, sheetRef])
+  }, [onNext, onPrev, sheetRef, isAction])
 
   const isFirst = stepIndex === 0
   const isLast = stepIndex === totalSteps - 1
@@ -130,23 +133,44 @@ export function ScriptedTourSheet({
 
       {/* Buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button
-          aria-label={isLast ? 'Complete tutorial' : 'Next step'}
-          onClick={onNext}
-          style={{
-            minHeight: 52,
-            borderRadius: 14,
-            border: 'none',
-            background: '#8B2E4A',
-            color: 'white',
-            fontSize: 16,
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 2px 10px rgba(139,46,74,0.3)',
-          }}
-        >
-          {isLast ? '✓ Done' : 'Next →'}
-        </button>
+        {isAction ? (
+          // Advance is driven by the user's real tap on the highlighted target.
+          <div
+            style={{
+              minHeight: 52,
+              borderRadius: 14,
+              background: '#FBEEF2',
+              color: '#8B2E4A',
+              fontSize: 15,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '0 12px',
+            }}
+          >
+            👆 Tap the highlighted spot to continue
+          </div>
+        ) : (
+          <button
+            aria-label={isLast ? 'Complete tutorial' : 'Next step'}
+            onClick={onNext}
+            style={{
+              minHeight: 52,
+              borderRadius: 14,
+              border: 'none',
+              background: '#8B2E4A',
+              color: 'white',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 10px rgba(139,46,74,0.3)',
+            }}
+          >
+            {isLast ? '✓ Done' : 'Next →'}
+          </button>
+        )}
         {!isFirst && (
           <button
             aria-label="Previous step"

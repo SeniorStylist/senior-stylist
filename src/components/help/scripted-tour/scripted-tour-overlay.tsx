@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import type { ScriptedTour } from '@/lib/help/scripted-tour-types'
+import { resolveQuery } from '@/lib/help/tours'
 
 const SpotlightMask = dynamic(() => import('./spotlight-mask').then((m) => ({ default: m.SpotlightMask })), { ssr: false })
 const SpotlightRing = dynamic(() => import('./spotlight-ring').then((m) => ({ default: m.SpotlightRing })), { ssr: false })
@@ -51,7 +52,7 @@ export function ScriptedTourOverlay() {
 
     function updateRect() {
       if (!step?.selector) { setTargetRect(null); return }
-      const el = document.querySelector(step.selector)
+      const el = document.querySelector(resolveQuery(step.selector))
       if (el) {
         const rect = el.getBoundingClientRect()
         setTargetRect(rect)
@@ -112,23 +113,26 @@ export function ScriptedTourOverlay() {
   if (!step) return null
 
   const popoverEl = isMobile ? sheetRef.current : popoverRef.current
+  const isAction = step.type === 'click'
 
   return (
     <>
       <SpotlightMask
         targetRect={targetRect ? { x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height } : null}
+        isAction={isAction}
         onClose={handleClose}
       />
       {targetRect && (
         <SpotlightRing
           targetRect={{ x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height }}
-          pulse={step.type === 'click'}
+          isAction={isAction}
         />
       )}
       {targetRect && popoverEl && (
         <TargetArrow
           targetRect={{ x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height }}
           popoverEl={popoverEl}
+          isAction={isAction}
         />
       )}
       {isMobile ? (
@@ -136,6 +140,7 @@ export function ScriptedTourOverlay() {
           step={step}
           stepIndex={active.stepIndex}
           totalSteps={tour.steps.length}
+          isAction={isAction}
           onNext={handleNext}
           onPrev={handlePrev}
           onClose={handleClose}
@@ -147,6 +152,7 @@ export function ScriptedTourOverlay() {
           stepIndex={active.stepIndex}
           totalSteps={tour.steps.length}
           targetRect={targetRect}
+          isAction={isAction}
           onNext={handleNext}
           onPrev={handlePrev}
           onClose={handleClose}

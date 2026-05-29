@@ -65,9 +65,10 @@ function computeGeometry(targetRect: Rect, popoverRect: Rect, reducedMotion: boo
 interface TargetArrowProps {
   targetRect: Rect
   popoverEl: HTMLElement | null
+  isAction?: boolean
 }
 
-export function TargetArrow({ targetRect, popoverEl }: TargetArrowProps) {
+export function TargetArrow({ targetRect, popoverEl, isAction = false }: TargetArrowProps) {
   const [geo, setGeo] = useState<ArrowGeometry | null>(null)
   const rafRef = useRef<number>(0)
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -97,7 +98,13 @@ export function TargetArrow({ targetRect, popoverEl }: TargetArrowProps) {
   if (!geo) return null
 
   const { tip, tail, ctrl, headAngle } = geo
-  const ARROWHEAD_SIZE = 8
+  // Action steps get a bigger, solid, fully-opaque arrow so it's obvious what to
+  // click; info steps keep the subtle dashed pointer.
+  const ARROWHEAD_SIZE = isAction ? 18 : 8
+  const strokeWidth = isAction ? 4 : 2.5
+  const strokeDash = isAction ? 'none' : reducedMotion ? 'none' : '6 3'
+  const lineOpacity = isAction ? 1 : 0.85
+  const headOpacity = isAction ? 1 : 0.9
 
   // Arrowhead points (pointing right along X axis, rotated to match tangent)
   const arrowPoints = [
@@ -131,12 +138,12 @@ export function TargetArrow({ targetRect, popoverEl }: TargetArrowProps) {
         d={`M ${tail.x} ${tail.y} Q ${ctrl.x} ${ctrl.y} ${tip.x} ${tip.y}`}
         fill="none"
         stroke="#8B2E4A"
-        strokeWidth="2.5"
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
-        strokeDasharray={reducedMotion ? 'none' : '6 3'}
-        opacity="0.85"
+        strokeDasharray={strokeDash}
+        opacity={lineOpacity}
       />
-      <polygon points={arrowPoints} fill="#8B2E4A" opacity="0.9" />
+      <polygon points={arrowPoints} fill="#8B2E4A" opacity={headOpacity} />
     </svg>
   )
 }

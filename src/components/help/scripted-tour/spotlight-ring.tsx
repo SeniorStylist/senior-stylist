@@ -10,16 +10,20 @@ interface Rect {
 interface SpotlightRingProps {
   targetRect: Rect
   padding?: number
-  pulse?: boolean
+  isAction?: boolean
 }
 
-export function SpotlightRing({ targetRect, padding = 8, pulse = false }: SpotlightRingProps) {
+export function SpotlightRing({ targetRect, padding = 8, isAction = false }: SpotlightRingProps) {
   return (
     <>
       <style>{`
         @keyframes scripted-tour-pulse {
           0%, 100% { box-shadow: 0 0 0 3px rgba(139,46,74,0.55), 0 0 0 6px rgba(139,46,74,0.2); opacity: 1; }
           50% { box-shadow: 0 0 0 5px rgba(139,46,74,0.35), 0 0 0 10px rgba(139,46,74,0.1); opacity: 0.85; }
+        }
+        @keyframes scripted-tour-pulse-action {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.95), 0 0 0 7px rgba(139,46,74,0.75), 0 0 22px 6px rgba(139,46,74,0.45); opacity: 1; }
+          50% { box-shadow: 0 0 0 4px rgba(255,255,255,0.85), 0 0 0 11px rgba(139,46,74,0.45), 0 0 30px 10px rgba(139,46,74,0.25); opacity: 0.9; }
         }
         @media (prefers-reduced-motion: reduce) {
           .scripted-tour-ring { animation: none !important; }
@@ -34,10 +38,16 @@ export function SpotlightRing({ targetRect, padding = 8, pulse = false }: Spotli
           width: targetRect.width + padding * 2,
           height: targetRect.height + padding * 2,
           borderRadius: 12,
-          boxShadow: '0 0 0 3px rgba(139,46,74,0.55)',
+          // Action steps get a bright white inner highlight + burgundy glow so the
+          // clickable target visibly "lights up"; info steps keep the subtle ring.
+          boxShadow: isAction
+            ? '0 0 0 3px rgba(255,255,255,0.95), 0 0 0 7px rgba(139,46,74,0.75), 0 0 22px 6px rgba(139,46,74,0.45)'
+            : '0 0 0 3px rgba(139,46,74,0.55)',
           pointerEvents: 'none',
           zIndex: 9001,
-          animation: pulse ? 'scripted-tour-pulse 1.8s ease-in-out infinite' : 'none',
+          animation: isAction
+            ? 'scripted-tour-pulse-action 1.6s ease-in-out infinite'
+            : 'none',
         }}
       />
     </>

@@ -20,3 +20,19 @@ export function setTourModeActive(active: boolean) {
 export function isTourModeActive(): boolean {
   return _tourModeActive
 }
+
+// Phase 13-Tutorial — separate flag for the scripted-tour engine. Unlike the
+// legacy flag above (which drives the write-FAKING interceptor), this flag
+// drives the tutorial fetch WRAPPER, which lets real writes through but tags
+// them with the X-Tutorial-Mode header so the server persists is_demo=true and
+// relaxes its demo read filters. Kept distinct so the two engines never
+// interfere — a scripted tour never fakes writes, and a legacy tour never tags.
+let _scriptedTourActive = false
+
+export function setScriptedTourActive(active: boolean) {
+  _scriptedTourActive = active
+}
+
+export function isScriptedTourActive(): boolean {
+  return _scriptedTourActive
+}

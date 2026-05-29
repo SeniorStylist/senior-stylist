@@ -8,6 +8,7 @@ interface ScriptedTourPopoverProps {
   stepIndex: number
   totalSteps: number
   targetRect: DOMRect | null
+  isAction?: boolean
   onNext: () => void
   onPrev: () => void
   onClose: () => void
@@ -56,6 +57,7 @@ export function ScriptedTourPopover({
   stepIndex,
   totalSteps,
   targetRect,
+  isAction = false,
   onNext,
   onPrev,
   onClose,
@@ -79,16 +81,17 @@ export function ScriptedTourPopover({
     return () => cancelAnimationFrame(t)
   }, [stepIndex])
 
-  // Keyboard navigation
+  // Keyboard navigation. On action steps, forward-advance is driven by the real
+  // click on the highlighted element — don't let Enter/ArrowRight skip it.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowRight' || e.key === 'Enter') onNext()
+      if (!isAction && (e.key === 'ArrowRight' || e.key === 'Enter')) onNext()
       if (e.key === 'ArrowLeft') onPrev()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onNext, onPrev, onClose])
+  }, [onNext, onPrev, onClose, isAction])
 
   const isFirst = stepIndex === 0
   const isLast = stepIndex === totalSteps - 1
@@ -171,7 +174,7 @@ export function ScriptedTourPopover({
         </div>
 
         {/* Buttons */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {!isFirst && (
             <button
               aria-label="Previous step"
@@ -191,25 +194,43 @@ export function ScriptedTourPopover({
               ← Back
             </button>
           )}
-          <button
-            ref={nextBtnRef}
-            aria-label={isLast ? 'Complete tutorial' : 'Next step'}
-            onClick={onNext}
-            style={{
-              flex: 1,
-              padding: '9px 16px',
-              borderRadius: 10,
-              border: 'none',
-              background: '#8B2E4A',
-              color: 'white',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(139,46,74,0.25)',
-            }}
-          >
-            {isLast ? '✓ Done' : 'Next →'}
-          </button>
+          {isAction ? (
+            // Advance is driven by the user's real click on the highlighted target.
+            <div
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                borderRadius: 10,
+                background: '#FBEEF2',
+                color: '#8B2E4A',
+                fontSize: 12.5,
+                fontWeight: 600,
+                textAlign: 'center',
+              }}
+            >
+              👆 Click the highlighted spot to continue
+            </div>
+          ) : (
+            <button
+              ref={nextBtnRef}
+              aria-label={isLast ? 'Complete tutorial' : 'Next step'}
+              onClick={onNext}
+              style={{
+                flex: 1,
+                padding: '9px 16px',
+                borderRadius: 10,
+                border: 'none',
+                background: '#8B2E4A',
+                color: 'white',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(139,46,74,0.25)',
+              }}
+            >
+              {isLast ? '✓ Done' : 'Next →'}
+            </button>
+          )}
         </div>
       </div>
     </div>
