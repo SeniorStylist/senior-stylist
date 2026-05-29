@@ -18,6 +18,8 @@ export async function POST() {
     return Response.json({ error: 'No facility found' }, { status: 404 })
   }
 
+  if (!facilityUser) return Response.json({ error: 'No facility found' }, { status: 404 })
+
   try {
     const ids = await seedFacilityDemoData(facilityUser.facilityId)
     return Response.json({ data: ids })
