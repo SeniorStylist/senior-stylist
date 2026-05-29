@@ -43,6 +43,8 @@ export type Tutorial = {
   masterOnly?: boolean
   /** Phase 12Y — viewport gate. Defaults to 'both' when omitted. */
   platform?: 'mobile' | 'desktop' | 'both'
+  /** Phase 13 — scenario summary shown on help cards, e.g. "Book Mrs. Smith for a wash and set". */
+  scenarioSummary?: string
 }
 
 export type TourStep = {

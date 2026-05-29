@@ -62,7 +62,7 @@ export default async function DashboardPage() {
   // Fetch profile once: stylistId (for stylist filter) + hasSeenOnboardingTour (welcome modal flag)
   const profile = await db.query.profiles.findFirst({
     where: eq(profiles.id, user.id),
-    columns: { stylistId: true, hasSeenOnboardingTour: true, completedTours: true },
+    columns: { stylistId: true, hasSeenOnboardingTour: true, completedTours: true, hasSeenFirstTour: true },
   })
   const profileStylistId =
     facilityUser.role === 'stylist' ? profile?.stylistId ?? null : null
@@ -283,6 +283,7 @@ export default async function DashboardPage() {
           completedTours={profile?.completedTours ?? []}
           isMaster={isMaster}
           userId={user.id}
+          hasSeenFirstTour={profile?.hasSeenFirstTour ?? true}
           alreadyCheckedIn={!!todayCheckin}
           checkinTodayBookings={todayBookingsForClient}
         />

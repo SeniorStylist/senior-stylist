@@ -43,7 +43,7 @@ export default async function HelpPage() {
 
   const profile = await db.query.profiles.findFirst({
     where: eq(profiles.id, user.id),
-    columns: { completedTours: true },
+    columns: { completedTours: true, helpProgress: true },
   })
 
   return (
@@ -51,6 +51,7 @@ export default async function HelpPage() {
       role={effectiveRole}
       isMaster={isMaster}
       completedTours={profile?.completedTours ?? []}
+      helpProgress={profile?.helpProgress ?? null}
     />
   )
 }

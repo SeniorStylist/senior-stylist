@@ -69,6 +69,11 @@ export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
       </div>
 
       <p className="text-sm text-stone-500 leading-snug">{tutorial.blurb}</p>
+      {tutorial.scenarioSummary && (
+        <p className="text-[12px] text-stone-400 italic leading-snug">
+          &ldquo;{tutorial.scenarioSummary}&rdquo;
+        </p>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2 mt-auto pt-1">
         <button
