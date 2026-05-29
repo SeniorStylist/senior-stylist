@@ -19,6 +19,7 @@ export function QuickBookFAB({ onOpen }: QuickBookFABProps) {
   return (
     <button
       onClick={handleClick}
+      data-tour-mobile="dashboard-new-booking-fab"
       aria-label="Quick book appointment"
       className={cn(
         'md:hidden fixed right-5 w-14 h-14 rounded-full bg-[#8B2E4A] text-white',

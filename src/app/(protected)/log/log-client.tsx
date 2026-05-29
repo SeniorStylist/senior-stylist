@@ -1149,6 +1149,7 @@ export function LogClient({
                         {/* Payment status badge/toggle */}
                         {!isCancelled && !isEditing && (
                           <button
+                            data-tour="log-payment-toggle"
                             onClick={() => !isFinalized && updatePaymentStatus(booking.id, booking.paymentStatus ?? 'unpaid')}
                             disabled={isUpdating || isFinalized}
                             title={isFinalized ? `Payment: ${booking.paymentStatus ?? 'unpaid'}` : 'Toggle payment status'}

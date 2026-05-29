@@ -47,7 +47,7 @@ export default async function LogPage() {
       where: and(
         eq(bookings.facilityId, facilityId),
         eq(bookings.active, true),
-        ...(tutorialMode ? [] : [eq(bookings.isDemo, false)]), // is_demo filter — Phase 13
+        eq(bookings.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
         gte(bookings.startTime, dayStart),
         lt(bookings.startTime, dayEnd)
       ),
@@ -57,20 +57,20 @@ export default async function LogPage() {
     db.query.logEntries.findMany({
       where: and(
         eq(logEntries.facilityId, facilityId),
-        ...(tutorialMode ? [] : [eq(logEntries.isDemo, false)]), // is_demo filter — Phase 13
+        eq(logEntries.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
         eq(logEntries.date, today)
       ),
     }),
     db.query.residents.findMany({
-      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), ...(tutorialMode ? [] : [eq(residents.isDemo, false)])), // is_demo filter — Phase 13
+      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, tutorialMode)), // is_demo filter — Phase 13 (demo-only during a tour)
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.stylists.findMany({
-      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true), ...(tutorialMode ? [] : [eq(stylists.isDemo, false)])), // is_demo filter — Phase 13
+      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true), eq(stylists.isDemo, tutorialMode)), // is_demo filter — Phase 13 (demo-only during a tour)
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.services.findMany({
-      where: and(eq(services.facilityId, facilityId), eq(services.active, true), ...(tutorialMode ? [] : [eq(services.isDemo, false)])), // is_demo filter — Phase 13
+      where: and(eq(services.facilityId, facilityId), eq(services.active, true), eq(services.isDemo, tutorialMode)), // is_demo filter — Phase 13 (demo-only during a tour)
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
     db.query.facilities.findFirst({

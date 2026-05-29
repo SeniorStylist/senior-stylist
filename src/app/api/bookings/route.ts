@@ -55,10 +55,9 @@ export async function GET(request: NextRequest) {
     const startParam = searchParams.get('start')
     const endParam = searchParams.get('end')
 
-    // is_demo filter — Phase 13. During a scripted tour (X-Tutorial-Mode header),
-    // include demo bookings so the tour-created appointment is visible.
-    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true)]
-    if (!isTutorialRequest(request)) conditions.push(eq(bookings.isDemo, false))
+    // is_demo filter — Phase 13. During a scripted tour the calendar shows ONLY
+    // the demo booking (sandbox); normally it shows only real bookings.
+    const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true), eq(bookings.isDemo, isTutorialRequest(request))]
 
     if (startParam) {
       conditions.push(gte(bookings.startTime, new Date(startParam)))
@@ -181,7 +180,7 @@ export async function POST(request: NextRequest) {
     if (stylistId) {
       resolvedStylistId = stylistId
     } else {
-      const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, includeDemo: isDemo })
+      const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, demoOnly: isDemo })
       if (candidates.length === 0) {
         return Response.json(
           { error: 'No stylist available for this date and time' },

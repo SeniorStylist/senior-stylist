@@ -613,6 +613,7 @@ export function BookingModal({
           </label>
           <input
             ref={residentInputRef}
+            data-tour="booking-modal-resident"
             type="text"
             value={residentSearch}
             onChange={(e) => {
@@ -720,6 +721,7 @@ export function BookingModal({
                     <button
                       key={r.id}
                       type="button"
+                      data-tour="booking-modal-resident-option"
                       onMouseDown={() => {
                         setSelectedResidentId(r.id)
                         setResidentSearch(r.name)
@@ -790,6 +792,7 @@ export function BookingModal({
             return (
               <div key={idx} className="flex items-center gap-2">
                 <select
+                  {...(idx === 0 ? { 'data-tour': 'booking-modal-service' } : {})}
                   value={svcId}
                   onChange={(e) => setServiceAt(idx, e.target.value)}
                   disabled={submitting}
@@ -1009,6 +1012,7 @@ export function BookingModal({
             Date & Time <span className="text-red-400">*</span>
           </label>
           <input
+            data-tour="booking-modal-date"
             type="datetime-local"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
@@ -1248,6 +1252,7 @@ export function BookingModal({
           Close
         </Button>
         <Button
+          data-tour="booking-modal-submit"
           onClick={handleSubmit}
           loading={submitting}
           disabled={submitDisabled}
@@ -1273,7 +1278,7 @@ export function BookingModal({
         {breakdown}
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={submitDisabled}>
+          <Button data-tour="booking-modal-submit" onClick={handleSubmit} loading={submitting} disabled={submitDisabled}>
             {mode === 'create' ? 'Book appointment' : 'Save changes'}
           </Button>
         </div>

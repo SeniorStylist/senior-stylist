@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'endTime must be after startTime' }, { status: 422 })
     }
 
-    const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, includeDemo: await isTutorialModeActive() })
+    const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, demoOnly: await isTutorialModeActive() })
     if (candidates.length === 0) {
       return Response.json({ data: { available: [], picked: null } })
     }

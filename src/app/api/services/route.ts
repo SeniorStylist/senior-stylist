@@ -47,10 +47,10 @@ export async function GET() {
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
-    // is_demo filter — Phase 13. Relaxed during an active scripted tour.
+    // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.
     const tut = await isTutorialModeActive()
     const data = await db.query.services.findMany({
-      where: and(eq(services.facilityId, facilityId), eq(services.active, true), ...(tut ? [] : [eq(services.isDemo, false)])),
+      where: and(eq(services.facilityId, facilityId), eq(services.active, true), eq(services.isDemo, tut)),
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

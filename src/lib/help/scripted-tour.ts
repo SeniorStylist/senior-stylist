@@ -181,13 +181,23 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
   if (step.type === 'click') {
     void waitForElement(selector, STEP_WAIT_MS).then((target) => {
       if (!target || _activeState?.stepIndex !== index) return
-      const onClick = () => {
+      // Listen for pointerdown AND click (capture). pointerdown is essential for
+      // targets that vanish on mousedown (e.g. a typeahead option that closes its
+      // own dropdown) — a click would never land. Fire once.
+      let fired = false
+      const onActivate = () => {
+        if (fired) return
+        fired = true
         clearActiveListener()
-        // 50ms lets React process the click first (modal opens, nav fires).
+        // 50ms lets React process the interaction first (modal opens, nav fires).
         setTimeout(() => advanceStep(), 50)
       }
-      target.addEventListener('click', onClick, true)
-      _activeListenerCleanup = () => target.removeEventListener('click', onClick, true)
+      target.addEventListener('pointerdown', onActivate, true)
+      target.addEventListener('click', onActivate, true)
+      _activeListenerCleanup = () => {
+        target.removeEventListener('pointerdown', onActivate, true)
+        target.removeEventListener('click', onActivate, true)
+      }
     })
     return
   }

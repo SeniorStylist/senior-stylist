@@ -126,10 +126,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // is_demo filter — Phase 13. Relaxed during an active scripted tour.
+    // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.
     const tut = await isTutorialModeActive()
     const rows = await db.query.stylists.findMany({
-      where: tut ? whereClause : and(whereClause, eq(stylists.isDemo, false)),
+      where: and(whereClause, eq(stylists.isDemo, tut)),
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

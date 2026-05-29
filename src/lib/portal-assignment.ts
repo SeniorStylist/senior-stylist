@@ -35,12 +35,12 @@ export async function resolveAvailableStylists(opts: {
   facilityId: string
   startTime: Date
   endTime: Date
-  // Phase 13 — include is_demo stylists (e.g. Demo Sarah) so tutorial bookings
-  // can auto-resolve them. Defaults false so demo stylists never leak into real
-  // booking previews / portal assignment.
-  includeDemo?: boolean
+  // Phase 13 — during a scripted tour, resolve ONLY demo stylists (Demo Sarah)
+  // so the sandbox booking never touches a real stylist. Defaults false
+  // (real-only) so demo stylists never leak into real previews / portal.
+  demoOnly?: boolean
 }): Promise<AvailableStylist[]> {
-  const { facilityId, startTime, endTime, includeDemo = false } = opts
+  const { facilityId, startTime, endTime, demoOnly = false } = opts
   const dow = startTime.getUTCDay()
   const startHM = hhmm(startTime)
   const endHM = hhmm(endTime)
@@ -57,7 +57,7 @@ export async function resolveAvailableStylists(opts: {
         eq(stylistFacilityAssignments.active, true),
       ),
     )
-    .where(and(eq(stylists.active, true), eq(stylists.status, 'active'), ...(includeDemo ? [] : [eq(stylists.isDemo, false)])))
+    .where(and(eq(stylists.active, true), eq(stylists.status, 'active'), eq(stylists.isDemo, demoOnly)))
 
   if (!facStylists.length) return []
   const stylistIds = facStylists.map((s) => s.id)

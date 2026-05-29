@@ -35,27 +35,23 @@ export async function GET(request: NextRequest) {
     const dayStart = new Date(dateParam + 'T00:00:00.000Z')
     const dayEnd = new Date(dateParam + 'T23:59:59.999Z')
 
-    // is_demo filter — Phase 13. Relax during a scripted tour so the tour's demo
-    // booking + log entry are visible.
-    const includeDemo = isTutorialRequest(request)
-    const bookingConds = [
-      eq(bookings.facilityId, facilityId),
-      eq(bookings.active, true),
-      gte(bookings.startTime, dayStart),
-      lt(bookings.startTime, dayEnd),
-    ]
-    if (!includeDemo) bookingConds.push(eq(bookings.isDemo, false))
-    const logConds = [eq(logEntries.facilityId, facilityId), eq(logEntries.date, dateParam)]
-    if (!includeDemo) logConds.push(eq(logEntries.isDemo, false))
-
+    // is_demo filter — Phase 13. During a scripted tour show ONLY demo records
+    // (sandbox); normally show only real records.
+    const demo = isTutorialRequest(request)
     const [dayBookings, dayLogEntries] = await Promise.all([
       db.query.bookings.findMany({
-        where: and(...bookingConds),
+        where: and(
+          eq(bookings.facilityId, facilityId),
+          eq(bookings.active, true),
+          eq(bookings.isDemo, demo),
+          gte(bookings.startTime, dayStart),
+          lt(bookings.startTime, dayEnd),
+        ),
         with: { resident: true, stylist: true, service: true },
         orderBy: (t, { asc }) => [asc(t.startTime)],
       }),
       db.query.logEntries.findMany({
-        where: and(...logConds),
+        where: and(eq(logEntries.facilityId, facilityId), eq(logEntries.isDemo, demo), eq(logEntries.date, dateParam)),
       }),
     ])
 

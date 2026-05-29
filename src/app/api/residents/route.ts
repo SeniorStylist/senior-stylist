@@ -43,12 +43,9 @@ export async function GET(request: NextRequest) {
       facilityId = facilityUser.facilityId
     }
 
-    // is_demo filter — Phase 13. Relaxed during a scripted tour.
-    const residentConds = [eq(residents.facilityId, facilityId), eq(residents.active, true)]
-    if (!isTutorialRequest(request)) residentConds.push(eq(residents.isDemo, false))
-
+    // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.
     const data = await db.query.residents.findMany({
-      where: and(...residentConds),
+      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, isTutorialRequest(request))),
       columns: paramFacilityId
         ? { id: true, name: true, roomNumber: true }
         : undefined,
