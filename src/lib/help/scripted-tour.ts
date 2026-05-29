@@ -59,10 +59,41 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   _activeTour = tour
   _activeState = { tourId, stepIndex: 0, scenarioState, startedAt: Date.now() }
 
+  // Navigate to the first step's route if we're not already there (so a tour
+  // launched from /help lands on the right page before anchoring).
+  const first = tour.steps[0]
+  if (first?.route && typeof window !== 'undefined' && window.location.pathname !== first.route) {
+    const router = getTourRouter()
+    if (router) router.push(first.route)
+    else window.location.href = first.route
+  }
+
   saveSessionState()
   _setUiState?.({ tourId, stepIndex: 0 })
   trackStep(tourId, 0, 'shown')
-  wireStep(tour.steps[0], 0)
+  wireStep(first, 0)
+}
+
+// Seed the facility's demo data, then start the tour with the resolved demo
+// record IDs as scenarioState. The IDs are referenced by `type` steps via
+// {{slug}} placeholders in typeValue (e.g. {{wash-and-set}}).
+export async function seedAndStart(tourId: string): Promise<void> {
+  let scenarioState: Record<string, string> = {}
+  try {
+    const res = await fetch('/api/help/seed-demo-data', { method: 'POST' })
+    if (res.ok) {
+      const { data } = await res.json()
+      scenarioState = { ...data.residents, ...data.services, ...data.stylists }
+    }
+  } catch { /* seeding is best-effort; tour still runs */ }
+  await startScriptedTour(tourId, scenarioState)
+}
+
+// Resolve {{slug}} placeholders in a type step's value against scenarioState.
+function resolveTypeValue(raw: string): string {
+  const m = raw.match(/^\{\{(.+)\}\}$/)
+  if (!m) return raw
+  return _activeState?.scenarioState?.[m[1]] ?? raw
 }
 
 export function advanceStep() {
@@ -162,9 +193,10 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
   }
 
   if (step.type === 'type' && step.typeValue != null) {
+    const value = resolveTypeValue(step.typeValue)
     void waitForElement(selector, STEP_WAIT_MS).then((el) => {
       if (!el || _activeState?.stepIndex !== index) return
-      autoFillInput(el, step.typeValue!)
+      autoFillInput(el, value)
     })
   }
 }

@@ -1,6 +1,7 @@
 import { db } from '@/db'
-import { residents, stylists, services, stylistFacilityAssignments, stylistAvailability } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { residents, stylists, services, stylistFacilityAssignments, stylistAvailability, bookings, facilities } from '@/db/schema'
+import { and, eq, gte, lt } from 'drizzle-orm'
+import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 
 // Deterministic demo character slugs used by the tour engine to look up IDs
 export type DemoResidentSlug = 'mrs-smith' | 'mr-johnson'
@@ -143,6 +144,55 @@ export async function seedFacilityDemoData(facilityId: string): Promise<DemoIds>
           .insert(stylistAvailability)
           .values({ stylistId, facilityId, dayOfWeek: day, startTime: '08:00', endTime: '17:00', active: true })
           .onConflictDoNothing()
+      }
+    }
+  }
+
+  // Seed a TODAY demo booking for Mrs. Smith so the daily-log + check-in tours
+  // have a real row to act on (mark paid, finalize, check in). Idempotent: one
+  // demo booking per facility per day for Mrs. Smith.
+  const mrsSmithId = residentMap.get('Mrs. Margaret Smith')
+  const sarahId = stylistMap.get('Demo Sarah')
+  const washSetId = serviceMap.get('Wash & Set (Demo)')
+  if (mrsSmithId && sarahId && washSetId) {
+    const facRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { timezone: true },
+    })
+    const tz = facRow?.timezone ?? 'America/New_York'
+    const p = getLocalParts(new Date(), tz)
+    const todayStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+    const range = dayRangeInTimezone(todayStr, tz)
+    if (range) {
+      const existingToday = await db.query.bookings.findMany({
+        where: and(
+          eq(bookings.facilityId, facilityId),
+          eq(bookings.residentId, mrsSmithId),
+          eq(bookings.isDemo, true),
+          gte(bookings.startTime, range.start),
+          lt(bookings.startTime, range.end),
+        ),
+        columns: { id: true },
+      })
+      if (existingToday.length === 0) {
+        // 10:00 local — range.start is local midnight expressed as a UTC instant.
+        const startTime = new Date(range.start.getTime() + 10 * 60 * 60 * 1000)
+        const endTime = new Date(startTime.getTime() + 45 * 60 * 1000)
+        await db.insert(bookings).values({
+          facilityId,
+          residentId: mrsSmithId,
+          stylistId: sarahId,
+          serviceId: washSetId,
+          serviceIds: [washSetId],
+          serviceNames: ['Wash & Set (Demo)'],
+          startTime,
+          endTime,
+          durationMinutes: 45,
+          totalDurationMinutes: 45,
+          priceCents: 3500,
+          status: 'scheduled',
+          isDemo: true,
+        }).onConflictDoNothing()
       }
     }
   }

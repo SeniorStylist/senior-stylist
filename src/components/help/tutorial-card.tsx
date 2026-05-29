@@ -10,6 +10,18 @@ import {
 } from 'lucide-react'
 import type { Tutorial, TutorialIcon } from '@/lib/help/tours'
 import { startTour } from '@/lib/help/tours'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+
+// Stylist tours that have an interactive scripted version (Phase 13). Clicking
+// "Guided Tour" launches the scripted engine (real demo writes) instead of the
+// legacy Driver.js walkthrough, picking the platform variant by viewport.
+const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
+  'stylist-getting-started': { mobile: 'scripted-stylist-getting-started-mobile', desktop: 'scripted-stylist-getting-started-desktop' },
+  'stylist-calendar': { mobile: 'scripted-stylist-calendar-mobile', desktop: 'scripted-stylist-calendar-desktop' },
+  'stylist-daily-log': { mobile: 'scripted-stylist-daily-log-mobile', desktop: 'scripted-stylist-daily-log-desktop' },
+  'stylist-checkin': { mobile: 'scripted-stylist-checkin-mobile', desktop: 'scripted-stylist-checkin-desktop' },
+  'stylist-finalize-day': { mobile: 'scripted-stylist-finalize-day-mobile', desktop: 'scripted-stylist-finalize-day-desktop' },
+}
 
 const ICON_MAP: Record<TutorialIcon, typeof KeyRound> = {
   KeyRound, Calendar, FileText, Users, UserPlus, CheckCircle2, UserCog,
@@ -26,13 +38,20 @@ interface TutorialCardProps {
 export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
   const Icon = ICON_MAP[tutorial.icon] ?? CircleHelp
   const [comingSoonOpen, setComingSoonOpen] = useState<'video' | 'tour' | null>(null)
+  const isMobile = useIsMobile()
 
   const handleTour = () => {
-    if (tutorial.tourId) {
-      void startTour(tutorial.tourId)
-    } else {
+    if (!tutorial.tourId) {
       setComingSoonOpen('tour')
       setTimeout(() => setComingSoonOpen(null), 2000)
+      return
+    }
+    const scripted = SCRIPTED_TOUR_MAP[tutorial.tourId]
+    if (scripted) {
+      const id = isMobile ? scripted.mobile : scripted.desktop
+      void import('@/lib/help/scripted-tour').then((m) => m.seedAndStart(id))
+    } else {
+      void startTour(tutorial.tourId)
     }
   }
 

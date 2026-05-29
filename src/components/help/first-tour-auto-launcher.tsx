@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 
 interface FirstTourAutoLauncherProps {
@@ -17,6 +18,7 @@ const WAIT_TIMEOUT_MS = 3000
 
 export function FirstTourAutoLauncher({ role }: FirstTourAutoLauncherProps) {
   const isMobile = useIsMobile()
+  const router = useRouter()
 
   useEffect(() => {
     if (role !== 'stylist') return
@@ -34,7 +36,11 @@ export function FirstTourAutoLauncher({ role }: FirstTourAutoLauncherProps) {
       if (launched) return
       if (!document.querySelector(target)) return
       launched = true
-      import('@/lib/help/scripted-tour').then((m) => m.startScriptedTour(tourId))
+      // Seed demo data + start; refresh so the dashboard re-renders with the
+      // demo resident/service/booking in props (tutorial-mode cookie is set).
+      import('@/lib/help/scripted-tour').then((m) =>
+        m.seedAndStart(tourId).then(() => router.refresh()),
+      )
     }
 
     // Wait for the UI to settle, then check for the target element
@@ -52,7 +58,7 @@ export function FirstTourAutoLauncher({ role }: FirstTourAutoLauncherProps) {
     }, LAUNCH_DELAY_MS)
 
     return () => clearTimeout(timer)
-  }, [role, isMobile])
+  }, [role, isMobile, router])
 
   return null
 }
