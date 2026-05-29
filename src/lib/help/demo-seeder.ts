@@ -14,8 +14,11 @@ interface DemoIds {
   stylists: Record<DemoStylistSlug, string>
 }
 
-// Seeder is idempotent — safe to call on every tutorial launch
-export async function seedFacilityDemoData(facilityId: string): Promise<DemoIds> {
+// Seeder is idempotent — safe to call on every tutorial launch.
+// viewerStylistId: when the tutorial user is a stylist, the today demo booking is
+// assigned to THEM (not Demo Sarah) so it shows in their self-filtered daily log
+// and dashboard list. Falls back to Demo Sarah for non-stylist viewers.
+export async function seedFacilityDemoData(facilityId: string, viewerStylistId?: string | null): Promise<DemoIds> {
   const [existingResidents, existingServices, existingStylists] = await Promise.all([
     db.query.residents.findMany({
       where: and(eq(residents.facilityId, facilityId), eq(residents.isDemo, true)),
@@ -154,7 +157,9 @@ export async function seedFacilityDemoData(facilityId: string): Promise<DemoIds>
   const mrsSmithId = residentMap.get('Mrs. Margaret Smith')
   const sarahId = stylistMap.get('Demo Sarah')
   const washSetId = serviceMap.get('Wash & Set (Demo)')
-  if (mrsSmithId && sarahId && washSetId) {
+  // Assign to the viewer when they're a stylist so it shows in their daily log.
+  const bookingStylistId = viewerStylistId || sarahId
+  if (mrsSmithId && bookingStylistId && washSetId) {
     const facRow = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
       columns: { timezone: true },
@@ -181,7 +186,7 @@ export async function seedFacilityDemoData(facilityId: string): Promise<DemoIds>
         await db.insert(bookings).values({
           facilityId,
           residentId: mrsSmithId,
-          stylistId: sarahId,
+          stylistId: bookingStylistId,
           serviceId: washSetId,
           serviceIds: [washSetId],
           serviceNames: ['Wash & Set (Demo)'],
