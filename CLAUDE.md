@@ -849,6 +849,15 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
   - **`residents/page.tsx`** relaxed to `eq(residents.isDemo, tutorialMode)` (via `isTutorialModeActive()`) so the residents-add tour shows the demo sandbox.
   - **Left as legacy Driver.js** (intentionally NOT scripted): `bookkeeper-scan-logs` (file upload + Gemini), `bookkeeper-duplicates` (destructive merge), `admin-family-portal` (fires a real email). Info-only tours (getting-started, reports, analytics, compliance, etc.) stay on the legacy engine — no create/mutate action to make interactive.
 
+- **Phase 13-Tutorial-Full Conversion** (SHIPPED 2026-05-31) — All 22 remaining legacy Driver.js tours converted to the scripted overlay engine (lerp spotlight, premium ring, crossfading popover). 7 previously Coming Soon (`tourId: null`) tours now live: `staff-daily-log-readonly`, `bookkeeper-quickbooks`, `bookkeeper-financial-reports`, `master-franchise`, `master-cross-facility-analytics`, `master-merge-duplicates`, `master-team-roster`.
+  - **New scripted tour files**: `tours-admin.ts` (8 tours), `tours-bookkeeper.ts` (8 tours), `tours-facility-staff.ts` (3 tours), `tours-master.ts` (8 tours), `tours-stylist-desktop.ts` (3 additional). All registered in `scripted-tour.ts::allTours`.
+  - **Route template support**: `resolveRoute()` function in `scripted-tour.ts` substitutes `{{slug}}` in route strings using `scenarioState` IDs, enabling tours to navigate to `/residents/{{mrs-smith}}` and `/stylists/{{demo-sarah}}`.
+  - **New data-tour anchors**: `master-tab-franchises`, `master-tab-reports`, `master-tab-merge` (master-admin-client.tsx tabs), `master-franchise-list` (franchise list container), `master-merge-candidates` (merge-tab.tsx), `directory-applicants-tab` + `directory-applicants-list` (directory-client.tsx).
+  - **Data-conditional safety**: 4 selectors that only exist with live data (`stylist-pending-entry`, `stylist-pending-convert`, `ocr-results-table`, `duplicates-pair-card`) converted to empty-selector (`''`) info steps — safe for any data state.
+  - **`SCRIPTED_TOUR_MAP`** in `tutorial-card.tsx` expanded with all 30 new tour mappings. `TUTORIAL_CATALOG` `tourId: null` entries all removed.
+  - **`scripts/check-tours.ts` validates 269/269 selectors** (was 174/174 for legacy engine). No TypeScript errors.
+  - **All tours platform-tagged**: new Coming Soon tours tagged `platform: 'desktop'` (they cover billing/analytics/master routes not reachable from mobile nav).
+
 ### Upcoming — Immediate
 
 ### Upcoming — Medium Term
@@ -877,10 +886,7 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
 
 ### Coming Soon tours (unlock when features ship)
 
-- `bookkeeper-quickbooks` → after Phase 13M (Intuit production approval)
-- `bookkeeper-financial-reports` → after analytics expansion
-- `master-franchise` → after Phase 13N
-- `master-merge-duplicates` → after Phase 13P
+All previously Coming Soon tours are now live as scripted tours (Phase 13-Tutorial-Full Conversion). Remaining placeholder:
 - Time-off approval tour → after Phase 13F
 
 ---
