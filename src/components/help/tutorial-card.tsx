@@ -51,7 +51,7 @@ const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
   'admin-command-palette': { mobile: 'scripted-admin-command-palette', desktop: 'scripted-admin-command-palette' },
   'admin-peek-drawer': { mobile: 'scripted-admin-peek-drawer', desktop: 'scripted-admin-peek-drawer' },
   // Bookkeeper remaining + new tours
-  'bookkeeper-getting-started': { mobile: 'scripted-bookkeeper-getting-started', desktop: 'scripted-bookkeeper-getting-started' },
+  'bookkeeper-getting-started': { mobile: 'scripted-bookkeeper-getting-started-mobile', desktop: 'scripted-bookkeeper-getting-started' },
   'bookkeeper-scan-logs': { mobile: 'scripted-bookkeeper-scan-logs', desktop: 'scripted-bookkeeper-scan-logs' },
   'bookkeeper-duplicates': { mobile: 'scripted-bookkeeper-duplicates', desktop: 'scripted-bookkeeper-duplicates' },
   'bookkeeper-billing-dashboard': { mobile: 'scripted-bookkeeper-billing-dashboard', desktop: 'scripted-bookkeeper-billing-dashboard' },
@@ -68,6 +68,14 @@ const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
   'master-cross-facility-analytics': { mobile: 'scripted-master-cross-facility-analytics', desktop: 'scripted-master-cross-facility-analytics' },
   'master-merge-duplicates': { mobile: 'scripted-master-merge-duplicates', desktop: 'scripted-master-merge-duplicates' },
   'master-team-roster': { mobile: 'scripted-master-team-roster', desktop: 'scripted-master-team-roster' },
+  // Master admin mobile tours (mobile-only cards — the bottom nav surfaces these screens)
+  'master-getting-started-mobile': { mobile: 'scripted-master-getting-started-mobile', desktop: 'scripted-master-getting-started-mobile' },
+  'master-calendar-mobile': { mobile: 'scripted-master-calendar-mobile', desktop: 'scripted-master-calendar-mobile' },
+  'master-daily-log-mobile': { mobile: 'scripted-master-daily-log-mobile', desktop: 'scripted-master-daily-log-mobile' },
+  'master-residents-mobile': { mobile: 'scripted-master-residents-mobile', desktop: 'scripted-master-residents-mobile' },
+  'master-analytics-mobile': { mobile: 'scripted-master-analytics-mobile', desktop: 'scripted-master-analytics-mobile' },
+  'master-payroll-mobile': { mobile: 'scripted-master-payroll-mobile', desktop: 'scripted-master-payroll-mobile' },
+  'master-settings-mobile': { mobile: 'scripted-master-settings-mobile', desktop: 'scripted-master-settings-mobile' },
 }
 
 // Tours that create their own demo records through the UI flow — no pre-seeding needed.

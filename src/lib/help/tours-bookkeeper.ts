@@ -356,4 +356,48 @@ export const BOOKKEEPER_TOURS: ScriptedTour[] = [
       'Exported for accounting',
     ],
   },
+  {
+    // Mobile getting-started — the bottom nav exposes Log, Analytics, and Payroll
+    // (Billing + QuickBooks have no mobile nav, so they're pointed to the website).
+    id: 'scripted-bookkeeper-getting-started-mobile',
+    title: 'Getting Started',
+    scenarioSummary: 'A tour of your three mobile areas',
+    platform: 'mobile',
+    role: 'bookkeeper',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="nav-daily-log"]',
+        route: '/log',
+        title: 'Daily Log',
+        description: 'Every appointment from every stylist. Scan paper sheets or add walk-ins here.',
+        placement: 'top',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="nav-analytics"]',
+        title: 'Analytics',
+        description: 'Revenue, appointment counts, and per-stylist performance.',
+        placement: 'top',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="nav-payroll"]',
+        title: 'Payroll',
+        description: 'Review pay periods and mark them paid.',
+        placement: 'top',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Billing & QuickBooks on desktop',
+        description: 'The billing dashboard and QuickBooks setup are on the full website. Open seniorstylist.com on a computer for those.',
+      },
+    ],
+    learnings: [
+      'Daily Log on mobile',
+      'Analytics and Payroll',
+      'Billing lives on the desktop site',
+    ],
+  },
 ]

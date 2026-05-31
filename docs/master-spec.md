@@ -950,6 +950,17 @@ All 22 remaining legacy Driver.js tours were converted to the scripted engine, a
 - **Platform tags:** the 7 newly unlocked tours are tagged `platform: 'desktop'` (they cover billing/analytics/master routes not reachable from the mobile nav).
 - **`scripts/check-tours.ts`** now validates 269/269 scripted selectors (was 174/174 when the legacy Driver.js engine was the source of truth). `SCRIPTED_FILES` lists all 6 scripted tour files.
 
+### Mobile coverage (Phase 13-Tutorial-Mobile, 2026-05-31)
+
+Every role now has a complete tutorial set on mobile, centered on the **mobile bottom nav** — the only navigation on a phone (no sidebar; Billing, Master Admin, and Stylist Directory have no mobile nav entry).
+
+- **Mobile-reachable screens per role:** stylist → Calendar/Log/Account; facility staff → Calendar/Log/Residents/Settings; bookkeeper → Log/Analytics/Payroll/Settings; admin & **master admin** → Calendar/Log/Residents/Analytics/Payroll/Settings (master admin's role resolves to `admin`, so on mobile it uses the admin nav).
+- **The bug fixed:** `visibleFor()` (`help-client.tsx`) hides cards whose `platform` doesn't match the viewport. All 9 master cards were `platform: 'desktop'` ⇒ master admin's mobile help catalog was empty.
+- **7 master mobile cards** added to `TUTORIAL_CATALOG` (`masterOnly: true, platform: 'mobile'`): getting-started / calendar / daily-log / residents / analytics / payroll / settings (`master-*-mobile` ids). Backed by 7 `platform: 'mobile'` scripted tours in `tours-master.ts` — seeded highlight/info style, anchored to `[data-tour="nav-*"]` + page anchors, each ending with an empty-selector "deeper tools live on the full website" pointer.
+- **Re-tagged `desktop` → `both`:** `admin-reports`, `bookkeeper-payroll`, `bookkeeper-financial-reports`, `bookkeeper-getting-started`. Analytics & Payroll are in the mobile nav and their anchors render on mobile (verified no `hidden md:` gating), so the existing scripted tours run as-is on a phone.
+- **`scripted-bookkeeper-getting-started-mobile`** (in `tours-bookkeeper.ts`) replaces the desktop variant on mobile (`SCRIPTED_TOUR_MAP['bookkeeper-getting-started'].mobile`) because the desktop version highlights `billing-outstanding`, which has no mobile nav. It covers Log/Analytics/Payroll + a "Billing & QuickBooks on desktop" pointer.
+- **Authoring rule:** anchor mobile tours to `[data-tour="nav-*"]` (resolveQuery maps to the mobile nav `data-tour-mobile` slugs); for screens with no mobile nav, use an empty-selector info step pointing to the desktop site rather than a missing anchor. `SCRIPTED_TOUR_MAP` is now 46 entries; check-tours 292/292.
+
 ---
 
 ## Access Request Flow
