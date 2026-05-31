@@ -53,10 +53,10 @@ function computeGeometry(targetRect: Rect, popoverRect: Rect, reducedMotion: boo
   const perpY = (tip.x - tail.x) / (lineLen || 1)
   const ctrl = { x: mx + perpX * perpScale, y: my + perpY * perpScale }
 
-  // Tangent at the tip for the arrowhead rotation
-  // Derivative of quadratic bezier at t=0 is 2*(ctrl - tail)
-  const tx = 2 * (ctrl.x - tail.x)
-  const ty = 2 * (ctrl.y - tail.y)
+  // Tangent at t=1 (the tip) for arrowhead rotation.
+  // Quadratic Bezier derivative at t=1: B'(1) = 2*(tip - ctrl)
+  const tx = 2 * (tip.x - ctrl.x)
+  const ty = 2 * (tip.y - ctrl.y)
   const headAngle = Math.atan2(ty, tx) * (180 / Math.PI)
 
   return { tip, tail, ctrl, headAngle }
@@ -70,6 +70,7 @@ interface TargetArrowProps {
 
 export function TargetArrow({ targetRect, popoverEl, isAction = false }: TargetArrowProps) {
   const [geo, setGeo] = useState<ArrowGeometry | null>(null)
+  const [hasMeasured, setHasMeasured] = useState(false)
   const rafRef = useRef<number>(0)
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -77,7 +78,11 @@ export function TargetArrow({ targetRect, popoverEl, isAction = false }: TargetA
     function update() {
       if (!popoverEl) return
       const popoverRect = popoverEl.getBoundingClientRect()
+      // Don't render until the popover has a real measured size (avoids a
+      // single-frame flash where the arrow renders from 0,0 before layout).
+      if (popoverRect.width === 0 || popoverRect.height === 0) return
       setGeo(computeGeometry(targetRect, popoverRect, reducedMotion))
+      setHasMeasured(true)
     }
 
     function schedule() {
@@ -95,18 +100,17 @@ export function TargetArrow({ targetRect, popoverEl, isAction = false }: TargetA
     }
   }, [targetRect, popoverEl, reducedMotion])
 
-  if (!geo) return null
+  if (!geo || !hasMeasured) return null
 
   const { tip, tail, ctrl, headAngle } = geo
-  // Action steps get a bigger, solid, fully-opaque arrow so it's obvious what to
-  // click; info steps keep the subtle dashed pointer.
   const ARROWHEAD_SIZE = isAction ? 18 : 8
   const strokeWidth = isAction ? 4 : 2.5
   const strokeDash = isAction ? 'none' : reducedMotion ? 'none' : '6 3'
   const lineOpacity = isAction ? 1 : 0.85
   const headOpacity = isAction ? 1 : 0.9
 
-  // Arrowhead points (pointing right along X axis, rotated to match tangent)
+  // Arrowhead: triangle pointing right (+X), rotated to match the curve's
+  // tangent direction at the tip (t=1).
   const arrowPoints = [
     [0, 0],
     [-ARROWHEAD_SIZE, -ARROWHEAD_SIZE * 0.5],

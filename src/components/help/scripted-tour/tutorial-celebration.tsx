@@ -17,16 +17,27 @@ export function TutorialCelebration({ tourTitle, learnings, onClose }: TutorialC
     <>
       <style>{`
         @keyframes confetti-fall {
-          0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+          0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
           100% { transform: translateY(80px) rotate(720deg); opacity: 0; }
         }
+        @keyframes scripted-backdrop-enter {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes scripted-celebration-enter {
+          from { opacity: 0; transform: translateY(16px) scale(0.92); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
         @media (prefers-reduced-motion: reduce) {
-          .confetti-dot { animation: none !important; }
+          .confetti-dot,
+          .scripted-backdrop-enter,
+          .scripted-celebration-card { animation: none !important; }
         }
       `}</style>
 
       {/* Backdrop */}
       <div
+        className="scripted-backdrop-enter"
         style={{
           position: 'fixed',
           inset: 0,
@@ -36,10 +47,13 @@ export function TutorialCelebration({ tourTitle, learnings, onClose }: TutorialC
           alignItems: 'center',
           justifyContent: 'center',
           padding: 24,
+          animation: 'scripted-backdrop-enter 0.2s ease both',
         }}
         onClick={onClose}
       >
+        {/* Card */}
         <div
+          className="scripted-celebration-card"
           onClick={(e) => e.stopPropagation()}
           style={{
             background: 'white',
@@ -50,6 +64,7 @@ export function TutorialCelebration({ tourTitle, learnings, onClose }: TutorialC
             textAlign: 'center',
             position: 'relative',
             overflow: 'hidden',
+            animation: 'scripted-celebration-enter 0.28s cubic-bezier(0.34,1.56,0.64,1) 0.05s both',
           }}
         >
           {/* Confetti burst */}
@@ -102,7 +117,6 @@ export function TutorialCelebration({ tourTitle, learnings, onClose }: TutorialC
             You completed: <strong>{tourTitle}</strong>
           </p>
 
-          {/* Learnings list */}
           {learnings.length > 0 && (
             <div style={{ textAlign: 'left', background: '#fafaf9', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
               {learnings.map((l, i) => (
@@ -114,7 +128,6 @@ export function TutorialCelebration({ tourTitle, learnings, onClose }: TutorialC
             </div>
           )}
 
-          {/* CTAs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               onClick={onClose}

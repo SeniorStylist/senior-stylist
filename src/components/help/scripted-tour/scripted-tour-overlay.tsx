@@ -141,6 +141,7 @@ export function ScriptedTourOverlay() {
           stepIndex={active.stepIndex}
           totalSteps={tour.steps.length}
           isAction={isAction}
+          scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
           onPrev={handlePrev}
           onClose={handleClose}
@@ -153,6 +154,7 @@ export function ScriptedTourOverlay() {
           totalSteps={tour.steps.length}
           targetRect={targetRect}
           isAction={isAction}
+          scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
           onPrev={handlePrev}
           onClose={handleClose}

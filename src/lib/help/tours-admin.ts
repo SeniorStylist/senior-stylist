@@ -1,7 +1,5 @@
 import type { ScriptedTour } from './scripted-tour-types'
 
-// Phase 13-Tutorial Batch 3 — interactive scripted admin tours.
-// Creates a real is_demo=true resident through the form (no pre-seeding).
 export const ADMIN_TOURS: ScriptedTour[] = [
   {
     id: 'scripted-admin-residents',
@@ -14,46 +12,42 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '[data-tour="residents-table"]',
         route: '/residents',
-        title: 'This is your Residents list.',
-        description:
-          "Everyone at your facility lives here, with their visit history and balances. Let's add a new resident.",
+        title: 'Your Residents list',
+        description: 'Everyone at your facility — visit history and balances in one place.',
       },
       {
         type: 'click',
         selector: '[data-tour="residents-new-button"]',
-        title: 'Click the + button',
-        description: 'Click the + button to open the new-resident form.',
+        title: 'Click + to add a resident',
+        description: 'Opens the new-resident form.',
         placement: 'bottom',
       },
       {
         type: 'type',
         selector: '[data-tour="residents-add-name"]',
         typeValue: 'Eleanor Davis',
-        title: 'Enter their name',
-        description:
-          "We typed a demo name. In practice, use the resident's full name. Click Next.",
+        title: 'Name entered',
+        description: "We typed a demo name. Use the resident's full name in practice. Click Next.",
         placement: 'bottom',
       },
       {
         type: 'click',
         selector: '[data-tour="residents-add-submit"]',
-        title: 'Add the resident',
-        description:
-          "Click Add to save. This is a practice resident — it's auto-cleaned up after the tour.",
+        title: 'Save the resident',
+        description: 'Click Add. A demo resident is created — auto-cleaned up after the tour.',
         placement: 'top',
       },
       {
         type: 'highlight',
         selector: '[data-tour="residents-table"]',
-        title: 'Resident added!',
-        description:
-          'They now appear in your list. Open their profile to add room number, POA contact, tip defaults, and the family portal invite. That\'s it!',
+        title: 'Resident added',
+        description: "They're in your list. Open their profile to add room, POA contact, tip defaults, and portal access.",
       },
     ],
     learnings: [
       'Found the Residents list',
-      'Opened the new-resident form and entered a name',
-      'Created the resident — ready to add room, POA, and portal access',
+      'Created a new resident',
+      'Ready to add room, POA, and portal access',
     ],
   },
 ]
