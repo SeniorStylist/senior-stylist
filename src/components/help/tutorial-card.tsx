@@ -33,6 +33,41 @@ const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
   'facility-staff-signup-sheet': { mobile: 'scripted-facility-staff-signup-sheet', desktop: 'scripted-facility-staff-signup-sheet' },
   // Bookkeeper manual walk-in entry (same UI on both platforms)
   'bookkeeper-manual-entry': { mobile: 'scripted-bookkeeper-manual-entry', desktop: 'scripted-bookkeeper-manual-entry' },
+  // Stylist remaining tours (same UI on both platforms)
+  'stylist-my-account': { mobile: 'scripted-stylist-my-account', desktop: 'scripted-stylist-my-account' },
+  'stylist-signup-sheet': { mobile: 'scripted-stylist-signup-sheet', desktop: 'scripted-stylist-signup-sheet' },
+  'stylist-residents': { mobile: 'scripted-stylist-residents', desktop: 'scripted-stylist-residents' },
+  // Facility staff remaining tours
+  'staff-getting-started': { mobile: 'scripted-staff-getting-started', desktop: 'scripted-staff-getting-started' },
+  'staff-daily-log': { mobile: 'scripted-staff-daily-log', desktop: 'scripted-staff-daily-log' },
+  'staff-daily-log-readonly': { mobile: 'scripted-staff-daily-log-readonly', desktop: 'scripted-staff-daily-log-readonly' },
+  // Admin remaining tours (desktop, same id for both)
+  'admin-getting-started': { mobile: 'scripted-admin-getting-started', desktop: 'scripted-admin-getting-started' },
+  'admin-facility-setup': { mobile: 'scripted-admin-facility-setup', desktop: 'scripted-admin-facility-setup' },
+  'admin-inviting-staff': { mobile: 'scripted-admin-inviting-staff', desktop: 'scripted-admin-inviting-staff' },
+  'admin-reports': { mobile: 'scripted-admin-reports', desktop: 'scripted-admin-reports' },
+  'admin-family-portal': { mobile: 'scripted-admin-family-portal', desktop: 'scripted-admin-family-portal' },
+  'admin-compliance': { mobile: 'scripted-admin-compliance', desktop: 'scripted-admin-compliance' },
+  'admin-command-palette': { mobile: 'scripted-admin-command-palette', desktop: 'scripted-admin-command-palette' },
+  'admin-peek-drawer': { mobile: 'scripted-admin-peek-drawer', desktop: 'scripted-admin-peek-drawer' },
+  // Bookkeeper remaining + new tours
+  'bookkeeper-getting-started': { mobile: 'scripted-bookkeeper-getting-started', desktop: 'scripted-bookkeeper-getting-started' },
+  'bookkeeper-scan-logs': { mobile: 'scripted-bookkeeper-scan-logs', desktop: 'scripted-bookkeeper-scan-logs' },
+  'bookkeeper-duplicates': { mobile: 'scripted-bookkeeper-duplicates', desktop: 'scripted-bookkeeper-duplicates' },
+  'bookkeeper-billing-dashboard': { mobile: 'scripted-bookkeeper-billing-dashboard', desktop: 'scripted-bookkeeper-billing-dashboard' },
+  'bookkeeper-payroll': { mobile: 'scripted-bookkeeper-payroll', desktop: 'scripted-bookkeeper-payroll' },
+  'bookkeeper-export-logs': { mobile: 'scripted-bookkeeper-export-logs', desktop: 'scripted-bookkeeper-export-logs' },
+  'bookkeeper-quickbooks': { mobile: 'scripted-bookkeeper-quickbooks', desktop: 'scripted-bookkeeper-quickbooks' },
+  'bookkeeper-financial-reports': { mobile: 'scripted-bookkeeper-financial-reports', desktop: 'scripted-bookkeeper-financial-reports' },
+  // Master remaining + new tours (desktop-only)
+  'master-getting-started': { mobile: 'scripted-master-getting-started', desktop: 'scripted-master-getting-started' },
+  'master-applicant-pipeline': { mobile: 'scripted-master-applicant-pipeline', desktop: 'scripted-master-applicant-pipeline' },
+  'master-quickbooks-setup': { mobile: 'scripted-master-quickbooks-setup', desktop: 'scripted-master-quickbooks-setup' },
+  'master-analytics': { mobile: 'scripted-master-analytics', desktop: 'scripted-master-analytics' },
+  'master-franchise': { mobile: 'scripted-master-franchise', desktop: 'scripted-master-franchise' },
+  'master-cross-facility-analytics': { mobile: 'scripted-master-cross-facility-analytics', desktop: 'scripted-master-cross-facility-analytics' },
+  'master-merge-duplicates': { mobile: 'scripted-master-merge-duplicates', desktop: 'scripted-master-merge-duplicates' },
+  'master-team-roster': { mobile: 'scripted-master-team-roster', desktop: 'scripted-master-team-roster' },
 }
 
 // Tours that create their own demo records through the UI flow — no pre-seeding needed.

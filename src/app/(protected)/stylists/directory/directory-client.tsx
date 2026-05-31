@@ -564,6 +564,7 @@ export function DirectoryClient({
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
+            data-tour={tab === 'applicants' ? 'directory-applicants-tab' : undefined}
             className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 ${
               activeTab === tab ? 'text-white' : 'text-stone-600 hover:bg-stone-50'
             }`}
@@ -1003,7 +1004,7 @@ export function DirectoryClient({
 
       {/* ─── Applicants tab ───────────────────────────────────────────────── */}
       {activeTab === 'applicants' && (
-        <div>
+        <div data-tour="directory-applicants-list">
           {/* Toolbar */}
           <div className="mb-4 flex flex-wrap gap-3 items-center">
             <input

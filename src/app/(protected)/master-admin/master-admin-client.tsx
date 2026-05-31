@@ -509,6 +509,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
+                data-tour={tab !== 'facilities' && tab !== 'requests' && tab !== 'debug' ? `master-tab-${tab}` : undefined}
                 className={cn(
                   'flex-1 py-1.5 text-xs font-semibold rounded-lg capitalize transition-all duration-150',
                   activeTab === tab ? 'bg-[#8B2E4A] text-white' : 'text-stone-600 hover:bg-stone-100'
@@ -1083,7 +1084,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
             <p className="text-sm text-stone-400 py-6 text-center">No franchises yet.</p>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-4" data-tour="master-franchise-list">
             {localFranchises.map((f) => (
               <div key={f.id} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
                 {editingFranchiseId === f.id ? (

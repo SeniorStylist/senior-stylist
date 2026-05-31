@@ -73,10 +73,13 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   // Navigate to the first step's route if we're not already there (so a tour
   // launched from /help lands on the right page before anchoring).
   const first = tour.steps[0]
-  if (first?.route && typeof window !== 'undefined' && window.location.pathname !== first.route) {
-    const router = getTourRouter()
-    if (router) router.push(first.route)
-    else window.location.href = first.route
+  if (first?.route && typeof window !== 'undefined') {
+    const resolved = resolveRoute(first.route)
+    if (window.location.pathname !== resolved) {
+      const router = getTourRouter()
+      if (router) router.push(resolved)
+      else window.location.href = resolved
+    }
   }
 
   saveSessionState()
@@ -98,6 +101,13 @@ export async function seedAndStart(tourId: string): Promise<void> {
     }
   } catch { /* seeding is best-effort; tour still runs */ }
   await startScriptedTour(tourId, scenarioState)
+}
+
+// Resolve {{slug}} placeholders in a route string (e.g. /residents/{{mrs-smith}}).
+function resolveRoute(raw: string): string {
+  return raw.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+    return _activeState?.scenarioState?.[key] ?? key
+  })
 }
 
 // Resolve {{slug}} placeholders in a type step's value. Special token
@@ -136,11 +146,12 @@ export function advanceStep() {
 
   const step = _activeTour.steps[nextIndex]
   if (step?.route) {
+    const resolved = resolveRoute(step.route)
     const router = getTourRouter()
     if (router) {
-      router.push(step.route)
+      router.push(resolved)
     } else {
-      window.location.href = step.route
+      window.location.href = resolved
     }
   }
 

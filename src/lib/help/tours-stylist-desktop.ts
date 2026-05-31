@@ -214,4 +214,122 @@ export const STYLIST_DESKTOP_TOURS: ScriptedTour[] = [
       'Finalized the day',
     ],
   },
+
+  {
+    id: 'scripted-stylist-my-account',
+    title: 'My Account',
+    scenarioSummary: 'Explore your schedule and compliance documents',
+    platform: 'desktop',
+    role: 'stylist',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="my-account-schedule"]',
+        route: '/my-account',
+        title: 'Your schedule',
+        description: 'Each day shows your working hours. Tap any day row to edit or clear your hours for that day.',
+      },
+      {
+        type: 'click',
+        selector: '[data-tour="my-account-compliance-upload"]',
+        title: 'Upload a compliance doc',
+        description: 'Click Upload to attach a license or insurance certificate. Your admin gets an alert before anything expires.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="my-account-timeoff"]',
+        title: 'Request time off',
+        description: 'Submit a time-off request here — your calendar blocks automatically and your admin is notified.',
+      },
+    ],
+    learnings: [
+      'Found your schedule and working hours',
+      'Uploaded a compliance document',
+      'Submitted a time-off request',
+    ],
+  },
+
+  {
+    id: 'scripted-stylist-signup-sheet',
+    title: 'Sign-Up Sheet Queue',
+    scenarioSummary: 'Pick up a pending resident request',
+    platform: 'desktop',
+    role: 'stylist',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="stylist-pending-panel"]',
+        route: '/dashboard',
+        title: 'Your pending requests',
+        description: 'Facility staff log resident requests here. The system assigns them to you based on your schedule.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Pending request card',
+        description: 'Each card shows the resident, preferred service, and any notes. When a request is pending, click "Pick time →" to convert it into a real booking.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Book from the queue',
+        description: 'The booking modal opens with the resident and service pre-filled. Pick a time slot and click Book Appointment — the request is cleared from the queue.',
+      },
+    ],
+    learnings: [
+      'Found pending requests in the sign-up queue',
+      'Reviewed a resident request',
+      'Converted a request into a booking',
+    ],
+  },
+
+  {
+    id: 'scripted-stylist-residents',
+    title: 'Managing Residents',
+    scenarioSummary: 'Add a demo resident',
+    platform: 'desktop',
+    role: 'stylist',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="residents-table"]',
+        route: '/residents',
+        title: "Your facility's residents",
+        description: 'Everyone at your facility — visit history, room numbers, and service notes.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="residents-search"]',
+        title: 'Search residents',
+        description: 'Type a name or room number to quickly find someone in a large list.',
+      },
+      {
+        type: 'click',
+        selector: '[data-tour="residents-new-button"]',
+        title: 'Click + to add a resident',
+        description: 'Opens the new-resident form.',
+        placement: 'bottom',
+      },
+      {
+        type: 'type',
+        selector: '[data-tour="residents-add-name"]',
+        typeValue: 'Demo Resident',
+        title: 'Name entered',
+        description: "We typed a demo name. Use the resident's real full name in practice. Click Next.",
+        placement: 'bottom',
+      },
+      {
+        type: 'click',
+        selector: '[data-tour="residents-add-submit"]',
+        title: 'Save the resident',
+        description: 'Click Add. The demo resident is auto-cleaned after the tour.',
+        placement: 'top',
+      },
+    ],
+    learnings: [
+      'Found the residents list',
+      'Searched for a resident',
+      'Added a new resident',
+    ],
+  },
 ]

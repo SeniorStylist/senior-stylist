@@ -153,11 +153,11 @@ export function MergeTab() {
         {loading ? (
           <div className="py-12 text-center text-sm text-stone-400">Loading…</div>
         ) : candidates.length === 0 ? (
-          <div className="py-12 text-center text-sm text-stone-400 bg-white rounded-2xl border border-stone-200">
+          <div className="py-12 text-center text-sm text-stone-400 bg-white rounded-2xl border border-stone-200" data-tour="master-merge-candidates">
             No duplicate facilities detected.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3" data-tour="master-merge-candidates">
             {candidates.map((c) => (
               <div key={c.secondary.id} className="bg-white rounded-2xl border border-stone-200 p-4">
                 <div className="flex items-center justify-between mb-3">

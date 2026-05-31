@@ -238,4 +238,123 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
       'Request queued for a stylist to schedule',
     ],
   },
+
+  {
+    id: 'scripted-staff-getting-started',
+    title: 'Getting Started',
+    scenarioSummary: 'A quick tour of your three main areas',
+    platform: 'desktop',
+    role: 'facility_staff',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="calendar-time-grid"]',
+        route: '/dashboard',
+        title: 'The appointment calendar',
+        description: 'Every booking at your facility lives here — see who has appointments and when.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="residents-table"]',
+        route: '/residents',
+        title: 'Your residents list',
+        description: 'Names, rooms, and service history for every resident at your facility.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="daily-log-entry-row"]',
+        route: '/log',
+        title: 'The daily log',
+        description: 'Stylists log every appointment here. You can monitor progress in real time — read-only for facility staff.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="signup-sheet-button"]',
+        route: '/dashboard',
+        title: 'Sign-Up Sheet',
+        description: 'Submit resident appointment requests here. The system auto-assigns to the right stylist based on their schedule.',
+      },
+    ],
+    learnings: [
+      'Found the appointment calendar',
+      'Explored the residents list',
+      'Read the daily log',
+      'Discovered the sign-up sheet',
+    ],
+  },
+
+  {
+    id: 'scripted-staff-daily-log',
+    title: 'The Daily Log',
+    scenarioSummary: "Read today's appointments in the daily log",
+    platform: 'desktop',
+    role: 'facility_staff',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="daily-log-entry-row"]',
+        route: '/log',
+        title: "Today's appointments",
+        description: 'Every service logged today — stylist, resident, service, and payment status.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="log-payment-toggle"]',
+        title: 'Payment status',
+        description: 'Each entry shows whether the service is paid, invoiced, or waived — set by the stylist.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="peek-resident-trigger"]',
+        title: 'Peek at a resident',
+        description: "Click any resident name to see their visit history and notes without leaving this page.",
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="daily-log-finalize-button"]',
+        title: 'Finalize button',
+        description: "At end of day the stylist or admin locks the log. You'll see a green checkmark when it's done.",
+      },
+    ],
+    learnings: [
+      "Read today's daily log",
+      'Understood payment status',
+      'Peeked at a resident profile',
+      'Learned about finalization',
+    ],
+  },
+
+  {
+    id: 'scripted-staff-daily-log-readonly',
+    title: 'Daily Log (Read-Only)',
+    scenarioSummary: "Monitor today's services as facility staff",
+    platform: 'desktop',
+    role: 'facility_staff',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="daily-log-entry-row"]',
+        route: '/log',
+        title: 'Facility staff view',
+        description: 'You can see every appointment logged today — service, resident, stylist, and amount. All read-only.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="peek-resident-trigger"]',
+        title: 'Peek at a resident',
+        description: 'Click any resident name for a quick profile view — last visits, notes, and contact info.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="daily-log-finalize-button"]',
+        title: 'End-of-day finalization',
+        description: "The Finalize button locks the day's log. Only admins and stylists can finalize.",
+      },
+    ],
+    learnings: [
+      'Monitored the daily log as facility staff',
+      'Peeked at a resident profile',
+      'Understood the finalization step',
+    ],
+  },
 ]
