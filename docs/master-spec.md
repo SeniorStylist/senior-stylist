@@ -894,16 +894,20 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 
 ## Scripted Tour Engine (Phase 13-Tutorial)
 
-The scripted tour system coexists with the legacy Driver.js engine. The 10 new scripted tours use the new engine; all ~31 legacy tours use Driver.js unchanged.
+The scripted tour system is now the engine for **all** tutorials (Phase 13-Tutorial-Full Conversion, 2026-05-31). Every tour in `TUTORIAL_CATALOG` resolves to a `scripted-*` variant via `SCRIPTED_TOUR_MAP`; the legacy Driver.js engine + `TOUR_DEFINITIONS` remain only as a fallback for any `?tour=` deep link not present in the map. `scripts/check-tours.ts` validates 269/269 scripted selectors.
 
 **Core modules:**
 - `src/lib/help/scripted-tour-types.ts` — type definitions: `ScriptedStepType = 'highlight' | 'type' | 'click' | 'navigate' | 'celebrate'`; `ScriptedStep { type, selector?, title, description, typeValue?, route?, placement? }`; `ScriptedTour { id, title, scenarioSummary, platform, role, steps, learnings }`; `ScriptedTourState { tourId, stepIndex, scenarioState, startedAt }`.
 - `src/lib/help/scripted-tour.ts` — engine. Key exports: `startScriptedTour(tourId, scenarioState?)`, `advanceStep()`, `retreatStep()`, `closeTour()`, `resumeScriptedTour()`, `registerScriptedTourUI()`, `getActiveTour()`, `getActiveState()`, `getPausedSessionInfo()`. Session stored in `sessionStorage['scriptedTour']` with 10min TTL. Reuses `setTourModeActive` (write-interception), `installTourFetchInterceptor`, and `getTourRouter` (SPA nav). Fires telemetry to `POST /api/help/track`. On completion fires `tour-completed` CustomEvent + `POST /api/profile/complete-tour`.
 - `src/lib/help/demo-seeder.ts` — `seedFacilityDemoData(facilityId)` and `getDemoIds(facilityId)`. Idempotent — checks by `name + is_demo` before inserting.
 
-**Tour files:**
+**Tour files** (all registered in `scripted-tour.ts::allTours`; all selectors validated by `scripts/check-tours.ts::SCRIPTED_FILES`):
 - `src/lib/help/tours-stylist-mobile.ts` — 5 mobile tours (`scripted-stylist-getting-started-mobile`, `scripted-stylist-calendar-mobile`, `scripted-stylist-daily-log-mobile`, `scripted-stylist-checkin-mobile`, `scripted-stylist-finalize-day-mobile`). Use `data-tour-mobile` selectors and "Tap" not "Click".
-- `src/lib/help/tours-stylist-desktop.ts` — 5 desktop tours (same names without `-mobile` suffix). Use `data-tour` selectors and "Click".
+- `src/lib/help/tours-stylist-desktop.ts` — 8 desktop tours: the 5 interactive stylist flows plus `scripted-stylist-my-account`, `scripted-stylist-signup-sheet`, `scripted-stylist-residents` (added in Full Conversion). Use `data-tour` selectors and "Click".
+- `src/lib/help/tours-facility-staff.ts` — facility-staff tours: residents-add, scheduling (mobile + desktop), sign-up sheet, plus `scripted-staff-getting-started`, `scripted-staff-daily-log`, `scripted-staff-daily-log-readonly` (Full Conversion).
+- `src/lib/help/tours-admin.ts` — 9 admin tours: `scripted-admin-residents` plus 8 added in Full Conversion (`getting-started`, `facility-setup`, `inviting-staff`, `reports`, `family-portal`, `compliance`, `command-palette`, `peek-drawer`).
+- `src/lib/help/tours-bookkeeper.ts` — 9 bookkeeper tours: `scripted-bookkeeper-manual-entry` plus 8 added in Full Conversion (`getting-started`, `scan-logs`, `duplicates`, `billing-dashboard`, `payroll`, `export-logs`, `quickbooks`, `financial-reports`).
+- `src/lib/help/tours-master.ts` — master-admin tours (Full Conversion): `getting-started`, `add-facility`, `add-stylist`, `applicant-pipeline`, `quickbooks-setup`, `analytics`, `franchise`, `cross-facility-analytics`, `merge-duplicates`, `team-roster`.
 
 **Overlay components** (`src/components/help/scripted-tour/`):
 - `scripted-tour-overlay.tsx` — React root; dynamic imports sub-components; polls target rect at 300ms interval.
@@ -934,6 +938,17 @@ The 5 stylist scripted tours are genuinely interactive — the user clicks real 
 **New `data-tour` anchors:** `booking-modal-resident`, `booking-modal-resident-option`, `booking-modal-service`, `booking-modal-date`, `booking-modal-submit`; `dashboard-new-booking-fab` (mobile FAB; desktop new-booking uses the existing `calendar-time-grid` dateClick); `log-payment-toggle`.
 
 **Schema migration:** applied via the committed idempotent SQL file `drizzle/0001_phase13_demo_tutorial.sql`, run directly with `psql "$DIRECT_URL" -f drizzle/0001_phase13_demo_tutorial.sql` — NOT `drizzle-kit push` (it aborts on its interactive prompt).
+
+### Full conversion (Phase 13-Tutorial-Full Conversion, 2026-05-31)
+
+All 22 remaining legacy Driver.js tours were converted to the scripted engine, and 7 previously Coming Soon (`tourId: null`) tours were created and unlocked: `staff-daily-log-readonly`, `bookkeeper-quickbooks`, `bookkeeper-financial-reports`, `master-franchise`, `master-cross-facility-analytics`, `master-merge-duplicates`, `master-team-roster`. `TUTORIAL_CATALOG` no longer has any `tourId: null` entry.
+
+- **Route templates:** `resolveRoute(route)` in `scripted-tour.ts` substitutes `{{slug}}` tokens in a step's `route` string against `scenarioState` IDs (e.g. `/residents/{{mrs-smith}}`, `/stylists/{{demo-sarah}}`). Applied at first-step navigation in `startScriptedTour` and at per-step navigation in `advanceStep`. This is distinct from the existing `{{slug}}` support in `typeValue`.
+- **`SCRIPTED_TOUR_MAP` (`tutorial-card.tsx`)** expanded to 38 entries — every catalog `tourId` maps to a `{ mobile, desktop }` scripted variant. Tours without a platform split use the same id for both.
+- **New `data-tour` anchors:** `master-tab-franchises`, `master-tab-reports`, `master-tab-merge` (master-admin-client.tsx tab buttons), `master-franchise-list` (franchise list container), `master-merge-candidates` (merge-tab.tsx, on both empty + populated states), `directory-applicants-tab` + `directory-applicants-list` (directory-client.tsx).
+- **Data-conditional selectors → empty-selector info steps:** 4 selectors that only exist with live data were converted to `selector: ''` info popovers (safe for any data state, no missing-element warning): `stylist-pending-entry` + `stylist-pending-convert` (signup queue, no pending entries in a fresh demo), `ocr-results-table` (only after OCR completes), `duplicates-pair-card` (only when duplicates exist). The dependent booking-modal steps in `scripted-stylist-signup-sheet` were also collapsed into one info step since the modal only opens after the (now removed) convert click.
+- **Platform tags:** the 7 newly unlocked tours are tagged `platform: 'desktop'` (they cover billing/analytics/master routes not reachable from the mobile nav).
+- **`scripts/check-tours.ts`** now validates 269/269 scripted selectors (was 174/174 when the legacy Driver.js engine was the source of truth). `SCRIPTED_FILES` lists all 6 scripted tour files.
 
 ---
 
@@ -2459,8 +2474,5 @@ External consumers (`<HelpTip tourId="stylist-calendar">`, `ONBOARDING_CHECKLIST
 
 ### Coming Soon Tours (unlock when features ship)
 
-- `bookkeeper-quickbooks` → after Phase 13M (Intuit production approval)
-- `bookkeeper-financial-reports` → after analytics expansion
-- `master-franchise` → after Phase 13N
-- `master-merge-duplicates` → after Phase 13P
+All previously Coming Soon tours are now live as scripted tours (Phase 13-Tutorial-Full Conversion, 2026-05-31). Remaining placeholder:
 - Time-off approval tour → after Phase 13F

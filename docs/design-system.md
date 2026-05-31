@@ -796,6 +796,13 @@ Because the interactive stylist tours require the user to click the real highlig
 - **Popover / sheet hint:** on action steps the `scripted-tour-popover` and `scripted-tour-sheet` hide the "Next" button and instead show a "👆 click the highlighted spot" hint; keyboard/swipe forward-advance is disabled on action steps so the user must perform the real click.
 - **Reduced motion:** the glow pulse and arrow animation respect `@media (prefers-reduced-motion: reduce)` — the bright highlight remains, only the motion is suppressed.
 
+### Full conversion patterns (Phase 13-Tutorial-Full Conversion, 2026-05-31)
+
+The scripted overlay is now the engine for **all** tutorials. Two authoring patterns matter when writing new scripted tours:
+
+- **Empty-selector info steps for data-conditional UI:** a step that would target an element only present with live data (e.g. a pending-request card, an OCR results table, a duplicate-pair card) MUST use `selector: ''`. The overlay renders these as a centered info popover with no spotlight ring/arrow — safe for a fresh demo sandbox where the data doesn't exist. Never point a `highlight`/`click` step at an element that isn't guaranteed in the DOM; `scripts/check-tours.ts` can't catch a present-but-conditional anchor, so it surfaces at runtime as a missing-element skip. (Converted in Full Conversion: `stylist-pending-entry`, `stylist-pending-convert`, `ocr-results-table`, `duplicates-pair-card`.)
+- **Route templates** (`resolveRoute()` in `scripted-tour.ts`): a step's `route` may contain `{{slug}}` tokens resolved against the seeded `scenarioState` IDs — e.g. `route: '/residents/{{mrs-smith}}'` or `/stylists/{{demo-sarah}}`. This is how info tours navigate to a specific demo record's detail page. Distinct from the `{{slug}}` support that already existed in `typeValue`.
+
 **Shared across both:**
 - Selected option: `bg-rose-50 text-[#8B2E4A] font-medium`
 - Room number prefix: `<span className="text-stone-400 mr-1">{roomNumber} ·</span>` before the name
