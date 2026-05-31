@@ -82,6 +82,37 @@ export function ScriptedTourOverlay() {
     }
   }, [active, tour])
 
+  // Elevate the current action-step target above the tour sheet/popover so it
+  // stays tappable even when it renders where the sheet does (e.g. the
+  // bottom-right "+" FAB sits behind the bottom sheet on mobile). Restored on
+  // cleanup. Info/highlight steps don't need this — nothing to tap.
+  useEffect(() => {
+    if (!active || !tour) return
+    const step = tour.steps[active.stepIndex]
+    if (step?.type !== 'click' || !step.selector) return
+    const selector = resolveQuery(step.selector)
+    let elevated: HTMLElement | null = null
+    let prev: { position: string; zIndex: string } | null = null
+    function tryElevate() {
+      if (elevated) return
+      const el = document.querySelector(selector) as HTMLElement | null
+      if (!el) return
+      elevated = el
+      prev = { position: el.style.position, zIndex: el.style.zIndex }
+      if (window.getComputedStyle(el).position === 'static') el.style.position = 'relative'
+      el.style.zIndex = '9015'
+    }
+    tryElevate()
+    const interval = setInterval(tryElevate, 200)
+    return () => {
+      clearInterval(interval)
+      if (elevated && prev) {
+        elevated.style.position = prev.position
+        elevated.style.zIndex = prev.zIndex
+      }
+    }
+  }, [active, tour])
+
   const handleNext = useCallback(() => {
     import('@/lib/help/scripted-tour').then((m) => m.advanceStep())
   }, [])
@@ -119,8 +150,6 @@ export function ScriptedTourOverlay() {
     <>
       <SpotlightMask
         targetRect={targetRect ? { x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height } : null}
-        isAction={isAction}
-        onClose={handleClose}
       />
       {targetRect && (
         <SpotlightRing

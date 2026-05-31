@@ -74,7 +74,7 @@ export function MobileFacilityHeader({
         className="md:hidden flex items-center justify-between px-4 shrink-0 border-b border-stone-100 bg-white"
         style={{ minHeight: 'var(--app-header-height)', paddingTop: 'var(--app-safe-top)' }}
       >
-        <Link href="/dashboard">
+        <Link href="/dashboard" data-tour-mobile="mobile-home-logo">
           <Image
             src="/seniorstylistlogo.jpg"
             alt="Senior Stylist"

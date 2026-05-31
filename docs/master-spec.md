@@ -961,6 +961,14 @@ Every role now has a complete tutorial set on mobile, centered on the **mobile b
 - **`scripted-bookkeeper-getting-started-mobile`** (in `tours-bookkeeper.ts`) replaces the desktop variant on mobile (`SCRIPTED_TOUR_MAP['bookkeeper-getting-started'].mobile`) because the desktop version highlights `billing-outstanding`, which has no mobile nav. It covers Log/Analytics/Payroll + a "Billing & QuickBooks on desktop" pointer.
 - **Authoring rule:** anchor mobile tours to `[data-tour="nav-*"]` (resolveQuery maps to the mobile nav `data-tour-mobile` slugs); for screens with no mobile nav, use an empty-selector info step pointing to the desktop site rather than a missing anchor. `SCRIPTED_TOUR_MAP` is now 46 entries; check-tours 292/292.
 
+### Overlay UX fixes (Phase 13-Tutorial-Mobile followups, 2026-05-31)
+
+- **No close-on-outside-click.** `SpotlightMask` (the four dark panels) no longer calls `onClose` — tapping outside the spotlight, or tapping the highlighted element on an action step, keeps the tour alive. Only the X button (sheet + popover) and Esc (desktop popover) close a tour. Prevents users from accidentally exiting when they tap a pointed-at Back/home control.
+- **Mobile sheet clears the nav.** `scripted-tour-sheet.tsx` uses `bottom: var(--app-nav-clearance, 0px)` (was `0`) so the Next/Back buttons sit above the mobile bottom nav (the first step's button was previously hidden behind it) and a highlighted nav item stays visible below the sheet.
+- **Action targets elevated.** `scripted-tour-overlay.tsx` temporarily sets a `type:'click'` step's target to `z-index: 9015` (+ `position: relative` if static), restored on cleanup, so bottom-anchored targets like the `QuickBookFAB` (behind the `z-9010` sheet) stay tappable.
+- **`mobile-home-logo` anchor** on the `MobileFacilityHeader` logo link enables a top-left home-button arrow step.
+- **Master mobile tours are interactive:** getting-started taps through the nav + a home-logo arrow; calendar is a real FAB→booking flow (seeded); residents is a real +→name→submit add (seeded). Read-only screens (daily-log/analytics/payroll/settings) remain highlight/info. check-tours 297/297.
+
 ---
 
 ## Access Request Flow

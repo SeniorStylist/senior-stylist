@@ -82,13 +82,16 @@ export function ScriptedTourSheet({
         aria-live="polite"
         style={{
           position: 'fixed',
-          bottom: 0,
+          // Sit directly on top of the mobile bottom nav so the Next/Back
+          // buttons clear it (otherwise the nav covers the first step's button)
+          // AND any highlighted nav item stays visible below the sheet.
+          bottom: 'var(--app-nav-clearance, 0px)',
           left: 0,
           right: 0,
           zIndex: 9010,
           background: 'white',
           borderRadius: '24px 24px 0 0',
-          padding: '20px 20px calc(20px + env(safe-area-inset-bottom))',
+          padding: '20px',
           boxShadow: '0 -4px 32px rgba(0,0,0,0.14)',
           animation: enterAnimation,
         }}

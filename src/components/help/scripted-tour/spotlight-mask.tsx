@@ -12,15 +12,13 @@ interface Rect {
 interface SpotlightMaskProps {
   targetRect: Rect | null
   padding?: number
-  isAction?: boolean
-  onClose: () => void
 }
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t
 }
 
-export function SpotlightMask({ targetRect, padding = 8, isAction = false, onClose }: SpotlightMaskProps) {
+export function SpotlightMask({ targetRect, padding = 8 }: SpotlightMaskProps) {
   const [win, setWin] = useState({ w: 0, h: 0 })
   // Animated rect — starts collapsed at viewport center
   const [animRect, setAnimRect] = useState({ cx: 0, cy: 0, cw: 0, ch: 0 })
@@ -103,25 +101,27 @@ export function SpotlightMask({ targetRect, padding = 8, isAction = false, onClo
 
   const { cx, cy, cw, ch } = animRect
 
-  const panelClose = isAction ? undefined : onClose
+  // The dark panels NEVER close the tour — only the explicit X button in the
+  // sheet/popover does. Tapping outside (or tapping the highlighted element on
+  // an action step) keeps the tour alive so users can't accidentally bail out.
   const panel: React.CSSProperties = {
     position: 'fixed',
     background: 'rgba(0,0,0,0.72)',
     zIndex: 9000,
     pointerEvents: 'auto',
-    cursor: isAction ? 'default' : 'pointer',
+    cursor: 'default',
   }
 
   return (
     <>
       {/* top */}
-      <div style={{ ...panel, left: 0, top: 0, width: w, height: Math.max(0, cy) }} onClick={panelClose} />
+      <div style={{ ...panel, left: 0, top: 0, width: w, height: Math.max(0, cy) }} />
       {/* bottom */}
-      <div style={{ ...panel, left: 0, top: cy + ch, width: w, height: Math.max(0, h - cy - ch) }} onClick={panelClose} />
+      <div style={{ ...panel, left: 0, top: cy + ch, width: w, height: Math.max(0, h - cy - ch) }} />
       {/* left */}
-      <div style={{ ...panel, left: 0, top: cy, width: Math.max(0, cx), height: ch }} onClick={panelClose} />
+      <div style={{ ...panel, left: 0, top: cy, width: Math.max(0, cx), height: ch }} />
       {/* right */}
-      <div style={{ ...panel, left: cx + cw, top: cy, width: Math.max(0, w - cx - cw), height: ch }} onClick={panelClose} />
+      <div style={{ ...panel, left: cx + cw, top: cy, width: Math.max(0, w - cx - cw), height: ch }} />
     </>
   )
 }
