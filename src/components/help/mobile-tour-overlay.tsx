@@ -15,6 +15,10 @@ import { resolveQuery, type TourStep } from '@/lib/help/tours'
 
 const SPOTLIGHT_PADDING = 8
 
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t
+}
+
 type ShowDetail = {
   tourId: string
   stepIndex: number
@@ -38,6 +42,13 @@ export function MobileTourOverlay() {
   const [totalSteps, setTotalSteps] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null)
   const [sheetMounted, setSheetMounted] = useState(false)
+  // Lerped cutout geometry — RAF loop glides this toward the target rect so the
+  // spotlight slides between steps instead of snapping (mirrors the scripted
+  // spotlight-mask.tsx). Initialized collapsed at viewport center.
+  const [animRect, setAnimRect] = useState({ cx: 0, cy: 0, cw: 0, ch: 0 })
+  const animRef = useRef({ cx: 0, cy: 0, cw: 0, ch: 0 })
+  const lerpRafRef = useRef<number>(0)
+  const animInitRef = useRef(false)
   const isFirstShowRef = useRef(true)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const targetElRef = useRef<HTMLElement | null>(null)
@@ -116,6 +127,60 @@ export function MobileTourOverlay() {
     }
   }, [step])
 
+  // Smooth-glide the cutout geometry toward the target rect each step.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !step) return
+    const w = window.innerWidth
+    const h = window.innerHeight
+    const hasSpot = !!spotlightRect
+
+    const target = hasSpot
+      ? {
+          cx: Math.max(0, spotlightRect!.left - SPOTLIGHT_PADDING),
+          cy: Math.max(0, spotlightRect!.top - SPOTLIGHT_PADDING),
+          cw: spotlightRect!.width + SPOTLIGHT_PADDING * 2,
+          ch: spotlightRect!.height + SPOTLIGHT_PADDING * 2,
+        }
+      : { cx: w / 2, cy: h / 2, cw: 0, ch: 0 }
+
+    // First paint of a run: jump straight to the target (no glide from 0,0).
+    if (!animInitRef.current) {
+      animInitRef.current = true
+      animRef.current = target
+      setAnimRect({ ...target })
+      return
+    }
+
+    let running = true
+    const tick = () => {
+      if (!running) return
+      const cur = animRef.current
+      const ncx = lerp(cur.cx, target.cx, 0.25)
+      const ncy = lerp(cur.cy, target.cy, 0.25)
+      const ncw = lerp(cur.cw, target.cw, 0.25)
+      const nch = lerp(cur.ch, target.ch, 0.25)
+      const done =
+        Math.abs(ncx - target.cx) < 0.5 &&
+        Math.abs(ncy - target.cy) < 0.5 &&
+        Math.abs(ncw - target.cw) < 0.5 &&
+        Math.abs(nch - target.ch) < 0.5
+      const next = done ? target : { cx: ncx, cy: ncy, cw: ncw, ch: nch }
+      animRef.current = next
+      setAnimRect({ ...next })
+      if (!done) lerpRafRef.current = requestAnimationFrame(tick)
+    }
+    lerpRafRef.current = requestAnimationFrame(tick)
+    return () => {
+      running = false
+      cancelAnimationFrame(lerpRafRef.current)
+    }
+  }, [spotlightRect, step])
+
+  // Reset the glide initializer when a tour run ends so the next run jumps in.
+  useEffect(() => {
+    if (!step) animInitRef.current = false
+  }, [step])
+
   if (!step || typeof document === 'undefined') return null
 
   const isLastStep = stepIndex === totalSteps - 1
@@ -124,16 +189,11 @@ export function MobileTourOverlay() {
   const description = step.mobileDescription ?? step.description
   const hasSpotlight = !!spotlightRect
 
-  // Spotlight rect with padding. When there's no target element, collapse the
-  // spotlight to a 0×0 point at viewport center so the four panels still cover
-  // the full screen — no conditional re-render means smooth CSS transitions
-  // between sized and collapsed states.
-  const cx = hasSpotlight ? 0 : window.innerWidth / 2
-  const cy = hasSpotlight ? 0 : window.innerHeight / 2
-  const sx = hasSpotlight ? Math.max(0, spotlightRect!.left - SPOTLIGHT_PADDING) : cx
-  const sy = hasSpotlight ? Math.max(0, spotlightRect!.top - SPOTLIGHT_PADDING) : cy
-  const sw = hasSpotlight ? spotlightRect!.width + SPOTLIGHT_PADDING * 2 : 0
-  const sh = hasSpotlight ? spotlightRect!.height + SPOTLIGHT_PADDING * 2 : 0
+  // Lerped cutout geometry (RAF loop above glides these toward the target rect).
+  const sx = animRect.cx
+  const sy = animRect.cy
+  const sw = animRect.cw
+  const sh = animRect.ch
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0]
@@ -153,32 +213,53 @@ export function MobileTourOverlay() {
 
   return createPortal(
     <>
-      {/* Four-panel overlay — always rendered, collapses smoothly to a single
-          full-coverage layer when the spotlight is 0×0 (no-element steps). */}
+      <style>{`
+        @keyframes mobile-tour-step-enter {
+          from { opacity: 0; transform: translateY(3px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .mobile-tour-step-enter { animation: none !important; }
+        }
+      `}</style>
+
+      {/* Four-panel overlay — geometry is JS-lerped above, so no CSS transition
+          here (the RAF loop owns the motion). Collapses to full-coverage when the
+          spotlight is 0×0 (no-element steps). */}
       {/* Top */}
       <div
-        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        className="fixed bg-black/60 z-[200] pointer-events-auto"
         style={{ top: 0, left: 0, right: 0, height: sy }}
       />
       {/* Bottom */}
       <div
-        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        className="fixed bg-black/60 z-[200] pointer-events-auto"
         style={{ top: sy + sh, left: 0, right: 0, bottom: 0 }}
       />
       {/* Left */}
       <div
-        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        className="fixed bg-black/60 z-[200] pointer-events-auto"
         style={{ top: sy, left: 0, width: sx, height: sh }}
       />
       {/* Right */}
       <div
-        className="fixed bg-black/60 z-[200] pointer-events-auto transition-all duration-200 ease-out"
+        className="fixed bg-black/60 z-[200] pointer-events-auto"
         style={{ top: sy, left: sx + sw, right: 0, height: sh }}
       />
-      {/* Spotlight ring (invisible when sw/sh are 0) */}
+      {/* Spotlight ring — premium burgundy glow (matches scripted spotlight-ring).
+          Action steps get a bright white inner highlight + glow; info steps stay
+          subtle. Invisible when sw/sh are 0. */}
       <div
-        className={`fixed z-[201] rounded-2xl ring-4 ring-white/30 pointer-events-none transition-all duration-200 ease-out${step.isAction && hasSpotlight ? ' mobile-tour-spotlight-pulse' : ''}`}
-        style={{ top: sy, left: sx, width: sw, height: sh }}
+        className={`fixed z-[201] rounded-2xl pointer-events-none${step.isAction && hasSpotlight ? ' mobile-tour-spotlight-pulse' : ''}`}
+        style={{
+          top: sy,
+          left: sx,
+          width: sw,
+          height: sh,
+          boxShadow: step.isAction && hasSpotlight
+            ? '0 0 0 3px rgba(255,255,255,0.95), 0 0 0 7px rgba(139,46,74,0.75), 0 0 22px 6px rgba(139,46,74,0.45)'
+            : '0 0 0 3px rgba(139,46,74,0.55)',
+        }}
       />
 
       {/* Bottom sheet */}
@@ -221,23 +302,30 @@ export function MobileTourOverlay() {
             ))}
           </div>
 
-          {/* Step counter */}
-          <p className="text-xs text-stone-400 font-medium tracking-wide mb-1">
-            Step {stepIndex + 1} of {totalSteps}
-          </p>
+          {/* Per-step text — keyed so it crossfades on each step */}
+          <div
+            key={stepIndex}
+            className="mobile-tour-step-enter"
+            style={{ animation: 'mobile-tour-step-enter 0.14s ease both' }}
+          >
+            {/* Step counter */}
+            <p className="text-xs text-stone-400 font-medium tracking-wide mb-1">
+              Step {stepIndex + 1} of {totalSteps}
+            </p>
 
-          {/* Title with left accent bar */}
-          <div className="flex items-start gap-3">
-            <div className="w-1 h-7 bg-[#8B2E4A] rounded-full shrink-0 mt-0.5" />
-            <h2 className="text-2xl font-bold text-stone-900 leading-tight">
-              {title}
-            </h2>
+            {/* Title with left accent bar */}
+            <div className="flex items-start gap-3">
+              <div className="w-1 h-7 bg-[#8B2E4A] rounded-full shrink-0 mt-0.5" />
+              <h2 className="text-2xl font-bold text-stone-900 leading-tight">
+                {title}
+              </h2>
+            </div>
+
+            {/* Description */}
+            <p className="text-[17px] text-stone-700 leading-relaxed mt-2">
+              {description}
+            </p>
           </div>
-
-          {/* Description */}
-          <p className="text-[17px] text-stone-700 leading-relaxed mt-2">
-            {description}
-          </p>
 
           {/* Buttons / action indicator */}
           {step.isAction ? (

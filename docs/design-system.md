@@ -2303,10 +2303,11 @@ Already documented in Phase 12G section above. No changes in 12H.
 
 A separate renderer for mobile breakpoints (`window.matchMedia('(max-width: 767px)')`). Driver.js stays on desktop. Mobile uses a four-panel dark overlay with a rounded spotlight cutout + a bottom sheet card. `<MobileTourOverlay />` lives in `src/components/help/mobile-tour-overlay.tsx`, mounted inside `ToastProvider` in `(protected)/layout.tsx`.
 
-**Overlay & spotlight**:
-- Four absolutely-positioned `bg-black/60` panels surround the target element's `getBoundingClientRect()` plus 8px padding. `z-[200]`, `pointer-events: auto` (block underlying clicks), `transition-all duration-200 ease-out`.
+**Overlay & spotlight** (premium polish 2026-05-31 — unified with the scripted-tour visual language):
+- Four absolutely-positioned `bg-black/60` panels surround the target element's `getBoundingClientRect()` plus 8px padding. `z-[200]`, `pointer-events: auto` (block underlying clicks). **No CSS transition** — the geometry is driven by a JS-lerp `requestAnimationFrame` loop (`lerp(cur, target, 0.25)` until within 0.5px) so the spotlight *glides* between steps instead of snapping. This mirrors `scripted-tour/spotlight-mask.tsx`. First paint of a run jumps straight to the target (no glide-in from center).
 - Spotlight area is the rectangle BETWEEN the four panels — no panel exists there, so taps pass through to the highlighted element naturally.
-- A separate decorative ring sits above: `fixed z-[201] rounded-2xl ring-4 ring-white/30 pointer-events-none transition-all duration-200`. Never absorbs taps.
+- A separate decorative ring sits above: `fixed z-[201] rounded-2xl pointer-events-none`. Uses the scripted premium burgundy `box-shadow` (not a flat `ring-white/30`): info steps `0 0 0 3px rgba(139,46,74,0.55)`; action steps the white-inner-highlight + burgundy glow `0 0 0 3px rgba(255,255,255,0.95), 0 0 0 7px rgba(139,46,74,0.75), 0 0 22px 6px rgba(139,46,74,0.45)`. Never absorbs taps. The sheet's title/description is keyed on `stepIndex` with a `mobile-tour-step-enter` crossfade (reduced-motion-guarded).
+- **Desktop counterpart**: the legacy Driver.js chrome is styled to the same premium language in `globals.css` — burgundy `::before` accent bar + `ss-tour-popover-enter` on the popover, a soft `box-shadow` glow pulse on `.driver-highlighted-element::after`, and `transition: all 0.32s cubic-bezier(0.32,0.72,0,1)` on `.driver-stage` for the cutout glide. All legacy tour copy uses the tight coaching voice (titles ≤8 words, descriptions ≤30 words, "Tap" on mobile).
 - For action steps, the ring carries `mobile-tour-spotlight-pulse` (1.5s ease-in-out infinite). Keyframe is in `globals.css`:
   ```css
   @keyframes mobile-tour-pulse {

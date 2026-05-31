@@ -362,12 +362,29 @@ button:active, [role="button"]:active {
 /* ───────────────── Driver.js (Help Center tours) — burgundy palette ───────────────── */
 .senior-stylist-tour.driver-popover {
   font-family: 'DM Sans', system-ui, sans-serif;
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 24px;
+  padding-top: 28px; /* room for the burgundy accent bar */
   border: 1px solid #E7E5E4; /* stone-200 */
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
   min-width: 300px;
   max-width: 380px;
+  overflow: hidden;
+  animation: ss-tour-popover-enter 0.18s ease both;
+}
+/* Burgundy accent bar across the top — matches the scripted popover */
+.senior-stylist-tour.driver-popover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #8B2E4A;
+}
+@keyframes ss-tour-popover-enter {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .senior-stylist-tour .driver-popover-title {
   font-family: 'DM Sans', system-ui, sans-serif;
@@ -415,23 +432,24 @@ button:active, [role="button"]:active {
   display: block;
 }
 
-/* Pulsing burgundy ring on the Driver.js highlighted element */
+/* Premium burgundy glow on the Driver.js highlighted element — soft, low-amplitude
+   pulse that matches the scripted spotlight ring. */
 .driver-highlighted-element {
   position: relative;
 }
 .driver-highlighted-element::after {
   content: '';
   position: absolute;
-  inset: -4px;
-  border-radius: inherit;
-  border: 2px solid #8B2E4A;
-  animation: tour-element-pulse 1.2s ease-in-out infinite;
+  inset: -6px;
+  border-radius: 12px; /* matches driverConfig stageRadius */
+  box-shadow: 0 0 0 3px rgba(139, 46, 74, 0.55), 0 0 18px 4px rgba(139, 46, 74, 0.28);
+  animation: tour-element-pulse 1.6s ease-in-out infinite;
   pointer-events: none;
   z-index: 10000;
 }
 @keyframes tour-element-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(139, 46, 74, 0.4); }
-  50%       { opacity: 0.8; box-shadow: 0 0 0 6px rgba(139, 46, 74, 0); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(139, 46, 74, 0.55), 0 0 18px 4px rgba(139, 46, 74, 0.28); opacity: 1; }
+  50%      { box-shadow: 0 0 0 5px rgba(139, 46, 74, 0.35), 0 0 26px 8px rgba(139, 46, 74, 0.15); opacity: 0.88; }
 }
 .senior-stylist-tour .driver-popover-next-btn {
   background: #8B2E4A;
@@ -466,8 +484,10 @@ button:active, [role="button"]:active {
 }
 .driver-stage {
   background: transparent !important;
-  box-shadow: 0 0 0 9999px rgba(28, 10, 18, 0.65) !important;
-  border-radius: 8px !important;
+  box-shadow: 0 0 0 9999px rgba(28, 10, 18, 0.6) !important;
+  border-radius: 12px !important;
+  /* Premium glide between targets — eases the cutout instead of snapping. */
+  transition: all 0.32s cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
 /* ───────────────── Phase 12J — Mobile tour spotlight pulse ───────────────── */
