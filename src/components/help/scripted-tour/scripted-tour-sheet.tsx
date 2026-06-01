@@ -67,18 +67,23 @@ export function ScriptedTourSheet({
   const enterAnimation = hasEnteredRef.current ? 'none' : `${enterKeyframe} 0.3s cubic-bezier(0.32,0.72,0,1)`
 
   // When the highlighted target sits low on the screen, the sheet flips to the
-  // top so it never covers the element (or its tap target). Position, corner
-  // rounding, shadow direction, and the entrance slide all flip with it.
+  // top so it never covers the element (or its tap target). In the top position
+  // it renders as a floating card (margins + all-corner radius) so it looks
+  // premium rather than a flat-topped drawer. Bottom position stays full-width.
   const positionStyle: React.CSSProperties = isTop
     ? {
         top: 'calc(var(--app-safe-top, 0px) + var(--app-header-height, 56px) + 8px)',
-        borderRadius: '0 0 24px 24px',
-        boxShadow: '0 4px 32px rgba(0,0,0,0.14)',
+        left: 12,
+        right: 12,
+        borderRadius: 24,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)',
       }
     : {
         // Sit directly on top of the mobile bottom nav so the Next/Back buttons
         // clear it AND any highlighted nav item stays visible below the sheet.
         bottom: 'var(--app-nav-clearance, 0px)',
+        left: 0,
+        right: 0,
         borderRadius: '24px 24px 0 0',
         boxShadow: '0 -4px 32px rgba(0,0,0,0.14)',
       }
@@ -107,8 +112,6 @@ export function ScriptedTourSheet({
         aria-live="polite"
         style={{
           position: 'fixed',
-          left: 0,
-          right: 0,
           zIndex: 9010,
           background: 'white',
           padding: '20px',

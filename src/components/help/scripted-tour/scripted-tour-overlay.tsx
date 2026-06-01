@@ -86,6 +86,12 @@ export function ScriptedTourOverlay() {
   // stays tappable even when it renders where the sheet does (e.g. the
   // bottom-right "+" FAB sits behind the bottom sheet on mobile). Restored on
   // cleanup. Info/highlight steps don't need this — nothing to tap.
+  //
+  // If the target is nested inside a `position: fixed` ancestor (e.g. a nav
+  // link inside the mobile nav container at z-[60]), elevating the leaf element
+  // alone does nothing — the parent's stacking context caps all children at
+  // z-60 regardless. So we walk up to the nearest fixed ancestor and elevate
+  // that container instead, which lifts the whole group above the z-9000 panels.
   useEffect(() => {
     if (!active || !tour) return
     const step = tour.steps[active.stepIndex]
@@ -93,14 +99,25 @@ export function ScriptedTourOverlay() {
     const selector = resolveQuery(step.selector)
     let elevated: HTMLElement | null = null
     let prev: { position: string; zIndex: string } | null = null
+
+    function getElementToElevate(el: HTMLElement): HTMLElement {
+      let cur: HTMLElement | null = el.parentElement
+      while (cur && cur !== document.body) {
+        if (window.getComputedStyle(cur).position === 'fixed') return cur
+        cur = cur.parentElement
+      }
+      return el
+    }
+
     function tryElevate() {
       if (elevated) return
       const el = document.querySelector(selector) as HTMLElement | null
       if (!el) return
-      elevated = el
-      prev = { position: el.style.position, zIndex: el.style.zIndex }
-      if (window.getComputedStyle(el).position === 'static') el.style.position = 'relative'
-      el.style.zIndex = '9015'
+      const target = getElementToElevate(el)
+      elevated = target
+      prev = { position: target.style.position, zIndex: target.style.zIndex }
+      if (window.getComputedStyle(target).position === 'static') target.style.position = 'relative'
+      target.style.zIndex = '9015'
     }
     tryElevate()
     const interval = setInterval(tryElevate, 200)
