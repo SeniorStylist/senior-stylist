@@ -101,27 +101,46 @@ export function SpotlightMask({ targetRect, padding = 8 }: SpotlightMaskProps) {
 
   const { cx, cy, cw, ch } = animRect
 
-  // The dark panels NEVER close the tour — only the explicit X button in the
-  // sheet/popover does. Tapping outside (or tapping the highlighted element on
-  // an action step) keeps the tour alive so users can't accidentally bail out.
-  const panel: React.CSSProperties = {
-    position: 'fixed',
-    background: 'rgba(0,0,0,0.72)',
-    zIndex: 9000,
-    pointerEvents: 'auto',
-    cursor: 'default',
-  }
+  // Round the cutout to match the SpotlightRing exactly: small targets (nav
+  // icons, the + FAB) become a circle/pill; large panels keep a soft 16px
+  // radius. Without this the bright hole reads as a square sitting inside a
+  // circular ring. The cutout shares the ring's 8px padding so the two edges
+  // line up perfectly.
+  const minDim = Math.min(cw, ch)
+  const cutoutRadius = cw > 0 && ch > 0 ? (minDim <= 96 ? minDim / 2 : 16) : 0
 
   return (
     <>
-      {/* top */}
-      <div style={{ ...panel, left: 0, top: 0, width: w, height: Math.max(0, cy) }} />
-      {/* bottom */}
-      <div style={{ ...panel, left: 0, top: cy + ch, width: w, height: Math.max(0, h - cy - ch) }} />
-      {/* left */}
-      <div style={{ ...panel, left: 0, top: cy, width: Math.max(0, cx), height: ch }} />
-      {/* right */}
-      <div style={{ ...panel, left: cx + cw, top: cy, width: Math.max(0, w - cx - cw), height: ch }} />
+      {/* Full-viewport click blocker. Transparent — the dark comes from the
+          cutout's box-shadow below. The blocker NEVER closes the tour (no
+          onClick); only the explicit X in the sheet/popover does, so tapping
+          outside can't accidentally bail out. Action-step targets are elevated
+          above this layer (z-9015) so they stay tappable through the dark. */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9000,
+          pointerEvents: 'auto',
+          cursor: 'default',
+        }}
+      />
+      {/* Rounded cutout — a single transparent box whose massive box-shadow
+          dims everything around it, giving one calm layer with a rounded hole
+          that matches the ring. pointerEvents:none so it's purely visual. */}
+      <div
+        style={{
+          position: 'fixed',
+          left: cx,
+          top: cy,
+          width: Math.max(0, cw),
+          height: Math.max(0, ch),
+          borderRadius: cutoutRadius,
+          boxShadow: '0 0 0 9999px rgba(0,0,0,0.72)',
+          zIndex: 9000,
+          pointerEvents: 'none',
+        }}
+      />
     </>
   )
 }

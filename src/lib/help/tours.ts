@@ -106,6 +106,26 @@ export function resolveQuery(selector: string): string {
 }
 
 /**
+ * Pick the first VISIBLE element matching a resolved selector. Critical for
+ * mobile: `resolveQuery` produces a comma selector
+ * (`[data-tour-mobile="X"], [data-tour="X"]`) and `querySelector` returns the
+ * first DOM match regardless of selector order — which is usually the hidden
+ * desktop sidebar element (`display:none`, earlier in the DOM) rather than the
+ * visible mobile nav element. We scan ALL matches and return the first that is
+ * actually rendered. `getClientRects().length > 0` is the right test: it's true
+ * for `position:fixed` elements (whose `offsetParent` is always null) and false
+ * for `display:none`. Falls back to the first match if none are visible (so the
+ * caller can still wait for it to appear).
+ */
+export function firstVisibleMatch(resolvedSelector: string): HTMLElement | null {
+  const matches = document.querySelectorAll<HTMLElement>(resolvedSelector)
+  for (const el of matches) {
+    if (el.getClientRects().length > 0) return el
+  }
+  return matches[0] ?? null
+}
+
+/**
  * Phase 12P — MutationObserver-based element wait. Resolves the instant the
  * selector matches a visible element, or null after `timeoutMs`. Returns
  * immediately when the element is already in the DOM (no requestAnimationFrame
@@ -113,8 +133,11 @@ export function resolveQuery(selector: string): string {
  */
 export function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
   return new Promise((resolve) => {
-    const existing = document.querySelector<HTMLElement>(selector)
-    if (existing && existing.offsetParent !== null) {
+    const isVisible = (el: HTMLElement | null): el is HTMLElement =>
+      !!el && el.getClientRects().length > 0
+
+    const existing = firstVisibleMatch(selector)
+    if (isVisible(existing)) {
       resolve(existing)
       return
     }
@@ -122,8 +145,8 @@ export function waitForElement(selector: string, timeoutMs: number): Promise<HTM
     let settled = false
     const observer = new MutationObserver(() => {
       if (settled) return
-      const el = document.querySelector<HTMLElement>(selector)
-      if (el && el.offsetParent !== null) {
+      const el = firstVisibleMatch(selector)
+      if (isVisible(el)) {
         settled = true
         clearTimeout(timer)
         observer.disconnect()

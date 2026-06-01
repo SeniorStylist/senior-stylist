@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import type { ScriptedTour } from '@/lib/help/scripted-tour-types'
-import { resolveQuery } from '@/lib/help/tours'
+import { resolveQuery, firstVisibleMatch } from '@/lib/help/tours'
 
 const SpotlightMask = dynamic(() => import('./spotlight-mask').then((m) => ({ default: m.SpotlightMask })), { ssr: false })
 const SpotlightRing = dynamic(() => import('./spotlight-ring').then((m) => ({ default: m.SpotlightRing })), { ssr: false })
@@ -52,7 +52,7 @@ export function ScriptedTourOverlay() {
 
     function updateRect() {
       if (!step?.selector) { setTargetRect(null); return }
-      const el = document.querySelector(resolveQuery(step.selector))
+      const el = firstVisibleMatch(resolveQuery(step.selector))
       if (el) {
         const rect = el.getBoundingClientRect()
         setTargetRect(rect)
@@ -111,7 +111,7 @@ export function ScriptedTourOverlay() {
 
     function tryElevate() {
       if (elevated) return
-      const el = document.querySelector(selector) as HTMLElement | null
+      const el = firstVisibleMatch(selector)
       if (!el) return
       const target = getElementToElevate(el)
       elevated = target
