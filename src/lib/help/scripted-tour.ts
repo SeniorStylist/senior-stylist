@@ -213,32 +213,47 @@ function completeTour() {
 //   button advances (the value is already filled; the user just confirms).
 // - info/highlight steps: the Next button drives them.
 //
-// Advance clicks are wired via DOCUMENT-LEVEL delegation (capture-phase
-// pointerdown) rather than a listener on the element itself. Delegation is
-// robust to two things that broke the old approach: (1) typeahead options that
-// remove themselves from the DOM on mousedown, and (2) the dropdown re-rendering
+// Advance clicks are wired via DOCUMENT-LEVEL delegation rather than a listener
+// on the element itself. Delegation is robust to: (1) typeahead options that
+// remove themselves from the DOM on mousedown, (2) the dropdown re-rendering
 // when the user edits the search text — a fresh option element still matches the
-// selector. The mask is pointerEvents:none, so advancing on pointerdown is safe
-// (the app still receives the full click; nothing covers the release).
-function wireAdvanceOnClick(resolvedSelector: string, index: number) {
+// selector. The mask is pointerEvents:none so we never block any interaction.
+//
+// Two modes controlled by `usePointerDown`:
+//
+//   false (default) — regular buttons, FABs, nav links.  We listen on the
+//   BUBBLE-phase `click` event (not capture-phase pointerdown).  On mobile,
+//   pointerdown fires at touchstart time — 100-300ms before the synthetic click
+//   event and well before React's onClick handler runs.  Advancing on pointerdown
+//   means the spotlight moves before the modal opens.  Listening on `click` lets
+//   React's bubble-phase onClick complete first; our 50ms settle then fires after
+//   the component has re-rendered (modal open, route changed, etc.).
+//
+//   true — typeahead dropdown options (advanceSelector).  These components call
+//   onMouseDown (or onPointerDown) to prevent the input from losing focus, then
+//   remove themselves from the DOM before the synthetic click fires.  We must
+//   capture at pointerdown so the element is still in the DOM when we test it.
+function wireAdvanceOnClick(resolvedSelector: string, index: number, usePointerDown = false) {
   let fired = false
-  const onPointerDown = (e: Event) => {
+  const handler = (e: Event) => {
     if (fired) return
     const t = e.target as HTMLElement | null
     if (!t || !t.closest(resolvedSelector)) return
     fired = true
     clearActiveListener()
-    // 50ms lets React flush the target's own handler (select resident, open
-    // modal, navigate) before we re-render the next step's spotlight.
+    // 50ms settle: for click events, React's onClick has already run (same sync
+    // tick); the settle covers async state batching and re-renders (typically
+    // one rAF ≈ 16ms).  For pointerdown this is a best-effort gap.
     setTimeout(() => {
       if (_activeState?.stepIndex === index) advanceStep()
     }, 50)
   }
-  document.addEventListener('pointerdown', onPointerDown, true)
-  document.addEventListener('click', onPointerDown, true)
+  // Bubble-phase for regular clicks (after React onClick); capture for typeahead.
+  const eventType = usePointerDown ? 'pointerdown' : 'click'
+  const useCapture = usePointerDown
+  document.addEventListener(eventType, handler, useCapture)
   _activeListenerCleanup = () => {
-    document.removeEventListener('pointerdown', onPointerDown, true)
-    document.removeEventListener('click', onPointerDown, true)
+    document.removeEventListener(eventType, handler, useCapture)
   }
 }
 
@@ -248,7 +263,9 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
   const selector = resolveQuery(step.selector)
 
   if (step.type === 'click') {
-    wireAdvanceOnClick(selector, index)
+    // Bubble-phase click — fires after React's onClick has run (modal opens,
+    // route changes, etc.).  See wireAdvanceOnClick comment for why NOT pointerdown.
+    wireAdvanceOnClick(selector, index, false)
     return
   }
 
@@ -258,11 +275,11 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
       if (!el || _activeState?.stepIndex !== index) return
       autoFillInput(el, value)
     })
-    // If the field opens a typeahead, wire the result click immediately (the
-    // option appears once auto-fill opens the dropdown; delegation catches it
-    // whenever it lands). No auto-advance — the user picks the option.
+    // advanceSelector: typeahead option element that removes itself on mousedown.
+    // Must use pointerdown capture so the element is still in the DOM when we
+    // check it.  See wireAdvanceOnClick comment.
     if (step.advanceSelector) {
-      wireAdvanceOnClick(resolveQuery(step.advanceSelector), index)
+      wireAdvanceOnClick(resolveQuery(step.advanceSelector), index, true)
     }
   }
 }
