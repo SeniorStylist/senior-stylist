@@ -27,7 +27,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="master-facility-form-name"]',
         typeValue: 'Sunrise of Denver',
         title: 'Name entered',
-        description: "We typed the name. Use the facility's full legal name in practice..",
+        description: "We typed the name. Use the facility's full legal name in practice.",
         placement: 'right',
       },
       {
@@ -71,7 +71,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="directory-add-stylist-name"]',
         typeValue: 'Alex Turner',
         title: 'Name entered',
-        description: "We typed a demo name. Enter the stylist's real full name in practice..",
+        description: "We typed a demo name. Enter the stylist's real full name in practice.",
         placement: 'bottom',
       },
       {
@@ -489,15 +489,9 @@ export const MASTER_TOURS: ScriptedTour[] = [
         type: 'type',
         selector: '[data-tour="booking-modal-resident"]',
         typeValue: 'Smith',
-        title: 'Resident filled in',
-        description: 'We typed "Smith" — Mrs. Smith appears below..',
-        placement: 'bottom',
-      },
-      {
-        type: 'click',
-        selector: '[data-tour="booking-modal-resident-option"]',
-        title: 'Tap Mrs. Smith',
-        description: 'Tap her name to select her.',
+        advanceSelector: '[data-tour="booking-modal-resident-option"]',
+        title: 'Pick the resident',
+        description: 'We typed "Smith" for you. Tap Mrs. Smith below to select her — or edit the search yourself.',
         placement: 'bottom',
       },
       {
@@ -505,7 +499,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-service"]',
         typeValue: '{{wash-and-set}}',
         title: 'Service selected',
-        description: 'Wash & Set is set — price and duration fill in automatically..',
+        description: 'Wash & Set is set — price and duration fill in automatically.',
         placement: 'bottom',
       },
       {
@@ -513,7 +507,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-date"]',
         typeValue: '{{tomorrow-10am}}',
         title: 'Date and time set',
-        description: 'Tomorrow at 10am..',
+        description: 'Tomorrow at 10am.',
         placement: 'bottom',
       },
       {
@@ -593,7 +587,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="residents-add-name"]',
         typeValue: 'Eleanor Davis',
         title: 'Name entered',
-        description: "We typed a demo name. Use the resident's full name in practice..",
+        description: "We typed a demo name. Use the resident's full name in practice.",
         placement: 'bottom',
       },
       {

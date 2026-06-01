@@ -8,6 +8,11 @@ export interface ScriptedStep {
   description: string
   // For 'type' steps — the value to auto-fill
   typeValue?: string
+  // For 'type' steps that open a typeahead dropdown — the option the user must
+  // click to advance (e.g. the "Mrs. Smith" result). The engine auto-fills the
+  // input, then highlights this element and advances when the user clicks it.
+  // Merges the old fill-then-pick two-step dance into one user-controlled step.
+  advanceSelector?: string
   // For 'navigate' steps — the route to navigate to
   route?: string
   // For 'click' steps — whether to auto-advance after detecting the click

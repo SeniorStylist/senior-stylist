@@ -110,37 +110,25 @@ export function SpotlightMask({ targetRect, padding = 8 }: SpotlightMaskProps) {
   const cutoutRadius = cw > 0 && ch > 0 ? (minDim <= 96 ? minDim / 2 : 16) : 0
 
   return (
-    <>
-      {/* Full-viewport click blocker. Transparent — the dark comes from the
-          cutout's box-shadow below. The blocker NEVER closes the tour (no
-          onClick); only the explicit X in the sheet/popover does, so tapping
-          outside can't accidentally bail out. Action-step targets are elevated
-          above this layer (z-9015) so they stay tappable through the dark. */}
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9000,
-          pointerEvents: 'auto',
-          cursor: 'default',
-        }}
-      />
-      {/* Rounded cutout — a single transparent box whose massive box-shadow
-          dims everything around it, giving one calm layer with a rounded hole
-          that matches the ring. pointerEvents:none so it's purely visual. */}
-      <div
-        style={{
-          position: 'fixed',
-          left: cx,
-          top: cy,
-          width: Math.max(0, cw),
-          height: Math.max(0, ch),
-          borderRadius: cutoutRadius,
-          boxShadow: '0 0 0 9999px rgba(0,0,0,0.72)',
-          zIndex: 9000,
-          pointerEvents: 'none',
-        }}
-      />
-    </>
+    // Rounded cutout — a single box whose massive box-shadow dims everything
+    // around it, leaving a bright rounded hole over the target. The WHOLE mask
+    // is pointerEvents:none: it never blocks interaction, so the user can edit
+    // inputs, tap dropdown options, and click the highlighted element directly
+    // (the app sits below at its natural z-index and receives every event). The
+    // tour advances only when the user clicks the step's target — guard rails,
+    // not a cage. Only the explicit X in the sheet/popover closes the tour.
+    <div
+      style={{
+        position: 'fixed',
+        left: cx,
+        top: cy,
+        width: Math.max(0, cw),
+        height: Math.max(0, ch),
+        borderRadius: cutoutRadius,
+        boxShadow: '0 0 0 9999px rgba(0,0,0,0.68)',
+        zIndex: 9000,
+        pointerEvents: 'none',
+      }}
+    />
   )
 }

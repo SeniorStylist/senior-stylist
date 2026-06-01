@@ -27,15 +27,9 @@ export const BOOKKEEPER_TOURS: ScriptedTour[] = [
         type: 'type',
         selector: '[data-tour="walkin-resident-search"]',
         typeValue: 'Smith',
-        title: 'Resident filled in',
-        description: 'We typed "Smith" — Mrs. Smith appears below..',
-        placement: 'bottom',
-      },
-      {
-        type: 'click',
-        selector: '[data-tour="walkin-resident-option"]',
-        title: 'Click Mrs. Smith',
-        description: 'Click her name to select her.',
+        advanceSelector: '[data-tour="walkin-resident-option"]',
+        title: 'Pick the resident',
+        description: 'We typed "Smith" for you. Click Mrs. Smith below to select her — or edit the search yourself.',
         placement: 'bottom',
       },
       {
@@ -43,7 +37,7 @@ export const BOOKKEEPER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="walkin-service-select"]',
         typeValue: '{{wash-and-set}}',
         title: 'Service selected',
-        description: 'Wash & Set is set. Time and stylist default to now..',
+        description: 'Wash & Set is set. Time and stylist default to now.',
         placement: 'bottom',
       },
       {

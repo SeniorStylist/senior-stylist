@@ -49,10 +49,14 @@ export function ScriptedTourOverlay() {
   useEffect(() => {
     if (!active || !tour) { setTargetRect(null); return }
     const step = tour.steps[active.stepIndex]
+    // For a type step that opens a typeahead, highlight the RESULT the user must
+    // click (advanceSelector), not the input — that's where attention belongs.
+    const highlightSelector =
+      step?.type === 'type' && step.advanceSelector ? step.advanceSelector : step?.selector
 
     function updateRect() {
-      if (!step?.selector) { setTargetRect(null); return }
-      const el = firstVisibleMatch(resolveQuery(step.selector))
+      if (!highlightSelector) { setTargetRect(null); return }
+      const el = firstVisibleMatch(resolveQuery(highlightSelector))
       if (el) {
         const rect = el.getBoundingClientRect()
         setTargetRect(rect)
@@ -79,54 +83,6 @@ export function ScriptedTourOverlay() {
       window.removeEventListener('scroll', schedule, true)
       window.removeEventListener('resize', schedule)
       clearInterval(interval)
-    }
-  }, [active, tour])
-
-  // Elevate the current action-step target above the tour sheet/popover so it
-  // stays tappable even when it renders where the sheet does (e.g. the
-  // bottom-right "+" FAB sits behind the bottom sheet on mobile). Restored on
-  // cleanup. Info/highlight steps don't need this — nothing to tap.
-  //
-  // If the target is nested inside a `position: fixed` ancestor (e.g. a nav
-  // link inside the mobile nav container at z-[60]), elevating the leaf element
-  // alone does nothing — the parent's stacking context caps all children at
-  // z-60 regardless. So we walk up to the nearest fixed ancestor and elevate
-  // that container instead, which lifts the whole group above the z-9000 panels.
-  useEffect(() => {
-    if (!active || !tour) return
-    const step = tour.steps[active.stepIndex]
-    if (step?.type !== 'click' || !step.selector) return
-    const selector = resolveQuery(step.selector)
-    let elevated: HTMLElement | null = null
-    let prev: { position: string; zIndex: string } | null = null
-
-    function getElementToElevate(el: HTMLElement): HTMLElement {
-      let cur: HTMLElement | null = el.parentElement
-      while (cur && cur !== document.body) {
-        if (window.getComputedStyle(cur).position === 'fixed') return cur
-        cur = cur.parentElement
-      }
-      return el
-    }
-
-    function tryElevate() {
-      if (elevated) return
-      const el = firstVisibleMatch(selector)
-      if (!el) return
-      const target = getElementToElevate(el)
-      elevated = target
-      prev = { position: target.style.position, zIndex: target.style.zIndex }
-      if (window.getComputedStyle(target).position === 'static') target.style.position = 'relative'
-      target.style.zIndex = '9015'
-    }
-    tryElevate()
-    const interval = setInterval(tryElevate, 200)
-    return () => {
-      clearInterval(interval)
-      if (elevated && prev) {
-        elevated.style.position = prev.position
-        elevated.style.zIndex = prev.zIndex
-      }
     }
   }, [active, tour])
 
@@ -161,8 +117,10 @@ export function ScriptedTourOverlay() {
   if (!step) return null
 
   const popoverEl = isMobile ? sheetRef.current : popoverRef.current
-  const isAction = step.type === 'click'
-  const isAutoFill = step.type === 'type'
+  // Action = the user must click the highlighted thing to advance: real click
+  // steps, and type steps that open a typeahead the user picks from. Plain type
+  // steps (a <select>, a date input, a name field) auto-fill and then show Next.
+  const isAction = step.type === 'click' || (step.type === 'type' && !!step.advanceSelector)
 
   // On mobile the sheet normally lives at the bottom. But when the step's target
   // sits in the lower part of the screen (the + FAB, the bottom nav items), a
@@ -199,7 +157,6 @@ export function ScriptedTourOverlay() {
           stepIndex={active.stepIndex}
           totalSteps={tour.steps.length}
           isAction={isAction}
-          isAutoFill={isAutoFill}
           anchor={sheetAnchor}
           scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
@@ -214,7 +171,6 @@ export function ScriptedTourOverlay() {
           totalSteps={tour.steps.length}
           targetRect={targetRect}
           isAction={isAction}
-          isAutoFill={isAutoFill}
           scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
           onPrev={handlePrev}

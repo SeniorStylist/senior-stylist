@@ -205,50 +205,50 @@ function completeTour() {
 }
 
 // ─── Step wiring ──────────────────────────────────────────────────────────
-// Runs whenever we land on a step. Click steps wait for the real element and
-// advance on the user's real click; type steps auto-fill the field (the popover
-// shows Next so the user reads what happened, then advances). Info/highlight
-// steps need nothing — the popover's Next button drives them.
+// Runs whenever we land on a step.
+// - click steps: advance when the user clicks the highlighted element.
+// - type steps: auto-fill the field. If the step has `advanceSelector` (a
+//   typeahead result like "Mrs. Smith"), the user stays in control — they pick
+//   the option themselves and that click advances. Otherwise the popover's Next
+//   button advances (the value is already filled; the user just confirms).
+// - info/highlight steps: the Next button drives them.
+//
+// Advance clicks are wired via DOCUMENT-LEVEL delegation (capture-phase
+// pointerdown) rather than a listener on the element itself. Delegation is
+// robust to two things that broke the old approach: (1) typeahead options that
+// remove themselves from the DOM on mousedown, and (2) the dropdown re-rendering
+// when the user edits the search text — a fresh option element still matches the
+// selector. The mask is pointerEvents:none, so advancing on pointerdown is safe
+// (the app still receives the full click; nothing covers the release).
+function wireAdvanceOnClick(resolvedSelector: string, index: number) {
+  let fired = false
+  const onPointerDown = (e: Event) => {
+    if (fired) return
+    const t = e.target as HTMLElement | null
+    if (!t || !t.closest(resolvedSelector)) return
+    fired = true
+    clearActiveListener()
+    // 50ms lets React flush the target's own handler (select resident, open
+    // modal, navigate) before we re-render the next step's spotlight.
+    setTimeout(() => {
+      if (_activeState?.stepIndex === index) advanceStep()
+    }, 50)
+  }
+  document.addEventListener('pointerdown', onPointerDown, true)
+  document.addEventListener('click', onPointerDown, true)
+  _activeListenerCleanup = () => {
+    document.removeEventListener('pointerdown', onPointerDown, true)
+    document.removeEventListener('click', onPointerDown, true)
+  }
+}
+
 function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number) {
   clearActiveListener()
   if (!step?.selector) return
   const selector = resolveQuery(step.selector)
 
   if (step.type === 'click') {
-    void waitForElement(selector, STEP_WAIT_MS).then((target) => {
-      if (!target || _activeState?.stepIndex !== index) return
-      let fired = false
-      const advance = () => {
-        if (fired) return
-        fired = true
-        clearActiveListener()
-        // 50ms lets React flush the click's onClick (open modal, fire nav) before we
-        // re-render the next step's spotlight mask.
-        setTimeout(() => advanceStep(), 50)
-      }
-      // Primary path: advance on the completed click. The full gesture
-      // (pointerdown → pointerup → click) is done by the time `click` fires, so the
-      // user has already released the button — the next step's mask can't steal the
-      // tail of the gesture, and the target's real React onClick has run (form/modal
-      // is opening). Advancing on pointerdown instead caused the mask to cover the
-      // button mid-press, so the release landed on the mask and onClick never fired.
-      const onClick = () => advance()
-      // Fallback for elements that remove themselves from the DOM on mousedown (e.g. a
-      // typeahead option that closes its own dropdown) — `click` never lands. If the
-      // target detaches shortly after pointerdown, advance anyway; the selection it
-      // triggered already happened on mousedown.
-      const onPointerDown = () => {
-        setTimeout(() => {
-          if (!fired && !document.contains(target)) advance()
-        }, 120)
-      }
-      target.addEventListener('click', onClick)
-      target.addEventListener('pointerdown', onPointerDown, true)
-      _activeListenerCleanup = () => {
-        target.removeEventListener('click', onClick)
-        target.removeEventListener('pointerdown', onPointerDown, true)
-      }
-    })
+    wireAdvanceOnClick(selector, index)
     return
   }
 
@@ -257,15 +257,13 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
     void waitForElement(selector, STEP_WAIT_MS).then((el) => {
       if (!el || _activeState?.stepIndex !== index) return
       autoFillInput(el, value)
-      // Auto-advance so the user never has to tap "Next" on a type step.
-      // Tapping Next would blur the input, closing typeahead dropdowns before
-      // the following click step can wire up (e.g. the Mrs. Smith option
-      // disappears). 900ms gives debounced dropdowns time to render so the
-      // ring highlights the option the moment the step transitions.
-      setTimeout(() => {
-        if (_activeState?.stepIndex === index) advanceStep()
-      }, 900)
     })
+    // If the field opens a typeahead, wire the result click immediately (the
+    // option appears once auto-fill opens the dropdown; delegation catches it
+    // whenever it lands). No auto-advance — the user picks the option.
+    if (step.advanceSelector) {
+      wireAdvanceOnClick(resolveQuery(step.advanceSelector), index)
+    }
   }
 }
 

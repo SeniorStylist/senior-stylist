@@ -174,7 +174,9 @@ const scriptedRefs: ScriptedRef[] = []
 for (const file of SCRIPTED_FILES) {
   if (!fs.existsSync(file)) continue
   const src = fs.readFileSync(file, 'utf8')
-  for (const m of src.matchAll(/selector:\s*'\[data-tour(?:-mobile)?="([^"]+)"\]'/g)) {
+  // Matches both `selector:` and `advanceSelector:` (the typeahead result a
+  // type step waits for the user to click).
+  for (const m of src.matchAll(/(?:advance)?[sS]elector:\s*'\[data-tour(?:-mobile)?="([^"]+)"\]'/g)) {
     scriptedRefs.push({ file: path.basename(file), value: m[1] })
   }
 }
