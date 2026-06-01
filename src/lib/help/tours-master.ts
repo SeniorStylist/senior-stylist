@@ -417,9 +417,10 @@ export const MASTER_TOURS: ScriptedTour[] = [
       },
       {
         type: 'highlight',
-        selector: '',
+        selector: '[data-tour-mobile="dashboard-new-booking-fab"]',
         title: 'Quick book with +',
-        description: 'A round + button sits in the bottom-right of your Calendar — it books an appointment in seconds. The Calendar tutorial walks you through it.',
+        description: 'This round + button books an appointment in seconds. The Calendar tutorial walks you through it.',
+        placement: 'top',
       },
       {
         type: 'click',

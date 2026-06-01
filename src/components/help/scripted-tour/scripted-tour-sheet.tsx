@@ -8,6 +8,7 @@ interface ScriptedTourSheetProps {
   stepIndex: number
   totalSteps: number
   isAction?: boolean
+  anchor?: 'top' | 'bottom'
   scenarioSummary?: string
   onNext: () => void
   onPrev: () => void
@@ -20,6 +21,7 @@ export function ScriptedTourSheet({
   stepIndex,
   totalSteps,
   isAction = false,
+  anchor = 'bottom',
   scenarioSummary,
   onNext,
   onPrev,
@@ -60,13 +62,36 @@ export function ScriptedTourSheet({
 
   const isFirst = stepIndex === 0
   const isLast = stepIndex === totalSteps - 1
-  const enterAnimation = hasEnteredRef.current ? 'none' : 'scripted-sheet-enter 0.3s cubic-bezier(0.32,0.72,0,1)'
+  const isTop = anchor === 'top'
+  const enterKeyframe = isTop ? 'scripted-sheet-enter-top' : 'scripted-sheet-enter-bottom'
+  const enterAnimation = hasEnteredRef.current ? 'none' : `${enterKeyframe} 0.3s cubic-bezier(0.32,0.72,0,1)`
+
+  // When the highlighted target sits low on the screen, the sheet flips to the
+  // top so it never covers the element (or its tap target). Position, corner
+  // rounding, shadow direction, and the entrance slide all flip with it.
+  const positionStyle: React.CSSProperties = isTop
+    ? {
+        top: 'calc(var(--app-safe-top, 0px) + var(--app-header-height, 56px) + 8px)',
+        borderRadius: '0 0 24px 24px',
+        boxShadow: '0 4px 32px rgba(0,0,0,0.14)',
+      }
+    : {
+        // Sit directly on top of the mobile bottom nav so the Next/Back buttons
+        // clear it AND any highlighted nav item stays visible below the sheet.
+        bottom: 'var(--app-nav-clearance, 0px)',
+        borderRadius: '24px 24px 0 0',
+        boxShadow: '0 -4px 32px rgba(0,0,0,0.14)',
+      }
 
   return (
     <>
       <style>{`
-        @keyframes scripted-sheet-enter {
+        @keyframes scripted-sheet-enter-bottom {
           from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
+        }
+        @keyframes scripted-sheet-enter-top {
+          from { transform: translateY(-100%); }
           to   { transform: translateY(0); }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -82,18 +107,13 @@ export function ScriptedTourSheet({
         aria-live="polite"
         style={{
           position: 'fixed',
-          // Sit directly on top of the mobile bottom nav so the Next/Back
-          // buttons clear it (otherwise the nav covers the first step's button)
-          // AND any highlighted nav item stays visible below the sheet.
-          bottom: 'var(--app-nav-clearance, 0px)',
           left: 0,
           right: 0,
           zIndex: 9010,
           background: 'white',
-          borderRadius: '24px 24px 0 0',
           padding: '20px',
-          boxShadow: '0 -4px 32px rgba(0,0,0,0.14)',
           animation: enterAnimation,
+          ...positionStyle,
         }}
       >
         {/* Drag handle */}

@@ -14,6 +14,11 @@ interface SpotlightRingProps {
 }
 
 export function SpotlightRing({ targetRect, padding = 8, isAction = false }: SpotlightRingProps) {
+  // Small targets (nav icons, the + FAB, the logo) get fully circled/pill-shaped
+  // so they read as "circled". Large panels (calendar grid, tables) keep a subtle
+  // 16px rounded-rect — a stadium shape there would look odd.
+  const minDim = Math.min(targetRect.width, targetRect.height) + padding * 2
+  const borderRadius = minDim <= 96 ? minDim / 2 : 16
   return (
     <>
       <style>{`
@@ -37,7 +42,7 @@ export function SpotlightRing({ targetRect, padding = 8, isAction = false }: Spo
           top: targetRect.y - padding,
           width: targetRect.width + padding * 2,
           height: targetRect.height + padding * 2,
-          borderRadius: 12,
+          borderRadius,
           // Action steps get a bright white inner highlight + burgundy glow so the
           // clickable target visibly "lights up"; info steps keep the subtle ring.
           boxShadow: isAction

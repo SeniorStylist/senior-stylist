@@ -146,6 +146,17 @@ export function ScriptedTourOverlay() {
   const popoverEl = isMobile ? sheetRef.current : popoverRef.current
   const isAction = step.type === 'click'
 
+  // On mobile the sheet normally lives at the bottom. But when the step's target
+  // sits in the lower part of the screen (the + FAB, the bottom nav items), a
+  // bottom sheet would cover it — both visually and for the tap. Flip the sheet
+  // to the top in that case so the highlighted element stays fully visible and
+  // tappable, with the arrow pointing down to it.
+  const sheetAnchor: 'top' | 'bottom' =
+    targetRect && typeof window !== 'undefined' &&
+    targetRect.y + targetRect.height / 2 > window.innerHeight * 0.55
+      ? 'top'
+      : 'bottom'
+
   return (
     <>
       <SpotlightMask
@@ -170,6 +181,7 @@ export function ScriptedTourOverlay() {
           stepIndex={active.stepIndex}
           totalSteps={tour.steps.length}
           isAction={isAction}
+          anchor={sheetAnchor}
           scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
           onPrev={handlePrev}
