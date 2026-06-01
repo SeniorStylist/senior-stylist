@@ -27,7 +27,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="residents-add-name"]',
         typeValue: 'Eleanor Davis',
         title: 'Name entered',
-        description: "We typed a demo name. Use the resident's full name in practice. Click Next.",
+        description: "We typed a demo name. Use the resident's full name in practice..",
         placement: 'bottom',
       },
       {
@@ -70,7 +70,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-resident"]',
         typeValue: 'Smith',
         title: 'Resident filled in',
-        description: 'We typed "Smith" — Mrs. Smith appears below. Click Next.',
+        description: 'We typed "Smith" — Mrs. Smith appears below..',
         placement: 'right',
       },
       {
@@ -85,7 +85,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-service"]',
         typeValue: '{{wash-and-set}}',
         title: 'Service selected',
-        description: 'Wash & Set is set. Price and duration filled automatically. Click Next.',
+        description: 'Wash & Set is set. Price and duration filled automatically..',
         placement: 'right',
       },
       {
@@ -93,7 +93,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-date"]',
         typeValue: '{{tomorrow-10am}}',
         title: 'Date and time set',
-        description: 'Tomorrow at 10am. A stylist is auto-assigned. Click Next.',
+        description: 'Tomorrow at 10am. A stylist is auto-assigned..',
         placement: 'right',
       },
       {
@@ -130,7 +130,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-resident"]',
         typeValue: 'Smith',
         title: 'Resident filled in',
-        description: 'We typed "Smith" — Mrs. Smith appears below. Tap Next.',
+        description: 'We typed "Smith" — Mrs. Smith appears below..',
         placement: 'bottom',
       },
       {
@@ -145,7 +145,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-service"]',
         typeValue: '{{wash-and-set}}',
         title: 'Service selected',
-        description: 'Wash & Set is set. Price and duration filled automatically. Tap Next.',
+        description: 'Wash & Set is set. Price and duration filled automatically..',
         placement: 'bottom',
       },
       {
@@ -153,7 +153,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-date"]',
         typeValue: '{{tomorrow-10am}}',
         title: 'Date and time set',
-        description: 'Tomorrow at 10am. A stylist is auto-assigned. Tap Next.',
+        description: 'Tomorrow at 10am. A stylist is auto-assigned..',
         placement: 'bottom',
       },
       {
@@ -191,7 +191,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="signup-sheet-resident"]',
         typeValue: 'Smith',
         title: 'Resident filled in',
-        description: 'We typed "Smith" — Mrs. Smith appears below. Click Next.',
+        description: 'We typed "Smith" — Mrs. Smith appears below..',
         placement: 'left',
       },
       {
@@ -221,7 +221,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
         selector: '[data-tour="signup-sheet-preferred-date"]',
         typeValue: '{{tomorrow}}',
         title: 'Preferred date set',
-        description: 'We set tomorrow. Helps auto-assign the right stylist. Click Next.',
+        description: 'We set tomorrow. Helps auto-assign the right stylist..',
         placement: 'left',
       },
       {

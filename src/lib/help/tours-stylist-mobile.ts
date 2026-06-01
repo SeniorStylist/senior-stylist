@@ -90,7 +90,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-resident"]',
         typeValue: 'Smith',
         title: 'Resident filled in',
-        description: 'We typed "Smith" — Mrs. Smith appears below. Tap Next.',
+        description: 'We typed "Smith" — Mrs. Smith appears below..',
         placement: 'bottom',
       },
       {
@@ -105,7 +105,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-service"]',
         typeValue: '{{wash-and-set}}',
         title: 'Service selected',
-        description: 'Wash & Set is set. Price and duration filled automatically. Tap Next.',
+        description: 'Wash & Set is set. Price and duration filled automatically..',
         placement: 'bottom',
       },
       {
@@ -113,7 +113,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
         selector: '[data-tour="booking-modal-date"]',
         typeValue: '{{tomorrow-10am}}',
         title: 'Date and time set',
-        description: 'Tomorrow at 10am. Tap Next.',
+        description: 'Tomorrow at 10am..',
         placement: 'bottom',
       },
       {

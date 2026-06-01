@@ -162,6 +162,7 @@ export function ScriptedTourOverlay() {
 
   const popoverEl = isMobile ? sheetRef.current : popoverRef.current
   const isAction = step.type === 'click'
+  const isAutoFill = step.type === 'type'
 
   // On mobile the sheet normally lives at the bottom. But when the step's target
   // sits in the lower part of the screen (the + FAB, the bottom nav items), a
@@ -198,6 +199,7 @@ export function ScriptedTourOverlay() {
           stepIndex={active.stepIndex}
           totalSteps={tour.steps.length}
           isAction={isAction}
+          isAutoFill={isAutoFill}
           anchor={sheetAnchor}
           scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
@@ -212,6 +214,7 @@ export function ScriptedTourOverlay() {
           totalSteps={tour.steps.length}
           targetRect={targetRect}
           isAction={isAction}
+          isAutoFill={isAutoFill}
           scenarioSummary={tour.scenarioSummary}
           onNext={handleNext}
           onPrev={handlePrev}

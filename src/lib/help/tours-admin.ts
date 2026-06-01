@@ -27,7 +27,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         selector: '[data-tour="residents-add-name"]',
         typeValue: 'Eleanor Davis',
         title: 'Name entered',
-        description: "We typed a demo name. Use the resident's full name in practice. Click Next.",
+        description: "We typed a demo name. Use the resident's full name in practice..",
         placement: 'bottom',
       },
       {

@@ -257,6 +257,14 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
     void waitForElement(selector, STEP_WAIT_MS).then((el) => {
       if (!el || _activeState?.stepIndex !== index) return
       autoFillInput(el, value)
+      // Auto-advance so the user never has to tap "Next" on a type step.
+      // Tapping Next would blur the input, closing typeahead dropdowns before
+      // the following click step can wire up (e.g. the Mrs. Smith option
+      // disappears). 900ms gives debounced dropdowns time to render so the
+      // ring highlights the option the moment the step transitions.
+      setTimeout(() => {
+        if (_activeState?.stepIndex === index) advanceStep()
+      }, 900)
     })
   }
 }

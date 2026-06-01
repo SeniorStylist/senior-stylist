@@ -9,6 +9,7 @@ interface ScriptedTourPopoverProps {
   totalSteps: number
   targetRect: DOMRect | null
   isAction?: boolean
+  isAutoFill?: boolean
   scenarioSummary?: string
   onNext: () => void
   onPrev: () => void
@@ -100,6 +101,7 @@ export function ScriptedTourPopover({
   totalSteps,
   targetRect,
   isAction = false,
+  isAutoFill = false,
   scenarioSummary,
   onNext,
   onPrev,
@@ -124,12 +126,12 @@ export function ScriptedTourPopover({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
-      if (!isAction && (e.key === 'ArrowRight' || e.key === 'Enter')) onNext()
-      if (e.key === 'ArrowLeft') onPrev()
+      if (!isAction && !isAutoFill && (e.key === 'ArrowRight' || e.key === 'Enter')) onNext()
+      if (!isAutoFill && e.key === 'ArrowLeft') onPrev()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onNext, onPrev, onClose, isAction])
+  }, [onNext, onPrev, onClose, isAction, isAutoFill])
 
   const isFirst = stepIndex === 0
   const isLast = stepIndex === totalSteps - 1
@@ -147,6 +149,13 @@ export function ScriptedTourPopover({
         }
         @media (prefers-reduced-motion: reduce) {
           .scripted-popover-enter, .scripted-step-enter { animation: none !important; }
+        }
+        @keyframes scripted-popover-dot-bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-3px); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .scripted-popover-dot { animation: none !important; opacity: 0.7; }
         }
       `}</style>
       <div
@@ -254,7 +263,7 @@ export function ScriptedTourPopover({
 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {!isFirst && (
+            {!isFirst && !isAutoFill && (
               <button
                 aria-label="Previous step"
                 onClick={onPrev}
@@ -273,7 +282,34 @@ export function ScriptedTourPopover({
                 ← Back
               </button>
             )}
-            {isAction ? (
+            {isAutoFill ? (
+              <div
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: 10,
+                  background: '#FBEEF2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 7,
+                }}
+              >
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="scripted-popover-dot"
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: '#8B2E4A',
+                      animation: `scripted-popover-dot-bounce 1.2s ease-in-out ${i * 0.18}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            ) : isAction ? (
               <div
                 style={{
                   flex: 1,

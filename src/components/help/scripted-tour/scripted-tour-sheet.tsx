@@ -8,6 +8,7 @@ interface ScriptedTourSheetProps {
   stepIndex: number
   totalSteps: number
   isAction?: boolean
+  isAutoFill?: boolean
   anchor?: 'top' | 'bottom'
   scenarioSummary?: string
   onNext: () => void
@@ -21,6 +22,7 @@ export function ScriptedTourSheet({
   stepIndex,
   totalSteps,
   isAction = false,
+  isAutoFill = false,
   anchor = 'bottom',
   scenarioSummary,
   onNext,
@@ -101,6 +103,13 @@ export function ScriptedTourSheet({
         }
         @media (prefers-reduced-motion: reduce) {
           .scripted-tour-sheet-enter { animation: none !important; }
+        }
+        @keyframes scripted-sheet-dot-bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-4px); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .scripted-tour-dot { animation: none !important; opacity: 0.7; }
         }
       `}</style>
       <div
@@ -186,7 +195,33 @@ export function ScriptedTourSheet({
 
         {/* Buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {isAction ? (
+          {isAutoFill ? (
+            <div
+              style={{
+                minHeight: 52,
+                borderRadius: 14,
+                background: '#FBEEF2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+            >
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="scripted-tour-dot"
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: 999,
+                    background: '#8B2E4A',
+                    animation: `scripted-sheet-dot-bounce 1.2s ease-in-out ${i * 0.18}s infinite`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : isAction ? (
             <div
               style={{
                 minHeight: 52,
@@ -223,7 +258,7 @@ export function ScriptedTourSheet({
               {isLast ? '✓ Done' : 'Next →'}
             </button>
           )}
-          {!isFirst && (
+          {!isFirst && !isAutoFill && (
             <button
               aria-label="Previous step"
               onClick={onPrev}
