@@ -11,6 +11,7 @@ import {
 import type { Tutorial, TutorialIcon } from '@/lib/help/tours'
 import { startTour } from '@/lib/help/tours'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useRouter } from 'next/navigation'
 
 // Tours that have an interactive scripted version (Phase 13). Clicking
 // "Guided Tour" launches the scripted engine (real demo writes) instead of the
@@ -102,6 +103,7 @@ export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
   const Icon = ICON_MAP[tutorial.icon] ?? CircleHelp
   const [comingSoonOpen, setComingSoonOpen] = useState<'video' | 'tour' | null>(null)
   const isMobile = useIsMobile()
+  const router = useRouter()
 
   const handleTour = () => {
     if (!tutorial.tourId) {
@@ -113,11 +115,16 @@ export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
     if (scripted) {
       const id = isMobile ? scripted.mobile : scripted.desktop
       void import('@/lib/help/scripted-tour').then((m) => {
+        // router.refresh() after the tour navigates so the destination page's
+        // server components re-render WITH the tutorial cookie set — otherwise the
+        // stale (pre-tour) Router Cache snapshot is served and demo records
+        // (Mrs. Smith, the today booking) never appear in SSR-fed lists like the
+        // walk-in resident search or the daily-log rows. Mirrors the auto-launcher.
         if (UNSEEDED_SCRIPTED_TOURS.has(id)) {
           // Tour creates its own demo records through the UI — no pre-seeding needed
-          return m.startScriptedTour(id)
+          return m.startScriptedTour(id).then(() => router.refresh())
         }
-        return m.seedAndStart(id)
+        return m.seedAndStart(id).then(() => router.refresh())
       })
     } else {
       void startTour(tutorial.tourId)

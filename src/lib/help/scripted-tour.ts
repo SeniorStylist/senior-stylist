@@ -150,6 +150,10 @@ export function advanceStep() {
     const router = getTourRouter()
     if (router) {
       router.push(resolved)
+      // Re-render the destination's server components with the tutorial cookie so
+      // demo records surface in SSR-fed lists (the Router Cache may hold a stale
+      // pre-tour snapshot of this route).
+      router.refresh()
     } else {
       window.location.href = resolved
     }
