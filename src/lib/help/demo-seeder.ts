@@ -75,6 +75,36 @@ export async function seedFacilityDemoData(facilityId: string, viewerStylistId?:
     if (row) residentMap.set('Mr. Robert Johnson', row.id)
   }
 
+  // Seed a near-duplicate of Mrs. Smith so the duplicate-resolution tour has a
+  // real pair to merge. Same room + similar name → the detector flags it as a
+  // "same room" duplicate. Re-run-safe: only (re)created when no ACTIVE demo
+  // "Margaret Smith" exists, since a prior tour run may have merged it away
+  // (merge soft-deletes the secondary record). Deliberately NOT tracked in
+  // residentMap — it's never referenced by a {{slug}} placeholder.
+  const dupName = 'Margaret Smith'
+  const activeDup = await db.query.residents.findFirst({
+    where: and(
+      eq(residents.facilityId, facilityId),
+      eq(residents.isDemo, true),
+      eq(residents.active, true),
+      eq(residents.name, dupName),
+    ),
+    columns: { id: true },
+  })
+  if (!activeDup) {
+    await db
+      .insert(residents)
+      .values({
+        facilityId,
+        name: dupName,
+        roomNumber: '12',
+        notes: 'Tutorial demo resident — duplicate of Mrs. Margaret Smith.',
+        active: true,
+        isDemo: true,
+      })
+      .onConflictDoNothing()
+  }
+
   // Seed Wash & Set service
   if (!serviceMap.has('Wash & Set (Demo)')) {
     const [row] = await db

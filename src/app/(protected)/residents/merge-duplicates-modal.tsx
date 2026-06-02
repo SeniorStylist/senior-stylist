@@ -259,6 +259,7 @@ export function MergeDuplicatesModal({
                       <button
                         key={s}
                         onClick={() => selectSide(key, s, pair)}
+                        data-tour={s === 'a' ? 'duplicates-keep-btn' : undefined}
                         className={cn(
                           'flex-1 min-h-[36px] text-xs font-semibold rounded-xl border transition-colors',
                           side === s

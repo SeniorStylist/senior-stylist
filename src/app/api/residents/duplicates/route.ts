@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { db } from '@/db'
 import { residents, bookings } from '@/db/schema'
 import { eq, and, ne } from 'drizzle-orm'
@@ -81,21 +82,27 @@ export async function GET() {
 
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isMasterAdmin = superAdminEmail && user.email === superAdminEmail
-    if (!isMasterAdmin && facilityUser.role !== 'admin') {
+    // Bookkeepers may resolve duplicate residents (they create them via OCR).
+    const canMerge = facilityUser.role === 'admin' || facilityUser.role === 'bookkeeper'
+    if (!isMasterAdmin && !canMerge) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { facilityId } = facilityUser
 
+    // During a scripted tour, only compare demo residents so the seeded demo
+    // duplicate pair surfaces and a real resident can never be merged by mistake.
+    const tutorialMode = await isTutorialModeActive()
+
     const [residentsList, bookingsList] = await Promise.all([
       db
         .select({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
         .from(residents)
-        .where(and(eq(residents.facilityId, facilityId), eq(residents.active, true))),
+        .where(and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, tutorialMode))),
       db
         .select({ residentId: bookings.residentId, startTime: bookings.startTime })
         .from(bookings)
-        .where(and(eq(bookings.facilityId, facilityId), ne(bookings.status, 'cancelled'))),
+        .where(and(eq(bookings.facilityId, facilityId), ne(bookings.status, 'cancelled'), eq(bookings.isDemo, tutorialMode))),
     ])
 
     // Aggregate stats per resident in JS

@@ -26,7 +26,10 @@ export async function POST(request: Request) {
 
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isMasterAdmin = superAdminEmail && user.email === superAdminEmail
-    if (!isMasterAdmin && facilityUser.role !== 'admin') {
+    // Bookkeepers may merge duplicate residents (they create them via OCR
+    // log-sheet scanning); all other resident mutations stay admin-only.
+    const canMerge = facilityUser.role === 'admin' || facilityUser.role === 'bookkeeper'
+    if (!isMasterAdmin && !canMerge) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -29,6 +29,10 @@ interface ResidentsPageClientProps {
 
 export function ResidentsPageClient({ residents: initialResidents, facilityId, role = 'admin' }: ResidentsPageClientProps) {
   const canEdit = role === 'admin' || role === 'super_admin' || role === 'facility_staff'
+  // Bookkeepers are read-only on residents EXCEPT for cleaning up duplicate
+  // profiles they create via OCR log-sheet scanning. The Duplicates button +
+  // merge flow are available to them; full add/edit stays admin/staff-only.
+  const canMergeDuplicates = canEdit || role === 'bookkeeper'
   const router = useRouter()
   const { toast } = useToast()
   const [residents, setResidents] = useState(initialResidents)
@@ -166,7 +170,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canEdit && (
+          {canMergeDuplicates && (
             <button
               onClick={() => setShowMerge(true)}
               data-tour="residents-duplicates-button"
