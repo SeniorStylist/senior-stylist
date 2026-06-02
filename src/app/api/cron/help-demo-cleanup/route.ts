@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries, stylistCheckins, signupSheetEntries } from '@/db/schema'
+import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries, stylistCheckins, signupSheetEntries, qbInvoices, qbPayments, payPeriods } from '@/db/schema'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 
 export const maxDuration = 60
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   try {
-    const [r, s, sv, b, le, sc, ss] = await Promise.all([
+    const [r, s, sv, b, le, sc, ss, inv, pay, pp] = await Promise.all([
       db.delete(residents).where(and(eq(residents.isDemo, true), eq(residents.active, false), lt(residents.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: residents.id }),
       db.delete(stylists).where(and(eq(stylists.isDemo, true), eq(stylists.active, false), lt(stylists.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: stylists.id }),
       db.delete(services).where(and(eq(services.isDemo, true), eq(services.active, false), lt(services.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: services.id }),
@@ -22,6 +22,11 @@ export async function GET(request: Request) {
       db.delete(logEntries).where(and(eq(logEntries.isDemo, true), eq(logEntries.finalized, true), lt(logEntries.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: logEntries.id }),
       db.delete(stylistCheckins).where(and(eq(stylistCheckins.isDemo, true), lt(stylistCheckins.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: stylistCheckins.id }),
       db.delete(signupSheetEntries).where(and(eq(signupSheetEntries.isDemo, true), lt(signupSheetEntries.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: signupSheetEntries.id }),
+      // Billing/payroll demo rows have no active column. Deleting the demo pay
+      // period cascades its pay items + deductions (FK onDelete cascade).
+      db.delete(qbInvoices).where(and(eq(qbInvoices.isDemo, true), lt(qbInvoices.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: qbInvoices.id }),
+      db.delete(qbPayments).where(and(eq(qbPayments.isDemo, true), lt(qbPayments.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: qbPayments.id }),
+      db.delete(payPeriods).where(and(eq(payPeriods.isDemo, true), lt(payPeriods.createdAt, sql`${cutoff}::timestamptz`))).returning({ id: payPeriods.id }),
     ])
 
     // Demo facilities: delete facilityUsers FK first, then the facility rows
@@ -47,6 +52,9 @@ export async function GET(request: Request) {
           logEntries: le.length,
           checkins: sc.length,
           signupSheetEntries: ss.length,
+          qbInvoices: inv.length,
+          qbPayments: pay.length,
+          payPeriods: pp.length,
           facilities: facilityCount,
         },
       },

@@ -180,7 +180,7 @@ export function PayrollListClient({
             <div>Stylists</div>
             <div>Net Payout</div>
           </div>
-          {periods.map((p) => {
+          {periods.map((p, i) => {
             const badge = STATUS_BADGE[p.status] ?? {
               label: p.status,
               className: 'bg-stone-100 text-stone-700',
@@ -189,6 +189,7 @@ export function PayrollListClient({
               <button
                 key={p.id}
                 onClick={() => router.push(`/payroll/${p.id}`)}
+                data-tour={i === 0 ? 'payroll-period-row' : undefined}
                 className="group w-full text-left md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr] md:gap-4 flex flex-col gap-1.5 px-5 py-3.5 border-b border-stone-100 last:border-b-0 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out"
               >
                 <div className="text-[13.5px] text-stone-900 font-semibold leading-snug">

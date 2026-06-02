@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { residents, stylists, services, stylistFacilityAssignments, stylistAvailability, bookings, facilities } from '@/db/schema'
+import { residents, stylists, services, stylistFacilityAssignments, stylistAvailability, bookings, facilities, qbInvoices, qbPayments, payPeriods, stylistPayItems } from '@/db/schema'
 import { and, eq, gte, lt } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 
@@ -7,11 +7,13 @@ import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 export type DemoResidentSlug = 'mrs-smith' | 'mr-johnson'
 export type DemoServiceSlug = 'wash-and-set' | 'haircut'
 export type DemoStylistSlug = 'demo-sarah'
+export type DemoPayPeriodSlug = 'demo-pay-period'
 
 interface DemoIds {
   residents: Record<DemoResidentSlug, string>
   services: Record<DemoServiceSlug, string>
   stylists: Record<DemoStylistSlug, string>
+  payPeriods: Record<DemoPayPeriodSlug, string>
 }
 
 // Seeder is idempotent — safe to call on every tutorial launch.
@@ -232,6 +234,110 @@ export async function seedFacilityDemoData(facilityId: string, viewerStylistId?:
     }
   }
 
+  // Seed demo BILLING + PAYROLL so the bookkeeper billing/payroll/QuickBooks
+  // tutorials show populated screens. All rows carry is_demo=true and are read
+  // back only while the tutorial cookie is set, so they never touch real money.
+  // Idempotent — keyed off existing demo rows for this facility.
+  const nowDate = new Date()
+  const todayDateStr = nowDate.toISOString().split('T')[0]
+  const monthStartStr = `${nowDate.getUTCFullYear()}-${String(nowDate.getUTCMonth() + 1).padStart(2, '0')}-01`
+
+  let demoPayPeriodId = ''
+  if (mrsSmithId) {
+    // Demo invoice — an open balance for Mrs. Smith.
+    const existingInvoice = await db.query.qbInvoices.findFirst({
+      where: and(eq(qbInvoices.facilityId, facilityId), eq(qbInvoices.isDemo, true)),
+      columns: { id: true },
+    })
+    if (!existingInvoice) {
+      await db
+        .insert(qbInvoices)
+        .values({
+          facilityId,
+          residentId: mrsSmithId,
+          invoiceNum: 'DEMO-INV-1',
+          invoiceDate: todayDateStr,
+          amountCents: 3500,
+          openBalanceCents: 3500,
+          status: 'open',
+          isDemo: true,
+        })
+        .onConflictDoNothing()
+    }
+    // Reflect the open balance on the resident so the per-resident billing list
+    // shows it too (real residents are untouched — this is a demo row).
+    await db
+      .update(residents)
+      .set({ qbOutstandingBalanceCents: 3500 })
+      .where(and(eq(residents.id, mrsSmithId), eq(residents.isDemo, true)))
+
+    // Demo payment — a check already received from Mrs. Smith.
+    const existingPayment = await db.query.qbPayments.findFirst({
+      where: and(eq(qbPayments.facilityId, facilityId), eq(qbPayments.isDemo, true)),
+      columns: { id: true },
+    })
+    if (!existingPayment) {
+      await db
+        .insert(qbPayments)
+        .values({
+          facilityId,
+          residentId: mrsSmithId,
+          checkNum: '1042',
+          checkDate: todayDateStr,
+          paymentDate: todayDateStr,
+          amountCents: 2500,
+          memo: 'Tutorial demo payment',
+          paymentMethod: 'check',
+          recordedVia: 'manual',
+          isDemo: true,
+        })
+        .onConflictDoNothing()
+    }
+  }
+
+  if (sarahId) {
+    // Demo pay period + one pay item for Demo Sarah so the payroll tutorial has a
+    // real period to open, review, and (optionally) mark paid.
+    const existingPeriod = await db.query.payPeriods.findFirst({
+      where: and(eq(payPeriods.facilityId, facilityId), eq(payPeriods.isDemo, true)),
+      columns: { id: true },
+    })
+    if (existingPeriod) {
+      demoPayPeriodId = existingPeriod.id
+    } else {
+      const [periodRow] = await db
+        .insert(payPeriods)
+        .values({
+          facilityId,
+          periodType: 'monthly',
+          startDate: monthStartStr,
+          endDate: todayDateStr,
+          status: 'open',
+          notes: 'Tutorial demo pay period',
+          isDemo: true,
+        })
+        .returning({ id: payPeriods.id })
+      if (periodRow) {
+        demoPayPeriodId = periodRow.id
+        // 50% commission on $35 gross → $17.50 net.
+        await db
+          .insert(stylistPayItems)
+          .values({
+            payPeriodId: periodRow.id,
+            stylistId: sarahId,
+            facilityId,
+            payType: 'commission',
+            grossRevenueCents: 3500,
+            commissionRate: 50,
+            commissionAmountCents: 1750,
+            netPayCents: 1750,
+            isDemo: true,
+          })
+          .onConflictDoNothing()
+      }
+    }
+  }
+
   return {
     residents: {
       'mrs-smith': residentMap.get('Mrs. Margaret Smith') ?? '',
@@ -244,12 +350,15 @@ export async function seedFacilityDemoData(facilityId: string, viewerStylistId?:
     stylists: {
       'demo-sarah': stylistMap.get('Demo Sarah') ?? '',
     },
+    payPeriods: {
+      'demo-pay-period': demoPayPeriodId,
+    },
   }
 }
 
 // Convenience getters for the tour engine
 export async function getDemoIds(facilityId: string): Promise<DemoIds | null> {
-  const [existingResidents, existingServices, existingStylists] = await Promise.all([
+  const [existingResidents, existingServices, existingStylists, existingPeriod] = await Promise.all([
     db.query.residents.findMany({
       where: and(eq(residents.facilityId, facilityId), eq(residents.isDemo, true)),
       columns: { id: true, name: true },
@@ -261,6 +370,10 @@ export async function getDemoIds(facilityId: string): Promise<DemoIds | null> {
     db.query.stylists.findMany({
       where: and(eq(stylists.facilityId, facilityId), eq(stylists.isDemo, true)),
       columns: { id: true, name: true },
+    }),
+    db.query.payPeriods.findFirst({
+      where: and(eq(payPeriods.facilityId, facilityId), eq(payPeriods.isDemo, true)),
+      columns: { id: true },
     }),
   ])
 
@@ -281,6 +394,9 @@ export async function getDemoIds(facilityId: string): Promise<DemoIds | null> {
     },
     stylists: {
       'demo-sarah': stMap.get('Demo Sarah') ?? '',
+    },
+    payPeriods: {
+      'demo-pay-period': existingPeriod?.id ?? '',
     },
   }
 }

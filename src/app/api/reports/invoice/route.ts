@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings } from '@/db/schema'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { and, eq, gte, lt } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const month = searchParams.get('month')
 
+    // is_demo filter — Phase 13: demo-only during a tour, real-only otherwise.
+    const tutorialMode = await isTutorialModeActive()
+
     let whereClause
     if (month && /^\d{4}-\d{2}$/.test(month)) {
       const [year, mon] = month.split('-').map(Number)
@@ -27,6 +31,7 @@ export async function GET(request: NextRequest) {
       const end = new Date(year, mon, 1)
       whereClause = and(
         eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.isDemo, tutorialMode),
         eq(bookings.status, 'completed'),
         gte(bookings.startTime, start),
         lt(bookings.startTime, end)
@@ -37,6 +42,7 @@ export async function GET(request: NextRequest) {
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
       whereClause = and(
         eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.isDemo, tutorialMode),
         eq(bookings.status, 'completed'),
         gte(bookings.startTime, start),
         lt(bookings.startTime, end)

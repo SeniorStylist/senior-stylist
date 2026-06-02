@@ -97,7 +97,7 @@ export async function seedAndStart(tourId: string): Promise<void> {
     const res = await fetch('/api/help/seed-demo-data', { method: 'POST' })
     if (res.ok) {
       const { data } = await res.json()
-      scenarioState = { ...data.residents, ...data.services, ...data.stylists }
+      scenarioState = { ...data.residents, ...data.services, ...data.stylists, ...data.payPeriods }
     }
   } catch { /* seeding is best-effort; tour still runs */ }
   await startScriptedTour(tourId, scenarioState)

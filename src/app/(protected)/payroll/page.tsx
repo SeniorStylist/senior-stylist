@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { payPeriods } from '@/db/schema'
 import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
-import { desc, eq } from 'drizzle-orm'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
+import { and, desc, eq } from 'drizzle-orm'
 import { PayrollListClient, type PayPeriodSummary } from './payroll-list-client'
 
 export default async function PayrollPage() {
@@ -16,10 +17,16 @@ export default async function PayrollPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser || !canAccessPayroll(facilityUser.role)) redirect('/dashboard')
 
+  // is_demo filter — Phase 13: demo period only during a tour, real-only otherwise.
+  const tutorialMode = await isTutorialModeActive()
+
   let periods: PayPeriodSummary[] = []
   try {
     const rows = await db.query.payPeriods.findMany({
-      where: eq(payPeriods.facilityId, facilityUser.facilityId),
+      where: and(
+        eq(payPeriods.facilityId, facilityUser.facilityId),
+        eq(payPeriods.isDemo, tutorialMode),
+      ),
       orderBy: [desc(payPeriods.startDate)],
       with: { items: { columns: { id: true, netPayCents: true } } },
     })

@@ -4,19 +4,24 @@ import { db } from '@/db'
 import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
 import { and, desc, eq, gte, lte } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { NextRequest } from 'next/server'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
+// `demo` is part of the cache key (last arg) so a tour's demo snapshot is cached
+// separately from the real billing data — they never bleed into each other.
 const getBillingSummaryData = unstable_cache(
-  async (facilityId: string, from: string, to: string) => {
+  async (facilityId: string, from: string, to: string, demo: boolean) => {
     const invoiceWhere = and(
       eq(qbInvoices.facilityId, facilityId),
+      eq(qbInvoices.isDemo, demo),
       gte(qbInvoices.invoiceDate, from),
       lte(qbInvoices.invoiceDate, to)
     )
     const paymentWhere = and(
       eq(qbPayments.facilityId, facilityId),
+      eq(qbPayments.isDemo, demo),
       gte(qbPayments.paymentDate, from),
       lte(qbPayments.paymentDate, to)
     )
@@ -42,7 +47,7 @@ const getBillingSummaryData = unstable_cache(
         },
       }),
       db.query.residents.findMany({
-        where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+        where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, demo)),
         columns: {
           id: true,
           name: true,
@@ -146,7 +151,8 @@ export async function GET(
   }
 
   try {
-    const data = await getBillingSummaryData(facilityId, fromParam, toParam)
+    const tutorialMode = await isTutorialModeActive()
+    const data = await getBillingSummaryData(facilityId, fromParam, toParam, tutorialMode)
     if (!data.facility) return Response.json({ error: 'Not found' }, { status: 404 })
     return Response.json({ data })
   } catch (err) {

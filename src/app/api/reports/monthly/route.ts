@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { and, eq, gte, lt, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -34,10 +35,15 @@ export async function GET(request: NextRequest) {
     const start = new Date(Date.UTC(year, month, 1))
     const end = new Date(Date.UTC(year, month + 1, 1))
 
+    // is_demo filter — Phase 13: demo-only during a tour, real-only otherwise.
+    // (Without this, the seeded demo booking would leak into real analytics.)
+    const tutorialMode = await isTutorialModeActive()
+
     const rows = await db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityId),
         eq(bookings.active, true),
+        eq(bookings.isDemo, tutorialMode),
         ne(bookings.status, 'cancelled'),
         ne(bookings.status, 'no_show'),
         gte(bookings.startTime, start),

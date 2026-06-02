@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries as logEntriesTable, stylistCheckins, signupSheetEntries } from '@/db/schema'
+import { facilities, facilityUsers, residents, stylists, services, bookings, logEntries as logEntriesTable, stylistCheckins, signupSheetEntries, qbInvoices, qbPayments, payPeriods } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 
 // Admin-only: soft-delete all is_demo=true records for the facility.
@@ -38,6 +38,14 @@ export async function DELETE() {
     // signupSheetEntries has no active column — hard-delete demo entries
     db.delete(signupSheetEntries)
       .where(and(eq(signupSheetEntries.facilityId, fid), eq(signupSheetEntries.isDemo, true))),
+    // Billing/payroll demo rows have no active column — hard-delete. Deleting the
+    // demo pay period cascades its pay items + deductions (FK onDelete cascade).
+    db.delete(qbInvoices)
+      .where(and(eq(qbInvoices.facilityId, fid), eq(qbInvoices.isDemo, true))),
+    db.delete(qbPayments)
+      .where(and(eq(qbPayments.facilityId, fid), eq(qbPayments.isDemo, true))),
+    db.delete(payPeriods)
+      .where(and(eq(payPeriods.facilityId, fid), eq(payPeriods.isDemo, true))),
     db.update(residents)
       .set({ active: false })
       .where(and(eq(residents.facilityId, fid), eq(residents.isDemo, true))),

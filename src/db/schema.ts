@@ -471,6 +471,8 @@ export const payPeriods = pgTable('pay_periods', {
   createdBy: uuid('created_by').references(() => profiles.id),
   qbSyncedAt: timestamp('qb_synced_at', { withTimezone: true }),
   qbSyncError: text('qb_sync_error'),
+  // Phase 13 — throwaway demo pay period for the scripted payroll tutorial.
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -503,6 +505,8 @@ export const stylistPayItems = pgTable(
     // Phase 12E: per-period stylist tip total. Additive to net pay; never enters
     // facility revenue or rev-share math. Always non-negative.
     tipCentsTotal: integer('tip_cents_total').default(0).notNull(),
+    // Phase 13 — demo pay item for the scripted payroll tutorial.
+    isDemo: boolean('is_demo').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -564,6 +568,8 @@ export const qbInvoices = pgTable('qb_invoices', {
   stripePaidAt: timestamp('stripe_paid_at', { withTimezone: true }),
   // Phase 12B: back-reference to the historical-import booking that consumed this invoice
   matchedBookingId: uuid('matched_booking_id').references((): AnyPgColumn => bookings.id),
+  // Phase 13 — demo invoice for the scripted billing tutorial.
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
@@ -620,6 +626,8 @@ export const qbPayments = pgTable('qb_payments', {
   revShareAmountCents: integer('rev_share_amount_cents'),
   revShareType: text('rev_share_type'),
   seniorStylistAmountCents: integer('senior_stylist_amount_cents'),
+  // Phase 13 — demo payment for the scripted billing tutorial.
+  isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 }, (t) => ({
   // billing summary: WHERE facility_id = X AND payment_date BETWEEN Y AND Z ORDER BY payment_date DESC
