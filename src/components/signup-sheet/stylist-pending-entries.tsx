@@ -16,9 +16,7 @@ interface StylistPendingEntriesProps {
 
 export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEntriesProps>(
   function StylistPendingEntries({ entries, onSchedule, facilityTimezone, viewAsAdmin = false }, ref) {
-    const [expanded, setExpanded] = useState(false)
-
-    if (entries.length === 0) return null
+    const [expanded, setExpanded] = useState(true)
 
     return (
       <div
@@ -34,7 +32,12 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
           <div className="flex items-center gap-2">
             <ClipboardList size={16} className="text-amber-700" />
             <span className="text-sm font-semibold text-amber-900">
-              {entries.length} pending sign-up{entries.length === 1 ? '' : 's'}
+              Sign-Up Queue
+              {entries.length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-700 text-white text-[10px] font-bold">
+                  {entries.length}
+                </span>
+              )}
             </span>
           </div>
           <ChevronDown
@@ -44,64 +47,72 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
         </button>
 
         {expanded && (
-          <div className="mt-3 space-y-2">
-            {entries.map((entry) => (
-              <div
-                key={entry.id}
-                data-tour="stylist-pending-entry"
-                data-signup-entry-id={entry.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', entry.id)
-                }}
-                className="bg-white rounded-xl border border-stone-100 p-3 flex items-start gap-2"
-              >
-                <span className="hidden md:flex shrink-0 items-center text-stone-300 cursor-grab active:cursor-grabbing pt-0.5">
-                  <GripVertical size={14} />
-                </span>
+          <div className="mt-3">
+            {entries.length === 0 ? (
+              <p className="text-xs text-amber-700/70 text-center py-2">
+                No pending requests — you&apos;re all caught up.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {entries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    data-tour="stylist-pending-entry"
+                    data-signup-entry-id={entry.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('text/plain', entry.id)
+                    }}
+                    className="bg-white rounded-xl border border-stone-100 p-3 flex items-start gap-2"
+                  >
+                    <span className="hidden md:flex shrink-0 items-center text-stone-300 cursor-grab active:cursor-grabbing pt-0.5">
+                      <GripVertical size={14} />
+                    </span>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-stone-900 leading-snug">
-                    {entry.residentName}
-                    {entry.roomNumber && (
-                      <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>
-                    )}
-                  </p>
-                  <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">
-                    {entry.serviceName}
-                    {entry.requestedTime && (
-                      <span className="text-stone-500 ml-2">@ {formatHm(entry.requestedTime)}</span>
-                    )}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                    {entry.preferredDate && (
-                      <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-600 rounded-full px-2 py-0.5">
-                        <Calendar size={12} />
-                        {formatDateChip(entry.preferredDate, facilityTimezone)}
-                      </span>
-                    )}
-                    {viewAsAdmin && entry.assignedStylist && (
-                      <span className="text-xs text-stone-400">→ {entry.assignedStylist.name}</span>
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-stone-900 leading-snug">
+                        {entry.residentName}
+                        {entry.roomNumber && (
+                          <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>
+                        )}
+                      </p>
+                      <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">
+                        {entry.serviceName}
+                        {entry.requestedTime && (
+                          <span className="text-stone-500 ml-2">@ {formatHm(entry.requestedTime)}</span>
+                        )}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {entry.preferredDate && (
+                          <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-600 rounded-full px-2 py-0.5">
+                            <Calendar size={12} />
+                            {formatDateChip(entry.preferredDate, facilityTimezone)}
+                          </span>
+                        )}
+                        {viewAsAdmin && entry.assignedStylist && (
+                          <span className="text-xs text-stone-400">→ {entry.assignedStylist.name}</span>
+                        )}
+                      </div>
+                      {entry.notes && (
+                        <p className="text-xs text-stone-500 italic mt-1 truncate">
+                          {entry.notes.length > 80 ? entry.notes.slice(0, 80) + '…' : entry.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      data-tour="stylist-pending-convert"
+                      onClick={() => onSchedule(entry)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-[#8B2E4A] text-white text-xs font-semibold hover:bg-[#72253C] transition-colors"
+                    >
+                      Schedule →
+                    </button>
                   </div>
-                  {entry.notes && (
-                    <p className="text-xs text-stone-500 italic mt-1 truncate">
-                      {entry.notes.length > 80 ? entry.notes.slice(0, 80) + '…' : entry.notes}
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  data-tour="stylist-pending-convert"
-                  onClick={() => onSchedule(entry)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#8B2E4A] text-white text-xs font-semibold hover:bg-[#72253C] transition-colors"
-                >
-                  Pick time →
-                </button>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>

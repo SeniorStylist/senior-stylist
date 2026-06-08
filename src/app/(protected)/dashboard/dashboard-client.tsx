@@ -522,15 +522,15 @@ export function DashboardClient({
             </div>
           )}
 
-          {/* Pending sign-up entries */}
-          {pendingSignups.length > 0 && (
+          {/* Pending sign-up entries — always visible for stylists so the queue is never hidden */}
+          {userRole === 'stylist' && (
             <div className="px-4 mb-2">
               <StylistPendingEntries
                 ref={stylistPanelRef}
                 entries={pendingSignups}
                 onSchedule={handleScheduleSignupEntry}
                 facilityTimezone={facility.timezone}
-                viewAsAdmin={isAdmin || userRole === 'facility_staff'}
+                viewAsAdmin={false}
               />
             </div>
           )}
@@ -865,8 +865,8 @@ export function DashboardClient({
           />
         )}
 
-        {/* Stylist sign-up queue — above calendar grid, only visible when entries exist */}
-        {userRole === 'stylist' && pendingSignups.length > 0 && (
+        {/* Stylist sign-up queue — always visible above calendar so the queue is never hidden */}
+        {userRole === 'stylist' && (
           <StylistPendingEntries
             ref={stylistPanelRef}
             entries={pendingSignups}
