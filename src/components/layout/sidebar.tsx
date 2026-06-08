@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -192,6 +192,13 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  // null until detected client-side, so we never render the wrong key (avoids hydration mismatch)
+  const [isMac, setIsMac] = useState<boolean | null>(null)
+  useEffect(() => {
+    const ua = navigator.userAgent
+    setIsMac(/Mac|iPhone|iPad|iPod/.test(navigator.platform) || /Mac OS X/.test(ua))
+  }, [])
+
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [facilitySearch, setFacilitySearch] = useState('')
@@ -397,7 +404,11 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             </svg>
             <span className="flex-1 text-left text-xs">Search...</span>
             <kbd className="flex items-center gap-0.5 text-[10px] bg-white/10 rounded px-1.5 py-0.5">
-              <span>⌘</span><span>K</span>
+              {isMac !== null && (
+                <>
+                  <span>{isMac ? '⌘' : 'Ctrl'}</span><span>K</span>
+                </>
+              )}
             </kbd>
           </button>
         )}
