@@ -2,12 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { signupSheetEntries, residents, services, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
-import { eq, and, asc, count, isNull, or } from 'drizzle-orm'
+import { eq, and, asc, count } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getLocalParts } from '@/lib/time'
-import { facilities, profiles } from '@/db/schema'
+import { facilities } from '@/db/schema'
 import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
@@ -166,23 +166,8 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(signupSheetEntries.requestedDate, date))
     }
 
-    // Stylists only see entries assigned to them OR unassigned.
-    if (role === 'stylist') {
-      const myProfile = await db.query.profiles.findFirst({
-        where: eq(profiles.id, user.id),
-        columns: { stylistId: true },
-      })
-      const myStylistId = myProfile?.stylistId
-      if (!myStylistId) {
-        return Response.json(countOnly ? { data: { count: 0 } } : { data: [] })
-      }
-      conditions.push(
-        or(
-          eq(signupSheetEntries.assignedToStylistId, myStylistId),
-          isNull(signupSheetEntries.assignedToStylistId),
-        )!
-      )
-    }
+    // Stylists see all pending facility entries — they convert them into bookings.
+    // The assignedToStylistId is for staffing guidance, not a visibility gate.
 
     if (countOnly) {
       const [row] = await db
