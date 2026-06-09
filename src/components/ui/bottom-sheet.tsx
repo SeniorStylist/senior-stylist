@@ -75,7 +75,7 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 50,
+        zIndex: 70,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'flex-end',

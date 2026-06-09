@@ -96,7 +96,35 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
         </button>
       )}
 
-      <BottomSheet isOpen={open} onClose={() => setOpen(false)} title="Debug Mode">
+      <BottomSheet
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title="Debug Mode"
+        footer={
+          <div className="px-4 pt-3 pb-4 border-t border-stone-100 space-y-2.5">
+            {/* Impersonate */}
+            <button
+              onClick={handleImpersonate}
+              disabled={!selectedFacilityId || loading}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ backgroundColor: selectedFacilityId && !loading ? '#8B2E4A' : '#d6d3d1' }}
+            >
+              Impersonate
+            </button>
+
+            {/* Exit debug */}
+            {debugInfo && (
+              <button
+                onClick={handleReset}
+                disabled={loading}
+                className="w-full py-3 rounded-xl text-sm font-semibold bg-amber-50 text-amber-800 border border-amber-200 transition-colors active:bg-amber-100"
+              >
+                ← Exit Debug Mode
+              </button>
+            )}
+          </div>
+        }
+      >
         <div className="px-4 py-4 space-y-5">
           {debugInfo && (
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
@@ -142,27 +170,6 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
               ))}
             </select>
           </div>
-
-          {/* Impersonate */}
-          <button
-            onClick={handleImpersonate}
-            disabled={!selectedFacilityId || loading}
-            className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ backgroundColor: selectedFacilityId && !loading ? '#8B2E4A' : '#d6d3d1' }}
-          >
-            Impersonate
-          </button>
-
-          {/* Exit debug */}
-          {debugInfo && (
-            <button
-              onClick={handleReset}
-              disabled={loading}
-              className="w-full py-3 rounded-xl text-sm font-semibold bg-amber-50 text-amber-800 border border-amber-200 transition-colors active:bg-amber-100"
-            >
-              ← Exit Debug Mode
-            </button>
-          )}
         </div>
       </BottomSheet>
     </>
