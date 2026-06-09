@@ -48,7 +48,16 @@ export function splitStylistCell(raw: string): { stylistCode: string | null; sty
   return { stylistCode: null, stylistName: trimmed }
 }
 
-function toCents(amount: unknown): number {
+// "F177 - Sunrise of Bethesda" → { facilityCode: "F177", facilityName: "Sunrise of Bethesda" }
+// "Sunrise of Bethesda"        → { facilityCode: null,   facilityName: "Sunrise of Bethesda" }
+export function splitFacilityCell(raw: string): { facilityCode: string | null; facilityName: string } {
+  const trimmed = raw.trim()
+  const match = trimmed.match(/^(F\d{2,5})\s*-\s*(.+)$/)
+  if (match) return { facilityCode: match[1], facilityName: match[2].trim() }
+  return { facilityCode: null, facilityName: trimmed }
+}
+
+export function toCents(amount: unknown): number {
   if (typeof amount === 'number') return Math.round(amount * 100)
   if (typeof amount === 'string') {
     const cleaned = amount.replace(/[$,\s]/g, '')
@@ -59,7 +68,7 @@ function toCents(amount: unknown): number {
 }
 
 // Excel serial date OR ISO string OR JS Date → JS Date in UTC
-function toDate(value: unknown): Date | null {
+export function toDate(value: unknown): Date | null {
   if (value instanceof Date) return value
   if (typeof value === 'number') {
     // Excel epoch is 1899-12-30 UTC

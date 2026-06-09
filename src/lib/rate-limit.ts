@@ -34,6 +34,7 @@ type Bucket =
   | 'exportExcel'
   | 'helpSeed'
   | 'helpTrack'
+  | 'multiLogImport'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -68,6 +69,9 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   exportExcel: { tokens: 10, window: '1 m' },
   helpSeed: { tokens: 5, window: '1 h' },
   helpTrack: { tokens: 60, window: '1 m' },
+  // multi-facility log import POSTs once per facility — a single 79-facility sheet
+  // fans out to ~79 sequential requests, so the window must clear a whole sheet + retries.
+  multiLogImport: { tokens: 300, window: '1 h' },
 }
 
 let redis: Redis | null = null

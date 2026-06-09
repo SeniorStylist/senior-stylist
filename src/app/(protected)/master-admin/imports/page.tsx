@@ -10,9 +10,16 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
   {
     sourceType: 'service_log',
     title: 'Service Log Import',
-    description: 'Import bookkeeper XLSX service logs to backfill historical bookings, residents, and service records.',
+    description: 'Import a single-facility bookkeeper XLSX to backfill historical bookings, residents, and service records.',
     format: 'XLSX',
     href: '/master-admin/imports/service-log',
+  },
+  {
+    sourceType: 'multi_service_log',
+    title: 'Multi-Facility Log Import',
+    description: 'Import one XLSX containing every facility’s daily log. Auto-creates missing facilities, stylists, and residents; links services by name.',
+    format: 'XLSX',
+    href: '/master-admin/imports/multi-log',
   },
   {
     sourceType: 'qb_customer',

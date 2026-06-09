@@ -39,6 +39,7 @@ const BuildingIcon = (
 )
 const ICONS: Record<string, React.ReactNode> = {
   service_log: SpreadsheetIcon,
+  multi_service_log: SpreadsheetIcon,
   qb_customer: UsersIcon,
   qb_billing: ReceiptIcon,
   facility_csv: BuildingIcon,

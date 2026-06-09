@@ -19,6 +19,7 @@ export interface BatchRow {
 
 const SOURCE_LABEL: Record<string, string> = {
   service_log: 'Service Log',
+  multi_service_log: 'Multi-Facility Log',
   qb_billing: 'QB Billing',
   qb_customer: 'QB Customer',
   facility_csv: 'Facility CSV',
