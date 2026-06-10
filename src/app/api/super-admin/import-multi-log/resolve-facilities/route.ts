@@ -35,6 +35,18 @@ interface ExistingInfo {
   bookings: number
 }
 
+// Next free F-code = (max F-number across ALL facilities, active or not) + 1.
+// We never reuse a gap left by an inactive facility — if a community returns,
+// its old code is still theirs and won't have been handed out to someone else.
+export function nextFacilityCode(codes: (string | null)[]): string {
+  let max = 0
+  for (const c of codes) {
+    const m = c?.match(/^F(\d+)$/)
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return `F${max + 1}`
+}
+
 type ResolutionStatus = 'new' | 'exact' | 'code_name_diff' | 'possible_duplicate'
 
 interface FacilityResolution {
@@ -58,10 +70,15 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const allActive = await db.query.facilities.findMany({
-      where: eq(facilities.active, true),
-      columns: { id: true, name: true, facilityCode: true },
+    // Fetch ALL facilities (active + inactive) — a code collision against an
+    // inactive facility still counts, and the next-code calc must skip every
+    // number that's ever been assigned.
+    const allFacilities = await db.query.facilities.findMany({
+      columns: { id: true, name: true, facilityCode: true, active: true },
     })
+    const activeFacilities = allFacilities.filter((f) => f.active)
+    const nextAvailableCode = nextFacilityCode(allFacilities.map((f) => f.facilityCode))
+
     const bCounts = await db
       .select({ facilityId: bookings.facilityId, c: count() })
       .from(bookings)
@@ -69,12 +86,14 @@ export async function POST(request: Request) {
       .groupBy(bookings.facilityId)
     const bMap = new Map(bCounts.map((r) => [r.facilityId, Number(r.c)]))
 
-    const byCode = new Map<string, (typeof allActive)[number]>()
-    for (const f of allActive) {
+    // Code collisions matched against ALL facilities; name-duplicate suggestions
+    // only against active ones (never suggest merging into a dead facility).
+    const byCode = new Map<string, (typeof allFacilities)[number]>()
+    for (const f of allFacilities) {
       if (f.facilityCode) byCode.set(f.facilityCode, f)
     }
 
-    const toInfo = (f: (typeof allActive)[number]): ExistingInfo => ({
+    const toInfo = (f: (typeof allFacilities)[number]): ExistingInfo => ({
       id: f.id,
       name: f.name,
       facilityCode: f.facilityCode,
@@ -97,10 +116,10 @@ export async function POST(request: Request) {
         }
       }
 
-      // 2. No code match — look for a likely duplicate by name (different/no code).
-      let best: (typeof allActive)[number] | null = null
+      // 2. No code match — look for a likely duplicate by name (active only).
+      let best: (typeof activeFacilities)[number] | null = null
       let bestScore = 0
-      for (const f of allActive) {
+      for (const f of activeFacilities) {
         if (f.facilityCode === g.facilityCode) continue
         const s = fuzzyScore(g.facilityName, f.name)
         if (s > bestScore) {
@@ -128,7 +147,7 @@ export async function POST(request: Request) {
       }
     })
 
-    return Response.json({ data: { resolutions } })
+    return Response.json({ data: { resolutions, nextAvailableCode } })
   } catch (err) {
     console.error('[resolve-facilities] error:', err)
     return Response.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 })

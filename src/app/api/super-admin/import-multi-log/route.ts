@@ -19,6 +19,7 @@ import {
   facilityDateAt9amPlusSlot,
   type ServiceMatch,
 } from '@/lib/service-log-import'
+import { nextFacilityCode } from './resolve-facilities/route'
 
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
@@ -55,7 +56,7 @@ const bodySchema = z.object({
   // falls back to create-or-reuse-by-code (the original behavior).
   resolution: z
     .object({
-      mode: z.enum(['create', 'reuse', 'skip']),
+      mode: z.enum(['create', 'reuse', 'skip', 'new_code']),
       facilityId: z.string().uuid().optional(),
       renameTo: z.string().min(1).max(200).optional(),
       adoptCode: z.boolean().optional(),
@@ -69,6 +70,9 @@ interface FacilityImportResult {
   facilityCreated: boolean
   reusedExisting: boolean
   skipped: boolean
+  // Set when the sheet's F-code was taken by a different community and a fresh
+  // code was auto-assigned instead.
+  assignedCode: string | null
   stylistsCreated: number
   residentsUpserted: number
   bookingsCreated: number
@@ -98,6 +102,7 @@ export async function POST(request: Request) {
       facilityCreated: false,
       reusedExisting: false,
       skipped: false,
+      assignedCode: null,
       stylistsCreated: 0,
       residentsUpserted: 0,
       bookingsCreated: 0,
@@ -115,7 +120,19 @@ export async function POST(request: Request) {
 
     // 1. Resolve the target facility.
     let facility: { id: string; name: string; timezone: string | null } | undefined
-    if (resolution?.mode === 'reuse' && resolution.facilityId) {
+    if (resolution?.mode === 'new_code') {
+      // The sheet's F-code belongs to a different community — mint a fresh code
+      // (computed live so concurrent/sequential new facilities never collide).
+      const allCodes = await db.query.facilities.findMany({ columns: { facilityCode: true } })
+      const freshCode = nextFacilityCode(allCodes.map((f) => f.facilityCode))
+      const [created] = await db
+        .insert(facilities)
+        .values({ name: facilityName, facilityCode: freshCode, paymentType: paymentTypeHint })
+        .returning({ id: facilities.id, name: facilities.name, timezone: facilities.timezone })
+      facility = created
+      result.facilityCreated = true
+      result.assignedCode = freshCode
+    } else if (resolution?.mode === 'reuse' && resolution.facilityId) {
       // Import into an explicitly chosen existing facility (merge / adopt-duplicate).
       const target = await db.query.facilities.findFirst({
         where: eq(facilities.id, resolution.facilityId),

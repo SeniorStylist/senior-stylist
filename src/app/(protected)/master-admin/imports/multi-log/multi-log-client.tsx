@@ -21,6 +21,7 @@ interface FacilityImportResult {
   facilityCreated: boolean
   reusedExisting: boolean
   skipped: boolean
+  assignedCode: string | null
   stylistsCreated: number
   residentsUpserted: number
   bookingsCreated: number
@@ -51,10 +52,11 @@ interface FacilityResolution {
   score: number | null
 }
 // Operator's per-facility choice. 'create' = default (new, or reuse-by-code keeping name).
-type Choice = 'create' | 'rename' | 'merge' | 'skip'
+// 'new_code' = same F-code but a different community → mint a fresh code.
+type Choice = 'create' | 'rename' | 'merge' | 'skip' | 'new_code'
 
 interface ResolutionBody {
-  mode: 'create' | 'reuse' | 'skip'
+  mode: 'create' | 'reuse' | 'skip' | 'new_code'
   facilityId?: string
   renameTo?: string
   adoptCode?: boolean
@@ -82,6 +84,7 @@ export function MultiLogClient() {
   // facility-conflict resolution
   const [resolutions, setResolutions] = useState<Record<string, FacilityResolution>>({})
   const [choices, setChoices] = useState<Record<string, Choice>>({})
+  const [nextCode, setNextCode] = useState<string | null>(null)
 
   // import progress
   const [doneCount, setDoneCount] = useState(0)
@@ -125,6 +128,7 @@ export function MultiLogClient() {
           }
           setResolutions(map)
           setChoices(defaults)
+          if (typeof json.data.nextAvailableCode === 'string') setNextCode(json.data.nextAvailableCode)
         }
       } catch {
         /* non-fatal */
@@ -142,6 +146,7 @@ export function MultiLogClient() {
     const r = resolutions[group.facilityCode]
     const choice = choices[group.facilityCode] ?? 'create'
     if (choice === 'skip') return { mode: 'skip' }
+    if (choice === 'new_code') return { mode: 'new_code' }
     if (!r || !r.existing) return undefined
     if (choice === 'rename') return { mode: 'reuse', facilityId: r.existing.id, renameTo: group.facilityName }
     if (choice === 'merge') return { mode: 'reuse', facilityId: r.existing.id, adoptCode: r.existing.facilityCode == null }
@@ -218,6 +223,7 @@ export function MultiLogClient() {
     setError(null)
     setResolutions({})
     setChoices({})
+    setNextCode(null)
     setResults([])
     setFailures([])
     setSkippedCount(0)
@@ -373,6 +379,7 @@ export function MultiLogClient() {
                             group={g}
                             resolution={r}
                             choice={choice}
+                            nextCode={nextCode}
                             onChange={(c) => setChoice(g.facilityCode, c)}
                           />
                         </td>
@@ -447,6 +454,20 @@ export function MultiLogClient() {
               {skippedCount > 0 && <ResultTile label="Facilities skipped" value={skippedCount} accent="stone" />}
             </div>
 
+            {results.some((r) => r.assignedCode) && (
+              <div className="mb-6 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                <p className="text-sm font-semibold text-emerald-800 mb-2">New codes assigned to separate communities</p>
+                <ul className="space-y-1 max-h-40 overflow-y-auto">
+                  {results.filter((r) => r.assignedCode).map((r) => (
+                    <li key={r.facilityCode} className="text-xs text-emerald-700">
+                      <span className="font-mono">{r.facilityCode}</span> on the sheet → created as{' '}
+                      <span className="font-mono font-semibold">{r.assignedCode}</span> · {r.facilityName}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {failures.length > 0 && (
               <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
                 <p className="text-sm font-semibold text-red-700 mb-2">{failures.length} facility(ies) failed</p>
@@ -485,11 +506,13 @@ function ResolutionCell({
   group,
   resolution,
   choice,
+  nextCode,
   onChange,
 }: {
   group: MultiFacilityGroup
   resolution: FacilityResolution | undefined
   choice: Choice
+  nextCode: string | null
   onChange: (c: Choice) => void
 }) {
   // No resolution data (detection failed) or brand-new facility → simple badge.
@@ -526,8 +549,9 @@ function ResolutionCell({
           onChange={(e) => onChange(e.target.value as Choice)}
           className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
         >
-          <option value="create">Keep name “{existing.name}”</option>
-          <option value="rename">Rename to “{group.facilityName}”</option>
+          <option value="create">Same place — keep name “{existing.name}”</option>
+          <option value="rename">Same place — rename to “{group.facilityName}”</option>
+          <option value="new_code">Different community — new code{nextCode ? ` (${nextCode}+)` : ''}</option>
           <option value="skip">Skip this facility</option>
         </select>
       </div>
