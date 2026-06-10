@@ -56,6 +56,7 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
   const [bookings, setBookings] = useState<ReviewBooking[]>([])
   const [facilityServices, setFacilityServices] = useState<Record<string, ServiceOption[]>>({})
   const [loading, setLoading] = useState(true)
+  const [rematching, setRematching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
@@ -87,6 +88,30 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
       onCountChange?.(next.length)
       return next
     })
+  }
+
+  async function rematchAll() {
+    setRematching(true)
+    try {
+      const res = await fetch('/api/super-admin/import-review/rematch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Re-match failed')
+      const { matched, stillUnresolved, resolvedIds } = json.data as { matched: number; stillUnresolved: number; resolvedIds: string[] }
+      if (matched > 0) {
+        setBookings((prev) => {
+          const next = prev.filter((b) => !resolvedIds.includes(b.id))
+          onCountChange?.(next.length)
+          return next
+        })
+        toast.success(`Auto-matched ${matched} record${matched === 1 ? '' : 's'}. ${stillUnresolved} still need manual review.`)
+      } else {
+        toast.info(`No new matches found. ${stillUnresolved} still need manual review.`)
+      }
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setRematching(false)
+    }
   }
 
   if (loading) {
@@ -124,8 +149,20 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
 
   return (
     <div>
-      <div className="mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
-        <span className="font-semibold">{bookings.length}</span> imported service{bookings.length === 1 ? '' : 's'} couldn&apos;t be matched automatically. Review them below — confirm a match, create a new service, or mark as a permanent historical record.
+      <div className="mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
+        <span>
+          <span className="font-semibold">{bookings.length}</span> imported service{bookings.length === 1 ? '' : 's'} couldn&apos;t be matched automatically. Review them below — confirm a match, create a new service, or mark as a permanent historical record.
+        </span>
+        <button
+          type="button"
+          onClick={rematchAll}
+          disabled={rematching}
+          className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors disabled:opacity-50"
+          style={{ backgroundColor: '#8B2E4A' }}
+          title="Re-run the automatic service matching against your current service catalog"
+        >
+          {rematching ? 'Matching…' : '⟳ Auto-match services'}
+        </button>
       </div>
       <div className="space-y-3">
         {bookings.map((b) => (
