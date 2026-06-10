@@ -17,9 +17,12 @@ async function getSuperAdmin() {
 }
 
 const bulkSchema = z.discriminatedUnion('action', [
+  // keep_all: clears every needsReview booking in the queue — no IDs needed
+  z.object({ action: z.literal('keep_all') }),
+  // keep: subset by explicit IDs (up to 2000)
   z.object({
     action: z.literal('keep'),
-    bookingIds: z.array(z.string().uuid()).min(1).max(500),
+    bookingIds: z.array(z.string().uuid()).min(1).max(2000),
   }),
   z.object({
     action: z.literal('link'),
@@ -42,6 +45,17 @@ export async function POST(request: Request) {
     const parsed = bulkSchema.safeParse(await request.json())
     if (!parsed.success) {
       return Response.json({ error: 'Invalid request', details: parsed.error.format() }, { status: 400 })
+    }
+
+    // keep_all: mark every queued booking as historical in one query — no IDs needed
+    if (parsed.data.action === 'keep_all') {
+      const result = await db
+        .update(bookings)
+        .set({ needsReview: false, updatedAt: new Date() })
+        .where(and(eq(bookings.needsReview, true), eq(bookings.active, true)))
+      const resolved = (result as unknown as { rowCount?: number }).rowCount ?? 0
+      revalidateTag('bookings', {})
+      return Response.json({ data: { resolved } })
     }
 
     const { bookingIds } = parsed.data

@@ -167,21 +167,28 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
     }
   }
 
-  async function bulkResolve(body: object) {
+  async function bulkResolve(body: object, opts?: { keepAll?: boolean }) {
     const bookingIds = [...selectedIds]
     setBulkSaving(true)
     try {
+      const payload = opts?.keepAll ? body : { ...body, bookingIds }
       const res = await fetch('/api/super-admin/import-review/bulk-resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, bookingIds }),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed')
       const { resolved } = json.data as { resolved: number }
-      removeBookings(bookingIds)
+      if (opts?.keepAll) {
+        setBookings([])
+        setSelectedIds(new Set())
+        onCountChange?.(0)
+      } else {
+        removeBookings(bookingIds)
+      }
       setBulkSub({ kind: 'none' })
-      toast.success(`${resolved} record${resolved === 1 ? '' : 's'} resolved.`)
+      toast.success(`${resolved} record${resolved === 1 ? '' : 's'} marked as historical.`)
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -272,7 +279,14 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => { setBulkSub({ kind: 'none' }); bulkResolve({ action: 'keep' }) }}
+                onClick={() => {
+                  setBulkSub({ kind: 'none' })
+                  if (allSelected) {
+                    bulkResolve({ action: 'keep_all' }, { keepAll: true })
+                  } else {
+                    bulkResolve({ action: 'keep' })
+                  }
+                }}
                 disabled={bulkSaving}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition-colors disabled:opacity-40"
               >
