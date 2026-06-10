@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useToast } from '@/components/ui/toast'
 import { formatCents } from '@/lib/utils'
@@ -36,6 +36,11 @@ type CardSubState =
   | { kind: 'create'; serviceName: string; priceText: string }
   | { kind: 'remove' }
 
+type BulkSubState =
+  | { kind: 'none' }
+  | { kind: 'link'; serviceId: string }
+  | { kind: 'create'; serviceName: string; priceText: string }
+
 const CheckIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -58,7 +63,25 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
   const [loading, setLoading] = useState(true)
   const [rematching, setRematching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSub, setBulkSub] = useState<BulkSubState>({ kind: 'none' })
+  const [bulkSaving, setBulkSaving] = useState(false)
   const { toast } = useToast()
+
+  const selectedBookings = useMemo(
+    () => bookings.filter((b) => selectedIds.has(b.id)),
+    [bookings, selectedIds],
+  )
+
+  // Single facility ID only if all selected bookings share the same facility
+  const selectedFacilityId = useMemo(() => {
+    if (selectedBookings.length === 0) return null
+    const fids = new Set(selectedBookings.map((b) => b.facilityId))
+    return fids.size === 1 ? [...fids][0] : null
+  }, [selectedBookings])
+
+  const allSelected = bookings.length > 0 && bookings.every((b) => selectedIds.has(b.id))
+  const anySelected = selectedIds.size > 0
 
   useEffect(() => {
     let active = true
@@ -82,28 +105,58 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
     }
   }, [onCountChange])
 
-  const removeBooking = (id: string) => {
+  const removeBookings = (ids: string[]) => {
+    const removeSet = new Set(ids)
     setBookings((prev) => {
-      const next = prev.filter((b) => b.id !== id)
+      const next = prev.filter((b) => !removeSet.has(b.id))
       onCountChange?.(next.length)
       return next
     })
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(bookings.map((b) => b.id)))
+    }
+    setBulkSub({ kind: 'none' })
   }
 
   async function rematchAll() {
     setRematching(true)
     try {
-      const res = await fetch('/api/super-admin/import-review/rematch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const res = await fetch('/api/super-admin/import-review/rematch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Re-match failed')
-      const { matched, stillUnresolved, resolvedIds } = json.data as { matched: number; stillUnresolved: number; resolvedIds: string[] }
+      const { matched, stillUnresolved, resolvedIds } = json.data as {
+        matched: number
+        stillUnresolved: number
+        resolvedIds: string[]
+      }
       if (matched > 0) {
-        setBookings((prev) => {
-          const next = prev.filter((b) => !resolvedIds.includes(b.id))
-          onCountChange?.(next.length)
-          return next
-        })
-        toast.success(`Auto-matched ${matched} record${matched === 1 ? '' : 's'}. ${stillUnresolved} still need manual review.`)
+        removeBookings(resolvedIds)
+        toast.success(
+          `Auto-matched ${matched} record${matched === 1 ? '' : 's'}. ${stillUnresolved} still need manual review.`,
+        )
       } else {
         toast.info(`No new matches found. ${stillUnresolved} still need manual review.`)
       }
@@ -111,6 +164,28 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
       toast.error((err as Error).message)
     } finally {
       setRematching(false)
+    }
+  }
+
+  async function bulkResolve(body: object) {
+    const bookingIds = [...selectedIds]
+    setBulkSaving(true)
+    try {
+      const res = await fetch('/api/super-admin/import-review/bulk-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, bookingIds }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+      const { resolved } = json.data as { resolved: number }
+      removeBookings(bookingIds)
+      setBulkSub({ kind: 'none' })
+      toast.success(`${resolved} record${resolved === 1 ? '' : 's'} resolved.`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setBulkSaving(false)
     }
   }
 
@@ -147,11 +222,23 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
     )
   }
 
+  const bulkServices = selectedFacilityId ? (facilityServices[selectedFacilityId] ?? []) : []
+
   return (
     <div>
-      <div className="mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
-        <span>
-          <span className="font-semibold">{bookings.length}</span> imported service{bookings.length === 1 ? '' : 's'} couldn&apos;t be matched automatically. Review them below — confirm a match, create a new service, or mark as a permanent historical record.
+      {/* Info banner with select-all */}
+      <div className="mb-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-3 flex-wrap">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={toggleSelectAll}
+          title="Select all"
+          className="w-4 h-4 shrink-0 accent-[#8B2E4A]"
+        />
+        <span className="flex-1">
+          <span className="font-semibold">{bookings.length}</span> imported service
+          {bookings.length === 1 ? '' : 's'} need review. Confirm a match, create a service, or mark as
+          historical.
         </span>
         <button
           type="button"
@@ -159,23 +246,188 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
           disabled={rematching}
           className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors disabled:opacity-50"
           style={{ backgroundColor: '#8B2E4A' }}
-          title="Re-run the automatic service matching against your current service catalog"
+          title="Re-run automatic service matching against your current service catalog"
         >
-          {rematching ? 'Matching…' : '⟳ Auto-match services'}
+          {rematching ? 'Matching…' : '⟳ Auto-match'}
         </button>
       </div>
+
+      {/* Bulk action bar — shown when any cards are selected */}
+      {anySelected && (
+        <div className="mb-3 px-4 py-3 rounded-xl bg-[#8B2E4A]/5 border border-[#8B2E4A]/20 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-semibold text-stone-800">{selectedIds.size} selected</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedIds(new Set())
+                  setBulkSub({ kind: 'none' })
+                }}
+                className="text-xs text-stone-500 hover:text-stone-800 underline"
+              >
+                Deselect all
+              </button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => { setBulkSub({ kind: 'none' }); bulkResolve({ action: 'keep' }) }}
+                disabled={bulkSaving}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition-colors disabled:opacity-40"
+              >
+                Keep all as historical
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkSub({ kind: 'link', serviceId: bulkServices[0]?.id ?? '' })}
+                disabled={bulkSaving || selectedFacilityId === null}
+                title={selectedFacilityId === null ? 'Select bookings from one facility to link' : undefined}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors disabled:opacity-40"
+                style={{ backgroundColor: selectedFacilityId ? '#8B2E4A' : '#9ca3af' }}
+              >
+                Link to service
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkSub({ kind: 'create', serviceName: '', priceText: '' })}
+                disabled={bulkSaving || selectedFacilityId === null}
+                title={selectedFacilityId === null ? 'Select bookings from one facility to create a service' : undefined}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors disabled:opacity-40"
+              >
+                Create new service
+              </button>
+            </div>
+          </div>
+
+          {selectedFacilityId === null && selectedIds.size > 1 && (
+            <p className="text-xs text-amber-700">
+              Select bookings from the same facility to use Link or Create actions.
+            </p>
+          )}
+
+          {/* Bulk link sub-form */}
+          {bulkSub.kind === 'link' && selectedFacilityId && (
+            <div className="space-y-2 pt-1">
+              <label className="block text-[11.5px] text-stone-500 font-semibold uppercase tracking-wide">
+                Link {selectedIds.size} record{selectedIds.size === 1 ? '' : 's'} to service
+              </label>
+              <select
+                value={bulkSub.serviceId}
+                onChange={(e) => setBulkSub({ kind: 'link', serviceId: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50"
+              >
+                {bulkServices.length === 0 && <option value="">No services available</option>}
+                {bulkServices.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {formatCents(s.priceCents)}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkSub({ kind: 'none' })}
+                  disabled={bulkSaving}
+                  className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => bulkSub.serviceId && bulkResolve({ action: 'link', serviceId: bulkSub.serviceId })}
+                  disabled={bulkSaving || !bulkSub.serviceId}
+                  className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40"
+                  style={{ backgroundColor: '#8B2E4A' }}
+                >
+                  {bulkSaving
+                    ? 'Saving…'
+                    : `Link ${selectedIds.size} record${selectedIds.size === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Bulk create sub-form */}
+          {bulkSub.kind === 'create' && selectedFacilityId && (
+            <div className="space-y-2 pt-1">
+              <label className="block text-[11.5px] text-stone-500 font-semibold uppercase tracking-wide">
+                Create service &amp; link {selectedIds.size} record{selectedIds.size === 1 ? '' : 's'}
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_8rem] gap-2">
+                <input
+                  type="text"
+                  value={bulkSub.serviceName}
+                  onChange={(e) => setBulkSub({ ...bulkSub, serviceName: e.target.value })}
+                  placeholder="Service name"
+                  className="px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50"
+                />
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-stone-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={bulkSub.priceText}
+                    onChange={(e) => setBulkSub({ ...bulkSub, priceText: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkSub({ kind: 'none' })}
+                  disabled={bulkSaving}
+                  className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cents = Math.round(parseFloat(bulkSub.priceText || '0') * 100)
+                    if (!bulkSub.serviceName.trim() || !Number.isFinite(cents) || cents < 0) {
+                      toast.error('Service name and a non-negative price are required.')
+                      return
+                    }
+                    bulkResolve({ action: 'create', serviceName: bulkSub.serviceName.trim(), priceCents: cents })
+                  }}
+                  disabled={bulkSaving}
+                  className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40"
+                  style={{ backgroundColor: '#8B2E4A' }}
+                >
+                  {bulkSaving
+                    ? 'Creating…'
+                    : `Create & link ${selectedIds.size} record${selectedIds.size === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {bookings.map((b) => (
           <ReviewCard
             key={b.id}
             booking={b}
             services={facilityServices[b.facilityId] ?? []}
-            onResolved={() => {
-              removeBooking(b.id)
-              toast.success('Resolved.')
+            selected={selectedIds.has(b.id)}
+            onToggle={() => toggleSelect(b.id)}
+            onResolved={(siblingIds) => {
+              removeBookings([b.id, ...siblingIds])
+              if (siblingIds.length > 0) {
+                toast.success(
+                  `Resolved. Also auto-applied to ${siblingIds.length} identical record${siblingIds.length === 1 ? '' : 's'}.`,
+                )
+              } else {
+                toast.success('Resolved.')
+              }
             }}
             onRemoved={() => {
-              removeBooking(b.id)
+              removeBookings([b.id])
               toast.success('Booking removed.')
             }}
             onError={(msg) => toast.error(msg)}
@@ -189,12 +441,14 @@ export function ReviewQueue({ onCountChange }: { onCountChange?: (count: number)
 interface ReviewCardProps {
   booking: ReviewBooking
   services: ServiceOption[]
-  onResolved: () => void
+  selected: boolean
+  onToggle: () => void
+  onResolved: (siblingIds: string[]) => void
   onRemoved: () => void
   onError: (msg: string) => void
 }
 
-function ReviewCard({ booking, services, onResolved, onRemoved, onError }: ReviewCardProps) {
+function ReviewCard({ booking, services, selected, onToggle, onResolved, onRemoved, onError }: ReviewCardProps) {
   const [sub, setSub] = useState<CardSubState>({ kind: 'idle' })
   const [saving, setSaving] = useState(false)
 
@@ -208,7 +462,7 @@ function ReviewCard({ booking, services, onResolved, onRemoved, onError }: Revie
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed')
-      onResolved()
+      onResolved(json.data?.siblingIds ?? [])
     } catch (err) {
       onError((err as Error).message)
     } finally {
@@ -234,10 +488,18 @@ function ReviewCard({ booking, services, onResolved, onRemoved, onError }: Revie
   const dateLabel = formatDate(booking.startTime)
 
   return (
-    <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] p-5">
+    <div
+      className={`bg-white rounded-2xl shadow-[var(--shadow-sm)] p-5 transition-colors ${selected ? 'ring-2 ring-[#8B2E4A]/30' : ''}`}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <div className="flex items-center gap-2 text-sm text-stone-700 min-w-0">
+      <div className="flex items-start gap-2 mb-3 flex-wrap">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          className="w-4 h-4 shrink-0 mt-0.5 accent-[#8B2E4A]"
+        />
+        <div className="flex items-center gap-2 text-sm text-stone-700 min-w-0 flex-1 flex-wrap">
           <span className="font-semibold text-stone-900">{booking.resident.name}</span>
           {booking.resident.roomNumber && (
             <span className="text-[11.5px] text-stone-400">Rm {booking.resident.roomNumber}</span>
@@ -247,7 +509,10 @@ function ReviewCard({ booking, services, onResolved, onRemoved, onError }: Revie
           <span className="text-stone-300">·</span>
           <span className="text-stone-500">{dateLabel}</span>
           {booking.importBatch?.fileName && (
-            <span className="text-[11px] text-stone-400 font-mono truncate max-w-[12rem]" title={booking.importBatch.fileName}>
+            <span
+              className="text-[11px] text-stone-400 font-mono truncate max-w-[12rem]"
+              title={booking.importBatch.fileName}
+            >
               {booking.importBatch.fileName}
             </span>
           )}
@@ -278,7 +543,9 @@ function ReviewCard({ booking, services, onResolved, onRemoved, onError }: Revie
       {/* Suggestions */}
       {sub.kind === 'idle' && booking.suggestions.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-3">
-          <span className="text-[11.5px] text-stone-400 font-semibold uppercase tracking-wide">Suggested:</span>
+          <span className="text-[11.5px] text-stone-400 font-semibold uppercase tracking-wide">
+            Suggested:
+          </span>
           {booking.suggestions.map((s) => (
             <button
               key={s.id}
@@ -364,7 +631,10 @@ function ReviewCard({ booking, services, onResolved, onRemoved, onError }: Revie
             </button>
             <button
               type="button"
-              onClick={() => sub.serviceId && postResolve({ action: 'link', bookingId: booking.id, serviceId: sub.serviceId })}
+              onClick={() =>
+                sub.serviceId &&
+                postResolve({ action: 'link', bookingId: booking.id, serviceId: sub.serviceId })
+              }
               disabled={saving || !sub.serviceId}
               className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40"
               style={{ backgroundColor: '#8B2E4A' }}
@@ -436,7 +706,9 @@ function ReviewCard({ booking, services, onResolved, onRemoved, onError }: Revie
       {/* Remove confirm */}
       {sub.kind === 'remove' && (
         <div className="flex items-center gap-2 pt-1">
-          <span className="flex-1 text-sm text-stone-600">Remove this booking from Senior Stylist?</span>
+          <span className="flex-1 text-sm text-stone-600">
+            Remove this booking from Senior Stylist?
+          </span>
           <button
             type="button"
             onClick={() => setSub({ kind: 'idle' })}

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, services } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { z } from 'zod'
 
@@ -46,14 +46,33 @@ export async function POST(request: Request) {
     }
     const { bookingId } = parsed.data
 
-    // Verify booking exists, is in queue
+    // Verify booking exists, is in queue — also fetch raw name + price for sibling matching
     const booking = await db.query.bookings.findFirst({
       where: and(eq(bookings.id, bookingId), eq(bookings.active, true), eq(bookings.needsReview, true)),
-      columns: { id: true, facilityId: true },
+      columns: { id: true, facilityId: true, rawServiceName: true, priceCents: true },
     })
     if (!booking) {
       return Response.json({ error: 'Booking not found or already resolved' }, { status: 404 })
     }
+
+    // Find sibling bookings: same facility + raw service name + price, still in queue.
+    // Resolving one record auto-applies the same mapping to all identical records ("learn").
+    const siblings =
+      booking.rawServiceName != null && booking.priceCents != null
+        ? await db.query.bookings.findMany({
+            where: and(
+              ne(bookings.id, bookingId),
+              eq(bookings.facilityId, booking.facilityId),
+              eq(bookings.rawServiceName, booking.rawServiceName as string),
+              eq(bookings.priceCents, booking.priceCents as number),
+              eq(bookings.needsReview, true),
+              eq(bookings.active, true),
+            ),
+            columns: { id: true },
+          })
+        : []
+    const siblingIds = siblings.map((s) => s.id)
+    const allIds = [bookingId, ...siblingIds]
 
     if (parsed.data.action === 'link') {
       // Cross-facility leak guard: verify serviceId belongs to booking's facility
@@ -67,7 +86,7 @@ export async function POST(request: Request) {
       await db
         .update(bookings)
         .set({ serviceId: parsed.data.serviceId, serviceIds: [parsed.data.serviceId], needsReview: false, updatedAt: new Date() })
-        .where(eq(bookings.id, bookingId))
+        .where(inArray(bookings.id, allIds))
     } else if (parsed.data.action === 'create') {
       const { serviceName, priceCents } = parsed.data
       await db.transaction(async (tx) => {
@@ -85,18 +104,18 @@ export async function POST(request: Request) {
         await tx
           .update(bookings)
           .set({ serviceId: newSvc.id, serviceIds: [newSvc.id], needsReview: false, updatedAt: new Date() })
-          .where(eq(bookings.id, bookingId))
+          .where(inArray(bookings.id, allIds))
       })
     } else {
       // keep
       await db
         .update(bookings)
         .set({ needsReview: false, updatedAt: new Date() })
-        .where(eq(bookings.id, bookingId))
+        .where(inArray(bookings.id, allIds))
     }
 
     revalidateTag('bookings', {})
-    return Response.json({ data: { ok: true } })
+    return Response.json({ data: { ok: true, siblingsResolved: siblingIds.length, siblingIds } })
   } catch (err) {
     console.error('[import-review resolve] error:', err)
     return Response.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 })
