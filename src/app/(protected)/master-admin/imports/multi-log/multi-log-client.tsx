@@ -19,6 +19,8 @@ interface FacilityImportResult {
   facilityCode: string
   facilityName: string
   facilityCreated: boolean
+  reusedExisting: boolean
+  skipped: boolean
   stylistsCreated: number
   residentsUpserted: number
   bookingsCreated: number
@@ -32,6 +34,30 @@ interface Failure {
   facilityCode: string
   facilityName: string
   error: string
+}
+
+interface ExistingInfo {
+  id: string
+  name: string
+  facilityCode: string | null
+  bookings: number
+}
+type ResolutionStatus = 'new' | 'exact' | 'code_name_diff' | 'possible_duplicate'
+interface FacilityResolution {
+  facilityCode: string
+  facilityName: string
+  status: ResolutionStatus
+  existing: ExistingInfo | null
+  score: number | null
+}
+// Operator's per-facility choice. 'create' = default (new, or reuse-by-code keeping name).
+type Choice = 'create' | 'rename' | 'merge' | 'skip'
+
+interface ResolutionBody {
+  mode: 'create' | 'reuse' | 'skip'
+  facilityId?: string
+  renameTo?: string
+  adoptCode?: boolean
 }
 
 type State = 'upload' | 'preview' | 'importing' | 'done'
@@ -53,11 +79,16 @@ export function MultiLogClient() {
   const [error, setError] = useState<string | null>(null)
   const [parsing, setParsing] = useState(false)
 
+  // facility-conflict resolution
+  const [resolutions, setResolutions] = useState<Record<string, FacilityResolution>>({})
+  const [choices, setChoices] = useState<Record<string, Choice>>({})
+
   // import progress
   const [doneCount, setDoneCount] = useState(0)
   const [currentName, setCurrentName] = useState('')
   const [results, setResults] = useState<FacilityImportResult[]>([])
   const [failures, setFailures] = useState<Failure[]>([])
+  const [skippedCount, setSkippedCount] = useState(0)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -73,6 +104,32 @@ export function MultiLogClient() {
         throw new Error('No importable rows found. Every facility cell must start with an F-code (e.g. "F123 - Name").')
       }
       setParsed(data)
+
+      // Detect facility conflicts (same code/different name, possible duplicates).
+      // Non-fatal — if it fails, every facility defaults to create-or-reuse-by-code.
+      try {
+        const res = await fetch('/api/super-admin/import-multi-log/resolve-facilities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            groups: data.groups.map((g) => ({ facilityCode: g.facilityCode, facilityName: g.facilityName })),
+          }),
+        })
+        const json = await res.json()
+        if (res.ok && Array.isArray(json.data?.resolutions)) {
+          const map: Record<string, FacilityResolution> = {}
+          const defaults: Record<string, Choice> = {}
+          for (const r of json.data.resolutions as FacilityResolution[]) {
+            map[r.facilityCode] = r
+            defaults[r.facilityCode] = 'create'
+          }
+          setResolutions(map)
+          setChoices(defaults)
+        }
+      } catch {
+        /* non-fatal */
+      }
+
       setState('preview')
     } catch (err) {
       setError(`Could not parse file: ${(err as Error).message}`)
@@ -81,7 +138,18 @@ export function MultiLogClient() {
     }
   }
 
+  function choiceToResolution(group: MultiFacilityGroup): ResolutionBody | undefined {
+    const r = resolutions[group.facilityCode]
+    const choice = choices[group.facilityCode] ?? 'create'
+    if (choice === 'skip') return { mode: 'skip' }
+    if (!r || !r.existing) return undefined
+    if (choice === 'rename') return { mode: 'reuse', facilityId: r.existing.id, renameTo: group.facilityName }
+    if (choice === 'merge') return { mode: 'reuse', facilityId: r.existing.id, adoptCode: r.existing.facilityCode == null }
+    return undefined
+  }
+
   async function importGroup(group: MultiFacilityGroup): Promise<FacilityImportResult> {
+    const resolution = choiceToResolution(group)
     const res = await fetch('/api/super-admin/import-multi-log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,6 +159,7 @@ export function MultiLogClient() {
         paymentTypeHint: group.paymentTypeHint,
         fileName: file?.name,
         rows: group.rows,
+        ...(resolution ? { resolution } : {}),
       }),
     })
     const text = await res.text().catch(() => '')
@@ -110,10 +179,19 @@ export function MultiLogClient() {
     setDoneCount(0)
     setResults([])
     setFailures([])
+    setSkippedCount(0)
 
     const collected: FacilityImportResult[] = []
     const failed: Failure[] = []
+    let skipped = 0
     for (const group of parsed.groups) {
+      // Skip without a round-trip when the operator chose to skip this facility.
+      if ((choices[group.facilityCode] ?? 'create') === 'skip') {
+        skipped += 1
+        setSkippedCount(skipped)
+        setDoneCount((n) => n + 1)
+        continue
+      }
       setCurrentName(group.facilityName)
       try {
         const r = await importGroup(group)
@@ -138,8 +216,11 @@ export function MultiLogClient() {
     setFile(null)
     setParsed(null)
     setError(null)
+    setResolutions({})
+    setChoices({})
     setResults([])
     setFailures([])
+    setSkippedCount(0)
     setDoneCount(0)
     setCurrentName('')
     setState('upload')
@@ -159,6 +240,19 @@ export function MultiLogClient() {
   const progressPct = parsed && parsed.groups.length > 0
     ? Math.round((doneCount / parsed.groups.length) * 100)
     : 0
+
+  const setChoice = (code: string, c: Choice) => setChoices((prev) => ({ ...prev, [code]: c }))
+
+  const conflictCount = parsed
+    ? parsed.groups.filter((g) => {
+        const r = resolutions[g.facilityCode]
+        return r && (r.status === 'code_name_diff' || r.status === 'possible_duplicate')
+      }).length
+    : 0
+  const plannedSkips = parsed
+    ? parsed.groups.filter((g) => (choices[g.facilityCode] ?? 'create') === 'skip').length
+    : 0
+  const plannedImports = parsed ? parsed.groups.length - plannedSkips : 0
 
   return (
     <div className="page-enter min-h-screen bg-stone-50 p-6">
@@ -244,32 +338,49 @@ export function MultiLogClient() {
               </div>
             )}
 
-            <div className="rounded-xl border border-stone-100 overflow-hidden mb-6 max-h-72 overflow-y-auto">
+            {conflictCount > 0 && (
+              <div className="mb-6 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                <span className="font-semibold">{conflictCount}</span> facilit{conflictCount === 1 ? 'y' : 'ies'} need a decision — either the F-code matches a facility with a different name, or the name looks like a duplicate of one you already have. Pick how to handle each in the table below.
+              </div>
+            )}
+
+            <div className="rounded-xl border border-stone-100 overflow-hidden mb-6 max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="bg-stone-50/60 sticky top-0">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Facility</th>
-                    <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Type</th>
+                    <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Resolution</th>
                     <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Stylists</th>
                     <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Rows</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {parsed.groups.map((g) => (
-                    <tr key={g.facilityCode} className="border-t border-stone-100">
-                      <td className="px-4 py-2.5 text-stone-800">
-                        <span className="font-mono text-xs text-stone-400 mr-2">{g.facilityCode}</span>
-                        {g.facilityName}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase">
-                          {g.paymentTypeHint}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-stone-600">{g.stylistCount}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-stone-800">{g.rows.length.toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {parsed.groups.map((g) => {
+                    const r = resolutions[g.facilityCode]
+                    const choice = choices[g.facilityCode] ?? 'create'
+                    const isSkipped = choice === 'skip'
+                    return (
+                      <tr key={g.facilityCode} className={`border-t border-stone-100 ${isSkipped ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-2.5 text-stone-800 align-top">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-stone-400">{g.facilityCode}</span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500 uppercase">{g.paymentTypeHint}</span>
+                          </div>
+                          <div className="text-stone-800 mt-0.5">{g.facilityName}</div>
+                        </td>
+                        <td className="px-4 py-2.5 align-top">
+                          <ResolutionCell
+                            group={g}
+                            resolution={r}
+                            choice={choice}
+                            onChange={(c) => setChoice(g.facilityCode, c)}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-stone-600 align-top">{g.stylistCount}</td>
+                        <td className="px-4 py-2.5 text-right font-medium text-stone-800 align-top">{g.rows.length.toLocaleString()}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -280,12 +391,14 @@ export function MultiLogClient() {
               </button>
               <button
                 onClick={runImport}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors"
+                disabled={plannedImports === 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-40"
                 style={{ backgroundColor: '#8B2E4A' }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#72253C' }}
+                onMouseEnter={(e) => { if (plannedImports > 0) e.currentTarget.style.backgroundColor = '#72253C' }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#8B2E4A' }}
               >
-                Import {parsed.totalFacilities} facilities →
+                Import {plannedImports} facilit{plannedImports === 1 ? 'y' : 'ies'} →
+                {plannedSkips > 0 && <span className="opacity-75"> ({plannedSkips} skipped)</span>}
               </button>
             </div>
           </div>
@@ -331,6 +444,7 @@ export function MultiLogClient() {
               <ResultTile label="Services matched" value={totals.servicesMatched} accent="stone" />
               <ResultTile label="Need review" value={totals.unresolvedCount} accent={totals.unresolvedCount > 0 ? 'amber' : 'stone'} />
               <ResultTile label="Duplicates skipped" value={totals.duplicatesSkipped} accent="stone" />
+              {skippedCount > 0 && <ResultTile label="Facilities skipped" value={skippedCount} accent="stone" />}
             </div>
 
             {failures.length > 0 && (
@@ -364,6 +478,96 @@ export function MultiLogClient() {
         )}
       </div>
     </div>
+  )
+}
+
+function ResolutionCell({
+  group,
+  resolution,
+  choice,
+  onChange,
+}: {
+  group: MultiFacilityGroup
+  resolution: FacilityResolution | undefined
+  choice: Choice
+  onChange: (c: Choice) => void
+}) {
+  // No resolution data (detection failed) or brand-new facility → simple badge.
+  if (!resolution || resolution.status === 'new') {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 uppercase">New</span>
+        <SkipToggle choice={choice} onChange={onChange} />
+      </div>
+    )
+  }
+
+  if (resolution.status === 'exact') {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase">Existing</span>
+        <span className="text-xs text-stone-400">adds to current records</span>
+        <SkipToggle choice={choice} onChange={onChange} />
+      </div>
+    )
+  }
+
+  const existing = resolution.existing!
+
+  if (resolution.status === 'code_name_diff') {
+    return (
+      <div className="space-y-1">
+        <p className="text-[11px] text-amber-700">
+          {group.facilityCode} already exists as <span className="font-semibold">{existing.name}</span>
+          {existing.bookings > 0 && <span className="text-amber-600"> · {existing.bookings.toLocaleString()} bookings</span>}
+        </p>
+        <select
+          value={choice}
+          onChange={(e) => onChange(e.target.value as Choice)}
+          className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+        >
+          <option value="create">Keep name “{existing.name}”</option>
+          <option value="rename">Rename to “{group.facilityName}”</option>
+          <option value="skip">Skip this facility</option>
+        </select>
+      </div>
+    )
+  }
+
+  // possible_duplicate
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] text-amber-700">
+        Looks like <span className="font-semibold">{existing.name}</span>
+        {existing.facilityCode && <span className="font-mono text-amber-600"> ({existing.facilityCode})</span>}
+        {existing.bookings > 0 && <span className="text-amber-600"> · {existing.bookings.toLocaleString()} bookings</span>}
+        {resolution.score != null && <span className="text-amber-500"> · {Math.round(resolution.score * 100)}% match</span>}
+      </p>
+      <select
+        value={choice}
+        onChange={(e) => onChange(e.target.value as Choice)}
+        className="text-xs px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+      >
+        <option value="create">Create new {group.facilityCode}</option>
+        <option value="merge">Merge into “{existing.name}”</option>
+        <option value="skip">Skip this facility</option>
+      </select>
+    </div>
+  )
+}
+
+function SkipToggle({ choice, onChange }: { choice: Choice; onChange: (c: Choice) => void }) {
+  if (choice === 'skip') {
+    return (
+      <button type="button" onClick={() => onChange('create')} className="text-[11px] text-stone-500 hover:text-stone-700 underline">
+        skipped — undo
+      </button>
+    )
+  }
+  return (
+    <button type="button" onClick={() => onChange('skip')} className="text-[11px] text-stone-300 hover:text-stone-500">
+      skip
+    </button>
   )
 }
 

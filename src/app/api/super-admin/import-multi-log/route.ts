@@ -51,12 +51,24 @@ const bodySchema = z.object({
   paymentTypeHint: z.enum(['rfms', 'ip']),
   fileName: z.string().max(300).optional(),
   rows: z.array(rowSchema).min(1).max(5000),
+  // Optional operator override for facility-conflict resolution. When absent,
+  // falls back to create-or-reuse-by-code (the original behavior).
+  resolution: z
+    .object({
+      mode: z.enum(['create', 'reuse', 'skip']),
+      facilityId: z.string().uuid().optional(),
+      renameTo: z.string().min(1).max(200).optional(),
+      adoptCode: z.boolean().optional(),
+    })
+    .optional(),
 })
 
 interface FacilityImportResult {
   facilityCode: string
   facilityName: string
   facilityCreated: boolean
+  reusedExisting: boolean
+  skipped: boolean
   stylistsCreated: number
   residentsUpserted: number
   bookingsCreated: number
@@ -78,12 +90,14 @@ export async function POST(request: Request) {
     if (!parsedBody.success) {
       return Response.json({ error: parsedBody.error.flatten() }, { status: 422 })
     }
-    const { facilityCode, facilityName, paymentTypeHint, fileName, rows } = parsedBody.data
+    const { facilityCode, facilityName, paymentTypeHint, fileName, rows, resolution } = parsedBody.data
 
     const result: FacilityImportResult = {
       facilityCode,
       facilityName,
       facilityCreated: false,
+      reusedExisting: false,
+      skipped: false,
       stylistsCreated: 0,
       residentsUpserted: 0,
       bookingsCreated: 0,
@@ -93,22 +107,58 @@ export async function POST(request: Request) {
       rowsSkipped: 0,
     }
 
-    // 1. Resolve facility by code — create if missing.
-    let facility = await db.query.facilities.findFirst({
-      where: eq(facilities.facilityCode, facilityCode),
-      columns: { id: true, name: true, timezone: true },
-    })
-    if (!facility) {
-      const [created] = await db
-        .insert(facilities)
-        .values({
-          name: facilityName,
-          facilityCode,
-          paymentType: paymentTypeHint,
+    // 0. Operator chose to skip this facility entirely.
+    if (resolution?.mode === 'skip') {
+      result.skipped = true
+      return Response.json({ data: result })
+    }
+
+    // 1. Resolve the target facility.
+    let facility: { id: string; name: string; timezone: string | null } | undefined
+    if (resolution?.mode === 'reuse' && resolution.facilityId) {
+      // Import into an explicitly chosen existing facility (merge / adopt-duplicate).
+      const target = await db.query.facilities.findFirst({
+        where: eq(facilities.id, resolution.facilityId),
+        columns: { id: true, name: true, timezone: true, facilityCode: true },
+      })
+      if (!target) {
+        return Response.json({ error: 'Chosen facility no longer exists' }, { status: 404 })
+      }
+      const updates: Partial<typeof facilities.$inferInsert> = {}
+      if (resolution.renameTo && resolution.renameTo !== target.name) {
+        updates.name = resolution.renameTo
+      }
+      // Adopt the sheet's F-code onto a facility that has none — but only if the
+      // code isn't already taken by a different facility.
+      if (resolution.adoptCode && !target.facilityCode) {
+        const codeTaken = await db.query.facilities.findFirst({
+          where: eq(facilities.facilityCode, facilityCode),
+          columns: { id: true },
         })
-        .returning({ id: facilities.id, name: facilities.name, timezone: facilities.timezone })
-      facility = created
-      result.facilityCreated = true
+        if (!codeTaken) updates.facilityCode = facilityCode
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.update(facilities).set(updates).where(eq(facilities.id, target.id))
+      }
+      facility = { id: target.id, name: updates.name ?? target.name, timezone: target.timezone }
+      result.reusedExisting = true
+    } else {
+      // Default: resolve by code — create if missing.
+      const existing = await db.query.facilities.findFirst({
+        where: eq(facilities.facilityCode, facilityCode),
+        columns: { id: true, name: true, timezone: true },
+      })
+      if (existing) {
+        facility = existing
+        result.reusedExisting = true
+      } else {
+        const [created] = await db
+          .insert(facilities)
+          .values({ name: facilityName, facilityCode, paymentType: paymentTypeHint })
+          .returning({ id: facilities.id, name: facilities.name, timezone: facilities.timezone })
+        facility = created
+        result.facilityCreated = true
+      }
     }
     const facilityId = facility.id
     const tz = facility.timezone ?? 'America/New_York'
@@ -293,7 +343,7 @@ export async function POST(request: Request) {
         .where(eq(importBatches.id, batch.id))
     })
 
-    if (result.facilityCreated || result.stylistsCreated > 0) revalidateTag('facilities', {})
+    if (result.facilityCreated || result.reusedExisting || result.stylistsCreated > 0) revalidateTag('facilities', {})
     revalidateTag('bookings', {})
 
     return Response.json({ data: result })
