@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { logEntries } from '@/db/schema'
+import { logEntries, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
@@ -32,6 +32,17 @@ export async function PUT(
       where: and(eq(logEntries.id, id), eq(logEntries.facilityId, facilityId)),
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
+
+    // Stylists may only update their OWN log entry
+    if (facilityUser.role === 'stylist') {
+      const profile = await db.query.profiles.findFirst({
+        where: eq(profiles.id, user.id),
+        columns: { stylistId: true },
+      })
+      if (!profile?.stylistId || profile.stylistId !== existing.stylistId) {
+        return Response.json({ error: 'Forbidden — not your log entry' }, { status: 403 })
+      }
+    }
 
     const body = await request.json()
     const parsed = updateSchema.safeParse(body)

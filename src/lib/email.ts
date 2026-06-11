@@ -11,12 +11,21 @@ export async function sendEmail({
   to: string
   subject: string
   html: string
-}) {
-  if (!process.env.RESEND_API_KEY) return
+}): Promise<boolean> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[sendEmail] RESEND_API_KEY not set — skipping send to', to)
+    return false
+  }
   try {
-    await resend.emails.send({ from: FROM, to, subject, html })
+    const { error } = await resend.emails.send({ from: FROM, to, subject, html })
+    if (error) {
+      console.error('[sendEmail] Resend rejected:', { to, error })
+      return false
+    }
+    return true
   } catch (err) {
     console.error('[sendEmail] failed:', { to, error: err })
+    return false
   }
 }
 

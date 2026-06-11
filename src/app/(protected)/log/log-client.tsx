@@ -220,7 +220,8 @@ export function LogClient({
   const [wiResidentDropOpen, setWiResidentDropOpen] = useState(false)
   const [wiResidentId, setWiResidentId] = useState('')
   const [wiServiceId, setWiServiceId] = useState('')
-  const [wiStylistId, setWiStylistId] = useState(stylists[0]?.id ?? '')
+  // Stylists log walk-ins under their own name only — selector locks to self.
+  const [wiStylistId, setWiStylistId] = useState(stylistFilter ?? stylists[0]?.id ?? '')
   const [wiTime, setWiTime] = useState(() => roundToNearest30(new Date(), facilityTimezone))
   const [wiAddonServiceIds, setWiAddonServiceIds] = useState<string[]>([])
   const [wiAdding, setWiAdding] = useState(false)
@@ -283,8 +284,13 @@ export function LogClient({
   const allStylistGroups = Array.from(stylistMap.values()).sort((a, b) =>
     a.stylist.name.localeCompare(b.stylist.name)
   )
+  // Stylists VIEW the whole facility day log but can only EDIT their own
+  // section (per-booking gating via canEdit + section gating via ownsSection).
+  // Their own section sorts first.
   const stylistGroups = stylistFilter
-    ? allStylistGroups.filter((g) => g.stylist.id === stylistFilter)
+    ? [...allStylistGroups].sort((a, b) =>
+        (b.stylist.id === stylistFilter ? 1 : 0) - (a.stylist.id === stylistFilter ? 1 : 0)
+      )
     : allStylistGroups
 
   const getLogEntry = (stylistId: string) =>
@@ -480,14 +486,10 @@ export function LogClient({
     }
   }
 
-  // Totals — derive from the SAME set that's rendered below (stylistGroups
-  // applies stylistFilter), so the summary counts always match the visible list.
-  // Otherwise a filtered stylist sees facility-wide totals above their own rows.
-  const visibleBookings = stylistFilter
-    ? bookings.filter((b) => b.stylist.id === stylistFilter)
-    : bookings
-  const activeBookings = visibleBookings.filter((b) => b.status !== 'cancelled')
-  const completedBookings = visibleBookings.filter((b) => b.status === 'completed')
+  // Totals — the list shows the full facility day for every role, so the
+  // summary counts the same set. (Stylists view all, edit only their own.)
+  const activeBookings = bookings.filter((b) => b.status !== 'cancelled')
+  const completedBookings = bookings.filter((b) => b.status === 'completed')
   const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0), 0)
 
   return (
@@ -851,9 +853,10 @@ export function LogClient({
             <select
               value={wiStylistId}
               onChange={(e) => setWiStylistId(e.target.value)}
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
+              disabled={!!stylistFilter}
+              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {stylists.map((s) => (
+              {(stylistFilter ? stylists.filter((s) => s.id === stylistFilter) : stylists).map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -923,6 +926,10 @@ export function LogClient({
       {stylistGroups.map(({ stylist, bookings: stylistBookings }) => {
         const logEntry = getLogEntry(stylist.id)
         const isFinalized = logEntry?.finalized ?? false
+        // Stylists may finalize / write day notes only on THEIR OWN section.
+        // Admin/bookkeeper (stylistFilter null) can act on every section.
+        const ownsSection = !stylistFilter || stylist.id === stylistFilter
+        const canWriteSection = canWrite && ownsSection
         const stylistCompleted = stylistBookings.filter((b) => b.status === 'completed')
         const stylistRevenue = stylistCompleted.reduce(
           (sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0),
@@ -978,7 +985,7 @@ export function LogClient({
                   </svg>
                   Finalized
                 </span>
-              ) : !canWrite ? null : confirmFinalizeId === stylist.id ? (
+              ) : !canWriteSection ? null : confirmFinalizeId === stylist.id ? (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-stone-500">Finalize?</span>
                   <Button
@@ -1235,8 +1242,8 @@ export function LogClient({
               </div>
             )}
 
-            {/* Notes + footer */}
-            {!collapsed[stylist.id] && !isFinalized && (
+            {/* Notes + footer — editable only on a section the viewer can act on */}
+            {!collapsed[stylist.id] && !isFinalized && canWriteSection && (
               <div className="px-4 py-3 border-t border-stone-50">
                 <textarea
                   value={notes[stylist.id] ?? ''}
@@ -1258,6 +1265,12 @@ export function LogClient({
                 )}
               </div>
             )}
+            {!collapsed[stylist.id] && !isFinalized && !canWriteSection && logEntry?.notes && (
+              <div className="px-4 py-3 border-t border-stone-50">
+                <p className="text-xs text-stone-500 font-medium uppercase tracking-wide mb-1">Notes</p>
+                <p className="text-sm text-stone-700">{logEntry.notes}</p>
+              </div>
+            )}
             {isFinalized && logEntry?.notes && (
               <div className="px-4 py-3 border-t border-green-100 bg-green-50/30">
                 <p className="text-xs text-stone-500 font-medium uppercase tracking-wide mb-1">Notes</p>
@@ -1271,7 +1284,7 @@ export function LogClient({
                     ? `Finalized ${formatTime(logEntry.finalizedAt, facilityTimezone)}`
                     : 'Finalized'}
                 </p>
-                {canWrite && (
+                {canWriteSection && (
                   <button
                     onClick={() => handleUnfinalize(stylist.id)}
                     disabled={unfinalizingId === stylist.id}

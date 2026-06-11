@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, logEntries } from '@/db/schema'
+import { bookings, logEntries, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { z } from 'zod'
@@ -81,6 +81,17 @@ export async function POST(request: NextRequest) {
     }
 
     const { stylistId, date, notes, finalized } = parsed.data
+
+    // Stylists may only finalize / write day notes on their OWN log entry
+    if (facilityUser.role === 'stylist') {
+      const profile = await db.query.profiles.findFirst({
+        where: eq(profiles.id, user.id),
+        columns: { stylistId: true },
+      })
+      if (!profile?.stylistId || profile.stylistId !== stylistId) {
+        return Response.json({ error: 'Forbidden — not your log entry' }, { status: 403 })
+      }
+    }
 
     // Check if entry already exists
     const existing = await db.query.logEntries.findFirst({

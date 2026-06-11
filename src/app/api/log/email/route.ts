@@ -37,12 +37,13 @@ export async function POST(request: NextRequest) {
     }
     const { date, to, message } = parsed.data
 
-    // Stylists only email their own day log
+    // Sender identity for the footer line. The email covers the full facility
+    // day — stylists can view all of the day log (edit-own only), so the email
+    // matches what they see on screen.
     const profile = await db.query.profiles.findFirst({
       where: eq(profiles.id, user.id),
-      columns: { stylistId: true, fullName: true },
+      columns: { fullName: true },
     })
-    const stylistFilter = facilityUser.role === 'stylist' ? profile?.stylistId ?? null : null
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
@@ -64,7 +65,6 @@ export async function POST(request: NextRequest) {
           ne(bookings.status, 'cancelled'),
           gte(bookings.startTime, dayStart),
           lt(bookings.startTime, dayEnd),
-          ...(stylistFilter ? [eq(bookings.stylistId, stylistFilter)] : []),
         ),
         with: {
           resident: { columns: { name: true, roomNumber: true } },
@@ -129,12 +129,19 @@ export async function POST(request: NextRequest) {
       groups: [...groupMap.values()],
     })
 
-    // fire-and-forget per email convention
-    sendEmail({
+    // AWAITED — deliberate exception to the fire-and-forget convention.
+    // This is a user-initiated "send email" action: the user expects delivery
+    // confirmation, and an unawaited promise here is the LAST work in the
+    // handler, so Vercel can freeze the lambda before the Resend call completes
+    // (silent drop). Background notifications elsewhere stay fire-and-forget.
+    const sent = await sendEmail({
       to,
       subject: `Daily Service Log — ${facility.name} — ${dateLabel}`,
       html,
-    }).catch(() => {})
+    })
+    if (!sent) {
+      return Response.json({ error: 'Email could not be sent — please try again' }, { status: 502 })
+    }
 
     return Response.json({ data: { sent: true, count: dayBookings.length } })
   } catch (err) {

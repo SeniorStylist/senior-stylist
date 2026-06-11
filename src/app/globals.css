@@ -53,13 +53,14 @@
 }
 
 
-/* Phase 12U — prevent iOS rubber-band bounce globally */
-*,
+/* Phase 12U — prevent iOS rubber-band bounce globally.
+   html/body ONLY — NEVER use a universal selector here. `overscroll-behavior`
+   on `*` lands on every `overflow: hidden` card (rounded-corner chrome), which
+   Chrome treats as a scroll container at its boundary → wheel/touch scroll over
+   any card stops chaining to .main-content and the page won't scroll (fixed
+   2026-06-11). .main-content carries `overscroll-contain` via Tailwind class. */
 html,
-body,
-.main-content,
-#__next,
-[data-nextjs-scroll-focus-boundary] {
+body {
   overscroll-behavior: none;
 }
 
