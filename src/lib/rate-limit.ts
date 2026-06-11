@@ -36,6 +36,7 @@ type Bucket =
   | 'helpTrack'
   | 'multiLogImport'
   | 'portalTokenLookup'
+  | 'logEmail'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -74,6 +75,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   // fans out to ~79 sequential requests, so the window must clear a whole sheet + retries.
   multiLogImport: { tokens: 300, window: '1 h' },
   portalTokenLookup: { tokens: 20, window: '1 m' },
+  logEmail: { tokens: 10, window: '1 h' },
 }
 
 let redis: Redis | null = null

@@ -560,6 +560,142 @@ export function buildCoverageFilledEmailHtml(params: {
 </html>`.trim()
 }
 
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+export interface DailyLogEmailRow {
+  time: string
+  residentName: string
+  roomNumber: string | null
+  serviceLabel: string
+  priceCents: number
+  tipCents: number | null
+  status: string
+  paymentStatus: string | null
+  notes: string | null
+}
+
+export function buildDailyLogEmailHtml(params: {
+  facilityName: string
+  dateLabel: string
+  sentByName: string
+  message: string | null
+  groups: Array<{ stylistName: string; rows: DailyLogEmailRow[] }>
+}): string {
+  const { facilityName, dateLabel, sentByName, message, groups } = params
+
+  const allRows = groups.flatMap((g) => g.rows)
+  const totalCount = allRows.length
+  // price_cents only — never add tip_cents
+  const totalCents = allRows.reduce((s, r) => s + r.priceCents, 0)
+  const tipsCents = allRows.reduce((s, r) => s + (r.tipCents ?? 0), 0)
+
+  const statusBadge = (status: string): string => {
+    if (status === 'completed')
+      return '<span style="display:inline-block;background:#F0FDFA;color:#0F766E;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;">Completed</span>'
+    if (status === 'scheduled')
+      return '<span style="display:inline-block;background:#EFF6FF;color:#1D4ED8;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;">Scheduled</span>'
+    if (status === 'no_show')
+      return '<span style="display:inline-block;background:#FFFBEB;color:#B45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;">No-show</span>'
+    return `<span style="display:inline-block;background:#F5F5F4;color:#78716C;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;">${escHtml(status)}</span>`
+  }
+
+  const paymentLabel = (s: string | null): string => {
+    if (s === 'paid') return '<span style="color:#15803D;font-weight:600;">Paid</span>'
+    if (s === 'unpaid') return '<span style="color:#B45309;font-weight:600;">Invoice</span>'
+    if (s === 'waived') return '<span style="color:#78716C;">Waived</span>'
+    return '<span style="color:#A8A29E;">—</span>'
+  }
+
+  const groupSections = groups
+    .map((g) => {
+      const rows = g.rows
+        .map((r) => {
+          const room = r.roomNumber ? ` · Rm ${escHtml(r.roomNumber)}` : ''
+          const notesLine = r.notes?.trim()
+            ? `<div style="margin-top:3px;font-size:12px;color:#78716C;font-style:italic;">${escHtml(r.notes.trim())}</div>`
+            : ''
+          const tipLine = r.tipCents && r.tipCents > 0
+            ? `<div style="font-size:11px;color:#78716C;margin-top:2px;">+ ${fmtCents(r.tipCents)} tip</div>`
+            : ''
+          return `<tr>
+            <td style="padding:10px 0;border-bottom:1px solid #F5F5F4;vertical-align:top;width:64px;color:#78716C;font-size:12px;white-space:nowrap;">${escHtml(r.time)}</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #F5F5F4;vertical-align:top;">
+              <div style="color:#1C1917;font-size:14px;font-weight:600;">${escHtml(r.residentName)}<span style="color:#A8A29E;font-weight:400;font-size:12px;">${room}</span></div>
+              <div style="margin-top:2px;color:#57534E;font-size:13px;">${escHtml(r.serviceLabel)}</div>
+              ${notesLine}
+            </td>
+            <td style="padding:10px 0;border-bottom:1px solid #F5F5F4;vertical-align:top;text-align:right;white-space:nowrap;">
+              <div style="color:#1C1917;font-size:14px;font-weight:700;">${fmtCents(r.priceCents)}</div>
+              ${tipLine}
+              <div style="margin-top:4px;">${statusBadge(r.status)}</div>
+              <div style="margin-top:3px;font-size:11px;">${paymentLabel(r.paymentStatus)}</div>
+            </td>
+          </tr>`
+        })
+        .join('')
+      const stylistHeader = groups.length > 1
+        ? `<h2 style="margin:24px 0 4px;font-size:13px;font-weight:700;color:#8B2E4A;text-transform:uppercase;letter-spacing:0.06em;">${escHtml(g.stylistName)}</h2>`
+        : ''
+      return `${stylistHeader}<table style="width:100%;border-collapse:collapse;">${rows}</table>`
+    })
+    .join('')
+
+  const messageBlock = message?.trim()
+    ? `<div style="background:#F9EFF2;border-radius:12px;padding:14px 18px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#1C1917;line-height:1.5;white-space:pre-wrap;">${escHtml(message.trim())}</p>
+      </div>`
+    : ''
+
+  const emptyState = totalCount === 0
+    ? '<p style="margin:8px 0 0;font-size:14px;color:#A8A29E;text-align:center;padding:24px 0;">No appointments recorded for this day.</p>'
+    : ''
+
+  const tipsTile = tipsCents > 0
+    ? `<td style="width:8px;"></td>
+       <td style="width:33%;padding:12px;background:#F5F5F4;border-radius:8px;text-align:center;vertical-align:top;">
+         <div style="color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Tips</div>
+         <div style="color:#1C1917;font-size:18px;font-weight:700;margin-top:4px;">${fmtCents(tipsCents)}</div>
+       </td>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    <div style="background:#8B2E4A;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Daily Service Log</h1>
+      <p style="margin:6px 0 0;color:#F5E6EA;font-size:14px;font-weight:600;">${escHtml(facilityName)}</p>
+      <p style="margin:4px 0 0;color:#F5E6EA;font-size:13px;">${escHtml(dateLabel)}</p>
+    </div>
+    <div style="padding:24px 32px 8px;">
+      ${messageBlock}
+      <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+        <tr>
+          <td style="width:33%;padding:12px;background:#F5F5F4;border-radius:8px;text-align:center;vertical-align:top;">
+            <div style="color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Appointments</div>
+            <div style="color:#1C1917;font-size:18px;font-weight:700;margin-top:4px;">${totalCount}</div>
+          </td>
+          <td style="width:8px;"></td>
+          <td style="width:33%;padding:12px;background:#F5F5F4;border-radius:8px;text-align:center;vertical-align:top;">
+            <div style="color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Total</div>
+            <div style="color:#8B2E4A;font-size:18px;font-weight:700;margin-top:4px;">${fmtCents(totalCents)}</div>
+          </td>
+          ${tipsTile}
+        </tr>
+      </table>
+      ${groupSections}
+      ${emptyState}
+      <p style="margin:20px 0 16px;font-size:12px;color:#A8A29E;">Sent by ${escHtml(sentByName)} via Senior Stylist.</p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 export function buildBookingReceiptHtml(params: {
   facilityName: string
   facilityAddress?: string | null

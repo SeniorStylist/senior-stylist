@@ -21,6 +21,7 @@ import { OcrImportModal } from './ocr-import-modal'
 import { HelpTip } from '@/components/ui/help-tip'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
+import { EmailDayLogModal } from '@/components/exports/email-day-log-modal'
 
 interface LogBooking {
   id: string
@@ -142,6 +143,7 @@ export function LogClient({
   const [date, setDate] = useState(initialDate)
   const [showLogDatePicker, setShowLogDatePicker] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
   const [bookings, setBookings] = useState(initialBookings)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [loading, setLoading] = useState(false)
@@ -557,6 +559,21 @@ export function LogClient({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="9 18 15 12 9 6" />
           </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowEmailModal(true)}
+          data-tour="log-email-day"
+          data-tour-mobile="log-email-day"
+          title="Email day log"
+          aria-label="Email day log"
+          className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M22 7l-10 6L2 7"/>
+          </svg>
+          <span className="hidden md:inline">Email</span>
         </button>
         <button
           type="button"
@@ -1342,6 +1359,16 @@ export function LogClient({
         open={showExportModal}
         onClose={() => setShowExportModal(false)}
         facilityId={facilityId}
+        facilityName={facilityName}
+      />
+
+      <EmailDayLogModal
+        open={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        date={date}
+        dateLabel={new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
+          weekday: 'long', month: 'long', day: 'numeric',
+        })}
         facilityName={facilityName}
       />
     </div>
