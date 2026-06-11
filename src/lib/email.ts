@@ -1,7 +1,44 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy init — the Resend constructor THROWS when the key is missing, which
+// would crash any route importing this module in keyless environments.
+let _resend: Resend | null = null
+function getResend(): Resend | null {
+  if (!process.env.RESEND_API_KEY) return null
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
+  return _resend
+}
+
 const FROM = 'Senior Stylist <noreply@seniorstylist.com>'
+
+const LOGO_URL = 'https://portal.seniorstylist.com/seniorstylistlogo.jpg'
+
+/**
+ * Shared premium email header — white logo band + centered burgundy title band.
+ * Every transactional email uses this so branding stays consistent.
+ * All params are escaped here; pass raw strings.
+ */
+function emailHeader(params: {
+  title: string
+  subtitle?: string | null
+  eyebrow?: string | null
+  detail?: string | null
+  codeChip?: string | null
+}): string {
+  const { title, subtitle, eyebrow, detail, codeChip } = params
+  const chip = codeChip
+    ? `&nbsp;&nbsp;<span style="display:inline-block;vertical-align:2px;background:rgba(255,255,255,0.16);color:#F2DEE5;font-size:11px;font-weight:600;font-family:'SF Mono',Menlo,Consolas,monospace;letter-spacing:0.05em;padding:3px 9px;border-radius:99px;">${escHtml(codeChip)}</span>`
+    : ''
+  return `<div style="background:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:1px solid #F5F5F4;">
+      <img src="${LOGO_URL}" alt="Senior Stylist" width="150" style="width:150px;max-width:60%;height:auto;border:0;display:inline-block;" />
+    </div>
+    <div style="background:#8B2E4A;background:linear-gradient(150deg,#8B2E4A 0%,#7A2840 55%,#6E2339 100%);padding:26px 32px 24px;text-align:center;">
+      ${eyebrow ? `<p style="margin:0 0 9px;color:rgba(255,255,255,0.72);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.18em;">${escHtml(eyebrow)}</p>` : ''}
+      <h1 style="margin:0;color:#fff;font-size:21px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">${escHtml(title)}${chip}</h1>
+      ${subtitle ? `<p style="margin:7px 0 0;color:#F2DEE5;font-size:14px;font-weight:500;">${escHtml(subtitle)}</p>` : ''}
+      ${detail ? `<p style="margin:4px 0 0;color:rgba(255,255,255,0.66);font-size:12.5px;">${escHtml(detail)}</p>` : ''}
+    </div>`
+}
 
 export async function sendEmail({
   to,
@@ -12,7 +49,8 @@ export async function sendEmail({
   subject: string
   html: string
 }): Promise<boolean> {
-  if (!process.env.RESEND_API_KEY) {
+  const resend = getResend()
+  if (!resend) {
     console.warn('[sendEmail] RESEND_API_KEY not set — skipping send to', to)
     return false
   }
@@ -47,10 +85,7 @@ export function buildBookingConfirmationEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Appointment Confirmed</h1>
-      <p style="margin:6px 0 0;color:#E0F2F1;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Appointment Confirmed', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <table style="width:100%;border-collapse:collapse;">
         <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:38%;">Resident</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;font-weight:600;">${residentName}</td></tr>
@@ -65,6 +100,7 @@ export function buildBookingConfirmationEmailHtml(params: {
         <a href="${portalUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">View in Portal</a>
       </p>
     </div>
+    ${EMAIL_FOOTER}
   </div>
 </body>
 </html>`.trim()
@@ -86,10 +122,7 @@ export function buildComplianceAlertEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Compliance Alert</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Compliance Alert', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 6px;color:${urgencyColor};font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">${urgency}</p>
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
@@ -106,6 +139,7 @@ export function buildComplianceAlertEmailHtml(params: {
         <a href="${stylistUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Open Stylist Profile</a>
       </p>
     </div>
+    ${EMAIL_FOOTER}
   </div>
 </body>
 </html>`.trim()
@@ -160,13 +194,6 @@ export function buildFacilityStatementHtml(params: {
 
   const totalBilled = invoices.reduce((s, i) => s + (i.amountCents ?? 0), 0)
   const totalReceived = payments.reduce((s, p) => s + (p.amountCents ?? 0), 0)
-
-  const codeSpan = facilityCode
-    ? `<span style="display:inline-block;margin-left:8px;background:rgba(255,255,255,0.15);color:#F5E6EA;font-size:11px;font-family:monospace;padding:2px 6px;border-radius:4px;">${facilityCode}</span>`
-    : ''
-  const addressLine = address
-    ? `<p style="margin:6px 0 0;color:#F5E6EA;font-size:12px;">${address}</p>`
-    : ''
 
   const outstandingStyle = outstandingCents > 0 ? 'background:#FFFBEB;' : 'background:#F5F5F4;'
   const outstandingValueStyle = outstandingCents > 0 ? 'color:#B45309;' : 'color:#1C1917;'
@@ -241,11 +268,7 @@ export function buildFacilityStatementHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Statement of Account${codeSpan}</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:14px;font-weight:600;">${facilityName}</p>
-      ${addressLine}
-    </div>
+    ${emailHeader({ eyebrow: 'Statement of Account', title: facilityName, codeChip: facilityCode, detail: address })}
     <div style="padding:24px 32px 0;">
       <table style="width:100%;border-collapse:collapse;">
         <tr>
@@ -339,10 +362,7 @@ export function buildResidentStatementHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Billing Reminder</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Billing Reminder', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 20px;color:#1C1917;font-size:14px;line-height:1.6;">${greeting}</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
@@ -372,10 +392,7 @@ export function buildPortalMagicLinkEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Your Family Portal</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Your Family Portal', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.6;">
         Sign in to view appointments, request services, and manage billing for <strong>${namesLine}</strong>${multiple ? '' : ''}.
@@ -423,10 +440,7 @@ export function buildPortalRequestEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">New Service Request</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'New Service Request', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
         A family member has requested service for <strong>${residentName}</strong>. Confirm a date/stylist on the dashboard.
@@ -471,10 +485,7 @@ export function buildCoverageRequestEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Coverage Requested</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Coverage Requested', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
         <strong>${stylistName}</strong> has requested time off and needs coverage for <strong>${rangeLabel}</strong>.
@@ -490,6 +501,7 @@ export function buildCoverageRequestEmailHtml(params: {
         <a href="${dashboardUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Open Coverage Queue</a>
       </p>
     </div>
+    ${EMAIL_FOOTER}
   </div>
 </body>
 </html>`.trim()
@@ -515,10 +527,7 @@ export function buildPayrollNotificationHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Your Pay Is Ready</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Your Pay Is Ready', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 20px;color:#1C1917;font-size:14px;line-height:1.6;">Hi ${stylistName}, your payroll has been marked paid for the period <strong>${periodStart} – ${periodEnd}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;">
@@ -549,10 +558,7 @@ export function buildCoverageFilledEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Coverage Confirmed</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Coverage Confirmed', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.5;">
         Hi ${stylistName}, your time-off request for <strong>${rangeLabel}</strong> has been covered.
@@ -564,6 +570,7 @@ export function buildCoverageFilledEmailHtml(params: {
       </table>
       <p style="margin:20px 0 0;font-size:13px;color:#57534E;line-height:1.5;">Enjoy your day off — we'll see you when you're back.</p>
     </div>
+    ${EMAIL_FOOTER}
   </div>
 </body>
 </html>`.trim()
@@ -587,12 +594,13 @@ export interface DailyLogEmailRow {
 
 export function buildDailyLogEmailHtml(params: {
   facilityName: string
+  facilityCode: string | null
   dateLabel: string
   sentByName: string
   message: string | null
   groups: Array<{ stylistName: string; rows: DailyLogEmailRow[] }>
 }): string {
-  const { facilityName, dateLabel, sentByName, message, groups } = params
+  const { facilityName, facilityCode, dateLabel, sentByName, message, groups } = params
 
   const allRows = groups.flatMap((g) => g.rows)
   const totalCount = allRows.length
@@ -674,11 +682,7 @@ export function buildDailyLogEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Daily Service Log</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:14px;font-weight:600;">${escHtml(facilityName)}</p>
-      <p style="margin:4px 0 0;color:#F5E6EA;font-size:13px;">${escHtml(dateLabel)}</p>
-    </div>
+    ${emailHeader({ eyebrow: 'Daily Service Log', title: facilityName, codeChip: facilityCode, subtitle: dateLabel })}
     <div style="padding:24px 32px 8px;">
       ${messageBlock}
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
@@ -697,7 +701,7 @@ export function buildDailyLogEmailHtml(params: {
       </table>
       ${groupSections}
       ${emptyState}
-      <p style="margin:20px 0 16px;font-size:12px;color:#A8A29E;">Sent by ${escHtml(sentByName)} via Senior Stylist.</p>
+      <p style="margin:22px 0 16px;font-size:12px;color:#A8A29E;text-align:center;">Sent by ${escHtml(sentByName)} via Senior Stylist</p>
     </div>
     ${EMAIL_FOOTER}
   </div>
@@ -738,10 +742,7 @@ export function buildBookingReceiptHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    <div style="background:#8B2E4A;padding:28px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Receipt</h1>
-      <p style="margin:6px 0 0;color:#F5E6EA;font-size:13px;">${facilityName}</p>
-    </div>
+    ${emailHeader({ title: 'Receipt', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 20px;color:#1C1917;font-size:15px;">Thank you for your visit, ${residentName}!</p>
       <table style="width:100%;border-collapse:collapse;">
@@ -760,6 +761,7 @@ export function buildBookingReceiptHtml(params: {
         Questions? Contact ${facilityName}${facilityPhone ? ` at ${facilityPhone}` : ''}.
       </p>
     </div>
+    ${EMAIL_FOOTER}
   </div>
 </body>
 </html>`.trim()

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
-      columns: { name: true, timezone: true },
+      columns: { name: true, timezone: true, facilityCode: true },
     })
     if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
     const tz = facility.timezone || 'America/New_York'
@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
 
     const html = buildDailyLogEmailHtml({
       facilityName: facility.name,
+      facilityCode: facility.facilityCode ?? null,
       dateLabel,
       sentByName: profile?.fullName ?? user.email ?? 'Senior Stylist',
       message: message ?? null,
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
     // (silent drop). Background notifications elsewhere stay fire-and-forget.
     const sent = await sendEmail({
       to,
-      subject: `Daily Service Log — ${facility.name} — ${dateLabel}`,
+      subject: `Day Log: ${facility.name} · ${dateLabel}`,
       html,
     })
     if (!sent) {
