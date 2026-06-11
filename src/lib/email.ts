@@ -11,12 +11,12 @@ function getResend(): Resend | null {
 
 const FROM = 'Senior Stylist <noreply@seniorstylist.com>'
 
-const LOGO_URL = 'https://portal.seniorstylist.com/seniorstylistlogo.jpg'
+const LOGO_URL = 'https://portal.seniorstylist.com/seniorstylistlogo-white.png'
 
 /**
- * Shared premium email header — white logo band + centered burgundy title band.
- * Every transactional email uses this so branding stays consistent.
- * All params are escaped here; pass raw strings.
+ * Shared premium email header — a single burgundy band with the white logo
+ * centered on top (matches the app sidebar), then eyebrow / title / subtitle.
+ * No white band — the whole masthead is burgundy. All params escaped here.
  */
 function emailHeader(params: {
   title: string
@@ -29,11 +29,9 @@ function emailHeader(params: {
   const chip = codeChip
     ? `&nbsp;&nbsp;<span style="display:inline-block;vertical-align:2px;background:rgba(255,255,255,0.16);color:#F2DEE5;font-size:11px;font-weight:600;font-family:'SF Mono',Menlo,Consolas,monospace;letter-spacing:0.05em;padding:3px 9px;border-radius:99px;">${escHtml(codeChip)}</span>`
     : ''
-  return `<div style="background:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:1px solid #F5F5F4;">
-      <img src="${LOGO_URL}" alt="Senior Stylist" width="150" style="width:150px;max-width:60%;height:auto;border:0;display:inline-block;" />
-    </div>
-    <div style="background:#8B2E4A;background:linear-gradient(150deg,#8B2E4A 0%,#7A2840 55%,#6E2339 100%);padding:26px 32px 24px;text-align:center;">
-      ${eyebrow ? `<p style="margin:0 0 9px;color:rgba(255,255,255,0.72);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.18em;">${escHtml(eyebrow)}</p>` : ''}
+  return `<div style="background:#8B2E4A;background:linear-gradient(155deg,#8B2E4A 0%,#7A2840 52%,#6A2237 100%);padding:34px 32px 26px;text-align:center;">
+      <img src="${LOGO_URL}" alt="Senior Stylist" width="160" style="width:160px;max-width:62%;height:auto;border:0;display:inline-block;margin-bottom:${eyebrow || title ? '18px' : '0'};" />
+      ${eyebrow ? `<p style="margin:0 0 8px;color:rgba(255,255,255,0.72);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.18em;">${escHtml(eyebrow)}</p>` : ''}
       <h1 style="margin:0;color:#fff;font-size:21px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">${escHtml(title)}${chip}</h1>
       ${subtitle ? `<p style="margin:7px 0 0;color:#F2DEE5;font-size:14px;font-weight:500;">${escHtml(subtitle)}</p>` : ''}
       ${detail ? `<p style="margin:4px 0 0;color:rgba(255,255,255,0.66);font-size:12.5px;">${escHtml(detail)}</p>` : ''}
