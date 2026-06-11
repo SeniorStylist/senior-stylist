@@ -480,9 +480,14 @@ export function LogClient({
     }
   }
 
-  // Totals
-  const activeBookings = bookings.filter((b) => b.status !== 'cancelled')
-  const completedBookings = bookings.filter((b) => b.status === 'completed')
+  // Totals — derive from the SAME set that's rendered below (stylistGroups
+  // applies stylistFilter), so the summary counts always match the visible list.
+  // Otherwise a filtered stylist sees facility-wide totals above their own rows.
+  const visibleBookings = stylistFilter
+    ? bookings.filter((b) => b.stylist.id === stylistFilter)
+    : bookings
+  const activeBookings = visibleBookings.filter((b) => b.status !== 'cancelled')
+  const completedBookings = visibleBookings.filter((b) => b.status === 'completed')
   const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0), 0)
 
   return (

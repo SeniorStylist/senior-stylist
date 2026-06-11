@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { db } from '@/db'
 import { bookings, logEntries, residents, stylists, services, profiles, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
@@ -20,9 +21,13 @@ export default async function LogPage() {
   if (!facilityUser) redirect('/dashboard')
   const { facilityId } = facilityUser
 
-  // If user is a stylist, look up their linked stylist profile for filtering
+  // If user is a stylist, look up their linked stylist profile for filtering.
+  // Skip in debug impersonation: a master admin previewing "Stylist" has no
+  // specific stylist identity, so filtering by their OWN profile.stylistId
+  // would wrongly empty the list. Show all facility bookings instead.
+  const isDebugImpersonation = !!(await cookies()).get('__debug_role')?.value
   let stylistFilter: string | null = null
-  if (facilityUser.role === 'stylist') {
+  if (facilityUser.role === 'stylist' && !isDebugImpersonation) {
     const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
     stylistFilter = profile?.stylistId ?? null
   }

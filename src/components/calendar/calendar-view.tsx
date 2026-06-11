@@ -163,8 +163,10 @@ export default function CalendarView({
 
           const primaryLabel = primaryNames.join(' + ')
           const fullLabel = [...primaryNames, ...addonNames].join(' + ')
-          const startTime = arg.event.start
-            ? formatTimeInTz(arg.event.start, facilityTimezone)
+          // Format the raw stored UTC instant, NOT arg.event.start — FullCalendar's
+          // marker→Date conversion is tz-dependent; booking.startTime is conversion-free.
+          const startTime = booking.startTime
+            ? formatTimeInTz(booking.startTime, facilityTimezone)
             : ''
 
           if (view === 'dayGridMonth') {
