@@ -298,7 +298,7 @@ export default async function DashboardPage() {
     console.error('Dashboard error:', err)
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-stone-900 mb-2">Dashboard</h1>
+        <h1 className="text-2xl font-normal text-stone-900 mb-2" style={{ fontFamily: "'DM Serif Display', serif" }}>Dashboard</h1>
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 max-w-lg">
           <p className="text-sm text-red-700">
             Failed to load dashboard. Check your database connection.

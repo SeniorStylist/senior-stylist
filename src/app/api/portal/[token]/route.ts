@@ -2,13 +2,18 @@ import { db } from '@/db'
 import { residents, bookings, facilities } from '@/db/schema'
 import { eq, gte, lt, ne } from 'drizzle-orm'
 import { toClientJson } from '@/lib/sanitize'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const rl = await checkRateLimit('portalTokenLookup', ip)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
+
     const { token } = await params
 
     const resident = await db.query.residents.findFirst({

@@ -130,6 +130,8 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
         setServices(services.map((s) => (s.id === serviceId ? json.data : s)))
         setEditingId(null)
         toast('Changes saved', 'success')
+      } else {
+        toast(json.error ?? 'Failed to save service', 'error')
       }
     } finally {
       setSaving(false)
@@ -190,6 +192,9 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
       if (res.ok) {
         setServices(services.filter((s) => s.id !== serviceId))
         setConfirmArchiveId(null)
+      } else {
+        const json = await res.json().catch(() => ({})) as { error?: string }
+        toast(json.error ?? 'Failed to archive service', 'error')
       }
     } finally {
       setArchivingId(null)
@@ -203,7 +208,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1
-            className="text-2xl font-bold text-stone-900"
+            className="text-2xl font-normal text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
             Services
@@ -594,7 +599,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   <div className="col-span-3 flex items-center gap-3">
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: service.color ?? '#0D7377' }}
+                      style={{ backgroundColor: service.color ?? '#8B2E4A' }}
                     />
                     <span className="text-sm font-medium text-stone-900 truncate">{service.name}</span>
                   </div>
@@ -698,7 +703,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
             </button>
             {bulkColorPickerOpen && (
               <div className="absolute bottom-full mb-2 left-0 bg-white rounded-xl border border-stone-200 shadow-xl p-2 grid grid-cols-6 gap-1.5 z-50">
-                {['#0D7377','#7C3AED','#DC2626','#DB2777','#D97706','#059669','#2563EB','#0891B2','#9333EA','#EA580C','#16A34A','#0284C7'].map((c) => (
+                {['#8B2E4A','#7C3AED','#DC2626','#DB2777','#D97706','#059669','#2563EB','#C084A0','#9333EA','#EA580C','#16A34A','#0284C7'].map((c) => (
                   <button
                     key={c}
                     onClick={async () => {

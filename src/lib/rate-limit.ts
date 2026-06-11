@@ -35,6 +35,7 @@ type Bucket =
   | 'helpSeed'
   | 'helpTrack'
   | 'multiLogImport'
+  | 'portalTokenLookup'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -72,6 +73,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   // multi-facility log import POSTs once per facility — a single 79-facility sheet
   // fans out to ~79 sequential requests, so the window must clear a whole sheet + retries.
   multiLogImport: { tokens: 300, window: '1 h' },
+  portalTokenLookup: { tokens: 20, window: '1 m' },
 }
 
 let redis: Redis | null = null

@@ -79,14 +79,14 @@ const PHONE_LABELS = ['mobile', 'office', 'home', 'work', 'fax', 'custom'] as co
 type PhoneLabelOption = typeof PHONE_LABELS[number]
 
 const PRESET_COLORS = [
-  '#0D7377',
+  '#8B2E4A',
   '#7C3AED',
   '#DC2626',
   '#D97706',
   '#059669',
   '#2563EB',
   '#DB2777',
-  '#92400E',
+  '#C084A0',
 ]
 
 interface UpcomingBooking {

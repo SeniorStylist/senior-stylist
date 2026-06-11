@@ -77,7 +77,7 @@ export default function UnauthorizedPage() {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-stone-900 mb-2" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            <h1 className="text-xl font-normal text-stone-900 mb-2" style={{ fontFamily: "'DM Serif Display', serif" }}>
               {pageState === 'already_pending' ? 'Request already sent' : 'Request sent!'}
             </h1>
             <p className="text-sm text-stone-500 mt-2">
@@ -106,7 +106,7 @@ export default function UnauthorizedPage() {
               <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
             </div>
 
-            <h1 className="text-xl font-bold text-stone-900 text-center mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            <h1 className="text-xl font-normal text-stone-900 text-center mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>
               Request access
             </h1>
 

@@ -43,7 +43,7 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
         className={cn(
           'bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full mb-8',
           'max-h-[calc(100dvh-5rem)] overflow-y-auto',
-          'animate-in fade-in slide-in-from-bottom-3 duration-200',
+          'animate-in fade-in slide-in-from-bottom-3 duration-[160ms]',
           className
         )}
         {...dataProps}

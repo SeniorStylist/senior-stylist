@@ -121,7 +121,10 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const files = formData.getAll('images') as File[]
     const servicesJson = formData.get('servicesJson') as string | null
-    const knownServices: { name: string; priceCents: number }[] = servicesJson ? JSON.parse(servicesJson) : []
+    let knownServices: { name: string; priceCents: number }[] = []
+    if (servicesJson) {
+      try { knownServices = JSON.parse(servicesJson) } catch { /* ignore malformed */ }
+    }
     const instruction = buildInstruction(knownServices)
 
     if (files.length === 0) return Response.json({ error: 'No images provided' }, { status: 400 })

@@ -76,7 +76,7 @@ export default async function InvoicePage({
       {/* Header */}
       <div className="mb-8 flex items-start justify-between print:mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-stone-900 mb-1">{facility.name}</h1>
+          <h1 className="text-3xl font-normal text-stone-900 mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>{facility.name}</h1>
           {facility.address && <p className="text-stone-500 text-sm">{facility.address}</p>}
           {facility.phone && <p className="text-stone-500 text-sm">{facility.phone}</p>}
         </div>

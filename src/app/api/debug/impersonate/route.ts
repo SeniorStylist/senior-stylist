@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   const cookieStore = await cookies()
   cookieStore.set('__debug_role', JSON.stringify(parsed.data), {
-    httpOnly: false,
+    httpOnly: false, // intentional — DebugBadge reads this via document.cookie
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',

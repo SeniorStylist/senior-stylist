@@ -438,7 +438,7 @@ export default function OnboardingClient() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
+          <h1 className="text-3xl font-normal text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
             Senior Stylist
           </h1>
         </div>

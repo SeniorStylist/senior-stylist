@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { services, facilities } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove } from '@/lib/get-facility-id'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (!isAdminOrAbove(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
     const { facilityId } = facilityUser
 
     const body = await request.json()

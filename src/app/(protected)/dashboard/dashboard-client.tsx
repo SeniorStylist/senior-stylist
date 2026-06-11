@@ -244,7 +244,7 @@ export function DashboardClient({
         if (cancelled) return
         if (Array.isArray(json.data)) setPendingSignups(json.data)
       })
-      .catch((e) => console.error('Failed to load pending signups:', e))
+      .catch((e) => console.warn('Failed to load pending signups:', e))
     return () => { cancelled = true }
   }, [userRole, todayDateStr])
 
