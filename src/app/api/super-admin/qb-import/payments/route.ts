@@ -14,7 +14,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { parseGroupedTransactionsCsv, extractCheckNum, chunkArr, type CustomerSection } from '@/lib/imports/qb-csv'
 import { revalidateTag } from 'next/cache'
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
 const MAX_WARNINGS = 200
@@ -233,10 +233,26 @@ export async function POST(request: Request) {
       toInsert.push(p)
     }
 
-    for (const ch of chunkArr(toUpdate, 25)) {
-      await Promise.all(ch.map(({ id, set }) =>
-        db.update(qbPayments).set(set).where(eq(qbPayments.id, id)),
-      ))
+    // Batched UPDATE…FROM (VALUES…) — per-row updates over the max:1 pooled
+    // connection serialize thousands of round-trips and time out on large files.
+    // Memo is only written when the existing row's memo is null (enrichment),
+    // so COALESCE(p.memo, v.memo) keeps existing memos; resident_id/qb_customer_id
+    // are only provided on upgrades where the existing value is null.
+    for (const ch of chunkArr(toUpdate, 200)) {
+      const valueRows = ch.map(({ id, set }) => sql`(
+        ${id}::uuid,
+        ${(set.residentId as string | undefined) ?? null}::uuid,
+        ${(set.qbCustomerId as string | undefined) ?? null}::text,
+        ${(set.memo as string | undefined) ?? null}::text
+      )`)
+      await db.execute(sql`
+        UPDATE qb_payments p SET
+          resident_id = COALESCE(v.resident_id, p.resident_id),
+          qb_customer_id = COALESCE(v.qb_customer_id, p.qb_customer_id),
+          memo = COALESCE(p.memo, v.memo)
+        FROM (VALUES ${sql.join(valueRows, sql`, `)}) AS v(id, resident_id, qb_customer_id, memo)
+        WHERE p.id = v.id
+      `)
     }
 
     let created = 0

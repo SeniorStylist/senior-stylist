@@ -10,7 +10,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { parseInvoiceListCsv, deriveInvoiceStatus, chunkArr } from '@/lib/imports/qb-csv'
 import { revalidateTag } from 'next/cache'
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
 const MAX_WARNINGS = 200

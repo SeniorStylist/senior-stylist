@@ -12,7 +12,7 @@ import { parseContactListCsv, chunkArr, type ContactResidentRow } from '@/lib/im
 import { randomUUID } from 'crypto'
 import { revalidateTag } from 'next/cache'
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
 const LINK_THRESHOLD = 0.85
@@ -140,17 +140,43 @@ export async function POST(request: Request) {
       creates.push(row)
     }
 
-    // Apply updates in parallel chunks
-    for (const ch of chunkArr(updates, 25)) {
-      await Promise.all(ch.map(({ id, set }) =>
-        db.update(residents).set({ ...set, updatedAt: new Date() }).where(eq(residents.id, id)),
-      ))
+    // Apply updates as batched UPDATE…FROM (VALUES…) — one statement per chunk.
+    // Per-row db.update() over the max:1 pooled connection serializes thousands of
+    // round-trips and times out the function on large files.
+    // Build-time logic only includes a field when it should be written, so
+    // COALESCE(v.x, r.x) preserves "leave untouched" semantics exactly.
+    for (const ch of chunkArr(updates, 200)) {
+      const valueRows = ch.map(({ id, set }) => sql`(
+        ${id}::uuid,
+        ${(set.poaEmail as string | undefined) ?? null}::text,
+        ${(set.poaPhone as string | undefined) ?? null}::text,
+        ${(set.poaName as string | undefined) ?? null}::text,
+        ${(set.poaAddress as string | undefined) ?? null}::text,
+        ${(set.qbCustomerId as string | undefined) ?? null}::text,
+        ${(set.roomNumber as string | undefined) ?? null}::text
+      )`)
+      await db.execute(sql`
+        UPDATE residents r SET
+          poa_email = COALESCE(v.poa_email, r.poa_email),
+          poa_phone = COALESCE(v.poa_phone, r.poa_phone),
+          poa_name = COALESCE(v.poa_name, r.poa_name),
+          poa_address = COALESCE(v.poa_address, r.poa_address),
+          qb_customer_id = COALESCE(v.qb_customer_id, r.qb_customer_id),
+          room_number = COALESCE(v.room_number, r.room_number),
+          updated_at = now()
+        FROM (VALUES ${sql.join(valueRows, sql`, `)})
+          AS v(id, poa_email, poa_phone, poa_name, poa_address, qb_customer_id, room_number)
+        WHERE r.id = v.id
+      `)
     }
 
-    // Create missing residents (dedupe by qbCustomerId within batch)
+    // Create missing residents (dedupe by qbCustomerId within batch).
+    // Plain insert — there is NO unique index on residents.qb_customer_id, so
+    // ON CONFLICT would be rejected by Postgres. Cross-run idempotency comes from
+    // the exact-match step above (residentByQbId covers every linked resident).
     const createMap = new Map<string, ContactResidentRow>()
     for (const r of creates) createMap.set(r.qbCustomerId, r)
-    for (const ch of chunkArr(Array.from(createMap.values()), 50)) {
+    for (const ch of chunkArr(Array.from(createMap.values()), 100)) {
       const values = ch.map((r) => ({
         facilityId: facilityByCode.get(r.fCode)!.id,
         name: r.name,
@@ -163,17 +189,7 @@ export async function POST(request: Request) {
         portalToken: randomUUID(),
         active: true,
       }))
-      await db.insert(residents).values(values).onConflictDoUpdate({
-        target: residents.qbCustomerId,
-        targetWhere: sql`${residents.qbCustomerId} IS NOT NULL`,
-        set: {
-          poaEmail: sql`COALESCE(excluded.poa_email, ${residents.poaEmail})`,
-          poaPhone: sql`COALESCE(excluded.poa_phone, ${residents.poaPhone})`,
-          poaName: sql`COALESCE(excluded.poa_name, ${residents.poaName})`,
-          poaAddress: sql`COALESCE(excluded.poa_address, ${residents.poaAddress})`,
-          updatedAt: new Date(),
-        },
-      })
+      await db.insert(residents).values(values)
       stats.residentsCreated += values.length
     }
 
@@ -189,10 +205,22 @@ export async function POST(request: Request) {
       if (f.email && !existing.contactEmail) set.contactEmail = f.email
       if (Object.keys(set).length > 0) facilityUpdates.push({ id: existing.id, set })
     }
-    for (const ch of chunkArr(facilityUpdates, 25)) {
-      await Promise.all(ch.map(({ id, set }) =>
-        db.update(facilities).set({ ...set, updatedAt: new Date() }).where(eq(facilities.id, id)),
-      ))
+    for (const ch of chunkArr(facilityUpdates, 200)) {
+      const valueRows = ch.map(({ id, set }) => sql`(
+        ${id}::uuid,
+        ${(set.phone as string | undefined) ?? null}::text,
+        ${(set.address as string | undefined) ?? null}::text,
+        ${(set.contactEmail as string | undefined) ?? null}::text
+      )`)
+      await db.execute(sql`
+        UPDATE facilities f SET
+          phone = COALESCE(v.phone, f.phone),
+          address = COALESCE(v.address, f.address),
+          contact_email = COALESCE(v.contact_email, f.contact_email),
+          updated_at = now()
+        FROM (VALUES ${sql.join(valueRows, sql`, `)}) AS v(id, phone, address, contact_email)
+        WHERE f.id = v.id
+      `)
       stats.facilitiesUpdated += ch.length
     }
 
