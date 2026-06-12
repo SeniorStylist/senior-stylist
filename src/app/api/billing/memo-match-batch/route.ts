@@ -1,14 +1,15 @@
-// Batch memo scan — previews per-resident attributions for ALL unmatched
-// memo payments in a facility. Uses Gemini AI (single call for all memos)
-// with heuristic fallback to parse; operator reviews and applies individually
-// via POST /api/billing/memo-match/[paymentId].
+// Batch memo scan — previews per-resident attributions for unmatched memo
+// payments. Scopes to one facility (`facilityId`) or, for master/bookkeeper,
+// sweeps EVERY facility when facilityId is null. Uses Gemini AI (single call
+// for all memos) with heuristic fallback to parse; operator reviews and applies
+// individually via POST /api/billing/memo-match/[paymentId].
 
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { residents, facilities } from '@/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { residents } from '@/db/schema'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { parseMemo, ParsedMemo } from '@/lib/memo-attribution'
 import { fuzzyScore } from '@/lib/fuzzy'
@@ -17,12 +18,14 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 export const maxDuration = 60
 
 const bodySchema = z.object({
-  facilityId: z.string().uuid(),
+  facilityId: z.string().uuid().nullable().optional(),
 })
 
 interface RawPayment {
   id: string
   facility_id: string
+  facility_name: string
+  facility_code: string | null
   memo: string
   amount_cents: number | string
   check_num: string | null
@@ -119,15 +122,20 @@ export async function POST(req: NextRequest) {
 
     const body = bodySchema.safeParse(await req.json())
     if (!body.success) return Response.json({ error: 'Invalid body' }, { status: 400 })
-    const { facilityId } = body.data
+    const facilityId = body.data.facilityId ?? null
 
     if (!isMaster) {
       const fu = await getUserFacility(user.id)
       if (!fu || !canAccessBilling(fu.role)) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
-      // Bookkeepers are cross-facility; admins must match
-      if (fu.role !== 'bookkeeper' && fu.facilityId !== facilityId) {
+      // All-facility sweep needs cross-facility access: master or bookkeeper.
+      // Admins are facility-scoped and must name their own facility.
+      if (facilityId === null) {
+        if (fu.role !== 'bookkeeper') {
+          return Response.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      } else if (fu.role !== 'bookkeeper' && fu.facilityId !== facilityId) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -135,18 +143,21 @@ export async function POST(req: NextRequest) {
     const rl = await checkRateLimit('memoMatchBatch', `u:${user.id}`)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
-    // Fetch all unmatched memo payments (those with $ amounts, no breakdown yet)
+    // Fetch unmatched memo payments (those with $ amounts, no breakdown yet).
+    // Joined to facilities for name/code (grouping in the all-facility sweep).
     const rawRows = await db.execute(sql`
-      SELECT id, facility_id, memo, amount_cents, check_num,
-             to_char(payment_date, 'YYYY-MM-DD') AS payment_date
-      FROM qb_payments
-      WHERE facility_id = ${facilityId}
-        AND is_demo = false
-        AND memo IS NOT NULL
-        AND memo ~ '\\$\\s?[0-9]'
-        AND (resident_breakdown IS NULL OR resident_breakdown = '[]'::jsonb)
-      ORDER BY payment_date DESC
-      LIMIT 50
+      SELECT p.id, p.facility_id, f.name AS facility_name, f.facility_code,
+             p.memo, p.amount_cents, p.check_num,
+             to_char(p.payment_date, 'YYYY-MM-DD') AS payment_date
+      FROM qb_payments p
+      JOIN facilities f ON f.id = p.facility_id
+      WHERE ${facilityId ? sql`p.facility_id = ${facilityId}` : sql`f.active = true`}
+        AND p.is_demo = false
+        AND p.memo IS NOT NULL
+        AND p.memo ~ '\\$\\s?[0-9]'
+        AND (p.resident_breakdown IS NULL OR p.resident_breakdown = '[]'::jsonb)
+      ORDER BY p.payment_date DESC
+      LIMIT ${facilityId ? 50 : 60}
     `)
     const payments = rawRows as unknown as RawPayment[]
 
@@ -157,22 +168,23 @@ export async function POST(req: NextRequest) {
     // Parse all memos — Gemini single call, heuristic fallback per payment
     const geminiResults = await geminiParseMemosBatch(payments)
 
-    // Load residents + facility timezone once
-    const [facility, residentList] = await Promise.all([
-      db.query.facilities.findFirst({
-        where: eq(facilities.id, facilityId),
-        columns: { id: true, timezone: true },
-      }),
-      db.query.residents.findMany({
-        where: and(
-          eq(residents.facilityId, facilityId),
-          eq(residents.active, true),
-          eq(residents.isDemo, false) // is_demo filter — Phase 13
-        ),
-        columns: { id: true, name: true, roomNumber: true },
-      }),
-    ])
-    const tz = facility?.timezone ?? 'America/New_York'
+    // Load residents for every facility in the result set, grouped per facility
+    // so fuzzy matching never crosses facility lines.
+    const facilityIds = [...new Set(payments.map((p) => p.facility_id))]
+    const residentList = await db.query.residents.findMany({
+      where: and(
+        inArray(residents.facilityId, facilityIds),
+        eq(residents.active, true),
+        eq(residents.isDemo, false) // is_demo filter — Phase 13
+      ),
+      columns: { id: true, name: true, roomNumber: true, facilityId: true },
+    })
+    const residentsByFacility = new Map<string, typeof residentList>()
+    for (const r of residentList) {
+      const arr = residentsByFacility.get(r.facilityId) ?? []
+      arr.push(r)
+      residentsByFacility.set(r.facilityId, arr)
+    }
 
     // Build per-payment parsed results
     const paymentParsed: Array<{ payment: RawPayment; parsed: ParsedMemo }> = payments.map((p) => ({
@@ -180,23 +192,22 @@ export async function POST(req: NextRequest) {
       parsed: geminiResults.get(p.id) ?? parseMemo(p.memo, Number(p.amount_cents)),
     }))
 
-    // Collect ALL matched resident IDs across all payments for a single booking query
+    // Fuzzy-match every parsed name against ITS payment's facility residents
     interface MatchedLine {
       paymentId: string
       rawName: string
       amountCents: number | null
       resident: { id: string; name: string; roomNumber: string | null } | null
       confidence: 'high' | 'medium' | 'low' | null
-      serviceDate: string | null
-      paymentDate: string
     }
     const allMatchedLines: MatchedLine[] = []
 
     for (const { payment, parsed } of paymentParsed) {
+      const facilityResidents = residentsByFacility.get(payment.facility_id) ?? []
       for (const line of parsed.lines) {
         let best: { id: string; name: string; roomNumber: string | null } | null = null
         let bestScore = 0
-        for (const r of residentList) {
+        for (const r of facilityResidents) {
           const score = fuzzyScore(line.rawName, r.name)
           if (score > bestScore) {
             bestScore = score
@@ -212,8 +223,6 @@ export async function POST(req: NextRequest) {
           amountCents: line.amountCents,
           resident: best,
           confidence: best ? confidence : null,
-          serviceDate: parsed.serviceDate,
-          paymentDate: payment.payment_date,
         })
       }
     }
@@ -222,7 +231,7 @@ export async function POST(req: NextRequest) {
       ...new Set(allMatchedLines.filter((l) => l.resident).map((l) => l.resident!.id)),
     ]
 
-    // Find date window: min payment date − 60 days to max payment date + 61 days
+    // Date window: min payment date − 60 days to max payment date + 61 days
     const dates = payments.map((p) => p.payment_date).sort()
     const minDate = dates[0]
     const maxDate = dates[dates.length - 1]
@@ -236,15 +245,17 @@ export async function POST(req: NextRequest) {
     }
     let allCandidates: CandidateRow[] = []
     if (allResidentIds.length > 0) {
-      // price_cents only — never add tip_cents
+      // price_cents only — never add tip_cents.
+      // Each booking's date is rendered in ITS OWN facility's timezone.
       const rows = await db.execute(sql`
         SELECT b.id, b.resident_id,
-               to_char(b.start_time AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS d,
+               to_char(b.start_time AT TIME ZONE COALESCE(f.timezone, 'America/New_York'), 'YYYY-MM-DD') AS d,
                COALESCE(NULLIF(array_to_string(b.service_names, ' + '), ''), s.name, b.raw_service_name) AS service_label,
                (b.price_cents + COALESCE(b.addon_total_cents, 0)) AS total
         FROM bookings b
+        JOIN facilities f ON f.id = b.facility_id
         LEFT JOIN services s ON s.id = b.service_id
-        WHERE b.facility_id = ${facilityId}
+        WHERE b.facility_id IN (${sql.join(facilityIds.map((id) => sql`${id}`), sql`, `)})
           AND b.resident_id IN (${sql.join(allResidentIds.map((id) => sql`${id}`), sql`, `)})
           AND b.status = 'completed' AND b.active = true AND b.is_demo = false
           AND b.payment_status = 'unpaid'
@@ -297,6 +308,9 @@ export async function POST(req: NextRequest) {
 
       return {
         paymentId: payment.id,
+        facilityId: payment.facility_id,
+        facilityName: payment.facility_name,
+        facilityCode: payment.facility_code,
         checkNum: payment.check_num,
         paymentDate: payment.payment_date,
         amountCents: Number(payment.amount_cents),
