@@ -20,6 +20,8 @@ const IMPORTERS: {
   description: string
   detail: string
   stats: StatDef[]
+  optional?: boolean
+  resultLink?: { href: string; label: string }
 }[] = [
   {
     id: 'contacts',
@@ -89,6 +91,25 @@ const IMPORTERS: {
       { key: 'memoEnriched', label: 'Memos added' },
       { key: 'unresolvedSections', label: 'Customers unmatched' },
     ],
+    optional: true,
+  },
+  {
+    id: 'unapplied',
+    step: 5,
+    title: 'Unapplied Credits',
+    qbReport: 'Customer Balance Detail',
+    endpoint: '/api/super-admin/qb-import/unapplied',
+    description: 'Finds payments QuickBooks received but never applied to an invoice.',
+    detail:
+      'These unapplied credits are why QB’s Accounts Receivable is lower than the sum of open invoices — the money came in but was never matched to an invoice. Export with the date range set to "All Dates". The import builds a per-facility, per-resident checklist so you can apply each credit inside QuickBooks (open the customer → Receive Payment → apply the credit), then re-run Step 2 to sync the new balances. Each run replaces the previous snapshot.',
+    stats: [
+      { key: 'imported', label: 'Unapplied credits found' },
+      { key: 'residentMatched', label: 'Linked to residents' },
+      { key: 'facilityLevel', label: 'Facility-level payments' },
+      { key: 'residentUnmatched', label: 'Resident not found' },
+      { key: 'totalUnappliedCents', label: 'Total unapplied', isDollars: true, highlight: true },
+    ],
+    resultLink: { href: '/master-admin/unapplied-credits', label: 'View the full checklist →' },
   },
 ]
 
@@ -139,7 +160,7 @@ function ImporterCard({ importer }: { importer: typeof IMPORTERS[number] }) {
             <span className="text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600">
               QB report: {importer.qbReport}
             </span>
-            {importer.step === 4 && (
+            {importer.optional && (
               <span className="text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-stone-50 text-stone-400 border border-stone-200">
                 Optional
               </span>
@@ -207,6 +228,14 @@ function ImporterCard({ importer }: { importer: typeof IMPORTERS[number] }) {
                   )
                 })}
               </div>
+              {importer.resultLink && (
+                <Link
+                  href={importer.resultLink.href}
+                  className="inline-block mt-3 text-xs font-semibold text-[#8B2E4A]"
+                >
+                  {importer.resultLink.label}
+                </Link>
+              )}
               {warnings.length > 0 && (
                 <div className="mt-3">
                   <button

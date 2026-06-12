@@ -305,3 +305,80 @@ export function extractCheckNum(memo: string | null): string | null {
   const m = memo.match(/(?:CK|CHK|CHECK)\s*#?\s*(\w+)/i)
   return m ? m[1] : null
 }
+
+// ── 5. Customer Balance Detail ──────────────────────────────────────────────
+// Hierarchical sections: facility ("F120 - Name" or bare "F123") → optional
+// resident sub-sections ("Last, First - Room") → transaction rows (col 0 empty).
+// Unapplied credits = non-Invoice rows with a nonzero open balance — payments and
+// credit memos QB received but never applied to an invoice. These reduce QB's A/R
+// total but are invisible to the Invoice List export.
+
+export interface UnappliedCreditRow {
+  fCode: string
+  /** Resident sub-section header ("Last, First - Room"); null = facility-level payment */
+  subCustomer: string | null
+  txnType: string
+  txnDate: string
+  num: string | null
+  /** Original payment amount (positive magnitude) */
+  amountCents: number
+  /** Unapplied portion still open (positive magnitude) */
+  openBalanceCents: number
+}
+
+export function parseCustomerBalanceDetailCsv(text: string): { credits: UnappliedCreditRow[]; skipped: number } {
+  const rows = parseRows(text)
+  const headerIdx = rows.findIndex(
+    (r) => (r[1] ?? '').trim() === 'Date' && r.some((c) => (c ?? '').trim() === 'Open balance')
+  )
+  const credits: UnappliedCreditRow[] = []
+  let skipped = 0
+  if (headerIdx < 0) return { credits, skipped }
+
+  const header = rows[headerIdx].map((c) => (c ?? '').trim())
+  const col = (label: string) => header.indexOf(label)
+  const cDate = col('Date'), cType = col('Transaction type'), cNum = col('Num')
+  const cAmount = col('Amount'), cOpen = col('Open balance')
+
+  let fCode: string | null = null
+  let sub: string | null = null
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i]
+    if (!row) continue
+    const c0 = (row[0] ?? '').trim()
+    if (c0) {
+      if (isTimestampRow(c0)) continue
+      if (isTotalRow(c0)) {
+        // "Total for <resident>" closes the sub-section only; "Total for F1xx …"
+        // and the grand "TOTAL" close the facility section too.
+        const target = c0.replace(/^total for\s*/i, '')
+        if (extractFCode(target) || /^total$/i.test(c0)) { fCode = null; sub = null }
+        else sub = null
+        continue
+      }
+      const code = extractFCode(c0)
+      if (code) { fCode = code; sub = null }
+      else if (fCode) sub = c0
+      else skipped++ // sub-customer under an unrecognized parent section
+      continue
+    }
+    const txnType = (row[cType] ?? '').trim()
+    if (!txnType) continue
+    if (txnType === 'Invoice') continue // open invoices come from the Invoice List import
+    const openCents = parseCents(row[cOpen])
+    if (openCents === 0) continue // fully applied — nothing outstanding
+    const txnDate = parseQBDate(row[cDate])
+    if (!fCode || !txnDate) { skipped++; continue }
+    credits.push({
+      fCode,
+      subCustomer: sub,
+      txnType,
+      txnDate,
+      num: (row[cNum] ?? '').trim() || null,
+      amountCents: Math.abs(parseCents(row[cAmount])),
+      openBalanceCents: Math.abs(openCents),
+    })
+  }
+  return { credits, skipped }
+}

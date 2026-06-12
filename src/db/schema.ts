@@ -637,6 +637,24 @@ export const qbPayments = pgTable('qb_payments', {
   facilityDateIdx: index('qb_payments_facility_date_idx').on(t.facilityId, t.paymentDate.desc()),
 }))
 
+// Snapshot of QB payments/credit memos never applied to an invoice — explains the
+// gap between gross open invoices and QB's net A/R. Wiped + replaced by the
+// Customer Balance Detail import (Step 5). Created by drizzle/0008_qb_unapplied_credits.sql.
+export const qbUnappliedCredits = pgTable('qb_unapplied_credits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  qbCustomerId: text('qb_customer_id').notNull(),
+  txnType: text('txn_type').notNull().default('Payment'),
+  txnDate: date('txn_date').notNull(),
+  num: text('num'),
+  amountCents: integer('amount_cents').notNull().default(0),
+  openBalanceCents: integer('open_balance_cents').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  facilityIdx: index('qb_unapplied_credits_facility_idx').on(t.facilityId),
+}))
+
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),

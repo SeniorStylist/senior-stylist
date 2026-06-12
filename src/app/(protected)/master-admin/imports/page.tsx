@@ -56,6 +56,14 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
     category: 'QuickBooks CSV',
   },
   {
+    sourceType: 'qb_unapplied_csv',
+    title: 'QB Unapplied Credits',
+    description: 'Step 5 — finds payments QB received but never applied to an invoice, with a per-facility checklist for applying them. Use the QB "Customer Balance Detail" CSV.',
+    format: 'CSV',
+    href: '/master-admin/imports/quickbooks#step-5',
+    category: 'QuickBooks CSV',
+  },
+  {
     sourceType: 'qb_customer',
     title: 'QB Customer List (XLSX)',
     description: 'Legacy XLSX customer import — superseded by QB Customer Contacts above. Kept for backward compatibility.',
