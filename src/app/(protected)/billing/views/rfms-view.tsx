@@ -16,6 +16,7 @@ import { ExpandableSection } from './expandable-section'
 import { btnBase, expandTransition } from '@/lib/animations'
 import { Avatar } from '@/components/ui/avatar'
 import { CheckImageButton } from '@/components/billing/check-image-button'
+import { MemoMatchModal } from '@/components/billing/memo-match-modal'
 
 export function RFMSView({
   facility,
@@ -42,6 +43,13 @@ export function RFMSView({
   const [reconciling, setReconciling] = useState<Record<string, boolean>>({})
   const [reconcileErrors, setReconcileErrors] = useState<Record<string, string>>({})
   const [filterFlaggedOnly, setFilterFlaggedOnly] = useState(false)
+  const [memoMatchPayment, setMemoMatchPayment] = useState<BillingPayment | null>(null)
+
+  // Memo dissection applies to free-text memos with $ amounts that don't
+  // already carry a breakdown (remittance/scan breakdowns must never be touched)
+  function canMatchMemo(p: BillingPayment): boolean {
+    return !!p.memo && /\$\s?\d/.test(p.memo) && !p.residentBreakdown
+  }
 
   function getRemittanceLines(p: BillingPayment): RemittanceLine[] | null {
     const bd = p.residentBreakdown
@@ -195,6 +203,15 @@ export function RFMSView({
                           {p.reconciliationStatus && p.reconciliationStatus !== 'unreconciled' && (
                             <ReconciliationPill status={p.reconciliationStatus} />
                           )}
+                          {canMatchMemo(p) && (
+                            <button
+                              type="button"
+                              onClick={() => setMemoMatchPayment(p)}
+                              className={`${btnBase} text-[#8B2E4A] hover:text-[#72253C] text-xs font-semibold shrink-0`}
+                            >
+                              Match memo →
+                            </button>
+                          )}
                         </div>
                         {p.revShareAmountCents != null &&
                           p.revShareAmountCents > 0 &&
@@ -328,6 +345,13 @@ export function RFMSView({
           </>
         )}
       </ExpandableSection>
+      {memoMatchPayment && (
+        <MemoMatchModal
+          payment={memoMatchPayment}
+          onClose={() => setMemoMatchPayment(null)}
+          onApplied={(updated) => onPaymentUpdated?.(updated)}
+        />
+      )}
     </div>
   )
 }

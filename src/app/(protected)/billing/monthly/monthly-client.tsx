@@ -167,6 +167,7 @@ export function MonthlyClient({
 
   const [comboSearch, setComboSearch] = useState('')
   const [comboOpen, setComboOpen] = useState(false)
+  const [legendOpen, setLegendOpen] = useState(false)
 
   useEffect(() => {
     if (!facilityId) {
@@ -254,12 +255,27 @@ export function MonthlyClient({
   return (
     <div className="page-enter p-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-        <h1
-          className="text-2xl md:text-3xl text-stone-900"
-          style={{ fontFamily: 'DM Serif Display, serif' }}
-        >
-          Monthly Statement
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <h1
+            className="text-2xl md:text-3xl text-stone-900"
+            style={{ fontFamily: 'DM Serif Display, serif' }}
+          >
+            Monthly Statement
+          </h1>
+          <button
+            type="button"
+            onClick={() => setLegendOpen((v) => !v)}
+            aria-label="What do these numbers mean?"
+            title="What do these numbers mean?"
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0 ${
+              legendOpen
+                ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]'
+                : 'bg-white text-stone-400 border-stone-200 hover:text-[#8B2E4A] hover:border-[#C4687A]'
+            }`}
+          >
+            ?
+          </button>
+        </div>
         <Link
           href={`/billing${facilityId ? `?facility=${facilityId}` : ''}`}
           className="text-xs font-semibold text-[#8B2E4A] hover:underline"
@@ -291,6 +307,63 @@ export function MonthlyClient({
           </span>
         )}
       </div>
+
+      {legendOpen && (
+        <div className={`${expandTransition} bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5 mb-5`}>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-sm font-semibold text-stone-900">Reading this page</h2>
+            <button
+              type="button"
+              onClick={() => setLegendOpen(false)}
+              aria-label="Close"
+              className="text-stone-400 hover:text-stone-600 transition-colors -mt-0.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5 mt-3">
+            <div>
+              <p className="text-[13px] font-semibold text-stone-800">Invoiced</p>
+              <p className="text-xs text-stone-500">What was billed in QuickBooks that month.</p>
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-stone-800">Services</p>
+              <p className="text-xs text-stone-500">
+                Completed appointments on the calendar that month (service price + add-ons). When
+                this differs from Invoiced, work may be un-billed or billed in a different month.
+              </p>
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-emerald-700">Collected</p>
+              <p className="text-xs text-stone-500">Payments received that month.</p>
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-amber-700">Still owed</p>
+              <p className="text-xs text-stone-500">
+                Unpaid balance left on that month&apos;s invoices. A blue{' '}
+                <span className="font-semibold text-sky-700">Credit</span> means the account is
+                overpaid.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap mt-4 pt-3 border-t border-stone-100">
+            <span className="flex items-center gap-1.5 text-xs text-stone-500">
+              <span className="w-6 h-1.5 rounded-full bg-[#8B2E4A] inline-block" />
+              collected share of invoiced
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-stone-500">
+              <span className="w-6 h-1.5 rounded-full bg-amber-300 inline-block" />
+              still owed
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-stone-500">
+              <span className="w-4 h-4 rounded bg-amber-50 border border-amber-100 inline-block" />
+              resident row with a balance
+            </span>
+          </div>
+        </div>
+      )}
 
       {facilityOptions.length > 1 && (
         <div className="relative max-w-xs mb-5">
