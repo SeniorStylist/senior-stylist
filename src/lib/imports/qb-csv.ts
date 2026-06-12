@@ -76,6 +76,11 @@ function isTotalRow(name: string): boolean {
   return /^total\b/i.test(name.trim())
 }
 
+// QB exports include a report-generation timestamp row, e.g. "Friday, June 12, 2026 07:33 AM GMTZ"
+function isTimestampRow(name: string): boolean {
+  return /^\w+day,\s+\w+\s+\d+,\s+\d{4}/i.test(name.trim())
+}
+
 // ── 1. Customer Contact List ────────────────────────────────────────────────
 
 export interface ContactResidentRow {
@@ -255,6 +260,7 @@ export function parseGroupedTransactionsCsv(text: string): { format: GroupedForm
 
     if (col0) {
       if (isTotalRow(col0)) { current = null; continue }
+      if (isTimestampRow(col0)) continue
       const existing = byRaw.get(col0)
       if (existing) { current = existing; continue }
       const fCode = extractFCode(col0)
