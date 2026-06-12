@@ -12,6 +12,7 @@ export interface SourceCardData {
   description: string
   format: 'XLSX' | 'CSV'
   href: string
+  category: string
   lastImportedAt: string | null
   totalCount: number
   needsReviewCount: number
@@ -88,8 +89,11 @@ export function ImportsHubClient({ cards, batches, initialReviewCount }: Imports
           Manage all data imports into Senior Stylist.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {cards.map((card) => (
+        {Array.from(new Set(cards.map((c) => c.category))).map((category) => (
+          <div key={category} className="mb-6">
+            <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">{category}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {cards.filter((c) => c.category === category).map((card) => (
             <Link
               key={card.sourceType}
               href={card.href}
@@ -128,8 +132,10 @@ export function ImportsHubClient({ cards, batches, initialReviewCount }: Imports
                 </div>
               </div>
             </Link>
-          ))}
-        </div>
+              ))}
+            </div>
+          </div>
+        ))}
 
         <div className="flex border-b border-stone-100 mt-10 mb-5">
           {(['review', 'history'] as const).map((t) => (

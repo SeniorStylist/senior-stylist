@@ -1,14 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { ImportBillingHistoryClient } from './import-billing-history-client'
 
-export default async function ImportBillingHistoryPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-  if (!superAdminEmail || user.email !== superAdminEmail) redirect('/dashboard')
-
-  return <ImportBillingHistoryClient />
+// Superseded by the QuickBooks Import Suite (handles invoices + payments + contacts,
+// duplicate-proof). Kept as a redirect for saved bookmarks; the old API route at
+// /api/super-admin/import-billing-history remains functional.
+export default function ImportBillingHistoryPage() {
+  redirect('/master-admin/imports/quickbooks')
 }

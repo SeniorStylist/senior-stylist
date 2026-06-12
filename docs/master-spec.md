@@ -1103,6 +1103,20 @@ After both imports: two raw `db.execute(sql\`UPDATE...\`)` correlated subqueries
 
 **UI** — `/super-admin/import-billing-history` page + client component (same 3-state pattern as QB import). Two file pickers, at least one required. "Import Billing History" link in super-admin header. Rate limit: `billingImport` 5/hr (added to `src/lib/rate-limit.ts`).
 
+> **SUPERSEDED (2026-06-12)** by the QuickBooks CSV Import Suite below — the page now redirects to `/master-admin/imports/quickbooks`; the API route is kept for back-compat.
+
+### QuickBooks CSV Import Suite (SHIPPED 2026-06-12)
+One guided page — `/master-admin/imports/quickbooks` — with 4 numbered importer cards covering all QB Online CSV exports. Pure parsers in `src/lib/imports/qb-csv.ts` (validated against real exports by `scripts/validate-qb-csv.mts`, run with `node --experimental-strip-types`). All routes master-email-gated, `maxDuration=120`.
+
+| Step | QB report | Route | What it does |
+|---|---|---|---|
+| 1 | Customer Contact List | `POST /api/super-admin/qb-import/contacts` | Updates resident POA email/phone/name by `qbCustomerId`; fuzzy-links unmatched QB customers to existing same-facility residents (≥0.85, claim-once); creates the rest; updates facility contacts (phone/address overwrite, email fill-if-null). Bucket `qbImport`. |
+| 2 | Invoice List by Date | `POST /api/super-admin/qb-import/invoices` | Upserts `qb_invoices` on the **3-column key `(invoice_num, facility_id, invoice_date)`** (migration `drizzle/0006_qb_invoices_dedup_date.sql` — QB nums "MMDD Lastname" recur across years). Same-num+date rows are aggregated (summed). Recomputes `qb_outstanding_balance_cents` on facilities + residents (is_demo-filtered), `revalidateTag('billing')`. Bucket `billingImport`. |
+| 3 | Invoices and Received Payments | `POST /api/super-admin/qb-import/payments` | Resident-level payment history. Resident resolution: qbCustomerId → suffix-of-qbCustomerId → exact name+room; ambiguity skips with warning. Multiset dedup on `(facility, resident, date, amount)`; resident rows claim+UPGRADE older facility-level (null-resident) rows instead of double-counting. Bucket `billingImport`. |
+| 4 | Transaction List by Customer | same payments route (format auto-detect on `Posting (Y/N)` header) | Adds memos/check numbers via memo-enrichment of deduped rows + facility-level payments. `Deposit`/`Credit Memo`/`Journal Entry`/`Refund`/`Expense` rows skipped (deposits re-bundle the same money). |
+
+Imports hub (`/master-admin/imports`) cards now grouped by `category` (Service History / Billing & Customers / Facility Data); the `qb_billing` card points at the suite.
+
 ### Phase 11B — AR Dashboard (SHIPPED 2026-04-20)
 Route `/billing`. Role-gated: master_admin all facilities (via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`), facility_admin their facility only (no switcher), stylist/viewer redirect to `/dashboard`. Three views branching on `facilities.payment_type`: **IP** (per-resident table — resident/room/last service/billed/paid/outstanding/last sent+channel), **RFMS** (rev-share note + checks-received table + per-resident breakdown), **hybrid** (split panel reusing IP+RFMS filtered by `residents.resident_payment_type`). Legacy `payment_type='facility'` maps to RFMS view. All views show Send Statement (disabled, Phase 11C) + Send via QB (disabled, Phase 11F) buttons.
 

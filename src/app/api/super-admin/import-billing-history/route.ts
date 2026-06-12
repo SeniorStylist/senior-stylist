@@ -175,7 +175,7 @@ export async function POST(request: Request) {
         openBalanceCents: r.openBalanceCents,
         status: r.status,
       }))).onConflictDoUpdate({
-        target: [qbInvoices.invoiceNum, qbInvoices.facilityId],
+        target: [qbInvoices.invoiceNum, qbInvoices.facilityId, qbInvoices.invoiceDate],
         set: {
           openBalanceCents: sql`excluded.open_balance_cents`,
           status: sql`excluded.status`,

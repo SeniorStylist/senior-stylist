@@ -163,11 +163,10 @@ export async function syncQBInvoices(
           syncedAt: new Date(),
         })
         .onConflictDoUpdate({
-          target: [qbInvoices.invoiceNum, qbInvoices.facilityId],
+          target: [qbInvoices.invoiceNum, qbInvoices.facilityId, qbInvoices.invoiceDate],
           set: {
             residentId: sql`excluded.resident_id`,
             qbCustomerId: sql`excluded.qb_customer_id`,
-            invoiceDate: sql`excluded.invoice_date`,
             dueDate: sql`excluded.due_date`,
             amountCents: sql`excluded.amount_cents`,
             openBalanceCents: sql`excluded.open_balance_cents`,

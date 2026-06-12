@@ -2600,3 +2600,10 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - Shortcut overlay: `z-[350]`, closes on Esc or outside click. Rendered in `(protected)/layout.tsx`.
 
 **State**: listens to the `tour-mode-change` CustomEvent (dispatched by `setTourModeActive()` in `src/lib/help/tour-mode.ts`). Always rendered — toggling the transform handles the slide animation in both directions without unmount.
+
+### Guided Multi-Step Importer Page (QuickBooks Import Suite, 2026-06-12)
+- Pattern for any import flow with multiple files / ordered steps: a single page with **numbered step cards** (`w-9 h-9 rounded-full bg-rose-50 text-[#8B2E4A]` circle with the step number), each card self-contained: title + "QB report: <exact export name>" capsule + short description + muted detail paragraph + Choose CSV / Import buttons + inline result grid.
+- Result stats render as a `grid-cols-2 md:grid-cols-3` of small tiles (`rounded-xl bg-stone-50 border-stone-100 px-3 py-2`); dollar/headline stats get the rose tint (`bg-rose-50 border-rose-100 text-[#8B2E4A]`).
+- Warnings collapse behind an amber `▸ N warnings` toggle into a `max-h-48 overflow-y-auto` amber panel — never dump hundreds of warnings inline.
+- Optional steps get a bordered gray "Optional" capsule next to the title.
+- Imports hub cards are grouped under `text-xs uppercase tracking-wide text-stone-500` category headers (Service History / Billing & Customers / Facility Data) — add new importers to a category, don't append to a flat grid.

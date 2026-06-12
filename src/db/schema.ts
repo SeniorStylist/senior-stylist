@@ -573,7 +573,8 @@ export const qbInvoices = pgTable('qb_invoices', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
-  dedupIdx: uniqueIndex('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId),
+  // invoice_date is part of the key — QB nums are "MMDD Lastname" and recur across years
+  dedupIdx: uniqueIndex('qb_invoices_dedup_idx').on(t.invoiceNum, t.facilityId, t.invoiceDate),
   qbIdIdx: index('qb_invoices_qb_id_idx').on(t.qbInvoiceId).where(sql`qb_invoice_id IS NOT NULL`),
   // billing summary: WHERE facility_id = X AND invoice_date BETWEEN Y AND Z ORDER BY invoice_date DESC
   facilityDateIdx: index('qb_invoices_facility_date_idx').on(t.facilityId, t.invoiceDate.desc()),

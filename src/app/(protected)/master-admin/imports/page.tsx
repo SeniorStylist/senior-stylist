@@ -6,13 +6,14 @@ import { count, eq, isNull, and } from 'drizzle-orm'
 import { ImportsHubClient, type SourceCardData } from './imports-client'
 import type { BatchRow } from './batch-history'
 
-const SOURCE_DEFS: { sourceType: string; title: string; description: string; format: 'XLSX' | 'CSV'; href: string }[] = [
+const SOURCE_DEFS: { sourceType: string; title: string; description: string; format: 'XLSX' | 'CSV'; href: string; category: string }[] = [
   {
     sourceType: 'service_log',
     title: 'Service Log Import',
     description: 'Import a single-facility bookkeeper XLSX to backfill historical bookings, residents, and service records.',
     format: 'XLSX',
     href: '/master-admin/imports/service-log',
+    category: 'Service History',
   },
   {
     sourceType: 'multi_service_log',
@@ -20,20 +21,23 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
     description: 'Import one XLSX containing every facility’s daily log. Auto-creates missing facilities, stylists, and residents; links services by name.',
     format: 'XLSX',
     href: '/master-admin/imports/multi-log',
-  },
-  {
-    sourceType: 'qb_customer',
-    title: 'QB Customer Import',
-    description: 'Import QuickBooks customer list to sync resident billing profiles.',
-    format: 'CSV',
-    href: '/master-admin/import-quickbooks',
+    category: 'Service History',
   },
   {
     sourceType: 'qb_billing',
-    title: 'QB Billing Import',
-    description: 'Import QuickBooks invoice and transaction history for AR tracking.',
+    title: 'QuickBooks Imports',
+    description: 'Customer contacts, invoice history, and received payments from QuickBooks CSV exports — one guided flow, duplicate-proof, with intelligent customer merging.',
     format: 'CSV',
-    href: '/master-admin/import-billing-history',
+    href: '/master-admin/imports/quickbooks',
+    category: 'Billing & Customers',
+  },
+  {
+    sourceType: 'qb_customer',
+    title: 'QB Customer List (XLSX)',
+    description: 'Legacy XLSX customer import — creates facilities and residents from the QuickBooks customer export.',
+    format: 'XLSX',
+    href: '/master-admin/import-quickbooks',
+    category: 'Billing & Customers',
   },
   {
     sourceType: 'facility_csv',
@@ -41,6 +45,7 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
     description: 'Bulk-update facility details, billing types, and contact info.',
     format: 'CSV',
     href: '/master-admin/import-facilities-csv',
+    category: 'Facility Data',
   },
 ]
 
