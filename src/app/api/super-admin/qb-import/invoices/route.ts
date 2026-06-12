@@ -5,7 +5,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbInvoices } from '@/db/schema'
-import { isNotNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { parseInvoiceListCsv, deriveInvoiceStatus, chunkArr } from '@/lib/imports/qb-csv'
 import { revalidateTag } from 'next/cache'
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File | null
     if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
 
-    const { invoices: parsedInvoices, skipped } = parseInvoiceListCsv(await file.text())
+    const { invoices: parsedInvoices, skipped, allDates } = parseInvoiceListCsv(await file.text())
     if (parsedInvoices.length === 0) {
       return Response.json({ error: 'No invoice rows found — is this the QB "Invoice List by Date" export?' }, { status: 400 })
     }
@@ -151,6 +151,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // An "All Dates" export is the complete invoice universe for QB: any DB invoice
+    // still carrying an open balance that ISN'T in the file is stale — voided/deleted
+    // in QB, or a legacy-import duplicate whose date didn't match the 3-column key.
+    // Zero them so the recomputed outstanding matches QB exactly. Scoped to facilities
+    // present in the file so a foreign/partial dataset can never be mass-zeroed.
+    let staleZeroed = 0
+    let staleZeroedCents = 0
+    if (allDates) {
+      const coveredFacilityIds = Array.from(new Set(finalRows.map((r) => r.facilityId)))
+      const openRows = coveredFacilityIds.length === 0 ? [] : await db.select({
+        id: qbInvoices.id,
+        invoiceNum: qbInvoices.invoiceNum,
+        facilityId: qbInvoices.facilityId,
+        invoiceDate: qbInvoices.invoiceDate,
+        openBalanceCents: qbInvoices.openBalanceCents,
+      }).from(qbInvoices).where(and(
+        ne(qbInvoices.openBalanceCents, 0),
+        eq(qbInvoices.isDemo, false),
+        inArray(qbInvoices.facilityId, coveredFacilityIds),
+      ))
+      const staleIds = openRows
+        .filter((r) => !merged.has(`${r.invoiceNum}__${r.facilityId}__${r.invoiceDate}`))
+        .map((r) => { staleZeroedCents += r.openBalanceCents; return r.id })
+      staleZeroed = staleIds.length
+      for (const ch of chunkArr(staleIds, 500)) {
+        await db.update(qbInvoices)
+          .set({ openBalanceCents: 0, status: 'paid', updatedAt: new Date() })
+          .where(inArray(qbInvoices.id, ch))
+      }
+    }
+
     // Recompute outstanding balances from the now-authoritative open balances
     await db.execute(sql`
       UPDATE facilities f
@@ -177,6 +208,8 @@ export async function POST(request: Request) {
         residentMatched,
         residentUnmatched,
         totalOpenCents,
+        staleZeroed,
+        staleZeroedCents,
         warnings,
       },
     })

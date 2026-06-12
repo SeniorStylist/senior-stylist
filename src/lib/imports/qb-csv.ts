@@ -162,12 +162,16 @@ export interface InvoiceListRow {
   openBalanceCents: number
 }
 
-export function parseInvoiceListCsv(text: string): { invoices: InvoiceListRow[]; skipped: number } {
+export function parseInvoiceListCsv(text: string): { invoices: InvoiceListRow[]; skipped: number; allDates: boolean } {
   const rows = parseRows(text)
   const headerIdx = rows.findIndex((r) => (r[0] ?? '').trim() === 'Date' && r.some((c) => c.trim() === 'Transaction type'))
   const invoices: InvoiceListRow[] = []
   let skipped = 0
-  if (headerIdx < 0) return { invoices, skipped }
+  if (headerIdx < 0) return { invoices, skipped, allDates: false }
+
+  // QB writes the report's date range above the header ("All Dates" when unbounded).
+  // A full export is authoritative — the route uses this to zero stale open balances.
+  const allDates = rows.slice(0, headerIdx).some((r) => r.some((c) => (c ?? '').trim() === 'All Dates'))
 
   const header = rows[headerIdx].map((c) => c.trim())
   const col = (label: string) => header.indexOf(label)
@@ -192,7 +196,7 @@ export function parseInvoiceListCsv(text: string): { invoices: InvoiceListRow[];
       openBalanceCents: parseCents(row[cOpen]),
     })
   }
-  return { invoices, skipped }
+  return { invoices, skipped, allDates }
 }
 
 /** Status derivation shared with the QB live-sync engine's convention. */

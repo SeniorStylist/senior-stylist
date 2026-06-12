@@ -46,12 +46,14 @@ const IMPORTERS: {
     endpoint: '/api/super-admin/qb-import/invoices',
     description: 'The authoritative source for every invoice and its open balance.',
     detail:
-      'Upserts the full invoice history and recalculates outstanding balances for every facility and resident — this is what fixes the Total Outstanding number on the Billing page. Safe to re-run any time; existing invoices are updated in place.',
+      'Upserts the full invoice history and recalculates outstanding balances for every facility and resident — this is what fixes the Total Outstanding number on the Billing page. Export with the date range set to "All Dates": a full export also clears stale balances on invoices that were voided or deleted in QuickBooks. Safe to re-run any time; existing invoices are updated in place.',
     stats: [
       { key: 'created', label: 'Invoices created' },
       { key: 'updated', label: 'Invoices updated' },
       { key: 'residentMatched', label: 'Linked to residents' },
       { key: 'residentUnmatched', label: 'Resident not found' },
+      { key: 'staleZeroed', label: 'Stale invoices cleared' },
+      { key: 'staleZeroedCents', label: 'Stale balance removed', isDollars: true },
       { key: 'totalOpenCents', label: 'Total outstanding', isDollars: true, highlight: true },
     ],
   },
