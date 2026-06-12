@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { profiles } from '@/db/schema'
+import { ensureFeedbackSchema } from '@/lib/feedback-ddl'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -12,6 +13,8 @@ function isMasterAdmin(userEmail: string | undefined): boolean {
 
 export async function GET() {
   try {
+    await ensureFeedbackSchema()
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -35,6 +38,8 @@ const patchSchema = z.object({
 
 export async function PATCH(request: NextRequest) {
   try {
+    await ensureFeedbackSchema()
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })

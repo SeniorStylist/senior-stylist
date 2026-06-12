@@ -55,6 +55,7 @@ export function FeedbackWidget() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [listening, setListening] = useState(false)
+  const [micDenied, setMicDenied] = useState(false)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   // Text committed before the current dictation session — interim results render after it.
   const baseTextRef = useRef('')
@@ -98,7 +99,8 @@ export function FeedbackWidget() {
       setListening(false)
       recognitionRef.current = null
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast.error('Microphone access denied — check your browser settings')
+        setMicDenied(true)
+        toast.error('Microphone access denied')
       } else if (e.error === 'audio-capture') {
         toast.error('No microphone found')
       } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
@@ -195,22 +197,44 @@ export function FeedbackWidget() {
         {speechSupported && (
           <button
             type="button"
-            onClick={toggleVoice}
-            aria-label={listening ? 'Stop dictation' : 'Dictate feedback'}
-            title={listening ? 'Stop dictation' : 'Dictate feedback'}
+            onClick={micDenied ? () => setMicDenied(false) : toggleVoice}
+            aria-label={micDenied ? 'Retry microphone' : listening ? 'Stop dictation' : 'Dictate feedback'}
+            title={micDenied ? 'Tap to retry mic access' : listening ? 'Stop dictation' : 'Dictate feedback'}
             className={`absolute right-2 top-2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-              listening
-                ? 'bg-red-500 text-white shadow-[0_0_0_4px_rgba(239,68,68,0.2)] animate-pulse'
-                : 'bg-white border border-stone-200 text-stone-500 hover:text-[#8B2E4A] hover:border-[#C4687A]'
+              micDenied
+                ? 'bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100'
+                : listening
+                  ? 'bg-red-500 text-white shadow-[0_0_0_4px_rgba(239,68,68,0.2)] animate-pulse'
+                  : 'bg-white border border-stone-200 text-stone-500 hover:text-[#8B2E4A] hover:border-[#C4687A]'
             }`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-              <path d="M19 10v2a7 7 0 01-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </svg>
+            {micDenied ? (
+              // MicOff icon
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="1" y1="1" x2="23" y2="23" />
+                <path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" />
+                <path d="M17 16.95A7 7 0 015 12v-2m14 0v2a7 7 0 01-.11 1.23" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            )}
           </button>
+        )}
+        {micDenied && (
+          <p className="mt-1 text-[10px] text-amber-600 leading-snug">
+            Mic blocked.{' '}
+            {typeof navigator !== 'undefined' && /iPhone|iPad/i.test(navigator.userAgent)
+              ? 'Go to Settings → Safari → Microphone to allow.'
+              : 'Tap the mic/lock icon in your browser address bar to allow.'}
+            {' '}Tap the mic button above to retry.
+          </p>
         )}
       </div>
       <div className="flex items-center justify-between">

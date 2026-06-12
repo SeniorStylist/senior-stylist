@@ -4,6 +4,7 @@ import { feedbackSubmissions, facilities, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { sendEmail, buildFeedbackEmailHtml } from '@/lib/email'
+import { ensureFeedbackSchema } from '@/lib/feedback-ddl'
 import { eq, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -16,6 +17,8 @@ const createSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureFeedbackSchema()
+
     const supabase = await createClient()
     const {
       data: { user },
@@ -93,6 +96,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
+    await ensureFeedbackSchema()
+
     const supabase = await createClient()
     const {
       data: { user },

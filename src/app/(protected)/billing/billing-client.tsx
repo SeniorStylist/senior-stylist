@@ -61,6 +61,44 @@ function currentYearRange(): DateRange {
 
 const ALL_TIME_RANGE: DateRange = { from: '2000-01-01', to: '2099-12-31' }
 
+function shiftPeriod(range: DateRange, period: 'week' | 'month' | 'year', dir: 1 | -1): DateRange {
+  const from = new Date(range.from + 'T00:00:00')
+  if (period === 'week') {
+    const d = new Date(from)
+    d.setDate(d.getDate() + dir * 7)
+    const end = new Date(d)
+    end.setDate(end.getDate() + 6)
+    return { from: toISODate(d), to: toISODate(end) }
+  }
+  if (period === 'month') {
+    const d = new Date(from.getFullYear(), from.getMonth() + dir, 1)
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+    return { from: toISODate(d), to: toISODate(end) }
+  }
+  // year
+  const y = from.getFullYear() + dir
+  return { from: `${y}-01-01`, to: `${y}-12-31` }
+}
+
+function isCurrentPeriod(range: DateRange, period: 'week' | 'month' | 'year'): boolean {
+  const cur =
+    period === 'week' ? currentWeekRange() : period === 'month' ? currentMonthRange() : currentYearRange()
+  return range.from === cur.from
+}
+
+function periodLabel(range: DateRange, period: 'week' | 'month' | 'year'): string {
+  const from = new Date(range.from + 'T00:00:00')
+  if (period === 'week') {
+    const to = new Date(range.to + 'T00:00:00')
+    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+    return `${from.toLocaleDateString('en-US', opts)} – ${to.toLocaleDateString('en-US', opts)}`
+  }
+  if (period === 'month') {
+    return from.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  }
+  return String(from.getFullYear())
+}
+
 interface FacilityOption {
   id: string
   name: string
@@ -298,6 +336,11 @@ export function BillingClient({
   const currentRevShare = summary?.facility.qbRevShareType ?? 'we_deduct'
   const revShareLabelText = currentRevShare === 'facility_deducts' ? 'Facility deducts' : 'Senior Stylist deducts'
 
+  const navPeriod =
+    activePeriod === 'week' || activePeriod === 'month' || activePeriod === 'year'
+      ? activePeriod
+      : null
+
   const periodPills = (
     <>
       {(['week', 'month', 'year', 'custom', 'all'] as const).map((p) => {
@@ -327,11 +370,39 @@ export function BillingClient({
           </button>
         )
       })}
-      {activePeriod !== 'all' ? (
+      {activePeriod !== 'all' && !navPeriod ? (
         <span className="text-xs text-stone-400 ml-1">
           {dateRange.from} → {dateRange.to}
         </span>
       ) : null}
+      {navPeriod && (
+        <div className="w-full flex items-center gap-1.5 mt-0.5">
+          <button
+            type="button"
+            onClick={() => setDateRange(shiftPeriod(dateRange, navPeriod, -1))}
+            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 transition-colors"
+            aria-label="Previous period"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <span className="text-xs font-medium text-stone-700 min-w-[140px] text-center select-none">
+            {periodLabel(dateRange, navPeriod)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setDateRange(shiftPeriod(dateRange, navPeriod, 1))}
+            disabled={isCurrentPeriod(dateRange, navPeriod)}
+            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Next period"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+      )}
     </>
   )
 
@@ -690,6 +761,11 @@ export function BillingClient({
               </button>
             </>
           ) : null}
+        </div>
+        <div className="flex items-center justify-end mb-1 -mt-2">
+          <Link href="/master-admin/unapplied-credits" className="text-[11px] text-[#8B2E4A] hover:underline transition-colors">
+            Manage unapplied credits →
+          </Link>
         </div>
         </>
       ) : null}
