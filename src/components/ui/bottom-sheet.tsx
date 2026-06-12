@@ -81,15 +81,16 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
         justifyContent: 'flex-end',
       }}
     >
-      {/* Backdrop */}
+      {/* Backdrop — opacity tracks drag progress so the dim lifts as the sheet
+          is pulled down (native-feel dismissal cue) */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background: 'rgba(0,0,0,0.45)',
           backdropFilter: 'blur(8px)',
-          opacity: isOpen ? 1 : 0,
-          transition: 'opacity 300ms ease',
+          opacity: isOpen ? Math.max(0.15, 1 - dragY / 280) : 0,
+          transition: dragging ? 'none' : 'opacity 300ms ease',
         }}
         onClick={onClose}
       />

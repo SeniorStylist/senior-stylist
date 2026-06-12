@@ -146,6 +146,10 @@ function ToastContainer({
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
   const mounted = useRef(false)
   const [entered, setEntered] = useState(false)
+  // Swipe-to-dismiss (horizontal) — native notification feel on touch devices.
+  const [swipeX, setSwipeX] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!mounted.current) {
@@ -154,16 +158,47 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     }
   }, [])
 
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    setSwiping(true)
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return
+    const dx = e.touches[0].clientX - touchStartRef.current.x
+    const dy = e.touches[0].clientY - touchStartRef.current.y
+    // Horizontal intent only — vertical motion stays a page scroll.
+    if (Math.abs(dx) > Math.abs(dy)) setSwipeX(dx)
+  }
+  const onTouchEnd = () => {
+    setSwiping(false)
+    if (Math.abs(swipeX) > 72) {
+      // fling off-screen in the swipe direction, then remove
+      setSwipeX(swipeX > 0 ? 400 : -400)
+      setTimeout(() => onDismiss(toast.id), 160)
+    } else {
+      setSwipeX(0)
+    }
+    touchStartRef.current = null
+  }
+
   return (
     <div
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       className={cn(
         'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-[var(--shadow-lg)] text-sm font-medium min-w-[280px] max-w-[360px]',
-        'transition-all duration-200 ease-out',
+        swiping ? 'transition-opacity duration-200 ease-out' : 'transition-all duration-200 ease-out',
         TYPE_STYLES[toast.type],
         entered && toast.visible
           ? 'opacity-100 translate-y-0'
           : 'opacity-0 translate-y-3'
       )}
+      style={{
+        transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
+        opacity: entered && toast.visible ? Math.max(0.2, 1 - Math.abs(swipeX) / 250) : undefined,
+        touchAction: 'pan-y',
+      }}
     >
       <span className={cn('shrink-0', ICON_COLOR[toast.type])}>{TYPE_ICONS[toast.type]}</span>
       <span className="flex-1">{toast.message}</span>

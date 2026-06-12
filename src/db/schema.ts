@@ -851,6 +851,23 @@ export const helpStepEvents = pgTable('help_step_events', {
   facilityCreatedIdx: index('help_step_events_facility_created_idx').on(t.facilityId, t.createdAt),
 }))
 
+// In-app feedback widget (2026-06-11) — bug reports / ideas / praise from any role.
+// Reviewed at /master-admin/feedback. RLS service_role_all (drizzle/0005_feedback.sql).
+export const feedbackSubmissions = pgTable('feedback_submissions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+  userId: uuid('user_id').references(() => profiles.id, { onDelete: 'set null' }),
+  role: text('role'),
+  category: text('category').notNull().default('other'), // 'bug' | 'idea' | 'praise' | 'other'
+  message: text('message').notNull(),
+  pagePath: text('page_path'),
+  userAgent: text('user_agent'),
+  status: text('status').notNull().default('new'), // 'new' | 'reviewed' | 'resolved'
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusCreatedIdx: index('feedback_submissions_status_created_idx').on(t.status, t.createdAt),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({

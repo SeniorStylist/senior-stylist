@@ -334,7 +334,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
               <button
                 key={resident.id}
                 onClick={() => router.push(`/residents/${resident.id}`)}
-                className="group w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0 text-left"
+                className="group w-full grid grid-cols-12 gap-4 items-center px-5 py-3.5 hover:bg-[#F9EFF2] active:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0 text-left"
               >
                 <div className="col-span-4 flex items-center gap-3">
                   <Avatar name={resident.name} size="md" />
@@ -390,7 +390,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                   <button
                     key={resident.id}
                     onClick={() => router.push(`/residents/${resident.id}`)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-stone-100 last:border-0 hover:bg-[#F9EFF2] transition-colors duration-100 text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-stone-100 last:border-0 hover:bg-[#F9EFF2] active:bg-[#F9EFF2] transition-colors duration-100 text-left"
                   >
                     <Avatar name={resident.name} size="md" className="!w-10 !h-10" />
                     <div className="flex-1 min-w-0">

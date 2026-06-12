@@ -590,6 +590,50 @@ export interface DailyLogEmailRow {
   notes: string | null
 }
 
+export function buildFeedbackEmailHtml(params: {
+  category: string
+  message: string
+  senderName: string
+  senderRole: string | null
+  facilityName: string | null
+  pagePath: string | null
+}): string {
+  const { category, message, senderName, senderRole, facilityName, pagePath } = params
+  const categoryLabel: Record<string, string> = {
+    bug: '🐞 Bug report',
+    idea: '💡 Idea',
+    praise: '❤️ Something they liked',
+    other: '💬 General feedback',
+  }
+  const label = categoryLabel[category] ?? categoryLabel.other
+  const metaRow = (k: string, v: string) =>
+    `<tr><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;width:32%;">${k}</td><td style="padding:8px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${escHtml(v)}</td></tr>`
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'User Feedback', title: label.replace(/^[^ ]+ /, ''), subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <div style="background:#F9EFF2;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:14px;color:#1C1917;line-height:1.6;white-space:pre-wrap;">${escHtml(message)}</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        ${metaRow('From', senderName)}
+        ${senderRole ? metaRow('Role', senderRole) : ''}
+        ${pagePath ? metaRow('Page', pagePath) : ''}
+        ${metaRow('Type', label)}
+      </table>
+      <p style="margin:20px 0 0;">
+        <a href="https://portal.seniorstylist.com/master-admin/feedback" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Review All Feedback</a>
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 export function buildDailyLogEmailHtml(params: {
   facilityName: string
   facilityCode: string | null

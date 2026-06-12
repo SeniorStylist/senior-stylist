@@ -166,7 +166,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
               )}
             </span>
             {item.label}
-            {isActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5" />}
+            {isActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5 animate-in zoom-in-50 fade-in duration-200" />}
           </Link>
         )
       })}

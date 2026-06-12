@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { addDays, endOfMonth, format } from 'date-fns'
 import { Modal } from '@/components/ui/modal'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 export interface PayPeriodSummary {
   id: string
@@ -61,6 +63,7 @@ export function PayrollListClient({
   initialPeriods: PayPeriodSummary[]
 }) {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const [periods, setPeriods] = useState<PayPeriodSummary[]>(initialPeriods)
   const [modalOpen, setModalOpen] = useState(false)
   const [periodType, setPeriodType] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly')
@@ -215,8 +218,8 @@ export function PayrollListClient({
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Pay Period">
-        {submitting ? (
+      {(() => {
+        const modalBody = submitting ? (
           <div className="p-8 flex flex-col items-center gap-4">
             <svg className="animate-spin h-8 w-8 text-[#8B2E4A]" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -289,18 +292,40 @@ export function PayrollListClient({
                 {error}
               </div>
             )}
-
-            <div className="sticky bottom-0 -mx-6 px-6 pt-3 pb-4 border-t border-stone-100 bg-white flex items-center justify-end gap-2">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSubmit} disabled={!startDate || !endDate}>
-                Create
-              </Button>
-            </div>
           </div>
-        )}
-      </Modal>
+        )
+
+        const modalFooter = submitting ? undefined : (
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-stone-100 bg-white">
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={!startDate || !endDate}>
+              Create
+            </Button>
+          </div>
+        )
+
+        // Bottom sheet on phones, centered modal on desktop (house pattern)
+        if (isMobile) {
+          return (
+            <BottomSheet
+              isOpen={modalOpen}
+              onClose={() => !submitting && setModalOpen(false)}
+              title="New Pay Period"
+              footer={modalFooter}
+            >
+              {modalBody}
+            </BottomSheet>
+          )
+        }
+        return (
+          <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Pay Period">
+            {modalBody}
+            {modalFooter}
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
