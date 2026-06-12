@@ -87,6 +87,7 @@ const getBillingSummaryData = unstable_cache(
           revShareAmountCents: true,
           revShareType: true,
           seniorStylistAmountCents: true,
+          checkImageUrl: true,
         },
         orderBy: [desc(qbPayments.paymentDate)],
         limit: 200,
@@ -123,7 +124,14 @@ const getBillingSummaryData = unstable_cache(
         })()
       : null
 
-    return { facility: facilityClean, residents: residentList, invoices, payments, facilityUnappliedCents }
+    // Storage path stays server-side — clients get a boolean and fetch a
+    // signed URL from /api/billing/check-image/[paymentId] on demand.
+    const paymentsClean = payments.map(({ checkImageUrl, ...p }) => ({
+      ...p,
+      hasCheckImage: !!checkImageUrl,
+    }))
+
+    return { facility: facilityClean, residents: residentList, invoices, payments: paymentsClean, facilityUnappliedCents }
   },
   ['billing-summary'],
   { revalidate: 120, tags: ['billing'] }

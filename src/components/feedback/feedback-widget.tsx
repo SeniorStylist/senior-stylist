@@ -59,6 +59,10 @@ export function FeedbackWidget() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   // Text committed before the current dictation session — interim results render after it.
   const baseTextRef = useRef('')
+  // Finalized transcripts accumulated during this session. iOS Safari resets the
+  // results list after a pause, so finals must be committed here as they arrive —
+  // rebuilding from e.results alone wipes earlier phrases.
+  const finalTextRef = useRef('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const speechSupported = !!getSpeechRecognition()
 
@@ -97,13 +101,19 @@ export function FeedbackWidget() {
     rec.continuous = true
     rec.interimResults = true
     baseTextRef.current = message ? message.replace(/\s+$/, '') + ' ' : ''
+    finalTextRef.current = ''
     rec.onresult = (e) => {
-      let txt = ''
+      let interim = ''
       // Start from resultIndex so we don't replay already-committed transcripts.
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        txt += e.results[i][0].transcript
+        const r = e.results[i]
+        if (r.isFinal) {
+          finalTextRef.current += r[0].transcript.replace(/\s+$/, '') + ' '
+        } else {
+          interim += r[0].transcript
+        }
       }
-      setMessage((baseTextRef.current + txt).slice(0, 2000))
+      setMessage((baseTextRef.current + finalTextRef.current + interim).slice(0, 2000))
     }
     rec.onend = () => {
       setListening(false)

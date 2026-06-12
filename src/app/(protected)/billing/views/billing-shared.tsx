@@ -87,6 +87,7 @@ export interface BillingPayment {
   revShareAmountCents?: number | null
   revShareType?: string | null
   seniorStylistAmountCents?: number | null
+  hasCheckImage?: boolean
 }
 
 export interface BillingSummary {

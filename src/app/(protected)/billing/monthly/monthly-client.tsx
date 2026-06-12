@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { formatDollars } from '../views/billing-shared'
 import { openPeek } from '@/lib/peek-drawer'
 import { expandTransition, transitionBase } from '@/lib/animations'
+import { CheckImageButton } from '@/components/billing/check-image-button'
 
 interface FacilityOption {
   id: string
@@ -43,18 +44,76 @@ interface MonthDetail {
     checkNum: string | null
     memo: string | null
     residentName: string | null
+    hasCheckImage: boolean
   }>
-  residents: Array<{
-    residentId: string
-    name: string
-    roomNumber: string | null
-    serviceCount: number
-    servicesCents: number
-    invoicedCents: number
-    paidCents: number
-    owedCents: number
-  }>
-  servicesByDay: Array<{ date: string; count: number; totalCents: number }>
+  residents: MonthResident[]
+  services: ServiceRow[]
+}
+
+interface MonthResident {
+  residentId: string
+  name: string
+  roomNumber: string | null
+  serviceCount: number
+  servicesCents: number
+  invoicedCents: number
+  paidCents: number
+  owedCents: number
+}
+
+interface ServiceRow {
+  id: string
+  date: string
+  residentId: string | null
+  residentName: string | null
+  roomNumber: string | null
+  serviceLabel: string
+  amountCents: number
+  paymentStatus: string | null
+}
+
+type ResidentSortKey = 'name' | 'services' | 'invoiced' | 'paid' | 'owed'
+
+function sortResidents(
+  rows: MonthResident[],
+  sort: { key: ResidentSortKey; dir: 'asc' | 'desc' }
+): MonthResident[] {
+  const mul = sort.dir === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) => {
+    if (sort.key === 'name') return mul * a.name.localeCompare(b.name)
+    const field: Record<Exclude<ResidentSortKey, 'name'>, keyof MonthResident> = {
+      services: 'servicesCents',
+      invoiced: 'invoicedCents',
+      paid: 'paidCents',
+      owed: 'owedCents',
+    }
+    const k = field[sort.key]
+    return mul * ((a[k] as number) - (b[k] as number)) || a.name.localeCompare(b.name)
+  })
+}
+
+function groupServicesByDay(
+  rows: ServiceRow[]
+): Array<{ date: string; totalCents: number; rows: ServiceRow[] }> {
+  const map = new Map<string, { date: string; totalCents: number; rows: ServiceRow[] }>()
+  for (const r of rows) {
+    let g = map.get(r.date)
+    if (!g) {
+      g = { date: r.date, totalCents: 0, rows: [] }
+      map.set(r.date, g)
+    }
+    g.totalCents += r.amountCents
+    g.rows.push(r)
+  }
+  // rows arrive ordered by start_time asc, so insertion order is date asc
+  return [...map.values()]
+}
+
+const PAYMENT_TYPE_LABEL: Record<string, string> = {
+  ip: 'IP',
+  rfms: 'RFMS',
+  hybrid: 'Hybrid',
+  facility: 'RFMS',
 }
 
 function monthLabel(month: string): string {
@@ -92,13 +151,19 @@ export function MonthlyClient({
   })
 
   const [facilityName, setFacilityName] = useState<string | null>(null)
+  const [facilityCode, setFacilityCode] = useState<string | null>(null)
+  const [paymentType, setPaymentType] = useState<string | null>(null)
   const [buckets, setBuckets] = useState<MonthBucket[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [expanded, setExpanded] = useState<string | null>(null)
   const [details, setDetails] = useState<Record<string, MonthDetail | 'loading' | 'error'>>({})
-  const [daysOpen, setDaysOpen] = useState<string | null>(null)
+  const [svcView, setSvcView] = useState<'resident' | 'day'>('resident')
+  const [residentSort, setResidentSort] = useState<{ key: ResidentSortKey; dir: 'asc' | 'desc' }>({
+    key: 'owed',
+    dir: 'desc',
+  })
 
   const [comboSearch, setComboSearch] = useState('')
   const [comboOpen, setComboOpen] = useState(false)
@@ -125,6 +190,8 @@ export function MonthlyClient({
         if (cancelled) return
         setBuckets(body.data.buckets as MonthBucket[])
         setFacilityName(body.data.facilityName as string)
+        setFacilityCode((body.data.facilityCode as string | null) ?? null)
+        setPaymentType((body.data.paymentType as string | null) ?? null)
       })
       .catch((err: Error) => {
         if (cancelled) return
@@ -162,7 +229,6 @@ export function MonthlyClient({
       return
     }
     setExpanded(month)
-    setDaysOpen(null)
     if (!details[month]) {
       setDetails((d) => ({ ...d, [month]: 'loading' }))
       fetch(`/api/billing/monthly/${facilityId}?month=${month}`)
@@ -201,9 +267,30 @@ export function MonthlyClient({
           ← Billing
         </Link>
       </div>
-      <p className="text-sm text-stone-500 mb-5">
-        {facilityName ?? ' '} — invoiced vs services performed vs collected, month by month.
-      </p>
+      <div className="flex items-center gap-2 flex-wrap mb-5 min-h-[24px]">
+        {facilityName ? (
+          <>
+            <span className="text-sm font-semibold text-stone-800">{facilityName}</span>
+            {facilityCode && (
+              <span className="text-[10.5px] font-semibold font-mono px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">
+                {facilityCode}
+              </span>
+            )}
+            {paymentType && (
+              <span className="text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-[#8B2E4A] border border-rose-100">
+                {PAYMENT_TYPE_LABEL[paymentType] ?? paymentType.toUpperCase()}
+              </span>
+            )}
+            <span className="text-sm text-stone-500">
+              — invoiced vs services vs collected, month by month.
+            </span>
+          </>
+        ) : (
+          <span className="text-sm text-stone-500">
+            Invoiced vs services performed vs collected, month by month.
+          </span>
+        )}
+      </div>
 
       {facilityOptions.length > 1 && (
         <div className="relative max-w-xs mb-5">
@@ -253,9 +340,12 @@ export function MonthlyClient({
           <p className="text-sm text-red-600">Error loading statement: {error}</p>
         </div>
       ) : !buckets || buckets.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 text-center">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-8">
+          <p className="text-sm font-semibold text-stone-700 mb-1">No months to show yet</p>
           <p className="text-sm text-stone-500">
-            No billing activity yet for this facility.
+            Months appear here as invoices and payments are imported, checks are scanned, or
+            services are completed on the calendar. Everything else on the billing page —
+            statements, check scanning, QuickBooks — still works for this facility.
           </p>
         </div>
       ) : (
@@ -313,9 +403,11 @@ export function MonthlyClient({
                         <div className="text-sm font-bold text-emerald-700">{formatDollars(b.paidCents)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">Still owed</div>
-                        <div className={`text-sm font-bold ${b.openCents > 0 ? 'text-amber-700' : 'text-stone-900'}`}>
-                          {formatDollars(b.openCents)}
+                        <div className={`text-[10px] font-semibold uppercase tracking-wide ${b.openCents < 0 ? 'text-sky-600' : 'text-stone-400'}`}>
+                          {b.openCents < 0 ? 'Credit' : 'Still owed'}
+                        </div>
+                        <div className={`text-sm font-bold ${b.openCents > 0 ? 'text-amber-700' : b.openCents < 0 ? 'text-sky-700' : 'text-stone-900'}`}>
+                          {formatDollars(Math.abs(b.openCents))}
                         </div>
                       </div>
                     </div>
@@ -348,54 +440,141 @@ export function MonthlyClient({
                       <p className="text-sm text-red-600">Could not load this month — try again.</p>
                     ) : (
                       <>
-                        {/* By resident */}
-                        {detail.residents.length > 0 && (
+                        {/* By resident / By day */}
+                        {(detail.residents.length > 0 || detail.services.length > 0) && (
                           <section>
-                            <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
-                              By resident
-                            </h3>
-                            <div className="rounded-xl border border-stone-100 overflow-hidden">
-                              <div className="hidden md:grid grid-cols-[1.6fr_0.9fr_0.9fr_0.9fr_0.9fr] bg-stone-50/60 px-4 py-2 text-[11px] text-stone-400 uppercase tracking-wide">
-                                <span>Resident</span>
-                                <span className="text-right">Services</span>
-                                <span className="text-right">Invoiced</span>
-                                <span className="text-right">Paid</span>
-                                <span className="text-right">Owed</span>
-                              </div>
-                              {detail.residents.map((r) => (
-                                <div
-                                  key={r.residentId}
-                                  className={`grid grid-cols-2 md:grid-cols-[1.6fr_0.9fr_0.9fr_0.9fr_0.9fr] gap-y-1 px-4 py-2.5 border-t border-stone-50 text-[13px] transition-colors duration-[120ms] ${
-                                    r.owedCents > 0 ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'hover:bg-[#F9EFF2]'
+                            <div className="flex items-center gap-1 mb-2">
+                              {(['resident', 'day'] as const).map((v) => (
+                                <button
+                                  key={v}
+                                  type="button"
+                                  onClick={() => setSvcView(v)}
+                                  className={`text-[11px] font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                                    svcView === v
+                                      ? 'bg-[#8B2E4A] text-white'
+                                      : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
                                   }`}
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() => openPeek({ type: 'resident', id: r.residentId })}
-                                    className="text-left font-semibold text-stone-900 hover:text-[#8B2E4A] transition-colors truncate col-span-2 md:col-span-1"
-                                  >
-                                    {r.name}
-                                    {r.roomNumber && <span className="text-stone-400 font-normal text-xs ml-1.5">Rm {r.roomNumber}</span>}
-                                  </button>
-                                  <span className="text-right text-stone-600 md:text-stone-700">
-                                    <span className="md:hidden text-[10px] text-stone-400 mr-1">Svc</span>
-                                    {r.serviceCount > 0 ? `${formatDollars(r.servicesCents)}` : '—'}
-                                  </span>
-                                  <span className="text-right text-stone-700">
-                                    <span className="md:hidden text-[10px] text-stone-400 mr-1">Inv</span>
-                                    {r.invoicedCents > 0 ? formatDollars(r.invoicedCents) : '—'}
-                                  </span>
-                                  <span className="text-right text-emerald-700">
-                                    <span className="md:hidden text-[10px] text-stone-400 mr-1">Paid</span>
-                                    {r.paidCents > 0 ? formatDollars(r.paidCents) : '—'}
-                                  </span>
-                                  <span className={`text-right font-semibold ${r.owedCents > 0 ? 'text-amber-700' : 'text-stone-400'}`}>
-                                    <span className="md:hidden text-[10px] text-stone-400 mr-1 font-normal">Owed</span>
-                                    {r.owedCents > 0 ? formatDollars(r.owedCents) : '—'}
-                                  </span>
-                                </div>
+                                  {v === 'resident' ? 'By resident' : 'By day'}
+                                </button>
                               ))}
                             </div>
+                            {svcView === 'resident' ? (
+                              <div className="rounded-xl border border-stone-100 overflow-hidden">
+                                <div className="hidden md:grid grid-cols-[1.6fr_0.9fr_0.9fr_0.9fr_0.9fr] bg-stone-50/60 px-4 py-2">
+                                  {(
+                                    [
+                                      ['name', 'Resident', 'text-left'],
+                                      ['services', 'Services', 'text-right'],
+                                      ['invoiced', 'Invoiced', 'text-right'],
+                                      ['paid', 'Paid', 'text-right'],
+                                      ['owed', 'Owed', 'text-right'],
+                                    ] as Array<[ResidentSortKey, string, string]>
+                                  ).map(([key, label, align]) => (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() =>
+                                        setResidentSort((s) =>
+                                          s.key === key
+                                            ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+                                            : { key, dir: key === 'name' ? 'asc' : 'desc' }
+                                        )
+                                      }
+                                      className={`${align} text-[11px] uppercase tracking-wide transition-colors ${
+                                        residentSort.key === key
+                                          ? 'text-[#8B2E4A] font-semibold'
+                                          : 'text-stone-400 hover:text-stone-600'
+                                      }`}
+                                    >
+                                      {label}
+                                      <span className="ml-0.5">
+                                        {residentSort.key === key ? (residentSort.dir === 'asc' ? '↑' : '↓') : '↕'}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                                {sortResidents(detail.residents, residentSort).map((r) => (
+                                  <div
+                                    key={r.residentId}
+                                    className={`grid grid-cols-2 md:grid-cols-[1.6fr_0.9fr_0.9fr_0.9fr_0.9fr] gap-y-1 px-4 py-2.5 border-t border-stone-50 text-[13px] transition-colors duration-[120ms] ${
+                                      r.owedCents > 0 ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'hover:bg-[#F9EFF2]'
+                                    }`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => openPeek({ type: 'resident', id: r.residentId })}
+                                      className="text-left font-semibold text-stone-900 hover:text-[#8B2E4A] transition-colors truncate col-span-2 md:col-span-1"
+                                    >
+                                      {r.name}
+                                      {r.roomNumber && <span className="text-stone-400 font-normal text-xs ml-1.5">Rm {r.roomNumber}</span>}
+                                    </button>
+                                    <span className="text-right text-stone-600 md:text-stone-700">
+                                      <span className="md:hidden text-[10px] text-stone-400 mr-1">Svc</span>
+                                      {r.serviceCount > 0 ? `${formatDollars(r.servicesCents)}` : '—'}
+                                    </span>
+                                    <span className="text-right text-stone-700">
+                                      <span className="md:hidden text-[10px] text-stone-400 mr-1">Inv</span>
+                                      {r.invoicedCents > 0 ? formatDollars(r.invoicedCents) : '—'}
+                                    </span>
+                                    <span className="text-right text-emerald-700">
+                                      <span className="md:hidden text-[10px] text-stone-400 mr-1">Paid</span>
+                                      {r.paidCents > 0 ? formatDollars(r.paidCents) : '—'}
+                                    </span>
+                                    <span className={`text-right font-semibold ${r.owedCents > 0 ? 'text-amber-700' : r.owedCents < 0 ? 'text-sky-700' : 'text-stone-400'}`}>
+                                      <span className="md:hidden text-[10px] text-stone-400 mr-1 font-normal">Owed</span>
+                                      {r.owedCents > 0
+                                        ? formatDollars(r.owedCents)
+                                        : r.owedCents < 0
+                                          ? `Credit ${formatDollars(-r.owedCents)}`
+                                          : '—'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : detail.services.length === 0 ? (
+                              <p className="text-sm text-stone-400">No completed services this month.</p>
+                            ) : (
+                              <div className="rounded-xl border border-stone-100 overflow-hidden">
+                                {groupServicesByDay(detail.services).map((day) => (
+                                  <Fragment key={day.date}>
+                                    <div className="flex items-center justify-between px-4 py-2 bg-stone-50/60 border-t border-stone-100 first:border-t-0">
+                                      <span className="text-xs font-bold text-stone-600">{shortDate(day.date)}</span>
+                                      <span className="text-[11px] text-stone-400">
+                                        {day.rows.length} service{day.rows.length === 1 ? '' : 's'} ·{' '}
+                                        <span className="font-semibold text-stone-600">{formatDollars(day.totalCents)}</span>
+                                      </span>
+                                    </div>
+                                    {day.rows.map((s) => (
+                                      <div
+                                        key={s.id}
+                                        className="flex items-center gap-2 px-4 py-2 border-t border-stone-50 text-[12.5px] hover:bg-[#F9EFF2] transition-colors duration-[120ms]"
+                                      >
+                                        {s.residentId ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => openPeek({ type: 'resident', id: s.residentId! })}
+                                            className="font-semibold text-stone-900 hover:text-[#8B2E4A] transition-colors truncate text-left shrink-0 max-w-[40%]"
+                                          >
+                                            {s.residentName ?? 'Unknown'}
+                                            {s.roomNumber && <span className="text-stone-400 font-normal text-[11px] ml-1">Rm {s.roomNumber}</span>}
+                                          </button>
+                                        ) : (
+                                          <span className="font-semibold text-stone-900 truncate shrink-0 max-w-[40%]">{s.residentName ?? 'Unknown'}</span>
+                                        )}
+                                        <span className="text-stone-500 truncate flex-1">{s.serviceLabel}</span>
+                                        {s.paymentStatus === 'unpaid' && (
+                                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 shrink-0">
+                                            unpaid
+                                          </span>
+                                        )}
+                                        <span className="font-semibold text-stone-900 shrink-0">{formatDollars(s.amountCents)}</span>
+                                      </div>
+                                    ))}
+                                  </Fragment>
+                                ))}
+                              </div>
+                            )}
                           </section>
                         )}
 
@@ -443,6 +622,7 @@ export function MonthlyClient({
                                           {p.paymentMethod ?? 'check'}{p.checkNum ? ` #${p.checkNum}` : ''}
                                         </span>
                                       )}
+                                      {p.hasCheckImage && <CheckImageButton paymentId={p.id} />}
                                       <span className="font-semibold text-emerald-700 shrink-0">{formatDollars(p.amountCents)}</span>
                                     </div>
                                     {p.memo && <p className="text-[11px] text-stone-400 truncate mt-0.5">{p.memo}</p>}
@@ -452,36 +632,6 @@ export function MonthlyClient({
                             )}
                           </section>
                         </div>
-
-                        {/* Services by day */}
-                        {detail.servicesByDay.length > 0 && (
-                          <section>
-                            <button
-                              type="button"
-                              onClick={() => setDaysOpen(daysOpen === b.month ? null : b.month)}
-                              className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2 flex items-center gap-1.5 hover:text-stone-700 transition-colors"
-                            >
-                              Services by day ({detail.servicesByDay.length})
-                              <svg
-                                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                                className={`transition-transform duration-200 ${daysOpen === b.month ? 'rotate-180' : ''}`}
-                              >
-                                <polyline points="6 9 12 15 18 9" />
-                              </svg>
-                            </button>
-                            {daysOpen === b.month && (
-                              <div className={`${expandTransition} rounded-xl border border-stone-100 overflow-hidden`}>
-                                {detail.servicesByDay.map((d) => (
-                                  <div key={d.date} className="flex items-center justify-between px-3.5 py-2 border-t border-stone-50 first:border-t-0 text-[12.5px] hover:bg-[#F9EFF2] transition-colors duration-[120ms]">
-                                    <span className="text-stone-700">{shortDate(d.date)}</span>
-                                    <span className="text-stone-400 text-[11px]">{d.count} service{d.count === 1 ? '' : 's'}</span>
-                                    <span className="font-semibold text-stone-900">{formatDollars(d.totalCents)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </section>
-                        )}
                       </>
                     )}
                   </div>

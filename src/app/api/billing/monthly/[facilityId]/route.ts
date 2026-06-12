@@ -29,10 +29,17 @@ interface MonthBucket {
 const num = (v: unknown) => Number(v ?? 0) || 0
 
 const getMonthlyBuckets = unstable_cache(
-  async (facilityId: string): Promise<{ facilityName: string; buckets: MonthBucket[] } | null> => {
+  async (
+    facilityId: string
+  ): Promise<{
+    facilityName: string
+    facilityCode: string | null
+    paymentType: string | null
+    buckets: MonthBucket[]
+  } | null> => {
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
-      columns: { id: true, name: true, timezone: true },
+      columns: { id: true, name: true, timezone: true, facilityCode: true, paymentType: true },
     })
     if (!facility) return null
     const tz = facility.timezone ?? 'America/New_York'
@@ -91,7 +98,12 @@ const getMonthlyBuckets = unstable_cache(
     }
 
     const buckets = [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month))
-    return { facilityName: facility.name, buckets }
+    return {
+      facilityName: facility.name,
+      facilityCode: facility.facilityCode,
+      paymentType: facility.paymentType,
+      buckets,
+    }
   },
   ['billing-monthly'],
   { revalidate: 120, tags: ['billing'] }
@@ -106,7 +118,7 @@ async function getMonthDetail(facilityId: string, month: string) {
   const tz = facility.timezone ?? 'America/New_York'
   const monthStart = `${month}-01`
 
-  const [invoices, payments, svcByResident, invByResident, payByResident, svcByDay] = await Promise.all([
+  const [invoices, payments, svcByResident, invByResident, payByResident, svcRows] = await Promise.all([
     db.execute(sql`
       SELECT i.id, i.invoice_num, i.invoice_date::text AS invoice_date, i.amount_cents,
              i.open_balance_cents, i.status, r.name AS resident_name
@@ -120,7 +132,8 @@ async function getMonthDetail(facilityId: string, month: string) {
     `),
     db.execute(sql`
       SELECT p.id, p.payment_date::text AS payment_date, p.amount_cents, p.payment_method,
-             p.check_num, LEFT(COALESCE(p.memo, ''), 120) AS memo, r.name AS resident_name
+             p.check_num, LEFT(COALESCE(p.memo, ''), 120) AS memo, r.name AS resident_name,
+             (p.check_image_url IS NOT NULL) AS has_image
       FROM qb_payments p
       LEFT JOIN residents r ON r.id = p.resident_id
       WHERE p.facility_id = ${facilityId} AND p.is_demo = false
@@ -161,16 +174,21 @@ async function getMonthDetail(facilityId: string, month: string) {
         AND p.payment_date < (${monthStart}::date + INTERVAL '1 month')
       GROUP BY p.resident_id, r.name, r.room_number
     `),
-    // price_cents only — never add tip_cents
+    // Per-booking rows for the by-day view. price_cents only — never add tip_cents
     db.execute(sql`
-      SELECT to_char(b.start_time AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS d, COUNT(*)::int AS n,
-             COALESCE(SUM(b.price_cents + COALESCE(b.addon_total_cents, 0)), 0)::bigint AS total
+      SELECT b.id, to_char(b.start_time AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS d,
+             b.resident_id, r.name AS resident_name, r.room_number,
+             COALESCE(NULLIF(array_to_string(b.service_names, ' + '), ''), s.name, b.raw_service_name) AS service_label,
+             (b.price_cents + COALESCE(b.addon_total_cents, 0)) AS amount,
+             b.payment_status
       FROM bookings b
+      LEFT JOIN residents r ON r.id = b.resident_id
+      LEFT JOIN services s ON s.id = b.service_id
       WHERE b.facility_id = ${facilityId} AND b.status = 'completed'
         AND b.active = true AND b.is_demo = false
         AND to_char(b.start_time AT TIME ZONE ${tz}, 'YYYY-MM') = ${month}
-      GROUP BY 1
-      ORDER BY 1 ASC
+      ORDER BY b.start_time ASC
+      LIMIT 1000
     `),
   ])
 
@@ -223,7 +241,7 @@ async function getMonthDetail(facilityId: string, month: string) {
       status: i.status,
       residentName: i.resident_name,
     })),
-    payments: (payments as unknown as Array<{ id: string; payment_date: string; amount_cents: number; payment_method: string | null; check_num: string | null; memo: string; resident_name: string | null }>).map((p) => ({
+    payments: (payments as unknown as Array<{ id: string; payment_date: string; amount_cents: number; payment_method: string | null; check_num: string | null; memo: string; resident_name: string | null; has_image: boolean }>).map((p) => ({
       id: p.id,
       paymentDate: p.payment_date,
       amountCents: num(p.amount_cents),
@@ -231,12 +249,18 @@ async function getMonthDetail(facilityId: string, month: string) {
       checkNum: p.check_num,
       memo: p.memo || null,
       residentName: p.resident_name,
+      hasCheckImage: !!p.has_image,
     })),
     residents: residentRows,
-    servicesByDay: (svcByDay as unknown as Array<{ d: string; n: number; total: unknown }>).map((r) => ({
-      date: r.d,
-      count: num(r.n),
-      totalCents: num(r.total),
+    services: (svcRows as unknown as Array<{ id: string; d: string; resident_id: string | null; resident_name: string | null; room_number: string | null; service_label: string | null; amount: unknown; payment_status: string | null }>).map((s) => ({
+      id: s.id,
+      date: s.d,
+      residentId: s.resident_id,
+      residentName: s.resident_name,
+      roomNumber: s.room_number,
+      serviceLabel: s.service_label ?? 'Service',
+      amountCents: num(s.amount),
+      paymentStatus: s.payment_status,
     })),
   }
 }

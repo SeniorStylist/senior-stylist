@@ -15,6 +15,7 @@ import {
 import { ExpandableSection } from './expandable-section'
 import { btnBase, expandTransition } from '@/lib/animations'
 import { Avatar } from '@/components/ui/avatar'
+import { CheckImageButton } from '@/components/billing/check-image-button'
 
 export function RFMSView({
   facility,
@@ -162,7 +163,7 @@ export function RFMSView({
                       <div className="md:col-span-2 text-sm text-stone-700">
                         {formatInvoiceDate(p.paymentDate)}
                       </div>
-                      <div className="md:col-span-3 text-sm text-stone-900 font-medium">
+                      <div className="md:col-span-3 text-sm text-stone-900 font-medium flex items-center gap-1.5">
                         {(() => {
                           const remLines = getRemittanceLines(p)
                           return remLines ? (
@@ -179,6 +180,7 @@ export function RFMSView({
                             p.checkNum ?? <span className="text-stone-400">—</span>
                           )
                         })()}
+                        {p.hasCheckImage && <CheckImageButton paymentId={p.id} />}
                       </div>
                       <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
                         {formatDollars(p.amountCents)}

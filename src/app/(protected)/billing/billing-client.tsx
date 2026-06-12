@@ -870,14 +870,14 @@ export function BillingClient({
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 text-center">
           <p className="text-sm text-stone-500">No data.</p>
         </div>
-      ) : summary.invoices.length + summary.payments.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 text-center">
-          <p className="text-sm text-stone-500">
-            No billing data yet. Import historical data from the Master Admin panel.
-          </p>
-        </div>
       ) : (
         <>
+          {summary.invoices.length + summary.payments.length === 0 && (
+            <div className="mb-4 rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-xs text-stone-500">
+              No invoices or payments recorded for this period yet.
+              {isMaster && ' Import QuickBooks history from Master Admin → Imports, or scan a check to get started.'}
+            </div>
+          )}
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 mb-4">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
               <div className="flex-1 min-w-0">
