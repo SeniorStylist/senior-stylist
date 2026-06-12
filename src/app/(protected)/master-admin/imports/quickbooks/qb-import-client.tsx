@@ -105,7 +105,7 @@ function ImporterCard({ importer }: { importer: typeof IMPORTERS[number] }) {
   const [showWarnings, setShowWarnings] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  async function runImport() {
+  async function runImport(): Promise<void> {
     if (!file || state === 'uploading') return
     setState('uploading')
     setError(null)
@@ -126,7 +126,7 @@ function ImporterCard({ importer }: { importer: typeof IMPORTERS[number] }) {
   const warnings = (result?.warnings ?? []) as string[]
 
   return (
-    <div className="rounded-[18px] border border-stone-200 bg-white shadow-[var(--shadow-sm)] p-5">
+    <div id={`step-${importer.step}`} className="rounded-[18px] border border-stone-200 bg-white shadow-[var(--shadow-sm)] p-5 scroll-mt-6">
       <div className="flex items-start gap-4">
         <div className="shrink-0 w-9 h-9 rounded-full bg-rose-50 text-[#8B2E4A] flex items-center justify-center text-sm font-bold">
           {importer.step}

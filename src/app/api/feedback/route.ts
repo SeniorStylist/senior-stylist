@@ -59,7 +59,16 @@ export async function POST(request: NextRequest) {
     })
 
     // Notify the product owner — fire-and-forget (background notification).
-    const notifyTo = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    // Use the master admin's custom feedbackEmail if set, otherwise fall back to env.
+    const masterEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    let notifyTo: string | undefined = masterEmail
+    if (masterEmail) {
+      const masterProfile = await db.query.profiles.findFirst({
+        where: eq(profiles.email, masterEmail),
+        columns: { feedbackEmail: true },
+      }).catch(() => null)
+      if (masterProfile?.feedbackEmail) notifyTo = masterProfile.feedbackEmail
+    }
     if (notifyTo) {
       sendEmail({
         to: notifyTo,

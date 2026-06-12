@@ -29,6 +29,8 @@ export const profiles = pgTable('profiles', {
   // Phase 13-Tutorial: scripted tour first-launch + cross-session resume
   hasSeenFirstTour: boolean('has_seen_first_tour').default(false).notNull(),
   helpProgress: jsonb('help_progress').$type<{ tourId: string; stepIndex: number; scenarioState: Record<string, string> } | null>(),
+  // Custom email for feedback notifications (master admin only — 2026-06-12)
+  feedbackEmail: text('feedback_email'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

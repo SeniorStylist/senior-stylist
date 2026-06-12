@@ -27,6 +27,77 @@ const CATEGORY_CHIP: Record<string, { label: string; cls: string }> = {
 
 const STATUSES = ['new', 'reviewed', 'resolved'] as const
 
+function EmailSettingsCard() {
+  const { toast } = useToast()
+  const [email, setEmail] = useState('')
+  const [saved, setSaved] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/feedback/settings')
+      .then((r) => r.json())
+      .then((j) => {
+        const v = j.data?.feedbackEmail ?? ''
+        setEmail(v)
+        setSaved(v)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/feedback/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedbackEmail: email.trim() || null }),
+      })
+      if (!res.ok) { toast.error('Failed to save email'); return }
+      setSaved(email.trim())
+      toast.success('Notification email saved')
+    } catch {
+      toast.error('Failed to save email')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const isDirty = email.trim() !== saved
+
+  return (
+    <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-4 mb-6">
+      <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Notification Email</p>
+      <p className="text-xs text-stone-400 mb-3">
+        New feedback submissions are emailed here. Leave blank to use the default master admin address.
+      </p>
+      {loading ? (
+        <div className="h-9 rounded-xl bg-stone-100 animate-pulse w-full max-w-sm" />
+      ) : (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your@email.com (optional)"
+            className="flex-1 min-w-0 max-w-sm px-3 py-2 rounded-xl border border-stone-200 text-sm bg-stone-50 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50 focus:bg-white transition-all"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={!isDirty || saving}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 shadow-[0_2px_6px_rgba(139,46,74,0.18)] hover:-translate-y-[1px] disabled:shadow-none disabled:translate-y-0"
+            style={{ backgroundColor: '#8B2E4A' }}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FeedbackClient() {
   const { toast } = useToast()
   const [rows, setRows] = useState<FeedbackRow[] | null>(null)
@@ -73,6 +144,8 @@ export function FeedbackClient() {
       <p className="text-sm text-stone-500 mb-5">
         {rows === null ? 'Loading…' : `${rows.length} submission${rows.length === 1 ? '' : 's'}${newCount > 0 ? ` · ${newCount} new` : ''}`}
       </p>
+
+      <EmailSettingsCard />
 
       <div className="flex gap-1.5 mb-4">
         {(['all', ...STATUSES] as const).map((s) => (

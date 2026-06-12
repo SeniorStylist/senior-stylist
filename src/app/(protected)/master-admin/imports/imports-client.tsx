@@ -43,6 +43,10 @@ const ICONS: Record<string, React.ReactNode> = {
   multi_service_log: SpreadsheetIcon,
   qb_customer: UsersIcon,
   qb_billing: ReceiptIcon,
+  qb_contacts: UsersIcon,
+  qb_invoices_csv: ReceiptIcon,
+  qb_payments_csv: ReceiptIcon,
+  qb_transactions_csv: ReceiptIcon,
   facility_csv: BuildingIcon,
 }
 

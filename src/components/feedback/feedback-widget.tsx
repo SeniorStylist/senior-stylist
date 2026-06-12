@@ -23,13 +23,18 @@ interface SpeechRecognitionLike {
   interimResults: boolean
   start: () => void
   stop: () => void
+  abort: () => void
   onresult: ((e: SpeechRecognitionEventLike) => void) | null
   onend: (() => void) | null
-  onerror: (() => void) | null
+  onerror: ((e: SpeechRecognitionErrorLike) => void) | null
 }
 interface SpeechRecognitionEventLike {
   resultIndex: number
   results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>
+}
+interface SpeechRecognitionErrorLike {
+  error: string
+  message?: string
 }
 
 function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
@@ -59,7 +64,7 @@ export function FeedbackWidget() {
   // Stop dictation when the panel closes/unmounts.
   useEffect(() => {
     if (!open && recognitionRef.current) {
-      recognitionRef.current.stop()
+      recognitionRef.current.abort()
       recognitionRef.current = null
       setListening(false)
     }
@@ -79,20 +84,35 @@ export function FeedbackWidget() {
     baseTextRef.current = message ? message.replace(/\s+$/, '') + ' ' : ''
     rec.onresult = (e) => {
       let txt = ''
-      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript
+      // Start from resultIndex so we don't replay already-committed transcripts.
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        txt += e.results[i][0].transcript
+      }
       setMessage((baseTextRef.current + txt).slice(0, 2000))
     }
     rec.onend = () => {
       setListening(false)
       recognitionRef.current = null
     }
-    rec.onerror = () => {
+    rec.onerror = (e) => {
       setListening(false)
       recognitionRef.current = null
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        toast.error('Microphone access denied — check your browser settings')
+      } else if (e.error === 'audio-capture') {
+        toast.error('No microphone found')
+      } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        toast.error(`Voice input error: ${e.error}`)
+      }
     }
-    recognitionRef.current = rec
-    setListening(true)
-    rec.start()
+    try {
+      rec.start()
+      recognitionRef.current = rec
+      setListening(true)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not start microphone'
+      toast.error(msg)
+    }
   }
 
   const submit = async () => {
