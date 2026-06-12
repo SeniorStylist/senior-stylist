@@ -96,6 +96,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `/stylists/directory` | `role !== 'admin'` → redirect `/dashboard` | Admin-only |
 | `/stylists/[id]` | `!isAdminOrAbove(role)` → redirect `/dashboard` | Admin-only |
 | `/billing/outstanding` etc. | master email only → redirect `/billing` | Cross-facility drill-downs |
+| `/billing/monthly` | master / `canAccessBilling` → redirect `/dashboard` | Monthly facility statement (2026-06-12) — month cards (invoiced/services/collected/owed + progress bar + services-vs-invoiced Δ chip), expandable per-month detail (by-resident rollup w/ peek, invoices, payments, services-by-day). Facility combobox for master+bookkeeper; "Monthly view →" link on /billing facility card |
 | `/master-admin` | master email only → redirect `/dashboard` | `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` gate |
 | `/super-admin` | → redirect `/master-admin` | Bookmark compatibility only |
 
@@ -736,7 +737,7 @@ Applied to all routes via `headers()`:
 - `X-Frame-Options: DENY` — clickjacking defense.
 - `X-Content-Type-Options: nosniff`.
 - `Referrer-Policy: strict-origin-when-cross-origin`.
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()` — all off; mobile OCR upload uses `<input capture="environment">` which is a file-picker and does not require camera permission.
+- `Permissions-Policy: camera=(), microphone=(self), geolocation=()` — camera/geolocation off; mobile OCR upload uses `<input capture="environment">` which is a file-picker and does not require camera permission. **`microphone=(self)` is load-bearing (2026-06-12)** — the feedback widget's voice input (`getUserMedia` priming + SpeechRecognition) needs it; `microphone=()` made the browser reject instantly without ever showing the permission prompt. Never re-block it.
 - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` — 2-year HSTS with preload flag (qualifies for browser preload lists).
 - `Content-Security-Policy` — `default-src 'self'`, allowlists for Supabase, Google APIs, Upstash, Vercel Insights, Gemini, cdnjs (pdfjs worker); `'unsafe-inline'` for styles (Tailwind); `frame-ancestors 'none'`.
 
@@ -897,6 +898,7 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `GET /api/feedback/count` | **Master admin** (2026-06-12) | Count of `status='new'` submissions. Errors return `{ data: { count: 0 } }`. Drives `<FeedbackBadge />` (sidebar Master Admin link) and the "Feedback →" toolbar pill in master-admin-client. |
 | `PATCH /api/feedback/[id]` | **Master admin** | Body `{ status: new\|reviewed\|resolved }`. |
 | `GET/PATCH /api/feedback/settings` | **Master admin** | Forward-email setting (`profiles.feedback_email`, nullable). PATCH body `{ feedbackEmail: email\|null }`. |
+| `GET /api/billing/monthly/[facilityId]` | Master / `canAccessBilling` (bookkeeper cross-facility) (2026-06-12) | Monthly facility statement. No `?month=` → month buckets `{ month, invoicedCents, openCents, invoiceCount, paidCents, paymentCount, servicesCents, serviceCount }[]` from 3 GROUP BY queries (qb_invoices by invoice_date, qb_payments by payment_date, completed+active+non-demo bookings by `start_time AT TIME ZONE facility.timezone`; price_cents+addons only, never tips) — `unstable_cache` 120s tag `'billing'`. `?month=YYYY-MM` → uncached detail: invoices (≤500, resident names), payments (≤500, memo ≤120), per-resident rollup (services/invoiced/paid/owed merged in JS), services-by-day. Consumed by `/billing/monthly`. |
 
 ---
 

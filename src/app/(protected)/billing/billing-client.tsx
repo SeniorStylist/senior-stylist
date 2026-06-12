@@ -896,6 +896,12 @@ export function BillingClient({
                   <span className="inline-flex items-center rounded-full bg-stone-100 text-stone-700 px-2 py-0.5 text-xs font-semibold">
                     {paymentTypeLabel(paymentType)}
                   </span>
+                  <Link
+                    href={`/billing/monthly?facility=${facilityId}`}
+                    className="text-xs font-semibold text-[#8B2E4A] hover:underline"
+                  >
+                    Monthly view →
+                  </Link>
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">

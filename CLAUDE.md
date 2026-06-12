@@ -243,6 +243,7 @@ Rules for stable selectors:
 ### Security / Payload Hygiene
 - Server → client payloads MUST be sanitized — never expose internal DB columns (cost basis, internal notes, other-facility data, etc.) in API responses
 - Use explicit `columns:` selects in Drizzle queries on routes that return data to unauthenticated users
+- **`Permissions-Policy` in `next.config.ts` MUST keep `microphone=(self)`** (2026-06-12) — the feedback widget's voice input depends on it. `microphone=()` makes `getUserMedia` reject instantly WITHOUT ever showing the browser permission prompt (the bug looked like a client-side issue but was this header). Camera and geolocation stay `()`.
 - **HSTS and HTTP→HTTPS redirect are configured in `next.config.ts`** and must not be removed or weakened. `redirects()` fires a 301 when `x-forwarded-proto: http` is present (no-op on Vercel since CDN enforces HTTPS before requests reach Next.js; protects self-hosted environments). `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` — 2-year HSTS with preload flag. The preload flag means the domain is (or will be) submitted to browser preload lists; removing it does not undo preloading.
 
 ---
