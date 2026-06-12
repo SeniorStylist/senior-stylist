@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, franchises } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { facilities, facilityUsers, franchises } from '@/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TopBar } from '@/components/layout/top-bar'
@@ -47,6 +47,24 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
       facilityCode: fu.facility!.facilityCode ?? null,
       role: fu.role,
     }))
+
+  // Bookkeepers have cross-facility access by role — the switcher lists every
+  // active facility, not just the ones with explicit facility_users rows.
+  const hasBookkeeperRole = userFacilities.some((fu) => fu.role === 'bookkeeper')
+  if (hasBookkeeperRole) {
+    const explicitRoles = new Map(allFacilities.map((f) => [f.id, f.role]))
+    const activeFacilities = await db.query.facilities.findMany({
+      where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+      columns: { id: true, name: true, facilityCode: true },
+      orderBy: (t, { asc }) => [asc(t.name)],
+    })
+    allFacilities = activeFacilities.map((f) => ({
+      id: f.id,
+      name: f.name,
+      facilityCode: f.facilityCode ?? null,
+      role: explicitRoles.get(f.id) ?? 'bookkeeper',
+    }))
+  }
 
   // For super_admin users, restrict facility switcher to their franchise only
   const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')

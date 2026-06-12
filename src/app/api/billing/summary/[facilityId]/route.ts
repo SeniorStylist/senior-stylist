@@ -1,8 +1,8 @@
 import { unstable_cache } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, residents, qbInvoices, qbPayments, qbUnappliedCredits } from '@/db/schema'
-import { and, desc, eq, gte, lte, sum } from 'drizzle-orm'
+import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { NextRequest } from 'next/server'
@@ -26,7 +26,7 @@ const getBillingSummaryData = unstable_cache(
       lte(qbPayments.paymentDate, to)
     )
 
-    const [facility, residentList, invoices, payments, unappliedRow] = await Promise.all([
+    const [facility, residentList, invoices, payments] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityId),
         columns: {
@@ -91,10 +91,27 @@ const getBillingSummaryData = unstable_cache(
         orderBy: [desc(qbPayments.paymentDate)],
         limit: 200,
       }),
-      db.select({ total: sum(qbUnappliedCredits.openBalanceCents) })
-        .from(qbUnappliedCredits)
-        .where(eq(qbUnappliedCredits.facilityId, facilityId)),
     ])
+
+    // Unapplied credits — remaining = open − site-applied. Separate query with
+    // fallbacks so a missing table/column (Step 5 not run / 0009 not applied yet)
+    // degrades to 0 instead of failing the whole billing page.
+    let facilityUnappliedCents = 0
+    try {
+      const r = await db.execute(sql`
+        SELECT COALESCE(SUM(open_balance_cents - applied_cents), 0)::bigint AS total
+        FROM qb_unapplied_credits WHERE facility_id = ${facilityId}
+      `)
+      facilityUnappliedCents = Number((r as unknown as Array<{ total: unknown }>)[0]?.total ?? 0) || 0
+    } catch {
+      try {
+        const r = await db.execute(sql`
+          SELECT COALESCE(SUM(open_balance_cents), 0)::bigint AS total
+          FROM qb_unapplied_credits WHERE facility_id = ${facilityId}
+        `)
+        facilityUnappliedCents = Number((r as unknown as Array<{ total: unknown }>)[0]?.total ?? 0) || 0
+      } catch { /* table doesn't exist yet */ }
+    }
 
     const facilityClean = facility
       ? (() => {
@@ -105,8 +122,6 @@ const getBillingSummaryData = unstable_cache(
           }
         })()
       : null
-
-    const facilityUnappliedCents = Number(unappliedRow[0]?.total ?? 0) || 0
 
     return { facility: facilityClean, residents: residentList, invoices, payments, facilityUnappliedCents }
   },
@@ -135,7 +150,8 @@ export async function GET(
     if (!fu || !canAccessBilling(fu.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
-    if (fu.facilityId !== facilityId) {
+    // Bookkeepers are cross-facility by role; everyone else is scoped to their own
+    if (fu.facilityId !== facilityId && fu.role !== 'bookkeeper') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
   }

@@ -188,15 +188,19 @@ export function TeamSection({
     }
   }
 
+  // Bookkeeper invites are not facility-bound — the role grants access to every
+  // facility, so the invite just needs an anchor row (current facility works).
+  const isGlobalRole = inviteRole === 'bookkeeper'
+
   async function handleSendInvite() {
     if (!inviteEmail.trim()) { setInviteError('Email is required'); return }
-    if (isSuperAdmin && !inviteFacilityId) { setInviteError('Select a facility'); return }
+    if (isSuperAdmin && !isGlobalRole && !inviteFacilityId) { setInviteError('Select a facility'); return }
     setSendingInvite(true)
     setInviteError('')
     setInviteSuccess('')
     try {
       const body: Record<string, string> = { email: inviteEmail.trim(), inviteRole }
-      if (isSuperAdmin) body.facilityId = inviteFacilityId
+      if (isSuperAdmin) body.facilityId = (isGlobalRole ? inviteFacilityId || facilityId : inviteFacilityId)
       const res = await fetch('/api/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -263,13 +267,15 @@ export function TeamSection({
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]" data-tour="settings-invite-form">
         <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Invite a teammate</p>
         <p className="text-xs text-stone-500 mb-3">
-          {isSuperAdmin
-            ? 'Invite users to any facility. Links expire after 7 days.'
-            : <>Invite users to join <span className="font-semibold text-stone-700">{facilityName}</span>. Links expire after 7 days.</>
+          {isGlobalRole
+            ? 'Bookkeepers automatically get access to every facility — no facility assignment needed. Links expire after 7 days.'
+            : isSuperAdmin
+              ? 'Invite users to any facility. Links expire after 7 days.'
+              : <>Invite users to join <span className="font-semibold text-stone-700">{facilityName}</span>. Links expire after 7 days.</>
           }
         </p>
         <div className="flex flex-wrap gap-2">
-          {isSuperAdmin && (
+          {isSuperAdmin && !isGlobalRole && (
             <select
               value={inviteFacilityId}
               onChange={(e) => setInviteFacilityId(e.target.value)}
@@ -303,7 +309,7 @@ export function TeamSection({
           </select>
           <button
             onClick={handleSendInvite}
-            disabled={sendingInvite || !inviteEmail.trim() || (isSuperAdmin && !inviteFacilityId)}
+            disabled={sendingInvite || !inviteEmail.trim() || (isSuperAdmin && !isGlobalRole && !inviteFacilityId)}
             data-tour="settings-invite-submit"
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
             style={{ backgroundColor: '#8B2E4A' }}

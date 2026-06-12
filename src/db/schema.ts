@@ -650,6 +650,16 @@ export const qbUnappliedCredits = pgTable('qb_unapplied_credits', {
   num: text('num'),
   amountCents: integer('amount_cents').notNull().default(0),
   openBalanceCents: integer('open_balance_cents').notNull().default(0),
+  // Site-side application (2026-06-12): how much of this credit has been applied
+  // to invoices ON THE WEBSITE. remaining = openBalanceCents - appliedCents.
+  // QB is not written back — re-running Step 2 re-syncs balances from QB and will
+  // revert any application that wasn't mirrored inside QuickBooks.
+  appliedCents: integer('applied_cents').notNull().default(0),
+  appliedAt: timestamp('applied_at', { withTimezone: true }),
+  appliedBy: uuid('applied_by'),
+  appliedDetail: jsonb('applied_detail').$type<
+    Array<{ invoiceId: string; invoiceNum: string; invoiceDate: string; amountCents: number }>
+  >(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
   facilityIdx: index('qb_unapplied_credits_facility_idx').on(t.facilityId),

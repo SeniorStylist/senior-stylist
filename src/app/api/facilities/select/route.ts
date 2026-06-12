@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilityUsers } from '@/db/schema'
+import { facilities, facilityUsers } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
@@ -31,7 +31,19 @@ export async function POST(request: NextRequest) {
         eq(facilityUsers.facilityId, parsed.data.facilityId)
       ),
     })
-    if (!fu) return Response.json({ error: 'Access denied' }, { status: 403 })
+    if (!fu) {
+      // Bookkeepers are cross-facility by role — any active facility is selectable
+      const bookkeeperRow = await db.query.facilityUsers.findFirst({
+        where: and(eq(facilityUsers.userId, user.id), eq(facilityUsers.role, 'bookkeeper')),
+      })
+      const fac = bookkeeperRow
+        ? await db.query.facilities.findFirst({
+            where: and(eq(facilities.id, parsed.data.facilityId), eq(facilities.active, true)),
+            columns: { id: true },
+          })
+        : null
+      if (!fac) return Response.json({ error: 'Access denied' }, { status: 403 })
+    }
 
     const cookieStore = await cookies()
     cookieStore.set('selected_facility_id', parsed.data.facilityId, {

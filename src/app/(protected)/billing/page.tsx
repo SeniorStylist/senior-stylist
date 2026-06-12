@@ -34,21 +34,36 @@ export default async function BillingPage() {
     redirect('/dashboard')
   }
 
+  // Bookkeepers are cross-facility by role — give them the same facility
+  // combobox master gets, scoped to all active facilities.
+  const isBookkeeper = facilityUser?.role === 'bookkeeper'
+  const bookkeeperList = isBookkeeper
+    ? await db.query.facilities.findMany({
+        where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+        columns: { id: true, name: true, facilityCode: true },
+      })
+    : null
+
   let initialFacilityId: string
   let facilityOptions: { id: string; name: string; facilityCode: string | null }[] = []
 
-  if (isMaster) {
-    const list = masterList ?? []
+  if (isMaster || isBookkeeper) {
+    const list = (isMaster ? masterList : bookkeeperList) ?? []
     list.sort((a, b) => {
       const aNum = a.facilityCode ? parseInt(a.facilityCode.replace(/\D/g, ''), 10) : Infinity
       const bNum = b.facilityCode ? parseInt(b.facilityCode.replace(/\D/g, ''), 10) : Infinity
       return aNum !== bNum ? aNum - bNum : (a.name ?? '').localeCompare(b.name ?? '')
     })
     facilityOptions = list
-    const cookieStore = await cookies()
-    const selectedId = cookieStore.get('selected_facility_id')?.value
-    const cookieMatch = selectedId ? list.find((f) => f.id === selectedId) : null
-    initialFacilityId = cookieMatch?.id ?? list[0]?.id ?? ''
+    if (isMaster) {
+      const cookieStore = await cookies()
+      const selectedId = cookieStore.get('selected_facility_id')?.value
+      const cookieMatch = selectedId ? list.find((f) => f.id === selectedId) : null
+      initialFacilityId = cookieMatch?.id ?? list[0]?.id ?? ''
+    } else {
+      // getUserFacility already resolved the selected-facility cookie
+      initialFacilityId = facilityUser!.facilityId
+    }
   } else {
     initialFacilityId = facilityUser!.facilityId
   }

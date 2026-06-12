@@ -101,12 +101,13 @@ const IMPORTERS: {
     endpoint: '/api/super-admin/qb-import/unapplied',
     description: 'Finds payments QuickBooks received but never applied to an invoice.',
     detail:
-      'These unapplied credits are why QB’s Accounts Receivable is lower than the sum of open invoices — the money came in but was never matched to an invoice. Export with the date range set to "All Dates". The import builds a per-facility, per-resident checklist so you can apply each credit inside QuickBooks (open the customer → Receive Payment → apply the credit), then re-run Step 2 to sync the new balances. Each run replaces the previous snapshot.',
+      'These unapplied credits are why QB’s Accounts Receivable is lower than the sum of open invoices — the money came in but was never matched to an invoice. Export with the date range set to "All Dates". The import builds a per-facility, per-resident checklist where credits can be applied to open invoices on the website — automatically when amounts match, or manually. Mirror each application inside QuickBooks, then re-run Step 2 to converge. Re-imports preserve credits already applied on the site.',
     stats: [
       { key: 'imported', label: 'Unapplied credits found' },
       { key: 'residentMatched', label: 'Linked to residents' },
       { key: 'facilityLevel', label: 'Facility-level payments' },
       { key: 'residentUnmatched', label: 'Resident not found' },
+      { key: 'preservedApplied', label: 'Already applied on site' },
       { key: 'totalUnappliedCents', label: 'Total unapplied', isDollars: true, highlight: true },
     ],
     resultLink: { href: '/master-admin/unapplied-credits', label: 'View the full checklist →' },

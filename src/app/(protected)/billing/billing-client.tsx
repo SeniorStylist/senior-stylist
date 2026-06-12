@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
   BillingSummary,
@@ -68,11 +69,21 @@ interface FacilityOption {
 
 interface CrossFacilitySummary {
   totalOutstandingCents: number
-  collectedThisMonthCents: number
-  invoicedThisMonthCents: number
+  rangeOutstandingCents: number
+  collectedCents: number
+  invoicedCents: number
   facilitiesOverdueCount: number
   totalRevShareCents?: number
   totalNetCents?: number
+  totalUnappliedCents?: number
+}
+
+const PERIOD_NOUN: Record<Period, string> = {
+  week: 'This Week',
+  month: 'This Month',
+  year: 'This Year',
+  custom: 'Custom Range',
+  all: 'All Time',
 }
 
 function paymentTypeLabel(pt: string | null | undefined): string {
@@ -145,7 +156,8 @@ export function BillingClient({
     if (!isMaster) return
     let cancelled = false
     setCrossLoading(true)
-    fetch('/api/billing/cross-facility-summary')
+    const qs = new URLSearchParams({ from: dateRange.from, to: dateRange.to }).toString()
+    fetch(`/api/billing/cross-facility-summary?${qs}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
@@ -164,7 +176,7 @@ export function BillingClient({
     return () => {
       cancelled = true
     }
-  }, [isMaster])
+  }, [isMaster, dateRange.from, dateRange.to])
 
   useEffect(() => {
     if (!facilityId) {
@@ -268,11 +280,16 @@ export function BillingClient({
   const receivedAnimated = useCountUp(totals.received)
   const outstandingAnimated = useCountUp(totals.outstanding)
 
-  const crossOutstandingAnimated = useCountUp(crossSummary?.totalOutstandingCents ?? 0)
-  const crossCollectedAnimated = useCountUp(crossSummary?.collectedThisMonthCents ?? 0)
-  const crossInvoicedAnimated = useCountUp(crossSummary?.invoicedThisMonthCents ?? 0)
+  const crossOutstandingValue =
+    activePeriod === 'all'
+      ? crossSummary?.totalOutstandingCents ?? 0
+      : crossSummary?.rangeOutstandingCents ?? 0
+  const crossOutstandingAnimated = useCountUp(crossOutstandingValue)
+  const crossCollectedAnimated = useCountUp(crossSummary?.collectedCents ?? 0)
+  const crossInvoicedAnimated = useCountUp(crossSummary?.invoicedCents ?? 0)
   const crossOverdueAnimated = useCountUp(crossSummary?.facilitiesOverdueCount ?? 0)
   const crossUnresolvedAnimated = useCountUp(totalUnresolvedCount)
+  const crossUnappliedCents = crossSummary?.totalUnappliedCents ?? 0
 
   const paymentType = summary?.facility.paymentType ?? null
   const showRevShareRow =
@@ -280,6 +297,60 @@ export function BillingClient({
 
   const currentRevShare = summary?.facility.qbRevShareType ?? 'we_deduct'
   const revShareLabelText = currentRevShare === 'facility_deducts' ? 'Facility deducts' : 'Senior Stylist deducts'
+
+  const periodPills = (
+    <>
+      {(['week', 'month', 'year', 'custom', 'all'] as const).map((p) => {
+        const label =
+          p === 'week'
+            ? 'Week'
+            : p === 'month'
+              ? 'Month'
+              : p === 'year'
+                ? 'Year'
+                : p === 'custom'
+                  ? 'Custom'
+                  : 'All'
+        const active = activePeriod === p
+        return (
+          <button
+            key={p}
+            type="button"
+            onClick={() => handlePeriod(p)}
+            className={`${btnHubInteractive} rounded-full px-3 py-1 text-xs font-semibold ${
+              active
+                ? 'bg-[#8B2E4A] text-white'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+            }`}
+          >
+            {label}
+          </button>
+        )
+      })}
+      {activePeriod !== 'all' ? (
+        <span className="text-xs text-stone-400 ml-1">
+          {dateRange.from} → {dateRange.to}
+        </span>
+      ) : null}
+    </>
+  )
+
+  async function handlePickFacility(id: string) {
+    setFacilityComboOpen(false)
+    setFacilityComboSearch('')
+    // Bookkeepers (non-master) scope every facility-gated API through the
+    // selected_facility_id cookie — sync it BEFORE fetching so guards pass.
+    if (!isMaster) {
+      try {
+        await fetch('/api/facilities/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ facilityId: id }),
+        })
+      } catch { /* fall through — the summary fetch will surface any error */ }
+    }
+    setFacilityId(id)
+  }
 
   function handlePeriod(p: Period) {
     setActivePeriod(p)
@@ -479,6 +550,39 @@ export function BillingClient({
       </h1>
 
       {isMaster ? (
+        <>
+        <div className="mb-3 flex flex-wrap items-center gap-2">{periodPills}</div>
+        {customOpen && activePeriod === 'custom' ? (
+          <div className={`${modalEnter} mb-3 inline-block bg-white border border-stone-200 rounded-2xl shadow-lg p-4`}>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-xs font-semibold text-stone-500">
+                From
+                <input
+                  type="date"
+                  value={tempFrom}
+                  onChange={(e) => setTempFrom(e.target.value)}
+                  className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
+                />
+              </label>
+              <label className="text-xs font-semibold text-stone-500">
+                To
+                <input
+                  type="date"
+                  value={tempTo}
+                  onChange={(e) => setTempTo(e.target.value)}
+                  className={`block mt-1 rounded-xl border border-stone-200 px-2 py-1 text-sm focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={applyCustom}
+                className={`${btnBase} bg-[#8B2E4A] text-white rounded-xl px-4 py-1.5 text-sm font-semibold hover:bg-[#72253C]`}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {crossLoading ? (
             <>
@@ -496,17 +600,25 @@ export function BillingClient({
                 className={`${btnBase} text-left w-full bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
-                  Total Outstanding
+                  {activePeriod === 'all' ? 'Total Outstanding' : `Outstanding ${PERIOD_NOUN[activePeriod]}`}
                 </div>
                 <div
                   className={
-                    crossSummary.totalOutstandingCents > 0
+                    crossOutstandingValue > 0
                       ? 'text-xl font-bold text-amber-700'
                       : 'text-xl font-bold text-stone-900'
                   }
                 >
                   {formatDollars(crossOutstandingAnimated)}
                 </div>
+                {activePeriod === 'all' && crossUnappliedCents > 0 ? (
+                  <div className="text-[10.5px] text-stone-500 mt-0.5 leading-tight">
+                    −{formatDollars(crossUnappliedCents)} unapplied ={' '}
+                    <span className="font-semibold text-stone-700">
+                      {formatDollars(Math.max(0, crossOutstandingValue - crossUnappliedCents))} net
+                    </span>
+                  </div>
+                ) : null}
               </button>
               <button
                 type="button"
@@ -514,7 +626,7 @@ export function BillingClient({
                 className={`${btnBase} text-left w-full bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
-                  Collected This Month
+                  Collected {PERIOD_NOUN[activePeriod]}
                 </div>
                 <div className="text-xl font-bold text-emerald-800">
                   {formatDollars(crossCollectedAnimated)}
@@ -526,7 +638,7 @@ export function BillingClient({
                 className={`${btnBase} text-left w-full bg-white rounded-2xl border border-stone-100 shadow-sm p-4 ${cardHover}`}
               >
                 <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
-                  Invoiced This Month
+                  Invoiced {PERIOD_NOUN[activePeriod]}
                 </div>
                 <div className="text-xl font-bold text-stone-900">
                   {formatDollars(crossInvoicedAnimated)}
@@ -579,6 +691,7 @@ export function BillingClient({
             </>
           ) : null}
         </div>
+        </>
       ) : null}
 
       {isMaster && crossSummary && (crossSummary.totalRevShareCents ?? 0) > 0 ? (
@@ -602,7 +715,7 @@ export function BillingClient({
         </div>
       ) : null}
 
-      {isMaster && facilityOptions.length > 1 ? (
+      {facilityOptions.length > 1 ? (
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="relative flex-1 max-w-xs" data-tour="billing-facility-select">
             <input
@@ -625,7 +738,7 @@ export function BillingClient({
                   <button
                     key={f.id}
                     type="button"
-                    onMouseDown={() => { setFacilityId(f.id); setFacilityComboOpen(false); setFacilityComboSearch('') }}
+                    onMouseDown={() => { void handlePickFacility(f.id) }}
                     className={`w-full text-left px-3 py-2 text-sm transition-colors ${f.id === facilityId ? 'bg-rose-50 text-[#8B2E4A] font-medium' : 'text-stone-900 hover:bg-stone-50'}`}
                   >
                     {f.facilityCode && <span className="text-stone-400 font-mono text-xs mr-1.5">{f.facilityCode} ·</span>}
@@ -908,7 +1021,17 @@ export function BillingClient({
                 {(summary?.facilityUnappliedCents ?? 0) > 0 && activePeriod === 'all' && (
                   <div className="mt-1 px-1 space-y-0.5">
                     <div className="text-xs text-stone-500">
-                      Unapplied credits: <span className="font-medium text-amber-700">−{formatDollars(summary!.facilityUnappliedCents)}</span>
+                      {isMaster ? (
+                        <Link
+                          href={`/master-admin/unapplied-credits?facility=${facilityId}`}
+                          className="hover:text-[#8B2E4A]"
+                        >
+                          Unapplied credits: <span className="font-medium text-amber-700">−{formatDollars(summary!.facilityUnappliedCents)}</span>
+                          <span className="text-[#8B2E4A] font-semibold ml-1">Apply →</span>
+                        </Link>
+                      ) : (
+                        <>Unapplied credits: <span className="font-medium text-amber-700">−{formatDollars(summary!.facilityUnappliedCents)}</span></>
+                      )}
                     </div>
                     <div className="text-xs text-stone-500">
                       Net outstanding: <span className="font-semibold text-stone-800">{formatDollars(Math.max(0, totals.outstanding - (summary?.facilityUnappliedCents ?? 0)))}</span>
@@ -919,38 +1042,7 @@ export function BillingClient({
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2" data-tour="billing-filters">
-              {(['week', 'month', 'year', 'custom', 'all'] as const).map((p) => {
-                const label =
-                  p === 'week'
-                    ? 'Week'
-                    : p === 'month'
-                      ? 'Month'
-                      : p === 'year'
-                        ? 'Year'
-                        : p === 'custom'
-                          ? 'Custom'
-                          : 'All'
-                const active = activePeriod === p
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => handlePeriod(p)}
-                    className={`${btnHubInteractive} rounded-full px-3 py-1 text-xs font-semibold ${
-                      active
-                        ? 'bg-[#8B2E4A] text-white'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-              {activePeriod !== 'all' ? (
-                <span className="text-xs text-stone-400 ml-1">
-                  {dateRange.from} → {dateRange.to}
-                </span>
-              ) : null}
+              {periodPills}
             </div>
 
             {customOpen && activePeriod === 'custom' ? (

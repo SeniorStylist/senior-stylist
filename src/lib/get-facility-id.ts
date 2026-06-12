@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { db } from '@/db'
-import { facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
+import { facilities, facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 /**
@@ -65,20 +65,29 @@ export async function getUserFacility(userId: string) {
 
     const selected = cookieStore.get('selected_facility_id')?.value
 
-    if (selected) {
-      const fu = await db.query.facilityUsers.findFirst({
-        where: and(
-          eq(facilityUsers.userId, userId),
-          eq(facilityUsers.facilityId, selected)
-        ),
-      })
-      if (fu) return normalizeRole(fu)
-    }
-
-    const row = await db.query.facilityUsers.findFirst({
+    const rows = await db.query.facilityUsers.findMany({
       where: eq(facilityUsers.userId, userId),
     })
-    return row ? normalizeRole(row) : null
+    if (rows.length === 0) return null
+
+    if (selected) {
+      const match = rows.find((r) => r.facilityId === selected)
+      if (match) return normalizeRole(match)
+
+      // Bookkeepers have cross-facility access by role definition — selecting a
+      // facility they hold no explicit membership row for resolves to a synthetic
+      // bookkeeper row, as long as that facility exists and is active.
+      const bookkeeperRow = rows.find((r) => r.role === 'bookkeeper')
+      if (bookkeeperRow) {
+        const fac = await db.query.facilities.findFirst({
+          where: and(eq(facilities.id, selected), eq(facilities.active, true)),
+          columns: { id: true },
+        })
+        if (fac) return { ...bookkeeperRow, facilityId: selected }
+      }
+    }
+
+    return normalizeRole(rows[0])
   } catch (err) {
     console.error('[getUserFacility] DB error:', err)
     return null

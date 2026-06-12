@@ -7,9 +7,10 @@ import { revalidateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbUnappliedCredits } from '@/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq, gt } from 'drizzle-orm'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { parseCustomerBalanceDetailCsv, chunkArr } from '@/lib/imports/qb-csv'
+import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
@@ -20,30 +21,11 @@ function normalizeKey(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-// Self-bootstrap: this environment can't always run drizzle/0008_qb_unapplied_credits.sql
-// by hand, so the route applies the same idempotent DDL on first use per instance.
-let ddlEnsured = false
-async function ensureTable(): Promise<void> {
-  if (ddlEnsured) return
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS qb_unapplied_credits (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      facility_id uuid NOT NULL REFERENCES facilities(id) ON DELETE CASCADE,
-      resident_id uuid REFERENCES residents(id) ON DELETE SET NULL,
-      qb_customer_id text NOT NULL,
-      txn_type text NOT NULL DEFAULT 'Payment',
-      txn_date date NOT NULL,
-      num text,
-      amount_cents integer NOT NULL DEFAULT 0,
-      open_balance_cents integer NOT NULL DEFAULT 0,
-      created_at timestamptz DEFAULT now()
-    )
-  `)
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS qb_unapplied_credits_facility_idx ON qb_unapplied_credits (facility_id)`)
-  await db.execute(sql`ALTER TABLE qb_unapplied_credits ENABLE ROW LEVEL SECURITY`)
-  await db.execute(sql`DROP POLICY IF EXISTS service_role_all ON qb_unapplied_credits`)
-  await db.execute(sql`CREATE POLICY "service_role_all" ON qb_unapplied_credits FOR ALL TO service_role USING (true) WITH CHECK (true)`)
-  ddlEnsured = true
+// Identity key for matching incoming CSV rows against credits already applied on
+// the site — QB still lists those as unapplied, so without this they'd reappear
+// as fresh open credits and double-count against the decremented invoices.
+function creditKey(r: { facilityId: string; qbCustomerId: string; txnDate: string; num: string | null; amountCents: number }): string {
+  return `${r.facilityId}|${r.qbCustomerId}|${r.txnDate}|${r.num ?? ''}|${r.amountCents}`
 }
 
 export async function POST(request: Request) {
@@ -70,7 +52,7 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    await ensureTable()
+    await ensureUnappliedSchema()
 
     const warnings: string[] = []
     const warn = (msg: string) => { if (warnings.length < MAX_WARNINGS) warnings.push(msg) }
@@ -149,10 +131,31 @@ export async function POST(request: Request) {
       })
     }
 
-    // Snapshot semantics: replace the whole table inside one transaction
+    // Snapshot semantics with one exception: credits applied ON THE SITE survive
+    // re-imports (QB still exports them as unapplied until mirrored in QB, and
+    // recreating them as open would double-count against the decremented invoices).
+    let preservedApplied = 0
     await db.transaction(async (tx) => {
-      await tx.delete(qbUnappliedCredits)
-      for (const ch of chunkArr(inserts, 200)) {
+      const appliedRows = await tx
+        .select({
+          facilityId: qbUnappliedCredits.facilityId,
+          qbCustomerId: qbUnappliedCredits.qbCustomerId,
+          txnDate: qbUnappliedCredits.txnDate,
+          num: qbUnappliedCredits.num,
+          amountCents: qbUnappliedCredits.amountCents,
+        })
+        .from(qbUnappliedCredits)
+        .where(gt(qbUnappliedCredits.appliedCents, 0))
+      const appliedKeys = new Set(appliedRows.map(creditKey))
+
+      await tx.delete(qbUnappliedCredits).where(eq(qbUnappliedCredits.appliedCents, 0))
+
+      const fresh = inserts.filter((r) => {
+        const dupe = appliedKeys.has(creditKey(r as Parameters<typeof creditKey>[0]))
+        if (dupe) preservedApplied++
+        return !dupe
+      })
+      for (const ch of chunkArr(fresh, 200)) {
         await tx.insert(qbUnappliedCredits).values(ch)
       }
     })
@@ -160,7 +163,8 @@ export async function POST(request: Request) {
     revalidateTag('billing', {})
     return Response.json({
       data: {
-        imported: inserts.length,
+        imported: inserts.length - preservedApplied,
+        preservedApplied,
         residentMatched,
         residentUnmatched,
         facilityLevel,
