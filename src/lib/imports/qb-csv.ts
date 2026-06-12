@@ -260,7 +260,7 @@ export function parseGroupedTransactionsCsv(text: string): { format: GroupedForm
 
     if (col0) {
       if (isTotalRow(col0)) { current = null; continue }
-      if (isTimestampRow(col0)) continue
+      if (isTimestampRow(col0)) { current = null; continue }
       const existing = byRaw.get(col0)
       if (existing) { current = existing; continue }
       const fCode = extractFCode(col0)
