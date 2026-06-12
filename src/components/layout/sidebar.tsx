@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import { NeedsReviewBadge } from '@/components/layout/needs-review-badge'
+import { FeedbackBadge } from '@/components/layout/feedback-badge'
 import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
@@ -522,7 +523,10 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                 </svg>
               </span>
               Master Admin
-              <NeedsReviewBadge />
+              <span className="ml-auto flex items-center gap-1">
+                <NeedsReviewBadge />
+                <FeedbackBadge />
+              </span>
             </Link>
           )}
       </div>

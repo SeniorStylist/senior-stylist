@@ -9,11 +9,39 @@ import { eq, desc } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
+const metaSchema = z.object({
+  viewport: z.string().max(20),
+  screen: z.string().max(20),
+  dpr: z.number(),
+  timezone: z.string().max(100),
+  language: z.string().max(20),
+  standalone: z.boolean(),
+  online: z.boolean(),
+}).partial()
+
 const createSchema = z.object({
   category: z.enum(['bug', 'idea', 'praise', 'other']),
   message: z.string().min(2).max(2000),
-  pagePath: z.string().max(200).optional(),
+  pagePath: z.string().max(300).optional(),
+  meta: metaSchema.optional(),
 })
+
+// Short human summary for the notification email, e.g. "iPhone · 390x844 · PWA · America/New_York"
+function deviceSummary(userAgent: string | null, meta: z.infer<typeof metaSchema> | undefined): string | null {
+  const parts: string[] = []
+  if (userAgent) {
+    if (/iPhone/i.test(userAgent)) parts.push('iPhone')
+    else if (/iPad/i.test(userAgent)) parts.push('iPad')
+    else if (/Android/i.test(userAgent)) parts.push('Android')
+    else if (/Macintosh/i.test(userAgent)) parts.push('Mac')
+    else if (/Windows/i.test(userAgent)) parts.push('Windows')
+  }
+  if (meta?.viewport) parts.push(meta.viewport)
+  if (meta?.standalone) parts.push('PWA')
+  if (meta?.timezone) parts.push(meta.timezone)
+  if (meta?.online === false) parts.push('offline')
+  return parts.length > 0 ? parts.join(' · ') : null
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +60,8 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return Response.json({ error: 'Invalid request' }, { status: 422 })
     }
-    const { category, message, pagePath } = parsed.data
+    const { category, message, pagePath, meta } = parsed.data
+    const userAgent = request.headers.get('user-agent')?.slice(0, 300) ?? null
 
     // Facility/role context is best-effort — feedback must save even when the
     // sender has no facility (e.g. master admin browsing).
@@ -58,7 +87,8 @@ export async function POST(request: NextRequest) {
       category,
       message,
       pagePath: pagePath ?? null,
-      userAgent: request.headers.get('user-agent')?.slice(0, 300) ?? null,
+      userAgent,
+      meta: meta ?? null,
     })
 
     // Notify the product owner — fire-and-forget (background notification).
@@ -83,6 +113,7 @@ export async function POST(request: NextRequest) {
           senderRole: facilityUser?.role ?? null,
           facilityName: facility?.name ?? null,
           pagePath: pagePath ?? null,
+          device: deviceSummary(userAgent, meta),
         }),
       }).catch(() => {})
     }
@@ -141,6 +172,7 @@ export async function GET() {
         status: r.status,
         role: r.role,
         pagePath: r.pagePath,
+        meta: r.meta ?? null,
         createdAt: r.createdAt,
         senderName: r.userId ? profileMap.get(r.userId) ?? '—' : '—',
         facilityName: r.facilityId ? facilityMap.get(r.facilityId) ?? '—' : null,

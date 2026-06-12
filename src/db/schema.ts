@@ -893,6 +893,8 @@ export const feedbackSubmissions = pgTable('feedback_submissions', {
   message: text('message').notNull(),
   pagePath: text('page_path'),
   userAgent: text('user_agent'),
+  // Client context snapshot — viewport, screen, dpr, timezone, language, standalone (PWA), online
+  meta: jsonb('meta').$type<Record<string, string | number | boolean> | null>(),
   status: text('status').notNull().default('new'), // 'new' | 'reviewed' | 'resolved'
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

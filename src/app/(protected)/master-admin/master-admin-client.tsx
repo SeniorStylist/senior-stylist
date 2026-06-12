@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ReportsTab } from './reports-tab'
@@ -121,6 +121,15 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   const [showInactive, setShowInactive] = useState(false)
   const [facilitySortBy, setFacilitySortBy] = useState<'fid' | 'name'>('fid')
   const [facilitySearch, setFacilitySearch] = useState('')
+
+  // New-feedback count for the toolbar pill — fire-and-forget
+  const [newFeedbackCount, setNewFeedbackCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/feedback/count')
+      .then((r) => r.json())
+      .then((j) => { if (typeof j.data?.count === 'number') setNewFeedbackCount(j.data.count) })
+      .catch(() => {})
+  }, [])
 
   // Create form
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -454,6 +463,17 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                 className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
               >
                 Imports →
+              </a>
+              <a
+                href="/master-admin/feedback"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                Feedback →
+                {newFeedbackCount > 0 && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-rose-100 text-[#8B2E4A]">
+                    {newFeedbackCount} new
+                  </span>
+                )}
               </a>
             </div>
             {activeTab === 'facilities' && (

@@ -892,6 +892,11 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `DELETE /api/help/demo-data` | Authenticated; admin-only (Phase 13-Tutorial) | Soft-deletes (`active=false`) all `is_demo=true` residents, stylists, services, and bookings for the caller's facility. Hard-deletes demo `log_entries` and `stylist_checkins` (no `active` column on those tables). Called from Settings → Advanced "Tutorial Data" card after two-step confirmation. |
 | `POST /api/profile/first-tour-seen` | Authenticated (Phase 13-Tutorial) | Flips `profiles.has_seen_first_tour = true` for the caller. No body required. Returns `{ data: { ok: true } }`. |
 | `GET /api/cron/help-demo-cleanup` | **Vercel Cron** (`Bearer CRON_SECRET`) (Phase 13-Tutorial) | Weekly Sunday 03:00 UTC. Hard-deletes all `is_demo=true AND active=false` records older than 90 days from residents/stylists/services/bookings. Hard-deletes orphaned demo log_entries and stylist_checkins older than 90 days. `maxDuration=60`. |
+| `POST /api/feedback` | Authenticated, rate-limited `feedback` (10/h/user) (2026-06-11, v2 2026-06-12) | Body `{ category: bug\|idea\|praise\|other, message ≤2000, pagePath ≤300 (path+query), meta? { viewport, screen, dpr, timezone, language, standalone, online } }`. Inserts `feedback_submissions` row (facility/role context best-effort via `getUserFacility`); fire-and-forget notification email to `profiles.feedback_email` of the master admin (fallback `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`) with a Device summary row. Calls `ensureFeedbackSchema()` (self-bootstrapping DDL — `src/lib/feedback-ddl.ts`). |
+| `GET /api/feedback` | **Master admin** | 200 most recent submissions, batch-resolved sender/facility names, includes `meta`. |
+| `GET /api/feedback/count` | **Master admin** (2026-06-12) | Count of `status='new'` submissions. Errors return `{ data: { count: 0 } }`. Drives `<FeedbackBadge />` (sidebar Master Admin link) and the "Feedback →" toolbar pill in master-admin-client. |
+| `PATCH /api/feedback/[id]` | **Master admin** | Body `{ status: new\|reviewed\|resolved }`. |
+| `GET/PATCH /api/feedback/settings` | **Master admin** | Forward-email setting (`profiles.feedback_email`, nullable). PATCH body `{ feedbackEmail: email\|null }`. |
 
 ---
 

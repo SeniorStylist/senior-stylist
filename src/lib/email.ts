@@ -597,8 +597,9 @@ export function buildFeedbackEmailHtml(params: {
   senderRole: string | null
   facilityName: string | null
   pagePath: string | null
+  device?: string | null
 }): string {
-  const { category, message, senderName, senderRole, facilityName, pagePath } = params
+  const { category, message, senderName, senderRole, facilityName, pagePath, device } = params
   const categoryLabel: Record<string, string> = {
     bug: '🐞 Bug report',
     idea: '💡 Idea',
@@ -622,6 +623,7 @@ export function buildFeedbackEmailHtml(params: {
         ${metaRow('From', senderName)}
         ${senderRole ? metaRow('Role', senderRole) : ''}
         ${pagePath ? metaRow('Page', pagePath) : ''}
+        ${device ? metaRow('Device', device) : ''}
         ${metaRow('Type', label)}
       </table>
       <p style="margin:20px 0 0;">

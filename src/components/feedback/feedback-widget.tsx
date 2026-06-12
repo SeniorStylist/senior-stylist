@@ -71,13 +71,27 @@ export function FeedbackWidget() {
     }
   }, [open])
 
-  const toggleVoice = () => {
+  const toggleVoice = async () => {
     if (listening) {
       recognitionRef.current?.stop()
       return
     }
     const SR = getSpeechRecognition()
     if (!SR) return
+    // Trigger the browser's native mic permission prompt — SpeechRecognition alone
+    // doesn't reliably prompt on mobile Safari / PWA. Release the stream right
+    // away; the recognition engine grabs the mic itself.
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+        setMicDenied(false)
+      } catch {
+        setMicDenied(true)
+        toast.error('Microphone access denied')
+        return
+      }
+    }
     const rec = new SR()
     rec.lang = 'en-US'
     rec.continuous = true
@@ -129,7 +143,16 @@ export function FeedbackWidget() {
         body: JSON.stringify({
           category,
           message: text,
-          pagePath: window.location.pathname.slice(0, 200),
+          pagePath: (window.location.pathname + window.location.search).slice(0, 300),
+          meta: {
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            screen: `${window.screen.width}x${window.screen.height}`,
+            dpr: window.devicePixelRatio,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            language: navigator.language,
+            standalone: window.matchMedia('(display-mode: standalone)').matches,
+            online: navigator.onLine,
+          },
         }),
       })
       if (!res.ok) {
@@ -197,7 +220,7 @@ export function FeedbackWidget() {
         {speechSupported && (
           <button
             type="button"
-            onClick={micDenied ? () => setMicDenied(false) : toggleVoice}
+            onClick={toggleVoice}
             aria-label={micDenied ? 'Retry microphone' : listening ? 'Stop dictation' : 'Dictate feedback'}
             title={micDenied ? 'Tap to retry mic access' : listening ? 'Stop dictation' : 'Dictate feedback'}
             className={`absolute right-2 top-2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${

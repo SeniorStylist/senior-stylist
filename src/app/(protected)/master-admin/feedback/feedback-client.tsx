@@ -6,6 +6,16 @@ import { useToast } from '@/components/ui/toast'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 
+interface FeedbackMeta {
+  viewport?: string
+  screen?: string
+  dpr?: number
+  timezone?: string
+  language?: string
+  standalone?: boolean
+  online?: boolean
+}
+
 interface FeedbackRow {
   id: string
   category: string
@@ -13,9 +23,21 @@ interface FeedbackRow {
   status: string
   role: string | null
   pagePath: string | null
+  meta: FeedbackMeta | null
   createdAt: string
   senderName: string
   facilityName: string | null
+}
+
+function metaSummary(meta: FeedbackMeta | null): string | null {
+  if (!meta) return null
+  const parts: string[] = []
+  if (meta.viewport) parts.push(meta.viewport)
+  if (meta.standalone) parts.push('PWA')
+  if (meta.timezone) parts.push(meta.timezone)
+  if (meta.language) parts.push(meta.language)
+  if (meta.online === false) parts.push('offline')
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 const CATEGORY_CHIP: Record<string, { label: string; cls: string }> = {
@@ -202,8 +224,13 @@ export function FeedbackClient() {
                   </span>
                 </div>
                 <p className="text-sm text-stone-800 whitespace-pre-wrap leading-relaxed">{r.message}</p>
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-[11px] text-stone-400 font-mono">{r.pagePath ?? ''}</span>
+                <div className="flex items-center justify-between mt-3 gap-3">
+                  <div className="min-w-0">
+                    <span className="block text-[11px] text-stone-400 font-mono truncate">{r.pagePath ?? ''}</span>
+                    {metaSummary(r.meta) && (
+                      <span className="block text-[10.5px] text-stone-400 truncate">{metaSummary(r.meta)}</span>
+                    )}
+                  </div>
                   <select
                     value={r.status}
                     onChange={(e) => setStatus(r.id, e.target.value)}
