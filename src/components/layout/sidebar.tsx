@@ -248,7 +248,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
     ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
     : user.email?.slice(0, 2).toUpperCase() ?? '??'
 
-  const showSwitcher = allFacilities.length > 1 && role === 'admin'
+  const showSwitcher = allFacilities.length > 1 && (role === 'admin' || role === 'bookkeeper')
 
   return (
     <aside

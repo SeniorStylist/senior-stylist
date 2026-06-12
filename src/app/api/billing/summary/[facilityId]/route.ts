@@ -1,8 +1,8 @@
 import { unstable_cache } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
-import { and, desc, eq, gte, lte } from 'drizzle-orm'
+import { facilities, residents, qbInvoices, qbPayments, qbUnappliedCredits } from '@/db/schema'
+import { and, desc, eq, gte, lte, sum } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { NextRequest } from 'next/server'
@@ -26,7 +26,7 @@ const getBillingSummaryData = unstable_cache(
       lte(qbPayments.paymentDate, to)
     )
 
-    const [facility, residentList, invoices, payments] = await Promise.all([
+    const [facility, residentList, invoices, payments, unappliedRow] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, facilityId),
         columns: {
@@ -91,6 +91,9 @@ const getBillingSummaryData = unstable_cache(
         orderBy: [desc(qbPayments.paymentDate)],
         limit: 200,
       }),
+      db.select({ total: sum(qbUnappliedCredits.openBalanceCents) })
+        .from(qbUnappliedCredits)
+        .where(eq(qbUnappliedCredits.facilityId, facilityId)),
     ])
 
     const facilityClean = facility
@@ -103,7 +106,9 @@ const getBillingSummaryData = unstable_cache(
         })()
       : null
 
-    return { facility: facilityClean, residents: residentList, invoices, payments }
+    const facilityUnappliedCents = Number(unappliedRow[0]?.total ?? 0) || 0
+
+    return { facility: facilityClean, residents: residentList, invoices, payments, facilityUnappliedCents }
   },
   ['billing-summary'],
   { revalidate: 120, tags: ['billing'] }

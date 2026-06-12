@@ -94,6 +94,7 @@ export interface BillingSummary {
   residents: BillingResident[]
   invoices: BillingInvoice[]
   payments: BillingPayment[]
+  facilityUnappliedCents: number
 }
 
 const USD = new Intl.NumberFormat('en-US', {

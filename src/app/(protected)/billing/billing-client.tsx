@@ -26,7 +26,7 @@ import {
   transitionBase,
 } from '@/lib/animations'
 
-type Period = 'month' | 'year' | 'custom' | 'all'
+type Period = 'week' | 'month' | 'year' | 'custom' | 'all'
 interface DateRange {
   from: string
   to: string
@@ -36,6 +36,14 @@ function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
   ).padStart(2, '0')}`
+}
+
+function currentWeekRange(): DateRange {
+  const today = new Date()
+  const day = today.getDay()
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1))
+  return { from: toISODate(monday), to: toISODate(today) }
 }
 
 function currentMonthRange(): DateRange {
@@ -276,7 +284,8 @@ export function BillingClient({
   function handlePeriod(p: Period) {
     setActivePeriod(p)
     setCustomOpen(p === 'custom')
-    if (p === 'month') setDateRange(currentMonthRange())
+    if (p === 'week') setDateRange(currentWeekRange())
+    else if (p === 'month') setDateRange(currentMonthRange())
     else if (p === 'year') setDateRange(currentYearRange())
     else if (p === 'all') setDateRange(ALL_TIME_RANGE)
     else if (p === 'custom') {
@@ -896,19 +905,31 @@ export function BillingClient({
                     description="The total unpaid invoice balance for this facility. Tap to learn how to send a statement or scan a check."
                   />
                 </div>
+                {(summary?.facilityUnappliedCents ?? 0) > 0 && activePeriod === 'all' && (
+                  <div className="mt-1 px-1 space-y-0.5">
+                    <div className="text-xs text-stone-500">
+                      Unapplied credits: <span className="font-medium text-amber-700">−{formatDollars(summary!.facilityUnappliedCents)}</span>
+                    </div>
+                    <div className="text-xs text-stone-500">
+                      Net outstanding: <span className="font-semibold text-stone-800">{formatDollars(Math.max(0, totals.outstanding - (summary?.facilityUnappliedCents ?? 0)))}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2" data-tour="billing-filters">
-              {(['month', 'year', 'custom', 'all'] as const).map((p) => {
+              {(['week', 'month', 'year', 'custom', 'all'] as const).map((p) => {
                 const label =
-                  p === 'month'
-                    ? 'Month'
-                    : p === 'year'
-                      ? 'Year'
-                      : p === 'custom'
-                        ? 'Custom'
-                        : 'All'
+                  p === 'week'
+                    ? 'Week'
+                    : p === 'month'
+                      ? 'Month'
+                      : p === 'year'
+                        ? 'Year'
+                        : p === 'custom'
+                          ? 'Custom'
+                          : 'All'
                 const active = activePeriod === p
                 return (
                   <button

@@ -3,6 +3,7 @@
 // invoices and QB's net A/R), attributed to facility + resident. Snapshot semantics:
 // the table is wiped and replaced on every import. Master admin only.
 
+import { revalidateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, qbUnappliedCredits } from '@/db/schema'
@@ -156,6 +157,7 @@ export async function POST(request: Request) {
       }
     })
 
+    revalidateTag('billing', {})
     return Response.json({
       data: {
         imported: inserts.length,

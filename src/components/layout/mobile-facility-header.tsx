@@ -37,7 +37,7 @@ export function MobileFacilityHeader({
     return (localStorage.getItem('facilitySortOrder') as 'fid' | 'name') ?? 'fid'
   })
 
-  const showSwitcher = allFacilities.length > 1 && role === 'admin'
+  const showSwitcher = allFacilities.length > 1 && (role === 'admin' || role === 'bookkeeper')
 
   const sortedFacilities = useMemo(() => {
     return [...allFacilities].sort((a, b) => {
