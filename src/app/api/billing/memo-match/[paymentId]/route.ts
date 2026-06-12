@@ -1,6 +1,6 @@
 // Memo dissection — turn free-text check memos like
 // "Payment for 05/26/26 Jean Hall $48 Alma Markley $48 ..." into per-resident
-// attributions. GET previews (parse + fuzzy resident match + unpaid-booking
+// attributions. GET previews (Gemini AI parse + fuzzy resident match + unpaid-booking
 // candidates); POST applies operator-confirmed lines: flips the bookings to
 // paid with a "Paid via check #N" note and stores the breakdown on the payment.
 // Preview/confirm contract — the server NEVER auto-applies fuzzy matches.
@@ -13,8 +13,11 @@ import { qbPayments, residents, facilities, bookings } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
-import { parseMemo } from '@/lib/memo-attribution'
+import { parseMemo, ParsedMemo } from '@/lib/memo-attribution'
 import { fuzzyScore } from '@/lib/fuzzy'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+
+export const maxDuration = 60
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -31,6 +34,73 @@ const applySchema = z.object({
     .min(1)
     .max(30),
 })
+
+// Call Gemini to extract names + amounts from a memo. Falls back to the
+// heuristic parseMemo() when Gemini is unavailable or returns bad JSON.
+async function geminiParseMemo(memo: string, totalCents: number): Promise<ParsedMemo | null> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return null
+
+  const totalDollars = (totalCents / 100).toFixed(2)
+  const prompt = `Extract the service date and per-person payment amounts from this check memo. Respond with ONLY a JSON object — no explanation, no markdown fences.
+
+Memo: "${memo.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
+Total check amount: $${totalDollars}
+
+Return this exact JSON shape:
+{"serviceDate":"YYYY-MM-DD or null","lines":[{"name":"Person Full Name","amountCents":4800}]}
+
+Rules:
+- serviceDate: date found in the memo as YYYY-MM-DD, or null if not found
+- lines: one entry per named person only — skip facility names, generic words like "Payment for"
+- amountCents: integer cents (e.g. $48.00 → 4800); null only when a person has no explicit dollar amount
+- If exactly one person has null amountCents, compute the remainder (total check minus sum of explicit amounts) and use that as their amountCents when the remainder is positive
+- Each name must be 2–4 words, an actual human name (first + last, optionally middle)`
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[]
+    }
+    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+    // Strip markdown fences if Gemini wraps the JSON anyway
+    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    const parsed = JSON.parse(clean) as {
+      serviceDate?: unknown
+      lines?: unknown[]
+    }
+    if (!parsed || !Array.isArray(parsed.lines)) return null
+    return {
+      serviceDate:
+        typeof parsed.serviceDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.serviceDate)
+          ? parsed.serviceDate
+          : null,
+      lines: parsed.lines
+        .filter(
+          (l): l is { name: string; amountCents: unknown } =>
+            !!l && typeof (l as Record<string, unknown>).name === 'string' &&
+            ((l as Record<string, unknown>).name as string).trim().length >= 2
+        )
+        .map((l) => ({
+          rawName: l.name.trim(),
+          amountCents:
+            typeof l.amountCents === 'number' &&
+            Number.isFinite(l.amountCents) &&
+            l.amountCents >= 0
+              ? Math.round(l.amountCents)
+              : null,
+        })),
+    }
+  } catch {
+    return null
+  }
+}
 
 async function authorize(paymentId: string) {
   const supabase = await createClient()
@@ -84,7 +154,7 @@ async function authorize(paymentId: string) {
       ),
     }
   }
-  return { payment }
+  return { payment, userId: user.id }
 }
 
 export async function GET(
@@ -99,9 +169,16 @@ export async function GET(
   try {
     const auth = await authorize(paymentId)
     if ('error' in auth) return auth.error
-    const { payment } = auth
+    const { payment, userId } = auth
 
-    const parsed = parseMemo(payment.memo!, payment.amountCents)
+    const rl = await checkRateLimit('memoMatch', `u:${userId}`)
+    if (!rl.ok) return rateLimitResponse(rl.retryAfter)
+
+    // Try Gemini first; fall back to heuristic parser
+    const parsed =
+      (await geminiParseMemo(payment.memo!, payment.amountCents)) ??
+      parseMemo(payment.memo!, payment.amountCents)
+
     if (parsed.lines.length === 0) {
       return Response.json({ data: { serviceDate: parsed.serviceDate, lines: [] } })
     }
