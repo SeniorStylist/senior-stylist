@@ -186,7 +186,8 @@ export function BillingClient({
   const [scanResolveData, setScanResolveData] = useState<
     { id: string; data: ScanResult } | null
   >(null)
-  const [showMemoBatchModal, setShowMemoBatchModal] = useState(false)
+  // 'facility' scans the selected facility's memos; 'all' sweeps every facility
+  const [memoBatchScope, setMemoBatchScope] = useState<'facility' | 'all' | null>(null)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [totalUnresolvedCount, setTotalUnresolvedCount] = useState(0)
 
@@ -615,10 +616,10 @@ export function BillingClient({
         />
       )}
 
-      {showMemoBatchModal && facilityId && (
+      {memoBatchScope && (
         <MemoBatchModal
-          facilityId={facilityId}
-          onClose={() => setShowMemoBatchModal(false)}
+          facilityId={memoBatchScope === 'all' ? null : facilityId}
+          onClose={() => setMemoBatchScope(null)}
           onApplied={() => setRefreshKey((k) => k + 1)}
         />
       )}
@@ -772,7 +773,21 @@ export function BillingClient({
             </>
           ) : null}
         </div>
-        <div className="flex items-center justify-end mb-1 -mt-2">
+        <div className="flex items-center justify-between gap-3 mb-1 -mt-2">
+          <button
+            type="button"
+            onClick={() => setMemoBatchScope('all')}
+            className={`${btnBase} inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-semibold bg-white border border-stone-200 text-stone-600 hover:border-[#8B2E4A]/30 hover:text-[#8B2E4A]`}
+            title="AI-scan unmatched check memos across every facility and attribute them to residents"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <line x1="11" y1="8" x2="11" y2="14" />
+              <line x1="8" y1="11" x2="14" y2="11" />
+            </svg>
+            Scan all memos — every facility
+          </button>
           <Link href="/master-admin/unapplied-credits" className="text-[11px] text-[#8B2E4A] hover:underline transition-colors">
             Manage unapplied credits →
           </Link>
@@ -834,31 +849,6 @@ export function BillingClient({
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => { setScanResolveData(null); setShowScanModal(true) }}
-            className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-            Scan Check
-          </button>
-        </div>
-      ) : !isMaster ? (
-        <div className="mb-4 flex justify-end">
-          <button
-            type="button"
-            onClick={() => { setScanResolveData(null); setShowScanModal(true) }}
-            className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-            Scan Check
-          </button>
         </div>
       ) : null}
 
@@ -889,87 +879,91 @@ export function BillingClient({
             </div>
           )}
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 mb-4">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h2
-                    className="text-xl md:text-2xl text-stone-900 truncate"
-                    style={{ fontFamily: 'DM Serif Display, serif' }}
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2
+                className="text-xl md:text-2xl text-stone-900 truncate"
+                style={{ fontFamily: 'DM Serif Display, serif' }}
+              >
+                {summary.facility.name}
+              </h2>
+              {summary.facility.facilityCode ? (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500 font-mono text-[11px]">
+                  {summary.facility.facilityCode}
+                </span>
+              ) : null}
+              <span className="inline-flex items-center rounded-full bg-stone-100 text-stone-700 px-2 py-0.5 text-xs font-semibold">
+                {paymentTypeLabel(paymentType)}
+              </span>
+            </div>
+
+            {/* Action toolbar — grouped by task so each button has obvious context */}
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+              <div>
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">
+                  Review
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/billing/monthly?facility=${facilityId}`}
+                    data-tour="billing-monthly-view"
+                    className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold bg-[#F9EFF2] text-[#8B2E4A] border border-[#8B2E4A]/15 hover:bg-[#8B2E4A] hover:text-white transition-colors`}
                   >
-                    {summary.facility.name}
-                  </h2>
-                  {summary.facility.facilityCode ? (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-500 font-mono text-[11px]">
-                      {summary.facility.facilityCode}
-                    </span>
-                  ) : null}
-                  <span className="inline-flex items-center rounded-full bg-stone-100 text-stone-700 px-2 py-0.5 text-xs font-semibold">
-                    {paymentTypeLabel(paymentType)}
-                  </span>
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    Monthly view
+                  </Link>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <Link
-                  href={`/billing/monthly?facility=${facilityId}`}
-                  data-tour="billing-monthly-view"
-                  className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold bg-[#F9EFF2] text-[#8B2E4A] border border-[#8B2E4A]/15 hover:bg-[#8B2E4A] hover:text-white transition-colors`}
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  Monthly view
-                </Link>
-                {!contactEmail ? (
-                  <input
-                    type="email"
-                    value={sendEmailOverride}
-                    onChange={(e) => setSendEmailOverride(e.target.value)}
-                    placeholder="Recipient email…"
-                    className={`rounded-xl border border-stone-200 px-3 py-1.5 text-sm text-stone-900 w-56 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
-                  />
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScanResolveData(null)
-                    setShowScanModal(true)
-                  }}
-                  className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
-                  Scan Check
-                </button>
-                {(paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid') && (
+
+              <div className="sm:border-l sm:border-stone-100 sm:pl-6">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">
+                  Record payments
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowMemoBatchModal(true)}
+                    onClick={() => {
+                      setScanResolveData(null)
+                      setShowScanModal(true)
+                    }}
                     className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+                    title="Photograph a paper check and record it as a payment"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    Scan Check
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMemoBatchScope('facility')}
+                    className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+                    title="AI-read existing check memos and attribute amounts to residents"
                   >
                     <svg
                       width="16"
@@ -987,17 +981,33 @@ export function BillingClient({
                       <line x1="11" y1="8" x2="11" y2="14" />
                       <line x1="8" y1="11" x2="14" y2="11" />
                     </svg>
-                    Scan all memos
+                    Scan memos
                   </button>
-                )}
-                <button
-                  type="button"
-                  disabled={sendLoading || !sendToEmail}
-                  onClick={() => handleSendStatement(false)}
-                  data-tour="billing-send-statement"
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-40 disabled:cursor-not-allowed ${btnBase}`}
-                  title={!sendToEmail ? 'Enter a recipient email above' : undefined}
-                >
+                </div>
+              </div>
+
+              <div className="sm:border-l sm:border-stone-100 sm:pl-6">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">
+                  Statements
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {!contactEmail ? (
+                    <input
+                      type="email"
+                      value={sendEmailOverride}
+                      onChange={(e) => setSendEmailOverride(e.target.value)}
+                      placeholder="Recipient email…"
+                      className={`rounded-xl border border-stone-200 px-3 py-1.5 text-sm text-stone-900 w-48 focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:outline-none ${transitionBase}`}
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={sendLoading || !sendToEmail}
+                    onClick={() => handleSendStatement(false)}
+                    data-tour="billing-send-statement"
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-40 disabled:cursor-not-allowed ${btnBase}`}
+                    title={!sendToEmail ? 'Enter a recipient email first' : undefined}
+                  >
                   {sendLoading ? (
                     <>
                       <svg
@@ -1024,7 +1034,15 @@ export function BillingClient({
                   ) : (
                     'Send Statement'
                   )}
-                </button>
+                  </button>
+                </div>
+              </div>
+
+              <div className="sm:border-l sm:border-stone-100 sm:pl-6">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">
+                  QuickBooks
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
                 {summary?.facility.hasQuickBooks && qbInvoiceSyncEnabled ? (
                   <button
                     type="button"
@@ -1089,6 +1107,7 @@ export function BillingClient({
                   label="Send via QB"
                   title="Coming soon — available after Intuit approval"
                 />
+                </div>
               </div>
             </div>
 

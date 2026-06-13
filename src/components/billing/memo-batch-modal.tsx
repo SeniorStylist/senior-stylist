@@ -24,6 +24,9 @@ interface BatchLine {
 
 interface BatchPayment {
   paymentId: string
+  facilityId: string
+  facilityName: string
+  facilityCode: string | null
   checkNum: string | null
   paymentDate: string
   amountCents: number
@@ -53,10 +56,12 @@ export function MemoBatchModal({
   onClose,
   onApplied,
 }: {
-  facilityId: string
+  /** null = sweep every facility (master / bookkeeper only) */
+  facilityId: string | null
   onClose: () => void
   onApplied: () => void
 }) {
+  const allFacilities = facilityId === null
   const { toast } = useToast()
   const [state, setState] = useState<'loading' | 'empty' | 'error' | BatchPayment[]>('loading')
   // Set of paymentIds the operator wants to apply
@@ -186,7 +191,12 @@ export function MemoBatchModal({
   const checkedCount = checked.size
 
   return (
-    <Modal open onClose={onClose} title="Scan all memos" className="max-w-2xl">
+    <Modal
+      open
+      onClose={onClose}
+      title={allFacilities ? 'Scan all memos — every facility' : 'Scan all memos'}
+      className="max-w-2xl"
+    >
       <div className="p-5">
         {state === 'loading' ? (
           <div className="space-y-2">
@@ -201,7 +211,9 @@ export function MemoBatchModal({
           <p className="text-sm text-red-600">Could not scan memos — please try again.</p>
         ) : state === 'empty' ? (
           <p className="text-sm text-stone-500">
-            No unmatched memo payments found for this facility.
+            {allFacilities
+              ? 'No unmatched memo payments found across any facility — everything is already attributed.'
+              : 'No unmatched memo payments found for this facility.'}
           </p>
         ) : (
           <>
@@ -235,6 +247,12 @@ export function MemoBatchModal({
                         className="flex-1 min-w-0 text-left"
                       >
                         <div className="flex items-center gap-2 flex-wrap">
+                          {allFacilities && (
+                            <span className="inline-flex items-center rounded-full bg-stone-100 text-stone-600 px-2 py-0.5 text-[10px] font-semibold">
+                              {p.facilityCode ? `${p.facilityCode} · ` : ''}
+                              {p.facilityName}
+                            </span>
+                          )}
                           <span className="text-[13px] font-semibold text-stone-900">
                             {p.checkNum ? `Check #${p.checkNum}` : 'Check'}
                           </span>
