@@ -15,6 +15,7 @@ import { RFMSView } from './views/rfms-view'
 import { HybridView } from './views/hybrid-view'
 import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel'
 import { ScanCheckModal, ScanResult } from './components/scan-check-modal'
+import { MemoBatchModal } from '@/components/billing/memo-batch-modal'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -185,6 +186,7 @@ export function BillingClient({
   const [scanResolveData, setScanResolveData] = useState<
     { id: string; data: ScanResult } | null
   >(null)
+  const [showMemoBatchModal, setShowMemoBatchModal] = useState(false)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [totalUnresolvedCount, setTotalUnresolvedCount] = useState(0)
 
@@ -613,6 +615,14 @@ export function BillingClient({
         />
       )}
 
+      {showMemoBatchModal && facilityId && (
+        <MemoBatchModal
+          facilityId={facilityId}
+          onClose={() => setShowMemoBatchModal(false)}
+          onApplied={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
       <h1
         className="text-2xl md:text-3xl text-stone-900 mb-6"
         style={{ fontFamily: 'DM Serif Display, serif' }}
@@ -955,6 +965,31 @@ export function BillingClient({
                   </svg>
                   Scan Check
                 </button>
+                {(paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid') && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMemoBatchModal(true)}
+                    className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="11" y1="8" x2="11" y2="14" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                    Scan all memos
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={sendLoading || !sendToEmail}
