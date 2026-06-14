@@ -18,6 +18,7 @@ export async function GET(_request: NextRequest) {
         const invite = await db.query.invites.findFirst({
           where: (t) => eq(t.email, user.email!.toLowerCase()),
           orderBy: (t, { desc }) => [desc(t.createdAt)],
+          columns: { id: true, facilityId: true },
         })
         if (invite) {
           facilityId = invite.facilityId

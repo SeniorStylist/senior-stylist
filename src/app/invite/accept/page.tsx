@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { InviteAcceptClient } from './invite-accept-client'
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
 
 export default async function InviteAcceptPage({ searchParams }: Props) {
   const { token } = await searchParams
+
+  await ensureInviteTrackingSchema()
 
   // Look up invite by token
   const invite = token
@@ -25,6 +28,16 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
     !invite ||
     invite.used ||
     new Date(invite.expiresAt) < now
+
+  // Record the FIRST time the recipient opened the link (engagement signal —
+  // proves the email arrived and was clicked, even if they don't finish joining)
+  if (invite && !invite.used && !invite.viewedAt) {
+    await db
+      .update(invites)
+      .set({ viewedAt: now })
+      .where(eq(invites.id, invite.id))
+      .catch(() => {})
+  }
 
   if (isInvalid) {
     return (

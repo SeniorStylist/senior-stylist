@@ -6,8 +6,31 @@ import { eq, desc, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { sendEmail } from '@/lib/email'
+import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
+
+// Send the invite email and record the delivery outcome on the invite row.
+// AWAITED on purpose — a fire-and-forget send is dropped when Vercel freezes
+// the lambda on response, so the email never goes out and we can't tell.
+async function deliverInvite(opts: {
+  inviteId: string
+  to: string
+  facilityName: string
+  role: string
+  acceptUrl: string
+}): Promise<boolean> {
+  const emailSent = await sendEmail({
+    to: opts.to,
+    subject: `You're invited to join ${opts.facilityName}`,
+    html: buildInviteEmailHtml({ facilityName: opts.facilityName, role: opts.role, acceptUrl: opts.acceptUrl }),
+  })
+  await db
+    .update(invites)
+    .set({ lastSentAt: new Date(), emailFailed: !emailSent })
+    .where(eq(invites.id, opts.inviteId))
+  return emailSent
+}
 
 const createInviteSchema = z.object({
   email: z.string().email().max(320),
@@ -25,6 +48,8 @@ export async function POST(request: NextRequest) {
 
     const rl = await checkRateLimit('invites', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
+
+    await ensureInviteTrackingSchema()
 
     const isSuperAdmin = !!(
       process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
@@ -115,17 +140,22 @@ export async function POST(request: NextRequest) {
       // Pending (used=false) — refresh token + expiry and re-send
       const newToken = crypto.randomBytes(32).toString('hex')
       const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      const [refreshed] = await db
+      await db
         .update(invites)
         .set({ token: newToken, expiresAt: newExpiresAt, inviteRole: role })
         .where(eq(invites.id, existingInvite.id))
-        .returning()
-      sendEmail({
+      const emailSent = await deliverInvite({
+        inviteId: existingInvite.id,
         to: normalizedEmail,
-        subject: `You're invited to join ${facilityName}`,
-        html: buildInviteEmailHtml({ facilityName, role, acceptUrl: `${appUrl}/invite/accept?token=${newToken}` }),
+        facilityName,
+        role,
+        acceptUrl: `${appUrl}/invite/accept?token=${newToken}`,
       })
-      return Response.json({ data: refreshed, refreshed: true })
+      const [refreshed] = await db
+        .select()
+        .from(invites)
+        .where(eq(invites.id, existingInvite.id))
+      return Response.json({ data: refreshed, refreshed: true, emailSent })
     }
 
     const token = crypto.randomBytes(32).toString('hex')
@@ -143,15 +173,18 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // Send invite email (fire-and-forget)
+    // Send invite email — AWAITED so the lambda can't freeze before Resend fires
     const acceptUrl = `${appUrl}/invite/accept?token=${token}`
-    sendEmail({
+    const emailSent = await deliverInvite({
+      inviteId: invite.id,
       to: normalizedEmail,
-      subject: `You're invited to join ${facilityName}`,
-      html: buildInviteEmailHtml({ facilityName, role, acceptUrl }),
+      facilityName,
+      role,
+      acceptUrl,
     })
+    const [created] = await db.select().from(invites).where(eq(invites.id, invite.id))
 
-    return Response.json({ data: invite }, { status: 201 })
+    return Response.json({ data: created, emailSent }, { status: 201 })
   } catch (err) {
     console.error('POST /api/invites error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
@@ -165,6 +198,27 @@ export async function GET(_request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    await ensureInviteTrackingSchema()
+
+    const isSuperAdmin = !!(
+      process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    )
+
+    // Super admin (master) spans all facilities — return every invite with its
+    // facility name so they can track invites they've sent anywhere.
+    if (isSuperAdmin) {
+      const all = await db.query.invites.findMany({
+        with: { facility: { columns: { name: true } } },
+        orderBy: [desc(invites.createdAt)],
+      })
+      const data = all.map(({ facility, ...rest }) => ({
+        ...rest,
+        facilityName: facility?.name ?? null,
+      }))
+      return Response.json({ data })
+    }
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })

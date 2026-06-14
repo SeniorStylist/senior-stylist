@@ -25,6 +25,11 @@ interface InviteData {
   createdAt: string | null
   expiresAt: string
   token: string
+  lastSentAt: string | null
+  emailFailed: boolean
+  viewedAt: string | null
+  acceptedAt: string | null
+  facilityName?: string | null
 }
 
 interface AccessRequestData {
@@ -54,6 +59,11 @@ function roleBadgeClass(role: string | null | undefined): string {
     case 'viewer': return 'bg-amber-50 text-amber-700'
     default: return 'bg-stone-100 text-stone-500'
   }
+}
+
+function shortDate(d: string | null): string {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function roleBadgeLabel(role: string | null | undefined): string {
@@ -91,6 +101,7 @@ export function TeamSection({
   const [sendingInvite, setSendingInvite] = useState(false)
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
+  const [inviteWarning, setInviteWarning] = useState('')
 
   // Pending invites
   const [invitesList, setInvitesList] = useState<InviteData[]>([])
@@ -115,10 +126,6 @@ export function TeamSection({
   }, [])
 
   async function loadInvites() {
-    if (isSuperAdmin) {
-      setInvitesLoaded(true)
-      return
-    }
     const res = await fetch('/api/invites')
     if (res.ok) {
       const j = await res.json()
@@ -198,6 +205,7 @@ export function TeamSection({
     setSendingInvite(true)
     setInviteError('')
     setInviteSuccess('')
+    setInviteWarning('')
     try {
       const body: Record<string, string> = { email: inviteEmail.trim(), inviteRole }
       if (isSuperAdmin) body.facilityId = (isGlobalRole ? inviteFacilityId || facilityId : inviteFacilityId)
@@ -208,18 +216,23 @@ export function TeamSection({
       })
       const j = await res.json()
       if (!res.ok) {
-        setInviteError(j.error ?? 'Failed to send invite')
+        setInviteError(typeof j.error === 'string' ? j.error : 'Failed to send invite')
         return
       }
+      const sentEmail = j.data?.email ?? inviteEmail.trim()
       setInviteEmail('')
       if (j.refreshed) {
         setInvitesList((prev) => prev.map((i) => (i.id === j.data.id ? j.data : i)))
-        setInviteSuccess('Invite refreshed and resent')
       } else {
         setInvitesList((prev) => [j.data, ...prev])
-        setInviteSuccess('Invite sent!')
       }
-      setTimeout(() => setInviteSuccess(''), 3000)
+      if (j.emailSent === false) {
+        // Invite saved, but the email didn't go out — guide them to the link
+        setInviteWarning(`Invite created for ${sentEmail}, but the email couldn't be sent. Use "Copy link" below to share it directly.`)
+      } else {
+        setInviteSuccess(j.refreshed ? `Invite re-sent to ${sentEmail}` : `Invite emailed to ${sentEmail}`)
+        setTimeout(() => setInviteSuccess(''), 4000)
+      }
     } finally {
       setSendingInvite(false)
     }
@@ -244,7 +257,15 @@ export function TeamSection({
       const res = await fetch(`/api/invites/${id}/resend`, { method: 'POST' })
       if (res.ok) {
         setResendSuccess(id)
+        // Reflect the new send time / cleared failure locally
+        setInvitesList((prev) =>
+          prev.map((i) => (i.id === id ? { ...i, lastSentAt: new Date().toISOString(), emailFailed: false } : i))
+        )
         setTimeout(() => setResendSuccess(null), 3000)
+      } else {
+        const j = await res.json().catch(() => ({}))
+        setInvitesList((prev) => prev.map((i) => (i.id === id ? { ...i, emailFailed: true } : i)))
+        setInviteWarning(typeof j.error === 'string' ? j.error : 'Email could not be sent. Use Copy link to share the invite.')
       }
     } finally {
       setResendingId(null)
@@ -319,6 +340,12 @@ export function TeamSection({
         </div>
         {inviteError && <p className="text-xs text-red-600 mt-2">{inviteError}</p>}
         {inviteSuccess && <p className="text-xs text-green-600 mt-2">{inviteSuccess}</p>}
+        {inviteWarning && (
+          <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start justify-between gap-2">
+            <span>{inviteWarning}</span>
+            <button onClick={() => setInviteWarning('')} className="text-amber-500 hover:text-amber-700 shrink-0">✕</button>
+          </div>
+        )}
       </div>
 
       {/* Active members */}
@@ -420,9 +447,20 @@ export function TeamSection({
       </div>
 
       {/* Pending invites */}
-      {pendingInvites.length > 0 && (
-        <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]" data-tour="settings-pending-invites">
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Pending Invites</p>
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]" data-tour="settings-pending-invites">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Sent Invites</p>
+          {pendingInvites.length > 0 && (
+            <span className="text-xs text-stone-400">{pendingInvites.length} awaiting</span>
+          )}
+        </div>
+        {!invitesLoaded ? (
+          <div className="py-6 flex justify-center">
+            <div className="w-5 h-5 border-2 border-stone-200 border-t-[#8B2E4A] rounded-full animate-spin" />
+          </div>
+        ) : pendingInvites.length === 0 ? (
+          <p className="text-sm text-stone-400 text-center py-4">No pending invites. Send one above and its delivery status will show here.</p>
+        ) : (
           <div className="rounded-2xl border border-stone-100 overflow-hidden">
             {pendingInvites.map((invite, idx) => {
               const isExpired = new Date(invite.expiresAt) < new Date()
@@ -434,14 +472,27 @@ export function TeamSection({
                       <span className={cn('ml-2 text-xs font-medium px-2 py-0.5 rounded-full', roleBadgeClass(invite.inviteRole))}>
                         {roleBadgeLabel(invite.inviteRole)}
                       </span>
+                      {invite.facilityName && (
+                        <span className="ml-2 text-xs text-stone-400">{invite.facilityName}</span>
+                      )}
                       {isExpired && (
                         <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">Expired</span>
                       )}
                     </p>
-                    <p className="text-xs text-stone-400">
-                      Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                      {' · '}
-                      {isExpired ? 'Expired' : 'Expires'} {new Date(invite.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {/* Delivery + engagement status */}
+                    <p className="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      {invite.emailFailed ? (
+                        <span className="text-amber-600 font-medium">⚠ Email not delivered — share the link</span>
+                      ) : invite.lastSentAt ? (
+                        <span className="text-emerald-600 font-medium">✓ Emailed {shortDate(invite.lastSentAt)}</span>
+                      ) : (
+                        <span className="text-stone-400">Sent {shortDate(invite.createdAt)}</span>
+                      )}
+                      {invite.viewedAt && (
+                        <span className="text-blue-600 font-medium">· 👁 Opened {shortDate(invite.viewedAt)}</span>
+                      )}
+                      <span className="text-stone-300">·</span>
+                      <span className="text-stone-400">{isExpired ? 'Expired' : 'Expires'} {shortDate(invite.expiresAt)}</span>
                     </p>
                   </div>
                   {!isExpired ? (
@@ -480,13 +531,13 @@ export function TeamSection({
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Accepted invites */}
       {acceptedInvites.length > 0 && (
         <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Accepted Invites</p>
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Joined From Invite</p>
           <div className="rounded-2xl border border-stone-100 overflow-hidden">
             {acceptedInvites.map((invite, idx) => (
               <div key={invite.id} className={cn('flex items-center gap-3 px-4 py-3', idx > 0 && 'border-t border-stone-100')}>
@@ -496,21 +547,18 @@ export function TeamSection({
                     <span className={cn('ml-2 text-xs font-medium px-2 py-0.5 rounded-full', roleBadgeClass(invite.inviteRole))}>
                       {roleBadgeLabel(invite.inviteRole)}
                     </span>
+                    {invite.facilityName && (
+                      <span className="ml-2 text-xs text-stone-400">{invite.facilityName}</span>
+                    )}
                   </p>
                   <p className="text-xs text-stone-400">
-                    Sent {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                    Joined {shortDate(invite.acceptedAt ?? invite.createdAt)}
                   </p>
                 </div>
-                <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Accepted</span>
+                <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Joined</span>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {invitesLoaded && pendingInvites.length === 0 && acceptedInvites.length === 0 && !isSuperAdmin && (
-        <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
-          <p className="text-sm text-stone-400 text-center py-4">No invites sent yet.</p>
         </div>
       )}
 

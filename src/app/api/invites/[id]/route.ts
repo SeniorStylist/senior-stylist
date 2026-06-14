@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, accessRequests, profiles, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -26,6 +27,8 @@ export async function DELETE(
     if (facilityUser.role !== 'admin') {
       return Response.json({ error: 'Admin access required' }, { status: 403 })
     }
+
+    await ensureInviteTrackingSchema()
 
     const existing = await db.query.invites.findFirst({
       where: and(eq(invites.id, id), eq(invites.facilityId, facilityId)),

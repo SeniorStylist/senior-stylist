@@ -4,10 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
 import { eq, and, ilike } from 'drizzle-orm'
+import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.redirect(new URL('/login', request.url))
+
+  await ensureInviteTrackingSchema()
 
   // Re-validate token (route handler may be hit directly, so always validate)
   const invite = await db.query.invites.findFirst({ where: eq(invites.token, token) })
@@ -57,8 +60,12 @@ export async function GET(request: NextRequest) {
     })
     .onConflictDoNothing()
 
-  // Mark invite as used
-  await db.update(invites).set({ used: true }).where(eq(invites.id, invite.id))
+  // Mark invite as used + record acceptance (and viewing, if the open-time
+  // stamp was missed because the user was already authenticated)
+  await db
+    .update(invites)
+    .set({ used: true, acceptedAt: now, viewedAt: invite.viewedAt ?? now })
+    .where(eq(invites.id, invite.id))
 
   // Set selected_facility_id cookie — Route Handlers can mutate cookies
   const cookieStore = await cookies()

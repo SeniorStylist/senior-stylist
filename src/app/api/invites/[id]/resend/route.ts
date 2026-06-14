@@ -5,6 +5,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { buildInviteEmailHtml } from '@/app/api/invites/route'
 
 export async function POST(
@@ -19,6 +20,8 @@ export async function POST(
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+    await ensureInviteTrackingSchema()
 
     const isSuperAdmin = !!(
       process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
@@ -62,7 +65,8 @@ export async function POST(
     const facilityName = facility?.name ?? 'Senior Stylist'
     const acceptUrl = `${appUrl}/invite/accept?token=${invite.token}`
 
-    sendEmail({
+    // AWAITED — fire-and-forget would let the lambda freeze before Resend fires
+    const emailSent = await sendEmail({
       to: invite.email,
       subject: `You're invited to join ${facilityName}`,
       html: buildInviteEmailHtml({
@@ -71,7 +75,17 @@ export async function POST(
         acceptUrl,
       }),
     })
+    await db
+      .update(invites)
+      .set({ lastSentAt: new Date(), emailFailed: !emailSent })
+      .where(eq(invites.id, invite.id))
 
+    if (!emailSent) {
+      return Response.json(
+        { error: 'Email could not be sent. Use Copy link to share the invite directly.' },
+        { status: 502 }
+      )
+    }
     return Response.json({ data: { sent: true } })
   } catch (err) {
     console.error('POST /api/invites/[id]/resend error:', err)

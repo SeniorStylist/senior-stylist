@@ -42,12 +42,14 @@ export default async function DashboardPage() {
       )
     }
 
-    // Check for valid invite
+    // Check for valid invite (explicit columns — avoids selecting the invite
+    // tracking columns so this never breaks if that migration is mid-rollout)
     const invite = await db.query.invites.findFirst({
       where: and(
         eq(invites.email, user.email ?? ''),
         eq(invites.used, false),
       ),
+      columns: { id: true },
     })
 
     if (!invite) {

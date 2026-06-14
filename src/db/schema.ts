@@ -365,6 +365,12 @@ export const invites = pgTable('invites', {
   used: boolean('used').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
+  // Delivery + engagement tracking (invite visibility). Self-bootstrapped by
+  // src/lib/invite-ddl.ts — keep in sync with drizzle/0011_invite_tracking.sql.
+  lastSentAt: timestamp('last_sent_at'),
+  emailFailed: boolean('email_failed').default(false).notNull(),
+  viewedAt: timestamp('viewed_at'),
+  acceptedAt: timestamp('accepted_at'),
 })
 
 export const accessRequests = pgTable('access_requests', {
