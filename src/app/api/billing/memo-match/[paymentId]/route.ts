@@ -18,6 +18,7 @@ import { fuzzyScore } from '@/lib/fuzzy'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

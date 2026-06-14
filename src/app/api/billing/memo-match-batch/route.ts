@@ -16,6 +16,7 @@ import { fuzzyScore } from '@/lib/fuzzy'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
   facilityId: z.string().uuid().nullable().optional(),
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest) {
       WHERE ${facilityId ? sql`p.facility_id = ${facilityId}` : sql`f.active = true`}
         AND p.is_demo = false
         AND p.memo IS NOT NULL
-        AND p.memo ~ '\\$\\s?[0-9]'
+        AND p.memo LIKE '%$%'
         AND (p.resident_breakdown IS NULL OR p.resident_breakdown = '[]'::jsonb)
       ORDER BY p.payment_date DESC
       LIMIT ${facilityId ? 50 : 60}
@@ -327,7 +328,8 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ data: { payments: matchable } })
   } catch (err) {
-    console.error('[billing/memo-match-batch] POST error:', err)
-    return Response.json({ error: 'Internal error' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[billing/memo-match-batch] POST error:', msg, err)
+    return Response.json({ error: 'Internal error', detail: msg }, { status: 500 })
   }
 }
