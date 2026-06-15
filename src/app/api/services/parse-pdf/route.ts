@@ -149,8 +149,18 @@ export async function POST(request: NextRequest) {
     let parsed: unknown[]
     try {
       const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
-      parsed = JSON.parse(cleaned)
-      if (!Array.isArray(parsed)) throw new Error('Response is not a JSON array')
+      const json = JSON.parse(cleaned)
+      if (Array.isArray(json)) {
+        parsed = json
+      } else if (json && typeof json === 'object') {
+        // JSON mode without a schema sometimes wraps the array, e.g. {"services":[...]}.
+        // Pull out the first array-valued property rather than failing the whole parse.
+        const arr = Object.values(json as Record<string, unknown>).find((v) => Array.isArray(v))
+        if (!arr) throw new Error('Response object contained no services array')
+        parsed = arr as unknown[]
+      } else {
+        throw new Error('Response is not a JSON array')
+      }
     } catch (parseErr) {
       console.error('[parse-pdf] Failed to parse Gemini response:', parseErr, '\nRaw:', rawText)
       return Response.json({ error: 'Failed to parse price sheet' }, { status: 500 })

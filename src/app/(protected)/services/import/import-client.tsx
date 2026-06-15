@@ -224,20 +224,38 @@ async function parseSpreadsheetNaive(file: File): Promise<ParsedService[]> {
 
 // ─── Main parser ─────────────────────────────────────────────────────────────
 
+// Only a sheet with a REAL header row (recognized name + price columns) is safe
+// for the naive column-mapper. Free-form price sheets (section headers, prose,
+// irregular columns) must never hit it — it turns every row into a garbage service.
+async function looksTabular(file: File): Promise<boolean> {
+  try {
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    const rows = ext === 'csv' || ext === 'txt' ? await parseCSV(file) : await parseExcel(file)
+    if (rows.length < 2) return false
+    const headers = rows[0].map((h) => normalize(String(h)))
+    return headers.some((h) => NAME_HEADERS.has(h)) && headers.some((h) => PRICE_HEADERS.has(h))
+  } catch {
+    return false
+  }
+}
+
 async function parseFile(file: File): Promise<ParsedService[]> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext === 'pdf') {
     return parsePDF(file)
   }
-  // Spreadsheets: AI parser first (handles messy real-world sheets like a PDF);
-  // fall back to naive column mapping only if the AI parser is unavailable.
+  // Spreadsheets go through the AI parser (reads messy real-world sheets like a PDF).
   try {
     const ai = await parseSpreadsheetAI(file)
     if (ai.length > 0) return ai
+    // AI ran but found nothing — surface that instead of dumping every row as garbage.
+    throw new Error('No services could be read from this sheet. Make sure it lists service names with prices.')
   } catch (err) {
-    console.warn('[services import] AI spreadsheet parse failed; falling back to column mapping:', err)
+    // Fall back to naive column-mapping ONLY for clean tabular sheets — never for
+    // free-form price sheets (that path is what produced the "Missing name" garbage).
+    if (await looksTabular(file)) return parseSpreadsheetNaive(file)
+    throw err instanceof Error ? err : new Error('Could not read this price sheet. Please try again.')
   }
-  return parseSpreadsheetNaive(file)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
