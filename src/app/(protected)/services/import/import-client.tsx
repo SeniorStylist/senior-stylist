@@ -105,24 +105,51 @@ async function parseExcel(file: File): Promise<string[][]> {
   return rows.filter((r) => r.some((c) => String(c).trim() !== ''))
 }
 
-// ─── PDF parser (server-side) ────────────────────────────────────────────────
+// ─── Spreadsheet → grid text (for the AI parser) ─────────────────────────────
+// Reads EVERY sheet so nothing is missed, and preserves the cell layout as a
+// tab-separated grid the AI can read like a PDF.
 
-async function parsePDF(file: File): Promise<ParsedService[]> {
-  const formData = new FormData()
-  formData.append('file', file)
+function rowsToTsv(rows: string[][]): string {
+  return rows
+    .map((r) => r.map((c) => String(c ?? '').trim()).join('\t'))
+    .join('\n')
+}
+
+async function spreadsheetToGridText(file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (ext === 'csv' || ext === 'txt') {
+    return rowsToTsv(await parseCSV(file))
+  }
+  const XLSX = await import('xlsx')
+  const buffer = await file.arrayBuffer()
+  const wb = XLSX.read(buffer, { type: 'array' })
+  const parts: string[] = []
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name]
+    const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+    const nonEmpty = rows.filter((r) => r.some((c) => String(c).trim() !== ''))
+    if (nonEmpty.length === 0) continue
+    if (wb.SheetNames.length > 1) parts.push(`### Sheet: ${name}`)
+    parts.push(rowsToTsv(nonEmpty))
+  }
+  return parts.join('\n\n')
+}
+
+// ─── AI parser (server-side, shared by PDF + spreadsheet) ────────────────────
+
+async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
   const res = await fetch('/api/services/parse-pdf', {
     method: 'POST',
     body: formData,
   })
   const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? 'Failed to parse PDF')
+  if (!res.ok) throw new Error(json.error ?? 'Failed to parse price sheet')
   const rows: Array<{
     name: string; priceCents: number; durationMinutes: number; category: string; color: string
     pricingType?: string; addonAmountCents?: number | null
     pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
     pricingOptions?: Array<{ name: string; priceCents: number }> | null
   }> = json.data
-  if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
   return rows.map((r, i) => ({
     id: i,
     name: r.name,
@@ -138,9 +165,28 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
   }))
 }
 
-// ─── Spreadsheet parser ──────────────────────────────────────────────────────
+async function parsePDF(file: File): Promise<ParsedService[]> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const rows = await postToAIParser(formData)
+  if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
+  return rows
+}
 
-async function parseSpreadsheet(file: File): Promise<ParsedService[]> {
+// Spreadsheets go through the SAME AI parser as PDFs — converted to a cell grid
+// first — so messy real-world price sheets (section headers, prose, blank cells)
+// are read intelligently instead of mapped row-for-row.
+async function parseSpreadsheetAI(file: File): Promise<ParsedService[]> {
+  const gridText = await spreadsheetToGridText(file)
+  if (!gridText.trim()) throw new Error('File appears to be empty.')
+  const formData = new FormData()
+  formData.append('gridText', gridText)
+  return postToAIParser(formData)
+}
+
+// ─── Spreadsheet parser — naive column mapping (fallback when AI is unavailable) ──
+
+async function parseSpreadsheetNaive(file: File): Promise<ParsedService[]> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   let rows: string[][]
 
@@ -183,7 +229,15 @@ async function parseFile(file: File): Promise<ParsedService[]> {
   if (ext === 'pdf') {
     return parsePDF(file)
   }
-  return parseSpreadsheet(file)
+  // Spreadsheets: AI parser first (handles messy real-world sheets like a PDF);
+  // fall back to naive column mapping only if the AI parser is unavailable.
+  try {
+    const ai = await parseSpreadsheetAI(file)
+    if (ai.length > 0) return ai
+  } catch (err) {
+    console.warn('[services import] AI spreadsheet parse failed; falling back to column mapping:', err)
+  }
+  return parseSpreadsheetNaive(file)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -212,24 +266,21 @@ export function ImportClient() {
   const handleFile = useCallback(async (file: File) => {
     setParseError(null)
     setFileName(file.name)
-    const isPdf = file.name.split('.').pop()?.toLowerCase() === 'pdf'
-    if (isPdf) {
-      setParsing(true)
-      setProgress(0)
-      setTimeout(() => setProgress(70), 50)
-    }
+    // Every format now goes through the AI parser (PDF directly, spreadsheets as a
+    // cell grid), so show the progress overlay for all of them.
+    setParsing(true)
+    setProgress(0)
+    setTimeout(() => setProgress(70), 50)
     try {
       const parsed = await parseFile(file)
-      if (isPdf) {
-        setProgress(100)
-        await new Promise((r) => setTimeout(r, 400))
-      }
+      setProgress(100)
+      await new Promise((r) => setTimeout(r, 400))
       setRows(parsed)
       setStep('preview')
     } catch (err) {
       setParseError(err instanceof Error ? err.message : 'Failed to parse file')
     } finally {
-      if (isPdf) setParsing(false)
+      setParsing(false)
     }
   }, [])
 

@@ -4,6 +4,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024
+const MAX_GRID_CHARS = 400_000 // ~ tens of thousands of spreadsheet rows
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -34,7 +35,14 @@ function getColor(cat: string): string {
   return colorMap.get(cat)!
 }
 
-const GEMINI_PROMPT = `You are a salon price sheet parser. Extract ALL services from this price sheet exactly as written.
+const GEMINI_PROMPT = `You are a price sheet parser for a salon / senior-living facility. Extract every real, purchasable service or item from this price sheet exactly as written.
+
+IGNORE everything that is not an actual priced service or item. Do NOT create a row for:
+- section or category headers (e.g. "Resident Services", "Food & Beverage", "Beauty Salon/Barber Shop Price List")
+- titles, facility names, effective dates, page markers ("Continued Next Page")
+- policy / disclaimer / explanatory prose and footnotes (sentences, paragraphs, "* Hook up of one TV...", "This price list is not intended...")
+- blank rows or rows that are only a label with no price
+A real service/item has a NAME and almost always a PRICE (or a clearly stated add-on/surcharge). If a row has neither a price nor an add-on amount, do not include it. Use the surrounding section header as the row's "category".
 
 Return a JSON array of service objects. Each object must have:
 - "name": string — the service name exactly as written
@@ -79,28 +87,46 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    if (!file) return Response.json({ error: 'No file provided' }, { status: 400 })
-    if (file.size > MAX_PDF_BYTES) {
+    // Spreadsheets (xlsx/xls/csv) are sent as a tab-separated cell grid — Gemini
+    // doesn't parse xlsx binary, but it reads the grid text and extracts services
+    // intelligently (ignoring headers/prose), exactly like it does for PDFs.
+    const gridText = formData.get('gridText') as string | null
+    if (!file && !gridText) return Response.json({ error: 'No file provided' }, { status: 400 })
+    if (file && file.size > MAX_PDF_BYTES) {
       return Response.json({ error: 'File too large (max 50MB)' }, { status: 413 })
+    }
+    if (gridText && gridText.length > MAX_GRID_CHARS) {
+      return Response.json({ error: 'Spreadsheet too large to parse' }, { status: 413 })
     }
 
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) {
       console.error('[parse-pdf] GEMINI_API_KEY is not set')
-      return Response.json({ error: 'PDF parsing not configured' }, { status: 500 })
+      return Response.json({ error: 'Price sheet parsing not configured' }, { status: 500 })
     }
 
-    const buffer = await file.arrayBuffer()
-    const base64 = Buffer.from(buffer).toString('base64')
+    let parts: Array<Record<string, unknown>>
+    if (file) {
+      const buffer = await file.arrayBuffer()
+      const base64 = Buffer.from(buffer).toString('base64')
+      parts = [
+        { inlineData: { mimeType: 'application/pdf', data: base64 } },
+        { text: GEMINI_PROMPT },
+      ]
+    } else {
+      parts = [
+        { text: `${GEMINI_PROMPT}\n\nThe following is the full cell grid of a spreadsheet price sheet (tab-separated cells, one row per line). Extract the services from it:\n\n${gridText}` },
+      ]
+    }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
     const body = {
-      contents: [{
-        parts: [
-          { inlineData: { mimeType: 'application/pdf', data: base64 } },
-          { text: GEMINI_PROMPT },
-        ],
-      }],
+      contents: [{ parts }],
+      // temperature 0 → repeatable extraction; JSON mode → guaranteed parseable output.
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: 'application/json',
+      },
     }
 
     const res = await fetch(url, {
