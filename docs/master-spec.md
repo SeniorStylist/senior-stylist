@@ -758,6 +758,7 @@ Upstash Redis sliding-window limiter behind `checkRateLimit(bucket, identifier)`
 | `portalTokenLookup` | 20 / minute | IP | `GET /api/portal/[token]` (legacy token lookup) |
 | `helpSeed` | 5 / hour | user id | `POST /api/help/seed-demo-data` (Phase 13-Tutorial) |
 | `helpTrack` | 60 / minute | user id | `POST /api/help/track` (Phase 13-Tutorial) |
+| `portalSignup` | 5 / hour | client IP | `POST /api/portal/signup` (Phase 14A) |
 
 ### Upload caps
 
@@ -888,6 +889,9 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `GET /api/portal/statement/[residentId]` | Authed (Phase 11I), rate-limited `portalStatement` | Verifies resident in session. Reuses `buildResidentStatementHtml`. Returns HTML with `@media print` CSS + `<button onclick="window.print()">`. `Content-Type: text/html`. |
 | `POST /api/portal/stripe/create-checkout` | Authed (Phase 11I), rate-limited `portalCheckout` | Body `{ residentId, amountCents }` (50–10_000_000). Stripe key = `facility.stripeSecretKey ?? STRIPE_SECRET_KEY`. Creates Checkout session with `metadata.type='portal_balance'`, `metadata.residentId`, `metadata.facilityId`, `metadata.facilityCode`. Returns `{ data: { checkoutUrl } }`. |
 | `GET /api/cron/portal-cleanup` | **Vercel Cron** (Phase 11I, `Bearer CRON_SECRET`) | Daily 04:00 UTC. Deletes `portal_magic_links` rows older than 7 days past expiry; deletes expired `portal_sessions`. `maxDuration=30`. |
+| `POST /api/portal/signup` | **Public** (Phase 14A), rate-limited `portalSignup` (5/hr/IP) | Body `{ facilityCode, email, fullName, phone?, dateOfBirth? }`. Checks `facility.portalSelfSignupEnabled` (403 if false). Guards: existing portal account linked to a resident at this facility → 409. Email-exact match on `residents.poaEmail` → auto-approve (upserts account, links resident, issues welcome coupon, sends magic link — AWAITED). FullName fuzzy ≥0.80 against `residents.poaName` → auto-approve. Otherwise inserts `portal_claim_requests` row with `status='pending_review'` + fire-and-forget admin notification. Returns `{ data: { status: 'auto_approved' } }` or `{ data: { status: 'pending' } }`. |
+| `GET /api/portal/claim-requests` | **Admin** (Phase 14A) | Returns pending claim requests for the caller's facility. Master admin may pass `?facilityId=` to filter. Default `?status=pending_review`. Each row enriched with `residentName`, `residentRoom`. |
+| `PATCH /api/portal/claim-requests/[id]` | **Admin** (Phase 14A) | Body `{ action: 'approve' \| 'reject', residentId?: uuid, notes?: string }`. Guard: 409 if already reviewed. Approve: upserts `portal_accounts`, links resident via `portal_account_residents`, calls `issueWelcomeCoupon`, sends magic link (AWAITED via `sendEmail`). Sets `reviewedBy`, `reviewedAt`, `status`. |
 | `POST /api/help/seed-demo-data` | Authenticated; rate-limited `helpSeed` (5/hr/user) (Phase 13-Tutorial) | Idempotent demo data seeder. Seeds `is_demo=true` records: Mrs. Margaret Smith (Rm 12), Mr. Robert Johnson (Rm 8), Wash & Set $35, Haircut $25, Demo Sarah stylist (Mon–Fri availability). Checks by name+`is_demo` before inserting — safe to call multiple times. Returns `{ data: { seeded: boolean, ids: { residentIds, stylistId, serviceIds } } }`. |
 | `POST /api/help/track` | Authenticated; rate-limited `helpTrack` (60/min/user) (Phase 13-Tutorial) | Writes one row to `help_step_events`. Body: `{ tourId, stepIndex, action }`. Fire-and-forget from the scripted tour engine — 200 always returned; errors swallowed server-side. |
 | `DELETE /api/help/demo-data` | Authenticated; admin-only (Phase 13-Tutorial) | Soft-deletes (`active=false`) all `is_demo=true` residents, stylists, services, and bookings for the caller's facility. Hard-deletes demo `log_entries` and `stylist_checkins` (no `active` column on those tables). Called from Settings → Advanced "Tutorial Data" card after two-step confirmation. |
@@ -1255,6 +1259,16 @@ Real family/POA portal at `/family/[facilityCode]/*` — coexists with legacy `/
 - `portal_account_residents` — join table, `portal_account_id` × `resident_id` × `facility_id`, unique on `(account, resident)`. CASCADE on all FKs.
 - `portal_magic_links` — `email`, `token` (unique opaque hex), `resident_id`, `facility_code`, `expires_at` (72h), `used_at`. CASCADE on resident.
 - `portal_sessions` — `portal_account_id`, `session_token` (unique opaque hex), `expires_at` (30d). CASCADE on account.
+
+**Phase 14A new tables**
+- `portal_coupons` — coupon template per facility. Columns: `id`, `facility_id` (FK CASCADE), `type` (`welcome|birthday|referral|loyalty|manual`), `discount_type` (`percent|fixed`), `discount_value` (integer — percent 1–100 or cents), `max_per_account` (integer, default 1), `description` (text nullable), `expires_days` (integer nullable — days from issuance), `active` (boolean NOT NULL DEFAULT true), `created_at`. RLS `service_role_all`. Unique index on `(facility_id, type)` so find-or-create is safe.
+- `portal_coupon_redemptions` — issued coupon per portal account. Columns: `id`, `coupon_id` (FK → `portal_coupons` ON DELETE CASCADE), `portal_account_id` (FK → `portal_accounts` ON DELETE CASCADE), `resident_id` (FK → `residents` ON DELETE SET NULL, nullable), `facility_id` (FK → `facilities` ON DELETE CASCADE), `booking_id` (FK → `bookings` ON DELETE SET NULL, nullable — set when redeemed at checkout), `code` (text — e.g. `WELCOME-ABC12`), `discount_cents` (integer — 0 for percent coupons, actual cents for fixed), `expires_at` (timestamptz nullable), `redeemed_at` (timestamptz nullable — null = unspent), `created_at`. RLS `service_role_all`.
+- `portal_claim_requests` — self-signup admin approval queue. Columns: `id`, `facility_id` (FK CASCADE), `email` (text NOT NULL), `full_name` (text NOT NULL), `phone` (text nullable), `date_of_birth` (date nullable), `resident_id` (FK → `residents` ON DELETE SET NULL, nullable — best-matched candidate), `match_type` (text nullable — `'email'|'name'`), `match_confidence` (text nullable — `'high'|'medium'|'low'`), `status` (`auto_approved|pending_review|approved|rejected`), `reviewed_by` (FK → `profiles` ON DELETE SET NULL, nullable), `reviewed_at` (timestamptz nullable), `notes` (text nullable), `created_at`. RLS `service_role_all`. Index on `(facility_id, status)`.
+
+**Phase 14A new columns on existing tables**
+- `portal_accounts`: `full_name` (text nullable), `phone` (text nullable), `date_of_birth` (date nullable).
+- `residents`: `date_of_birth` (date nullable).
+- `facilities`: `portal_self_signup_enabled` (boolean NOT NULL DEFAULT false), `portal_coupons_enabled` (boolean NOT NULL DEFAULT false), `portal_welcome_coupon_enabled` (boolean NOT NULL DEFAULT false), `portal_welcome_coupon_type` (text nullable), `portal_welcome_coupon_value` (integer nullable).
 
 **New columns**
 - `qb_invoices.stripe_payment_intent_id` (text, nullable) + `qb_invoices.stripe_paid_at` (timestamptz, nullable)
@@ -2493,6 +2507,10 @@ External consumers (`<HelpTip tourId="stylist-calendar">`, `ONBOARDING_CHECKLIST
 ---
 
 ## Upcoming Phases
+
+### Recently Shipped
+
+- **Phase 14A** (SHIPPED 2026-06-15) — Family Portal self-signup, coupons, admin approval queue. New tables: `portal_coupons`, `portal_coupon_redemptions`, `portal_claim_requests`. New columns on `portal_accounts` (fullName, phone, dateOfBirth), `residents` (dateOfBirth), `facilities` (5 portal feature flags: `portalSelfSignupEnabled`, `portalCouponsEnabled`, `portalWelcomeCouponEnabled`, `portalWelcomeCouponType`, `portalWelcomeCouponValue`). New routes: `POST /api/portal/signup` (public self-signup, rate-limited 5/hr/IP), `GET /api/portal/claim-requests` (admin), `PATCH /api/portal/claim-requests/[id]` (admin approve/reject). New page: `/family/[facilityCode]/signup`. New lib: `src/lib/portal-coupons.ts` (`issueWelcomeCoupon`, `getPortalCoupons`, `formatCouponDiscount`). Settings → Family Portal section for per-facility config and claim request review. Portal profile page shows active coupons. Login page links to `/signup`. Migration: `drizzle/0012_portal_expansion.sql`.
 
 ### Immediate (next up)
 
