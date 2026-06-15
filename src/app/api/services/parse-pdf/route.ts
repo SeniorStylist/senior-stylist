@@ -123,9 +123,13 @@ export async function POST(request: NextRequest) {
     const body = {
       contents: [{ parts }],
       // temperature 0 → repeatable extraction; JSON mode → guaranteed parseable output.
+      // thinkingBudget 0 → disable Gemini 2.5 "thinking", which otherwise burns tens
+      // of seconds over-reasoning messy sheets and times the function out. Structured
+      // extraction from a clean text grid / typed price sheet doesn't need it.
       generationConfig: {
         temperature: 0,
         responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }
 
