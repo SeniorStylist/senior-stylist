@@ -222,11 +222,13 @@ async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
   }))
 }
 
-async function parsePDF(file: File): Promise<ParsedService[]> {
+// PDFs and images are sent straight to Gemini (inlineData) — it reads the visual
+// layout directly. Used for .pdf and image files (screenshots/photos of a sheet).
+async function parseFileViaVision(file: File): Promise<ParsedService[]> {
   const formData = new FormData()
   formData.append('file', file)
   const rows = await postToAIParser(formData)
-  if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
+  if (rows.length === 0) throw new Error('No services found in this file. Make sure it lists service names with prices.')
   return rows
 }
 
@@ -297,10 +299,13 @@ async function looksTabular(file: File): Promise<boolean> {
   }
 }
 
+const VISION_EXTS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp', 'heic', 'heif'])
+
 async function parseFile(file: File): Promise<ParsedService[]> {
   const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'pdf') {
-    return parsePDF(file)
+  // PDFs + images → Gemini vision (reads the visual layout directly).
+  if (ext && VISION_EXTS.has(ext)) {
+    return parseFileViaVision(file)
   }
   // Word docs (.docx) have no tabular fallback — they're always free-form text.
   if (ext === 'docx') {
@@ -604,11 +609,11 @@ export function ImportClient() {
               </p>
               <p className="text-xs text-stone-400 mt-0.5">or click to browse</p>
             </div>
-            <p className="text-xs text-stone-400">Supports .pdf, .docx, .csv, .xlsx, .xls</p>
+            <p className="text-xs text-stone-400">Supports .pdf, images (PNG/JPG), .docx, .csv, .xlsx, .xls</p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.docx,.csv,.xlsx,.xls,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.docx,.csv,.xlsx,.xls,image/*,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onChange={onFileChange}
               className="sr-only"
             />

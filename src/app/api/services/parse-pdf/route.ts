@@ -6,6 +6,22 @@ import { NextRequest } from 'next/server'
 const MAX_PDF_BYTES = 50 * 1024 * 1024
 const MAX_GRID_CHARS = 400_000 // ~ tens of thousands of spreadsheet rows
 
+// Gemini reads PDFs and images natively via inlineData. Price sheets often only
+// exist as a screenshot/photo, so accept those too — not just PDF.
+const FILE_MIME_ALLOW = new Set([
+  'application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+])
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+}
+function resolveFileMime(file: File): string | null {
+  if (file.type && FILE_MIME_ALLOW.has(file.type)) return file.type
+  // Some browsers omit file.type (esp. for HEIC) — fall back to the extension.
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  return (ext && EXT_TO_MIME[ext]) || null
+}
+
 export const runtime = 'nodejs'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -58,10 +74,14 @@ Pricing type rules:
 - "fixed": standard service with one price
 - "addon": services described as "add $X to service" or "additional $X" or "+$X" — these modify another service, price field should be null, addonAmountCents is the surcharge
 - "tiered": quantity-based pricing ("1-4 ea", "5 or more")
-- "multi_option": multiple named price points to choose from
+- "multi_option": multiple named price points to choose from. Use this whenever ONE row lists more than one price:
+  - "50/half  75/full" or "$50 half head / $75 full head" → pricingOptions [{"name":"Half","priceCents":5000},{"name":"Full","priceCents":7500}], price null
+  - "10 ea. -or- all 3 for 25" → pricingOptions [{"name":"Each","priceCents":1000},{"name":"All 3","priceCents":2500}], price null
+- A price written with a trailing "+", "and up", or "start at" (e.g. "80+", "Braids (start at) 26") is still pricingType "fixed" — use the number as the price; keep any "(start at)"/"and up" wording in the name.
 
 Important:
 - Extract EVERY service, including add-ons and surcharges
+- Treat a row whose name ends in "(add)", "(add to a service)", or "add" as an addon — set addonAmountCents to the listed amount in cents and price null
 - Do not skip any category or section
 - Category names should match the section headers exactly
 - Return ONLY the JSON array, no markdown, no explanation`
@@ -107,10 +127,14 @@ export async function POST(request: NextRequest) {
 
     let parts: Array<Record<string, unknown>>
     if (file) {
+      const mimeType = resolveFileMime(file)
+      if (!mimeType) {
+        return Response.json({ error: 'Unsupported file type. Upload a PDF or an image (PNG/JPG/HEIC).' }, { status: 415 })
+      }
       const buffer = await file.arrayBuffer()
       const base64 = Buffer.from(buffer).toString('base64')
       parts = [
-        { inlineData: { mimeType: 'application/pdf', data: base64 } },
+        { inlineData: { mimeType, data: base64 } },
         { text: GEMINI_PROMPT },
       ]
     } else {
