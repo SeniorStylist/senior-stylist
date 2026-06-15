@@ -66,6 +66,12 @@ export const facilities = pgTable('facilities', {
   revSharePercentage: integer('rev_share_percentage'),
   active: boolean('active').default(true).notNull(),
   isDemo: boolean('is_demo').notNull().default(false),
+  // Phase 14A: family portal self-signup + coupon settings
+  portalSelfSignupEnabled: boolean('portal_self_signup_enabled').default(false).notNull(),
+  portalCouponsEnabled: boolean('portal_coupons_enabled').default(false).notNull(),
+  portalWelcomeCouponEnabled: boolean('portal_welcome_coupon_enabled').default(false).notNull(),
+  portalWelcomeCouponType: text('portal_welcome_coupon_type'), // 'percent' | 'fixed'
+  portalWelcomeCouponValue: integer('portal_welcome_coupon_value'), // percent (1-100) or cents
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -117,6 +123,8 @@ export const residents = pgTable(
     // type='percentage' → value is integer percent (e.g. 15 = 15%); type='fixed' → value is cents
     defaultTipType: text('default_tip_type'),
     defaultTipValue: integer('default_tip_value'),
+    // Phase 14A: resident birthday for birthday coupons
+    dateOfBirth: date('date_of_birth'),
     active: boolean('active').default(true).notNull(),
     // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
     isDemo: boolean('is_demo').default(false).notNull(),
@@ -745,6 +753,10 @@ export const portalAccounts = pgTable('portal_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull(),
   passwordHash: text('password_hash'),
+  // Phase 14A: profile info captured at self-signup
+  fullName: text('full_name'),
+  phone: text('phone'),
+  dateOfBirth: date('date_of_birth'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
 }, (t) => ({
@@ -797,6 +809,66 @@ export const portalSessions = pgTable('portal_sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({
   sessionTokenUniq: unique('portal_sessions_session_token_key').on(t.sessionToken),
+}))
+
+// ─── Phase 14A: Portal Coupons + Self-Signup ─────────────────────────────────
+
+export const portalCoupons = pgTable('portal_coupons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),
+  type: text('type').notNull(), // 'welcome' | 'birthday' | 'referral' | 'loyalty' | 'manual'
+  discountType: text('discount_type').notNull(), // 'percent' | 'fixed'
+  discountValue: integer('discount_value').notNull(), // percent (1–100) or cents
+  description: text('description'),
+  maxRedemptions: integer('max_redemptions'), // null = unlimited
+  maxPerAccount: integer('max_per_account').default(1),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+}, (t) => ({
+  codeUniq: unique('portal_coupons_code_key').on(t.code),
+  facilityTypeIdx: index('portal_coupons_facility_type_idx').on(t.facilityId, t.type).where(sql`active = true`),
+}))
+
+export const portalCouponRedemptions = pgTable('portal_coupon_redemptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  couponId: uuid('coupon_id').notNull().references(() => portalCoupons.id, { onDelete: 'cascade' }),
+  portalAccountId: uuid('portal_account_id').notNull().references(() => portalAccounts.id, { onDelete: 'cascade' }),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  facilityId: uuid('facility_id').notNull().references(() => facilities.id, { onDelete: 'cascade' }),
+  // bookingId is set when the coupon is applied to a specific booking
+  bookingId: uuid('booking_id').references((): AnyPgColumn => bookings.id, { onDelete: 'set null' }),
+  discountCents: integer('discount_cents').default(0).notNull(), // 0 = pending; set at checkout for % coupons
+  redeemedAt: timestamp('redeemed_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  accountCouponIdx: index('portal_coupon_redemptions_account_coupon_idx').on(t.portalAccountId, t.couponId),
+  facilityIdx: index('portal_coupon_redemptions_facility_idx').on(t.facilityId, t.redeemedAt),
+}))
+
+export const portalClaimRequests = pgTable('portal_claim_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').notNull().references(() => facilities.id, { onDelete: 'cascade' }),
+  facilityCode: text('facility_code').notNull(),
+  email: text('email').notNull(),
+  fullName: text('full_name').notNull(),
+  phone: text('phone'),
+  dateOfBirth: date('date_of_birth'),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  // 'email' | 'name' | null
+  matchType: text('match_type'),
+  // 'high' | 'medium' | 'low' | null
+  matchConfidence: text('match_confidence'),
+  // 'auto_approved' | 'pending_review' | 'approved' | 'rejected'
+  status: text('status').default('pending_review').notNull(),
+  reviewedBy: uuid('reviewed_by').references(() => profiles.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  facilityStatusIdx: index('portal_claim_requests_facility_status_idx').on(t.facilityId, t.status),
+  emailFacilityIdx: index('portal_claim_requests_email_facility_idx').on(t.email, t.facilityId),
 }))
 
 // ─── Phase 12B: Import audit ─────────────────────────────────────────────────
@@ -1223,5 +1295,50 @@ export const quickbooksSyncLogRelations = relations(quickbooksSyncLog, ({ one })
   payPeriod: one(payPeriods, {
     fields: [quickbooksSyncLog.payPeriodId],
     references: [payPeriods.id],
+  }),
+}))
+
+// ─── Phase 14A: Portal coupon relations ──────────────────────────────────────
+
+export const portalAccountsRelations = relations(portalAccounts, ({ many }) => ({
+  accountResidents: many(portalAccountResidents),
+  couponRedemptions: many(portalCouponRedemptions),
+}))
+
+export const portalCouponsRelations = relations(portalCoupons, ({ one, many }) => ({
+  facility: one(facilities, {
+    fields: [portalCoupons.facilityId],
+    references: [facilities.id],
+  }),
+  redemptions: many(portalCouponRedemptions),
+}))
+
+export const portalCouponRedemptionsRelations = relations(portalCouponRedemptions, ({ one }) => ({
+  coupon: one(portalCoupons, {
+    fields: [portalCouponRedemptions.couponId],
+    references: [portalCoupons.id],
+  }),
+  portalAccount: one(portalAccounts, {
+    fields: [portalCouponRedemptions.portalAccountId],
+    references: [portalAccounts.id],
+  }),
+  facility: one(facilities, {
+    fields: [portalCouponRedemptions.facilityId],
+    references: [facilities.id],
+  }),
+}))
+
+export const portalClaimRequestsRelations = relations(portalClaimRequests, ({ one }) => ({
+  facility: one(facilities, {
+    fields: [portalClaimRequests.facilityId],
+    references: [facilities.id],
+  }),
+  resident: one(residents, {
+    fields: [portalClaimRequests.residentId],
+    references: [residents.id],
+  }),
+  reviewer: one(profiles, {
+    fields: [portalClaimRequests.reviewedBy],
+    references: [profiles.id],
   }),
 }))

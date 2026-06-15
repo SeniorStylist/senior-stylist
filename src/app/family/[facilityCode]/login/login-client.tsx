@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -173,6 +174,17 @@ export function LoginClient({ facilityCode }: Props) {
             </p>
           </form>
         )}
+      </div>
+      <div className="border-t border-stone-100 px-5 py-3 text-center">
+        <p className="text-xs text-stone-400">
+          New here?{' '}
+          <Link
+            href={`/family/${encodeURIComponent(facilityCode)}/signup`}
+            className="font-semibold text-[#8B2E4A] hover:underline"
+          >
+            Create an account
+          </Link>
+        </p>
       </div>
     </div>
   )

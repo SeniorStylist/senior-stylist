@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, accessRequests, stylists } from '@/db/schema'
+import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents } from '@/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   if (facilityUser.role === 'stylist' || facilityUser.role === 'viewer') redirect('/dashboard')
 
   try {
-  const [facility, connectedUsers, pendingRequests] = await Promise.all([
+  const [facility, connectedUsers, pendingRequests, rawClaims] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
     }),
@@ -33,9 +33,39 @@ export default async function SettingsPage() {
           where: (t) => and(eq(t.facilityId, facilityUser.facilityId), eq(t.status, 'pending')),
         })
       : Promise.resolve([]),
+    facilityUser.role === 'admin'
+      ? db.query.portalClaimRequests.findMany({
+          where: and(
+            eq(portalClaimRequests.facilityId, facilityUser.facilityId),
+            eq(portalClaimRequests.status, 'pending_review'),
+          ),
+          orderBy: (t, { desc }) => [desc(t.createdAt)],
+          columns: {
+            id: true, email: true, fullName: true, phone: true, dateOfBirth: true,
+            matchType: true, matchConfidence: true, residentId: true, createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
   ])
 
   if (!facility) redirect('/dashboard')
+
+  // Enrich claim requests with resident names
+  const claimResidentIds = rawClaims.map((c) => c.residentId).filter((id): id is string => id !== null)
+  const claimResidentMap = new Map<string, { name: string; roomNumber: string | null }>()
+  if (claimResidentIds.length > 0) {
+    const claimResidents = await db.query.residents.findMany({
+      where: inArray(residents.id, claimResidentIds),
+      columns: { id: true, name: true, roomNumber: true },
+    })
+    for (const r of claimResidents) claimResidentMap.set(r.id, r)
+  }
+  const claimRequests = rawClaims.map((c) => ({
+    ...c,
+    dateOfBirth: c.dateOfBirth ?? null,
+    residentName: c.residentId ? (claimResidentMap.get(c.residentId)?.name ?? null) : null,
+    residentRoom: c.residentId ? (claimResidentMap.get(c.residentId)?.roomNumber ?? null) : null,
+  }))
 
   // Fetch last_sign_in_at from auth.users for status indicators
   let authMap = new Map<string, string | null>()
@@ -83,6 +113,8 @@ export default async function SettingsPage() {
       pendingRequestsCount={pendingRequests.length}
       adminEmail={process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? null}
       qbInvoiceSyncEnabled={process.env.QB_INVOICE_SYNC_ENABLED === 'true'}
+      claimRequests={toClientJson(claimRequests)}
+      pendingClaimsCount={rawClaims.length}
     />
   )
   } catch (err) {

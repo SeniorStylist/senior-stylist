@@ -56,6 +56,14 @@ export interface Facility {
   qbCustomerId?: string | null
   facilityCode?: string | null
   active: boolean
+  // Phase 14A: Family Portal expansion
+  portalSelfSignupEnabled: boolean
+  portalCouponsEnabled: boolean
+  portalWelcomeCouponEnabled: boolean
+  portalWelcomeCouponType: string | null
+  portalWelcomeCouponValue: number | null
+  revSharePercentage?: number | null
+  qbRevShareType?: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -80,6 +88,7 @@ export interface Resident {
   lastPortalInviteSentAt?: string | Date | null
   defaultTipType: string | null
   defaultTipValue: number | null
+  dateOfBirth?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

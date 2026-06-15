@@ -40,6 +40,7 @@ type Bucket =
   | 'feedback'
   | 'memoMatch'
   | 'memoMatchBatch'
+  | 'portalSignup'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -82,6 +83,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   feedback: { tokens: 10, window: '1 h' },
   memoMatch: { tokens: 30, window: '1 h' },
   memoMatchBatch: { tokens: 5, window: '1 h' },
+  portalSignup: { tokens: 5, window: '1 h' },
 }
 
 let redis: Redis | null = null

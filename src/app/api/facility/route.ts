@@ -24,6 +24,12 @@ const updateSchema = z.object({
   }).optional(),
   contactEmail: z.string().email().max(320).optional().nullable(),
   qbExpenseAccountId: z.string().max(100).optional().nullable(),
+  // Phase 14A: Family Portal expansion
+  portalSelfSignupEnabled: z.boolean().optional(),
+  portalCouponsEnabled: z.boolean().optional(),
+  portalWelcomeCouponEnabled: z.boolean().optional(),
+  portalWelcomeCouponType: z.enum(['fixed', 'percent']).optional().nullable(),
+  portalWelcomeCouponValue: z.number().int().min(1).max(10_000_000).optional().nullable(),
 })
 
 export async function GET() {

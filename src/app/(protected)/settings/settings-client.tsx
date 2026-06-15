@@ -11,6 +11,20 @@ import { BillingSection } from './sections/billing-section'
 import { IntegrationsSection } from './sections/integrations-section'
 import { NotificationsSection } from './sections/notifications-section'
 import { AdvancedSection } from './sections/advanced-section'
+import { PortalSection } from './sections/portal-section'
+
+interface ClaimRequest {
+  id: string
+  email: string
+  fullName: string
+  phone: string | null
+  dateOfBirth: string | null
+  matchType: string | null
+  matchConfidence: string | null
+  residentName: string | null
+  residentRoom: string | null
+  createdAt: string
+}
 
 interface SettingsClientProps {
   facility: PublicFacility
@@ -21,9 +35,11 @@ interface SettingsClientProps {
   pendingRequestsCount: number
   adminEmail: string | null
   qbInvoiceSyncEnabled: boolean
+  claimRequests: ClaimRequest[]
+  pendingClaimsCount: number
 }
 
-type CategoryId = 'general' | 'team' | 'billing' | 'integrations' | 'notifications' | 'advanced'
+type CategoryId = 'general' | 'team' | 'billing' | 'integrations' | 'notifications' | 'advanced' | 'portal'
 
 interface CategoryDef {
   id: CategoryId
@@ -40,6 +56,7 @@ const TOUR_SLUGS: Record<CategoryId, string> = {
   integrations: 'settings-nav-integrations',
   notifications: 'settings-nav-notifications',
   advanced: 'settings-nav-advanced',
+  portal: 'settings-nav-portal',
 }
 
 // Map legacy ?tab= values to new ?section= values for back-compat with saved bookmarks
@@ -51,6 +68,7 @@ const TAB_TO_SECTION: Record<string, CategoryId> = {
   integrations: 'integrations',
   payments: 'billing',
   'new-facility': 'advanced',
+  portal: 'portal',
 }
 
 export function SettingsClient({
@@ -62,6 +80,8 @@ export function SettingsClient({
   pendingRequestsCount,
   adminEmail,
   qbInvoiceSyncEnabled,
+  claimRequests,
+  pendingClaimsCount,
 }: SettingsClientProps) {
   const searchParams = useSearchParams()
 
@@ -87,6 +107,7 @@ export function SettingsClient({
       { id: 'team', label: 'Team & Roles', badge: pendingRequestsCount },
       { id: 'billing', label: 'Billing & Payments' },
       { id: 'integrations', label: 'Integrations' },
+      { id: 'portal', label: 'Family Portal', badge: pendingClaimsCount },
       { id: 'notifications', label: 'Notifications' },
       { id: 'advanced', label: 'Advanced' },
     ]
@@ -222,6 +243,9 @@ export function SettingsClient({
           )}
           {activeSection === 'notifications' && (isAdmin || isBookkeeper) && (
             <NotificationsSection adminEmail={adminEmail} role={role} />
+          )}
+          {activeSection === 'portal' && isAdmin && (
+            <PortalSection facility={facility} claimRequests={claimRequests} />
           )}
           {activeSection === 'advanced' && isAdmin && (
             <AdvancedSection facility={facility} />
