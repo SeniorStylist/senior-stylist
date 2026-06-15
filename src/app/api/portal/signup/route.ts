@@ -117,27 +117,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (bestMatch && bestMatch.score >= 0.80) {
-    // High-confidence name match → auto-approve
-    const portalAccountId = await autoApprove({
-      email: normalizedEmail,
-      fullName,
-      phone: phone ?? null,
-      dateOfBirth: dateOfBirth ?? null,
-      facilityId: facility.id,
-      facilityCode: facility.facilityCode ?? facilityCode,
-      facilityName: facility.name,
-      matchedResidents: [bestMatch.resident],
-      matchType: 'name',
-      matchConfidence: 'high',
-    })
-    await issueWelcomeCoupon(facility.id, portalAccountId, bestMatch.resident.id).catch(() => {})
-    return Response.json({ status: 'auto_approved' })
-  }
-
-  // 3. Medium/low confidence or no match → pending review
+  // Name-based matches NEVER auto-approve — only an exact POA-email match (handled
+  // above) does. A name collision must always go to an admin for review, so a
+  // stranger who happens to share a resident's POA name can't self-grant access to
+  // that resident's billing + appointment data.
   const confidence = bestMatch
-    ? (bestMatch.score >= 0.65 ? 'medium' : 'low')
+    ? (bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low')
     : null
 
   await db.insert(portalClaimRequests).values({

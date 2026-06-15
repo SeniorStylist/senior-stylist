@@ -37,6 +37,11 @@ export async function GET(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+
+    // Stylists see their own bookings — the full resident record (POA email/phone,
+    // payment method, notes) is sensitive PII they don't need for day-to-day work.
+    if (facilityUser.role === 'stylist') return Response.json({ error: 'Forbidden' }, { status: 403 })
+
     const { facilityId } = facilityUser
 
     const data = await db.query.residents.findFirst({
