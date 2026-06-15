@@ -1,7 +1,19 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import {
+  Building2,
+  Users,
+  CreditCard,
+  Plug,
+  Heart,
+  Bell,
+  SlidersHorizontal,
+  Search,
+  ChevronRight,
+  type LucideIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PublicFacility } from '@/lib/sanitize'
 import { createClient } from '@/lib/supabase/client'
@@ -40,11 +52,35 @@ interface SettingsClientProps {
 }
 
 type CategoryId = 'general' | 'team' | 'billing' | 'integrations' | 'notifications' | 'advanced' | 'portal'
+type GroupId = 'facility' | 'people' | 'financial' | 'system'
 
 interface CategoryDef {
   id: CategoryId
   label: string
+  description: string
+  icon: LucideIcon
+  group: GroupId
   badge?: number
+}
+
+const GROUP_ORDER: GroupId[] = ['facility', 'people', 'financial', 'system']
+const GROUP_LABELS: Record<GroupId, string> = {
+  facility: 'Facility',
+  people: 'People & Access',
+  financial: 'Billing',
+  system: 'System',
+}
+
+// Static metadata per category — icon + one-line description power both the nav
+// and the content-pane header so users always know "what is what".
+const CATEGORY_META: Record<CategoryId, { label: string; description: string; icon: LucideIcon; group: GroupId }> = {
+  general: { label: 'General', description: 'Name, address, hours, and payment type.', icon: Building2, group: 'facility' },
+  team: { label: 'Team & Roles', description: 'Invite teammates and manage their access.', icon: Users, group: 'people' },
+  portal: { label: 'Family Portal', description: 'Portal access, self-signup, and coupons.', icon: Heart, group: 'people' },
+  billing: { label: 'Billing & Payments', description: 'QuickBooks, Stripe, and revenue share.', icon: CreditCard, group: 'financial' },
+  integrations: { label: 'Integrations', description: 'Google Calendar and other connections.', icon: Plug, group: 'system' },
+  notifications: { label: 'Notifications', description: 'Email alerts and reminder recipients.', icon: Bell, group: 'system' },
+  advanced: { label: 'Advanced', description: 'Tutorial data, service order, and facility tools.', icon: SlidersHorizontal, group: 'system' },
 }
 
 // Static tour-anchor slugs per category — keeps the literal strings discoverable
@@ -95,23 +131,28 @@ export function SettingsClient({
   )
 
   const visibleCategories: CategoryDef[] = useMemo(() => {
+    const build = (id: CategoryId, badge?: number): CategoryDef => ({
+      id,
+      ...CATEGORY_META[id],
+      badge,
+    })
     if (isFacilityStaff) {
-      return [{ id: 'general', label: 'General' }]
+      return [build('general')]
     }
     if (isBookkeeper) {
-      return [{ id: 'notifications', label: 'Notifications' }]
+      return [build('notifications')]
     }
-    // admin (or normalized super_admin)
+    // admin (or normalized super_admin) — ordered by group
     return [
-      { id: 'general', label: 'General' },
-      { id: 'team', label: 'Team & Roles', badge: pendingRequestsCount },
-      { id: 'billing', label: 'Billing & Payments' },
-      { id: 'integrations', label: 'Integrations' },
-      { id: 'portal', label: 'Family Portal', badge: pendingClaimsCount },
-      { id: 'notifications', label: 'Notifications' },
-      { id: 'advanced', label: 'Advanced' },
+      build('general'),
+      build('team', pendingRequestsCount),
+      build('portal', pendingClaimsCount),
+      build('billing'),
+      build('integrations'),
+      build('notifications'),
+      build('advanced'),
     ]
-  }, [isFacilityStaff, isBookkeeper, pendingRequestsCount])
+  }, [isFacilityStaff, isBookkeeper, pendingRequestsCount, pendingClaimsCount])
 
   const defaultSection: CategoryId = visibleCategories[0]?.id ?? 'general'
 
@@ -127,8 +168,9 @@ export function SettingsClient({
   }
 
   const [activeSection, setActiveSection] = useState<CategoryId>(resolveInitial)
-  // Mobile drill-down: null = category list, set = content view
+  // Mobile drill-down: false = category list, true = content view
   const [mobileShowingContent, setMobileShowingContent] = useState(false)
+  const [query, setQuery] = useState('')
 
   // Sync URL when section changes (mirror via shallow replace, no scroll jump)
   useEffect(() => {
@@ -146,6 +188,57 @@ export function SettingsClient({
   }
 
   const facilityCode = facility.facilityCode
+  const activeDef = visibleCategories.find((c) => c.id === activeSection) ?? visibleCategories[0]
+  const ActiveIcon = activeDef?.icon ?? Building2
+
+  const showSearch = visibleCategories.length > 4
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? visibleCategories.filter(
+        (c) => c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
+      )
+    : visibleCategories
+  const showGroups = visibleCategories.length > 1 && !q
+
+  function renderNavButton(cat: CategoryDef) {
+    const active = cat.id === activeSection
+    const Icon = cat.icon
+    return (
+      <li key={cat.id}>
+        <button
+          onClick={() => selectCategory(cat.id)}
+          data-tour={TOUR_SLUGS[cat.id]}
+          className={cn(
+            'group px-2.5 py-2 text-sm rounded-xl w-full text-left flex items-center gap-2.5 transition-colors duration-150',
+            active
+              ? 'bg-[#F9EFF2] text-[#8B2E4A] font-semibold'
+              : 'text-stone-600 hover:bg-stone-50'
+          )}
+        >
+          <Icon
+            size={17}
+            className={cn(
+              'shrink-0 transition-colors',
+              active ? 'text-[#8B2E4A]' : 'text-stone-400 group-hover:text-stone-500'
+            )}
+          />
+          <span className="flex-1 min-w-0 truncate">{cat.label}</span>
+          {cat.badge ? (
+            <span
+              className={cn(
+                'inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold',
+                active ? 'bg-[#8B2E4A] text-white' : 'bg-amber-100 text-amber-800'
+              )}
+            >
+              {cat.badge}
+            </span>
+          ) : null}
+          {/* mobile-only chevron affordance */}
+          <ChevronRight size={15} className="md:hidden shrink-0 text-stone-300" />
+        </button>
+      </li>
+    )
+  }
 
   return (
     <div className="page-enter max-w-5xl mx-auto px-4 py-8">
@@ -168,49 +261,52 @@ export function SettingsClient({
         {/* Left rail (desktop) / category list (mobile) */}
         <nav
           className={cn(
-            'md:w-56 md:shrink-0 md:border-r md:border-stone-100 md:pr-4 md:space-y-0.5',
+            'md:w-60 md:shrink-0 md:border-r md:border-stone-100 md:pr-4',
             mobileShowingContent ? 'hidden md:block' : 'block'
           )}
         >
-          <ul className="space-y-0.5">
-            {visibleCategories.map((cat) => {
-              const active = cat.id === activeSection
-              return (
-                <li key={cat.id}>
-                  <button
-                    onClick={() => selectCategory(cat.id)}
-                    data-tour={TOUR_SLUGS[cat.id]}
-                    className={cn(
-                      'px-3 py-2 text-sm rounded-xl w-full text-left flex items-center justify-between transition-colors duration-150',
-                      active
-                        ? 'bg-stone-100 text-stone-900 font-semibold'
-                        : 'text-stone-600 hover:bg-stone-50'
-                    )}
-                  >
-                    <span>{cat.label}</span>
-                    {cat.badge ? (
-                      <span
-                        className={cn(
-                          'inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold',
-                          active
-                            ? 'bg-[#8B2E4A] text-white'
-                            : 'bg-amber-100 text-amber-800'
-                        )}
-                      >
-                        {cat.badge}
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          {showSearch && (
+            <div className="relative mb-3">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search settings…"
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-stone-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-shadow"
+              />
+            </div>
+          )}
+
+          {showGroups ? (
+            <div className="space-y-4">
+              {GROUP_ORDER.map((g) => {
+                const items = filtered.filter((c) => c.group === g)
+                if (items.length === 0) return null
+                return (
+                  <div key={g}>
+                    <p className="px-2.5 mb-1 text-[10.5px] font-semibold text-stone-400 uppercase tracking-wide">
+                      {GROUP_LABELS[g]}
+                    </p>
+                    <ul className="space-y-0.5">{items.map(renderNavButton)}</ul>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <ul className="space-y-0.5">
+              {filtered.length === 0 ? (
+                <li className="px-2.5 py-3 text-sm text-stone-400">No matching settings.</li>
+              ) : (
+                filtered.map(renderNavButton)
+              )}
+            </ul>
+          )}
         </nav>
 
         {/* Right pane (desktop) / content view (mobile) */}
         <div
           className={cn(
-            'flex-1 min-w-0 md:pl-6 mt-4 md:mt-0',
+            'flex-1 min-w-0 md:pl-7 mt-4 md:mt-0',
             !mobileShowingContent && 'hidden md:block'
           )}
         >
@@ -220,8 +316,21 @@ export function SettingsClient({
             className="md:hidden text-sm text-stone-500 mb-4 flex items-center gap-1 hover:text-stone-700"
           >
             <span>←</span>
-            <span>Back to Settings</span>
+            <span>All settings</span>
           </button>
+
+          {/* Section header — the "what is what" anchor, consistent across sections */}
+          {activeDef && (
+            <div className="flex items-start gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-[#F9EFF2] text-[#8B2E4A] flex items-center justify-center shrink-0">
+                <ActiveIcon size={20} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-stone-900 leading-tight">{activeDef.label}</h2>
+                <p className="text-sm text-stone-500 mt-0.5">{activeDef.description}</p>
+              </div>
+            </div>
+          )}
 
           {activeSection === 'general' && (
             <GeneralSection facility={facility} role={role} />

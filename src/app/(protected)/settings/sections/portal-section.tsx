@@ -126,12 +126,7 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-sm font-semibold text-stone-800">Family Portal</h2>
-        <p className="text-xs text-stone-500 mt-0.5">Control how families access the portal for this facility.</p>
-      </div>
-
+    <div className="space-y-5">
       {/* Self-signup toggle */}
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)] space-y-4">
         <div className="flex items-center justify-between">
