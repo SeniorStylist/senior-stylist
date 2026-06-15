@@ -246,6 +246,16 @@ Rules for stable selectors:
 - **`Permissions-Policy` in `next.config.ts` MUST keep `microphone=(self)`** (2026-06-12) — the feedback widget's voice input depends on it. `microphone=()` makes `getUserMedia` reject instantly WITHOUT ever showing the browser permission prompt (the bug looked like a client-side issue but was this header). Camera and geolocation stay `()`.
 - **HSTS and HTTP→HTTPS redirect are configured in `next.config.ts`** and must not be removed or weakened. `redirects()` fires a 301 when `x-forwarded-proto: http` is present (no-op on Vercel since CDN enforces HTTPS before requests reach Next.js; protects self-hosted environments). `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` — 2-year HSTS with preload flag. The preload flag means the domain is (or will be) submitted to browser preload lists; removing it does not undo preloading.
 
+### Authorization invariants (full audit 2026-06-15 — do NOT regress)
+A four-agent authorization audit fixed these broken-access-control gaps. Each guard is load-bearing:
+- **`/invoice/[facilityId]` is NOT public.** It exposes a facility's full billing roster (resident PII + dollars). The page requires auth + `canAccessBilling(role)` + facility scope (master/bookkeeper cross-facility); `/invoice` was removed from `middleware.ts` `skipSupabase`/`isPublic` and added to the no-store cache list. Never re-add it to the public allowlists.
+- **`GET /api/export/billing` and `GET /api/reports/monthly` MUST call `canAccessBilling(role)`** — they return revenue + per-stylist commission. They are SEPARATE routes from the master-gated `/api/super-admin/export/billing` + `/api/super-admin/reports/monthly` (which use `getSuperAdminFacilities`). Don't confuse them.
+- **`DELETE /api/bookings/[id]` checks stylist ownership** (`profiles.stylistId === existing.stylistId`) exactly like the PUT handler — a stylist may only cancel their own bookings.
+- **`POST /api/services/bulk-update` and `POST /api/bookings/sync` are admin-only** (`role !== 'admin'` → 403). bookings/sync uses `getUserFacility` (not a raw `facilityUsers` lookup that ignored role).
+- **`POST /api/facilities` is gated**: allowed only for genuine onboarding (no existing membership), an existing `admin`/`super_admin`, the master admin, or tutorial mode. Non-admin members of an existing facility get 403 (prevents self-provisioning + self-admin).
+- **`availability` PUT delete-then-reinsert is scoped `(stylistId, facilityId)`** — an unscoped delete wipes the stylist's availability at OTHER facilities.
+- **`POST /api/log` blocks `viewer`**; `save-check-payment` validates operator-supplied `matchedFacilityId` for non-master; `selected_facility_id` cookie sets `secure` in prod; cron routes reject when `CRON_SECRET` is unset (`!process.env.CRON_SECRET || ...`).
+
 ---
 
 ## Sign-Up Sheet (Intake Queue → Stylist Calendar)
