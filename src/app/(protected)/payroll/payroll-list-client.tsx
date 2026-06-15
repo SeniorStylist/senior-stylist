@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { addDays, endOfMonth, format } from 'date-fns'
 import { Modal } from '@/components/ui/modal'
+import { PageHeader } from '@/components/ui/page-header'
+import { Wallet } from 'lucide-react'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-is-mobile'
@@ -152,18 +154,21 @@ export function PayrollListClient({
   return (
     <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-serif text-stone-900">Payroll</h1>
-          <p className="text-sm text-stone-500 mt-1">
-            {periods.length} pay {periods.length === 1 ? 'period' : 'periods'}
-            {periods.length > 0 && (
-              <>
-                {' · '}
-                <span>{formatDollars(totalPayout)} total net payout</span>
-              </>
-            )}
-          </p>
-        </div>
+        <PageHeader
+          icon={Wallet}
+          title="Payroll"
+          subtitle={
+            <>
+              {periods.length} pay {periods.length === 1 ? 'period' : 'periods'}
+              {periods.length > 0 && (
+                <>
+                  {' · '}
+                  <span>{formatDollars(totalPayout)} total net payout</span>
+                </>
+              )}
+            </>
+          }
+        />
         <Button onClick={openModal}>+ New Pay Period</Button>
       </div>
 

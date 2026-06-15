@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { PageHeader } from '@/components/ui/page-header'
+import { Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ReportsTab } from './reports-tab'
@@ -420,17 +422,11 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
         <div className="mb-6">
           {/* Title row */}
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1
-                className="text-2xl font-normal text-stone-900"
-                style={{ fontFamily: "'DM Serif Display', serif" }}
-              >
-                Master Admin
-              </h1>
-              <p className="text-sm text-stone-500 mt-1">
-                {localFacilities.length} {localFacilities.length === 1 ? 'facility' : 'facilities'} total
-              </p>
-            </div>
+            <PageHeader
+              icon={Shield}
+              title="Master Admin"
+              subtitle={`${localFacilities.length} ${localFacilities.length === 1 ? 'facility' : 'facilities'} total`}
+            />
             {activeTab === 'facilities' && (
               <button
                 onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}

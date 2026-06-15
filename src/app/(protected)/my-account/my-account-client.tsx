@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import { isInstallable, detectDevice } from '@/lib/detect-device'
 import { InstallGuide } from '@/components/pwa/install-guide'
+import { PageHeader } from '@/components/ui/page-header'
+import { UserRound } from 'lucide-react'
 import type {
   Stylist,
   ComplianceDocumentWithUrl,
@@ -445,12 +447,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
             <p className="text-sm text-rose-800">{welcomeBanner}</p>
           </div>
         )}
-        <h1
-          className="text-2xl font-normal text-stone-900 mb-6"
-          style={{ fontFamily: "'DM Serif Display', serif" }}
-        >
-          My Account
-        </h1>
+        <PageHeader icon={UserRound} title="My Account" className="mb-6" />
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6">
           <div className="mb-4">
             <p className="text-sm font-medium text-stone-900">{user.fullName ?? user.email}</p>
@@ -504,12 +501,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           <p className="text-sm text-rose-800">{welcomeBanner}</p>
         </div>
       )}
-      <h1
-        className="text-2xl font-normal text-stone-900"
-        style={{ fontFamily: "'DM Serif Display', serif" }}
-      >
-        My Account
-      </h1>
+      <PageHeader icon={UserRound} title="My Account" />
 
       {/* Calendar banner */}
       {calendarBanner && (

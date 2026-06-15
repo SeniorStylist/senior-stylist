@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Applicant, ApplicantStatus, Stylist, StylistStatus } from '@/types'
 import { useToast } from '@/components/ui/toast'
+import { PageHeader } from '@/components/ui/page-header'
+import { Scissors } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { getZipsWithinMiles, extractZip } from '@/lib/zip-coords'
 
@@ -584,17 +586,11 @@ export function DirectoryClient({
       {activeTab === 'stylists' && (
       <>
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1
-            className="text-2xl font-normal text-stone-900"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
-          >
-            Directory
-          </h1>
-          <p className="text-sm text-stone-500 mt-0.5">
-            {franchiseName} · {stylists.length} stylist{stylists.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <PageHeader
+          icon={Scissors}
+          title="Directory"
+          subtitle={`${franchiseName} · ${stylists.length} stylist${stylists.length !== 1 ? 's' : ''}`}
+        />
         <div className="flex gap-2">
           <button
             type="button"

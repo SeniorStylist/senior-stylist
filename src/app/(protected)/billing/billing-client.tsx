@@ -16,6 +16,8 @@ import { HybridView } from './views/hybrid-view'
 import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel'
 import { ScanCheckModal, ScanResult } from './components/scan-check-modal'
 import { MemoBatchModal } from '@/components/billing/memo-batch-modal'
+import { PageHeader } from '@/components/ui/page-header'
+import { CreditCard } from 'lucide-react'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -513,12 +515,7 @@ export function BillingClient({
   if (!facilityId) {
     return (
       <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
-        <h1
-          className="text-2xl md:text-3xl text-stone-900"
-          style={{ fontFamily: 'DM Serif Display, serif' }}
-        >
-          Billing
-        </h1>
+        <PageHeader icon={CreditCard} title="Billing" />
         <div className="mt-6 bg-white rounded-2xl border border-stone-100 shadow-sm p-10 text-center">
           <p className="text-sm text-stone-500">No facility available.</p>
         </div>
@@ -624,12 +621,7 @@ export function BillingClient({
         />
       )}
 
-      <h1
-        className="text-2xl md:text-3xl text-stone-900 mb-6"
-        style={{ fontFamily: 'DM Serif Display, serif' }}
-      >
-        Billing
-      </h1>
+      <PageHeader icon={CreditCard} title="Billing" className="mb-6" />
 
       {isMaster ? (
         <>

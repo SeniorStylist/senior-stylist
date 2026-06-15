@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
+import { PageHeader } from '@/components/ui/page-header'
+import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SkeletonResidentRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -158,17 +160,11 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
       )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1
-            className="text-2xl font-normal text-stone-900"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
-          >
-            Residents
-          </h1>
-          <p className="text-sm text-stone-500 mt-0.5">
-            {residents.length} resident{residents.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <PageHeader
+          icon={Users}
+          title="Residents"
+          subtitle={`${residents.length} resident${residents.length !== 1 ? 's' : ''}`}
+        />
         <div className="flex items-center gap-2">
           {canMergeDuplicates && (
             <button

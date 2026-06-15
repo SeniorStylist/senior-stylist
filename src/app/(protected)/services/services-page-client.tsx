@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
+import { Sparkles } from 'lucide-react'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
 import { formatPricingLabel } from '@/lib/pricing'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
@@ -206,17 +208,11 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
     <div className="page-enter p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1
-            className="text-2xl font-normal text-stone-900"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
-          >
-            Services
-          </h1>
-          <p className="text-sm text-stone-500 mt-0.5">
-            {services.length} service{services.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <PageHeader
+          icon={Sparkles}
+          title="Services"
+          subtitle={`${services.length} service${services.length !== 1 ? 's' : ''}`}
+        />
         <div className="flex items-center gap-2">
         <Link
           href="/services/import"

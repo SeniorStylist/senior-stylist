@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
+import { PageHeader } from '@/components/ui/page-header'
+import { BarChart3 } from 'lucide-react'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { SkeletonStatCard, Skeleton } from '@/components/ui/skeleton'
 import {
@@ -192,15 +194,7 @@ export function ReportsClient({
     <div className="page-enter p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1
-            className="text-2xl font-bold text-stone-900"
-            style={{ fontFamily: "'DM Serif Display', serif" }}
-          >
-            Reports
-          </h1>
-          <p className="text-sm text-stone-500 mt-0.5">Monthly revenue &amp; activity</p>
-        </div>
+        <PageHeader icon={BarChart3} title="Reports" subtitle="Monthly revenue & activity" />
         <div className="flex items-center gap-2">
           <input
             type="month"
