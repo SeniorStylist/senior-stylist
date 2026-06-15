@@ -135,6 +135,45 @@ async function spreadsheetToGridText(file: File): Promise<string> {
   return parts.join('\n\n')
 }
 
+// ─── Word (.docx) → grid text (for the AI parser) ────────────────────────────
+// Word price sheets are tab-separated paragraphs ("Service<tab…>Price") and/or
+// tables. We unzip the docx and read word/document.xml directly so the name↔price
+// separation survives (one tab per gap), then hand the grid to the same AI parser.
+
+async function docxToGridText(file: File): Promise<string> {
+  const JSZip = (await import('jszip')).default
+  const zip = await JSZip.loadAsync(await file.arrayBuffer())
+  const docXml = zip.file('word/document.xml')
+  if (!docXml) throw new Error('This doesn’t look like a Word document.')
+  const xml = await docXml.async('string')
+  const unescape = (s: string) =>
+    s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
+
+  const lines: string[] = []
+  const blocks = xml.match(/<w:tr\b[\s\S]*?<\/w:tr>|<w:p\b[\s\S]*?<\/w:p>/g) ?? []
+  for (const b of blocks) {
+    if (b.startsWith('<w:tr')) {
+      // Table row → tab-joined cells
+      const cells = (b.match(/<w:tc>[\s\S]*?<\/w:tc>/g) ?? []).map((c) =>
+        (c.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) ?? [])
+          .map((t) => unescape(t.replace(/<[^>]+>/g, '')))
+          .join('')
+          .trim()
+      )
+      if (cells.some(Boolean)) lines.push(cells.join('\t'))
+    } else {
+      // Paragraph → text with one tab per run of <w:tab/>
+      let out = ''
+      for (const m of b.matchAll(/<w:tab\b[^>]*\/>|<w:t[^>]*>([\s\S]*?)<\/w:t>/g)) {
+        out += m[0].startsWith('<w:tab') ? '\t' : unescape(m[1])
+      }
+      out = out.replace(/\t+/g, '\t').trim()
+      if (out) lines.push(out)
+    }
+  }
+  return lines.join('\n')
+}
+
 // ─── AI parser (server-side, shared by PDF + spreadsheet) ────────────────────
 
 async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
@@ -191,11 +230,12 @@ async function parsePDF(file: File): Promise<ParsedService[]> {
   return rows
 }
 
-// Spreadsheets go through the SAME AI parser as PDFs — converted to a cell grid
-// first — so messy real-world price sheets (section headers, prose, blank cells)
-// are read intelligently instead of mapped row-for-row.
-async function parseSpreadsheetAI(file: File): Promise<ParsedService[]> {
-  const gridText = await spreadsheetToGridText(file)
+// Spreadsheets AND Word docs go through the SAME AI parser as PDFs — converted
+// to a text grid first — so messy real-world price sheets (section headers, prose,
+// blank cells, irregular columns) are read intelligently, not mapped row-for-row.
+async function parseGridTextAI(file: File): Promise<ParsedService[]> {
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  const gridText = ext === 'docx' ? await docxToGridText(file) : await spreadsheetToGridText(file)
   if (!gridText.trim()) throw new Error('File appears to be empty.')
   const formData = new FormData()
   formData.append('gridText', gridText)
@@ -262,9 +302,15 @@ async function parseFile(file: File): Promise<ParsedService[]> {
   if (ext === 'pdf') {
     return parsePDF(file)
   }
+  // Word docs (.docx) have no tabular fallback — they're always free-form text.
+  if (ext === 'docx') {
+    const ai = await parseGridTextAI(file)
+    if (ai.length > 0) return ai
+    throw new Error('No services could be read from this document. Make sure it lists service names with prices.')
+  }
   // Spreadsheets go through the AI parser (reads messy real-world sheets like a PDF).
   try {
-    const ai = await parseSpreadsheetAI(file)
+    const ai = await parseGridTextAI(file)
     if (ai.length > 0) return ai
     // AI ran but found nothing — surface that instead of dumping every row as garbage.
     throw new Error('No services could be read from this sheet. Make sure it lists service names with prices.')
@@ -558,11 +604,11 @@ export function ImportClient() {
               </p>
               <p className="text-xs text-stone-400 mt-0.5">or click to browse</p>
             </div>
-            <p className="text-xs text-stone-400">Supports .pdf, .csv, .xlsx, .xls</p>
+            <p className="text-xs text-stone-400">Supports .pdf, .docx, .csv, .xlsx, .xls</p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.csv,.xlsx,.xls,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              accept=".pdf,.docx,.csv,.xlsx,.xls,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onChange={onFileChange}
               className="sr-only"
             />
