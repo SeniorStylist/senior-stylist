@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { addDays, endOfMonth, format } from 'date-fns'
 import { Modal } from '@/components/ui/modal'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Wallet } from 'lucide-react'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -173,20 +174,21 @@ export function PayrollListClient({
       </div>
 
       {periods.length === 0 ? (
-        <div className="rounded-2xl border border-stone-200 bg-white p-12 text-center">
-          <p className="text-stone-500 text-sm">No pay periods yet.</p>
-          <p className="text-stone-400 text-xs mt-2">
-            Create your first pay period to calculate commissions from completed bookings.
-          </p>
-        </div>
+        <EmptyState
+          className="rounded-2xl border border-stone-200 bg-white"
+          icon={<Wallet size={22} />}
+          title="No pay periods yet"
+          description="Create your first pay period to calculate commissions from completed bookings."
+          cta={{ label: '+ New Pay Period', onClick: openModal }}
+        />
       ) : (
         <div className="rounded-[18px] border border-stone-200 bg-white overflow-hidden shadow-[var(--shadow-sm)]" data-tour="payroll-period-list">
           <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b border-stone-200 bg-stone-50/60 text-[11px] font-semibold text-stone-400 uppercase tracking-wide">
             <div>Period</div>
             <div>Type</div>
             <div>Status</div>
-            <div>Stylists</div>
-            <div>Net Payout</div>
+            <div className="md:text-right">Stylists</div>
+            <div className="md:text-right">Net Payout</div>
           </div>
           {periods.map((p, i) => {
             const badge = STATUS_BADGE[p.status] ?? {
@@ -213,8 +215,8 @@ export function PayrollListClient({
                     {badge.label}
                   </span>
                 </div>
-                <div className="text-sm text-stone-600">{p.stylistCount}</div>
-                <div className="text-sm font-semibold text-stone-900">
+                <div className="text-sm text-stone-600 tabular-nums md:text-right">{p.stylistCount}</div>
+                <div className="text-sm font-semibold text-stone-900 tabular-nums md:text-right">
                   {formatDollars(p.totalPayoutCents)}
                 </div>
               </button>

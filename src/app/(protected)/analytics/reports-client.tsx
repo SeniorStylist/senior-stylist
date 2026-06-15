@@ -386,7 +386,7 @@ export function ReportsClient({
                           {s.count} appointment{s.count !== 1 ? 's' : ''}
                         </p>
                       </div>
-                      <p className="text-sm font-bold text-stone-700">
+                      <p className="text-sm font-bold text-stone-700 tabular-nums">
                         {formatCents(s.revenueCents)}
                       </p>
                     </div>
