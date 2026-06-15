@@ -632,11 +632,12 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
 
 ### Settings (`/settings`, Phase 11J.3)
 - Layout: Apple-style two-pane — left rail of categories, right content panel. Mobile collapses to a category list that drills into a content view via `mobileShowingContent` state.
-- Categories: `general | team | billing | integrations | notifications | advanced`. Each lives as its own component under `src/app/(protected)/settings/sections/`. The shell (`settings-client.tsx`) only owns nav + URL sync + role-gated visibility.
+- **Shell redesign (2026-06-15)**: each category carries `{ label, description, icon (lucide), group }` metadata in `CATEGORY_META` (single source for both the nav row AND the content-pane header). The rail groups categories under uppercase labels via `GROUP_ORDER`/`GROUP_LABELS` (`facility` / `people` / `financial` / `system`) — group headers render only when `visibleCategories.length > 1`. Active nav state is burgundy-tinted (`bg-[#F9EFF2] text-[#8B2E4A]`) with the icon color synced. Every section now opens with a consistent header (10×10 `bg-[#F9EFF2]` icon chip + title + one-line description) rendered by the SHELL — section components must NOT render their own top-level header (portal-section's was removed). A search/filter box appears in the rail when `visibleCategories.length > 4` (admin only); typing flattens the grouped list. `portal` is ordered into the `people` group (after `team`), so the admin category order is general / team / portal / billing / integrations / notifications / advanced.
+- Categories: `general | team | billing | integrations | notifications | advanced | portal`. Each lives as its own component under `src/app/(protected)/settings/sections/`. The shell (`settings-client.tsx`) owns nav + URL sync + role-gated visibility + the per-section header.
 - URL convention: `?section=<id>`. Legacy `?tab=<id>` values still resolve via `TAB_TO_SECTION` map for back-compat with saved bookmarks. New inbound links MUST use `?section=`.
 - QuickBooks OAuth callback (`?qb=connected` / `?qb=error&reason=…`) auto-resolves the active section to `billing`; the toast surfaces in the Billing & Payments section.
 - Role-gated visibility (built in `settings-client.tsx::visibleCategories`):
-  - `admin` (and normalized `super_admin`) → all 6 categories
+  - `admin` (and normalized `super_admin`) → all 7 categories (incl. Family Portal — Phase 14A)
   - `facility_staff` → only General (read-only — every input rendered as `<p>` text, no Save button, amber "contact your admin" banner)
   - `bookkeeper` → only Notifications (read-only)
   - `stylist` / `viewer` → already redirected at `page.tsx:20` (Phase 11J.1 guard)
