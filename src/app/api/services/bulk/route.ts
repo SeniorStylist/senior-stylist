@@ -49,18 +49,30 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: `Invalid service data — ${msg}` }, { status: 422 })
     }
 
-    const values = parsed.data.rows.map((r) => ({
-      facilityId,
-      name: r.name.trim(),
-      priceCents: r.pricingType === 'addon' ? 0 : r.priceCents,
-      durationMinutes: r.durationMinutes,
-      color: r.color || null,
-      pricingType: r.pricingType,
-      addonAmountCents: r.addonAmountCents ?? null,
-      pricingTiers: r.pricingTiers ?? null,
-      pricingOptions: r.pricingOptions ?? null,
-      category: r.category ?? null,
-    }))
+    const values = parsed.data.rows.map((r) => {
+      // Normalize a row whose declared type is missing its required data (an
+      // add-on with no amount, or a tiered / multi-option row the import UI
+      // couldn't supply structured pricing for) down to a plain fixed-price
+      // service. The single-create endpoint hard-rejects these via .refine();
+      // bulk import instead normalizes so one bad row never fails a 100-row sheet
+      // and no inconsistent record (e.g. tiered with null tiers) is ever inserted.
+      let pricingType = r.pricingType
+      if (pricingType === 'addon' && !r.addonAmountCents) pricingType = 'fixed'
+      if (pricingType === 'tiered' && (!r.pricingTiers || r.pricingTiers.length === 0)) pricingType = 'fixed'
+      if (pricingType === 'multi_option' && (!r.pricingOptions || r.pricingOptions.length === 0)) pricingType = 'fixed'
+      return {
+        facilityId,
+        name: r.name.trim(),
+        priceCents: pricingType === 'addon' ? 0 : r.priceCents,
+        durationMinutes: r.durationMinutes,
+        color: r.color || null,
+        pricingType,
+        addonAmountCents: pricingType === 'addon' ? r.addonAmountCents ?? null : null,
+        pricingTiers: pricingType === 'tiered' ? r.pricingTiers ?? null : null,
+        pricingOptions: pricingType === 'multi_option' ? r.pricingOptions ?? null : null,
+        category: r.category ?? null,
+      }
+    })
 
     const inserted = await db
       .insert(services)

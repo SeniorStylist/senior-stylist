@@ -81,7 +81,8 @@ export async function PUT(
     const body = await request.json()
     const parsed = updateSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
+      return Response.json({ error: `Invalid service data — ${msg}` }, { status: 422 })
     }
 
     const [updated] = await db

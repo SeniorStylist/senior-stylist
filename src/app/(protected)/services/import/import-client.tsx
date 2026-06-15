@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { cn, formatCents } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,6 +79,22 @@ function parsePriceToCents(value: string | number): number {
   const num = parseFloat(cleaned)
   if (isNaN(num)) return 0
   return Math.round(num * 100)
+}
+
+// ─── Per-row validation flag ──────────────────────────────────────────────────
+// Single source of truth for a row's `error`. An add-on row is judged on its
+// add-on amount; tiered / multi-option rows keep their real prices in their
+// arrays, so a $0 base price is expected and never flagged.
+function rowError(
+  name: string,
+  pricingType: string | undefined,
+  priceCents: number,
+  addonAmountCents: number | null,
+): ParsedService['error'] {
+  if (!name.trim()) return 'Missing name'
+  if (pricingType === 'tiered' || pricingType === 'multi_option') return undefined
+  const amount = pricingType === 'addon' ? (addonAmountCents ?? 0) : priceCents
+  return amount === 0 ? 'Price is $0' : undefined
 }
 
 // ─── CSV parser (papaparse) ──────────────────────────────────────────────────
@@ -391,13 +407,13 @@ export function ImportClient() {
 
   const updateName = (id: number, name: string) =>
     setRows((prev) => prev.map((r) =>
-      r.id === id ? { ...r, name, error: name.trim() ? (r.priceCents === 0 ? 'Price is $0' : undefined) : 'Missing name' } : r
+      r.id === id ? { ...r, name, error: rowError(name, r.pricingType, r.priceCents, r.addonAmountCents ?? null) } : r
     ))
 
   const updatePrice = (id: number, dollars: string) => {
     const cents = parsePriceToCents(dollars)
     setRows((prev) => prev.map((r) =>
-      r.id === id ? { ...r, priceCents: cents, error: r.name.trim() ? (cents === 0 ? 'Price is $0' : undefined) : 'Missing name' } : r
+      r.id === id ? { ...r, priceCents: cents, error: rowError(r.name, r.pricingType, cents, r.addonAmountCents ?? null) } : r
     ))
   }
 
@@ -407,19 +423,24 @@ export function ImportClient() {
   const updateColor = (id: number, color: string) =>
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, color } : r))
 
+  // Switching type carries the dollar amount across so it's never lost: the
+  // visible amount lives in priceCents for non-addon types and in addonAmountCents
+  // for addon. (Fixes the case where the AI mis-tags a real service as an add-on —
+  // flipping it to Fixed keeps the dollar value instead of zeroing it.)
   const updatePricingType = (id: number, type: string) =>
-    setRows((prev) => prev.map((r) =>
-      r.id === id ? {
-        ...r,
-        pricingType: type,
-        priceCents: type === 'addon' ? 0 : r.priceCents,
-        addonAmountCents: type === 'addon' ? (r.addonAmountCents ?? 0) : null,
-      } : r
-    ))
+    setRows((prev) => prev.map((r) => {
+      if (r.id !== id) return r
+      const currentCents = r.pricingType === 'addon' ? (r.addonAmountCents ?? 0) : r.priceCents
+      const priceCents = type === 'addon' ? 0 : currentCents
+      const addonAmountCents = type === 'addon' ? currentCents : null
+      return { ...r, pricingType: type, priceCents, addonAmountCents, error: rowError(r.name, type, priceCents, addonAmountCents) }
+    }))
 
   const updateAddonAmount = (id: number, dollars: string) => {
     const cents = parsePriceToCents(dollars)
-    setRows((prev) => prev.map((r) => r.id === id ? { ...r, addonAmountCents: cents } : r))
+    setRows((prev) => prev.map((r) =>
+      r.id === id ? { ...r, addonAmountCents: cents, error: rowError(r.name, r.pricingType, r.priceCents, cents) } : r
+    ))
   }
 
   const toggleAll = () => {
@@ -452,17 +473,29 @@ export function ImportClient() {
     let totalSkipped = 0
 
     try {
-      // Handle replacements via individual PUT to existing service
+      // Handle replacements via individual PUT to existing service. Send the full
+      // pricing shape (type + amount) so an edited type isn't lost on replace, and
+      // surface failures instead of silently counting them as created.
       for (const dup of replaceRows) {
-        await fetch(`/api/services/${dup.existingService.id}`, {
+        const ps = dup.parsedService
+        const type = ps.pricingType ?? 'fixed'
+        const res = await fetch(`/api/services/${dup.existingService.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            priceCents: dup.parsedService.priceCents,
-            durationMinutes: dup.parsedService.durationMinutes,
-            color: dup.parsedService.color,
+            durationMinutes: ps.durationMinutes,
+            color: ps.color,
+            pricingType: type,
+            priceCents: type === 'addon' ? 0 : Math.round(ps.priceCents),
+            addonAmountCents: type === 'addon' ? Math.round(ps.addonAmountCents ?? 0) : null,
+            pricingTiers: type === 'tiered' ? ps.pricingTiers ?? null : null,
+            pricingOptions: type === 'multi_option' ? ps.pricingOptions ?? null : null,
           }),
         })
+        if (!res.ok) {
+          const j = await res.json().catch(() => null)
+          throw new Error(typeof j?.error === 'string' ? j.error : 'Failed to update existing service')
+        }
         totalCreated++
       }
 
@@ -781,26 +814,34 @@ export function ImportClient() {
                               : 'border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-stone-800'
                           )}
                         />
-                        <select
-                          value={row.pricingType ?? 'fixed'}
-                          onChange={(e) => updatePricingType(row.id, e.target.value)}
-                          title="Change pricing type"
-                          className={cn(
-                            'self-start text-[10px] font-semibold rounded-md px-1.5 py-0.5 cursor-pointer border-0 focus:outline-none appearance-none max-w-[100px]',
-                            !row.pricingType || row.pricingType === 'fixed'
-                              ? 'bg-stone-100 text-stone-500'
-                              : row.pricingType === 'addon'
-                                ? 'bg-amber-50 text-amber-700'
-                                : row.pricingType === 'tiered'
-                                  ? 'bg-purple-50 text-purple-700'
-                                  : 'bg-blue-50 text-blue-700'
-                          )}
-                        >
-                          <option value="fixed">Fixed price</option>
-                          <option value="addon">+ Add-on</option>
-                          <option value="tiered">Tiered</option>
-                          <option value="multi_option">Options</option>
-                        </select>
+                        <div className="relative self-start">
+                          <select
+                            value={row.pricingType ?? 'fixed'}
+                            onChange={(e) => updatePricingType(row.id, e.target.value)}
+                            title="Change pricing type"
+                            className={cn(
+                              'text-[10px] font-semibold rounded-md pl-1.5 pr-4 py-0.5 cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-[#8B2E4A]/30 appearance-none',
+                              !row.pricingType || row.pricingType === 'fixed'
+                                ? 'bg-stone-100 text-stone-500'
+                                : row.pricingType === 'addon'
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : row.pricingType === 'tiered'
+                                    ? 'bg-purple-50 text-purple-700'
+                                    : 'bg-blue-50 text-blue-700'
+                            )}
+                          >
+                            <option value="fixed">Fixed price</option>
+                            <option value="addon">+ Add-on</option>
+                            <option value="tiered">Tiered</option>
+                            <option value="multi_option">Options</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 opacity-50"
+                            width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </div>
                       </div>
                       <div className="col-span-2">
                         {row.pricingType === 'addon' ? (
