@@ -10,19 +10,19 @@ const bulkSchema = z.object({
   rows: z.array(
     z.object({
       name: z.string().min(1),
-      priceCents: z.number().int().min(0),
-      durationMinutes: z.number().int().min(1).default(30),
+      priceCents: z.number().transform(Math.round).pipe(z.number().min(0)),
+      durationMinutes: z.number().transform(Math.round).pipe(z.number().min(1)).default(30),
       color: z.string().optional(),
       pricingType: z.enum(['fixed', 'addon', 'tiered', 'multi_option']).optional().default('fixed'),
-      addonAmountCents: z.number().int().nullable().optional(),
+      addonAmountCents: z.number().transform(Math.round).nullable().optional(),
       pricingTiers: z.array(z.object({
-        minQty: z.number().int(),
-        maxQty: z.number().int(),
-        unitPriceCents: z.number().int(),
+        minQty: z.number().transform(Math.round),
+        maxQty: z.number().transform(Math.round),
+        unitPriceCents: z.number().transform(Math.round),
       })).nullable().optional(),
       pricingOptions: z.array(z.object({
         name: z.string(),
-        priceCents: z.number().int(),
+        priceCents: z.number().transform(Math.round),
       })).nullable().optional(),
       category: z.string().nullable().optional(),
     })
@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = bulkSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
+      return Response.json({ error: `Invalid service data — ${msg}` }, { status: 422 })
     }
 
     const values = parsed.data.rows.map((r) => ({

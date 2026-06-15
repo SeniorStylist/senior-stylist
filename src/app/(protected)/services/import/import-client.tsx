@@ -487,7 +487,7 @@ export function ImportClient() {
           }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error ?? 'Import failed')
+        if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Import failed')
         totalCreated += json.data.created
         totalSkipped += json.data.skipped
         setImportProgress(Math.round(((i + chunk.length) / Math.max(newRows.length, 1)) * 100))
@@ -509,7 +509,7 @@ export function ImportClient() {
     try {
       const res = await fetch('/api/services')
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Failed to load services')
+      if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Failed to load services')
 
       const existing: { id: string; name: string; priceCents: number }[] = json.data ?? []
       const existingByName = new Map(existing.map((s) => [s.name.trim().toLowerCase(), s]))
