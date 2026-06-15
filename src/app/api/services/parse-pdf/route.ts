@@ -129,11 +129,26 @@ export async function POST(request: NextRequest) {
       },
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    // Abort before maxDuration so a slow Gemini call returns clean JSON, not an
+    // HTML platform-timeout page (which would crash the client's res.json()).
+    const controller = new AbortController()
+    const abortTimer = setTimeout(() => controller.abort(), 50_000)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } catch (fetchErr) {
+      if ((fetchErr as Error).name === 'AbortError') {
+        return Response.json({ error: 'The price sheet parser timed out. Please try again.' }, { status: 504 })
+      }
+      throw fetchErr
+    } finally {
+      clearTimeout(abortTimer)
+    }
 
     if (!res.ok) {
       const errText = await res.text()

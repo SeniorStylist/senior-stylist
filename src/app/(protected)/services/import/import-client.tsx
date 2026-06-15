@@ -142,14 +142,32 @@ async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
     method: 'POST',
     body: formData,
   })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? 'Failed to parse price sheet')
+  // Read as text first: a platform-level failure (timeout, crash, or an auth
+  // redirect to the HTML /login page) returns HTML, not JSON. Doing res.json()
+  // on that throws a cryptic "Unexpected token '<'" — surface the real reason.
+  const raw = await res.text()
+  let json: { data?: unknown; error?: unknown } | null = null
+  try { json = JSON.parse(raw) } catch { /* non-JSON (HTML error page) */ }
+  if (!json) {
+    const reason =
+      res.status === 401 || res.status === 403
+        ? 'Your session expired or you don’t have access. Refresh the page, sign in again, and retry.'
+        : res.status === 413
+          ? 'This file is too large to parse.'
+          : res.status === 504 || res.status === 408
+            ? 'The parser timed out. Please try again.'
+            : `The parser returned an unexpected response (HTTP ${res.status}). Please try again.`
+    throw new Error(reason)
+  }
+  if (!res.ok) {
+    throw new Error(typeof json.error === 'string' ? json.error : `Failed to parse price sheet (HTTP ${res.status})`)
+  }
   const rows: Array<{
     name: string; priceCents: number; durationMinutes: number; category: string; color: string
     pricingType?: string; addonAmountCents?: number | null
     pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
     pricingOptions?: Array<{ name: string; priceCents: number }> | null
-  }> = json.data
+  }> = (json.data as typeof rows) ?? []
   return rows.map((r, i) => ({
     id: i,
     name: r.name,
