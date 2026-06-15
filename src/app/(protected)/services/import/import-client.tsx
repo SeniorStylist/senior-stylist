@@ -407,6 +407,21 @@ export function ImportClient() {
   const updateColor = (id: number, color: string) =>
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, color } : r))
 
+  const updatePricingType = (id: number, type: string) =>
+    setRows((prev) => prev.map((r) =>
+      r.id === id ? {
+        ...r,
+        pricingType: type,
+        priceCents: type === 'addon' ? 0 : r.priceCents,
+        addonAmountCents: type === 'addon' ? (r.addonAmountCents ?? 0) : null,
+      } : r
+    ))
+
+  const updateAddonAmount = (id: number, dollars: string) => {
+    const cents = parsePriceToCents(dollars)
+    setRows((prev) => prev.map((r) => r.id === id ? { ...r, addonAmountCents: cents } : r))
+  }
+
   const toggleAll = () => {
     const anyOn = rows.some((r) => r.include && r.error !== 'Missing name')
     setRows((prev) => prev.map((r) => ({ ...r, include: r.error === 'Missing name' ? false : !anyOn })))
@@ -703,7 +718,7 @@ export function ImportClient() {
                   className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
                 />
               </div>
-              <div className="col-span-4">Name</div>
+              <div className="col-span-4">Name / Type</div>
               <div className="col-span-2">Price</div>
               <div className="col-span-2">Duration</div>
               <div className="col-span-1">Color</div>
@@ -766,21 +781,41 @@ export function ImportClient() {
                               : 'border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-stone-800'
                           )}
                         />
-                        {row.pricingType === 'addon' && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 self-start">+add-on</span>
-                        )}
-                        {row.pricingType === 'tiered' && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 self-start">tiered</span>
-                        )}
-                        {row.pricingType === 'multi_option' && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 self-start">options</span>
-                        )}
+                        <select
+                          value={row.pricingType ?? 'fixed'}
+                          onChange={(e) => updatePricingType(row.id, e.target.value)}
+                          title="Change pricing type"
+                          className={cn(
+                            'self-start text-[10px] font-semibold rounded-md px-1.5 py-0.5 cursor-pointer border-0 focus:outline-none appearance-none max-w-[100px]',
+                            !row.pricingType || row.pricingType === 'fixed'
+                              ? 'bg-stone-100 text-stone-500'
+                              : row.pricingType === 'addon'
+                                ? 'bg-amber-50 text-amber-700'
+                                : row.pricingType === 'tiered'
+                                  ? 'bg-purple-50 text-purple-700'
+                                  : 'bg-blue-50 text-blue-700'
+                          )}
+                        >
+                          <option value="fixed">Fixed price</option>
+                          <option value="addon">+ Add-on</option>
+                          <option value="tiered">Tiered</option>
+                          <option value="multi_option">Options</option>
+                        </select>
                       </div>
                       <div className="col-span-2">
-                        {row.pricingType === 'addon' && (row.addonAmountCents ?? 0) > 0 ? (
-                          <span className="text-sm font-medium text-amber-700 pl-1">
-                            +{formatCents(row.addonAmountCents ?? 0)}
-                          </span>
+                        {row.pricingType === 'addon' ? (
+                          <div className="relative">
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-amber-500 text-sm font-medium">+$</span>
+                            <input
+                              type="number"
+                              value={((row.addonAmountCents ?? 0) / 100).toFixed(2)}
+                              onChange={(e) => updateAddonAmount(row.id, e.target.value)}
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-sm text-amber-700 focus:outline-none py-0.5 pl-6 transition-colors"
+                            />
+                          </div>
                         ) : (
                           <div className="relative">
                             <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
