@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
-import { formatCouponDiscount, type CouponInfo } from '@/lib/portal-coupons'
 
 interface ResidentRow {
   id: string
@@ -12,6 +11,23 @@ interface ResidentRow {
   roomNumber: string | null
   defaultTipType: string | null
   defaultTipValue: number | null
+}
+
+interface CouponInfo {
+  id: string
+  code: string
+  type: string
+  discountType: string
+  discountValue: number
+  description: string | null
+  expiresAt: Date | string | null
+  redemptionId: string
+  bookingId: string | null
+}
+
+function formatCouponDiscount(discountType: string, discountValue: number): string {
+  if (discountType === 'fixed') return `$${(discountValue / 100).toFixed(2)} off`
+  return `${discountValue}% off`
 }
 
 interface Props {
