@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 // Weekly cron: delete demo records inactive for 90+ days to prevent DB bloat
 export async function GET(request: Request) {
-  if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -1,6 +1,9 @@
 import { db } from '@/db'
 import { facilities, bookings, residents, services, stylists } from '@/db/schema'
 import { eq, and, gte, lt } from 'drizzle-orm'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { PrintButton } from './print-button'
 
 function formatCentsDisplay(cents: number) {
@@ -16,6 +19,21 @@ export default async function InvoicePage({
 }) {
   const { facilityId } = await params
   const { month } = await searchParams
+
+  // This printable invoice exposes a facility's full billing roster (resident PII +
+  // dollar amounts). It must NOT be public — require a logged-in billing-capable user
+  // scoped to this facility (master / bookkeeper may view any; bookkeeper is cross-facility).
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const facilityUser = await getUserFacility(user.id)
+  const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  const allowed =
+    isMaster ||
+    (!!facilityUser &&
+      canAccessBilling(facilityUser.role) &&
+      (facilityUser.facilityId === facilityId || facilityUser.role === 'bookkeeper'))
+  if (!allowed) redirect('/dashboard')
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -44,9 +62,9 @@ export default async function InvoicePage({
       lt(bookings.startTime, monthEnd)
     ),
     with: {
-      resident: true,
-      service: true,
-      stylist: true,
+      resident: { columns: { id: true, name: true, roomNumber: true } },
+      service: { columns: { name: true } },
+      stylist: { columns: { name: true } },
     },
     orderBy: (t, { asc }) => [asc(t.startTime)],
   })

@@ -449,6 +449,14 @@ export async function DELETE(
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
 
+    // Stylists may only cancel their OWN bookings (mirror the PUT handler guard)
+    if (facilityUser.role === 'stylist') {
+      const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
+      if (!profile?.stylistId || existing.stylistId !== profile.stylistId) {
+        return Response.json({ error: 'You can only cancel your own bookings' }, { status: 403 })
+      }
+    }
+
     const [cancelled] = await db
       .update(bookings)
       .set({ status: 'cancelled', updatedAt: new Date() })

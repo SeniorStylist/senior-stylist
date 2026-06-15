@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies()
   cookieStore.set('selected_facility_id', invite.facilityId, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 365,

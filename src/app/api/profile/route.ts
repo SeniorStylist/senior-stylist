@@ -4,6 +4,9 @@ import { db } from '@/db'
 import { profiles, stylists } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, ne } from 'drizzle-orm'
+import { z } from 'zod'
+
+const updateSchema = z.object({ stylistId: z.string().uuid() })
 
 export async function PUT(request: NextRequest) {
   try {
@@ -14,10 +17,9 @@ export async function PUT(request: NextRequest) {
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 403 })
 
-    const body = await request.json()
-    const { stylistId } = body
-
-    if (!stylistId) return Response.json({ error: 'stylistId required' }, { status: 400 })
+    const parsed = updateSchema.safeParse(await request.json())
+    if (!parsed.success) return Response.json({ error: 'stylistId required' }, { status: 400 })
+    const { stylistId } = parsed.data
 
     // Verify the stylist belongs to the facility
     const stylist = await db.query.stylists.findFirst({

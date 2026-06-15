@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      return NextResponse.redirect(new URL('/login', request.nextUrl.origin))
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.search = ''
+      return NextResponse.redirect(url)
     }
 
     const nonce = Buffer.from(state, 'base64').toString()
@@ -53,9 +56,15 @@ export async function GET(request: NextRequest) {
 
     await db.delete(oauthStates).where(eq(oauthStates.nonce, nonce))
 
-    return NextResponse.redirect(new URL('/my-account?calendar=connected', request.nextUrl.origin))
+    const okUrl = request.nextUrl.clone()
+    okUrl.pathname = '/my-account'
+    okUrl.search = '?calendar=connected'
+    return NextResponse.redirect(okUrl)
   } catch (err) {
     console.error('Google Calendar OAuth callback error:', err)
-    return NextResponse.redirect(new URL('/my-account?calendar=error', request.nextUrl.origin))
+    const errUrl = request.nextUrl.clone()
+    errUrl.pathname = '/my-account'
+    errUrl.search = '?calendar=error'
+    return NextResponse.redirect(errUrl)
   }
 }

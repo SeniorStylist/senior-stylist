@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
 
@@ -13,10 +14,9 @@ export async function POST() {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await db.query.facilityUsers.findFirst({
-      where: (t, { eq }) => eq(t.userId, user.id),
-    })
+    const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
     const { facilityId } = facilityUser
 
     if (!isCalendarConfigured()) {

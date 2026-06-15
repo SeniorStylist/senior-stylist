@@ -114,7 +114,17 @@ export async function PUT(request: NextRequest) {
     }))
 
     await db.transaction(async (tx) => {
-      await tx.delete(stylistAvailability).where(eq(stylistAvailability.stylistId, stylistId))
+      // Scope the delete to THIS facility — the table is keyed (stylist_id, facility_id,
+      // day_of_week); an unscoped delete would wipe the stylist's availability at every
+      // other facility they're assigned to.
+      await tx
+        .delete(stylistAvailability)
+        .where(
+          and(
+            eq(stylistAvailability.stylistId, stylistId),
+            eq(stylistAvailability.facilityId, facilityUser.facilityId)
+          )
+        )
       if (rows.length > 0) {
         await tx.insert(stylistAvailability).values(rows)
       }

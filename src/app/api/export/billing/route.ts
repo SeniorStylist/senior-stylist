@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { and, eq, gte, lt, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return new Response('No facility', { status: 400 })
+    if (!canAccessBilling(facilityUser.role)) return new Response('Forbidden', { status: 403 })
     const { facilityId } = facilityUser
 
     // ?month=2026-03  (defaults to current month)

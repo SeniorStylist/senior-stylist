@@ -6,12 +6,13 @@ export async function middleware(request: NextRequest) {
 
   // Short-circuit: paths with their own auth (or no auth) skip Supabase entirely.
   // Saves a Supabase network round-trip per request on these high-traffic surfaces.
-  // /family + /portal carry their own session cookies; /invoice + /privacy + /terms
-  // are public; /api/portal + /api/cron have route-level auth (bearer / token).
+  // /family + /portal carry their own session cookies; /privacy + /terms are public;
+  // /api/portal + /api/cron have route-level auth (bearer / token).
+  // NOTE: /invoice is NOT here — it is an authenticated billing page (page-level guard),
+  // so it must go through the normal Supabase session path, not the short-circuit.
   const skipSupabase =
     pathname.startsWith('/portal') ||
     pathname.startsWith('/family') ||
-    pathname.startsWith('/invoice') ||
     pathname.startsWith('/api/portal') ||
     pathname.startsWith('/api/cron') ||
     pathname.startsWith('/privacy') ||
@@ -62,7 +63,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/portal') ||
     pathname.startsWith('/api/auth/google-calendar/callback') ||
     pathname.startsWith('/api/cron') ||
-    pathname.startsWith('/invoice') ||
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/terms')
 
@@ -131,7 +131,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/analytics') ||
     pathname.startsWith('/reports') ||
     pathname.startsWith('/log') ||
-    pathname.startsWith('/directory')
+    pathname.startsWith('/directory') ||
+    pathname.startsWith('/invoice') ||
+    pathname.startsWith('/billing')
 
   if (user && isSensitivePage) {
     supabaseResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')

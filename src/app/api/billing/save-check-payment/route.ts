@@ -147,6 +147,11 @@ export async function POST(request: NextRequest) {
     if (!isMaster && facilityUser?.facilityId !== body.facilityId) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
+    // Non-master callers may only attribute rows to their own facility — the
+    // operator-supplied matchedFacilityId must not point at another facility.
+    if (!isMaster && body.matchedFacilityId && body.matchedFacilityId !== facilityUser?.facilityId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // ─── save_unresolved mode ────────────────────────────────────────────────
     if (body.mode === 'save_unresolved') {
