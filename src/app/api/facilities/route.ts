@@ -71,6 +71,25 @@ export async function POST(request: NextRequest) {
 
     const { name, address, phone, timezone } = parsed.data
 
+    // Authorization: facility creation is for genuine onboarding (the user has no
+    // facility yet), an existing admin adding another facility, the master admin, or
+    // tutorial mode. A non-admin member of an existing facility (stylist / bookkeeper /
+    // facility_staff / viewer) must NOT be able to spin up new facilities and self-admin.
+    if (!isDemo) {
+      const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+      const isMaster = !!superAdminEmail && user.email === superAdminEmail
+      if (!isMaster) {
+        const memberships = await db.query.facilityUsers.findMany({
+          where: (t, { eq }) => eq(t.userId, user.id),
+          columns: { role: true },
+        })
+        const hasAdminRole = memberships.some((m) => m.role === 'admin' || m.role === 'super_admin')
+        if (memberships.length > 0 && !hasAdminRole) {
+          return Response.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+    }
+
     // Check for duplicate name (case-insensitive) among active non-demo facilities only
     if (!isDemo) {
       const existing = await db.query.facilities.findFirst({
