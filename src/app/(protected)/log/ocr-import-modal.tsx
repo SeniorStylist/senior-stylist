@@ -41,6 +41,7 @@ type SheetState = {
   imageIndex: number
   date: string
   stylistId: string | null
+  stylistName: string // OCR-read or typed name; drives match-or-create of the stylist
   entries: EntryState[]
 }
 
@@ -97,11 +98,17 @@ function buildSheetState(
   fallbackDate: string
 ): SheetState {
   let stylistId: string | null = null
-  if (raw.stylistName) {
-    const matches = fuzzyMatches(stylists, raw.stylistName)
+  const rawStylistName = (raw.stylistName ?? '').trim()
+  if (rawStylistName) {
+    const matches = fuzzyMatches(stylists, rawStylistName)
     if (matches.length === 1) stylistId = matches[0].id
   }
   if (!stylistId && stylists.length === 1) stylistId = stylists[0].id
+  // Keep the name even when no existing stylist matches — the review UI offers
+  // "create new stylist" pre-filled with it (mirrors resident/service handling).
+  const stylistName = stylistId
+    ? stylists.find((s) => s.id === stylistId)?.name ?? rawStylistName
+    : rawStylistName
 
   const entries: EntryState[] = (raw.entries ?? []).map((entry) => {
     const resMatches = fuzzyMatches(residents, entry.residentName ?? '')
@@ -155,6 +162,7 @@ function buildSheetState(
     imageIndex: raw.imageIndex,
     date: raw.date ?? fallbackDate,
     stylistId,
+    stylistName,
     entries,
   }
 }
@@ -320,12 +328,24 @@ export function OcrImportModal({
     setSheets(prev => prev.map((s, si) => (si !== sheetIdx ? s : { ...s, ...updates })))
   }
 
-  const validSheets = sheets.filter(s => s.stylistId)
+  // A sheet is importable once it has a stylist — either an existing one (id) or
+  // a name we'll create on import. Sheets with neither are skipped.
+  const sheetHasStylist = (s: SheetState) => !!s.stylistId || s.stylistName.trim().length > 0
+  const validSheets = sheets.filter(sheetHasStylist)
 
   const totalIncluded = validSheets.reduce(
     (acc, s) => acc + s.entries.filter(e => e.include).length,
     0
   )
+
+  // Distinct new stylists that will be created (name typed/read but no match)
+  const newStylistCount = (() => {
+    const names = new Set<string>()
+    validSheets.forEach(s => {
+      if (!s.stylistId && s.stylistName.trim()) names.add(s.stylistName.trim().toLowerCase())
+    })
+    return names.size
+  })()
 
   const summary = validSheets.reduce(
     (acc, s) => {
@@ -350,7 +370,8 @@ export function OcrImportModal({
       const payload = {
         sheets: validSheets.map(s => ({
           date: s.date,
-          stylistId: s.stylistId!,
+          stylistId: s.stylistId,
+          stylistName: s.stylistName.trim(),
           entries: s.entries.map(e => ({
             include: e.include,
             residentId: e.residentId,
@@ -640,21 +661,32 @@ export function OcrImportModal({
                       </div>
                       <div className="flex-1 min-w-[180px]">
                         <label className="text-xs font-medium text-stone-600 block mb-1">Stylist *</label>
-                        <select
-                          value={sheet.stylistId ?? ''}
-                          onChange={(e) => updateSheet(activeTab, { stylistId: e.target.value || null })}
+                        <input
+                          type="text"
+                          list={`stylists-${activeTab}`}
+                          value={sheet.stylistName}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            const matched = stylists.find(
+                              s => s.name.toLowerCase() === val.trim().toLowerCase()
+                            )
+                            updateSheet(activeTab, { stylistName: val, stylistId: matched?.id ?? null })
+                          }}
+                          placeholder="Type or pick stylist…"
                           className={cn(
                             'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
-                            !sheet.stylistId ? 'border-red-300' : 'border-stone-200'
+                            sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
                           )}
-                        >
-                          <option value="">Select stylist…</option>
+                        />
+                        <datalist id={`stylists-${activeTab}`}>
                           {stylists.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
+                            <option key={s.id} value={s.name} />
                           ))}
-                        </select>
-                        {!sheet.stylistId && (
-                          <p className="text-xs text-red-500 mt-0.5">Required — this sheet will be skipped without a stylist</p>
+                        </datalist>
+                        {sheet.stylistId ? null : sheet.stylistName.trim() ? (
+                          <p className="text-[10px] text-stone-400 mt-0.5">Will create new stylist</p>
+                        ) : (
+                          <p className="text-xs text-red-500 mt-0.5">Required — add a stylist or this sheet is skipped</p>
                         )}
                       </div>
                     </div>
@@ -964,8 +996,9 @@ export function OcrImportModal({
             <div className="px-5 py-6 space-y-4">
               <div className="bg-stone-50 rounded-2xl p-5 space-y-4">
                 <h3 className="text-sm font-semibold text-stone-800">Import Summary</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
+                    { label: 'Stylists to create', count: newStylistCount },
                     { label: 'Residents to create', count: summary.residents },
                     { label: 'Services to create', count: summary.services },
                     { label: 'Bookings to import', count: summary.bookings },
@@ -976,11 +1009,11 @@ export function OcrImportModal({
                     </div>
                   ))}
                 </div>
-                {sheets.some(s => !s.stylistId) && (
+                {sheets.some(s => !sheetHasStylist(s)) && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800">
-                    {sheets.filter(s => !s.stylistId).length} sheet
-                    {sheets.filter(s => !s.stylistId).length > 1 ? 's' : ''} with no stylist will be skipped.
-                    Go back to assign stylists.
+                    {sheets.filter(s => !sheetHasStylist(s)).length} sheet
+                    {sheets.filter(s => !sheetHasStylist(s)).length > 1 ? 's' : ''} with no stylist will be skipped.
+                    Go back to add a stylist.
                   </div>
                 )}
               </div>

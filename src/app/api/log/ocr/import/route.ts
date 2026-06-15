@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { residents, services, bookings } from '@/db/schema'
+import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { z } from 'zod'
+import { generateStylistCode } from '@/lib/stylist-code'
 import crypto from 'crypto'
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
@@ -28,24 +29,32 @@ function fuzzyScore(a: string, b: string): number {
 
 const importSchema = z.object({
   sheets: z.array(
-    z.object({
-      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-      stylistId: z.string().uuid(),
-      entries: z.array(
-        z.object({
-          include: z.boolean(),
-          residentId: z.string().uuid().nullable(),
-          residentName: z.string().min(1).max(200),
-          roomNumber: z.string().max(50).nullable(),
-          serviceId: z.string().uuid().nullable(),
-          serviceName: z.string().min(1).max(200),
-          additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
-          additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
-          priceCents: z.number().int().min(0).max(10_000_000).nullable(),
-          notes: z.string().max(2000).nullable(),
-        })
-      ),
-    })
+    z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        // Either an existing stylist (id) OR a name to match-or-create. The sheet
+        // header names the stylist; for a newly-onboarded facility there may be no
+        // stylist record yet, so we accept a name and create one on import.
+        stylistId: z.string().uuid().nullable(),
+        stylistName: z.string().max(200).optional().default(''),
+        entries: z.array(
+          z.object({
+            include: z.boolean(),
+            residentId: z.string().uuid().nullable(),
+            residentName: z.string().min(1).max(200),
+            roomNumber: z.string().max(50).nullable(),
+            serviceId: z.string().uuid().nullable(),
+            serviceName: z.string().min(1).max(200),
+            additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
+            additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
+            priceCents: z.number().int().min(0).max(10_000_000).nullable(),
+            notes: z.string().max(2000).nullable(),
+          })
+        ),
+      })
+      .refine((s) => !!s.stylistId || s.stylistName.trim().length > 0, {
+        message: 'Each sheet needs a stylist — select an existing one or provide a name to create.',
+      })
   ),
 })
 
@@ -76,7 +85,16 @@ export async function POST(request: Request) {
 
     let createdResidents = 0
     let createdServices = 0
+    let createdStylists = 0
     let createdBookings = 0
+
+    // Franchise for any stylists we create (mirrors POST /api/stylists so an
+    // import-created stylist is a first-class member of the franchise pool).
+    const ff = await db.query.franchiseFacilities.findFirst({
+      where: eq(franchiseFacilities.facilityId, facilityId),
+      columns: { franchiseId: true },
+    })
+    const franchiseId = ff?.franchiseId ?? null
 
     // Load existing active records for fuzzy matching — done once before the transaction
     const existingServices = await db
@@ -89,12 +107,66 @@ export async function POST(request: Request) {
       .from(residents)
       .where(and(eq(residents.facilityId, facilityId), eq(residents.active, true)))
 
+    const existingStylists = await db
+      .select({ id: stylists.id, name: stylists.name })
+      .from(stylists)
+      .where(and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)))
+
+    // Stylist ids the caller may attach bookings to: facility-owned + active
+    // assignments to this facility. Guards against attaching a booking to a
+    // stylist from another facility via a forged id (IDOR).
+    const assignmentRows = await db
+      .select({ id: stylistFacilityAssignments.stylistId })
+      .from(stylistFacilityAssignments)
+      .where(and(eq(stylistFacilityAssignments.facilityId, facilityId), eq(stylistFacilityAssignments.active, true)))
+    const validStylistIds = new Set<string>([
+      ...existingStylists.map((s) => s.id),
+      ...assignmentRows.map((r) => r.id),
+    ])
+    for (const sheet of parsed.data.sheets) {
+      if (sheet.stylistId && !validStylistIds.has(sheet.stylistId)) {
+        return Response.json({ error: 'A sheet references a stylist outside your facility.' }, { status: 403 })
+      }
+    }
+
     // In-memory dedup maps — prevent duplicate inserts within a single import
     const residentMap = new Map<string, string>()
     const serviceMap = new Map<string, string>()
+    const stylistMap = new Map<string, string>() // lowercased new-stylist name → id
 
     await db.transaction(async (tx) => {
       for (const sheet of parsed.data.sheets) {
+        // Resolve the stylist for this sheet: chosen id → in-memory map →
+        // fuzzy DB match → create. Mirrors the resident/service resolution below.
+        let sheetStylistId = sheet.stylistId
+        if (!sheetStylistId) {
+          const name = sheet.stylistName.trim()
+          const key = name.toLowerCase()
+          if (stylistMap.has(key)) {
+            sheetStylistId = stylistMap.get(key)!
+          } else {
+            const dbMatch = existingStylists.find((s) => fuzzyScore(s.name, name) >= 0.8)
+            if (dbMatch) {
+              sheetStylistId = dbMatch.id
+              stylistMap.set(key, dbMatch.id)
+            } else {
+              const stylistCode = await generateStylistCode(tx)
+              const [newStylist] = await tx
+                .insert(stylists)
+                .values({ name, stylistCode, facilityId, franchiseId })
+                .returning({ id: stylists.id })
+              await tx
+                .insert(stylistFacilityAssignments)
+                .values({ stylistId: newStylist.id, facilityId, active: true })
+                .onConflictDoNothing()
+              sheetStylistId = newStylist.id
+              stylistMap.set(key, newStylist.id)
+              existingStylists.push({ id: newStylist.id, name })
+              createdStylists++
+            }
+          }
+        }
+
         const includedEntries = sheet.entries.filter((e) => e.include)
         let entryIndex = 0
 
@@ -198,7 +270,7 @@ export async function POST(request: Request) {
           await tx.insert(bookings).values({
             facilityId,
             residentId,
-            stylistId: sheet.stylistId,
+            stylistId: sheetStylistId,
             serviceId: primary.id,
             serviceIds: allServiceIds,
             serviceNames: allServiceNames,
@@ -217,7 +289,7 @@ export async function POST(request: Request) {
     })
 
     return Response.json({
-      data: { created: { residents: createdResidents, services: createdServices, bookings: createdBookings } },
+      data: { created: { residents: createdResidents, services: createdServices, stylists: createdStylists, bookings: createdBookings } },
     })
   } catch (err) {
     console.error('POST /api/log/ocr/import error:', err)
