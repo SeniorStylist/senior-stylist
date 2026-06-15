@@ -31,7 +31,7 @@ Return ONLY a valid JSON object with this exact shape:
 Rules:
 - Preserve the ORDER of entries exactly as they appear
 - If a date appears in the header (e.g. 'March 15' or '3/15/26'), extract it as YYYY-MM-DD
-- If a stylist name appears in the header, extract it
+- STYLIST: the stylist/beautician name is almost always written or printed near the TOP of the sheet (by the date or facility name), and may be labeled "Stylist", "Beautician", "Cosmetologist", or "Operator". Look carefully for it and return it in stylistName. Return null only if there is genuinely no name anywhere on the sheet.
 - For unclear handwriting, include your best guess and set unclear: true
 - price is a number in dollars (not cents), or null if not readable. The price column contains the EXACT dollar amount charged for all services on that row combined. Extract it precisely — never estimate or default. If you cannot read the price clearly, set price to null.
 - Include ALL notes written next to any entry
@@ -60,17 +60,46 @@ Common abbreviations used on these sheets:
 - Perm = Permanent wave
 - Tint = Hair color/tint`
 
-function buildInstruction(knownServices: { name: string; priceCents: number }[]): string {
-  if (knownServices.length === 0) return BASE_INSTRUCTION + ABBREVIATIONS
-  const serviceList = knownServices
-    .map(s => `- ${s.name} ($${(s.priceCents / 100).toFixed(2)})`)
-    .join('\n')
-  return BASE_INSTRUCTION + ABBREVIATIONS + `
+function buildInstruction(
+  knownServices: { name: string; priceCents: number }[],
+  knownStylists: string[],
+  knownResidents: { name: string; roomNumber: string | null }[],
+): string {
+  let out = BASE_INSTRUCTION + ABBREVIATIONS
+
+  if (knownStylists.length > 0) {
+    const list = knownStylists.map(n => `- ${n}`).join('\n')
+    out += `
+
+Known stylists at this facility (the sheet's stylist is almost always ONE of these — match the handwriting to the closest one and return that EXACT spelling in stylistName):
+${list}`
+  }
+
+  if (knownResidents.length > 0) {
+    // Cap the roster so the prompt stays bounded on large facilities.
+    const list = knownResidents
+      .slice(0, 300)
+      .map(r => `- ${r.name}${r.roomNumber ? ` (Room ${r.roomNumber})` : ''}`)
+      .join('\n')
+    out += `
+
+Known residents at this facility (match each handwritten client name to the closest one and return that EXACT spelling; if a name clearly is NOT in this list, return your best reading and set unclear: true):
+${list}`
+  }
+
+  if (knownServices.length > 0) {
+    const serviceList = knownServices
+      .map(s => `- ${s.name} ($${(s.priceCents / 100).toFixed(2)})`)
+      .join('\n')
+    out += `
 
 Known services at this facility (match against these):
 ${serviceList}
 
 IMPORTANT: Expand all abbreviations using the known services list above. Use the price as a strong signal — if the written price matches a known service closely, prefer that service name. For serviceName and additionalServices: return the FULL expanded name that best matches a known service, or your best expansion if no close match exists. Never return raw abbreviations like "S/BDry" or "BiDry".`
+  }
+
+  return out
 }
 
 async function callGemini(base64: string, mimeType: string, apiKey: string, instruction: string): Promise<string> {
@@ -82,6 +111,12 @@ async function callGemini(base64: string, mimeType: string, apiKey: string, inst
         { text: instruction + '\n\nExtract all appointments from this log sheet. Return ONLY the JSON object with date, stylistName, and entries array.' },
       ],
     }],
+    // temperature 0 → most-likely reading, repeatable; JSON mode → guarantees
+    // parseable output (no markdown fences, no "could not parse" sheet drops).
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json',
+    },
   }
   const res = await fetch(url, {
     method: 'POST',
@@ -121,11 +156,21 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const files = formData.getAll('images') as File[]
     const servicesJson = formData.get('servicesJson') as string | null
+    const stylistsJson = formData.get('stylistsJson') as string | null
+    const residentsJson = formData.get('residentsJson') as string | null
     let knownServices: { name: string; priceCents: number }[] = []
+    let knownStylists: string[] = []
+    let knownResidents: { name: string; roomNumber: string | null }[] = []
     if (servicesJson) {
       try { knownServices = JSON.parse(servicesJson) } catch { /* ignore malformed */ }
     }
-    const instruction = buildInstruction(knownServices)
+    if (stylistsJson) {
+      try { knownStylists = JSON.parse(stylistsJson) } catch { /* ignore malformed */ }
+    }
+    if (residentsJson) {
+      try { knownResidents = JSON.parse(residentsJson) } catch { /* ignore malformed */ }
+    }
+    const instruction = buildInstruction(knownServices, knownStylists, knownResidents)
 
     if (files.length === 0) return Response.json({ error: 'No images provided' }, { status: 400 })
     if (files.length > MAX_FILE_COUNT) {

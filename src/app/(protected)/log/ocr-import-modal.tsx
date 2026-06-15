@@ -285,6 +285,10 @@ export function OcrImportModal({
         const fd = new FormData()
         chunks[ci].forEach(f => fd.append('images', f))
         fd.append('servicesJson', JSON.stringify(services.map(s => ({ name: s.name, priceCents: s.priceCents }))))
+        // Roster context — lets Gemini match handwriting to known names instead of
+        // guessing letter-by-letter (same technique already used for services).
+        fd.append('stylistsJson', JSON.stringify(stylists.map(s => s.name)))
+        fd.append('residentsJson', JSON.stringify(residents.map(r => ({ name: r.name, roomNumber: r.roomNumber ?? null }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
         const json = await res.json()
         if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }
