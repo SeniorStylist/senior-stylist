@@ -1,7 +1,34 @@
 import { cookies } from 'next/headers'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/db'
 import { facilities, facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
+
+/**
+ * Verifies that `userId` is the master admin (NEXT_PUBLIC_SUPER_ADMIN_EMAIL).
+ * Looks the email up server-side via the service-role admin API — the caller
+ * NEVER supplies the email, so it cannot be spoofed. Used to gate the
+ * `__debug_role` impersonation cookie, which is `httpOnly: false` and therefore
+ * writable by any client; without this check, any signed-in user could forge it
+ * to impersonate admin of any facility.
+ */
+async function isMasterAdmin(userId: string): Promise<boolean> {
+  const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  if (!superAdminEmail) return false
+  try {
+    const admin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { data, error } = await admin.auth.admin.getUserById(userId)
+    if (error || !data?.user) return false
+    return data.user.email === superAdminEmail
+  } catch (err) {
+    console.error('[isMasterAdmin] lookup failed:', err)
+    return false
+  }
+}
 
 /**
  * Normalize 'super_admin' → 'admin' so page guards and API guards
@@ -48,7 +75,10 @@ export async function getUserFacility(userId: string) {
     if (debugRaw) {
       try {
         const debug = JSON.parse(debugRaw) as { role: string; facilityId: string; facilityName: string }
-        if (debug.role && debug.facilityId) {
+        // SECURITY: the __debug_role cookie is httpOnly:false (the client badge reads it),
+        // so it is attacker-writable. Only honor it for the actual master admin — otherwise
+        // any signed-in user could forge it to impersonate admin of any facility.
+        if (debug.role && debug.facilityId && (await isMasterAdmin(userId))) {
           const synth = {
             id: 'debug',
             userId,
