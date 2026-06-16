@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { fuzzyBestMatch, fuzzyScore } from '@/lib/fuzzy'
+import { isPerUnitService, makePerUnitTiers } from '@/lib/pricing'
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
@@ -127,6 +128,28 @@ function rowError(
   if (pricingType === 'tiered' || pricingType === 'multi_option') return undefined
   const amount = pricingType === 'addon' ? (addonAmountCents ?? 0) : priceCents
   return amount === 0 ? 'Price is $0' : undefined
+}
+
+// Converts a review row's pricing fields into the server payload. 'per_unit' is a
+// UI-only marker → a single open-ended tier so it reuses the tiered booking flow.
+function rowPricingPayload(r: ParsedService) {
+  if (r.pricingType === 'per_unit') {
+    const unit = Math.round(r.priceCents)
+    return {
+      pricingType: 'tiered' as const,
+      priceCents: unit,
+      addonAmountCents: null,
+      pricingTiers: makePerUnitTiers(unit),
+      pricingOptions: null,
+    }
+  }
+  return {
+    pricingType: r.pricingType,
+    priceCents: r.pricingType === 'addon' ? 0 : Math.round(r.priceCents),
+    addonAmountCents: r.pricingType === 'addon' ? Math.round(r.addonAmountCents ?? 0) : null,
+    pricingTiers: r.pricingType === 'tiered' ? r.pricingTiers ?? null : null,
+    pricingOptions: r.pricingType === 'multi_option' ? r.pricingOptions ?? null : null,
+  }
 }
 
 // ─── CSV parser (papaparse) ──────────────────────────────────────────────────
@@ -255,19 +278,26 @@ async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
     pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
     pricingOptions?: Array<{ name: string; priceCents: number }> | null
   }> = (json.data as typeof rows) ?? []
-  return rows.map((r, i) => ({
-    id: i,
-    name: r.name,
-    priceCents: r.priceCents,
-    durationMinutes: r.durationMinutes,
-    category: r.category,
-    color: r.color,
-    include: true,
-    pricingType: r.pricingType,
-    addonAmountCents: r.addonAmountCents ?? null,
-    pricingTiers: r.pricingTiers ?? null,
-    pricingOptions: r.pricingOptions ?? null,
-  }))
+  return rows.map((r, i) => {
+    // A single open-ended tier from the AI ("$8 ea") is a flat per-unit price.
+    // Normalize it to the 'per_unit' UI marker with the unit price in priceCents
+    // so the review row shows "$8.00 each" instead of a confusing $0.00 (tiered
+    // rows carry their price in the tiers array, not priceCents).
+    const perUnit = isPerUnitService({ pricingType: r.pricingType ?? 'fixed', pricingTiers: r.pricingTiers ?? null })
+    return {
+      id: i,
+      name: r.name,
+      priceCents: perUnit ? (r.pricingTiers?.[0]?.unitPriceCents ?? r.priceCents) : r.priceCents,
+      durationMinutes: r.durationMinutes,
+      category: r.category,
+      color: r.color,
+      include: true,
+      pricingType: perUnit ? 'per_unit' : r.pricingType,
+      addonAmountCents: r.addonAmountCents ?? null,
+      pricingTiers: perUnit ? null : (r.pricingTiers ?? null),
+      pricingOptions: r.pricingOptions ?? null,
+    }
+  })
 }
 
 // PDFs and images are sent straight to Gemini (inlineData) — it reads the visual
@@ -554,18 +584,13 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
       // surface failures instead of silently counting them as created.
       for (const dup of replaceRows) {
         const ps = dup.parsedService
-        const type = ps.pricingType ?? 'fixed'
         const res = await fetch(`/api/services/${dup.existingService.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             durationMinutes: ps.durationMinutes,
             color: ps.color,
-            pricingType: type,
-            priceCents: type === 'addon' ? 0 : Math.round(ps.priceCents),
-            addonAmountCents: type === 'addon' ? Math.round(ps.addonAmountCents ?? 0) : null,
-            pricingTiers: type === 'tiered' ? ps.pricingTiers ?? null : null,
-            pricingOptions: type === 'multi_option' ? ps.pricingOptions ?? null : null,
+            ...rowPricingPayload(ps),
           }),
         })
         if (!res.ok) {
@@ -584,14 +609,10 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
           body: JSON.stringify({
             rows: chunk.map((r) => ({
               name: r.name.trim(),
-              priceCents: r.pricingType === 'addon' ? 0 : r.priceCents,
               durationMinutes: r.durationMinutes,
               color: r.color,
-              pricingType: r.pricingType,
-              addonAmountCents: r.addonAmountCents ?? null,
-              pricingTiers: r.pricingTiers ?? null,
-              pricingOptions: r.pricingOptions ?? null,
               category: r.category ?? null,
+              ...rowPricingPayload(r),
             })),
           }),
         })
@@ -994,14 +1015,17 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
                               'text-[10px] font-semibold rounded-md pl-1.5 pr-4 py-0.5 cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-[#8B2E4A]/30 appearance-none',
                               !row.pricingType || row.pricingType === 'fixed'
                                 ? 'bg-stone-100 text-stone-500'
-                                : row.pricingType === 'addon'
-                                  ? 'bg-amber-50 text-amber-700'
-                                  : row.pricingType === 'tiered'
-                                    ? 'bg-purple-50 text-purple-700'
-                                    : 'bg-blue-50 text-blue-700'
+                                : row.pricingType === 'per_unit'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : row.pricingType === 'addon'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : row.pricingType === 'tiered'
+                                      ? 'bg-purple-50 text-purple-700'
+                                      : 'bg-blue-50 text-blue-700'
                             )}
                           >
                             <option value="fixed">Fixed price</option>
+                            <option value="per_unit">Per unit (each)</option>
                             <option value="addon">+ Add-on</option>
                             <option value="tiered">Tiered</option>
                             <option value="multi_option">Options</option>

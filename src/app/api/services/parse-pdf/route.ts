@@ -73,10 +73,12 @@ Return a JSON array of service objects. Each object must have:
 Pricing type rules:
 - "fixed": standard service with one price
 - "addon": services described as "add $X to service" or "additional $X" or "+$X" — these modify another service, price field should be null, addonAmountCents is the surcharge
-- "tiered": quantity-based pricing ("1-4 ea", "5 or more")
-- "multi_option": multiple named price points to choose from. Use this whenever ONE row lists more than one price:
+- "tiered": PER-UNIT or quantity-based pricing. Use "tiered" in BOTH of these cases:
+  - A flat per-unit price written with "each" / "ea" / "ea." / "per" and NO alternative price (e.g. "Nail polish $8 ea", "PA pack 8 ea.", "$5 each"). Emit a SINGLE tier: pricingTiers [{"minQty":1,"maxQty":999,"unitPriceCents":<price in cents>}], price null. This lets staff enter a quantity at booking so the total becomes price × quantity.
+  - Quantity breaks ("1-4 $5 ea, 5 or more $4 ea") → one tier per break.
+- "multi_option": multiple named price points to choose from. Use this whenever ONE row lists more than one DISTINCT price:
   - "50/half  75/full" or "$50 half head / $75 full head" → pricingOptions [{"name":"Half","priceCents":5000},{"name":"Full","priceCents":7500}], price null
-  - "10 ea. -or- all 3 for 25" → pricingOptions [{"name":"Each","priceCents":1000},{"name":"All 3","priceCents":2500}], price null
+  - "10 ea. -or- all 3 for 25" → pricingOptions [{"name":"Each","priceCents":1000},{"name":"All 3","priceCents":2500}], price null (two distinct prices → options, NOT per-unit tiered)
 - A price written with a trailing "+", "and up", or "start at" (e.g. "80+", "Braids (start at) 26") is still pricingType "fixed" — use the number as the price; keep any "(start at)"/"and up" wording in the name.
 
 Important:

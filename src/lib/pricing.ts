@@ -1,6 +1,27 @@
 import type { PricingType, PricingTier, PricingOption } from '@/types'
 import { formatCents } from '@/lib/utils'
 
+// "Per unit (each)" pricing is modeled as a single open-ended tier — it reuses the
+// existing tiered booking flow (quantity stepper, qty × unit-price math, billing).
+// A real multi-break tiered service has >1 tier; a per-unit one has exactly one
+// tier starting at quantity 1. PER_UNIT_MAX_QTY (999) stays under the booking
+// API's per-booking quantity cap (1000).
+export const PER_UNIT_MAX_QTY = 999
+
+export function makePerUnitTiers(unitPriceCents: number): PricingTier[] {
+  return [{ minQty: 1, maxQty: PER_UNIT_MAX_QTY, unitPriceCents }]
+}
+
+export function isPerUnitService(service: Pick<PricingService, 'pricingType' | 'pricingTiers'>): boolean {
+  if (service.pricingType !== 'tiered') return false
+  const tiers = service.pricingTiers ?? []
+  return tiers.length === 1 && tiers[0].minQty <= 1
+}
+
+export function perUnitCents(service: Pick<PricingService, 'pricingTiers' | 'priceCents'>): number {
+  return service.pricingTiers?.[0]?.unitPriceCents ?? service.priceCents
+}
+
 export interface PricingService {
   priceCents: number
   pricingType: string
@@ -70,6 +91,8 @@ export function formatPricingLabel(service: PricingService): string {
     case 'tiered': {
       const tiers = service.pricingTiers ?? []
       if (tiers.length === 0) return formatCents(service.priceCents)
+      // A single open-ended tier is a flat per-unit price → "$8.00 each".
+      if (isPerUnitService(service)) return `${formatCents(tiers[0].unitPriceCents)} each`
       return `${formatCents(tiers[0].unitPriceCents)}/unit`
     }
 

@@ -7,13 +7,40 @@ import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Sparkles } from 'lucide-react'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
-import { formatPricingLabel } from '@/lib/pricing'
+import { formatPricingLabel, isPerUnitService, perUnitCents, makePerUnitTiers } from '@/lib/pricing'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Service, PricingType, PricingTier, PricingOption } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
+
+// UI-level pricing mode. "per_unit" (each) isn't a stored pricing type — it's a
+// single open-ended tier, so it reuses the tiered booking flow (quantity stepper,
+// qty × price, billing). pricingPayload() converts it to a tiered service on save.
+type PricingMode = PricingType | 'per_unit'
+
+function pricingPayload(
+  mode: PricingMode,
+  args: { priceCents: number; addonCents: number; tiers: PricingTier[]; options: PricingOption[] }
+) {
+  if (mode === 'per_unit') {
+    return {
+      pricingType: 'tiered' as const,
+      priceCents: args.priceCents,
+      addonAmountCents: null,
+      pricingTiers: makePerUnitTiers(args.priceCents),
+      pricingOptions: null,
+    }
+  }
+  return {
+    pricingType: mode,
+    priceCents: args.priceCents,
+    addonAmountCents: mode === 'addon' ? args.addonCents : null,
+    pricingTiers: mode === 'tiered' ? args.tiers : null,
+    pricingOptions: mode === 'multi_option' ? args.options : null,
+  }
+}
 
 interface ServicesPageClientProps {
   services: Service[]
@@ -40,7 +67,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const [editName, setEditName] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editDuration, setEditDuration] = useState('')
-  const [editPricingType, setEditPricingType] = useState<PricingType>('fixed')
+  const [editPricingType, setEditPricingType] = useState<PricingMode>('fixed')
   const [editAddonAmount, setEditAddonAmount] = useState('')
   const [editTiers, setEditTiers] = useState<PricingTier[]>([])
   const [editOptions, setEditOptions] = useState<PricingOption[]>([])
@@ -50,7 +77,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const [addName, setAddName] = useState('')
   const [addPrice, setAddPrice] = useState('')
   const [addDuration, setAddDuration] = useState('30')
-  const [addPricingType, setAddPricingType] = useState<PricingType>('fixed')
+  const [addPricingType, setAddPricingType] = useState<PricingMode>('fixed')
   const [addAddonAmount, setAddAddonAmount] = useState('')
   const [addTiers, setAddTiers] = useState<PricingTier[]>([{ minQty: 1, maxQty: 10, unitPriceCents: 0 }])
   const [addOptions, setAddOptions] = useState<PricingOption[]>([{ name: '', priceCents: 0 }])
@@ -110,11 +137,13 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   }
 
   const startEdit = (service: Service) => {
+    const perUnit = isPerUnitService(service)
     setEditingId(service.id)
     setEditName(service.name)
-    setEditPrice((service.priceCents / 100).toFixed(2))
+    // For a per-unit service the editable price IS the unit price.
+    setEditPrice(((perUnit ? perUnitCents(service) : service.priceCents) / 100).toFixed(2))
     setEditDuration(service.durationMinutes.toString())
-    setEditPricingType(service.pricingType)
+    setEditPricingType(perUnit ? 'per_unit' : service.pricingType)
     setEditAddonAmount(service.addonAmountCents ? (service.addonAmountCents / 100).toFixed(2) : '')
     setEditTiers(service.pricingTiers ?? [{ minQty: 1, maxQty: 10, unitPriceCents: 0 }])
     setEditOptions(service.pricingOptions ?? [{ name: '', priceCents: 0 }])
@@ -132,12 +161,13 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editName.trim(),
-          priceCents: dollarsToCents(editPrice),
           durationMinutes: parseInt(editDuration),
-          pricingType: editPricingType,
-          addonAmountCents: editPricingType === 'addon' ? dollarsToCents(editAddonAmount) : null,
-          pricingTiers: editPricingType === 'tiered' ? editTiers : null,
-          pricingOptions: editPricingType === 'multi_option' ? editOptions : null,
+          ...pricingPayload(editPricingType, {
+            priceCents: dollarsToCents(editPrice),
+            addonCents: dollarsToCents(editAddonAmount),
+            tiers: editTiers,
+            options: editOptions,
+          }),
         }),
       })
       const json = await res.json()
@@ -166,12 +196,13 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: addName.trim(),
-          priceCents: dollarsToCents(addPrice),
           durationMinutes: parseInt(addDuration),
-          pricingType: addPricingType,
-          addonAmountCents: addPricingType === 'addon' ? dollarsToCents(addAddonAmount) : null,
-          pricingTiers: addPricingType === 'tiered' ? addTiers : null,
-          pricingOptions: addPricingType === 'multi_option' ? addOptions : null,
+          ...pricingPayload(addPricingType, {
+            priceCents: dollarsToCents(addPrice),
+            addonCents: dollarsToCents(addAddonAmount),
+            tiers: addTiers,
+            options: addOptions,
+          }),
         }),
       })
       const json = await res.json()
@@ -316,14 +347,21 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
             <label className="text-xs font-medium text-stone-500">Pricing Type</label>
             <select
               value={addPricingType}
-              onChange={(e) => setAddPricingType(e.target.value as PricingType)}
+              onChange={(e) => setAddPricingType(e.target.value as PricingMode)}
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
             >
               <option value="fixed">Fixed Price</option>
+              <option value="per_unit">Per unit (each)</option>
               <option value="addon">Add-on</option>
-              <option value="tiered">Tiered (per unit)</option>
+              <option value="tiered">Tiered (price breaks)</option>
               <option value="multi_option">Multiple Options</option>
             </select>
+            {addPricingType === 'per_unit' && (
+              <p className="text-xs text-stone-500">
+                The price above is charged <span className="font-medium">per unit</span>. Staff pick a
+                quantity when booking — total = price × quantity (e.g. 7 × $8.00 = $56.00).
+              </p>
+            )}
           </div>
 
           {addPricingType === 'addon' && (
@@ -559,14 +597,21 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   <div className="flex flex-wrap gap-3 items-start">
                     <select
                       value={editPricingType}
-                      onChange={(e) => setEditPricingType(e.target.value as PricingType)}
+                      onChange={(e) => setEditPricingType(e.target.value as PricingMode)}
                       className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                     >
                       <option value="fixed">Fixed</option>
+                      <option value="per_unit">Per unit (each)</option>
                       <option value="addon">Add-on</option>
-                      <option value="tiered">Tiered</option>
+                      <option value="tiered">Tiered (breaks)</option>
                       <option value="multi_option">Options</option>
                     </select>
+
+                    {editPricingType === 'per_unit' && (
+                      <p className="w-full text-xs text-stone-500 -mt-1">
+                        Charged per unit — staff pick a quantity at booking (total = price × quantity).
+                      </p>
+                    )}
 
                     {editPricingType === 'addon' && (
                       <div className="relative">
