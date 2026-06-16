@@ -10,7 +10,7 @@ export interface SourceCardData {
   sourceType: string
   title: string
   description: string
-  format: 'XLSX' | 'CSV'
+  format: 'XLSX' | 'CSV' | 'PDF'
   href: string
   category: string
   lastImportedAt: string | null
@@ -48,6 +48,7 @@ const ICONS: Record<string, React.ReactNode> = {
   qb_payments_csv: ReceiptIcon,
   qb_transactions_csv: ReceiptIcon,
   facility_csv: BuildingIcon,
+  price_sheet: ReceiptIcon,
 }
 
 function formatTimestamp(iso: string | null): string {

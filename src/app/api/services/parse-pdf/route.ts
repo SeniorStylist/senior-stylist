@@ -100,9 +100,15 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // The parse is facility-agnostic (it just reads a price sheet). The master
+    // admin uses it for the cross-facility bulk price-sheet tool, so allow them
+    // through even without an admin facility membership.
+    const isMaster = !!user.email && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    if (!isMaster) {
+      const facilityUser = await getUserFacility(user.id)
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const rl = await checkRateLimit('parsePdf', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)

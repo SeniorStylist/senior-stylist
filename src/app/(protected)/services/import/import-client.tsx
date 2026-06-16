@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { fuzzyBestMatch, fuzzyScore } from '@/lib/fuzzy'
 import { isPerUnitService, makePerUnitTiers } from '@/lib/pricing'
+import { parsePriceSheetFile, parsePriceToCents } from '@/lib/services-import-parse'
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
@@ -70,49 +71,7 @@ const existingAmount = (s: ExistingService) =>
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COLORS = ['#0D7377', '#E57373', '#FFB74D', '#81C784', '#64B5F6', '#BA68C8', '#4DB6AC', '#FF8A65']
 const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
-
-// ─── Column detection ─────────────────────────────────────────────────────────
-
-function normalize(s: string) {
-  return s.toLowerCase().replace(/[\s_\-#.]/g, '')
-}
-
-const NAME_HEADERS = new Set([
-  'name', 'service', 'servicename', 'description', 'item',
-])
-const PRICE_HEADERS = new Set([
-  'price', 'cost', 'amount', 'rate', 'charge', 'fee',
-])
-const DURATION_HEADERS = new Set([
-  'duration', 'time', 'minutes', 'mins', 'min', 'length',
-])
-
-function detectColumns(headers: string[]): { nameIdx: number; priceIdx: number; durationIdx: number } {
-  let nameIdx = -1
-  let priceIdx = -1
-  let durationIdx = -1
-  headers.forEach((h, i) => {
-    const n = normalize(h)
-    if (nameIdx === -1 && NAME_HEADERS.has(n)) nameIdx = i
-    if (priceIdx === -1 && PRICE_HEADERS.has(n)) priceIdx = i
-    if (durationIdx === -1 && DURATION_HEADERS.has(n)) durationIdx = i
-  })
-  // Fallback: first column is name
-  if (nameIdx === -1) nameIdx = 0
-  return { nameIdx, priceIdx, durationIdx }
-}
-
-// ─── Price parsing ────────────────────────────────────────────────────────────
-
-function parsePriceToCents(value: string | number): number {
-  if (typeof value === 'number') return Math.round(value * 100)
-  const cleaned = String(value).replace(/[^0-9.]/g, '')
-  const num = parseFloat(cleaned)
-  if (isNaN(num)) return 0
-  return Math.round(num * 100)
-}
 
 // ─── Per-row validation flag ──────────────────────────────────────────────────
 // Single source of truth for a row's `error`. An add-on row is judged on its
@@ -152,258 +111,6 @@ function rowPricingPayload(r: ParsedService) {
   }
 }
 
-// ─── CSV parser (papaparse) ──────────────────────────────────────────────────
-
-async function parseCSV(file: File): Promise<string[][]> {
-  const Papa = (await import('papaparse')).default
-  return new Promise((resolve, reject) => {
-    Papa.parse<string[]>(file, {
-      skipEmptyLines: true,
-      complete: (result) => resolve(result.data as string[][]),
-      error: reject,
-    })
-  })
-}
-
-// ─── Excel parser (xlsx) ─────────────────────────────────────────────────────
-
-async function parseExcel(file: File): Promise<string[][]> {
-  const XLSX = await import('xlsx')
-  const buffer = await file.arrayBuffer()
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-  return rows.filter((r) => r.some((c) => String(c).trim() !== ''))
-}
-
-// ─── Spreadsheet → grid text (for the AI parser) ─────────────────────────────
-// Reads EVERY sheet so nothing is missed, and preserves the cell layout as a
-// tab-separated grid the AI can read like a PDF.
-
-function rowsToTsv(rows: string[][]): string {
-  return rows
-    .map((r) => r.map((c) => String(c ?? '').trim()).join('\t'))
-    .join('\n')
-}
-
-async function spreadsheetToGridText(file: File): Promise<string> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'csv' || ext === 'txt') {
-    return rowsToTsv(await parseCSV(file))
-  }
-  const XLSX = await import('xlsx')
-  const buffer = await file.arrayBuffer()
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const parts: string[] = []
-  for (const name of wb.SheetNames) {
-    const ws = wb.Sheets[name]
-    const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-    const nonEmpty = rows.filter((r) => r.some((c) => String(c).trim() !== ''))
-    if (nonEmpty.length === 0) continue
-    if (wb.SheetNames.length > 1) parts.push(`### Sheet: ${name}`)
-    parts.push(rowsToTsv(nonEmpty))
-  }
-  return parts.join('\n\n')
-}
-
-// ─── Word (.docx) → grid text (for the AI parser) ────────────────────────────
-// Word price sheets are tab-separated paragraphs ("Service<tab…>Price") and/or
-// tables. We unzip the docx and read word/document.xml directly so the name↔price
-// separation survives (one tab per gap), then hand the grid to the same AI parser.
-
-async function docxToGridText(file: File): Promise<string> {
-  const JSZip = (await import('jszip')).default
-  const zip = await JSZip.loadAsync(await file.arrayBuffer())
-  const docXml = zip.file('word/document.xml')
-  if (!docXml) throw new Error('This doesn’t look like a Word document.')
-  const xml = await docXml.async('string')
-  const unescape = (s: string) =>
-    s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
-
-  const lines: string[] = []
-  const blocks = xml.match(/<w:tr\b[\s\S]*?<\/w:tr>|<w:p\b[\s\S]*?<\/w:p>/g) ?? []
-  for (const b of blocks) {
-    if (b.startsWith('<w:tr')) {
-      // Table row → tab-joined cells
-      const cells = (b.match(/<w:tc>[\s\S]*?<\/w:tc>/g) ?? []).map((c) =>
-        (c.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) ?? [])
-          .map((t) => unescape(t.replace(/<[^>]+>/g, '')))
-          .join('')
-          .trim()
-      )
-      if (cells.some(Boolean)) lines.push(cells.join('\t'))
-    } else {
-      // Paragraph → text with one tab per run of <w:tab/>
-      let out = ''
-      for (const m of b.matchAll(/<w:tab\b[^>]*\/>|<w:t[^>]*>([\s\S]*?)<\/w:t>/g)) {
-        out += m[0].startsWith('<w:tab') ? '\t' : unescape(m[1])
-      }
-      out = out.replace(/\t+/g, '\t').trim()
-      if (out) lines.push(out)
-    }
-  }
-  return lines.join('\n')
-}
-
-// ─── AI parser (server-side, shared by PDF + spreadsheet) ────────────────────
-
-async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
-  const res = await fetch('/api/services/parse-pdf', {
-    method: 'POST',
-    body: formData,
-  })
-  // Read as text first: a platform-level failure (timeout, crash, or an auth
-  // redirect to the HTML /login page) returns HTML, not JSON. Doing res.json()
-  // on that throws a cryptic "Unexpected token '<'" — surface the real reason.
-  const raw = await res.text()
-  let json: { data?: unknown; error?: unknown } | null = null
-  try { json = JSON.parse(raw) } catch { /* non-JSON (HTML error page) */ }
-  if (!json) {
-    const reason =
-      res.status === 401 || res.status === 403
-        ? 'Your session expired or you don’t have access. Refresh the page, sign in again, and retry.'
-        : res.status === 413
-          ? 'This file is too large to parse.'
-          : res.status === 504 || res.status === 408
-            ? 'The parser timed out. Please try again.'
-            : `The parser returned an unexpected response (HTTP ${res.status}). Please try again.`
-    throw new Error(reason)
-  }
-  if (!res.ok) {
-    throw new Error(typeof json.error === 'string' ? json.error : `Failed to parse price sheet (HTTP ${res.status})`)
-  }
-  const rows: Array<{
-    name: string; priceCents: number; durationMinutes: number; category: string; color: string
-    pricingType?: string; addonAmountCents?: number | null
-    pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
-    pricingOptions?: Array<{ name: string; priceCents: number }> | null
-  }> = (json.data as typeof rows) ?? []
-  return rows.map((r, i) => {
-    // A single open-ended tier from the AI ("$8 ea") is a flat per-unit price.
-    // Normalize it to the 'per_unit' UI marker with the unit price in priceCents
-    // so the review row shows "$8.00 each" instead of a confusing $0.00 (tiered
-    // rows carry their price in the tiers array, not priceCents).
-    const perUnit = isPerUnitService({ pricingType: r.pricingType ?? 'fixed', pricingTiers: r.pricingTiers ?? null })
-    return {
-      id: i,
-      name: r.name,
-      priceCents: perUnit ? (r.pricingTiers?.[0]?.unitPriceCents ?? r.priceCents) : r.priceCents,
-      durationMinutes: r.durationMinutes,
-      category: r.category,
-      color: r.color,
-      include: true,
-      pricingType: perUnit ? 'per_unit' : r.pricingType,
-      addonAmountCents: r.addonAmountCents ?? null,
-      pricingTiers: perUnit ? null : (r.pricingTiers ?? null),
-      pricingOptions: r.pricingOptions ?? null,
-    }
-  })
-}
-
-// PDFs and images are sent straight to Gemini (inlineData) — it reads the visual
-// layout directly. Used for .pdf and image files (screenshots/photos of a sheet).
-async function parseFileViaVision(file: File): Promise<ParsedService[]> {
-  const formData = new FormData()
-  formData.append('file', file)
-  const rows = await postToAIParser(formData)
-  if (rows.length === 0) throw new Error('No services found in this file. Make sure it lists service names with prices.')
-  return rows
-}
-
-// Spreadsheets AND Word docs go through the SAME AI parser as PDFs — converted
-// to a text grid first — so messy real-world price sheets (section headers, prose,
-// blank cells, irregular columns) are read intelligently, not mapped row-for-row.
-async function parseGridTextAI(file: File): Promise<ParsedService[]> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  const gridText = ext === 'docx' ? await docxToGridText(file) : await spreadsheetToGridText(file)
-  if (!gridText.trim()) throw new Error('File appears to be empty.')
-  const formData = new FormData()
-  formData.append('gridText', gridText)
-  return postToAIParser(formData)
-}
-
-// ─── Spreadsheet parser — naive column mapping (fallback when AI is unavailable) ──
-
-async function parseSpreadsheetNaive(file: File): Promise<ParsedService[]> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  let rows: string[][]
-
-  if (ext === 'csv' || ext === 'txt') {
-    rows = await parseCSV(file)
-  } else if (ext === 'xlsx' || ext === 'xls') {
-    rows = await parseExcel(file)
-  } else {
-    throw new Error('Unsupported file type.')
-  }
-
-  if (rows.length < 2) throw new Error('File appears to be empty or has only a header row.')
-
-  const headers = rows[0].map(String)
-  const { nameIdx, priceIdx, durationIdx } = detectColumns(headers)
-  const dataRows = rows.slice(1)
-
-  return dataRows.map((row, i) => {
-    const name = String(row[nameIdx] ?? '').trim()
-    const priceCents = priceIdx >= 0 ? parsePriceToCents(row[priceIdx]) : 0
-    const durationMinutes = durationIdx >= 0 ? (parseInt(String(row[durationIdx])) || 30) : 30
-    const hasError = name.length === 0
-    return {
-      id: i,
-      name,
-      priceCents,
-      durationMinutes: DURATION_OPTIONS.includes(durationMinutes) ? durationMinutes : 30,
-      color: COLORS[i % COLORS.length],
-      category: '',
-      include: !hasError,
-      error: hasError ? 'Missing name' : (priceCents === 0 ? 'Price is $0' : undefined),
-    }
-  })
-}
-
-// ─── Main parser ─────────────────────────────────────────────────────────────
-
-// Only a sheet with a REAL header row (recognized name + price columns) is safe
-// for the naive column-mapper. Free-form price sheets (section headers, prose,
-// irregular columns) must never hit it — it turns every row into a garbage service.
-async function looksTabular(file: File): Promise<boolean> {
-  try {
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    const rows = ext === 'csv' || ext === 'txt' ? await parseCSV(file) : await parseExcel(file)
-    if (rows.length < 2) return false
-    const headers = rows[0].map((h) => normalize(String(h)))
-    return headers.some((h) => NAME_HEADERS.has(h)) && headers.some((h) => PRICE_HEADERS.has(h))
-  } catch {
-    return false
-  }
-}
-
-const VISION_EXTS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp', 'heic', 'heif'])
-
-async function parseFile(file: File): Promise<ParsedService[]> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  // PDFs + images → Gemini vision (reads the visual layout directly).
-  if (ext && VISION_EXTS.has(ext)) {
-    return parseFileViaVision(file)
-  }
-  // Word docs (.docx) have no tabular fallback — they're always free-form text.
-  if (ext === 'docx') {
-    const ai = await parseGridTextAI(file)
-    if (ai.length > 0) return ai
-    throw new Error('No services could be read from this document. Make sure it lists service names with prices.')
-  }
-  // Spreadsheets go through the AI parser (reads messy real-world sheets like a PDF).
-  try {
-    const ai = await parseGridTextAI(file)
-    if (ai.length > 0) return ai
-    // AI ran but found nothing — surface that instead of dumping every row as garbage.
-    throw new Error('No services could be read from this sheet. Make sure it lists service names with prices.')
-  } catch (err) {
-    // Fall back to naive column-mapping ONLY for clean tabular sheets — never for
-    // free-form price sheets (that path is what produced the "Missing name" garbage).
-    if (await looksTabular(file)) return parseSpreadsheetNaive(file)
-    throw err instanceof Error ? err : new Error('Could not read this price sheet. Please try again.')
-  }
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -480,7 +187,12 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
     setProgress(0)
     setTimeout(() => setProgress(70), 50)
     try {
-      const parsed = await parseFile(file)
+      const parsed: ParsedService[] = (await parsePriceSheetFile(file)).map((r, i) => ({
+        ...r,
+        id: i,
+        include: true,
+        error: rowError(r.name, r.pricingType, r.priceCents, r.addonAmountCents),
+      }))
       if (mode === 'update') await buildUpdateRows(parsed)
       setProgress(100)
       await new Promise((r) => setTimeout(r, 400))
