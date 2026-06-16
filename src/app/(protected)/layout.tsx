@@ -40,7 +40,7 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
   })
 
   let allFacilities = userFacilities
-    .filter((fu) => fu.facility != null)
+    .filter((fu) => fu.facility != null && fu.facility.active && !fu.facility.isDemo)
     .map((fu) => ({
       id: fu.facilityId,
       name: fu.facility!.name,

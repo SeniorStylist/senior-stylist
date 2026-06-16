@@ -38,7 +38,9 @@ const getCachedFacilityInfos = unstable_cache(
       // so tutorialMode is passed in and rides the cache key).
       const [allFacilities, residentRows, stylistRows, bookingRows, adminRows] = await Promise.all([
         db.query.facilities.findMany({
-          where: tutorialMode ? undefined : eq(facilities.isDemo, false),
+          where: tutorialMode
+            ? eq(facilities.isDemo, true)
+            : and(eq(facilities.active, true), eq(facilities.isDemo, false)),
           orderBy: (t, { desc }) => [desc(t.createdAt)],
           columns: {
             id: true,

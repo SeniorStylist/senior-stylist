@@ -165,7 +165,7 @@ export function AdvancedSection({ facility }: Props) {
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Sunrise Senior Living"
+            placeholder="e.g. Carriage Hill Bethesda"
             className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
           />
         </div>
