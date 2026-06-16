@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { fuzzyBestMatch, fuzzyScore } from '@/lib/fuzzy'
+
+const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +37,35 @@ interface DuplicateRow {
   existingService: { id: string; name: string; priceCents: number }
   resolution: 'replace' | 'skip'
 }
+
+type Mode = 'add' | 'update'
+
+// An existing service, loaded in "Update prices" mode so scanned rows can be
+// matched against the facility's real services and have their prices overwritten.
+interface ExistingService {
+  id: string
+  name: string
+  priceCents: number
+  pricingType: string | null
+  addonAmountCents: number | null
+}
+
+// One scanned row resolved against the existing services for a price update.
+interface UpdateRow {
+  rowId: number
+  scannedName: string
+  newCents: number          // effective new amount (add-on amount for add-ons, else price)
+  matchId: string | null    // existing service to overwrite (user-overridable)
+  score: number             // fuzzy-match confidence
+  apply: boolean
+}
+
+// The dollar amount that represents a service's "price" regardless of type —
+// add-ons carry it in addonAmountCents, everything else in priceCents.
+const scannedAmount = (p: ParsedService) =>
+  p.pricingType === 'addon' ? (p.addonAmountCents ?? 0) : p.priceCents
+const existingAmount = (s: ExistingService) =>
+  s.pricingType === 'addon' ? (s.addonAmountCents ?? 0) : s.priceCents
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -345,9 +377,10 @@ async function parseFile(file: File): Promise<ParsedService[]> {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ImportClient() {
+export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [step, setStep] = useState<Step>('upload')
   const [dragging, setDragging] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
@@ -361,10 +394,52 @@ export function ImportClient() {
   const [parsing, setParsing] = useState(false)
   const [progress, setProgress] = useState(0)
 
+  // Update-mode state
+  const [existingServices, setExistingServices] = useState<ExistingService[]>([])
+  const [updateRows, setUpdateRows] = useState<UpdateRow[]>([])
+  const [updateResult, setUpdateResult] = useState<{ updated: number; unchanged: number; skipped: number } | null>(null)
+
   const selectedCount = rows.filter((r) => r.include && r.error !== 'Missing name').length
   const errorCount = rows.filter((r) => r.error === 'Missing name').length
 
+  const existingById = useMemo(
+    () => new Map(existingServices.map((s) => [s.id, s])),
+    [existingServices]
+  )
+  const sortedExisting = useMemo(
+    () => [...existingServices].sort((a, b) => a.name.localeCompare(b.name)),
+    [existingServices]
+  )
+  const updateSelectedCount = updateRows.filter((r) => r.apply && r.matchId).length
+  const updateNoMatchCount = updateRows.filter((r) => !r.matchId).length
+
   // ── File handling ──────────────────────────────────────────────────────────
+
+  // In update mode, resolve each scanned row against the facility's existing
+  // services (fuzzy name match) and default to applying the change when a match
+  // exists and the price actually differs.
+  const buildUpdateRows = useCallback(async (parsed: ParsedService[]) => {
+    const res = await fetch('/api/services')
+    const json = await res.json()
+    if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Failed to load services')
+    const existing: ExistingService[] = json.data ?? []
+    setExistingServices(existing)
+    const existingByIdLocal = new Map(existing.map((s) => [s.id, s]))
+    const built: UpdateRow[] = parsed.map((p) => {
+      const match = fuzzyBestMatch(existing, p.name, 0.7)
+      const newCents = scannedAmount(p)
+      const changed = match ? existingAmount(existingByIdLocal.get(match.id)!) !== newCents : false
+      return {
+        rowId: p.id,
+        scannedName: p.name,
+        newCents,
+        matchId: match?.id ?? null,
+        score: match ? fuzzyScore(p.name, match.name) : 0,
+        apply: !!match && changed,
+      }
+    })
+    setUpdateRows(built)
+  }, [])
 
   const handleFile = useCallback(async (file: File) => {
     setParseError(null)
@@ -376,6 +451,7 @@ export function ImportClient() {
     setTimeout(() => setProgress(70), 50)
     try {
       const parsed = await parseFile(file)
+      if (mode === 'update') await buildUpdateRows(parsed)
       setProgress(100)
       await new Promise((r) => setTimeout(r, 400))
       setRows(parsed)
@@ -385,7 +461,7 @@ export function ImportClient() {
     } finally {
       setParsing(false)
     }
-  }, [])
+  }, [mode, buildUpdateRows])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -568,6 +644,72 @@ export function ImportClient() {
     await runImport(toImport, [])
   }
 
+  // ── Update-prices mode ───────────────────────────────────────────────────────
+
+  // Re-point a scanned row at a different existing service (or none). Default the
+  // apply checkbox to on whenever the new price actually differs from the current.
+  const setMatch = (rowId: number, matchId: string) =>
+    setUpdateRows((prev) => prev.map((r) => {
+      if (r.rowId !== rowId) return r
+      const id = matchId || null
+      const ex = id ? existingById.get(id) : null
+      return { ...r, matchId: id, apply: !!ex && existingAmount(ex) !== r.newCents }
+    }))
+
+  const setNewPrice = (rowId: number, value: string) =>
+    setUpdateRows((prev) => prev.map((r) => {
+      if (r.rowId !== rowId) return r
+      const newCents = parsePriceToCents(value)
+      const ex = r.matchId ? existingById.get(r.matchId) : null
+      return { ...r, newCents, apply: !!ex && existingAmount(ex) !== newCents }
+    }))
+
+  const toggleApply = (rowId: number) =>
+    setUpdateRows((prev) => prev.map((r) => r.rowId === rowId ? { ...r, apply: !r.apply } : r))
+
+  const toggleAllApply = () => {
+    const anyOn = updateRows.some((r) => r.apply && r.matchId)
+    setUpdateRows((prev) => prev.map((r) => ({ ...r, apply: r.matchId ? !anyOn : false })))
+  }
+
+  const runUpdate = async () => {
+    const toApply = updateRows.filter((r) => r.apply && r.matchId)
+    if (toApply.length === 0) return
+    setStep('importing')
+    setImportProgress(0)
+    setImportError(null)
+    let updated = 0
+    try {
+      for (let i = 0; i < toApply.length; i++) {
+        const r = toApply[i]
+        const ex = existingById.get(r.matchId!)
+        if (!ex) continue
+        // Overwrite the field that holds this service's price for its type —
+        // never change the service's type, name, or duration on a price update.
+        const patch = ex.pricingType === 'addon'
+          ? { addonAmountCents: r.newCents }
+          : { priceCents: r.newCents }
+        const res = await fetch(`/api/services/${r.matchId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        if (!res.ok) {
+          const j = await res.json().catch(() => null)
+          throw new Error(typeof j?.error === 'string' ? j.error : 'Failed to update price')
+        }
+        updated++
+        setImportProgress(Math.round(((i + 1) / toApply.length) * 100))
+      }
+      const skipped = updateNoMatchCount
+      setUpdateResult({ updated, unchanged: updateRows.length - toApply.length - skipped, skipped })
+      setStep('done')
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Update failed')
+      setStep('preview')
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -587,10 +729,12 @@ export function ImportClient() {
             className="text-2xl font-bold text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
-            Import Services
+            {mode === 'update' ? 'Update Prices' : 'Import Services'}
           </h1>
           <p className="text-sm text-stone-500 mt-0.5">
-            Upload a price sheet to bulk-add services
+            {mode === 'update'
+              ? 'Scan a new price sheet to overwrite your existing prices'
+              : 'Upload a price sheet to bulk-add services'}
           </p>
         </div>
       </div>
@@ -631,6 +775,31 @@ export function ImportClient() {
       {/* ── Step: Upload ── */}
       {step === 'upload' && (
         <div className="space-y-4">
+          {/* Mode toggle */}
+          <div className="inline-flex rounded-xl border border-stone-200 bg-stone-50 p-1">
+            {([
+              { id: 'add' as const, label: 'Add new services' },
+              { id: 'update' as const, label: 'Update prices' },
+            ]).map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={cn(
+                  'px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors',
+                  mode === m.id ? 'bg-white text-[#8B2E4A] shadow-sm' : 'text-stone-500 hover:text-stone-700'
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {mode === 'update' && (
+            <p className="text-xs text-stone-500">
+              The same scanner reads your sheet, then matches each item to a service you already
+              have and shows the current price next to the new one — nothing changes until you confirm.
+            </p>
+          )}
+
           {/* Drop zone */}
           <div
             onDrop={onDrop}
@@ -709,8 +878,8 @@ export function ImportClient() {
         </div>
       )}
 
-      {/* ── Step: Preview ── */}
-      {step === 'preview' && (
+      {/* ── Step: Preview (Add mode) ── */}
+      {step === 'preview' && mode === 'add' && (
         <div className="space-y-4">
           {importError && (
             <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -931,12 +1100,170 @@ export function ImportClient() {
         </div>
       )}
 
+      {/* ── Step: Preview (Update mode) ── */}
+      {step === 'preview' && mode === 'update' && (
+        <div className="space-y-4">
+          {importError && (
+            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {importError}
+            </div>
+          )}
+
+          {/* Summary bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 text-sm text-stone-500">
+              <span>
+                <span className="font-semibold text-stone-900">{rows.length}</span> items from{' '}
+                <span className="font-mono text-xs text-stone-600">{fileName}</span>
+              </span>
+              {updateNoMatchCount > 0 && (
+                <span className="text-stone-400 text-xs font-medium">
+                  {updateNoMatchCount} not matched
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setStep('upload')}
+              className="text-xs text-stone-400 hover:text-stone-600 underline underline-offset-2"
+            >
+              Change file
+            </button>
+          </div>
+
+          {updateNoMatchCount > 0 && (
+            <div className="rounded-xl bg-stone-50 border border-stone-200 px-4 py-2.5 text-xs text-stone-500">
+              {updateNoMatchCount} item{updateNoMatchCount !== 1 ? 's' : ''} on this sheet
+              {updateNoMatchCount !== 1 ? ' aren’t' : ' isn’t'} in your services yet — pick a match below,
+              or switch to <button onClick={() => { setMode('add'); setStep('upload') }} className="font-semibold text-[#8B2E4A] underline underline-offset-2">Add new services</button> to create them.
+            </div>
+          )}
+
+          {/* Update table */}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-stone-50 border-b border-stone-100 text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              <div className="col-span-1 flex items-center">
+                <input
+                  type="checkbox"
+                  checked={updateRows.some((r) => r.matchId) && updateRows.filter((r) => r.matchId).every((r) => r.apply)}
+                  onChange={toggleAllApply}
+                  className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
+                />
+              </div>
+              <div className="col-span-5">Service to update</div>
+              <div className="col-span-2">Current</div>
+              <div className="col-span-2">New</div>
+              <div className="col-span-2">Change</div>
+            </div>
+
+            <div className="divide-y divide-stone-50 max-h-[460px] overflow-y-auto">
+              {updateRows.map((r) => {
+                const ex = r.matchId ? existingById.get(r.matchId) : null
+                const oldCents = ex ? existingAmount(ex) : null
+                const delta = oldCents != null ? r.newCents - oldCents : null
+                const changed = delta != null && delta !== 0
+                return (
+                  <div
+                    key={r.rowId}
+                    className={cn(
+                      'grid grid-cols-12 gap-2 px-4 py-2.5 items-center text-sm transition-colors',
+                      !r.matchId && 'bg-stone-50/40',
+                      r.matchId && !r.apply && 'opacity-50'
+                    )}
+                  >
+                    <div className="col-span-1">
+                      <input
+                        type="checkbox"
+                        checked={r.apply}
+                        disabled={!r.matchId}
+                        onChange={() => toggleApply(r.rowId)}
+                        className="rounded accent-[#8B2E4A] w-3.5 h-3.5 disabled:opacity-30"
+                      />
+                    </div>
+                    <div className="col-span-5 flex flex-col gap-0.5 min-w-0">
+                      <select
+                        value={r.matchId ?? ''}
+                        onChange={(e) => setMatch(r.rowId, e.target.value)}
+                        className={cn(
+                          'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 transition-colors truncate',
+                          r.matchId
+                            ? 'border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-stone-800'
+                            : 'border-amber-300 text-amber-700'
+                        )}
+                      >
+                        <option value="">— No match (skip) —</option>
+                        {sortedExisting.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({dollars(existingAmount(s))})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] text-stone-400 truncate">
+                        From sheet: {r.scannedName}
+                        {r.matchId && r.score < 0.999 && (
+                          <span className="ml-1.5 text-stone-300">· {Math.round(r.score * 100)}% match</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-stone-500">
+                      {oldCents != null ? dollars(oldCents) : '—'}
+                    </div>
+                    <div className="col-span-2">
+                      <div className="relative">
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                        <input
+                          type="number"
+                          value={(r.newCents / 100).toFixed(2)}
+                          onChange={(e) => setNewPrice(r.rowId, e.target.value)}
+                          step="0.01"
+                          min="0"
+                          disabled={!r.matchId}
+                          className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-sm text-stone-800 focus:outline-none py-0.5 pl-3 transition-colors disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      {!r.matchId ? (
+                        <span className="text-xs text-stone-400 font-medium">No match</span>
+                      ) : !changed ? (
+                        <span className="text-xs text-stone-400 font-medium">No change</span>
+                      ) : (
+                        <span className={cn(
+                          'text-xs font-semibold',
+                          delta! > 0 ? 'text-emerald-600' : 'text-amber-600'
+                        )}>
+                          {delta! > 0 ? '↑' : '↓'} {dollars(Math.abs(delta!))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-sm text-stone-500">
+              <span className="font-semibold text-stone-900">{updateSelectedCount}</span> price{updateSelectedCount !== 1 ? 's' : ''} will be updated
+            </p>
+            <button
+              onClick={runUpdate}
+              disabled={updateSelectedCount === 0}
+              className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 active:scale-95"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              Update {updateSelectedCount > 0 ? updateSelectedCount : ''} price{updateSelectedCount !== 1 ? 's' : ''}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Step: Importing ── */}
       {step === 'importing' && (
         <div className="flex flex-col items-center justify-center py-24 gap-5">
           <div className="w-12 h-12 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
           <div className="text-center">
-            <p className="text-sm font-semibold text-stone-700">Importing services...</p>
+            <p className="text-sm font-semibold text-stone-700">{mode === 'update' ? 'Updating prices...' : 'Importing services...'}</p>
             <p className="text-xs text-stone-400 mt-1">{importProgress}% complete</p>
           </div>
           <div className="w-48 h-1.5 rounded-full bg-stone-100 overflow-hidden">
@@ -1066,8 +1393,8 @@ export function ImportClient() {
               </svg>
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-stone-800">Importing services...</p>
-              <p className="text-xs text-stone-400 mt-1">Analyzing your price sheet</p>
+              <p className="text-sm font-semibold text-stone-800">{mode === 'update' ? 'Reading price sheet...' : 'Importing services...'}</p>
+              <p className="text-xs text-stone-400 mt-1">{mode === 'update' ? 'Matching to your services' : 'Analyzing your price sheet'}</p>
             </div>
             <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
               <div
@@ -1083,7 +1410,7 @@ export function ImportClient() {
       )}
 
       {/* ── Step: Done ── */}
-      {step === 'done' && result && (
+      {step === 'done' && mode === 'add' && result && (
         <div className="flex flex-col items-center justify-center py-16 gap-6 text-center">
           <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6faf9' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.2">
@@ -1122,6 +1449,60 @@ export function ImportClient() {
               className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 bg-white border border-stone-200 hover:bg-stone-50 transition-colors"
             >
               Import another file
+            </button>
+            <Link
+              href="/services"
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all active:scale-95 inline-flex items-center"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              View services &rarr;
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step: Done (Update mode) ── */}
+      {step === 'done' && mode === 'update' && updateResult && (
+        <div className="flex flex-col items-center justify-center py-16 gap-6 text-center">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6faf9' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.2">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
+              Prices updated
+            </h2>
+            <p className="text-sm text-stone-500 mt-1">Your service prices have been overwritten</p>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-8 py-5 text-center">
+              <p className="text-3xl font-bold text-[#8B2E4A]">{updateResult.updated}</p>
+              <p className="text-xs text-stone-500 mt-1 font-medium uppercase tracking-wide">Updated</p>
+            </div>
+            {updateResult.skipped > 0 && (
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-8 py-5 text-center">
+                <p className="text-3xl font-bold text-stone-400">{updateResult.skipped}</p>
+                <p className="text-xs text-stone-500 mt-1 font-medium uppercase tracking-wide">Not matched</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setStep('upload')
+                setRows([])
+                setUpdateRows([])
+                setUpdateResult(null)
+                setExistingServices([])
+                setFileName('')
+              }}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 bg-white border border-stone-200 hover:bg-stone-50 transition-colors"
+            >
+              Update from another file
             </button>
             <Link
               href="/services"

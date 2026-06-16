@@ -215,6 +215,17 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
         />
         <div className="flex items-center gap-2">
         <Link
+          href="/services/import?mode=update"
+          className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
+          title="Scan a new price sheet and overwrite existing prices"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+          </svg>
+          Update prices
+        </Link>
+        <Link
           href="/services/import"
           className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
         >
