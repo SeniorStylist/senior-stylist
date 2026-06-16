@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Sparkles } from 'lucide-react'
@@ -22,7 +23,19 @@ interface ServicesPageClientProps {
 export function ServicesPageClient({ services: initialServices, serviceCategoryOrder }: ServicesPageClientProps) {
   const categoryPriority = buildCategoryPriority(serviceCategoryOrder)
   const { toast } = useToast()
+  const router = useRouter()
   const [services, setServices] = useState(initialServices)
+  const [isRefreshing, startRefresh] = useTransition()
+
+  // Keep the list in sync with the server: after a facility switch or an import,
+  // the parent re-renders this client with fresh `initialServices` (via
+  // router.refresh()). Without this the local state would keep showing the old
+  // facility's services / pre-import list until a full page reload.
+  useEffect(() => {
+    setServices(initialServices)
+  }, [initialServices])
+
+  const handleRefresh = () => startRefresh(() => router.refresh())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editPrice, setEditPrice] = useState('')
@@ -214,6 +227,21 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
           subtitle={`${services.length} service${services.length !== 1 ? 's' : ''}`}
         />
         <div className="flex items-center gap-2">
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          title="Refresh services"
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all disabled:opacity-50"
+        >
+          <svg
+            width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={cn(isRefreshing && 'animate-spin')}
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+          </svg>
+          <span className="hidden md:inline">Refresh</span>
+        </button>
         <Link
           href="/services/import?mode=update"
           className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"

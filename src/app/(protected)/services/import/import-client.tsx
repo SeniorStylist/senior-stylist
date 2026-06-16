@@ -604,6 +604,7 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
 
       setResult({ created: totalCreated, skipped: totalSkipped + skipNames.size })
       setStep('done')
+      router.refresh() // invalidate the /services Router Cache so the new rows show immediately
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
       setStep('preview')
@@ -704,6 +705,7 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
       const skipped = updateNoMatchCount
       setUpdateResult({ updated, unchanged: updateRows.length - toApply.length - skipped, skipped })
       setStep('done')
+      router.refresh() // invalidate the /services Router Cache so updated prices show immediately
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Update failed')
       setStep('preview')
