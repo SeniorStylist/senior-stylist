@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { services, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
+import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { ServicesPageClient } from './services-page-client'
 
 export default async function ServicesPage() {
@@ -18,11 +19,14 @@ export default async function ServicesPage() {
   if (facilityUser.role !== 'admin') redirect('/dashboard')
 
   try {
+  // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.
+  const tutorialMode = await isTutorialModeActive()
   const [servicesList, facility] = await Promise.all([
     db.query.services.findMany({
       where: and(
         eq(services.facilityId, facilityUser.facilityId),
-        eq(services.active, true)
+        eq(services.active, true),
+        eq(services.isDemo, tutorialMode)
       ),
       orderBy: (t, { asc, desc }) => [desc(t.category), asc(t.name)],
     }),

@@ -24,7 +24,7 @@ const getCachedCrossFacilitySummary = unstable_cache(
       await Promise.all([
         db.execute(sql`
           SELECT COALESCE(SUM(qb_outstanding_balance_cents), 0)::bigint AS total
-          FROM facilities WHERE active = true
+          FROM facilities WHERE active = true AND is_demo = false
         `),
         db.execute(sql`
           SELECT COALESCE(SUM(open_balance_cents), 0)::bigint AS total
@@ -45,6 +45,7 @@ const getCachedCrossFacilitySummary = unstable_cache(
           SELECT COUNT(*)::int AS total
           FROM facilities f
           WHERE f.active = true
+            AND f.is_demo = false
             AND f.qb_outstanding_balance_cents > 0
             AND NOT EXISTS (
               SELECT 1 FROM qb_invoices i
