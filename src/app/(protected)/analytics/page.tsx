@@ -28,7 +28,10 @@ export default async function AnalyticsPage() {
     user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   let exportFacilities: { id: string; name: string; facilityCode: string | null }[] = []
-  if (isMaster) {
+  // Master and bookkeepers are cross-facility — both can export any active facility.
+  // (Bookkeepers hold only one anchor facility_users row, so the memberships branch
+  // would wrongly limit them to a single facility.)
+  if (isMaster || facilityUser.role === 'bookkeeper') {
     const rows = await db.query.facilities.findMany({
       where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
       columns: { id: true, name: true, facilityCode: true },

@@ -291,7 +291,7 @@ export function OcrImportModal({
         fd.append('residentsJson', JSON.stringify(residents.map(r => ({ name: r.name, roomNumber: r.roomNumber ?? null }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
         const json = await res.json()
-        if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }
+        if (!res.ok) { setScanError(typeof json.error === 'string' ? json.error : 'Scan failed'); return }
         allRawSheets.push(...(json.data.sheets as OcrRawSheet[]))
       }
 
@@ -397,7 +397,7 @@ export function OcrImportModal({
       })
       const json = await res.json()
       if (!res.ok) {
-        setImportError(json.error ?? 'Import failed')
+        setImportError(typeof json.error === 'string' ? json.error : 'Import failed')
         return
       }
       const { bookings: n } = json.data.created
@@ -822,52 +822,35 @@ export function OcrImportModal({
                                   </div>
                                 )}
 
-                                {/* Service select — existing services with fuzzy pre-select */}
+                                {/* Service — type-or-pick combo: pick an existing service OR type a
+                                    new name to create it (mirrors the stylist/resident fields). */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  {(() => {
-                                    const cats = Array.from(new Set(services.map(s => s.category?.trim() || 'Other'))).sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b))
-                                    const selectVal = entry.serviceId !== null
-                                      ? entry.serviceId
-                                      : (entry.serviceName ? `__new__${entry.serviceName}` : '')
-                                    return (
-                                      <select
-                                        value={selectVal}
-                                        onChange={(e) => {
-                                          const val = e.target.value
-                                          if (!val) {
-                                            updateEntry(activeTab, ei, { serviceId: null, serviceName: '' })
-                                          } else if (val.startsWith('__new__')) {
-                                            updateEntry(activeTab, ei, { serviceId: null, serviceName: val.slice(7) })
-                                          } else {
-                                            const svc = services.find(s => s.id === val)
-                                            updateEntry(activeTab, ei, { serviceId: val, serviceName: svc?.name ?? entry.serviceName })
-                                          }
-                                        }}
-                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
-                                      >
-                                        <option value="">— select service —</option>
-                                        {cats.length <= 1
-                                          ? services.map(s => (
-                                              <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
-                                            ))
-                                          : cats.map(cat => (
-                                              <optgroup key={cat} label={cat}>
-                                                {services.filter(s => (s.category?.trim() || 'Other') === cat).map(s => (
-                                                  <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
-                                                ))}
-                                              </optgroup>
-                                            ))
-                                        }
-                                        {!entry.serviceId && entry.serviceName && (
-                                          <option value={`__new__${entry.serviceName}`}>➕ Create &ldquo;{entry.serviceName}&rdquo;</option>
-                                        )}
-                                      </select>
-                                    )
-                                  })()}
-                                  {!entry.serviceId && entry.serviceName && (
+                                  <input
+                                    type="text"
+                                    list={`services-${activeTab}-${ei}`}
+                                    value={entry.serviceName ?? ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      const matched = services.find(
+                                        s => s.name.toLowerCase() === val.trim().toLowerCase()
+                                      )
+                                      updateEntry(activeTab, ei, { serviceName: val, serviceId: matched?.id ?? null })
+                                    }}
+                                    placeholder="Type or pick service…"
+                                    className={cn(
+                                      'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]',
+                                      entry.serviceId || (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
+                                    )}
+                                  />
+                                  <datalist id={`services-${activeTab}-${ei}`}>
+                                    {services.map(s => (
+                                      <option key={s.id} value={s.name}>{formatCents(s.priceCents)}</option>
+                                    ))}
+                                  </datalist>
+                                  {!entry.serviceId && (entry.serviceName ?? '').trim() ? (
                                     <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
-                                  )}
+                                  ) : null}
                                 </div>
 
                                 {/* Price */}

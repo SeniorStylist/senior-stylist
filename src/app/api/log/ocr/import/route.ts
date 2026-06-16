@@ -80,7 +80,17 @@ export async function POST(request: Request) {
     const body = await request.json()
     const parsed = importSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      // Return a readable string, never the flatten() object — the client renders
+      // `error` directly, and an object child crashes React (minified error #31).
+      const first = parsed.error.issues[0]
+      const where = first?.path
+        .filter((p) => typeof p === 'string')
+        .join(' › ') || 'a row'
+      const msg = first?.message ?? 'Some rows are missing required info'
+      return Response.json(
+        { error: `Couldn't import — ${msg} (${where}). Check that every included row has a resident and a service.` },
+        { status: 422 }
+      )
     }
 
     let createdResidents = 0

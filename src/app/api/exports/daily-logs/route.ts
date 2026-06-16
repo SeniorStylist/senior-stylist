@@ -154,6 +154,16 @@ export async function GET(request: NextRequest) {
         if (!prof?.stylistId) return new Response('Not linked to a stylist', { status: 400 })
         stylistScopeId = prof.stylistId
         allowedFacilityIds = new Set([facilityUser.facilityId])
+      } else if (facilityUser.role === 'bookkeeper') {
+        // Bookkeepers are cross-facility by role (they hold only one anchor
+        // facility_users row) — grant export access to every active facility,
+        // mirroring billing/analytics. Without this they could only export their
+        // anchor facility and any other facility returned an empty/forbidden file.
+        const active = await db.query.facilities.findMany({
+          where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+          columns: { id: true },
+        })
+        allowedFacilityIds = new Set(active.map((f) => f.id))
       } else {
         const memberships = await db.query.facilityUsers.findMany({
           where: eq(facilityUsers.userId, user.id),
