@@ -103,6 +103,8 @@ export default async function SettingsPage() {
     }
   })
 
+  const isMaster = !!(process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)
+
   return (
     <SettingsClient
       facility={toClientJson(sanitizeFacility(facility))}
@@ -110,6 +112,7 @@ export default async function SettingsPage() {
       currentUserId={user.id}
       currentUserEmail={user.email ?? null}
       role={facilityUser.role}
+      isMaster={isMaster}
       pendingRequestsCount={pendingRequests.length}
       adminEmail={process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? null}
       qbInvoiceSyncEnabled={process.env.QB_INVOICE_SYNC_ENABLED === 'true'}

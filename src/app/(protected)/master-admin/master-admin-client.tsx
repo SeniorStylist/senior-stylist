@@ -453,21 +453,29 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
           </div>
           {/* Toolbar row */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <a
                 href="/master-admin/imports"
-                className="text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white hover:bg-[#F9EFF2] hover:border-[#8B2E4A]/20 transition-colors text-sm font-medium text-stone-700 shadow-[var(--shadow-sm)]"
               >
-                Imports →
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Imports
               </a>
               <a
                 href="/master-admin/feedback"
-                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white hover:bg-[#F9EFF2] hover:border-[#8B2E4A]/20 transition-colors text-sm font-medium text-stone-700 shadow-[var(--shadow-sm)]"
               >
-                Feedback →
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                </svg>
+                Feedback
                 {newFeedbackCount > 0 && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-rose-100 text-[#8B2E4A]">
-                    {newFeedbackCount} new
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#8B2E4A] text-white">
+                    {newFeedbackCount}
                   </span>
                 )}
               </a>
