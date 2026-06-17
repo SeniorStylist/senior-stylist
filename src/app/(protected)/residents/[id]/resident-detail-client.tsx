@@ -8,6 +8,7 @@ import { formatCents, formatDate, formatTime } from '@/lib/utils'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
@@ -60,6 +61,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const isAdmin = role === 'admin' || role === 'super_admin'
   const canEdit = isAdmin || role === 'facility_staff'
   const { toast } = useToast()
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
   const [resident, setResident] = useState(initialResident)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(initialResident.name)
@@ -86,6 +88,15 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [linkCopied, setLinkCopied] = useState(false)
 
   const handleSendFamilyInvite = useCallback(async () => {
+    if (!resident.poaEmail) return
+    if (
+      !(await confirmSend({
+        channel: 'email',
+        recipient: resident.poaEmail,
+        summary: `Family Portal access link for ${resident.name}`,
+      }))
+    )
+      return
     setSendingFamilyInvite(true)
     try {
       const res = await fetch('/api/portal/send-invite', {
@@ -105,7 +116,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     } finally {
       setSendingFamilyInvite(false)
     }
-  }, [resident.id, resident.poaEmail, toast, router])
+  }, [resident.id, resident.poaEmail, resident.name, confirmSend, toast, router])
 
   const handleCopyMagicLink = useCallback(async () => {
     if (!resident.poaEmail) return
@@ -573,6 +584,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
         </div>
       </div>
     </div>
+    {sendConfirmDialog}
     </ErrorBoundary>
   )
 }

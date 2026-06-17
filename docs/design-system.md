@@ -1677,6 +1677,23 @@ Shared motion vocabulary lives in `src/lib/animations.ts`. Import the constants 
 
 ---
 
+### Send Confirmation Dialog (`SendConfirmDialog` / `useSendConfirm`)
+
+`src/components/ui/send-confirm-dialog.tsx` (exported from `src/components/ui/index.ts`) is the canonical "Are you sure you want to send this?" gate for **one-click** email/text sends — buttons that fire a real message the instant they're clicked (Send Receipt, family-portal Send Link, billing Send Statement / Send All, resend invite, stylist account invite).
+
+- **`useSendConfirm()`** returns `{ confirmSend, dialog }`. `confirmSend(opts): Promise<boolean>` resolves `true` on Send, `false` on Cancel/close. Render `{dialog}` once in the component tree. The promise resolver is held in a `useRef` (not in the setState updater) so it never double-fires under StrictMode.
+- **Usage** — gate at the TOP of the existing send handler; nothing else changes:
+  ```ts
+  if (!(await confirmSend({ channel, recipient, summary, warning }))) return
+  // ...existing fetch/toast logic unchanged...
+  ```
+- **`SendConfirmOptions`**: `channel: 'email' | 'sms' | 'both'`, `recipient` (email / phone / "12 residents"), `summary` (one-line "what's being sent"), optional `warning` (amber caution line, e.g. "Last sent Jun 14"), optional `confirmLabel` (default "Send").
+- **Visual**: branches desktop `Modal` / mobile `BottomSheet` via `useIsMobile()` (mirrors `email-day-log-modal.tsx`). Body shows a stone-50 card with a channel icon + label ("Email" / "Text" / "Email + text"), the recipient (font-semibold), and the summary. Footer: Cancel (ghost) + Send (primary). The dialog only gates — the page's existing button spinner + toast handle the actual network call.
+- **Dedup interplay** (billing): for per-resident statement sends where `lastSentAt` is known client-side, pass it as `warning` and send with `force: true` after confirm to bypass the legacy `SendDedupModal` round-trip. For the facility statement (`lastSentAt` only known server-side), gate with `confirmSend` then keep `force: false` so `SendDedupModal` still acts as the second "already sent recently" layer.
+- **Out of scope**: compose-style flows that already make the user type a recipient before sending (Day Log Email modal, the new teammate-invite form) — they're already deliberate. "Copy Link" sends nothing, so no gate.
+
+---
+
 ## UI Polish Overhaul v2 (2026-04-23)
 
 A visual-only pass — zero logic changes — to make the app feel like a premium admin tool. The patterns below are the new house style; older sections in this doc still reference the previous looser conventions and will be reconciled as surfaces are touched.

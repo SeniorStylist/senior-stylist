@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { CreditCard } from 'lucide-react'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { HelpTip } from '@/components/ui/help-tip'
 import {
   btnBase,
@@ -194,6 +195,7 @@ export function BillingClient({
   const [totalUnresolvedCount, setTotalUnresolvedCount] = useState(0)
 
   const { toast } = useToast()
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
 
   useEffect(() => {
     if (!isMaster) return
@@ -458,6 +460,16 @@ export function BillingClient({
     if (!summary) return
     const to = summary.facility.contactEmail ?? sendEmailOverride
     if (!to) return
+    if (!force) {
+      if (
+        !(await confirmSend({
+          channel: 'email',
+          recipient: to,
+          summary: `Billing statement for ${summary.facility.name}`,
+        }))
+      )
+        return
+    }
     setSendLoading(true)
     setSendWarning(null)
     try {
@@ -528,6 +540,7 @@ export function BillingClient({
 
   return (
     <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
+      {sendConfirmDialog}
       {sendWarning && (
         <SendDedupModal
           lastSentAt={sendWarning.lastSentAt}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 
 export interface ConnectedUser {
   userId: string
@@ -86,6 +87,7 @@ export function TeamSection({
   facilityName,
 }: Props) {
   const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://senior-stylist.vercel.app'
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
 
   // Members
   const [localUsers, setLocalUsers] = useState<ConnectedUser[]>(connectedUsers)
@@ -250,7 +252,16 @@ export function TeamSection({
     }
   }
 
-  async function handleResendInvite(id: string) {
+  async function handleResendInvite(invite: InviteData) {
+    const id = invite.id
+    if (
+      !(await confirmSend({
+        channel: 'email',
+        recipient: invite.email,
+        summary: `Resend ${roleBadgeLabel(invite.inviteRole)} invite`,
+      }))
+    )
+      return
     setResendingId(id)
     setResendSuccess(null)
     try {
@@ -283,6 +294,7 @@ export function TeamSection({
   const acceptedInvites = invitesList.filter((i) => i.used)
 
   return (
+    <>
     <div className="space-y-5" data-tour="settings-team-section">
       {/* Invite form */}
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]" data-tour="settings-invite-form">
@@ -497,7 +509,7 @@ export function TeamSection({
                   </div>
                   {!isExpired ? (
                     <button
-                      onClick={() => handleResendInvite(invite.id)}
+                      onClick={() => handleResendInvite(invite)}
                       disabled={resendingId === invite.id}
                       className="text-xs text-[#8B2E4A] hover:text-[#72253C] font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors disabled:opacity-40"
                     >
@@ -629,5 +641,7 @@ export function TeamSection({
         )}
       </div>
     </div>
+    {sendConfirmDialog}
+    </>
   )
 }
