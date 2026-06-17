@@ -673,32 +673,53 @@ export function OcrImportModal({
                       </div>
                       <div className="flex-1 min-w-[180px]">
                         <label className="text-xs font-medium text-stone-600 block mb-1">Stylist *</label>
-                        <input
-                          type="text"
-                          list={`stylists-${activeTab}`}
-                          value={sheet.stylistName}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            const matched = stylists.find(
-                              s => s.name.toLowerCase() === val.trim().toLowerCase()
-                            )
-                            updateSheet(activeTab, { stylistName: val, stylistId: matched?.id ?? null })
-                          }}
-                          placeholder="Type or pick stylist…"
-                          className={cn(
-                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
-                            sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
-                          )}
-                        />
-                        <datalist id={`stylists-${activeTab}`}>
-                          {stylists.map(s => (
-                            <option key={s.id} value={s.name} />
-                          ))}
-                        </datalist>
-                        {sheet.stylistId ? null : sheet.stylistName.trim() ? (
+                        {/* Visible dropdown: existing stylists + "New stylist" option */}
+                        {stylists.length > 0 && (
+                          <select
+                            value={sheet.stylistId ?? '__create__'}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === '__create__') {
+                                // Keep stylistName so OCR-read name stays in the text input
+                                updateSheet(activeTab, { stylistId: null })
+                              } else {
+                                const picked = stylists.find(s => s.id === val)
+                                updateSheet(activeTab, { stylistId: val, stylistName: picked?.name ?? '' })
+                              }
+                            }}
+                            className={cn(
+                              'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
+                              sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
+                            )}
+                          >
+                            {stylists.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                            <option value="__create__">➕ New stylist (type name below)…</option>
+                          </select>
+                        )}
+                        {/* Text input shown when no existing stylist is picked */}
+                        {!sheet.stylistId && (
+                          <input
+                            type="text"
+                            value={sheet.stylistName}
+                            onChange={(e) =>
+                              updateSheet(activeTab, { stylistId: null, stylistName: e.target.value })
+                            }
+                            placeholder="New stylist name…"
+                            className={cn(
+                              'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
+                              stylists.length > 0 ? 'mt-2' : '',
+                              sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
+                            )}
+                          />
+                        )}
+                        {sheet.stylistId ? (
+                          <p className="text-[10px] text-emerald-600 mt-0.5">✓ Matched to existing stylist</p>
+                        ) : sheet.stylistName.trim() ? (
                           <p className="text-[10px] text-stone-400 mt-0.5">Will create new stylist</p>
                         ) : (
-                          <p className="text-xs text-red-500 mt-0.5">Required — add a stylist or this sheet is skipped</p>
+                          <p className="text-xs text-red-500 mt-0.5">Required — select a stylist or type a new name</p>
                         )}
                       </div>
                     </div>
