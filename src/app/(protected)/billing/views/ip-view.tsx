@@ -287,13 +287,13 @@ export function IPView({
                   <div className="md:col-span-2 text-[11.5px] text-stone-500 leading-snug">
                     {formatInvoiceDate(t.lastServiceDate)}
                   </div>
-                  <div className="md:col-span-1 text-sm font-semibold text-stone-700 md:text-right">
+                  <div className="md:col-span-1 text-sm font-semibold text-stone-700 md:text-right tabular-nums">
                     {formatDollars(t.billedCents)}
                   </div>
-                  <div className="md:col-span-1 text-sm text-stone-600 md:text-right">
+                  <div className="md:col-span-1 text-sm text-stone-600 md:text-right tabular-nums">
                     {formatDollars(t.paidCents)}
                   </div>
-                  <div className={outstandingClass}>{formatDollars(t.outstandingCents)}</div>
+                  <div className={`tabular-nums ${outstandingClass}`}>{formatDollars(t.outstandingCents)}</div>
                   <div className="md:col-span-2 md:text-right flex md:justify-end items-center gap-2">
                     <div className="text-xs text-stone-500">
                       {t.lastSentAt ? (

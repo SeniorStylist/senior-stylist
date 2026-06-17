@@ -309,6 +309,11 @@ button:active, [role="button"]:active {
   transition-duration: 60ms;
 }
 
+/* Tabular numerals — aligns decimals in financial figures */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Skeleton — lighter/faster alternative to .skeleton-shimmer */
 .skeleton {
   background: linear-gradient(90deg, #F3F1EC 25%, #EAE8E4 50%, #F3F1EC 75%);

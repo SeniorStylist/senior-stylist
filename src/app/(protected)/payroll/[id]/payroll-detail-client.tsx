@@ -258,7 +258,7 @@ export function PayrollDetailClient({
           </div>
           <p className="text-sm text-stone-500 mt-1">
             {items.length} {items.length === 1 ? 'stylist' : 'stylists'} ·{' '}
-            <span className="font-semibold text-stone-900">{formatDollars(totalNet)}</span> net
+            <span className="font-semibold text-stone-900 tabular-nums">{formatDollars(totalNet)}</span> net
             payout
           </p>
         </div>
@@ -482,11 +482,11 @@ export function PayrollDetailClient({
                   <span className="text-[11px] text-stone-400">{item.stylist.stylistCode}</span>
                 </div>
                 <div className="text-sm text-stone-600 capitalize">{item.payType}</div>
-                <div className="text-sm text-stone-600">{formatDollars(item.grossRevenueCents)}</div>
+                <div className="text-sm text-stone-600 tabular-nums">{formatDollars(item.grossRevenueCents)}</div>
                 <div className="text-sm text-stone-600">{item.commissionRate}%</div>
-                <div className="text-sm text-stone-600">{formatDollars(basePay)}</div>
-                <div className="text-sm text-stone-600">{formatDollars(deductionsTotal)}</div>
-                <div className="text-sm font-semibold text-stone-900">
+                <div className="text-sm text-stone-600 tabular-nums">{formatDollars(basePay)}</div>
+                <div className="text-sm text-stone-600 tabular-nums">{formatDollars(deductionsTotal)}</div>
+                <div className="text-sm font-semibold text-stone-900 tabular-nums">
                   {formatDollars(item.netPayCents)}
                 </div>
                 <div className="hidden md:flex items-center justify-end text-stone-400">
@@ -510,16 +510,16 @@ export function PayrollDetailClient({
                 <div className="px-5 pb-2 -mt-1 ml-4 border-l-2 border-stone-100 pl-3 space-y-0.5">
                   {item.tipCentsTotal > 0 && (
                     <div className="text-xs text-stone-500">
-                      Tips: <span className="text-stone-700 font-semibold">{formatDollars(item.tipCentsTotal)}</span> (added to net)
+                      Tips: <span className="text-stone-700 font-semibold tabular-nums">{formatDollars(item.tipCentsTotal)}</span> (added to net)
                     </div>
                   )}
                   {showRevShare && (
                     <>
                       <div className="text-xs text-stone-500">
-                        Rev share: {revSharePercentage}% → {formatDollars(revShareCents)} to facility
+                        Rev share: {revSharePercentage}% → <span className="tabular-nums">{formatDollars(revShareCents)}</span> to facility
                       </div>
                       <div className="text-xs text-stone-700 font-semibold">
-                        Net to Senior Stylist: {formatDollars(seniorStylistNet)}
+                        Net to Senior Stylist: <span className="tabular-nums">{formatDollars(seniorStylistNet)}</span>
                       </div>
                     </>
                   )}
@@ -613,13 +613,13 @@ export function PayrollDetailClient({
         {((revSharePercentage ?? 0) > 0 || totalTips > 0) && items.length > 0 && (
           <div className="px-5 py-3 border-t border-stone-200 bg-stone-50/60 text-xs text-stone-600 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
             <span>
-              Total payroll: <span className="font-semibold text-stone-900">{formatDollars(totalGross)}</span>
+              Total payroll: <span className="font-semibold text-stone-900 tabular-nums">{formatDollars(totalGross)}</span>
             </span>
             {totalTips > 0 && (
               <>
                 <span className="text-stone-300">|</span>
                 <span>
-                  Tips: <span className="font-semibold text-stone-900">{formatDollars(totalTips)}</span>
+                  Tips: <span className="font-semibold text-stone-900 tabular-nums">{formatDollars(totalTips)}</span>
                 </span>
               </>
             )}
@@ -627,11 +627,11 @@ export function PayrollDetailClient({
               <>
                 <span className="text-stone-300">|</span>
                 <span>
-                  Rev share deducted: <span className="font-semibold text-stone-900">{formatDollars(totalRevShare)}</span>
+                  Rev share deducted: <span className="font-semibold text-stone-900 tabular-nums">{formatDollars(totalRevShare)}</span>
                 </span>
                 <span className="text-stone-300">|</span>
                 <span>
-                  Net revenue: <span className="font-semibold text-stone-900">{formatDollars(totalGross - totalRevShare)}</span>
+                  Net revenue: <span className="font-semibold text-stone-900 tabular-nums">{formatDollars(totalGross - totalRevShare)}</span>
                 </span>
               </>
             )}

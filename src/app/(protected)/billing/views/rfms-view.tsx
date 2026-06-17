@@ -190,7 +190,7 @@ export function RFMSView({
                         })()}
                         {p.hasCheckImage && <CheckImageButton paymentId={p.id} />}
                       </div>
-                      <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right">
+                      <div className="md:col-span-2 text-sm font-semibold text-stone-900 md:text-right tabular-nums">
                         {formatDollars(p.amountCents)}
                       </div>
                       <div className="md:col-span-5 text-sm text-stone-500 flex flex-col gap-0.5 min-w-0">
@@ -333,10 +333,10 @@ export function RFMSView({
                   <div className="md:col-span-2 text-[11.5px] text-stone-500 leading-snug">
                     {formatShortDate(t.lastServiceDate)}
                   </div>
-                  <div className="md:col-span-2 text-sm text-stone-700 md:text-right">
+                  <div className="md:col-span-2 text-sm text-stone-700 md:text-right tabular-nums">
                     {formatDollars(t.billedCents)}
                   </div>
-                  <div className={`md:col-span-3 ${outstandingClass}`}>
+                  <div className={`md:col-span-3 tabular-nums ${outstandingClass}`}>
                     {formatDollars(t.outstandingCents)}
                   </div>
                 </div>
