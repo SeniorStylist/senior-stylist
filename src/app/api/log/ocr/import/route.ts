@@ -38,18 +38,30 @@ const importSchema = z.object({
         stylistId: z.string().uuid().nullable(),
         stylistName: z.string().max(200).optional().default(''),
         entries: z.array(
-          z.object({
-            include: z.boolean(),
-            residentId: z.string().uuid().nullable(),
-            residentName: z.string().min(1).max(200),
-            roomNumber: z.string().max(50).nullable(),
-            serviceId: z.string().uuid().nullable(),
-            serviceName: z.string().min(1).max(200),
-            additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
-            additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
-            priceCents: z.number().int().min(0).max(10_000_000).nullable(),
-            notes: z.string().max(2000).nullable(),
-          })
+          z
+            .object({
+              include: z.boolean(),
+              residentId: z.string().uuid().nullable(),
+              // Excluded entries may have empty names (OCR couldn't read them) — only validate when included
+              residentName: z.string().max(200),
+              roomNumber: z.string().max(50).nullable(),
+              serviceId: z.string().uuid().nullable(),
+              // serviceName is optional when serviceId is provided; only required to be non-empty
+              // when the entry is included AND no existing service was matched (new service to create)
+              serviceName: z.string().max(200),
+              additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
+              additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
+              priceCents: z.number().int().min(0).max(10_000_000).nullable(),
+              notes: z.string().max(2000).nullable(),
+            })
+            .refine((e) => !e.include || e.residentName.trim().length > 0, {
+              message: 'Each included entry needs a resident name',
+              path: ['residentName'],
+            })
+            .refine((e) => !e.include || !!e.serviceId || e.serviceName.trim().length > 0, {
+              message: 'Each included entry needs a service — type a name to create one, or pick from the list',
+              path: ['serviceName'],
+            })
         ),
       })
       .refine((s) => !!s.stylistId || s.stylistName.trim().length > 0, {
@@ -83,12 +95,10 @@ export async function POST(request: Request) {
       // Return a readable string, never the flatten() object — the client renders
       // `error` directly, and an object child crashes React (minified error #31).
       const first = parsed.error.issues[0]
-      const where = first?.path
-        .filter((p) => typeof p === 'string')
-        .join(' › ') || 'a row'
-      const msg = first?.message ?? 'Some rows are missing required info'
+      const where = first?.path.filter((p) => typeof p === 'string').join(' › ') || 'a row'
+      const msg = first?.message ?? 'Some checked rows are missing required info'
       return Response.json(
-        { error: `Couldn't import — ${msg} (${where}). Check that every included row has a resident and a service.` },
+        { error: `Couldn't import — ${msg} (${where}).` },
         { status: 422 }
       )
     }
@@ -222,13 +232,14 @@ export async function POST(request: Request) {
           // Resolve or create a service by name (shared helper used for primary + additionals)
           const resolveServiceId = async (
             providedId: string | null,
-            name: string
+            rawName: string
           ): Promise<{ id: string; name: string }> => {
             if (providedId) {
               const existing = existingServices.find((s) => s.id === providedId)
-              return { id: providedId, name: existing?.name ?? name }
+              return { id: providedId, name: existing?.name ?? rawName.trim() }
             }
-            const key = name.toLowerCase().trim()
+            const name = rawName.trim()
+            const key = name.toLowerCase()
             if (serviceMap.has(key)) {
               const id = serviceMap.get(key)!
               const existing = existingServices.find((s) => s.id === id)

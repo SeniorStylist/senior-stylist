@@ -351,11 +351,19 @@ export function OcrImportModal({
     return names.size
   })()
 
+  // Entries that are checked but have neither a matched service nor a typed name
+  const invalidEntries = validSheets.reduce(
+    (acc, s) =>
+      acc + s.entries.filter((e) => e.include && !e.serviceId && !e.serviceName.trim()).length,
+    0
+  )
+
   const summary = validSheets.reduce(
     (acc, s) => {
       s.entries.filter(e => e.include).forEach(e => {
         if (!e.residentId) acc.residents++
-        if (!e.serviceId) acc.services++
+        // Only count as "to create" when we actually have a name to create from
+        if (!e.serviceId && e.serviceName.trim().length > 0) acc.services++
         e.additionalServiceIds.forEach((id, i) => {
           const name = e.additionalServices[i]
           if (!id && name && name.trim().length > 0) acc.services++
@@ -379,10 +387,10 @@ export function OcrImportModal({
           entries: s.entries.map(e => ({
             include: e.include,
             residentId: e.residentId,
-            residentName: e.residentName,
+            residentName: e.residentName.trim(),
             roomNumber: e.roomNumber,
             serviceId: e.serviceId,
-            serviceName: e.serviceName,
+            serviceName: e.serviceName.trim(),
             additionalServiceIds: e.additionalServiceIds,
             additionalServiceNames: e.additionalServices,
             priceCents: e.priceCents,
@@ -848,9 +856,13 @@ export function OcrImportModal({
                                       <option key={s.id} value={s.name}>{formatCents(s.priceCents)}</option>
                                     ))}
                                   </datalist>
-                                  {!entry.serviceId && (entry.serviceName ?? '').trim() ? (
-                                    <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
-                                  ) : null}
+                                  {entry.serviceId ? null
+                                    : (entry.serviceName ?? '').trim() ? (
+                                      <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
+                                    ) : entry.include ? (
+                                      <p className="text-[10px] text-amber-600 mt-0.5">Enter a service name to import this entry</p>
+                                    ) : null
+                                  }
                                 </div>
 
                                 {/* Price */}
@@ -1047,11 +1059,22 @@ export function OcrImportModal({
                 Back
               </button>
               <button
-                onClick={() => setStep('confirm')}
+                onClick={() => {
+                  if (invalidEntries > 0) {
+                    toast(
+                      `${invalidEntries} entr${invalidEntries !== 1 ? 'ies are' : 'y is'} missing a service name — scroll up and fill them in`,
+                      'error'
+                    )
+                    return
+                  }
+                  setStep('confirm')
+                }}
                 disabled={totalIncluded === 0}
                 className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40"
               >
-                Review {totalIncluded} Booking{totalIncluded !== 1 ? 's' : ''}
+                {invalidEntries > 0
+                  ? `Fix ${invalidEntries} Missing Service${invalidEntries !== 1 ? 's' : ''}`
+                  : `Review ${totalIncluded} Booking${totalIncluded !== 1 ? 's' : ''}`}
               </button>
             </>
           )}
