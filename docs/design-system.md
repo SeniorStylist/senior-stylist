@@ -874,6 +874,27 @@ Service fields in the OCR review step (`ocr-import-modal.tsx`) use `<select>` dr
 - Same `<select>` pattern for add-on service rows.
 - **Price field**: read-only intent — `onChange` only updates `priceCents`, never `serviceId`/`serviceName`. Shows `"from sheet"` hint (`text-[10px] text-stone-400`) below the input to indicate it came from the handwritten log.
 
+### OCR review stylist field — `<select>` dropdown with create-new fallback
+
+The stylist field in the OCR review modal (`ocr-import-modal.tsx`) uses a `<select>` dropdown listing all facility stylists, with a create-new text input revealed when no existing stylist is chosen:
+
+- When `stylists.length > 0`: renders a `<select>` with all facility stylists as options + a `value="__create__"` sentinel at the bottom.
+- Selecting `__create__` sets `stylistId: null` and reveals a plain `<input type="text">` for typing a new stylist name.
+- On load, auto-preselects the OCR-matched stylist (`stylistId` already set from the scan) and shows a "✓ Matched to existing stylist" hint below the select.
+- `sheetHasStylist(sheet)` remains the import-gate: true when `stylistId` is set OR `stylistName.trim()` is non-empty.
+- Never use a raw `<input list="...">` + `<datalist>` for this — it renders as a free-text field on most browsers and hides the available options.
+
+### Bulk price sheet facility detection — two-signal matching
+
+`/master-admin/imports/price-sheets/price-sheets-client.tsx` auto-routes each uploaded file to a facility via two ordered signals:
+
+1. **Filename** (threshold 0.70): F-code prefix (`F177 - Sunrise...`) or fuzzy name match at upload time. Sets `facilitySource: 'filename'`.
+2. **Document content** (threshold 0.65): `detectedFacilityName` returned by Gemini from `parsePriceSheetFile()` is used as a fallback in `processSheet` when filename detection failed. Sets `facilitySource: 'content'`.
+
+The UI shows a small muted hint below the facility selector: `"matched from filename"` or `"matched from file"` (content). A `null` source means no match found and the user must select manually.
+
+`parsePriceSheetFile` returns `ParseResult = { rows: ParsedPriceRow[]; detectedFacilityName: string | null }`. Never call `.rows` on the raw import result — destructure before use.
+
 ### Toast Notifications
 
 ```tsx
