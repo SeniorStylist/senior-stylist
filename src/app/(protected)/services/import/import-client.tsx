@@ -187,7 +187,7 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
     setProgress(0)
     setTimeout(() => setProgress(70), 50)
     try {
-      const parsed: ParsedService[] = (await parsePriceSheetFile(file)).map((r, i) => ({
+      const parsed: ParsedService[] = (await parsePriceSheetFile(file)).rows.map((r, i) => ({
         ...r,
         id: i,
         include: true,

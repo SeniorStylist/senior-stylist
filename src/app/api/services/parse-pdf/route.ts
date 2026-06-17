@@ -51,7 +51,11 @@ function getColor(cat: string): string {
   return colorMap.get(cat)!
 }
 
-const GEMINI_PROMPT = `You are a price sheet parser for a salon / senior-living facility. Extract every real, purchasable service or item from this price sheet exactly as written.
+const GEMINI_PROMPT = `You are a price sheet parser for a salon / senior-living facility.
+
+STEP 1 — FACILITY NAME: Scan the top of the document (title, header, first few lines) for the name of the senior living community or assisted-living facility this price sheet belongs to. Examples: "Sunrise of Bethesda", "The Gardens of Germantown", "Brightview Senior Living at Tuckerman Lane". This is the COMMUNITY name, NOT the salon provider name ("Senior Stylist" is always the provider — never return it as the facility). Return null if no facility name is clearly visible.
+
+STEP 2 — SERVICES: Extract every real, purchasable service or item from this price sheet exactly as written.
 
 IGNORE everything that is not an actual priced service or item. Do NOT create a row for:
 - section or category headers (e.g. "Resident Services", "Food & Beverage", "Beauty Salon/Barber Shop Price List")
@@ -60,7 +64,7 @@ IGNORE everything that is not an actual priced service or item. Do NOT create a 
 - blank rows or rows that are only a label with no price
 A real service/item has a NAME and almost always a PRICE (or a clearly stated add-on/surcharge). If a row has neither a price nor an add-on amount, do not include it. Use the surrounding section header as the row's "category".
 
-Return a JSON array of service objects. Each object must have:
+Each service object in the "services" array must have:
 - "name": string — the service name exactly as written
 - "price": number — the price in dollars (e.g. 85.00), or null if not a fixed price
 - "category": string — the section/category this service belongs to (e.g. "Shampoo, Sets & Cuts", "Color", "Nail Services")
@@ -86,7 +90,12 @@ Important:
 - Treat a row whose name ends in "(add)", "(add to a service)", or "add" as an addon — set addonAmountCents to the listed amount in cents and price null
 - Do not skip any category or section
 - Category names should match the section headers exactly
-- Return ONLY the JSON array, no markdown, no explanation`
+
+Return a JSON object with exactly these two fields:
+- "facilityName": string or null
+- "services": array of service objects as described above
+
+Return ONLY the JSON object, no markdown, no explanation`
 
 export async function POST(request: NextRequest) {
   // Reset color state per request
@@ -198,19 +207,25 @@ export async function POST(request: NextRequest) {
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
     let parsed: unknown[]
+    let facilityName: string | null = null
     try {
       const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
       const json = JSON.parse(cleaned)
       if (Array.isArray(json)) {
+        // Old prompt format — bare array, no facility name
         parsed = json
       } else if (json && typeof json === 'object') {
-        // JSON mode without a schema sometimes wraps the array, e.g. {"services":[...]}.
-        // Pull out the first array-valued property rather than failing the whole parse.
-        const arr = Object.values(json as Record<string, unknown>).find((v) => Array.isArray(v))
+        const obj = json as Record<string, unknown>
+        // New prompt format: { facilityName, services }
+        if (typeof obj.facilityName === 'string' && obj.facilityName.trim()) {
+          facilityName = obj.facilityName.trim()
+        }
+        const arr = Array.isArray(obj.services) ? obj.services
+          : Object.values(obj).find((v) => Array.isArray(v))
         if (!arr) throw new Error('Response object contained no services array')
         parsed = arr as unknown[]
       } else {
-        throw new Error('Response is not a JSON array')
+        throw new Error('Response is not a JSON object')
       }
     } catch (parseErr) {
       console.error('[parse-pdf] Failed to parse Gemini response:', parseErr, '\nRaw:', rawText)
@@ -260,7 +275,7 @@ export async function POST(request: NextRequest) {
         }
       })
 
-    return Response.json({ data: rows })
+    return Response.json({ data: { facilityName, rows } })
   } catch (err) {
     console.error('[parse-pdf] error:', err)
     return Response.json({ error: 'Failed to parse PDF' }, { status: 500 })

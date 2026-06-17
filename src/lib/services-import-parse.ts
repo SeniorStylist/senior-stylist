@@ -97,7 +97,7 @@ async function docxToGridText(file: File): Promise<string> {
   const JSZip = (await import('jszip')).default
   const zip = await JSZip.loadAsync(await file.arrayBuffer())
   const docXml = zip.file('word/document.xml')
-  if (!docXml) throw new Error('This doesn’t look like a Word document.')
+  if (!docXml) throw new Error("This doesn't look like a Word document.")
   const xml = await docXml.async('string')
   const unescape = (s: string) =>
     s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
@@ -125,7 +125,9 @@ async function docxToGridText(file: File): Promise<string> {
   return lines.join('\n')
 }
 
-async function postToAIParser(formData: FormData): Promise<ParsedPriceRow[]> {
+type AIParseResult = { rows: ParsedPriceRow[]; detectedFacilityName: string | null }
+
+async function postToAIParser(formData: FormData): Promise<AIParseResult> {
   const res = await fetch('/api/services/parse-pdf', { method: 'POST', body: formData })
   // Read as text first: a platform failure (timeout / crash / auth redirect to the
   // HTML /login page) returns HTML, not JSON, which would throw a cryptic
@@ -136,7 +138,7 @@ async function postToAIParser(formData: FormData): Promise<ParsedPriceRow[]> {
   if (!json) {
     const reason =
       res.status === 401 || res.status === 403
-        ? 'Your session expired or you don’t have access. Refresh the page, sign in again, and retry.'
+        ? "Your session expired or you don't have access. Refresh the page, sign in again, and retry."
         : res.status === 413
           ? 'This file is too large to parse.'
           : res.status === 504 || res.status === 408
@@ -147,13 +149,18 @@ async function postToAIParser(formData: FormData): Promise<ParsedPriceRow[]> {
   if (!res.ok) {
     throw new Error(typeof json.error === 'string' ? json.error : `Failed to parse price sheet (HTTP ${res.status})`)
   }
-  const rows: Array<{
+  // Route now returns { facilityName, rows } — handle both old (bare array) and new shape.
+  const data = json.data
+  const rawRows: Array<{
     name: string; priceCents: number; durationMinutes: number; category: string; color: string
     pricingType?: string; addonAmountCents?: number | null
     pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
     pricingOptions?: Array<{ name: string; priceCents: number }> | null
-  }> = (json.data as typeof rows) ?? []
-  return rows.map((r) => {
+  }> = Array.isArray(data) ? data : ((data as { rows?: unknown })?.rows as typeof rawRows ?? [])
+  const detectedFacilityName = (!Array.isArray(data) && data && typeof (data as { facilityName?: unknown }).facilityName === 'string')
+    ? ((data as { facilityName: string }).facilityName.trim() || null)
+    : null
+  const rows = rawRows.map((r) => {
     // A single open-ended tier ("$8 ea") is a flat per-unit price — normalize to the
     // 'per_unit' marker with the unit price in priceCents so the review shows "$8 each".
     const perUnit = isPerUnitService({ pricingType: r.pricingType ?? 'fixed', pricingTiers: r.pricingTiers ?? null })
@@ -169,17 +176,18 @@ async function postToAIParser(formData: FormData): Promise<ParsedPriceRow[]> {
       pricingOptions: r.pricingOptions ?? null,
     }
   })
+  return { rows, detectedFacilityName }
 }
 
-async function parseFileViaVision(file: File): Promise<ParsedPriceRow[]> {
+async function parseFileViaVision(file: File): Promise<AIParseResult> {
   const formData = new FormData()
   formData.append('file', file)
-  const rows = await postToAIParser(formData)
-  if (rows.length === 0) throw new Error('No services found in this file. Make sure it lists service names with prices.')
-  return rows
+  const result = await postToAIParser(formData)
+  if (result.rows.length === 0) throw new Error('No services found in this file. Make sure it lists service names with prices.')
+  return result
 }
 
-async function parseGridTextAI(file: File): Promise<ParsedPriceRow[]> {
+async function parseGridTextAI(file: File): Promise<AIParseResult> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   const gridText = ext === 'docx' ? await docxToGridText(file) : await spreadsheetToGridText(file)
   if (!gridText.trim()) throw new Error('File appears to be empty.')
@@ -228,20 +236,22 @@ async function looksTabular(file: File): Promise<boolean> {
 export const VISION_EXTS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp', 'heic', 'heif'])
 export const SUPPORTED_EXTS = new Set([...VISION_EXTS, 'docx', 'csv', 'xlsx', 'xls', 'txt'])
 
-export async function parsePriceSheetFile(file: File): Promise<ParsedPriceRow[]> {
+export type ParseResult = { rows: ParsedPriceRow[]; detectedFacilityName: string | null }
+
+export async function parsePriceSheetFile(file: File): Promise<ParseResult> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext && VISION_EXTS.has(ext)) return parseFileViaVision(file)
   if (ext === 'docx') {
-    const ai = await parseGridTextAI(file)
-    if (ai.length > 0) return ai
+    const result = await parseGridTextAI(file)
+    if (result.rows.length > 0) return result
     throw new Error('No services could be read from this document. Make sure it lists service names with prices.')
   }
   try {
-    const ai = await parseGridTextAI(file)
-    if (ai.length > 0) return ai
+    const result = await parseGridTextAI(file)
+    if (result.rows.length > 0) return result
     throw new Error('No services could be read from this sheet. Make sure it lists service names with prices.')
   } catch (err) {
-    if (await looksTabular(file)) return parseSpreadsheetNaive(file)
+    if (await looksTabular(file)) return { rows: await parseSpreadsheetNaive(file), detectedFacilityName: null }
     throw err instanceof Error ? err : new Error('Could not read this price sheet. Please try again.')
   }
 }

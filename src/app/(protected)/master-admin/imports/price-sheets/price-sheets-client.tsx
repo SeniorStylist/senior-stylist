@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { isPerUnitService, makePerUnitTiers } from '@/lib/pricing'
-import { parsePriceSheetFile, SUPPORTED_EXTS, type ParsedPriceRow } from '@/lib/services-import-parse'
+import { parsePriceSheetFile, SUPPORTED_EXTS, type ParsedPriceRow, type ParseResult } from '@/lib/services-import-parse'
 
 interface FacilityLite { id: string; name: string; facilityCode: string | null }
 
@@ -32,6 +32,7 @@ interface SheetFile {
   fileName: string
   file: File
   facilityId: string | null
+  facilitySource: 'filename' | 'content' | null  // how the facility was auto-detected
   status: 'pending' | 'parsing' | 'ready' | 'error'
   error?: string
   rows: UpsertRow[]
@@ -129,31 +130,49 @@ export function PriceSheetsClient({ facilities }: { facilities: FacilityLite[] }
     })
   }, [])
 
+  const tryDetectFromContent = useCallback((detectedName: string | null): { facilityId: string | null; source: 'content' | null } => {
+    if (!detectedName) return { facilityId: null, source: null }
+    const match = fuzzyBestMatch(facilities.map((f) => ({ name: f.name, id: f.id })), detectedName, 0.65)
+    return match ? { facilityId: match.id, source: 'content' } : { facilityId: null, source: null }
+  }, [facilities])
+
   const processSheet = useCallback(async (sheet: SheetFile) => {
     setSheets((prev) => prev.map((s) => (s.id === sheet.id ? { ...s, status: 'parsing' } : s)))
     try {
-      const parsed = await parsePriceSheetFile(sheet.file)
-      const existing = sheet.facilityId ? await loadServices(sheet.facilityId) : []
+      const { rows: parsed, detectedFacilityName }: ParseResult = await parsePriceSheetFile(sheet.file)
+      // Content-based facility detection as fallback when filename didn't match
+      let facilityId = sheet.facilityId
+      let facilitySource = sheet.facilitySource
+      if (!facilityId && detectedFacilityName) {
+        const detected = tryDetectFromContent(detectedFacilityName)
+        facilityId = detected.facilityId
+        facilitySource = detected.source
+      }
+      const existing = facilityId ? await loadServices(facilityId) : []
       const rows = computeRows(parsed, existing)
-      setSheets((prev) => prev.map((s) => (s.id === sheet.id ? { ...s, status: 'ready', rows } : s)))
+      setSheets((prev) => prev.map((s) => (s.id === sheet.id ? { ...s, status: 'ready', rows, facilityId, facilitySource } : s)))
     } catch (err) {
       setSheets((prev) => prev.map((s) => (s.id === sheet.id ? { ...s, status: 'error', error: err instanceof Error ? err.message : 'Failed to read file' } : s)))
     }
-  }, [loadServices, computeRows])
+  }, [loadServices, computeRows, tryDetectFromContent])
 
   const handleFiles = useCallback(async (files: File[]) => {
     setResult(null)
     setError(null)
     const accepted = files.filter((f) => SUPPORTED_EXTS.has(f.name.split('.').pop()?.toLowerCase() ?? ''))
-    const newSheets: SheetFile[] = accepted.map((file) => ({
-      id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      fileName: file.name,
-      file,
-      facilityId: detectFacility(file.name, facilities),
-      status: 'pending',
-      rows: [],
-      expanded: false,
-    }))
+    const newSheets: SheetFile[] = accepted.map((file) => {
+      const facilityId = detectFacility(file.name, facilities)
+      return {
+        id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        fileName: file.name,
+        file,
+        facilityId,
+        facilitySource: facilityId ? 'filename' as const : null,
+        status: 'pending' as const,
+        rows: [],
+        expanded: false,
+      }
+    })
     setSheets((prev) => [...prev, ...newSheets])
     // Parse sequentially to keep the AI endpoint from being hammered.
     for (const s of newSheets) await processSheet(s)
@@ -161,7 +180,8 @@ export function PriceSheetsClient({ facilities }: { facilities: FacilityLite[] }
 
   const changeFacility = useCallback(async (sheetId: string, rawFacilityId: string) => {
     const facilityId = rawFacilityId || null
-    setSheets((prev) => prev.map((s) => (s.id === sheetId ? { ...s, facilityId, status: 'parsing' } : s)))
+    // User manually picked — clear the auto-detect source hint
+    setSheets((prev) => prev.map((s) => (s.id === sheetId ? { ...s, facilityId, facilitySource: null, status: 'parsing' } : s)))
     try {
       const sheet = sheets.find((s) => s.id === sheetId)
       if (!sheet) return
@@ -169,7 +189,7 @@ export function PriceSheetsClient({ facilities }: { facilities: FacilityLite[] }
       // Re-derive rows from the already-parsed pricing data against the new facility.
       const parsed: ParsedPriceRow[] = sheet.rows.length
         ? sheet.rows.map((r) => ({ name: r.name, priceCents: r.priceCents, durationMinutes: r.durationMinutes, category: r.category, color: r.color, pricingType: r.pricingType, addonAmountCents: r.addonAmountCents, pricingTiers: r.pricingTiers, pricingOptions: r.pricingOptions }))
-        : await parsePriceSheetFile(sheet.file)
+        : (await parsePriceSheetFile(sheet.file)).rows
       const rows = computeRows(parsed, existing)
       setSheets((prev) => prev.map((s) => (s.id === sheetId ? { ...s, facilityId, status: 'ready', rows } : s)))
     } catch (err) {
@@ -271,7 +291,7 @@ export function PriceSheetsClient({ facilities }: { facilities: FacilityLite[] }
       >
         <p className="text-sm font-semibold text-stone-700">{dragging ? 'Drop to add' : 'Drop price sheets here'}</p>
         <p className="text-xs text-stone-400">or click to browse — add as many as you like</p>
-        <p className="text-xs text-stone-400">.pdf, images, .docx, .csv, .xlsx · name files like “F177 - Facility.pdf” to auto-route</p>
+        <p className="text-xs text-stone-400">.pdf, images, .docx, .csv, .xlsx · auto-routes by filename (F177 - Facility.pdf) or facility name at top of sheet</p>
         <input ref={fileInputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.docx,.csv,.xlsx,.xls,image/*" onChange={(e) => { handleFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} className="sr-only" />
       </div>
 
@@ -295,6 +315,12 @@ export function PriceSheetsClient({ facilities }: { facilities: FacilityLite[] }
                         <option key={f.id} value={f.id}>{f.facilityCode ? `${f.facilityCode} · ` : ''}{f.name}</option>
                       ))}
                     </select>
+                    {sheet.facilitySource === 'content' && (
+                      <span className="text-[10px] text-stone-400 ml-1">matched from file</span>
+                    )}
+                    {sheet.facilitySource === 'filename' && (
+                      <span className="text-[10px] text-stone-400 ml-1">matched from filename</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
