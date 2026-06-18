@@ -30,8 +30,6 @@ const updateSchema = z.object({
   portalWelcomeCouponEnabled: z.boolean().optional(),
   portalWelcomeCouponType: z.enum(['fixed', 'percent']).optional().nullable(),
   portalWelcomeCouponValue: z.number().int().min(1).max(10_000_000).optional().nullable(),
-  // Phase 13E: daily digest email opt-in per facility
-  dailyDigestEnabled: z.boolean().optional(),
 })
 
 export async function GET() {

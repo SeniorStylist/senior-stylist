@@ -165,7 +165,6 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `has_seen_onboarding_tour` | `boolean NOT NULL DEFAULT false` (Phase 12G) — drives first-login welcome modal; flipped via `POST /api/profile/onboarding-seen` |
 | `has_seen_first_tour` | `boolean NOT NULL DEFAULT false` (Phase 13-Tutorial) — drives `<FirstTourAutoLauncher>` on dashboard; flipped via `POST /api/profile/first-tour-seen` |
 | `help_progress` | `jsonb`, nullable (Phase 13-Tutorial) — scripted tour resume state `{ tourId, stepIndex, scenarioState } \| null`; cleared on tour close/complete |
-| `changelog_last_read_at` | `timestamptz`, nullable (Phase 13A) — timestamp of the last time the user opened the changelog widget; used to compute the unread-dot on the bell icon. Stamped via `POST /api/profile/changelog-seen`. |
 | `created_at`, `updated_at` | Timestamps |
 
 ### `facilities`
@@ -189,7 +188,6 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `qb_expense_account_id` | `text`, nullable (Phase 10B) — admin-selected QB Expense Account ID used as `AccountRef` on every pushed Bill line |
 | `qb_invoices_last_synced_at` | `timestamptz`, nullable (Phase 11M) — wall-clock timestamp of the last successful invoice sync |
 | `qb_invoices_sync_cursor` | `text`, nullable (Phase 11M) — ISO 8601 timestamp used as `Metadata.LastUpdatedTime > '<cursor>'` filter on the next incremental sync |
-| `daily_digest_enabled` | `boolean NOT NULL DEFAULT false` (Phase 13E) — opt-in flag for per-facility daily digest email. When `true`, the `GET /api/cron/daily-digest` cron sends the daily summary to `facilities.contact_email`. Toggled in Settings → Notifications. |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -210,7 +208,6 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - **`poa_notifications_enabled`**: `boolean NOT NULL DEFAULT true` — when `false`, POA confirmation emails are suppressed for both staff and portal bookings. Staff toggle in resident detail edit mode; self-serve toggle via `PATCH /api/portal/[token]/notifications` from portal preferences section.
 - **`default_tip_type`** (Phase 12E): nullable text, one of `'percentage' | 'fixed'`. When set, drives the booking modal's auto-fill on resident pick.
 - **`default_tip_value`** (Phase 12E): nullable integer. Percent (e.g. `15` = 15%) when type is `'percentage'`; cents (e.g. `200` = $2.00) when type is `'fixed'`. Both fields null means no preference.
-- **`photo_path`** (Phase 13G): `text`, nullable — Supabase Storage path in the private `resident-photos` bucket (`{facilityId}/{residentId}.{ext}`). Never a URL — signed URLs (1 h TTL) are generated at read time via `GET /api/residents/[id]/photo`. Uploaded via `POST /api/residents/[id]/photo` (admin/facility_staff, `photoUpload` rate-limit 20/h, MIME allow JPEG/PNG/WebP, 5 MB cap).
 - **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — records seeded by the tutorial engine. Filtered out of all user-facing list queries (`eq(residents.isDemo, false)`). Partial index `residents_demo_idx (facility_id) WHERE is_demo = true` accelerates per-facility demo cleanup.
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
@@ -272,7 +269,6 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 - **`addon_amount_cents`**: integer, nullable — add-on surcharge for `addon` type
 - **`pricing_tiers`**: jsonb, nullable — array of `{ minQty, maxQty, unitPriceCents }` for `tiered` type
 - **`pricing_options`**: jsonb, nullable — array of `{ name, priceCents }` for `multi_option` type
-- **`sort_order`** (Phase 13J): `integer NOT NULL DEFAULT 0` — explicit within-category sort position. Lower values render first. Set via `POST /api/services/reorder` (admin-only, accepts `{ orderedIds?, orderedCategories? }`). Ties broken alphabetically. `sortServicesWithinCategory` in `src/lib/service-sort.ts` sorts by `sortOrder` first, then `pricingTypePriority`, then name.
 - **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — tutorial-seeded service. Filtered from user-facing lists.
 
 ### `bookings`
@@ -357,8 +353,6 @@ Used by both `/api/auth/google-calendar/*` (populates `stylist_id`) and `/api/qu
 | `created_at` | `timestamp`, default now |
 
 Storage bucket: **`compliance-docs`** — private (`public=false`), `fileSizeLimit: 10485760` (10 MB), `allowedMimeTypes: ['application/pdf','image/jpeg','image/png']`. All reads/writes go through service-role API routes — the service-role key never reaches the browser.
-
-Storage bucket: **`resident-photos`** (Phase 13G) — private (`public=false`), `fileSizeLimit: 5242880` (5 MB), `allowedMimeTypes: ['image/jpeg','image/png','image/webp']`. Uploaded via service-role client (`upsert: true`) at `{facilityId}/{residentId}.{ext}`. Path stored in `residents.photo_path`. Signed URLs generated at read time (1-hour TTL) — the path is never sent to the client. Requires a `service_role_all` RLS policy. Create the bucket in Supabase Storage before using photo upload.
 
 ### `stylist_availability`
 
@@ -580,23 +574,6 @@ RLS enabled. `service_role_all` policy. Append-only audit log — no updates or 
 
 Indexes: `help_step_events_tour_step_action_idx (tour_id, step_index, action)` + `help_step_events_facility_created_idx (facility_id, created_at)`. RLS enabled with `service_role_all`. Written fire-and-forget by the scripted tour engine via `POST /api/help/track`.
 
-### `push_subscriptions` (Phase 13Q)
-
-| Column | Notes |
-|--------|--------|
-| `id` | PK `uuid` `defaultRandom()` |
-| `user_id` | FK → `profiles.id` ON DELETE CASCADE, NOT NULL |
-| `endpoint` | `text` NOT NULL — the browser push endpoint URL |
-| `p256dh` | `text` NOT NULL — client public key (base64url) |
-| `auth` | `text` NOT NULL — auth secret (base64url) |
-| `created_at` | `timestamptz` NOT NULL default now |
-
-Unique constraint: `(endpoint)` — upserted on conflict so a browser that refreshes its subscription auto-updates in place. Index: `push_subscriptions_user_idx (user_id)` for `sendPushToUser()`. RLS enabled with `service_role_all`. Applied via `drizzle/0014_push_subscriptions.sql`.
-
-Push notifications sent via `src/lib/push.ts::sendPushToUser(userId, payload)`. VAPID keys are lazy-initialized from env (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`). Function is a no-op when keys are unset. Auto-cleans expired subscriptions (410 responses) in-flight. Fire-and-forget from booking creation.
-
-Migration: `drizzle/0014_push_subscriptions.sql` (idempotent).
-
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -689,8 +666,6 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Stats**: `GET /api/stats` — aggregated booking counts/revenue for today/week/month.
 - **Multi-facility**: `GET /api/facilities`, `POST /api/facilities` (creator becomes admin), `POST /api/facilities/select` sets cookie.
 - **PWA**: `src/app/icon.tsx` + `apple-icon.tsx` (ImageResponse, burgundy #8B2E4A brand color), `manifest.ts` (Next.js MetadataRoute.Manifest), install banner (`src/components/pwa/install-banner.tsx`). `themeColor: '#8B2E4A'` in root layout.
-- **Offline caching (Phase 13I)**: `public/sw.js` — service worker registered by `<SWRegister>` in `(protected)/layout.tsx`. Cache-first strategy for `/_next/static/**`; network-first for navigation requests with an offline fallback (`public/offline.html`). **NEVER caches `/api/**`** — mutation routes must always hit the network. `<SWRegister>` is a minimal client component that calls `navigator.serviceWorker.register('/sw.js')` in a `useEffect`.
-- **Web Push notifications (Phase 13Q)**: opt-in push alerts for stylists when bookings are created. `src/lib/push.ts` — lazy VAPID init via `getVapidKeys()`. `sendPushToUser(userId, payload)` looks up `push_subscriptions` by `userId`, calls `webpush.sendNotification()` per subscription, auto-removes 410 (expired) subscriptions in-flight. No-op when `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` are unset. Fired fire-and-forget from `POST /api/bookings` after the booking is created. Opt-in UI: `<PushNotificationCard>` in My Account — checks `Notification.permission`, requests permission via `PushManager.subscribe({ userVisibleOnly: true, applicationServerKey: NEXT_PUBLIC_VAPID_PUBLIC_KEY })`, then POSTs to `POST /api/push/subscribe`. **Infra**: generate keys with `npx web-push generate-vapid-keys`, set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:admin@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in Vercel.
 - **Brand alignment (full migration complete 2026-04-14)**: Entire app — portal, admin, and all components — uses burgundy `#8B2E4A` (`#72253C` hover, `#C4687A` accent). Portal uses warm blush `#FDF8F8` background. `--color-primary` in globals.css is `#8B2E4A`. Exceptions: `completed` status badge (`bg-teal-50 text-teal-700`, semantic), color picker palette arrays, service/stylist color fallbacks, and DB default column (user-owned data — all retain `#0D7377`).
 - **Super admin CRUD**: `/super-admin` page supports inline edit (name/address/phone/timezone/paymentType) and deactivate/reactivate (2-step confirm) per facility card. Edit calls `PUT /api/super-admin/facility/[id]`. Facility name uniqueness enforced (409) on both create and edit.
 - **Onboarding flow**: new users with valid invite redirect to `/onboarding` (not dashboard error); middleware allows `/onboarding` for users with no facilityUser.
@@ -784,7 +759,6 @@ Upstash Redis sliding-window limiter behind `checkRateLimit(bucket, identifier)`
 | `helpSeed` | 5 / hour | user id | `POST /api/help/seed-demo-data` (Phase 13-Tutorial) |
 | `helpTrack` | 60 / minute | user id | `POST /api/help/track` (Phase 13-Tutorial) |
 | `portalSignup` | 5 / hour | client IP | `POST /api/portal/signup` (Phase 14A) |
-| `photoUpload` | 20 / hour | user id | `POST /api/residents/[id]/photo` (Phase 13G) |
 
 ### Upload caps
 
@@ -923,13 +897,6 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `DELETE /api/help/demo-data` | Authenticated; admin-only (Phase 13-Tutorial) | Soft-deletes (`active=false`) all `is_demo=true` residents, stylists, services, and bookings for the caller's facility. Hard-deletes demo `log_entries` and `stylist_checkins` (no `active` column on those tables). Called from Settings → Advanced "Tutorial Data" card after two-step confirmation. |
 | `POST /api/profile/first-tour-seen` | Authenticated (Phase 13-Tutorial) | Flips `profiles.has_seen_first_tour = true` for the caller. No body required. Returns `{ data: { ok: true } }`. |
 | `GET /api/cron/help-demo-cleanup` | **Vercel Cron** (`Bearer CRON_SECRET`) (Phase 13-Tutorial) | Weekly Sunday 03:00 UTC. Hard-deletes all `is_demo=true AND active=false` records older than 90 days from residents/stylists/services/bookings. Hard-deletes orphaned demo log_entries and stylist_checkins older than 90 days. `maxDuration=60`. |
-| `POST /api/profile/changelog-seen` | Authenticated (Phase 13A) | Stamps `profiles.changelog_last_read_at = now()` for the caller. No body. Returns `{ data: { ok: true } }`. Called when the changelog widget is opened. |
-| `POST /api/residents/[id]/photo` | **Admin / facility_staff**; rate-limited `photoUpload` (20/h/user) (Phase 13G) | Multipart `file` upload. MIME allow: `image/jpeg`, `image/png`, `image/webp`. 5 MB cap. Uploads to private `resident-photos` Supabase bucket at `{facilityId}/{residentId}.{ext}` via service-role (`upsert: true`). Writes path to `residents.photo_path`. Returns `{ data: { url } }` — 1-hour signed URL. |
-| `DELETE /api/residents/[id]/photo` | **Admin / facility_staff** (Phase 13G) | Deletes the object from `resident-photos` bucket and clears `residents.photo_path`. |
-| `POST /api/services/reorder` | **Admin** (Phase 13J) | Body `{ orderedIds?: string[], orderedCategories?: string[] }`. Accepts either a flat list of service IDs (sets `sort_order` by position) or an ordered category list (updates `service_category_order` on the facility). Returns `{ data: { updated: number } }`. |
-| `GET /api/cron/daily-digest` | **Vercel Cron** (`Bearer CRON_SECRET`) (Phase 13E) | Scheduled `0 8 * * *` (daily 08:00 UTC). Always sends a master roll-up to `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`. Also sends a per-facility summary email to `facilities.contact_email` for every active facility where `daily_digest_enabled = true`. `buildDailySummaryEmailHtml()` in `src/lib/email.ts`. `maxDuration=60`. Fire-and-forget sends. |
-| `POST /api/push/subscribe` | Authenticated (Phase 13Q) | Body `{ endpoint, p256dh, auth }`. Upserts into `push_subscriptions` on conflict `(endpoint)`. Returns `{ data: { ok: true } }`. |
-| `POST /api/push/unsubscribe` | Authenticated (Phase 13Q) | Body `{ endpoint }`. Deletes the matching row for the authenticated user. Returns `{ data: { ok: true } }`. |
 | `POST /api/feedback` | Authenticated, rate-limited `feedback` (10/h/user) (2026-06-11, v2 2026-06-12) | Body `{ category: bug\|idea\|praise\|other, message ≤2000, pagePath ≤300 (path+query), meta? { viewport, screen, dpr, timezone, language, standalone, online } }`. Inserts `feedback_submissions` row (facility/role context best-effort via `getUserFacility`); fire-and-forget notification email to `profiles.feedback_email` of the master admin (fallback `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`) with a Device summary row. Calls `ensureFeedbackSchema()` (self-bootstrapping DDL — `src/lib/feedback-ddl.ts`). |
 | `GET /api/feedback` | **Master admin** | 200 most recent submissions, batch-resolved sender/facility names, includes `meta`. |
 | `GET /api/feedback/count` | **Master admin** (2026-06-12) | Count of `status='new'` submissions. Errors return `{ data: { count: 0 } }`. Drives `<FeedbackBadge />` (sidebar Master Admin link) and the "Feedback →" toolbar pill in master-admin-client. |

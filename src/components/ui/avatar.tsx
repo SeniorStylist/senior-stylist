@@ -7,7 +7,6 @@ interface AvatarProps {
   color?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
-  photoUrl?: string | null
 }
 
 const sizes = {
@@ -16,23 +15,8 @@ const sizes = {
   lg: 'w-11 h-11 text-sm',
 }
 
-export function Avatar({ name, color, size = 'md', className, photoUrl }: AvatarProps) {
+export function Avatar({ name, color, size = 'md', className }: AvatarProps) {
   const initials = getInitials(name)
-
-  if (photoUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={photoUrl}
-        alt={name}
-        className={cn(
-          'rounded-full object-cover shrink-0',
-          sizes[size],
-          className
-        )}
-      />
-    )
-  }
 
   if (color) {
     return (

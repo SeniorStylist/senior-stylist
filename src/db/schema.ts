@@ -31,8 +31,6 @@ export const profiles = pgTable('profiles', {
   helpProgress: jsonb('help_progress').$type<{ tourId: string; stepIndex: number; scenarioState: Record<string, string> } | null>(),
   // Custom email for feedback notifications (master admin only — 2026-06-12)
   feedbackEmail: text('feedback_email'),
-  // Phase 13A: per-user changelog read state (bell widget shows unread dot when newest entry > this)
-  changelogLastReadAt: timestamp('changelog_last_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -68,8 +66,6 @@ export const facilities = pgTable('facilities', {
   revSharePercentage: integer('rev_share_percentage'),
   active: boolean('active').default(true).notNull(),
   isDemo: boolean('is_demo').notNull().default(false),
-  // Phase 13E: per-facility daily digest email opt-in (master ops digest is always on)
-  dailyDigestEnabled: boolean('daily_digest_enabled').default(false).notNull(),
   // Phase 14A: family portal self-signup + coupon settings
   portalSelfSignupEnabled: boolean('portal_self_signup_enabled').default(false).notNull(),
   portalCouponsEnabled: boolean('portal_coupons_enabled').default(false).notNull(),
@@ -129,8 +125,6 @@ export const residents = pgTable(
     defaultTipValue: integer('default_tip_value'),
     // Phase 14A: resident birthday for birthday coupons
     dateOfBirth: date('date_of_birth'),
-    // Phase 13G: resident profile photo — path in private Supabase bucket 'resident-photos'
-    photoPath: text('photo_path'),
     active: boolean('active').default(true).notNull(),
     // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
     isDemo: boolean('is_demo').default(false).notNull(),
@@ -301,8 +295,6 @@ export const services = pgTable('services', {
   active: boolean('active').default(true).notNull(),
   // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
   isDemo: boolean('is_demo').default(false).notNull(),
-  // Phase 13J: display sort order within a category (0 = default; dragged order persists)
-  sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -985,21 +977,6 @@ export const feedbackSubmissions = pgTable('feedback_submissions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusCreatedIdx: index('feedback_submissions_status_created_idx').on(t.status, t.createdAt),
-}))
-
-// Phase 13Q: Web Push subscription endpoints per user.
-// Bucket: one row per (userId, endpoint) pair. endpoint is globally unique.
-// RLS service_role_all — must apply drizzle/0014_push_subscriptions.sql.
-export const pushSubscriptions = pgTable('push_subscriptions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
-  endpoint: text('endpoint').notNull(),
-  p256dh: text('p256dh').notNull(),
-  auth: text('auth').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  userIdx: index('push_subscriptions_user_idx').on(t.userId),
-  endpointUniq: unique('push_subscriptions_endpoint_uniq').on(t.endpoint),
 }))
 
 // ─── Relations ───────────────────────────────────────────────────────────────

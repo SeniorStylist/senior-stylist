@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import { isInstallable, detectDevice } from '@/lib/detect-device'
 import { InstallGuide } from '@/components/pwa/install-guide'
-import { PushNotificationCard } from '@/components/pwa/push-notification-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { UserRound } from 'lucide-react'
 import type {
@@ -1108,9 +1107,6 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           </div>
         </div>
       )}
-
-      {/* Push notifications opt-in — card self-hides when Push API or VAPID key unavailable */}
-      <PushNotificationCard />
 
       {/* Install app card — only shown on mobile when not already installed */}
       {installable && (

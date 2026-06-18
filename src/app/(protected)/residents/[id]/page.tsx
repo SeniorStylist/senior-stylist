@@ -6,7 +6,6 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { toClientJson } from '@/lib/sanitize'
 import { eq, and } from 'drizzle-orm'
 import { ResidentDetailClient } from './resident-detail-client'
-import { createStorageClient } from '@/lib/supabase/storage'
 
 export default async function ResidentDetailPage({
   params,
@@ -99,23 +98,9 @@ export default async function ResidentDetailPage({
     orderBy: (t, { asc }) => [asc(t.name)],
   })
 
-  // Generate a 1-hour signed URL for the resident photo if one exists
-  let photoUrl: string | null = null
-  if (resident.photoPath) {
-    try {
-      const storage = createStorageClient()
-      const { data } = await storage.storage
-        .from('resident-photos')
-        .createSignedUrl(resident.photoPath, 3600)
-      photoUrl = data?.signedUrl ?? null
-    } catch {
-      // non-fatal — photo just won't display
-    }
-  }
-
   return (
     <ResidentDetailClient
-      resident={{ ...toClientJson(resident), photoUrl }}
+      resident={toClientJson(resident)}
       bookings={toClientJson(residentBookings)}
       stats={stats}
       preferredServiceName={preferredServiceName}

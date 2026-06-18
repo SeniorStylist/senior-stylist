@@ -308,23 +308,17 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 ### Avatar (`src/components/ui/avatar.tsx`)
 
-Renders either a resident photo or initials fallback. Phase 13G added `photoUrl?: string` prop.
+Initials-only (no image upload). Renders up to 2 initials from the name.
 
 ```tsx
-// With photo (Phase 13G)
-<Avatar name="Jane Doe" photoUrl="https://...signed-url..." />
-// Renders: <img> with object-cover, rounded-full, same size classes as the initials avatar
-
-// With service color (initials fallback)
+// With service color
 <Avatar name="Jane Doe" color="#0D7377" />
 // Renders: bg rgba(#0D7377, 12%) with text color #0D7377
 
-// Without color (initials fallback)
+// Without color
 <Avatar name="Jane Doe" />
 // Renders: bg-teal-50 text-teal-700
 ```
-
-When `photoUrl` is provided and the image loads successfully, the initials are hidden. If the image fails to load (`onError`), it falls back gracefully to the initials tile. The hover camera overlay for upload is rendered outside `<Avatar>` by the parent (resident detail page) — it wraps the avatar in a relative `<div>` + `<button>` with a dark overlay `bg-black/40` and a `Camera` icon, triggering a hidden `<input type="file">`.
 
 | Size | Classes |
 |---|---|
@@ -1075,40 +1069,6 @@ Used in booking-modal.tsx (resident field) and log-client.tsx walk-in form. Patt
 - 409 error → "A resident with this name already exists"
 - All buttons inside the dropdown use `onMouseDown` (not `onClick`) to beat the 150ms `onBlur` close timeout
 - All create state resets on modal/form close
-
-### Service Drag-to-Reorder (Phase 13J)
-
-Services and categories within the Services page support drag-to-reorder via HTML5 drag-and-drop.
-
-- **Drag handle**: `<GripVertical>` lucide icon, `hidden md:block cursor-grab active:cursor-grabbing text-stone-300 hover:text-stone-500`. Desktop-only — no touch drag (Phase 13K covers mobile long-press bulk actions).
-- **Placement**: category headers get a handle on the left side of the header row; service rows get a handle as the leftmost cell, before the color swatch.
-- **State**: optimistic — `localCategories` / `localServices` state updated immediately on `dragend` before the server write. If the `POST /api/services/reorder` call fails, the state reverts and an error toast is shown.
-- **`POST /api/services/reorder`** body: `{ orderedIds?: string[], orderedCategories?: string[] }`. Admin-only. Writes `sort_order` on affected service rows.
-- **`sortServicesWithinCategory`** accepts `sortOrder?: number | null` and sorts by it ascending first, then falls back to name for rows where `sort_order` is 0 or null.
-- **Anti-jitter**: `dragover` calls `e.preventDefault()` only when `draggingId` is set; `dragenter` on a row re-orders the `localOrder` array in place using `splice`. No library dependency.
-
-### Changelog Widget (Phase 13A)
-
-A "What's New" bell icon in the top bar (`<ChangelogWidget>`), mounted in `(protected)/layout.tsx`.
-
-- **Unread dot**: burgundy `w-2 h-2 rounded-full bg-[#8B2E4A] absolute -top-0.5 -right-0.5` rendered when `newestEntryAt > user.changelogLastReadAt` (or `changelogLastReadAt` is null). Comparison uses `profiles.changelog_last_read_at timestamptz`.
-- **Open gesture**: clicking the bell dispatches `POST /api/profile/changelog-seen` (stamps `changelog_last_read_at = now()`) and hides the dot optimistically.
-- **Desktop popover**: `position: fixed` card `z-[85] w-[360px] max-h-[480px] overflow-y-auto` anchored below the bell via `getBoundingClientRect()`. Click-outside closes via a capture-phase listener.
-- **Mobile**: opens as `<BottomSheet>` (existing component). Branched via `useIsMobile()`.
-- **Entry format**: `src/lib/changelog.ts` exports `CHANGELOG: { date: string; title: string; body: string; phase?: string }[]` ordered newest-first. Renders as a flat list with a date chip + phase badge + title + body prose.
-- **Never gates content on role** — all roles see the same changelog entries.
-
-### Push Notification Opt-In Card (Phase 13Q)
-
-Lives in My Account (`/my-account`) for stylist role, in a "Notifications" card.
-
-- **Permission check on mount**: `Notification.permission` — if `'denied'`, renders an amber "Notifications blocked in browser settings" block and hides the toggle (no opt-in possible without browser reset).
-- **Opt-in flow**: clicking "Enable notifications" calls `PushManager.subscribe({ userVisibleOnly: true, applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY })`, then POSTs the `PushSubscription` to `POST /api/push/subscribe` (upsert on conflict).
-- **Opt-out flow**: button calls `subscription.unsubscribe()` then POSTs to `POST /api/push/unsubscribe`. Optimistic toggle with rollback on error.
-- **`<PushNotificationCard />`** is the standalone component in `src/components/my-account/`. Rendered only when `'PushManager' in window` (feature detection — guards Safari fallback).
-- **What fires a push**: new booking assigned to the stylist (`POST /api/bookings` success path — fire-and-forget via `sendPushToUser()`). Payload: `{ title: 'New Booking', body: 'Mrs. Smith — Wash & Set at 10:00 AM', url: '/dashboard' }`.
-- **`src/lib/push.ts`**: lazy VAPID init (no-op when `VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT` unset). `sendPushToUser(userId, payload)` queries `push_subscriptions` by userId, sends to each endpoint via `web-push`, auto-removes endpoints that respond 410 (expired/unsubscribed).
-- **Infrastructure**: `npx web-push generate-vapid-keys` → set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:admin@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in Vercel.
 
 ### Animations
 
