@@ -32,6 +32,8 @@ type EntryState = {
   additionalServices: string[]
   additionalServiceIds: (string | null)[]
   priceCents: number | null
+  tipCents: number | null
+  paymentStatus: 'unpaid' | 'paid' | 'waived'
   notes: string | null
   unclear: boolean
   include: boolean
@@ -152,6 +154,8 @@ function buildSheetState(
       additionalServices,
       additionalServiceIds,
       priceCents: entry.price != null ? Math.round(entry.price * 100) : null,
+      tipCents: null,
+      paymentStatus: 'unpaid',
       notes: entry.notes ?? null,
       unclear: entry.unclear ?? false,
       include: true,
@@ -394,6 +398,8 @@ export function OcrImportModal({
             additionalServiceIds: e.additionalServiceIds,
             additionalServiceNames: e.additionalServices,
             priceCents: e.priceCents,
+            tipCents: e.tipCents,
+            paymentStatus: e.paymentStatus,
             notes: e.notes,
           })),
         })),
@@ -905,6 +911,39 @@ export function OcrImportModal({
                                     className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                   />
                                   <p className="text-[10px] text-stone-400 mt-0.5">from sheet</p>
+                                </div>
+
+                                {/* Tips */}
+                                <div>
+                                  <label className="text-xs text-stone-500 block mb-0.5">Tips ($)</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="0.00"
+                                    value={entry.tipCents != null ? (entry.tipCents / 100).toFixed(2) : ''}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value)
+                                      updateEntry(activeTab, ei, {
+                                        tipCents: isNaN(val) ? null : Math.round(val * 100),
+                                      })
+                                    }}
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
+                                  />
+                                </div>
+
+                                {/* Payment Type */}
+                                <div className="col-span-2">
+                                  <label className="text-xs text-stone-500 block mb-0.5">Payment Type</label>
+                                  <select
+                                    value={entry.paymentStatus}
+                                    onChange={(e) => updateEntry(activeTab, ei, { paymentStatus: e.target.value as 'unpaid' | 'paid' | 'waived' })}
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
+                                  >
+                                    <option value="unpaid">Unpaid (Invoice)</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="waived">Waived</option>
+                                  </select>
                                 </div>
                               </div>
 
