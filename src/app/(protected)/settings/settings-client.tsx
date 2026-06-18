@@ -353,7 +353,7 @@ export function SettingsClient({
             <IntegrationsSection facility={facility} />
           )}
           {activeSection === 'notifications' && (isAdmin || isBookkeeper) && (
-            <NotificationsSection adminEmail={adminEmail} role={role} />
+            <NotificationsSection adminEmail={adminEmail} role={role} facility={facility} />
           )}
           {activeSection === 'portal' && isAdmin && (
             <PortalSection facility={facility} claimRequests={claimRequests} />

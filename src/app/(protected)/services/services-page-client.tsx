@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, GripVertical } from 'lucide-react'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
 import { formatPricingLabel, isPerUnitService, perUnitCents, makePerUnitTiers } from '@/lib/pricing'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
@@ -23,16 +23,39 @@ function LongPressRow({
   onMouseEnter,
   onMouseLeave,
   onLongPress,
+  draggable,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: {
   children: React.ReactNode
   className?: string
   onMouseEnter?: () => void
   onMouseLeave?: () => void
   onLongPress: () => void
+  draggable?: boolean
+  onDragStart?: () => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDragLeave?: () => void
+  onDrop?: (e: React.DragEvent) => void
+  onDragEnd?: () => void
 }) {
   const lp = useLongPress(onLongPress)
   return (
-    <div className={className} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...lp}>
+    <div
+      className={className}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      {...lp}
+    >
       {children}
     </div>
   )
@@ -110,6 +133,25 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const [archivingId, setArchivingId] = useState<string | null>(null)
   const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
+
+  // Drag-to-reorder state (services within a category)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  // Drag-to-reorder state (categories)
+  const [dragCatId, setDragCatId] = useState<string | null>(null)
+  const [dragOverCatId, setDragOverCatId] = useState<string | null>(null)
+
+  const saveReorder = async (orderedIds?: string[], orderedCategories?: string[]) => {
+    try {
+      await fetch('/api/services/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds, orderedCategories }),
+      })
+    } catch (err) {
+      console.error('[saveReorder]', err)
+    }
+  }
 
   // Multi-select
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -547,6 +589,15 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 return sortDir === 'asc' ? cmp : -cmp
               })
             }
+            // Build ordered category list for category drag
+            const catOrder: string[] = []
+            if (sortKey === 'category') {
+              for (const service of sorted) {
+                const cat = service.category?.trim() || 'Other'
+                if (!catOrder.includes(cat)) catOrder.push(cat)
+              }
+            }
+
             let lastCategory: string | null = null
             const nodes: ReactNode[] = []
             for (const service of sorted) {
@@ -557,21 +608,81 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   nodes.push(
                     <div
                       key={`cat-${cat}`}
-                      className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
+                      draggable={sortKey === 'category'}
+                      className={`px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-2 cursor-grab active:cursor-grabbing select-none ${dragOverCatId === cat && dragCatId !== cat ? 'border-t-2 border-t-[#8B2E4A]' : ''}`}
+                      onDragStart={() => setDragCatId(cat)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverCatId(cat) }}
+                      onDragLeave={() => setDragOverCatId(null)}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        if (!dragCatId || dragCatId === cat) { setDragCatId(null); setDragOverCatId(null); return }
+                        const next = [...catOrder]
+                        const fromIdx = next.indexOf(dragCatId)
+                        const toIdx = next.indexOf(cat)
+                        if (fromIdx !== -1 && toIdx !== -1) {
+                          next.splice(fromIdx, 1)
+                          next.splice(toIdx, 0, dragCatId)
+                          setServices((prev) => {
+                            const grouped = new Map<string, typeof prev>()
+                            for (const s of prev) {
+                              const k = s.category?.trim() || 'Other'
+                              if (!grouped.has(k)) grouped.set(k, [])
+                              grouped.get(k)!.push(s)
+                            }
+                            return next.flatMap((c) => grouped.get(c) ?? []).concat(
+                              prev.filter((s) => !next.includes(s.category?.trim() || 'Other'))
+                            )
+                          })
+                          saveReorder(undefined, next)
+                        }
+                        setDragCatId(null)
+                        setDragOverCatId(null)
+                      }}
+                      onDragEnd={() => { setDragCatId(null); setDragOverCatId(null) }}
                     >
+                      <GripVertical size={12} className="text-stone-300 hidden md:block shrink-0" />
                       {cat}
                     </div>
                   )
                   lastCategory = cat
                 }
               }
+              const isDragging = dragId === service.id
+              const isDropTarget = dragOverId === service.id && dragId !== service.id
               nodes.push(
             <LongPressRow
               key={service.id}
-              className="border-b border-stone-50 last:border-0"
+              className={`border-b border-stone-50 last:border-0 ${isDropTarget ? 'border-t-2 border-t-[#8B2E4A]' : ''} ${isDragging ? 'opacity-50' : ''}`}
               onMouseEnter={() => setHoverId(service.id)}
               onMouseLeave={() => { setHoverId(null); if (confirmArchiveId === service.id) setConfirmArchiveId(null) }}
               onLongPress={() => setSelectedIds((prev) => { const next = new Set(prev); next.add(service.id); return next })}
+              draggable={sortKey === 'category' && editingId !== service.id}
+              onDragStart={() => setDragId(service.id)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverId(service.id) }}
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (!dragId || dragId === service.id) { setDragId(null); setDragOverId(null); return }
+                setServices((prev) => {
+                  const fromIdx = prev.findIndex((s) => s.id === dragId)
+                  const toIdx = prev.findIndex((s) => s.id === service.id)
+                  if (fromIdx === -1 || toIdx === -1) return prev
+                  const fromCat = prev[fromIdx].category?.trim() || 'Other'
+                  const toCat = prev[toIdx].category?.trim() || 'Other'
+                  if (fromCat !== toCat) return prev
+                  const reordered = [...prev]
+                  const [item] = reordered.splice(fromIdx, 1)
+                  reordered.splice(toIdx, 0, item)
+                  const catIds = reordered
+                    .filter((s) => (s.category?.trim() || 'Other') === fromCat)
+                    .map((s) => s.id)
+                  saveReorder(catIds)
+                  return reordered.map((s, i) => (s.category?.trim() || 'Other') === fromCat ? { ...s, sortOrder: catIds.indexOf(s.id) } : s)
+                })
+                setDragId(null)
+                setDragOverId(null)
+              }}
+              onDragEnd={() => { setDragId(null); setDragOverId(null) }}
             >
               {editingId === service.id ? (
                 /* Inline edit row */
@@ -700,7 +811,10 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                       )}
                     />
                   </div>
-                  <div className="col-span-3 flex items-center gap-3">
+                  <div className="col-span-3 flex items-center gap-2">
+                    {sortKey === 'category' && (
+                      <GripVertical size={13} className="text-stone-300 hidden md:block shrink-0 cursor-grab active:cursor-grabbing" />
+                    )}
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: service.color ?? '#8B2E4A' }}

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilities, facilityUsers, franchises } from '@/db/schema'
+import { facilities, facilityUsers, franchises, profiles } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -22,6 +22,8 @@ import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
 import { ScriptedTourOverlay } from '@/components/help/scripted-tour/scripted-tour-overlay'
 import { FeedbackWidget } from '@/components/feedback/feedback-widget'
 import { KeyboardShortcuts } from '@/components/shortcuts/keyboard-shortcuts'
+import { SWRegister } from '@/components/pwa/sw-register'
+import { ChangelogWidget } from '@/components/layout/changelog-widget'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -132,6 +134,18 @@ export default async function ProtectedLayout({
     activeFacilityId = facilityData.activeFacilityId
   }
 
+  // Fetch changelog read timestamp for the bell badge (best-effort — never blocks layout)
+  let changelogLastReadAt: Date | null = null
+  try {
+    const profile = await db.query.profiles.findFirst({
+      where: eq(profiles.id, user.id),
+      columns: { changelogLastReadAt: true },
+    })
+    changelogLastReadAt = profile?.changelogLastReadAt ?? null
+  } catch {
+    // ignore — widget will default to showing the badge
+  }
+
   const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   let debugMode = false
@@ -177,6 +191,8 @@ export default async function ProtectedLayout({
             <ScriptedTourOverlay />
             <FeedbackWidget />
             <KeyboardShortcuts />
+            <SWRegister />
+            <ChangelogWidget changelogLastReadAt={changelogLastReadAt} />
             {children}
           </ToastProvider>
         </div>

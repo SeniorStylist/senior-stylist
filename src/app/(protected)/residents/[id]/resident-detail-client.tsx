@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,9 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [sendingFamilyInvite, setSendingFamilyInvite] = useState(false)
   const [copyingLink, setCopyingLink] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(initialResident.photoUrl ?? null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const handleSendFamilyInvite = useCallback(async () => {
     if (!resident.poaEmail) return
@@ -141,6 +144,30 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       setCopyingLink(false)
     }
   }, [resident.id, resident.poaEmail, toast])
+
+  const handlePhotoUpload = useCallback(async (file: File) => {
+    if (!canEdit) return
+    setUploadingPhoto(true)
+    try {
+      const formData = new FormData()
+      formData.append('photo', file)
+      const res = await fetch(`/api/residents/${resident.id}/photo`, {
+        method: 'POST',
+        body: formData,
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok && j.data?.photoUrl) {
+        setPhotoUrl(j.data.photoUrl)
+        toast.success('Photo updated')
+      } else {
+        toast.error(j.error ?? 'Failed to upload photo')
+      }
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }, [resident.id, canEdit, toast])
 
   const handleSave = async () => {
     if (!name.trim()) { setSaveError('Name is required'); return }
@@ -262,7 +289,42 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
         <div className="col-span-2 space-y-4">
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
             <div className="flex justify-between items-start mb-4">
-              <Avatar name={resident.name} size="lg" />
+              <div className="relative group">
+                <Avatar name={resident.name} size="lg" photoUrl={photoUrl} />
+                {canEdit && (
+                  <>
+                    <button
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Change photo"
+                    >
+                      {uploadingPhoto ? (
+                        <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                      )}
+                    </button>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handlePhotoUpload(file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </>
+                )}
+              </div>
               {!editing && canEdit && (
                 <button
                   onClick={() => setEditing(true)}

@@ -41,6 +41,7 @@ type Bucket =
   | 'memoMatch'
   | 'memoMatchBatch'
   | 'portalSignup'
+  | 'photoUpload'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -84,6 +85,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   memoMatch: { tokens: 30, window: '1 h' },
   memoMatchBatch: { tokens: 5, window: '1 h' },
   portalSignup: { tokens: 5, window: '1 h' },
+  photoUpload: { tokens: 20, window: '1 h' },
 }
 
 let redis: Redis | null = null

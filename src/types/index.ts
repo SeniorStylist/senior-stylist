@@ -62,6 +62,8 @@ export interface Facility {
   portalWelcomeCouponEnabled: boolean
   portalWelcomeCouponType: string | null
   portalWelcomeCouponValue: number | null
+  // Phase 13E: daily digest email opt-in per facility
+  dailyDigestEnabled: boolean
   revSharePercentage?: number | null
   qbRevShareType?: string | null
   createdAt: Date | null
@@ -89,6 +91,8 @@ export interface Resident {
   defaultTipType: string | null
   defaultTipValue: number | null
   dateOfBirth?: string | null
+  photoPath?: string | null
+  photoUrl?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -194,6 +198,7 @@ export interface Service {
   addonAmountCents: number | null
   pricingTiers: PricingTier[] | null
   pricingOptions: PricingOption[] | null
+  sortOrder?: number | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

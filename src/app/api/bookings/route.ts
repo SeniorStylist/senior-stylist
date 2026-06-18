@@ -22,6 +22,7 @@ import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { sendPushToUser } from '@/lib/push'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -426,6 +427,25 @@ export async function POST(request: NextRequest) {
         bookedBy: 'staff',
       })
       sendEmail({ to: poaEmail, subject: `Appointment booked for ${data.resident.name}`, html: poaHtml }).catch(console.error)
+    }
+
+    // Push notification to stylist (fire-and-forget; no-op when VAPID keys unset)
+    if (data?.stylistId && !isDemo) {
+      const stylistProfile = await db.query.profiles.findFirst({
+        where: (p, { eq }) => eq(p.stylistId, data!.stylistId!),
+        columns: { id: true },
+      })
+      if (stylistProfile) {
+        const startLocal = new Date(data!.startTime).toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit', hour12: true,
+        })
+        sendPushToUser(stylistProfile.id, {
+          title: 'New booking',
+          body: `${data!.resident?.name ?? 'A resident'} at ${startLocal}`,
+          url: '/dashboard',
+          tag: 'new-booking',
+        }).catch(() => {})
+      }
     }
 
     revalidateTag('bookings', {})
