@@ -499,3 +499,23 @@ button:active, [role="button"]:active {
 .mobile-tour-spotlight-pulse {
   animation: mobile-tour-pulse 1.5s ease-in-out infinite;
 }
+
+
+/* ───────────────── Family Portal — large-print text scale ───────────────── */
+/* --portal-text-scale is set on :root by TextScaleToggle (1 / 1.25 / 1.5).  */
+/* Scoped to /family/* pages only — harmless elsewhere (var is undefined=1).  */
+@media (min-width: 0px) {
+  body:has(.portal-main) p,
+  body:has(.portal-main) span,
+  body:has(.portal-main) h1,
+  body:has(.portal-main) h2,
+  body:has(.portal-main) h3,
+  body:has(.portal-main) li,
+  body:has(.portal-main) label,
+  body:has(.portal-main) button,
+  body:has(.portal-main) a,
+  body:has(.portal-main) td,
+  body:has(.portal-main) th {
+    font-size: calc(1em * var(--portal-text-scale, 1));
+  }
+}

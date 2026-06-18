@@ -367,7 +367,13 @@ export function LogClient({
           return [...filtered, json.data]
         })
         setConfirmFinalizeId(null)
-        toast('Day finalized', 'success')
+        const finalizedEntry = json.data
+        toast('Day finalized', 'success', {
+          action: {
+            label: 'Undo',
+            onClick: () => handleUnfinalize(finalizedEntry.stylistId),
+          },
+        })
       }
     } finally {
       setFinalizingId(null)

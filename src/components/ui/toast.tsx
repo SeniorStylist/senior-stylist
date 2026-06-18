@@ -5,18 +5,26 @@ import { cn } from '@/lib/utils'
 
 type ToastType = 'success' | 'error' | 'info' | 'loading'
 
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface Toast {
   id: string
   type: ToastType
   message: string
   visible: boolean
+  action?: ToastAction
 }
 
-type ToastFn = ((message: string, type?: ToastType) => void) & {
-  success: (message: string) => void
-  error: (message: string) => void
-  info: (message: string) => void
-  loading: (message: string) => void
+type ToastOptions = { action?: ToastAction }
+
+type ToastFn = ((message: string, type?: ToastType, opts?: ToastOptions) => void) & {
+  success: (message: string, opts?: ToastOptions) => void
+  error: (message: string, opts?: ToastOptions) => void
+  info: (message: string, opts?: ToastOptions) => void
+  loading: (message: string, opts?: ToastOptions) => void
 }
 
 interface ToastContextValue {
@@ -37,14 +45,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const push = useCallback(
-    (message: string, type: ToastType = 'success') => {
+    (message: string, type: ToastType = 'success', opts?: ToastOptions) => {
       counterRef.current += 1
       const id = `toast-${counterRef.current}`
       setToasts((prev) => {
-        const next = [...prev, { id, type, message, visible: true }]
+        const next = [...prev, { id, type, message, visible: true, action: opts?.action }]
         return next.slice(-3)
       })
-      if (type !== 'error' && type !== 'loading') {
+      // Toasts with actions don't auto-dismiss — user must click action or X
+      if (type !== 'error' && type !== 'loading' && !opts?.action) {
         setTimeout(() => dismiss(id), 3500)
       }
     },
@@ -52,11 +61,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   )
 
   const toast = useMemo(() => {
-    const fn = ((message: string, type?: ToastType) => push(message, type)) as ToastFn
-    fn.success = (message: string) => push(message, 'success')
-    fn.error = (message: string) => push(message, 'error')
-    fn.info = (message: string) => push(message, 'info')
-    fn.loading = (message: string) => push(message, 'loading')
+    const fn = ((message: string, type?: ToastType, opts?: ToastOptions) => push(message, type, opts)) as ToastFn
+    fn.success = (message: string, opts?: ToastOptions) => push(message, 'success', opts)
+    fn.error = (message: string, opts?: ToastOptions) => push(message, 'error', opts)
+    fn.info = (message: string, opts?: ToastOptions) => push(message, 'info', opts)
+    fn.loading = (message: string, opts?: ToastOptions) => push(message, 'loading', opts)
     return fn
   }, [push])
 
@@ -202,6 +211,14 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     >
       <span className={cn('shrink-0', ICON_COLOR[toast.type])}>{TYPE_ICONS[toast.type]}</span>
       <span className="flex-1">{toast.message}</span>
+      {toast.action && (
+        <button
+          onClick={() => { toast.action!.onClick(); onDismiss(toast.id) }}
+          className="shrink-0 text-[#8B2E4A] font-semibold text-xs hover:text-[#6A2237] transition-colors"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         onClick={() => onDismiss(toast.id)}
         className="ml-1 text-stone-400 hover:text-stone-600 shrink-0"

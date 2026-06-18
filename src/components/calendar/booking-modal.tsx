@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/ui/modal'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -119,6 +120,7 @@ export function BookingModal({
   const submittingRef = useRef(false)
 
   const isMobile = useIsMobile()
+  const router = useRouter()
   const { toast } = useToast()
   const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
 
@@ -481,7 +483,11 @@ export function BookingModal({
         onClose()
       } else {
         onBookingChange(json.data)
-        toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success')
+        const bookingResidentId = json.data.residentId
+        toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success', bookingResidentId
+          ? { action: { label: 'View', onClick: () => router.push(`/residents/${bookingResidentId}`) } }
+          : undefined
+        )
         onClose()
       }
     } catch {

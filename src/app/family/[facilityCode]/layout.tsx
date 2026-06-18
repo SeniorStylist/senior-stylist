@@ -8,6 +8,7 @@ import { getPortalSession } from '@/lib/portal-auth'
 import { ToastProvider } from '@/components/ui/toast'
 import { PortalNav } from './portal-nav'
 import { PortalHeader } from './portal-header'
+import { TextScaleToggle } from '@/components/portal/text-scale-toggle'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist — Family Portal',
@@ -49,6 +50,7 @@ export default async function FamilyPortalLayout({
               height={36}
               style={{ filter: 'brightness(0) invert(1)' }}
             />
+            <TextScaleToggle />
           </div>
           {isAuthed && (
             <PortalHeader
@@ -76,7 +78,7 @@ export default async function FamilyPortalLayout({
           </svg>
         </header>
         <main
-          className="flex-1 max-w-[640px] w-full mx-auto px-4 pt-4"
+          className="portal-main flex-1 max-w-[640px] w-full mx-auto px-4 pt-4"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 96px)' }}
         >
           {children}

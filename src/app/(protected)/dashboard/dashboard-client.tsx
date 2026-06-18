@@ -1053,8 +1053,8 @@ function CoverageQueueRow({
   const [substituteId, setSubstituteId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [facilityPool, setFacilityPool] = useState<Array<{ id: string; name: string; stylistCode: string }>>([])
-  const [franchisePool, setFranchisePool] = useState<Array<{ id: string; name: string; stylistCode: string }>>([])
+  const [facilityPool, setFacilityPool] = useState<Array<{ id: string; name: string; stylistCode: string; nearby?: boolean }>>([])
+  const [franchisePool, setFranchisePool] = useState<Array<{ id: string; name: string; stylistCode: string; nearby?: boolean }>>([])
 
   useEffect(() => {
     fetch(`/api/coverage/substitutes?date=${request.startDate}`)
@@ -1128,7 +1128,7 @@ function CoverageQueueRow({
             <optgroup label="This Facility">
               {facilityPool.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.stylistCode})
+                  {s.nearby ? '📍 ' : ''}{s.name} ({s.stylistCode})
                 </option>
               ))}
             </optgroup>
@@ -1137,7 +1137,7 @@ function CoverageQueueRow({
             <optgroup label="Franchise Pool">
               {franchisePool.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.stylistCode})
+                  {s.nearby ? '📍 ' : ''}{s.name} ({s.stylistCode})
                 </option>
               ))}
             </optgroup>

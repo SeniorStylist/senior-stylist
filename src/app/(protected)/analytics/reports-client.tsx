@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
+import { useToast } from '@/components/ui/toast'
 import { PageHeader } from '@/components/ui/page-header'
 import { BarChart3 } from 'lucide-react'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -104,6 +105,7 @@ export function ReportsClient({
   revSharePercentage,
   exportFacilities,
 }: ReportsClientProps) {
+  const { toast } = useToast()
   const [showExportModal, setShowExportModal] = useState(false)
   const [activeTab, setActiveTab] = useState<ReportTab>('analytics')
   const [month, setMonth] = useState(() => {
@@ -146,6 +148,16 @@ export function ReportsClient({
   }, [activeTab, month, showInvoiceTab])
 
   const handleMarkAllPaid = async () => {
+    // Optimistic update — flip all unpaid rows to paid immediately
+    const snapshot = invoiceData
+    if (invoiceData) {
+      setInvoiceData({
+        ...invoiceData,
+        bookings: invoiceData.bookings.map((b) =>
+          b.paymentStatus === 'unpaid' ? { ...b, paymentStatus: 'paid' } : b
+        ),
+      })
+    }
     setMarkingPaid(true)
     try {
       const res = await fetch('/api/reports/mark-paid', {
@@ -154,11 +166,17 @@ export function ReportsClient({
         body: JSON.stringify({ month }),
       })
       if (res.ok) {
-        // Refresh invoice data
         const res2 = await fetch(`/api/reports/invoice?month=${month}`)
         const json = await res2.json()
         if (json.data) setInvoiceData(json.data)
+      } else {
+        // Rollback on failure
+        setInvoiceData(snapshot)
+        toast.error('Failed to mark all paid — please try again.')
       }
+    } catch {
+      setInvoiceData(snapshot)
+      toast.error('Network error — please try again.')
     } finally {
       setMarkingPaid(false)
     }

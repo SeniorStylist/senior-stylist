@@ -12,8 +12,31 @@ import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory }
 import type { Service, PricingType, PricingTier, PricingOption } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { useLongPress } from '@/hooks/use-long-press'
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
+
+/** Wraps a row div with mobile long-press selection support. Desktop hover/click unaffected. */
+function LongPressRow({
+  children,
+  className,
+  onMouseEnter,
+  onMouseLeave,
+  onLongPress,
+}: {
+  children: React.ReactNode
+  className?: string
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
+  onLongPress: () => void
+}) {
+  const lp = useLongPress(onLongPress)
+  return (
+    <div className={className} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...lp}>
+      {children}
+    </div>
+  )
+}
 
 // UI-level pricing mode. "per_unit" (each) isn't a stored pricing type — it's a
 // single open-ended tier, so it reuses the tiered booking flow (quantity stepper,
@@ -543,11 +566,12 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 }
               }
               nodes.push(
-            <div
+            <LongPressRow
               key={service.id}
               className="border-b border-stone-50 last:border-0"
               onMouseEnter={() => setHoverId(service.id)}
               onMouseLeave={() => { setHoverId(null); if (confirmArchiveId === service.id) setConfirmArchiveId(null) }}
+              onLongPress={() => setSelectedIds((prev) => { const next = new Set(prev); next.add(service.id); return next })}
             >
               {editingId === service.id ? (
                 /* Inline edit row */
@@ -746,7 +770,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   </div>
                 </div>
               )}
-            </div>
+            </LongPressRow>
               )
             }
             return nodes
