@@ -308,17 +308,23 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 ### Avatar (`src/components/ui/avatar.tsx`)
 
-Initials-only (no image upload). Renders up to 2 initials from the name.
+Renders either a resident photo or initials fallback. Phase 13G added `photoUrl?: string` prop.
 
 ```tsx
-// With service color
+// With photo (Phase 13G)
+<Avatar name="Jane Doe" photoUrl="https://...signed-url..." />
+// Renders: <img> with object-cover, rounded-full, same size classes as the initials avatar
+
+// With service color (initials fallback)
 <Avatar name="Jane Doe" color="#0D7377" />
 // Renders: bg rgba(#0D7377, 12%) with text color #0D7377
 
-// Without color
+// Without color (initials fallback)
 <Avatar name="Jane Doe" />
 // Renders: bg-teal-50 text-teal-700
 ```
+
+When `photoUrl` is provided and the image loads successfully, the initials are hidden. If the image fails to load (`onError`), it falls back gracefully to the initials tile. The hover camera overlay for upload is rendered outside `<Avatar>` by the parent (resident detail page) — it wraps the avatar in a relative `<div>` + `<button>` with a dark overlay `bg-black/40` and a `Camera` icon, triggering a hidden `<input type="file">`.
 
 | Size | Classes |
 |---|---|
