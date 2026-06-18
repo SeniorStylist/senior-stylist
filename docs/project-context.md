@@ -64,6 +64,10 @@ Tailwind CSS 4, Vercel
 | TWILIO_AUTH_TOKEN | Phase 12E SMS receipts — Twilio auth token | twilio.com console |
 | TWILIO_FROM_NUMBER | Phase 12E SMS sender (e.g. `+12025551234`) | Twilio purchased number |
 | TWILIO_ENABLED | Phase 12E gate — must be literal `'true'` to send SMS; anything else = no-op | `false` until ready |
+| VAPID_PUBLIC_KEY | Phase 13Q Web Push — server-side VAPID public key | `npx web-push generate-vapid-keys` |
+| VAPID_PRIVATE_KEY | Phase 13Q Web Push — server-side VAPID private key | `npx web-push generate-vapid-keys` |
+| VAPID_SUBJECT | Phase 13Q Web Push — VAPID contact (e.g. `mailto:admin@seniorstylist.com`) | Set to an admin email |
+| NEXT_PUBLIC_VAPID_PUBLIC_KEY | Phase 13Q Web Push — client-side public key for PushManager.subscribe | Same value as VAPID_PUBLIC_KEY |
 
 ---
 
@@ -554,6 +558,13 @@ End-to-end overhaul of the help/onboarding system. New `is_demo boolean NOT NULL
 ## 6. CURRENT STATUS
 
 ### Working
+- **Wave 2 + Wave 3 features** (2026-06-18):
+  - **Phase 13A — Changelog widget**: Bell icon in layout with unread dot when `newestEntryAt > profiles.changelog_last_read_at`. `<ChangelogWidget>` in protected layout. Desktop fixed popover + mobile BottomSheet. `POST /api/profile/changelog-seen` stamps the read timestamp. Content lives in `src/lib/changelog.ts`.
+  - **Phase 13E — Daily digest cron**: `GET /api/cron/daily-digest` at 08:00 UTC. Master roll-up always goes to `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`. Per-facility digest gated on `facilities.daily_digest_enabled` (off by default). Toggle in Settings → Notifications. Migration: `drizzle/0013_wave2_features.sql`.
+  - **Phase 13G — Resident photo uploads**: `residents.photo_path` stores Storage path (not URL). Private `resident-photos` bucket. `POST /api/residents/[id]/photo` (JPEG/PNG/WebP, 5 MB cap). `<Avatar photoUrl?>` prop. Camera overlay on hover in resident detail. Migration: `drizzle/0013_wave2_features.sql`.
+  - **Phase 13I — Offline caching**: `public/sw.js` service worker. Cache-first for `/_next/static/**`, network-first for navigations with `public/offline.html` fallback. `/api/**` is NEVER cached. `<SWRegister>` in protected layout.
+  - **Phase 13J — Service drag-to-reorder**: `services.sort_order integer`. GripVertical handles on category headers + service rows (`hidden md:block`). Optimistic updates + `POST /api/services/reorder`. Migration: `drizzle/0013_wave2_features.sql`.
+  - **Phase 13Q — Web Push notifications**: `push_subscriptions` table (userId, endpoint unique, p256dh, auth). `src/lib/push.ts` lazy VAPID init (no-op when keys unset). Push on booking create (fire-and-forget). `<PushNotificationCard>` opt-in in My Account. Migration: `drizzle/0014_push_subscriptions.sql`. Requires VAPID env vars.
 - **Bulk price sheets: facility detection from document content** (2026-06-17): `/master-admin/imports/price-sheets` now auto-routes files to a facility using two signals — (1) filename F-code/fuzzy at threshold 0.70 (existing), (2) facility/salon name extracted from the top of the document by Gemini as a new STEP 1 (threshold 0.65 fallback). `parsePriceSheetFile` returns `ParseResult = { rows, detectedFacilityName }` — callers must destructure `.rows`. `facilitySource: 'filename' | 'content' | null` surfaces in the UI as a small muted hint below the facility select. Also same session: OCR stylist picker replaced with a proper `<select>` dropdown showing all facility stylists (auto-preselects matched; reveals a text input when "New stylist" is chosen).
 - **Send-confirmation gate** (2026-06-17): every one-click email/text send now pops an "Are you sure you want to send this?" dialog (recipient + channel + one-line summary) so a stray click can't fire a real message to a family member or facility. New reusable `src/components/ui/send-confirm-dialog.tsx` → `useSendConfirm()` (`{ confirmSend, dialog }`, promise-based gate) + `SendConfirmDialog` (desktop Modal / mobile BottomSheet). Wired at 7 one-click call sites: booking-modal Send Receipt (email/text/both from resident POA contact), resident-detail Send Link, team-section Resend invite, stylist-detail Send account invite, billing facility Send Statement, ip-view per-resident Send + Send All (replaced `window.confirm`). Billing per-resident sends show the known last-sent date as a warning and send `force:true` (bypass `SendDedupModal`); facility statement keeps the dedup modal as a second layer. Out of scope (already deliberate): Day Log Email modal + new teammate-invite form; "Copy Link" sends nothing. Also same session: `.tabular-nums` utility applied across billing/analytics/payroll figures + TodayCard premium redesign + Sign-Up Sheet nav/page (commits `752be76`, `8accd7d`). TSC + ESLint clean.
 - **Settings shell redesign** (2026-06-15): `/settings` rail now groups categories under uppercase labels (Facility / People & Access / Billing / System), each row a lucide icon + label + count badge, with a burgundy-tinted active state. Every section opens with a consistent icon-chip header (title + one-line description) rendered by the shell from a single `CATEGORY_META` map (portal-section's duplicate header removed). Admin rail gains a search/filter box (>4 categories). Family Portal reordered into the People group. All behavior preserved (URL `?section=`/`?tab=` back-compat, QB `?qb=` → billing, role-gating, mobile drill-down, tour anchors 317/317). Reusable section-header pattern documented in design-system.md for later app-wide rollout.
@@ -714,19 +725,22 @@ End-to-end overhaul of the help/onboarding system. New `is_demo boolean NOT NULL
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 14A (Family Portal Self-Signup & Coupons) shipped (2026-06-15). Next priorities:
+Wave 2 + Wave 3 features shipped (2026-06-18). Next priorities:
 
-0. **Apply Phase 14A migration** — `psql "$DIRECT_URL" -f drizzle/0012_portal_expansion.sql` then enable self-signup per facility in Settings → Family Portal.
-0. **Apply the qb_invoices index migration, then run the QB imports** — `psql "$DIRECT_URL" -f drizzle/0006_qb_invoices_dedup_date.sql`, then at `/master-admin/imports/quickbooks` run steps 1→4 with the four QB CSV exports (Customer Contact List, Invoice List by Date, Invoices and Received Payments, Transaction List by Customer). This fixes the inflated Total Outstanding on /billing.
-1. **iPhone smoke test of the 12Y followups** — verify on a physical device: bottom nav flush at viewport bottom, tour banner only shows during tours + clears the notch, debug button stays anchored when scrolling, mobile help center hides desktop-only tours. Stylist directory desktop scroll fix also needs trackpad verification.
-2. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.
-2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
+0. **Apply Wave 2/3 migrations**:
+   - `psql "$DIRECT_URL" -f drizzle/0013_wave2_features.sql` — adds `profiles.changelog_last_read_at`, `facilities.daily_digest_enabled`, `residents.photo_path`, `services.sort_order`
+   - `psql "$DIRECT_URL" -f drizzle/0014_push_subscriptions.sql` — creates `push_subscriptions` table
+0. **Create `resident-photos` Supabase bucket** — private, with `service_role_all` RLS policy. Go to Supabase Storage → New bucket → Name: `resident-photos` → Private → Save. Then add the policy via SQL: `ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; CREATE POLICY "service_role_all" ON storage.objects FOR ALL TO service_role USING (true) WITH CHECK (true);`
+0. **Set VAPID env vars for push notifications** — run `npx web-push generate-vapid-keys`, then set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:lisa@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in Vercel.
+1. **Apply Phase 14A migration** (if not yet done) — `psql "$DIRECT_URL" -f drizzle/0012_portal_expansion.sql` then enable self-signup per facility in Settings → Family Portal.
+2. **Apply the qb_invoices index migration** (if not yet done) — `psql "$DIRECT_URL" -f drizzle/0006_qb_invoices_dedup_date.sql`, then at `/master-admin/imports/quickbooks` run steps 1→4.
+3. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel
    - First-time admin: Settings → Integrations → Connect QuickBooks → pick Expense account
-3. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance cron unauthenticated without it.
-4. **(optional)** Upstash Redis for rate limiting — no-op without it.
-5. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
+4. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance + digest crons unauthenticated without it.
+5. **(optional)** Upstash Redis for rate limiting — no-op without it.
+6. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
 
 ---
 

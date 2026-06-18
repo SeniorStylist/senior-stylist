@@ -232,7 +232,7 @@ Rules for stable selectors:
   Stylist-role users can only mutate their own bookings/profile
 - Every Zod input schema needs `.max()` caps: names 200, room 50, notes/description 2000, email 320, color 20, address 500, cents 10_000_000, tier/option arrays 20, additionalServices 20, timezone 100
 - Rate-limit all public or expensive routes via `src/lib/rate-limit.ts` — `checkRateLimit(bucket, identifier)` + `rateLimitResponse(retryAfter)`
-  - Buckets: `signup` 5/hr/IP, `portalBook` 10/hr/token, `ocr` 20/hr/user, `parsePdf` 20/hr/user, `sendPortalLink` 10/hr/user, `invites` 30/hr/user, `checkScan` 30/hr/user, `qbInvoiceSync` 3/hr/user (Phase 11M), `coverage` 10/hr/user (Apr 27 audit)
+  - Buckets: `signup` 5/hr/IP, `portalBook` 10/hr/token, `ocr` 20/hr/user, `parsePdf` 20/hr/user, `sendPortalLink` 10/hr/user, `invites` 30/hr/user, `checkScan` 30/hr/user, `qbInvoiceSync` 3/hr/user (Phase 11M), `coverage` 10/hr/user (Apr 27 audit), `photoUpload` 20/hr/user (Phase 13G)
   - No-ops when UPSTASH env vars are unset
 - Portal routes (`/api/portal/[token]/*`) MUST use explicit `columns:` whitelists on every `db.query.*` call, and MUST verify every `stylistId`/`serviceId`/`addonServiceIds` belongs to the resident's facility before accepting input
 - **`console.log` is dev-time only.** Production routes use `console.error` for errors and (rarely) `console.warn` for unexpected-but-recoverable states. PR reviewers should reject `console.log` in `src/app/api/` and `src/lib/`.
@@ -737,6 +737,31 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
 - **Required env vars** (Vercel + `.env.local`): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (e.g. `+12025551234`), `TWILIO_ENABLED` (set to `'true'` to activate). Default the flag to `false` until Twilio production approval is in place.
 - **Receipts**: `POST /api/bookings/[id]/receipt` (admin/facility_staff guard, master-admin bypass, `receiptSend` rate-limit bucket) builds a receipt via `buildBookingReceiptHtml` + `buildReceiptSms` and sends to `resident.poaEmail` / `resident.poaPhone` respectively. Auto-fired from the Stripe webhook after the bookingId paid-flip; manually triggered from the BookingModal "Send Receipt" button (edit mode, admin only). No-contact case is silent — return `{ emailSent: false, smsSent: false }`.
 
+### Resident Photo Uploads (Phase 13G)
+- `residents.photo_path` stores the Supabase Storage PATH (not a URL). Generate a 1-hour signed URL at render time via `storage.createSignedUrl(path, 3600)`. NEVER cache or persist the signed URL — it expires.
+- Bucket: `resident-photos` (private). Must be created manually in Supabase dashboard with a `service_role_all` RLS policy. Always upload/delete via service-role client (`createStorageClient()`).
+- `POST /api/residents/[id]/photo`: MIME allow JPEG/PNG/WebP only, 5 MB cap, `upsert: true` on existing path. Returns signed URL in response. Rate-limit: `photoUpload` 20/h/user.
+- `DELETE /api/residents/[id]/photo`: admin-only. Deletes from storage + clears `photo_path` column.
+
+### Daily Digest Cron (Phase 13E)
+- `facilities.daily_digest_enabled` is `false` by default — opt-in per facility. Toggle in Settings → Notifications.
+- `GET /api/cron/daily-digest` (Bearer `CRON_SECRET`, `maxDuration = 60`, scheduled `0 8 * * *` in `vercel.json`). Master roll-up ALWAYS fires to `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`. Per-facility digest fires ONLY when `daily_digest_enabled = true` AND `facility.contactEmail` is set.
+- `buildDailySummaryEmailHtml()` in `src/lib/email.ts` — follows the house email style (summary tiles + per-stylist sections). Revenue total is `priceCents + addonTotalCents` only (never tip_cents).
+- Filter on `bookings.active = true AND is_demo = false` (ALWAYS) — never email demo data.
+
+### Service Worker (Phase 13I)
+- `public/sw.js` is the service worker. **NEVER add `/api/**` to the cache** — API responses must always be fresh. Stale billing/booking data would silently mislead users.
+- Cache-first for `/_next/static/**` (immutable hashed assets). Network-first for navigations with offline fallback to `public/offline.html`.
+- `<SWRegister>` client component in `(protected)/layout.tsx` registers the SW on mount. No-op in non-HTTPS environments.
+- When adding new routes, no changes to `sw.js` are needed — the existing `/api/**` exclusion is a pattern match, not an allowlist.
+
+### Web Push Notifications (Phase 13Q)
+- `src/lib/push.ts` exports `sendPushToUser(userId, payload)`. It is a **no-op when `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` env vars are unset** — safe to call in development without keys set.
+- Push sends are always **fire-and-forget** (`.catch(() => {})`). Never await them in a request handler — they must not block the response.
+- Auto-cleans expired/unsubscribed endpoints: when a send returns 410, the `push_subscriptions` row is deleted.
+- Required env vars: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:admin@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY`. Generate with `npx web-push generate-vapid-keys`.
+- `push_subscriptions` has a UNIQUE constraint on `endpoint`. Upsert pattern: `POST /api/push/subscribe` uses `onConflictDoUpdate`.
+
 ### Cron Routes
 - Every route under `/api/cron/*` MUST check: `request.headers.get('authorization') === \`Bearer ${process.env.CRON_SECRET}\`` — 401 otherwise
 - `src/middleware.ts` already includes `pathname.startsWith('/api/cron')` in the public-route check — new cron routes need no further middleware work
@@ -956,25 +981,31 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
 
 - **Phase 14A** (SHIPPED 2026-06-15) — Family Portal self-signup, coupons, admin approval queue. New tables: `portal_coupons`, `portal_coupon_redemptions`, `portal_claim_requests`. New columns on `portal_accounts` (fullName, phone, dateOfBirth), `residents` (dateOfBirth), `facilities` (5 portal feature flags). New routes: `POST /api/portal/signup`, `GET|PATCH /api/portal/claim-requests[/id]`. New pages: `/family/[facilityCode]/signup`. Settings → Family Portal section for per-facility config and approval queue.
 
+- **Phase 13A** (SHIPPED 2026-06-18) — "What's New" changelog widget. `profiles.changelog_last_read_at timestamptz` column tracks last read. `src/lib/changelog.ts` holds `CHANGELOG: { date, title, body, phase? }[]` newest-first. `<ChangelogWidget>` mounted in `(protected)/layout.tsx` — bell icon with burgundy unread dot when `newestEntryAt > changelog_last_read_at`. `POST /api/profile/changelog-seen` stamps the timestamp. Desktop: fixed popover anchored below the bell via `getBoundingClientRect()`, `z-[85]`. Mobile: `<BottomSheet>` via `useIsMobile()`. Never gates content on role.
+
+- **Phase 13E** (SHIPPED 2026-06-18) — Daily digest cron. `facilities.daily_digest_enabled boolean NOT NULL DEFAULT false` column. `GET /api/cron/daily-digest` (Bearer `CRON_SECRET`, `maxDuration = 60`, scheduled `0 8 * * *` in `vercel.json`). Master roll-up always sent to `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`; per-facility digest sent to `facility.contactEmail` only when `daily_digest_enabled = true`. `buildDailySummaryEmailHtml()` in `src/lib/email.ts` — appointment count, revenue total, tips, who's working. Toggle in Settings → Notifications section (admin/bookkeeper only). Migration: `drizzle/0013_wave2_features.sql`.
+
+- **Phase 13G** (SHIPPED 2026-06-18) — Resident photo uploads. `residents.photo_path text null` column — stores Supabase Storage PATH (not URL). Private bucket `resident-photos` with `service_role_all` RLS policy (must be created manually in Supabase dashboard). `POST /api/residents/[id]/photo` (admin/facility_staff, `photoUpload` rate-limit 20/h/user, MIME allow JPEG/PNG/WebP, 5 MB cap, `upsert: true`). `DELETE /api/residents/[id]/photo` (admin-only). Resident detail page generates 1-hour signed URL from `resident.photoPath` at render time (NEVER store or cache the URL). `<Avatar photoUrl?>` prop added — renders `<img>` with object-cover + rounded-full when set, falls back to initials on error. Camera overlay on hover: parent wraps `<Avatar>` in a `relative` div + `<button>` with dark overlay + `<Camera>` icon triggering a hidden `<input type="file">`.
+
+- **Phase 13I** (SHIPPED 2026-06-18) — Offline caching via service worker. `public/sw.js` — cache-first for `/_next/static/**` (immutable hashed assets), network-first for navigations (offline fallback: `public/offline.html`). **NEVER caches `/api/**`** — API requests always go to the network; returning stale API data would show incorrect booking/billing state. `<SWRegister>` client component mounted in `(protected)/layout.tsx` calls `navigator.serviceWorker.register('/sw.js')` on mount (no-op in non-HTTPS environments). **Rule: any new route added under `/api/` is automatically excluded by the existing `sw.js` pattern — no sw.js change needed.**
+
+- **Phase 13J** (SHIPPED 2026-06-18) — Drag-to-reorder services and categories. `services.sort_order integer NOT NULL DEFAULT 0`. HTML5 drag handles (`<GripVertical>` lucide, `hidden md:block`) on category headers and service rows in `services-page-client.tsx`. Optimistic state update; reverts + error toast on server failure. `POST /api/services/reorder` (admin-only, body: `{orderedIds?, orderedCategories?}`). `sortServicesWithinCategory` sorts by `sortOrder` ascending first, then by name for ties. Migration: `drizzle/0013_wave2_features.sql`.
+
+- **Phase 13Q** (SHIPPED 2026-06-18) — Web Push notifications. `push_subscriptions` table (userId FK, endpoint unique, p256dh, auth). `src/lib/push.ts` — lazy VAPID init (no-op when keys unset), `sendPushToUser(userId, payload)` queries all subs and fires via `web-push`; auto-removes 410 endpoints. `POST /api/push/subscribe` (upsert on conflict), `POST /api/push/unsubscribe` (delete by userId+endpoint). Push fired fire-and-forget on `POST /api/bookings` success (stylist alert). `<PushNotificationCard>` opt-in in My Account — feature-detects `PushManager`, shows amber warning when `Notification.permission === 'denied'`. Migration: `drizzle/0014_push_subscriptions.sql`. **Infra**: `npx web-push generate-vapid-keys` → set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:admin@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in Vercel.
+
 ### Upcoming — Immediate
 
 ### Upcoming — Medium Term
 
-- **Phase 13Q** — Push notifications via Web Push API + service worker. Stylist booking alerts when new bookings are added to their calendar.
 - **Phase 12ZZ** — Toast action buttons ("Booking saved — Undo | View"). (Was previously labeled Phase 12Z — renamed because 12Z shipped as the Excel export.)
-- **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state, surfaces new features when phases ship.
 - **Phase 13B** — Optimistic UI on key actions (mark pay period paid, finalize log, add resident).
 - **Phase 13C** — Skeleton loading audit. Every data surface uses shimmer skeletons — no blank white screens.
 - **Phase 13D** — Keyboard shortcuts system (Esc closes modals, N = new booking, ? = shortcut help overlay).
-- **Phase 13E** — Daily summary email to Lisa (8am digest via Resend + Vercel cron).
 
 ### Upcoming — Longer Term
 
 - **Phase 13F** — Time-off approval + coverage finder (zip proximity matching).
-- **Phase 13G** — Resident photo uploads (Supabase Storage).
 - **Phase 13H** — Large-print accessibility mode for the family portal.
-- **Phase 13I** — Offline mode / service worker caching for unreliable facility WiFi.
-- **Phase 13J** — Drag-to-reorder services and categories.
 - **Phase 13K** — Bulk actions on mobile (long-press to select).
 - **Phase 13L** — Branded invoice/receipt templates (after DNS verification for noreply@seniorstylist.com).
 - **Phase 13M** — QB API live sync (after Intuit production approval).
