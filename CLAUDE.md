@@ -246,6 +246,13 @@ Rules for stable selectors:
 - **`Permissions-Policy` in `next.config.ts` MUST keep `microphone=(self)`** (2026-06-12) — the feedback widget's voice input depends on it. `microphone=()` makes `getUserMedia` reject instantly WITHOUT ever showing the browser permission prompt (the bug looked like a client-side issue but was this header). Camera and geolocation stay `()`.
 - **HSTS and HTTP→HTTPS redirect are configured in `next.config.ts`** and must not be removed or weakened. `redirects()` fires a 301 when `x-forwarded-proto: http` is present (no-op on Vercel since CDN enforces HTTPS before requests reach Next.js; protects self-hosted environments). `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` — 2-year HSTS with preload flag. The preload flag means the domain is (or will be) submitted to browser preload lists; removing it does not undo preloading.
 
+### Service Worker & Push (Wave 2)
+- **NEVER cache `/api/*` in the service worker** — stale API responses silently serve wrong data. `public/sw.js` caches only `/_next/static/**` (cache-first) and serves `public/offline.html` as the navigation fallback. All `/api/*` requests pass through to the network only.
+- **`sendPushToUser(userId, payload)`** in `src/lib/push.ts` is a no-op when `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` are unset (mirrors `TWILIO_ENABLED` pattern). Never throws. Required env vars: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (server); `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (client — same value as `VAPID_PUBLIC_KEY`). Generate with `npx web-push generate-vapid-keys`.
+- **`ensurePushSchema()`** in `src/lib/push-ddl.ts` self-bootstraps the `push_subscriptions` table with a module-level `_ensured` guard (same pattern as `feedback-ddl.ts`). Called at the top of both `/api/push/subscribe` and `/api/push/unsubscribe`. Keep the inline DDL in sync with `drizzle/0014_wave2_wave3.sql`.
+- **Resident photo paths MUST NEVER be returned to clients.** `residents.photo_path` is a Supabase Storage path in the private `resident-photos` bucket. API routes generate 1-hour signed URLs server-side (`storage.createSignedUrl(path, 3600)`) and return only the URL — never the raw path. Same pattern as `check-images` bucket.
+- **Daily digest cron** is `GET /api/cron/daily-digest` at `0 8 * * *` (UTC), Bearer-gated on `CRON_SECRET`. Fires for facilities where `facilities.daily_digest_enabled = true`. Opt-in toggle lives in Settings → Notifications. Never send digest for facilities with the flag off.
+
 ### Authorization invariants (full audit 2026-06-15 — do NOT regress)
 A four-agent authorization audit fixed these broken-access-control gaps. Each guard is load-bearing:
 - **`/invoice/[facilityId]` is NOT public.** It exposes a facility's full billing roster (resident PII + dollars). The page requires auth + `canAccessBilling(role)` + facility scope (master/bookkeeper cross-facility); `/invoice` was removed from `middleware.ts` `skipSupabase`/`isPublic` and added to the no-store cache list. Never re-add it to the public allowlists.
@@ -948,26 +955,30 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
 
 - **Phase 14A** (SHIPPED 2026-06-15) — Family Portal self-signup, coupons, admin approval queue. New tables: `portal_coupons`, `portal_coupon_redemptions`, `portal_claim_requests`. New columns on `portal_accounts` (fullName, phone, dateOfBirth), `residents` (dateOfBirth), `facilities` (5 portal feature flags). New routes: `POST /api/portal/signup`, `GET|PATCH /api/portal/claim-requests[/id]`. New pages: `/family/[facilityCode]/signup`. Settings → Family Portal section for per-facility config and approval queue.
 
+- **Wave 2+3** (SHIPPED 2026-06-22) — PWA polish, resident photos, changelog, keyboard shortcuts, drag-to-reorder, push notifications, daily digest, offline SW, mobile long-press.
+  - **Phase 13Q (Push notifications)**: `push_subscriptions` table (user_id, endpoint, p256dh, auth; unique user_id+endpoint; RLS service_role_all); `src/lib/push.ts::sendPushToUser(userId, payload)` (no-op when VAPID vars unset); `src/lib/push-ddl.ts::ensurePushSchema()` (module-level `_ensured` guard, same pattern as `feedback-ddl.ts`); `POST /api/push/subscribe` + `POST /api/push/unsubscribe`; opt-in toggle in /my-account (stylist). Required env vars: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`. Generate: `npx web-push generate-vapid-keys`.
+  - **Phase 13A (Changelog widget)**: `profiles.changelog_last_read_at` (timestamptz, nullable); `src/lib/changelog.ts` (CHANGELOG entries + LATEST_CHANGELOG_DATE); `<ChangelogWidget>` in TopBar with unread dot; `POST /api/profile/changelog-seen`.
+  - **Phase 13J (Drag-to-reorder services)**: `services.sort_order` (integer, nullable); `sortServicesWithinCategory` honors `sort_order ASC NULLS LAST`; HTML5 drag handles (`<GripVertical hidden md:block`) on service rows + category headers; `POST /api/services/reorder` (admin-only, `{ action:'services'|'categories', orderedIds[]|orderedCategories[] }`).
+  - **Phase 13G (Resident photos)**: `residents.photo_path` (text, nullable) — Supabase Storage private bucket `resident-photos`; `POST /api/residents/[id]/photo` (admin/facility_staff, MIME check jpg/jpeg/png/webp, 5MB cap, service-role upload); `DELETE /api/residents/[id]/photo`; path NEVER returned to clients — callers generate 1-hour signed URLs. `<Avatar photoUrl={signedUrl}>` renders `<img>` instead of initials.
+  - **Phase 13E (Daily digest)**: `facilities.daily_digest_enabled` (boolean NOT NULL DEFAULT false); opt-in toggle in Settings → Notifications; `GET /api/cron/daily-digest` (Bearer CRON_SECRET, `0 8 * * *`); `buildDailySummaryEmailHtml` in `src/lib/email.ts`; cron entry in `vercel.json`.
+  - **Phase 13I (Offline SW)**: `public/sw.js` + `public/offline.html`; `<SWRegister />` (`src/components/pwa/sw-register.tsx`) mounted in root `layout.tsx`. Network-first for navigations (offline → `offline.html`); cache-first for `/_next/static/**`; NEVER cache `/api/*`. Push event handler shows `showNotification`.
+  - **Phase 13D (Keyboard shortcuts)**: `<KeyboardShortcuts />` mounted in `(protected)/layout.tsx` for admin/facility_staff; N=new booking, ?=toggle overlay; `<kbd>` styled `bg-stone-100 border border-stone-200 rounded px-1.5 py-0.5 text-xs font-mono text-stone-700`; skips when focus is in `input`/`textarea`/`[contenteditable]`.
+  - **Phase 13K (Mobile long-press)**: `src/hooks/use-long-press.ts` — 450ms hold, cancels on >10px movement; spread `{ onTouchStart, onTouchEnd, onTouchMove }` onto touchable elements; used for mobile bulk-select entry point.
+  - **Migration**: `drizzle/0014_wave2_wave3.sql` — apply: `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
+  - **Infra steps for Josh**: (1) Apply SQL migration above. (2) Create private Supabase bucket `resident-photos` with `service_role_all` policy. (3) `npx web-push generate-vapid-keys` → add all 4 VAPID vars to Vercel. (4) Add `{ "path": "/api/cron/daily-digest", "schedule": "0 8 * * *" }` to `vercel.json` crons.
+
 ### Upcoming — Immediate
 
 ### Upcoming — Medium Term
 
-- **Phase 13Q** — Push notifications via Web Push API + service worker. Stylist booking alerts when new bookings are added to their calendar.
 - **Phase 12ZZ** — Toast action buttons ("Booking saved — Undo | View"). (Was previously labeled Phase 12Z — renamed because 12Z shipped as the Excel export.)
-- **Phase 13A** — "What's New" changelog widget. Bell icon, per-user read state, surfaces new features when phases ship.
 - **Phase 13B** — Optimistic UI on key actions (mark pay period paid, finalize log, add resident).
 - **Phase 13C** — Skeleton loading audit. Every data surface uses shimmer skeletons — no blank white screens.
-- **Phase 13D** — Keyboard shortcuts system (Esc closes modals, N = new booking, ? = shortcut help overlay).
-- **Phase 13E** — Daily summary email to Lisa (8am digest via Resend + Vercel cron).
 
 ### Upcoming — Longer Term
 
 - **Phase 13F** — Time-off approval + coverage finder (zip proximity matching).
-- **Phase 13G** — Resident photo uploads (Supabase Storage).
 - **Phase 13H** — Large-print accessibility mode for the family portal.
-- **Phase 13I** — Offline mode / service worker caching for unreliable facility WiFi.
-- **Phase 13J** — Drag-to-reorder services and categories.
-- **Phase 13K** — Bulk actions on mobile (long-press to select).
 - **Phase 13L** — Branded invoice/receipt templates (after DNS verification for noreply@seniorstylist.com).
 - **Phase 13M** — QB API live sync (after Intuit production approval).
 - **Phase 13N** — Franchise layer (DB schema, super_admin UI, bookkeeper role).

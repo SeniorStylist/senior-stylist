@@ -64,6 +64,10 @@ Tailwind CSS 4, Vercel
 | TWILIO_AUTH_TOKEN | Phase 12E SMS receipts — Twilio auth token | twilio.com console |
 | TWILIO_FROM_NUMBER | Phase 12E SMS sender (e.g. `+12025551234`) | Twilio purchased number |
 | TWILIO_ENABLED | Phase 12E gate — must be literal `'true'` to send SMS; anything else = no-op | `false` until ready |
+| VAPID_PUBLIC_KEY | Wave 2 push notifications — server-side VAPID public key | `npx web-push generate-vapid-keys` |
+| VAPID_PRIVATE_KEY | Wave 2 push notifications — server-side VAPID private key | same as above |
+| VAPID_SUBJECT | Wave 2 push notifications — contact URI e.g. `mailto:lisag@seniorstylist.com` | Hardcode |
+| NEXT_PUBLIC_VAPID_PUBLIC_KEY | Wave 2 push notifications — same value as `VAPID_PUBLIC_KEY`, exposed to client for `pushManager.subscribe` | same as VAPID_PUBLIC_KEY |
 
 ---
 
@@ -549,6 +553,20 @@ Made the 5 stylist scripted tours genuinely INTERACTIVE (user clicks real button
 
 End-to-end overhaul of the help/onboarding system. New `is_demo boolean NOT NULL DEFAULT false` column on `residents`, `stylists`, `services`, `bookings`, `log_entries`, `stylist_checkins`. New `profiles` columns: `has_seen_first_tour` and `help_progress`. New `help_step_events` telemetry table. New scripted tour engine (`src/lib/help/scripted-tour.ts`) coexisting with legacy Driver.js — 10 new tours defined in `tours-stylist-mobile.ts` and `tours-stylist-desktop.ts`. New visual overlay stack (`spotlight-mask`, `spotlight-ring`, `target-arrow`, `scripted-tour-popover`, `scripted-tour-sheet`, `tutorial-celebration`). Demo seeder (`src/lib/help/demo-seeder.ts`) seeds warm character data idempotently. `<FirstTourAutoLauncher>` on the dashboard auto-starts the right tour for new users after 1.5s. Help page upgraded with search bar + resume banner. Settings → Advanced gains a "Tutorial Data" wipe card. New crons and API routes for seeding, tracking, reset, and weekly cleanup. All `is_demo=true` records filtered from the ~14 user-facing list queries. Schema push required: `npx dotenv -e .env.local -- npx drizzle-kit push`.
 
+### Wave 2+3 — PWA Polish, Push Notifications, Resident Photos, Changelog, Keyboard Shortcuts, Drag-to-Reorder, Daily Digest, Offline SW, Mobile Long-Press (SHIPPED 2026-06-22)
+
+Eight new features shipping together as a polish wave:
+- **Push notifications (13Q)**: `push_subscriptions` table, `sendPushToUser` (`src/lib/push.ts`), `ensurePushSchema` (`src/lib/push-ddl.ts`), `/api/push/subscribe` + `/api/push/unsubscribe`, opt-in toggle in /my-account.
+- **Changelog widget (13A)**: `profiles.changelog_last_read_at`, `src/lib/changelog.ts` with `CHANGELOG` + `LATEST_CHANGELOG_DATE`, bell icon in TopBar with unread dot, `POST /api/profile/changelog-seen`.
+- **Drag-to-reorder (13J)**: `services.sort_order` column, HTML5 drag handles on service rows + category headers (`<GripVertical hidden md:block`), `POST /api/services/reorder` (admin-only), `sortServicesWithinCategory` updated to honor `sort_order`.
+- **Resident photos (13G)**: `residents.photo_path`, private `resident-photos` bucket, `POST/DELETE /api/residents/[id]/photo` (admin/facility_staff), `<Avatar photoUrl>` renders `<img>` instead of initials.
+- **Daily digest (13E)**: `facilities.daily_digest_enabled`, Settings → Notifications opt-in toggle, `GET /api/cron/daily-digest` (`0 8 * * *`), `buildDailySummaryEmailHtml`.
+- **Offline SW (13I)**: `public/sw.js` (network-first nav, cache-first `/_next/static/**`, NEVER `/api/*`), `public/offline.html`, `<SWRegister />` in root layout.
+- **Keyboard shortcuts (13D)**: `<KeyboardShortcuts />` in layout (admin/facility_staff), N=new booking, ?=overlay, `<kbd>` component styling.
+- **Mobile long-press (13K)**: `src/hooks/use-long-press.ts` (450ms, 10px movement cancel).
+- **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
+- **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
+
 ---
 
 ## 6. CURRENT STATUS
@@ -712,12 +730,13 @@ End-to-end overhaul of the help/onboarding system. New `is_demo boolean NOT NULL
 
 ## 7. IMMEDIATE NEXT FIX
 
-Phase 14A (Family Portal Self-Signup & Coupons) shipped (2026-06-15). Next priorities:
+Wave 2+3 (PWA polish: push notifications, changelog, keyboard shortcuts, drag-to-reorder, resident photos, daily digest, offline SW, mobile long-press) shipped (2026-06-22). Next priorities:
 
-0. **Apply Phase 14A migration** — `psql "$DIRECT_URL" -f drizzle/0012_portal_expansion.sql` then enable self-signup per facility in Settings → Family Portal.
-0. **Apply the qb_invoices index migration, then run the QB imports** — `psql "$DIRECT_URL" -f drizzle/0006_qb_invoices_dedup_date.sql`, then at `/master-admin/imports/quickbooks` run steps 1→4 with the four QB CSV exports (Customer Contact List, Invoice List by Date, Invoices and Received Payments, Transaction List by Customer). This fixes the inflated Total Outstanding on /billing.
-1. **iPhone smoke test of the 12Y followups** — verify on a physical device: bottom nav flush at viewport bottom, tour banner only shows during tours + clears the notch, debug button stays anchored when scrolling, mobile help center hides desktop-only tours. Stylist directory desktop scroll fix also needs trackpad verification.
-2. **Phase 12Z — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone with a small burgundy button. "Undo" actions fire a DELETE and optimistically revert UI.
+0. **Apply Wave 2+3 migration** — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
+0. **Create private Supabase bucket `resident-photos`** — in Supabase dashboard, create bucket, set to private, add `service_role_all` policy.
+0. **Generate VAPID keys and add to Vercel** — `npx web-push generate-vapid-keys` → set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:lisag@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (same as public key) in Vercel env.
+0. **Add daily digest cron to `vercel.json`** — `{ "path": "/api/cron/daily-digest", "schedule": "0 8 * * *" }`. Then enable the digest per facility in Settings → Notifications.
+1. **Phase 12ZZ — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone. "Undo" actions fire a DELETE and optimistically revert UI.
 2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
    - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
    - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel

@@ -308,7 +308,7 @@ Base: `inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold`
 
 ### Avatar (`src/components/ui/avatar.tsx`)
 
-Initials-only (no image upload). Renders up to 2 initials from the name.
+Renders up to 2 initials from the name, or an `<img>` when `photoUrl` is provided (Wave 2 — resident photos).
 
 ```tsx
 // With service color
@@ -317,7 +317,12 @@ Initials-only (no image upload). Renders up to 2 initials from the name.
 
 // Without color
 <Avatar name="Jane Doe" />
-// Renders: bg-teal-50 text-teal-700
+// Renders: auto-tinted via getAvatarColor()
+
+// With resident photo (Wave 2)
+<Avatar name="Jane Smith" photoUrl={signedUrl} />
+// Renders: <img src={signedUrl} className="object-cover rounded-full w-full h-full" />
+// signedUrl must be a 1-hour signed URL generated server-side — never expose the raw storage path
 ```
 
 | Size | Classes |
@@ -759,7 +764,78 @@ Used when a list is too long for a plain `<select>` and needs typeahead filterin
 
 ---
 
-## 8. Scripted Tour Components (Phase 13-Tutorial)
+## 8. Wave 2+3 UI Patterns
+
+### Changelog Widget (`src/components/changelog/changelog-widget.tsx`)
+
+Bell icon in the TopBar (desktop) and as a menu item on mobile. Compares `LATEST_CHANGELOG_DATE` (exported constant from `src/lib/changelog.ts`) against `profiles.changelog_last_read_at`.
+
+- **Unread dot:** burgundy `bg-[#8B2E4A] w-2 h-2 rounded-full` positioned `absolute -top-0.5 -right-0.5` on the bell icon. Shown when `changelog_last_read_at` is null or < `LATEST_CHANGELOG_DATE`.
+- **Open state:** desktop opens a fixed bottom-right card (`z-[86]`); mobile uses `<BottomSheet>`. Scrollable list of changelog entries from `CHANGELOG` array (each entry: `date`, `title`, `bullets: string[]`).
+- **Mark as read:** `POST /api/profile/changelog-seen` (stamps `changelog_last_read_at = now()`). Called on open. Returns `{ data: { ok: true } }`.
+- **Entry format:** date chip (`text-xs text-stone-400 font-mono`), title (`text-sm font-semibold text-stone-900`), bullet list (`text-xs text-stone-600 mt-1 space-y-0.5`). Newest entry first.
+
+### Keyboard Shortcuts (`src/components/shortcuts/keyboard-shortcuts.tsx`)
+
+Mounted in `(protected)/layout.tsx` for admin and facility_staff roles. Global `keydown` listener (document-level, skips when `e.target` is an `<input>`, `<textarea>`, or `[contenteditable]`).
+
+| Key | Action | Role gate |
+|-----|--------|-----------|
+| `N` | Open new booking modal (`router.push('/dashboard?new=1')`) | admin, facility_staff |
+| `?` | Toggle shortcuts overlay | all |
+
+**Shortcuts overlay:** centered modal, `z-[300]`. Lists all shortcuts as a `<table>` with two columns — key and description.
+
+**`<kbd>` styling:** `bg-stone-100 border border-stone-200 rounded px-1.5 py-0.5 text-xs font-mono text-stone-700`. Use this element (not inline code) wherever keyboard keys appear in UI text.
+
+### Long-Press Hook (`src/hooks/use-long-press.ts`)
+
+Mobile bulk-select trigger. Fires callback after 450ms hold without movement.
+
+```ts
+const bind = useLongPress(onLongPress, 450);
+// Spread onto any touchable element:
+<div {...bind}>...</div>
+```
+
+- Cancels on `touchmove` > 10px displacement (prevents scroll-to-select false positives).
+- Cancels on `touchend` before 450ms.
+- Returns `{ onTouchStart, onTouchEnd, onTouchMove }` — spread directly, never destructure individual handlers.
+- **No mouse equivalent** — long-press is mobile-only. Desktop bulk-select uses checkboxes.
+
+### Drag-to-Reorder Services (Wave 2)
+
+HTML5 drag API on the services page (`src/app/(protected)/services/`). Desktop-only — handles are `hidden md:block`.
+
+- **Drag handle:** `<GripVertical size={16} className="text-stone-400 cursor-grab hidden md:block" />` on the left of each service row and each category header.
+- **`draggable="true"`** on the row/card element. `onDragStart` stores the dragged item's id; `onDragOver` sets the drop target; `onDrop` reorders the local state array optimistically.
+- **Persistence:** `POST /api/services/reorder` (admin-only). Body: `{ action: 'services', orderedIds: string[] }` OR `{ action: 'categories', orderedCategories: string[] }`. Updates `services.sort_order` (integer) for service reordering; updates `facilities.service_category_order` (jsonb array) for category reordering.
+- **`sortServicesWithinCategory`** in `src/lib/service-sort.ts` reads `sort_order ASC NULLS LAST` first, then falls back to alphabetical name. This is the canonical sort for all service lists.
+- **Visual:** active drag target gets `ring-2 ring-[#8B2E4A]/30 rounded-xl` outline. Dragged element opacity: `0.5`.
+
+### Push Notification Opt-In (Wave 2)
+
+Toggle card in `/my-account` (stylist-only). Browser `Notification.permission` gates the UI.
+
+- **Opt-in flow:** "Enable push notifications" toggle → browser permission prompt → `navigator.serviceWorker.ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: NEXT_PUBLIC_VAPID_PUBLIC_KEY })` → `POST /api/push/subscribe` `{ endpoint, p256dh, auth }`.
+- **Opt-out flow:** "Disable" button → `POST /api/push/unsubscribe` `{ endpoint }` → deletes the `push_subscriptions` row.
+- **Permission denied state:** amber notice "Notifications are blocked in browser settings" — no toggle.
+- **`sendPushToUser(userId, payload)`** in `src/lib/push.ts` is a no-op when `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` env vars are unset (mirrors Twilio `TWILIO_ENABLED` pattern). Never throws.
+- **Required env vars:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (server), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (client, same value as `VAPID_PUBLIC_KEY`). Generate with `npx web-push generate-vapid-keys`.
+
+### Service Worker & Offline (Wave 2)
+
+`public/sw.js` — registered by `<SWRegister />` (`src/components/pwa/sw-register.tsx`) mounted in the root layout on mount via `useEffect`.
+
+- **Navigation requests (HTML):** network-first with offline fallback to `public/offline.html`.
+- **`/_next/static/**`:** cache-first (immutable hashed assets).
+- **NEVER cache `/api/*`:** pass-through only. Stale API responses would silently serve wrong data.
+- **Push event handler:** `self.addEventListener('push', ...)` shows a `self.registration.showNotification(title, { body, icon: '/icon-192.png', badge: '/favicon-32x32.png' })`.
+- **`<SWRegister />`** is a client component (`'use client'`) with a single `useEffect` calling `navigator.serviceWorker.register('/sw.js')`. Mounted in the root `layout.tsx` (outside the protected shell) so the SW is registered for all pages including the login page.
+
+---
+
+## 9. Scripted Tour Components (Phase 13-Tutorial)
 
 All components live under `src/components/help/scripted-tour/`. The `<ScriptedTourOverlay>` root is mounted in `(protected)/layout.tsx` via `createPortal(document.body)` alongside `<PeekDrawer>` and `<CommandPalette>`.
 
