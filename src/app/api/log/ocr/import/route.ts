@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities } from '@/db/schema'
+import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -157,7 +157,28 @@ export async function POST(request: Request) {
     const serviceMap = new Map<string, string>()
     const stylistMap = new Map<string, string>() // lowercased new-stylist name → id
 
+    // Build a human-readable scan label from the first sheet's date
+    const firstDate = parsed.data.sheets[0]?.date ?? new Date().toISOString().split('T')[0]
+    const scanLabel = `OCR Scan — ${new Date(firstDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+
+    let importBatchId: string | null = null
+
     await db.transaction(async (tx) => {
+      // Create the audit batch row first so bookings can reference it
+      const [batch] = await tx
+        .insert(importBatches)
+        .values({
+          facilityId,
+          uploadedBy: user.id,
+          fileName: scanLabel,
+          sourceType: 'ocr_scan',
+          rowCount: 0,
+          matchedCount: 0,
+          unresolvedCount: 0,
+        })
+        .returning({ id: importBatches.id })
+      importBatchId = batch.id
+
       for (const sheet of parsed.data.sheets) {
         // Resolve the stylist for this sheet: chosen id → in-memory map →
         // fuzzy DB match → create. Mirrors the resident/service resolution below.
@@ -307,15 +328,25 @@ export async function POST(request: Request) {
             status: 'completed',
             paymentStatus: entry.paymentStatus ?? 'unpaid',
             paymentMethod: entry.paymentMethod ?? null,
+            source: 'historical_import',
+            importBatchId: importBatchId ?? undefined,
           })
           createdBookings++
           entryIndex++
         }
       }
+
+      // Stamp final booking count on the batch
+      if (importBatchId) {
+        await tx.update(importBatches).set({ rowCount: createdBookings }).where(eq(importBatches.id, importBatchId))
+      }
     })
 
     return Response.json({
-      data: { created: { residents: createdResidents, services: createdServices, stylists: createdStylists, bookings: createdBookings } },
+      data: {
+        created: { residents: createdResidents, services: createdServices, stylists: createdStylists, bookings: createdBookings },
+        importBatchId,
+      },
     })
   } catch (err) {
     console.error('POST /api/log/ocr/import error:', err)
