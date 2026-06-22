@@ -18,10 +18,26 @@ import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { OcrImportModal } from './ocr-import-modal'
+import { LogSheetsModal } from '@/components/log/log-sheets-modal'
 import { HelpTip } from '@/components/ui/help-tip'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 import { EmailDayLogModal } from '@/components/exports/email-day-log-modal'
+
+function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
+  const v = label.trim().toLowerCase()
+  if (!v || v === 'unpaid (invoice)' || v === 'unpaid' || v === 'invoice') {
+    return { paymentStatus: 'unpaid', paymentMethod: null }
+  }
+  if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
+  return { paymentStatus: 'paid', paymentMethod: label.trim() || null }
+}
+
+function paymentComboLabel(paymentStatus: string, paymentMethod: string | null | undefined): string {
+  if (paymentStatus === 'unpaid') return 'Unpaid (Invoice)'
+  if (paymentStatus === 'waived') return 'Waived'
+  return paymentMethod || 'Paid'
+}
 
 interface LogBooking {
   id: string
@@ -43,6 +59,7 @@ interface LogBooking {
   rawServiceName?: string | null
   importBatch?: { fileName: string } | null
   tipCents: number | null
+  paymentMethod?: string | null
   resident: Resident
   stylist: Stylist
   service: Service | null
@@ -170,47 +187,129 @@ export function LogClient({
   })
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
 
-  // Inline booking price/notes editing
+  // Inline booking editing
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null)
   const [editPrice, setEditPrice] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const [editTipCents, setEditTipCents] = useState('')
+  const [editPaymentCombo, setEditPaymentCombo] = useState('Unpaid (Invoice)')
+  const [editDate, setEditDate] = useState('')
+  const [editResidentId, setEditResidentId] = useState<string | null>(null)
+  const [editResidentName, setEditResidentName] = useState('')
+  const [editServiceId, setEditServiceId] = useState<string | null>(null)
+  const [editServiceName, setEditServiceName] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const startEditBooking = (booking: LogBooking) => {
     setEditingBookingId(booking.id)
     setEditPrice(((booking.priceCents ?? booking.service?.priceCents ?? 0) / 100).toFixed(2))
     setEditNotes(booking.notes ?? '')
+    setEditTipCents(booking.tipCents != null ? (booking.tipCents / 100).toFixed(2) : '')
+    setEditPaymentCombo(paymentComboLabel(booking.paymentStatus, booking.paymentMethod ?? null))
+    const p = getLocalParts(new Date(booking.startTime), facilityTimezone)
+    setEditDate(`${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`)
+    setEditResidentId(booking.resident.id)
+    setEditResidentName(booking.resident.name)
+    setEditServiceId(booking.service?.id ?? null)
+    setEditServiceName(booking.service?.name ?? booking.serviceNames?.[0] ?? booking.rawServiceName ?? '')
   }
 
   const cancelEditBooking = () => {
     setEditingBookingId(null)
     setEditPrice('')
     setEditNotes('')
+    setEditTipCents('')
+    setEditPaymentCombo('Unpaid (Invoice)')
+    setEditDate('')
+    setEditResidentId(null)
+    setEditResidentName('')
+    setEditServiceId(null)
+    setEditServiceName('')
   }
 
   const saveEditBooking = async () => {
     if (!editingBookingId) return
+    const booking = bookings.find((b) => b.id === editingBookingId)
     setSavingEdit(true)
     try {
       const priceCents = Math.round(parseFloat(editPrice) * 100)
       if (isNaN(priceCents) || priceCents < 0) return
+      const tipFloat = parseFloat(editTipCents)
+      const tipCents = editTipCents.trim() && !isNaN(tipFloat) ? Math.round(tipFloat * 100) : null
+
+      const { paymentStatus, paymentMethod } = parsePaymentCombo(editPaymentCombo)
+      const body: Record<string, unknown> = {
+        priceCents,
+        notes: editNotes || null,
+        tipCents,
+        paymentStatus,
+        paymentMethod,
+      }
+
+      // Date change: preserve the original time-of-day, just shift the date
+      if (booking && editDate) {
+        const origParts = getLocalParts(new Date(booking.startTime), facilityTimezone)
+        const origDateStr = `${origParts.year}-${String(origParts.month).padStart(2, '0')}-${String(origParts.day).padStart(2, '0')}`
+        if (editDate !== origDateStr) {
+          const timeStr = `${String(origParts.hours).padStart(2, '0')}:${String(origParts.minutes).padStart(2, '0')}`
+          body.startTime = fromDateTimeLocalInTz(`${editDate}T${timeStr}`, facilityTimezone).toISOString()
+        }
+      }
+
+      // Resident change
+      if (editResidentId && editResidentId !== booking?.resident.id) {
+        body.residentId = editResidentId
+      }
+
+      // Service change
+      if (editServiceId && editServiceId !== booking?.service?.id) {
+        body.serviceId = editServiceId
+      }
+
       const res = await fetch(`/api/bookings/${editingBookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceCents, notes: editNotes || null }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         const json = await res.json()
-        setBookings((prev) => prev.map((b) =>
-          b.id === editingBookingId
-            ? { ...b, priceCents: json.data.priceCents, notes: json.data.notes }
-            : b
-        ))
+        if (body.startTime) {
+          // Booking moved to a different date — remove from this day's view
+          setBookings((prev) => prev.filter((b) => b.id !== editingBookingId))
+          toast('Updated — booking moved to new date', 'success')
+        } else {
+          setBookings((prev) => prev.map((b) =>
+            b.id === editingBookingId ? { ...b, ...json.data } : b
+          ))
+          toast('Updated', 'success')
+        }
         setEditingBookingId(null)
-        toast('Updated', 'success')
+      } else {
+        const json = await res.json()
+        toast(typeof json.error === 'string' ? json.error : 'Update failed', 'error')
       }
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  const deleteImportedBooking = async (bookingId: string) => {
+    setDeletingId(bookingId)
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setBookings((prev) => prev.filter((b) => b.id !== bookingId))
+        setConfirmDeleteId(null)
+        setEditingBookingId(null)
+        toast('Booking removed', 'success')
+      } else {
+        const json = await res.json()
+        toast(typeof json.error === 'string' ? json.error : 'Delete failed', 'error')
+      }
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -235,6 +334,7 @@ export function LogClient({
 
   // OCR import modal
   const [ocrOpen, setOcrOpen] = useState(false)
+  const [sheetsOpen, setSheetsOpen] = useState(false)
 
   const { toast } = useToast()
   const today = new Date().toISOString().split('T')[0]
@@ -367,7 +467,13 @@ export function LogClient({
           return [...filtered, json.data]
         })
         setConfirmFinalizeId(null)
-        toast('Day finalized', 'success')
+        const finalizedEntry = json.data
+        toast('Day finalized', 'success', {
+          action: {
+            label: 'Undo',
+            onClick: () => handleUnfinalize(finalizedEntry.stylistId),
+          },
+        })
       }
     } finally {
       setFinalizingId(null)
@@ -567,6 +673,24 @@ export function LogClient({
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
+        {(role === 'bookkeeper' || role === 'admin' || role === 'super_admin') && (
+          <button
+            type="button"
+            onClick={() => setSheetsOpen(true)}
+            title="Log sheet history"
+            aria-label="Log sheet history"
+            className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span className="hidden md:inline">Sheets</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowEmailModal(true)}
@@ -1099,17 +1223,103 @@ export function LogClient({
 
                         {isEditing ? (
                           <div className="mt-1.5 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-stone-500">$</span>
+                            {/* Date */}
+                            <div>
+                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Service Date</label>
                               <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={editPrice}
-                                onChange={(e) => setEditPrice(e.target.value)}
-                                className="w-24 bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                type="date"
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                               />
                             </div>
+                            {/* Resident */}
+                            <div>
+                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Resident</label>
+                              <input
+                                type="text"
+                                list={`edit-residents-${booking.id}`}
+                                value={editResidentName}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  const matched = residents.find(r => r.name.toLowerCase() === val.toLowerCase())
+                                  setEditResidentName(val)
+                                  setEditResidentId(matched?.id ?? null)
+                                }}
+                                placeholder="Resident name…"
+                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                              />
+                              <datalist id={`edit-residents-${booking.id}`}>
+                                {residents.map(r => <option key={r.id} value={r.name} />)}
+                              </datalist>
+                            </div>
+                            {/* Service */}
+                            <div>
+                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Service</label>
+                              <input
+                                type="text"
+                                list={`edit-services-${booking.id}`}
+                                value={editServiceName}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  const matched = services.find(s => s.name.toLowerCase() === val.toLowerCase())
+                                  setEditServiceName(val)
+                                  setEditServiceId(matched?.id ?? null)
+                                }}
+                                placeholder="Service name…"
+                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                              />
+                              <datalist id={`edit-services-${booking.id}`}>
+                                {services.map(s => <option key={s.id} value={s.name} />)}
+                              </datalist>
+                            </div>
+                            {/* Price + Tips row */}
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5 flex-1">
+                                <span className="text-xs text-stone-500 shrink-0">Price $</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editPrice}
+                                  onChange={(e) => setEditPrice(e.target.value)}
+                                  className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-1">
+                                <span className="text-xs text-stone-500 shrink-0">Tip $</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={editTipCents}
+                                  onChange={(e) => setEditTipCents(e.target.value)}
+                                  className="flex-1 bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                />
+                              </div>
+                            </div>
+                            {/* Payment Type */}
+                            <div>
+                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Payment Type</label>
+                              <input
+                                type="text"
+                                list="log-payment-type-options"
+                                value={editPaymentCombo}
+                                onChange={(e) => setEditPaymentCombo(e.target.value)}
+                                placeholder="Unpaid (Invoice)"
+                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                              />
+                              <datalist id="log-payment-type-options">
+                                <option value="Unpaid (Invoice)" />
+                                <option value="Cash" />
+                                <option value="Check" />
+                                <option value="Card" />
+                                <option value="ACH" />
+                                <option value="Waived" />
+                              </datalist>
+                            </div>
+                            {/* Notes */}
                             <textarea
                               value={editNotes}
                               onChange={(e) => setEditNotes(e.target.value)}
@@ -1117,7 +1327,7 @@ export function LogClient({
                               rows={2}
                               className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 resize-none"
                             />
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 onClick={saveEditBooking}
                                 disabled={savingEdit}
@@ -1131,6 +1341,34 @@ export function LogClient({
                               >
                                 Cancel
                               </button>
+                              {/* Delete for imported bookings */}
+                              {booking.source === 'historical_import' && (
+                                confirmDeleteId === booking.id ? (
+                                  <div className="flex items-center gap-1.5 ml-auto">
+                                    <span className="text-xs text-red-600">Remove this booking?</span>
+                                    <button
+                                      onClick={() => deleteImportedBooking(booking.id)}
+                                      disabled={!!deletingId}
+                                      className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                                    >
+                                      {deletingId === booking.id ? '…' : 'Yes'}
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteId(null)}
+                                      className="text-xs font-medium text-stone-500 hover:text-stone-700 px-2 py-1.5"
+                                    >
+                                      No
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmDeleteId(booking.id)}
+                                    className="ml-auto text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1.5"
+                                  >
+                                    Remove
+                                  </button>
+                                )
+                              )}
                             </div>
                           </div>
                         ) : (
@@ -1388,6 +1626,13 @@ export function LogClient({
           weekday: 'long', month: 'long', day: 'numeric',
         })}
         facilityName={facilityName}
+      />
+
+      <LogSheetsModal
+        open={sheetsOpen}
+        onClose={() => setSheetsOpen(false)}
+        role={role}
+        isMasterAdmin={false}
       />
     </div>
     </ErrorBoundary>

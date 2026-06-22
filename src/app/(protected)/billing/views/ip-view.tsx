@@ -16,6 +16,7 @@ import {
 import { ExpandableSection } from './expandable-section'
 import { transitionBase } from '@/lib/animations'
 import { useToast } from '@/components/ui/toast'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { Avatar } from '@/components/ui/avatar'
 import { openPeek } from '@/lib/peek-drawer'
 
@@ -38,6 +39,7 @@ export function IPView({
   defaultOpen?: boolean
 }) {
   const { toast } = useToast()
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
   const [sendAllLoading, setSendAllLoading] = useState(false)
   const [rowSending, setRowSending] = useState<Record<string, boolean>>({})
   const [rowWarning, setRowWarning] = useState<{
@@ -127,9 +129,11 @@ export function IPView({
 
   async function handleSendAll() {
     if (
-      !confirm(
-        `Send billing reminders to ${eligibleCount} resident${eligibleCount === 1 ? '' : 's'} with outstanding balances?`
-      )
+      !(await confirmSend({
+        channel: 'email',
+        recipient: `${eligibleCount} resident${eligibleCount === 1 ? '' : 's'} with a balance`,
+        summary: 'Billing statements to all residents with an outstanding balance',
+      }))
     )
       return
     setSendAllLoading(true)
@@ -159,7 +163,24 @@ export function IPView({
     }
   }
 
-  async function handleResidentSend(residentId: string, poaEmail: string, force = false) {
+  async function handleResidentSend(
+    residentId: string,
+    poaEmail: string,
+    force = false,
+    residentName = '',
+    lastSentAt: string | null = null,
+  ) {
+    if (!force) {
+      const ok = await confirmSend({
+        channel: 'email',
+        recipient: poaEmail,
+        summary: `Statement for ${residentName || 'this resident'}`,
+        warning: lastSentAt ? `Last sent ${formatShortDate(lastSentAt.slice(0, 10))}` : undefined,
+      })
+      if (!ok) return
+      // Operator confirmed with the last-sent date in view — skip the server dedup round-trip.
+      return handleResidentSend(residentId, poaEmail, true, residentName, lastSentAt)
+    }
     setRowSending((prev) => ({ ...prev, [residentId]: true }))
     setRowWarning(null)
     try {
@@ -193,6 +214,7 @@ export function IPView({
 
   return (
     <>
+      {sendConfirmDialog}
       {rowWarning && (
         <SendDedupModal
           lastSentAt={rowWarning.lastSentAt}
@@ -287,13 +309,13 @@ export function IPView({
                   <div className="md:col-span-2 text-[11.5px] text-stone-500 leading-snug">
                     {formatInvoiceDate(t.lastServiceDate)}
                   </div>
-                  <div className="md:col-span-1 text-sm font-semibold text-stone-700 md:text-right">
+                  <div className="md:col-span-1 text-sm font-semibold text-stone-700 md:text-right tabular-nums">
                     {formatDollars(t.billedCents)}
                   </div>
-                  <div className="md:col-span-1 text-sm text-stone-600 md:text-right">
+                  <div className="md:col-span-1 text-sm text-stone-600 md:text-right tabular-nums">
                     {formatDollars(t.paidCents)}
                   </div>
-                  <div className={outstandingClass}>{formatDollars(t.outstandingCents)}</div>
+                  <div className={`tabular-nums ${outstandingClass}`}>{formatDollars(t.outstandingCents)}</div>
                   <div className="md:col-span-2 md:text-right flex md:justify-end items-center gap-2">
                     <div className="text-xs text-stone-500">
                       {t.lastSentAt ? (
@@ -311,7 +333,7 @@ export function IPView({
                       <button
                         type="button"
                         disabled={isSending}
-                        onClick={() => handleResidentSend(r.id, r.poaEmail!, false)}
+                        onClick={() => handleResidentSend(r.id, r.poaEmail!, false, r.name, t.lastSentAt)}
                         className="inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 ease-out active:scale-[0.97]"
                       >
                         {isSending ? '…' : t.lastSentAt ? 'Resend' : 'Send'}

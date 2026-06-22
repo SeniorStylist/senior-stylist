@@ -6,7 +6,7 @@ import { count, eq, isNull, and } from 'drizzle-orm'
 import { ImportsHubClient, type SourceCardData } from './imports-client'
 import type { BatchRow } from './batch-history'
 
-const SOURCE_DEFS: { sourceType: string; title: string; description: string; format: 'XLSX' | 'CSV'; href: string; category: string }[] = [
+const SOURCE_DEFS: { sourceType: string; title: string; description: string; format: 'XLSX' | 'CSV' | 'PDF'; href: string; category: string }[] = [
   {
     sourceType: 'service_log',
     title: 'Service Log Import',
@@ -78,6 +78,14 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
     format: 'CSV',
     href: '/master-admin/import-facilities-csv',
     category: 'Facility Data',
+  },
+  {
+    sourceType: 'price_sheet',
+    title: 'Bulk Price Sheets',
+    description: 'Drop many facility price sheets at once (PDF, image, .docx, .xlsx, .csv). Auto-routes each to its facility, then updates changed prices and adds new services — including per-unit "each" pricing.',
+    format: 'PDF',
+    href: '/master-admin/imports/price-sheets',
+    category: 'Service History',
   },
 ]
 

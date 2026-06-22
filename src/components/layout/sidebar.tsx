@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -63,6 +63,21 @@ const navGroups: { label: string; items: NavItem[] }[] = [
             <line x1="16" y1="13" x2="8" y2="13"/>
             <line x1="16" y1="17" x2="8" y2="17"/>
             <polyline points="10 9 9 9 8 9"/>
+          </svg>
+        ),
+      },
+      {
+        href: '/signup-sheet',
+        label: 'Sign-Up Sheet',
+        roles: ['admin', 'facility_staff'],
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+            <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+            <line x1="12" y1="11" x2="16" y2="11"/>
+            <line x1="12" y1="16" x2="16" y2="16"/>
+            <line x1="8" y1="11" x2="8.01" y2="11"/>
+            <line x1="8" y1="16" x2="8.01" y2="16"/>
           </svg>
         ),
       },
@@ -227,6 +242,20 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
     localStorage.setItem('facilitySortOrder', order)
   }
 
+  // When the switcher opens, center the currently-selected facility in the list
+  // instead of always showing the top — so reopening on F197 lands you near F197.
+  const switcherListRef = useRef<HTMLDivElement>(null)
+  const selectedFacilityRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!switcherOpen) return
+    const container = switcherListRef.current
+    const el = selectedFacilityRef.current
+    if (!container || !el) return
+    const cr = container.getBoundingClientRect()
+    const er = el.getBoundingClientRect()
+    container.scrollTop += (er.top - cr.top) - (container.clientHeight / 2 - el.clientHeight / 2)
+  }, [switcherOpen])
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -340,12 +369,13 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.9)' }}
                   />
                 </div>
-              <div className="max-h-[60vh] overflow-y-auto">
+              <div ref={switcherListRef} className="max-h-[60vh] overflow-y-auto">
                   {filteredSwitcherFacilities.length === 0 ? (
                     <p className="px-3 py-3 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>No facilities found</p>
                   ) : filteredSwitcherFacilities.map((f) => (
                     <button
                       key={f.id}
+                      ref={f.name === facilityName ? selectedFacilityRef : undefined}
                       onClick={() => handleSelectFacility(f.id)}
                       className="w-full text-left px-3 py-2 text-xs transition-colors"
                       style={{ color: f.name === facilityName ? '#C4687A' : 'rgba(255,255,255,0.7)' }}
@@ -436,6 +466,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     item.href === '/payroll' ? 'nav-payroll' :
                     item.href === '/stylists' ? 'nav-stylists' :
                     item.href === '/my-account' ? 'nav-my-account' :
+                    item.href === '/signup-sheet' ? 'nav-signup-sheet' :
                     undefined
                   return (
                     <Link

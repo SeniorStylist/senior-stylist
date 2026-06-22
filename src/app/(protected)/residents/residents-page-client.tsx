@@ -15,6 +15,7 @@ import type { Resident } from '@/types'
 import { HelpTip } from '@/components/ui/help-tip'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { useLongPress } from '@/hooks/use-long-press'
 import { MergeDuplicatesModal } from './merge-duplicates-modal'
 
 interface ResidentWithStats extends Resident {
@@ -39,6 +40,8 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
   const { toast } = useToast()
   const [residents, setResidents] = useState(initialResidents)
   const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionMode = selectedIds.size > 0
 
   const { refreshing: pullRefreshing, pullProgress, handlers: pullHandlers } = usePullToRefresh(
     () => router.refresh()
@@ -128,7 +131,10 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
         setRoomNumber('')
         setPhone('')
         setShowAdd(false)
-        toast('Resident added', 'success')
+        const newId = json.data.id
+        toast('Resident added', 'success', {
+          action: { label: 'View', onClick: () => router.push(`/residents/${newId}`) },
+        })
       } else {
         setAddError(json.error ?? 'Failed to add resident')
       }
@@ -383,46 +389,25 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                   )
                 }
                 nodes.push(
-                  <button
+                  <ResidentMobileRow
                     key={resident.id}
-                    onClick={() => router.push(`/residents/${resident.id}`)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-stone-100 last:border-0 hover:bg-[#F9EFF2] active:bg-[#F9EFF2] transition-colors duration-100 text-left"
-                  >
-                    <Avatar name={resident.name} size="md" className="!w-10 !h-10" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[15px] font-semibold text-stone-900 leading-snug break-words">
-                        {resident.name}
-                      </div>
-                      <div className="text-[12px] text-stone-500 leading-snug mt-0.5">
-                        {subtitleParts.join(' · ')}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {resident.lastVisit ? (
-                        <span className="text-[12px] text-stone-400">
-                          {new Date(resident.lastVisit).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-stone-100 text-stone-500">
-                          New
-                        </span>
-                      )}
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-stone-300"
-                      >
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </div>
-                  </button>
+                    resident={resident}
+                    subtitleParts={subtitleParts}
+                    isSelected={selectedIds.has(resident.id)}
+                    selectionMode={selectionMode}
+                    onClick={() => {
+                      if (selectionMode) {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          next.has(resident.id) ? next.delete(resident.id) : next.add(resident.id)
+                          return next
+                        })
+                      } else {
+                        router.push(`/residents/${resident.id}`)
+                      }
+                    }}
+                    onLongPress={() => setSelectedIds((prev) => { const next = new Set(prev); next.add(resident.id); return next })}
+                  />
                 )
                 return nodes
               })
@@ -438,6 +423,94 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
       facilityId={facilityId}
       onCountChange={handleDupeCountChange}
     />
+    {/* Mobile bulk-selection bar — appears when items are long-pressed */}
+    {selectionMode && (
+      <div
+        className="fixed md:hidden left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl z-40 animate-in fade-in slide-in-from-bottom-3 duration-200"
+        style={{ backgroundColor: '#1C0A12', minWidth: 'max-content', bottom: 'var(--app-floating-bottom)' }}
+      >
+        <span className="text-sm font-semibold text-white pr-3 border-r border-white/20">
+          {selectedIds.size} selected
+        </span>
+        <button
+          onClick={() => setSelectedIds(new Set())}
+          className="text-xs font-medium text-white/80 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+        >
+          Done
+        </button>
+      </div>
+    )}
     </ErrorBoundary>
+  )
+}
+
+function ResidentMobileRow({
+  resident,
+  subtitleParts,
+  isSelected,
+  selectionMode,
+  onClick,
+  onLongPress,
+}: {
+  resident: { id: string; name: string; lastVisit: string | null }
+  subtitleParts: string[]
+  isSelected: boolean
+  selectionMode: boolean
+  onClick: () => void
+  onLongPress: () => void
+}) {
+  const lp = useLongPress(onLongPress)
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+      className={cn(
+        'w-full flex items-center gap-3 px-4 py-3.5 border-b border-stone-100 last:border-0 transition-colors duration-100 text-left cursor-pointer',
+        isSelected ? 'bg-rose-50' : 'hover:bg-[#F9EFF2] active:bg-[#F9EFF2]'
+      )}
+      {...lp}
+    >
+      {selectionMode && (
+        <div className="shrink-0">
+          <div className={cn(
+            'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors',
+            isSelected ? 'bg-[#8B2E4A] border-[#8B2E4A]' : 'border-stone-300'
+          )}>
+            {isSelected && (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+      <Avatar name={resident.name} size="md" className="!w-10 !h-10" />
+      <div className="flex-1 min-w-0">
+        <div className="text-[15px] font-semibold text-stone-900 leading-snug break-words">
+          {resident.name}
+        </div>
+        <div className="text-[12px] text-stone-500 leading-snug mt-0.5">
+          {subtitleParts.join(' · ')}
+        </div>
+      </div>
+      {!selectionMode && (
+        <div className="flex items-center gap-2 shrink-0">
+          {resident.lastVisit ? (
+            <span className="text-[12px] text-stone-400">
+              {new Date(resident.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-stone-100 text-stone-500">
+              New
+            </span>
+          )}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-stone-300">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </div>
+      )}
+    </div>
   )
 }

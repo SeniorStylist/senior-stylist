@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities } from '@/db/schema'
+import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches } from '@/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -38,18 +38,33 @@ const importSchema = z.object({
         stylistId: z.string().uuid().nullable(),
         stylistName: z.string().max(200).optional().default(''),
         entries: z.array(
-          z.object({
-            include: z.boolean(),
-            residentId: z.string().uuid().nullable(),
-            residentName: z.string().min(1).max(200),
-            roomNumber: z.string().max(50).nullable(),
-            serviceId: z.string().uuid().nullable(),
-            serviceName: z.string().min(1).max(200),
-            additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
-            additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
-            priceCents: z.number().int().min(0).max(10_000_000).nullable(),
-            notes: z.string().max(2000).nullable(),
-          })
+          z
+            .object({
+              include: z.boolean(),
+              residentId: z.string().uuid().nullable(),
+              // Excluded entries may have empty names (OCR couldn't read them) — only validate when included
+              residentName: z.string().max(200),
+              roomNumber: z.string().max(50).nullable(),
+              serviceId: z.string().uuid().nullable(),
+              // serviceName is optional when serviceId is provided; only required to be non-empty
+              // when the entry is included AND no existing service was matched (new service to create)
+              serviceName: z.string().max(200),
+              additionalServiceIds: z.array(z.string().uuid().nullable()).max(20).optional().default([]),
+              additionalServiceNames: z.array(z.string().max(200)).max(20).optional().default([]),
+              priceCents: z.number().int().min(0).max(10_000_000).nullable(),
+              tipCents: z.number().int().min(0).max(10_000_000).nullable().optional().default(null),
+              paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional().default('unpaid'),
+              paymentMethod: z.string().max(100).nullable().optional().default(null),
+              notes: z.string().max(2000).nullable(),
+            })
+            .refine((e) => !e.include || e.residentName.trim().length > 0, {
+              message: 'Each included entry needs a resident name',
+              path: ['residentName'],
+            })
+            .refine((e) => !e.include || !!e.serviceId || e.serviceName.trim().length > 0, {
+              message: 'Each included entry needs a service — type a name to create one, or pick from the list',
+              path: ['serviceName'],
+            })
         ),
       })
       .refine((s) => !!s.stylistId || s.stylistName.trim().length > 0, {
@@ -80,7 +95,15 @@ export async function POST(request: Request) {
     const body = await request.json()
     const parsed = importSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      // Return a readable string, never the flatten() object — the client renders
+      // `error` directly, and an object child crashes React (minified error #31).
+      const first = parsed.error.issues[0]
+      const where = first?.path.filter((p) => typeof p === 'string').join(' › ') || 'a row'
+      const msg = first?.message ?? 'Some checked rows are missing required info'
+      return Response.json(
+        { error: `Couldn't import — ${msg} (${where}).` },
+        { status: 422 }
+      )
     }
 
     let createdResidents = 0
@@ -134,7 +157,28 @@ export async function POST(request: Request) {
     const serviceMap = new Map<string, string>()
     const stylistMap = new Map<string, string>() // lowercased new-stylist name → id
 
+    // Build a human-readable scan label from the first sheet's date
+    const firstDate = parsed.data.sheets[0]?.date ?? new Date().toISOString().split('T')[0]
+    const scanLabel = `OCR Scan — ${new Date(firstDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+
+    let importBatchId: string | null = null
+
     await db.transaction(async (tx) => {
+      // Create the audit batch row first so bookings can reference it
+      const [batch] = await tx
+        .insert(importBatches)
+        .values({
+          facilityId,
+          uploadedBy: user.id,
+          fileName: scanLabel,
+          sourceType: 'ocr_scan',
+          rowCount: 0,
+          matchedCount: 0,
+          unresolvedCount: 0,
+        })
+        .returning({ id: importBatches.id })
+      importBatchId = batch.id
+
       for (const sheet of parsed.data.sheets) {
         // Resolve the stylist for this sheet: chosen id → in-memory map →
         // fuzzy DB match → create. Mirrors the resident/service resolution below.
@@ -212,13 +256,14 @@ export async function POST(request: Request) {
           // Resolve or create a service by name (shared helper used for primary + additionals)
           const resolveServiceId = async (
             providedId: string | null,
-            name: string
+            rawName: string
           ): Promise<{ id: string; name: string }> => {
             if (providedId) {
               const existing = existingServices.find((s) => s.id === providedId)
-              return { id: providedId, name: existing?.name ?? name }
+              return { id: providedId, name: existing?.name ?? rawName.trim() }
             }
-            const key = name.toLowerCase().trim()
+            const name = rawName.trim()
+            const key = name.toLowerCase()
             if (serviceMap.has(key)) {
               const id = serviceMap.get(key)!
               const existing = existingServices.find((s) => s.id === id)
@@ -278,18 +323,30 @@ export async function POST(request: Request) {
             startTime,
             endTime,
             priceCents: entry.priceCents ?? null,
+            tipCents: entry.tipCents ?? null,
             notes: entry.notes ?? null,
             status: 'completed',
-            paymentStatus: 'unpaid',
+            paymentStatus: entry.paymentStatus ?? 'unpaid',
+            paymentMethod: entry.paymentMethod ?? null,
+            source: 'historical_import',
+            importBatchId: importBatchId ?? undefined,
           })
           createdBookings++
           entryIndex++
         }
       }
+
+      // Stamp final booking count on the batch
+      if (importBatchId) {
+        await tx.update(importBatches).set({ rowCount: createdBookings }).where(eq(importBatches.id, importBatchId))
+      }
     })
 
     return Response.json({
-      data: { created: { residents: createdResidents, services: createdServices, stylists: createdStylists, bookings: createdBookings } },
+      data: {
+        created: { residents: createdResidents, services: createdServices, stylists: createdStylists, bookings: createdBookings },
+        importBatchId,
+      },
     })
   } catch (err) {
     console.error('POST /api/log/ocr/import error:', err)

@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      const i = parsed.error.issues[0]
+      return Response.json({ error: `Invalid data — ${i?.message ?? 'check your input'}` }, { status: 422 })
     }
 
     const { name, address, phone, timezone } = parsed.data
@@ -90,17 +91,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for duplicate name (case-insensitive) among active non-demo facilities only
+    // Check for duplicate name (case-insensitive) among non-demo facilities
     if (!isDemo) {
       const existing = await db.query.facilities.findFirst({
         where: (t, { and, eq }) => and(
           sql`lower(${t.name}) = lower(${name})`,
-          eq(t.active, true),
           eq(t.isDemo, false),
         ),
+        columns: { id: true, active: true },
       })
       if (existing) {
-        return Response.json({ error: 'A facility with this name already exists' }, { status: 409 })
+        const msg = existing.active
+          ? 'A facility with this name already exists'
+          : 'A deactivated facility with this name already exists — contact support to reactivate it or use a slightly different name'
+        return Response.json({ error: msg }, { status: 409 })
       }
     }
 

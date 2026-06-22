@@ -1,9 +1,14 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { cn, formatCents } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { fuzzyBestMatch, fuzzyScore } from '@/lib/fuzzy'
+import { isPerUnitService, makePerUnitTiers } from '@/lib/pricing'
+import { parsePriceSheetFile, parsePriceToCents } from '@/lib/services-import-parse'
+
+const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,234 +40,84 @@ interface DuplicateRow {
   resolution: 'replace' | 'skip'
 }
 
+type Mode = 'add' | 'update'
+
+// An existing service, loaded in "Update prices" mode so scanned rows can be
+// matched against the facility's real services and have their prices overwritten.
+interface ExistingService {
+  id: string
+  name: string
+  priceCents: number
+  pricingType: string | null
+  addonAmountCents: number | null
+}
+
+// One scanned row resolved against the existing services for a price update.
+interface UpdateRow {
+  rowId: number
+  scannedName: string
+  newCents: number          // effective new amount (add-on amount for add-ons, else price)
+  matchId: string | null    // existing service to overwrite (user-overridable)
+  score: number             // fuzzy-match confidence
+  apply: boolean
+}
+
+// The dollar amount that represents a service's "price" regardless of type —
+// add-ons carry it in addonAmountCents, everything else in priceCents.
+const scannedAmount = (p: ParsedService) =>
+  p.pricingType === 'addon' ? (p.addonAmountCents ?? 0) : p.priceCents
+const existingAmount = (s: ExistingService) =>
+  s.pricingType === 'addon' ? (s.addonAmountCents ?? 0) : s.priceCents
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COLORS = ['#0D7377', '#E57373', '#FFB74D', '#81C784', '#64B5F6', '#BA68C8', '#4DB6AC', '#FF8A65']
 const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
 
-// ─── Column detection ─────────────────────────────────────────────────────────
-
-function normalize(s: string) {
-  return s.toLowerCase().replace(/[\s_\-#.]/g, '')
+// ─── Per-row validation flag ──────────────────────────────────────────────────
+// Single source of truth for a row's `error`. An add-on row is judged on its
+// add-on amount; tiered / multi-option rows keep their real prices in their
+// arrays, so a $0 base price is expected and never flagged.
+function rowError(
+  name: string,
+  pricingType: string | undefined,
+  priceCents: number,
+  addonAmountCents: number | null,
+): ParsedService['error'] {
+  if (!name.trim()) return 'Missing name'
+  if (pricingType === 'tiered' || pricingType === 'multi_option') return undefined
+  const amount = pricingType === 'addon' ? (addonAmountCents ?? 0) : priceCents
+  return amount === 0 ? 'Price is $0' : undefined
 }
 
-const NAME_HEADERS = new Set([
-  'name', 'service', 'servicename', 'description', 'item',
-])
-const PRICE_HEADERS = new Set([
-  'price', 'cost', 'amount', 'rate', 'charge', 'fee',
-])
-const DURATION_HEADERS = new Set([
-  'duration', 'time', 'minutes', 'mins', 'min', 'length',
-])
-
-function detectColumns(headers: string[]): { nameIdx: number; priceIdx: number; durationIdx: number } {
-  let nameIdx = -1
-  let priceIdx = -1
-  let durationIdx = -1
-  headers.forEach((h, i) => {
-    const n = normalize(h)
-    if (nameIdx === -1 && NAME_HEADERS.has(n)) nameIdx = i
-    if (priceIdx === -1 && PRICE_HEADERS.has(n)) priceIdx = i
-    if (durationIdx === -1 && DURATION_HEADERS.has(n)) durationIdx = i
-  })
-  // Fallback: first column is name
-  if (nameIdx === -1) nameIdx = 0
-  return { nameIdx, priceIdx, durationIdx }
-}
-
-// ─── Price parsing ────────────────────────────────────────────────────────────
-
-function parsePriceToCents(value: string | number): number {
-  if (typeof value === 'number') return Math.round(value * 100)
-  const cleaned = String(value).replace(/[^0-9.]/g, '')
-  const num = parseFloat(cleaned)
-  if (isNaN(num)) return 0
-  return Math.round(num * 100)
-}
-
-// ─── CSV parser (papaparse) ──────────────────────────────────────────────────
-
-async function parseCSV(file: File): Promise<string[][]> {
-  const Papa = (await import('papaparse')).default
-  return new Promise((resolve, reject) => {
-    Papa.parse<string[]>(file, {
-      skipEmptyLines: true,
-      complete: (result) => resolve(result.data as string[][]),
-      error: reject,
-    })
-  })
-}
-
-// ─── Excel parser (xlsx) ─────────────────────────────────────────────────────
-
-async function parseExcel(file: File): Promise<string[][]> {
-  const XLSX = await import('xlsx')
-  const buffer = await file.arrayBuffer()
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-  return rows.filter((r) => r.some((c) => String(c).trim() !== ''))
-}
-
-// ─── Spreadsheet → grid text (for the AI parser) ─────────────────────────────
-// Reads EVERY sheet so nothing is missed, and preserves the cell layout as a
-// tab-separated grid the AI can read like a PDF.
-
-function rowsToTsv(rows: string[][]): string {
-  return rows
-    .map((r) => r.map((c) => String(c ?? '').trim()).join('\t'))
-    .join('\n')
-}
-
-async function spreadsheetToGridText(file: File): Promise<string> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'csv' || ext === 'txt') {
-    return rowsToTsv(await parseCSV(file))
-  }
-  const XLSX = await import('xlsx')
-  const buffer = await file.arrayBuffer()
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const parts: string[] = []
-  for (const name of wb.SheetNames) {
-    const ws = wb.Sheets[name]
-    const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-    const nonEmpty = rows.filter((r) => r.some((c) => String(c).trim() !== ''))
-    if (nonEmpty.length === 0) continue
-    if (wb.SheetNames.length > 1) parts.push(`### Sheet: ${name}`)
-    parts.push(rowsToTsv(nonEmpty))
-  }
-  return parts.join('\n\n')
-}
-
-// ─── AI parser (server-side, shared by PDF + spreadsheet) ────────────────────
-
-async function postToAIParser(formData: FormData): Promise<ParsedService[]> {
-  const res = await fetch('/api/services/parse-pdf', {
-    method: 'POST',
-    body: formData,
-  })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? 'Failed to parse price sheet')
-  const rows: Array<{
-    name: string; priceCents: number; durationMinutes: number; category: string; color: string
-    pricingType?: string; addonAmountCents?: number | null
-    pricingTiers?: Array<{ minQty: number; maxQty: number; unitPriceCents: number }> | null
-    pricingOptions?: Array<{ name: string; priceCents: number }> | null
-  }> = json.data
-  return rows.map((r, i) => ({
-    id: i,
-    name: r.name,
-    priceCents: r.priceCents,
-    durationMinutes: r.durationMinutes,
-    category: r.category,
-    color: r.color,
-    include: true,
-    pricingType: r.pricingType,
-    addonAmountCents: r.addonAmountCents ?? null,
-    pricingTiers: r.pricingTiers ?? null,
-    pricingOptions: r.pricingOptions ?? null,
-  }))
-}
-
-async function parsePDF(file: File): Promise<ParsedService[]> {
-  const formData = new FormData()
-  formData.append('file', file)
-  const rows = await postToAIParser(formData)
-  if (rows.length === 0) throw new Error('No services found in PDF. Expected lines like "Service Name $25.00".')
-  return rows
-}
-
-// Spreadsheets go through the SAME AI parser as PDFs — converted to a cell grid
-// first — so messy real-world price sheets (section headers, prose, blank cells)
-// are read intelligently instead of mapped row-for-row.
-async function parseSpreadsheetAI(file: File): Promise<ParsedService[]> {
-  const gridText = await spreadsheetToGridText(file)
-  if (!gridText.trim()) throw new Error('File appears to be empty.')
-  const formData = new FormData()
-  formData.append('gridText', gridText)
-  return postToAIParser(formData)
-}
-
-// ─── Spreadsheet parser — naive column mapping (fallback when AI is unavailable) ──
-
-async function parseSpreadsheetNaive(file: File): Promise<ParsedService[]> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  let rows: string[][]
-
-  if (ext === 'csv' || ext === 'txt') {
-    rows = await parseCSV(file)
-  } else if (ext === 'xlsx' || ext === 'xls') {
-    rows = await parseExcel(file)
-  } else {
-    throw new Error('Unsupported file type.')
-  }
-
-  if (rows.length < 2) throw new Error('File appears to be empty or has only a header row.')
-
-  const headers = rows[0].map(String)
-  const { nameIdx, priceIdx, durationIdx } = detectColumns(headers)
-  const dataRows = rows.slice(1)
-
-  return dataRows.map((row, i) => {
-    const name = String(row[nameIdx] ?? '').trim()
-    const priceCents = priceIdx >= 0 ? parsePriceToCents(row[priceIdx]) : 0
-    const durationMinutes = durationIdx >= 0 ? (parseInt(String(row[durationIdx])) || 30) : 30
-    const hasError = name.length === 0
+// Converts a review row's pricing fields into the server payload. 'per_unit' is a
+// UI-only marker → a single open-ended tier so it reuses the tiered booking flow.
+function rowPricingPayload(r: ParsedService) {
+  if (r.pricingType === 'per_unit') {
+    const unit = Math.round(r.priceCents)
     return {
-      id: i,
-      name,
-      priceCents,
-      durationMinutes: DURATION_OPTIONS.includes(durationMinutes) ? durationMinutes : 30,
-      color: COLORS[i % COLORS.length],
-      category: '',
-      include: !hasError,
-      error: hasError ? 'Missing name' : (priceCents === 0 ? 'Price is $0' : undefined),
+      pricingType: 'tiered' as const,
+      priceCents: unit,
+      addonAmountCents: null,
+      pricingTiers: makePerUnitTiers(unit),
+      pricingOptions: null,
     }
-  })
-}
-
-// ─── Main parser ─────────────────────────────────────────────────────────────
-
-// Only a sheet with a REAL header row (recognized name + price columns) is safe
-// for the naive column-mapper. Free-form price sheets (section headers, prose,
-// irregular columns) must never hit it — it turns every row into a garbage service.
-async function looksTabular(file: File): Promise<boolean> {
-  try {
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    const rows = ext === 'csv' || ext === 'txt' ? await parseCSV(file) : await parseExcel(file)
-    if (rows.length < 2) return false
-    const headers = rows[0].map((h) => normalize(String(h)))
-    return headers.some((h) => NAME_HEADERS.has(h)) && headers.some((h) => PRICE_HEADERS.has(h))
-  } catch {
-    return false
+  }
+  return {
+    pricingType: r.pricingType,
+    priceCents: r.pricingType === 'addon' ? 0 : Math.round(r.priceCents),
+    addonAmountCents: r.pricingType === 'addon' ? Math.round(r.addonAmountCents ?? 0) : null,
+    pricingTiers: r.pricingType === 'tiered' ? r.pricingTiers ?? null : null,
+    pricingOptions: r.pricingType === 'multi_option' ? r.pricingOptions ?? null : null,
   }
 }
 
-async function parseFile(file: File): Promise<ParsedService[]> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'pdf') {
-    return parsePDF(file)
-  }
-  // Spreadsheets go through the AI parser (reads messy real-world sheets like a PDF).
-  try {
-    const ai = await parseSpreadsheetAI(file)
-    if (ai.length > 0) return ai
-    // AI ran but found nothing — surface that instead of dumping every row as garbage.
-    throw new Error('No services could be read from this sheet. Make sure it lists service names with prices.')
-  } catch (err) {
-    // Fall back to naive column-mapping ONLY for clean tabular sheets — never for
-    // free-form price sheets (that path is what produced the "Missing name" garbage).
-    if (await looksTabular(file)) return parseSpreadsheetNaive(file)
-    throw err instanceof Error ? err : new Error('Could not read this price sheet. Please try again.')
-  }
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ImportClient() {
+export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [step, setStep] = useState<Step>('upload')
   const [dragging, setDragging] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
@@ -276,10 +131,52 @@ export function ImportClient() {
   const [parsing, setParsing] = useState(false)
   const [progress, setProgress] = useState(0)
 
+  // Update-mode state
+  const [existingServices, setExistingServices] = useState<ExistingService[]>([])
+  const [updateRows, setUpdateRows] = useState<UpdateRow[]>([])
+  const [updateResult, setUpdateResult] = useState<{ updated: number; unchanged: number; skipped: number } | null>(null)
+
   const selectedCount = rows.filter((r) => r.include && r.error !== 'Missing name').length
   const errorCount = rows.filter((r) => r.error === 'Missing name').length
 
+  const existingById = useMemo(
+    () => new Map(existingServices.map((s) => [s.id, s])),
+    [existingServices]
+  )
+  const sortedExisting = useMemo(
+    () => [...existingServices].sort((a, b) => a.name.localeCompare(b.name)),
+    [existingServices]
+  )
+  const updateSelectedCount = updateRows.filter((r) => r.apply && r.matchId).length
+  const updateNoMatchCount = updateRows.filter((r) => !r.matchId).length
+
   // ── File handling ──────────────────────────────────────────────────────────
+
+  // In update mode, resolve each scanned row against the facility's existing
+  // services (fuzzy name match) and default to applying the change when a match
+  // exists and the price actually differs.
+  const buildUpdateRows = useCallback(async (parsed: ParsedService[]) => {
+    const res = await fetch('/api/services')
+    const json = await res.json()
+    if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Failed to load services')
+    const existing: ExistingService[] = json.data ?? []
+    setExistingServices(existing)
+    const existingByIdLocal = new Map(existing.map((s) => [s.id, s]))
+    const built: UpdateRow[] = parsed.map((p) => {
+      const match = fuzzyBestMatch(existing, p.name, 0.7)
+      const newCents = scannedAmount(p)
+      const changed = match ? existingAmount(existingByIdLocal.get(match.id)!) !== newCents : false
+      return {
+        rowId: p.id,
+        scannedName: p.name,
+        newCents,
+        matchId: match?.id ?? null,
+        score: match ? fuzzyScore(p.name, match.name) : 0,
+        apply: !!match && changed,
+      }
+    })
+    setUpdateRows(built)
+  }, [])
 
   const handleFile = useCallback(async (file: File) => {
     setParseError(null)
@@ -290,7 +187,13 @@ export function ImportClient() {
     setProgress(0)
     setTimeout(() => setProgress(70), 50)
     try {
-      const parsed = await parseFile(file)
+      const parsed: ParsedService[] = (await parsePriceSheetFile(file)).rows.map((r, i) => ({
+        ...r,
+        id: i,
+        include: true,
+        error: rowError(r.name, r.pricingType, r.priceCents, r.addonAmountCents),
+      }))
+      if (mode === 'update') await buildUpdateRows(parsed)
       setProgress(100)
       await new Promise((r) => setTimeout(r, 400))
       setRows(parsed)
@@ -300,7 +203,7 @@ export function ImportClient() {
     } finally {
       setParsing(false)
     }
-  }, [])
+  }, [mode, buildUpdateRows])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -322,13 +225,13 @@ export function ImportClient() {
 
   const updateName = (id: number, name: string) =>
     setRows((prev) => prev.map((r) =>
-      r.id === id ? { ...r, name, error: name.trim() ? (r.priceCents === 0 ? 'Price is $0' : undefined) : 'Missing name' } : r
+      r.id === id ? { ...r, name, error: rowError(name, r.pricingType, r.priceCents, r.addonAmountCents ?? null) } : r
     ))
 
   const updatePrice = (id: number, dollars: string) => {
     const cents = parsePriceToCents(dollars)
     setRows((prev) => prev.map((r) =>
-      r.id === id ? { ...r, priceCents: cents, error: r.name.trim() ? (cents === 0 ? 'Price is $0' : undefined) : 'Missing name' } : r
+      r.id === id ? { ...r, priceCents: cents, error: rowError(r.name, r.pricingType, cents, r.addonAmountCents ?? null) } : r
     ))
   }
 
@@ -337,6 +240,26 @@ export function ImportClient() {
 
   const updateColor = (id: number, color: string) =>
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, color } : r))
+
+  // Switching type carries the dollar amount across so it's never lost: the
+  // visible amount lives in priceCents for non-addon types and in addonAmountCents
+  // for addon. (Fixes the case where the AI mis-tags a real service as an add-on —
+  // flipping it to Fixed keeps the dollar value instead of zeroing it.)
+  const updatePricingType = (id: number, type: string) =>
+    setRows((prev) => prev.map((r) => {
+      if (r.id !== id) return r
+      const currentCents = r.pricingType === 'addon' ? (r.addonAmountCents ?? 0) : r.priceCents
+      const priceCents = type === 'addon' ? 0 : currentCents
+      const addonAmountCents = type === 'addon' ? currentCents : null
+      return { ...r, pricingType: type, priceCents, addonAmountCents, error: rowError(r.name, type, priceCents, addonAmountCents) }
+    }))
+
+  const updateAddonAmount = (id: number, dollars: string) => {
+    const cents = parsePriceToCents(dollars)
+    setRows((prev) => prev.map((r) =>
+      r.id === id ? { ...r, addonAmountCents: cents, error: rowError(r.name, r.pricingType, r.priceCents, cents) } : r
+    ))
+  }
 
   const toggleAll = () => {
     const anyOn = rows.some((r) => r.include && r.error !== 'Missing name')
@@ -368,17 +291,24 @@ export function ImportClient() {
     let totalSkipped = 0
 
     try {
-      // Handle replacements via individual PUT to existing service
+      // Handle replacements via individual PUT to existing service. Send the full
+      // pricing shape (type + amount) so an edited type isn't lost on replace, and
+      // surface failures instead of silently counting them as created.
       for (const dup of replaceRows) {
-        await fetch(`/api/services/${dup.existingService.id}`, {
+        const ps = dup.parsedService
+        const res = await fetch(`/api/services/${dup.existingService.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            priceCents: dup.parsedService.priceCents,
-            durationMinutes: dup.parsedService.durationMinutes,
-            color: dup.parsedService.color,
+            durationMinutes: ps.durationMinutes,
+            color: ps.color,
+            ...rowPricingPayload(ps),
           }),
         })
+        if (!res.ok) {
+          const j = await res.json().catch(() => null)
+          throw new Error(typeof j?.error === 'string' ? j.error : 'Failed to update existing service')
+        }
         totalCreated++
       }
 
@@ -391,19 +321,15 @@ export function ImportClient() {
           body: JSON.stringify({
             rows: chunk.map((r) => ({
               name: r.name.trim(),
-              priceCents: r.pricingType === 'addon' ? 0 : r.priceCents,
               durationMinutes: r.durationMinutes,
               color: r.color,
-              pricingType: r.pricingType,
-              addonAmountCents: r.addonAmountCents ?? null,
-              pricingTiers: r.pricingTiers ?? null,
-              pricingOptions: r.pricingOptions ?? null,
               category: r.category ?? null,
+              ...rowPricingPayload(r),
             })),
           }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error ?? 'Import failed')
+        if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Import failed')
         totalCreated += json.data.created
         totalSkipped += json.data.skipped
         setImportProgress(Math.round(((i + chunk.length) / Math.max(newRows.length, 1)) * 100))
@@ -411,6 +337,7 @@ export function ImportClient() {
 
       setResult({ created: totalCreated, skipped: totalSkipped + skipNames.size })
       setStep('done')
+      router.refresh() // invalidate the /services Router Cache so the new rows show immediately
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Import failed')
       setStep('preview')
@@ -425,7 +352,7 @@ export function ImportClient() {
     try {
       const res = await fetch('/api/services')
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Failed to load services')
+      if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'Failed to load services')
 
       const existing: { id: string; name: string; priceCents: number }[] = json.data ?? []
       const existingByName = new Map(existing.map((s) => [s.name.trim().toLowerCase(), s]))
@@ -451,6 +378,73 @@ export function ImportClient() {
     await runImport(toImport, [])
   }
 
+  // ── Update-prices mode ───────────────────────────────────────────────────────
+
+  // Re-point a scanned row at a different existing service (or none). Default the
+  // apply checkbox to on whenever the new price actually differs from the current.
+  const setMatch = (rowId: number, matchId: string) =>
+    setUpdateRows((prev) => prev.map((r) => {
+      if (r.rowId !== rowId) return r
+      const id = matchId || null
+      const ex = id ? existingById.get(id) : null
+      return { ...r, matchId: id, apply: !!ex && existingAmount(ex) !== r.newCents }
+    }))
+
+  const setNewPrice = (rowId: number, value: string) =>
+    setUpdateRows((prev) => prev.map((r) => {
+      if (r.rowId !== rowId) return r
+      const newCents = parsePriceToCents(value)
+      const ex = r.matchId ? existingById.get(r.matchId) : null
+      return { ...r, newCents, apply: !!ex && existingAmount(ex) !== newCents }
+    }))
+
+  const toggleApply = (rowId: number) =>
+    setUpdateRows((prev) => prev.map((r) => r.rowId === rowId ? { ...r, apply: !r.apply } : r))
+
+  const toggleAllApply = () => {
+    const anyOn = updateRows.some((r) => r.apply && r.matchId)
+    setUpdateRows((prev) => prev.map((r) => ({ ...r, apply: r.matchId ? !anyOn : false })))
+  }
+
+  const runUpdate = async () => {
+    const toApply = updateRows.filter((r) => r.apply && r.matchId)
+    if (toApply.length === 0) return
+    setStep('importing')
+    setImportProgress(0)
+    setImportError(null)
+    let updated = 0
+    try {
+      for (let i = 0; i < toApply.length; i++) {
+        const r = toApply[i]
+        const ex = existingById.get(r.matchId!)
+        if (!ex) continue
+        // Overwrite the field that holds this service's price for its type —
+        // never change the service's type, name, or duration on a price update.
+        const patch = ex.pricingType === 'addon'
+          ? { addonAmountCents: r.newCents }
+          : { priceCents: r.newCents }
+        const res = await fetch(`/api/services/${r.matchId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        if (!res.ok) {
+          const j = await res.json().catch(() => null)
+          throw new Error(typeof j?.error === 'string' ? j.error : 'Failed to update price')
+        }
+        updated++
+        setImportProgress(Math.round(((i + 1) / toApply.length) * 100))
+      }
+      const skipped = updateNoMatchCount
+      setUpdateResult({ updated, unchanged: updateRows.length - toApply.length - skipped, skipped })
+      setStep('done')
+      router.refresh() // invalidate the /services Router Cache so updated prices show immediately
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Update failed')
+      setStep('preview')
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -470,10 +464,12 @@ export function ImportClient() {
             className="text-2xl font-bold text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}
           >
-            Import Services
+            {mode === 'update' ? 'Update Prices' : 'Import Services'}
           </h1>
           <p className="text-sm text-stone-500 mt-0.5">
-            Upload a price sheet to bulk-add services
+            {mode === 'update'
+              ? 'Scan a new price sheet to overwrite your existing prices'
+              : 'Upload a price sheet to bulk-add services'}
           </p>
         </div>
       </div>
@@ -514,6 +510,31 @@ export function ImportClient() {
       {/* ── Step: Upload ── */}
       {step === 'upload' && (
         <div className="space-y-4">
+          {/* Mode toggle */}
+          <div className="inline-flex rounded-xl border border-stone-200 bg-stone-50 p-1">
+            {([
+              { id: 'add' as const, label: 'Add new services' },
+              { id: 'update' as const, label: 'Update prices' },
+            ]).map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={cn(
+                  'px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors',
+                  mode === m.id ? 'bg-white text-[#8B2E4A] shadow-sm' : 'text-stone-500 hover:text-stone-700'
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {mode === 'update' && (
+            <p className="text-xs text-stone-500">
+              The same scanner reads your sheet, then matches each item to a service you already
+              have and shows the current price next to the new one — nothing changes until you confirm.
+            </p>
+          )}
+
           {/* Drop zone */}
           <div
             onDrop={onDrop}
@@ -540,11 +561,11 @@ export function ImportClient() {
               </p>
               <p className="text-xs text-stone-400 mt-0.5">or click to browse</p>
             </div>
-            <p className="text-xs text-stone-400">Supports .pdf, .csv, .xlsx, .xls</p>
+            <p className="text-xs text-stone-400">Supports .pdf, images (PNG/JPG), .docx, .csv, .xlsx, .xls</p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.csv,.xlsx,.xls,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.docx,.csv,.xlsx,.xls,image/*,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onChange={onFileChange}
               className="sr-only"
             />
@@ -592,8 +613,8 @@ export function ImportClient() {
         </div>
       )}
 
-      {/* ── Step: Preview ── */}
-      {step === 'preview' && (
+      {/* ── Step: Preview (Add mode) ── */}
+      {step === 'preview' && mode === 'add' && (
         <div className="space-y-4">
           {importError && (
             <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -634,7 +655,7 @@ export function ImportClient() {
                   className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
                 />
               </div>
-              <div className="col-span-4">Name</div>
+              <div className="col-span-4">Name / Type</div>
               <div className="col-span-2">Price</div>
               <div className="col-span-2">Duration</div>
               <div className="col-span-1">Color</div>
@@ -697,21 +718,52 @@ export function ImportClient() {
                               : 'border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-stone-800'
                           )}
                         />
-                        {row.pricingType === 'addon' && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 self-start">+add-on</span>
-                        )}
-                        {row.pricingType === 'tiered' && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 self-start">tiered</span>
-                        )}
-                        {row.pricingType === 'multi_option' && (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 self-start">options</span>
-                        )}
+                        <div className="relative self-start">
+                          <select
+                            value={row.pricingType ?? 'fixed'}
+                            onChange={(e) => updatePricingType(row.id, e.target.value)}
+                            title="Change pricing type"
+                            className={cn(
+                              'text-[10px] font-semibold rounded-md pl-1.5 pr-4 py-0.5 cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-[#8B2E4A]/30 appearance-none',
+                              !row.pricingType || row.pricingType === 'fixed'
+                                ? 'bg-stone-100 text-stone-500'
+                                : row.pricingType === 'per_unit'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : row.pricingType === 'addon'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : row.pricingType === 'tiered'
+                                      ? 'bg-purple-50 text-purple-700'
+                                      : 'bg-blue-50 text-blue-700'
+                            )}
+                          >
+                            <option value="fixed">Fixed price</option>
+                            <option value="per_unit">Per unit (each)</option>
+                            <option value="addon">+ Add-on</option>
+                            <option value="tiered">Tiered</option>
+                            <option value="multi_option">Options</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 opacity-50"
+                            width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </div>
                       </div>
                       <div className="col-span-2">
-                        {row.pricingType === 'addon' && (row.addonAmountCents ?? 0) > 0 ? (
-                          <span className="text-sm font-medium text-amber-700 pl-1">
-                            +{formatCents(row.addonAmountCents ?? 0)}
-                          </span>
+                        {row.pricingType === 'addon' ? (
+                          <div className="relative">
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-amber-500 text-sm font-medium">+$</span>
+                            <input
+                              type="number"
+                              value={((row.addonAmountCents ?? 0) / 100).toFixed(2)}
+                              onChange={(e) => updateAddonAmount(row.id, e.target.value)}
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-sm text-amber-700 focus:outline-none py-0.5 pl-6 transition-colors"
+                            />
+                          </div>
                         ) : (
                           <div className="relative">
                             <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
@@ -786,12 +838,170 @@ export function ImportClient() {
         </div>
       )}
 
+      {/* ── Step: Preview (Update mode) ── */}
+      {step === 'preview' && mode === 'update' && (
+        <div className="space-y-4">
+          {importError && (
+            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {importError}
+            </div>
+          )}
+
+          {/* Summary bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 text-sm text-stone-500">
+              <span>
+                <span className="font-semibold text-stone-900">{rows.length}</span> items from{' '}
+                <span className="font-mono text-xs text-stone-600">{fileName}</span>
+              </span>
+              {updateNoMatchCount > 0 && (
+                <span className="text-stone-400 text-xs font-medium">
+                  {updateNoMatchCount} not matched
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setStep('upload')}
+              className="text-xs text-stone-400 hover:text-stone-600 underline underline-offset-2"
+            >
+              Change file
+            </button>
+          </div>
+
+          {updateNoMatchCount > 0 && (
+            <div className="rounded-xl bg-stone-50 border border-stone-200 px-4 py-2.5 text-xs text-stone-500">
+              {updateNoMatchCount} item{updateNoMatchCount !== 1 ? 's' : ''} on this sheet
+              {updateNoMatchCount !== 1 ? ' aren’t' : ' isn’t'} in your services yet — pick a match below,
+              or switch to <button onClick={() => { setMode('add'); setStep('upload') }} className="font-semibold text-[#8B2E4A] underline underline-offset-2">Add new services</button> to create them.
+            </div>
+          )}
+
+          {/* Update table */}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-stone-50 border-b border-stone-100 text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              <div className="col-span-1 flex items-center">
+                <input
+                  type="checkbox"
+                  checked={updateRows.some((r) => r.matchId) && updateRows.filter((r) => r.matchId).every((r) => r.apply)}
+                  onChange={toggleAllApply}
+                  className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
+                />
+              </div>
+              <div className="col-span-5">Service to update</div>
+              <div className="col-span-2">Current</div>
+              <div className="col-span-2">New</div>
+              <div className="col-span-2">Change</div>
+            </div>
+
+            <div className="divide-y divide-stone-50 max-h-[460px] overflow-y-auto">
+              {updateRows.map((r) => {
+                const ex = r.matchId ? existingById.get(r.matchId) : null
+                const oldCents = ex ? existingAmount(ex) : null
+                const delta = oldCents != null ? r.newCents - oldCents : null
+                const changed = delta != null && delta !== 0
+                return (
+                  <div
+                    key={r.rowId}
+                    className={cn(
+                      'grid grid-cols-12 gap-2 px-4 py-2.5 items-center text-sm transition-colors',
+                      !r.matchId && 'bg-stone-50/40',
+                      r.matchId && !r.apply && 'opacity-50'
+                    )}
+                  >
+                    <div className="col-span-1">
+                      <input
+                        type="checkbox"
+                        checked={r.apply}
+                        disabled={!r.matchId}
+                        onChange={() => toggleApply(r.rowId)}
+                        className="rounded accent-[#8B2E4A] w-3.5 h-3.5 disabled:opacity-30"
+                      />
+                    </div>
+                    <div className="col-span-5 flex flex-col gap-0.5 min-w-0">
+                      <select
+                        value={r.matchId ?? ''}
+                        onChange={(e) => setMatch(r.rowId, e.target.value)}
+                        className={cn(
+                          'w-full bg-transparent border-b text-sm focus:outline-none py-0.5 transition-colors truncate',
+                          r.matchId
+                            ? 'border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-stone-800'
+                            : 'border-amber-300 text-amber-700'
+                        )}
+                      >
+                        <option value="">— No match (skip) —</option>
+                        {sortedExisting.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({dollars(existingAmount(s))})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] text-stone-400 truncate">
+                        From sheet: {r.scannedName}
+                        {r.matchId && r.score < 0.999 && (
+                          <span className="ml-1.5 text-stone-300">· {Math.round(r.score * 100)}% match</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-stone-500">
+                      {oldCents != null ? dollars(oldCents) : '—'}
+                    </div>
+                    <div className="col-span-2">
+                      <div className="relative">
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                        <input
+                          type="number"
+                          value={(r.newCents / 100).toFixed(2)}
+                          onChange={(e) => setNewPrice(r.rowId, e.target.value)}
+                          step="0.01"
+                          min="0"
+                          disabled={!r.matchId}
+                          className="w-full bg-transparent border-b border-transparent hover:border-stone-200 focus:border-[#8B2E4A] text-sm text-stone-800 focus:outline-none py-0.5 pl-3 transition-colors disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      {!r.matchId ? (
+                        <span className="text-xs text-stone-400 font-medium">No match</span>
+                      ) : !changed ? (
+                        <span className="text-xs text-stone-400 font-medium">No change</span>
+                      ) : (
+                        <span className={cn(
+                          'text-xs font-semibold',
+                          delta! > 0 ? 'text-emerald-600' : 'text-amber-600'
+                        )}>
+                          {delta! > 0 ? '↑' : '↓'} {dollars(Math.abs(delta!))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-sm text-stone-500">
+              <span className="font-semibold text-stone-900">{updateSelectedCount}</span> price{updateSelectedCount !== 1 ? 's' : ''} will be updated
+            </p>
+            <button
+              onClick={runUpdate}
+              disabled={updateSelectedCount === 0}
+              className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 active:scale-95"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              Update {updateSelectedCount > 0 ? updateSelectedCount : ''} price{updateSelectedCount !== 1 ? 's' : ''}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Step: Importing ── */}
       {step === 'importing' && (
         <div className="flex flex-col items-center justify-center py-24 gap-5">
           <div className="w-12 h-12 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
           <div className="text-center">
-            <p className="text-sm font-semibold text-stone-700">Importing services...</p>
+            <p className="text-sm font-semibold text-stone-700">{mode === 'update' ? 'Updating prices...' : 'Importing services...'}</p>
             <p className="text-xs text-stone-400 mt-1">{importProgress}% complete</p>
           </div>
           <div className="w-48 h-1.5 rounded-full bg-stone-100 overflow-hidden">
@@ -921,8 +1131,8 @@ export function ImportClient() {
               </svg>
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-stone-800">Importing services...</p>
-              <p className="text-xs text-stone-400 mt-1">Analyzing your price sheet</p>
+              <p className="text-sm font-semibold text-stone-800">{mode === 'update' ? 'Reading price sheet...' : 'Importing services...'}</p>
+              <p className="text-xs text-stone-400 mt-1">{mode === 'update' ? 'Matching to your services' : 'Analyzing your price sheet'}</p>
             </div>
             <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
               <div
@@ -938,7 +1148,7 @@ export function ImportClient() {
       )}
 
       {/* ── Step: Done ── */}
-      {step === 'done' && result && (
+      {step === 'done' && mode === 'add' && result && (
         <div className="flex flex-col items-center justify-center py-16 gap-6 text-center">
           <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6faf9' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.2">
@@ -977,6 +1187,60 @@ export function ImportClient() {
               className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 bg-white border border-stone-200 hover:bg-stone-50 transition-colors"
             >
               Import another file
+            </button>
+            <Link
+              href="/services"
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all active:scale-95 inline-flex items-center"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              View services &rarr;
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step: Done (Update mode) ── */}
+      {step === 'done' && mode === 'update' && updateResult && (
+        <div className="flex flex-col items-center justify-center py-16 gap-6 text-center">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6faf9' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2.2">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-stone-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
+              Prices updated
+            </h2>
+            <p className="text-sm text-stone-500 mt-1">Your service prices have been overwritten</p>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-8 py-5 text-center">
+              <p className="text-3xl font-bold text-[#8B2E4A]">{updateResult.updated}</p>
+              <p className="text-xs text-stone-500 mt-1 font-medium uppercase tracking-wide">Updated</p>
+            </div>
+            {updateResult.skipped > 0 && (
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-8 py-5 text-center">
+                <p className="text-3xl font-bold text-stone-400">{updateResult.skipped}</p>
+                <p className="text-xs text-stone-500 mt-1 font-medium uppercase tracking-wide">Not matched</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setStep('upload')
+                setRows([])
+                setUpdateRows([])
+                setUpdateResult(null)
+                setExistingServices([])
+                setFileName('')
+              }}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 bg-white border border-stone-200 hover:bg-stone-50 transition-colors"
+            >
+              Update from another file
             </button>
             <Link
               href="/services"

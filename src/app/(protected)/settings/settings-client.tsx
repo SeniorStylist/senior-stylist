@@ -44,6 +44,7 @@ interface SettingsClientProps {
   currentUserId: string
   currentUserEmail: string | null
   role: string
+  isMaster?: boolean
   pendingRequestsCount: number
   adminEmail: string | null
   qbInvoiceSyncEnabled: boolean
@@ -113,6 +114,7 @@ export function SettingsClient({
   currentUserId,
   currentUserEmail,
   role,
+  isMaster = false,
   pendingRequestsCount,
   adminEmail,
   qbInvoiceSyncEnabled,
@@ -357,7 +359,7 @@ export function SettingsClient({
             <PortalSection facility={facility} claimRequests={claimRequests} />
           )}
           {activeSection === 'advanced' && isAdmin && (
-            <AdvancedSection facility={facility} />
+            <AdvancedSection facility={facility} isMaster={isMaster} />
           )}
         </div>
       </div>

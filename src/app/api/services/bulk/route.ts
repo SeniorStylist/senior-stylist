@@ -10,19 +10,19 @@ const bulkSchema = z.object({
   rows: z.array(
     z.object({
       name: z.string().min(1),
-      priceCents: z.number().int().min(0),
-      durationMinutes: z.number().int().min(1).default(30),
+      priceCents: z.number().transform(Math.round).pipe(z.number().min(0)),
+      durationMinutes: z.number().transform(Math.round).pipe(z.number().min(1)).default(30),
       color: z.string().optional(),
       pricingType: z.enum(['fixed', 'addon', 'tiered', 'multi_option']).optional().default('fixed'),
-      addonAmountCents: z.number().int().nullable().optional(),
+      addonAmountCents: z.number().transform(Math.round).nullable().optional(),
       pricingTiers: z.array(z.object({
-        minQty: z.number().int(),
-        maxQty: z.number().int(),
-        unitPriceCents: z.number().int(),
+        minQty: z.number().transform(Math.round),
+        maxQty: z.number().transform(Math.round),
+        unitPriceCents: z.number().transform(Math.round),
       })).nullable().optional(),
       pricingOptions: z.array(z.object({
         name: z.string(),
-        priceCents: z.number().int(),
+        priceCents: z.number().transform(Math.round),
       })).nullable().optional(),
       category: z.string().nullable().optional(),
     })
@@ -45,21 +45,34 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = bulkSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
+      return Response.json({ error: `Invalid service data — ${msg}` }, { status: 422 })
     }
 
-    const values = parsed.data.rows.map((r) => ({
-      facilityId,
-      name: r.name.trim(),
-      priceCents: r.pricingType === 'addon' ? 0 : r.priceCents,
-      durationMinutes: r.durationMinutes,
-      color: r.color || null,
-      pricingType: r.pricingType,
-      addonAmountCents: r.addonAmountCents ?? null,
-      pricingTiers: r.pricingTiers ?? null,
-      pricingOptions: r.pricingOptions ?? null,
-      category: r.category ?? null,
-    }))
+    const values = parsed.data.rows.map((r) => {
+      // Normalize a row whose declared type is missing its required data (an
+      // add-on with no amount, or a tiered / multi-option row the import UI
+      // couldn't supply structured pricing for) down to a plain fixed-price
+      // service. The single-create endpoint hard-rejects these via .refine();
+      // bulk import instead normalizes so one bad row never fails a 100-row sheet
+      // and no inconsistent record (e.g. tiered with null tiers) is ever inserted.
+      let pricingType = r.pricingType
+      if (pricingType === 'addon' && !r.addonAmountCents) pricingType = 'fixed'
+      if (pricingType === 'tiered' && (!r.pricingTiers || r.pricingTiers.length === 0)) pricingType = 'fixed'
+      if (pricingType === 'multi_option' && (!r.pricingOptions || r.pricingOptions.length === 0)) pricingType = 'fixed'
+      return {
+        facilityId,
+        name: r.name.trim(),
+        priceCents: pricingType === 'addon' ? 0 : r.priceCents,
+        durationMinutes: r.durationMinutes,
+        color: r.color || null,
+        pricingType,
+        addonAmountCents: pricingType === 'addon' ? r.addonAmountCents ?? null : null,
+        pricingTiers: pricingType === 'tiered' ? r.pricingTiers ?? null : null,
+        pricingOptions: pricingType === 'multi_option' ? r.pricingOptions ?? null : null,
+        category: r.category ?? null,
+      }
+    })
 
     const inserted = await db
       .insert(services)

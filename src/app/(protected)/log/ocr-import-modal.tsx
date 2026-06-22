@@ -5,6 +5,16 @@ import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
 import type { Resident, Stylist, Service } from '@/types'
+
+function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
+  const v = label.trim().toLowerCase()
+  if (!v || v === 'unpaid (invoice)' || v === 'unpaid' || v === 'invoice') {
+    return { paymentStatus: 'unpaid', paymentMethod: null }
+  }
+  if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
+  return { paymentStatus: 'paid', paymentMethod: label.trim() || null }
+}
+
 interface OcrRawEntry {
   residentName: string
   roomNumber: string | null
@@ -32,6 +42,8 @@ type EntryState = {
   additionalServices: string[]
   additionalServiceIds: (string | null)[]
   priceCents: number | null
+  tipCents: number | null
+  paymentCombo: string
   notes: string | null
   unclear: boolean
   include: boolean
@@ -152,6 +164,8 @@ function buildSheetState(
       additionalServices,
       additionalServiceIds,
       priceCents: entry.price != null ? Math.round(entry.price * 100) : null,
+      tipCents: null,
+      paymentCombo: 'Unpaid (Invoice)',
       notes: entry.notes ?? null,
       unclear: entry.unclear ?? false,
       include: true,
@@ -291,7 +305,7 @@ export function OcrImportModal({
         fd.append('residentsJson', JSON.stringify(residents.map(r => ({ name: r.name, roomNumber: r.roomNumber ?? null }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
         const json = await res.json()
-        if (!res.ok) { setScanError(json.error ?? 'Scan failed'); return }
+        if (!res.ok) { setScanError(typeof json.error === 'string' ? json.error : 'Scan failed'); return }
         allRawSheets.push(...(json.data.sheets as OcrRawSheet[]))
       }
 
@@ -351,11 +365,19 @@ export function OcrImportModal({
     return names.size
   })()
 
+  // Entries that are checked but have neither a matched service nor a typed name
+  const invalidEntries = validSheets.reduce(
+    (acc, s) =>
+      acc + s.entries.filter((e) => e.include && !e.serviceId && !e.serviceName.trim()).length,
+    0
+  )
+
   const summary = validSheets.reduce(
     (acc, s) => {
       s.entries.filter(e => e.include).forEach(e => {
         if (!e.residentId) acc.residents++
-        if (!e.serviceId) acc.services++
+        // Only count as "to create" when we actually have a name to create from
+        if (!e.serviceId && e.serviceName.trim().length > 0) acc.services++
         e.additionalServiceIds.forEach((id, i) => {
           const name = e.additionalServices[i]
           if (!id && name && name.trim().length > 0) acc.services++
@@ -379,13 +401,15 @@ export function OcrImportModal({
           entries: s.entries.map(e => ({
             include: e.include,
             residentId: e.residentId,
-            residentName: e.residentName,
+            residentName: e.residentName.trim(),
             roomNumber: e.roomNumber,
             serviceId: e.serviceId,
-            serviceName: e.serviceName,
+            serviceName: e.serviceName.trim(),
             additionalServiceIds: e.additionalServiceIds,
             additionalServiceNames: e.additionalServices,
             priceCents: e.priceCents,
+            tipCents: e.tipCents,
+            ...parsePaymentCombo(e.paymentCombo),
             notes: e.notes,
           })),
         })),
@@ -397,7 +421,7 @@ export function OcrImportModal({
       })
       const json = await res.json()
       if (!res.ok) {
-        setImportError(json.error ?? 'Import failed')
+        setImportError(typeof json.error === 'string' ? json.error : 'Import failed')
         return
       }
       const { bookings: n } = json.data.created
@@ -665,32 +689,53 @@ export function OcrImportModal({
                       </div>
                       <div className="flex-1 min-w-[180px]">
                         <label className="text-xs font-medium text-stone-600 block mb-1">Stylist *</label>
-                        <input
-                          type="text"
-                          list={`stylists-${activeTab}`}
-                          value={sheet.stylistName}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            const matched = stylists.find(
-                              s => s.name.toLowerCase() === val.trim().toLowerCase()
-                            )
-                            updateSheet(activeTab, { stylistName: val, stylistId: matched?.id ?? null })
-                          }}
-                          placeholder="Type or pick stylist…"
-                          className={cn(
-                            'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
-                            sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
-                          )}
-                        />
-                        <datalist id={`stylists-${activeTab}`}>
-                          {stylists.map(s => (
-                            <option key={s.id} value={s.name} />
-                          ))}
-                        </datalist>
-                        {sheet.stylistId ? null : sheet.stylistName.trim() ? (
+                        {/* Visible dropdown: existing stylists + "New stylist" option */}
+                        {stylists.length > 0 && (
+                          <select
+                            value={sheet.stylistId ?? '__create__'}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === '__create__') {
+                                // Keep stylistName so OCR-read name stays in the text input
+                                updateSheet(activeTab, { stylistId: null })
+                              } else {
+                                const picked = stylists.find(s => s.id === val)
+                                updateSheet(activeTab, { stylistId: val, stylistName: picked?.name ?? '' })
+                              }
+                            }}
+                            className={cn(
+                              'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
+                              sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
+                            )}
+                          >
+                            {stylists.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                            <option value="__create__">➕ New stylist (type name below)…</option>
+                          </select>
+                        )}
+                        {/* Text input shown when no existing stylist is picked */}
+                        {!sheet.stylistId && (
+                          <input
+                            type="text"
+                            value={sheet.stylistName}
+                            onChange={(e) =>
+                              updateSheet(activeTab, { stylistId: null, stylistName: e.target.value })
+                            }
+                            placeholder="New stylist name…"
+                            className={cn(
+                              'w-full min-h-[44px] px-3 py-2 rounded-xl border text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
+                              stylists.length > 0 ? 'mt-2' : '',
+                              sheetHasStylist(sheet) ? 'border-stone-200' : 'border-red-300'
+                            )}
+                          />
+                        )}
+                        {sheet.stylistId ? (
+                          <p className="text-[10px] text-emerald-600 mt-0.5">✓ Matched to existing stylist</p>
+                        ) : sheet.stylistName.trim() ? (
                           <p className="text-[10px] text-stone-400 mt-0.5">Will create new stylist</p>
                         ) : (
-                          <p className="text-xs text-red-500 mt-0.5">Required — add a stylist or this sheet is skipped</p>
+                          <p className="text-xs text-red-500 mt-0.5">Required — select a stylist or type a new name</p>
                         )}
                       </div>
                     </div>
@@ -822,52 +867,39 @@ export function OcrImportModal({
                                   </div>
                                 )}
 
-                                {/* Service select — existing services with fuzzy pre-select */}
+                                {/* Service — type-or-pick combo: pick an existing service OR type a
+                                    new name to create it (mirrors the stylist/resident fields). */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  {(() => {
-                                    const cats = Array.from(new Set(services.map(s => s.category?.trim() || 'Other'))).sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b))
-                                    const selectVal = entry.serviceId !== null
-                                      ? entry.serviceId
-                                      : (entry.serviceName ? `__new__${entry.serviceName}` : '')
-                                    return (
-                                      <select
-                                        value={selectVal}
-                                        onChange={(e) => {
-                                          const val = e.target.value
-                                          if (!val) {
-                                            updateEntry(activeTab, ei, { serviceId: null, serviceName: '' })
-                                          } else if (val.startsWith('__new__')) {
-                                            updateEntry(activeTab, ei, { serviceId: null, serviceName: val.slice(7) })
-                                          } else {
-                                            const svc = services.find(s => s.id === val)
-                                            updateEntry(activeTab, ei, { serviceId: val, serviceName: svc?.name ?? entry.serviceName })
-                                          }
-                                        }}
-                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
-                                      >
-                                        <option value="">— select service —</option>
-                                        {cats.length <= 1
-                                          ? services.map(s => (
-                                              <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
-                                            ))
-                                          : cats.map(cat => (
-                                              <optgroup key={cat} label={cat}>
-                                                {services.filter(s => (s.category?.trim() || 'Other') === cat).map(s => (
-                                                  <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
-                                                ))}
-                                              </optgroup>
-                                            ))
-                                        }
-                                        {!entry.serviceId && entry.serviceName && (
-                                          <option value={`__new__${entry.serviceName}`}>➕ Create &ldquo;{entry.serviceName}&rdquo;</option>
-                                        )}
-                                      </select>
-                                    )
-                                  })()}
-                                  {!entry.serviceId && entry.serviceName && (
-                                    <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
-                                  )}
+                                  <input
+                                    type="text"
+                                    list={`services-${activeTab}-${ei}`}
+                                    value={entry.serviceName ?? ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      const matched = services.find(
+                                        s => s.name.toLowerCase() === val.trim().toLowerCase()
+                                      )
+                                      updateEntry(activeTab, ei, { serviceName: val, serviceId: matched?.id ?? null })
+                                    }}
+                                    placeholder="Type or pick service…"
+                                    className={cn(
+                                      'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]',
+                                      entry.serviceId || (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
+                                    )}
+                                  />
+                                  <datalist id={`services-${activeTab}-${ei}`}>
+                                    {services.map(s => (
+                                      <option key={s.id} value={s.name}>{formatCents(s.priceCents)}</option>
+                                    ))}
+                                  </datalist>
+                                  {entry.serviceId ? null
+                                    : (entry.serviceName ?? '').trim() ? (
+                                      <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
+                                    ) : entry.include ? (
+                                      <p className="text-[10px] text-amber-600 mt-0.5">Enter a service name to import this entry</p>
+                                    ) : null
+                                  }
                                 </div>
 
                                 {/* Price */}
@@ -889,6 +921,46 @@ export function OcrImportModal({
                                     className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                   />
                                   <p className="text-[10px] text-stone-400 mt-0.5">from sheet</p>
+                                </div>
+
+                                {/* Tips */}
+                                <div>
+                                  <label className="text-xs text-stone-500 block mb-0.5">Tips ($)</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="0.00"
+                                    value={entry.tipCents != null ? (entry.tipCents / 100).toFixed(2) : ''}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value)
+                                      updateEntry(activeTab, ei, {
+                                        tipCents: isNaN(val) ? null : Math.round(val * 100),
+                                      })
+                                    }}
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
+                                  />
+                                </div>
+
+                                {/* Payment Type */}
+                                <div className="col-span-2">
+                                  <label className="text-xs text-stone-500 block mb-0.5">Payment Type</label>
+                                  <input
+                                    type="text"
+                                    list={`ocr-payment-type-${activeTab}-${ei}`}
+                                    value={entry.paymentCombo}
+                                    onChange={(e) => updateEntry(activeTab, ei, { paymentCombo: e.target.value })}
+                                    placeholder="Unpaid (Invoice)"
+                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
+                                  />
+                                  <datalist id={`ocr-payment-type-${activeTab}-${ei}`}>
+                                    <option value="Unpaid (Invoice)" />
+                                    <option value="Cash" />
+                                    <option value="Check" />
+                                    <option value="Card" />
+                                    <option value="ACH" />
+                                    <option value="Waived" />
+                                  </datalist>
                                 </div>
                               </div>
 
@@ -1064,11 +1136,22 @@ export function OcrImportModal({
                 Back
               </button>
               <button
-                onClick={() => setStep('confirm')}
+                onClick={() => {
+                  if (invalidEntries > 0) {
+                    toast(
+                      `${invalidEntries} entr${invalidEntries !== 1 ? 'ies are' : 'y is'} missing a service name — scroll up and fill them in`,
+                      'error'
+                    )
+                    return
+                  }
+                  setStep('confirm')
+                }}
                 disabled={totalIncluded === 0}
                 className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40"
               >
-                Review {totalIncluded} Booking{totalIncluded !== 1 ? 's' : ''}
+                {invalidEntries > 0
+                  ? `Fix ${invalidEntries} Missing Service${invalidEntries !== 1 ? 's' : ''}`
+                  : `Review ${totalIncluded} Booking${totalIncluded !== 1 ? 's' : ''}`}
               </button>
             </>
           )}

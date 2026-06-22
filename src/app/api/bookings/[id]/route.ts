@@ -32,6 +32,7 @@ const updateSchema = z.object({
   selectedOption: z.string().max(200).optional(),
   addonChecked: z.boolean().optional(),
   tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  paymentMethod: z.string().max(100).nullable().optional(),
 })
 
 export async function GET(
@@ -111,12 +112,13 @@ export async function PUT(
 
     const { cancelFuture, ...updates } = parsed.data
 
-    // Bookkeeper: can only correct billing/service data — not scheduling or status
+    // Bookkeeper: can correct billing/service data and service dates (for import corrections)
     if (facilityUser.role === 'bookkeeper') {
       const BOOKKEEPER_ALLOWED = new Set([
         'residentId', 'serviceId', 'serviceIds', 'addonServiceIds', 'addonChecked',
-        'priceCents', 'paymentStatus', 'notes', 'tipCents',
+        'priceCents', 'paymentStatus', 'paymentMethod', 'notes', 'tipCents',
         'selectedQuantity', 'selectedOption',
+        'startTime', // allow date correction after log sheet import
       ])
       for (const key of Object.keys(updates) as Array<keyof typeof updates>) {
         if (!BOOKKEEPER_ALLOWED.has(key)) {
@@ -439,7 +441,7 @@ export async function DELETE(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
+    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist' && facilityUser.role !== 'bookkeeper') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { facilityId } = facilityUser

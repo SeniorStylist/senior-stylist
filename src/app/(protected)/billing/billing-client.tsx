@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { CreditCard } from 'lucide-react'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { HelpTip } from '@/components/ui/help-tip'
 import {
   btnBase,
@@ -194,6 +195,7 @@ export function BillingClient({
   const [totalUnresolvedCount, setTotalUnresolvedCount] = useState(0)
 
   const { toast } = useToast()
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
 
   useEffect(() => {
     if (!isMaster) return
@@ -458,6 +460,16 @@ export function BillingClient({
     if (!summary) return
     const to = summary.facility.contactEmail ?? sendEmailOverride
     if (!to) return
+    if (!force) {
+      if (
+        !(await confirmSend({
+          channel: 'email',
+          recipient: to,
+          summary: `Billing statement for ${summary.facility.name}`,
+        }))
+      )
+        return
+    }
     setSendLoading(true)
     setSendWarning(null)
     try {
@@ -528,6 +540,7 @@ export function BillingClient({
 
   return (
     <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
+      {sendConfirmDialog}
       {sendWarning && (
         <SendDedupModal
           lastSentAt={sendWarning.lastSentAt}
@@ -679,8 +692,8 @@ export function BillingClient({
                 <div
                   className={
                     crossOutstandingValue > 0
-                      ? 'text-xl font-bold text-amber-700'
-                      : 'text-xl font-bold text-stone-900'
+                      ? 'text-xl font-bold text-amber-700 tabular-nums'
+                      : 'text-xl font-bold text-stone-900 tabular-nums'
                   }
                 >
                   {formatDollars(crossOutstandingAnimated)}
@@ -702,7 +715,7 @@ export function BillingClient({
                 <div className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
                   Collected {PERIOD_NOUN[activePeriod]}
                 </div>
-                <div className="text-xl font-bold text-emerald-800">
+                <div className="text-xl font-bold text-emerald-800 tabular-nums">
                   {formatDollars(crossCollectedAnimated)}
                 </div>
               </button>
@@ -714,7 +727,7 @@ export function BillingClient({
                 <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
                   Invoiced {PERIOD_NOUN[activePeriod]}
                 </div>
-                <div className="text-xl font-bold text-stone-900">
+                <div className="text-xl font-bold text-stone-900 tabular-nums">
                   {formatDollars(crossInvoicedAnimated)}
                 </div>
               </button>
@@ -793,7 +806,7 @@ export function BillingClient({
             <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1">
               Total rev share collected
             </div>
-            <div className="text-xl font-bold text-stone-900">
+            <div className="text-xl font-bold text-stone-900 tabular-nums">
               {formatDollars(crossSummary.totalRevShareCents ?? 0)}
             </div>
           </div>
@@ -801,7 +814,7 @@ export function BillingClient({
             <div className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
               Net to Senior Stylist
             </div>
-            <div className="text-xl font-bold text-emerald-800">
+            <div className="text-xl font-bold text-emerald-800 tabular-nums">
               {formatDollars(crossSummary.totalNetCents ?? 0)}
             </div>
           </div>
@@ -1171,15 +1184,15 @@ export function BillingClient({
                           href={`/master-admin/unapplied-credits?facility=${facilityId}`}
                           className="hover:text-[#8B2E4A]"
                         >
-                          Unapplied credits: <span className="font-medium text-amber-700">−{formatDollars(summary!.facilityUnappliedCents)}</span>
+                          Unapplied credits: <span className="font-medium text-amber-700 tabular-nums">−{formatDollars(summary!.facilityUnappliedCents)}</span>
                           <span className="text-[#8B2E4A] font-semibold ml-1">Apply →</span>
                         </Link>
                       ) : (
-                        <>Unapplied credits: <span className="font-medium text-amber-700">−{formatDollars(summary!.facilityUnappliedCents)}</span></>
+                        <>Unapplied credits: <span className="font-medium text-amber-700 tabular-nums">−{formatDollars(summary!.facilityUnappliedCents)}</span></>
                       )}
                     </div>
                     <div className="text-xs text-stone-500">
-                      Net outstanding: <span className="font-semibold text-stone-800">{formatDollars(Math.max(0, totals.outstanding - (summary?.facilityUnappliedCents ?? 0)))}</span>
+                      Net outstanding: <span className="font-semibold text-stone-800 tabular-nums">{formatDollars(Math.max(0, totals.outstanding - (summary?.facilityUnappliedCents ?? 0)))}</span>
                     </div>
                   </div>
                 )}

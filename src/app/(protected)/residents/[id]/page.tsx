@@ -92,8 +92,9 @@ export default async function ResidentDetailPage({
   }
 
   // Load facility services for the preferred service selector
+  // is_demo filter — Phase 13 (real-only; this page doesn't drive scripted tours).
   const facilityServices = await db.query.services.findMany({
-    where: and(eq(services.facilityId, facilityUser.facilityId), eq(services.active, true)),
+    where: and(eq(services.facilityId, facilityUser.facilityId), eq(services.active, true), eq(services.isDemo, false)),
     orderBy: (t, { asc }) => [asc(t.name)],
   })
 

@@ -5,10 +5,12 @@ import {
   stylistAvailability,
   stylists,
   stylistFacilityAssignments,
+  facilities,
 } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { and, eq, lte, gte, inArray, isNull } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import { extractZip, getZipsWithinMiles } from '@/lib/zip-coords'
 
 function parseDateUTC(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map((n) => parseInt(n, 10))
@@ -33,6 +35,13 @@ export async function GET(request: NextRequest) {
     }
     const dayOfWeek = parseDateUTC(date).getUTCDay()
 
+    // Fetch facility address for zip-proximity ranking
+    const facilityRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityUser.facilityId),
+      columns: { address: true },
+    })
+    const facilityZip = extractZip(facilityRow?.address ?? '')
+
     // Facility pool: stylists at this facility, active, with availability on this DoW,
     // not themselves on an open/filled coverage request covering this date.
     const facilityStylists = await db
@@ -40,6 +49,7 @@ export async function GET(request: NextRequest) {
         id: stylists.id,
         name: stylists.name,
         stylistCode: stylists.stylistCode,
+        address: stylists.address,
       })
       .from(stylists)
       .innerJoin(
@@ -76,7 +86,7 @@ export async function GET(request: NextRequest) {
           )
       : []
     const excluded = new Set(onCoverage.map((r) => r.stylistId))
-    const dedup = new Map<string, { id: string; name: string; stylistCode: string }>()
+    const dedup = new Map<string, { id: string; name: string; stylistCode: string; address: string | null }>()
     for (const s of facilityStylists) {
       if (excluded.has(s.id)) continue
       if (!dedup.has(s.id)) dedup.set(s.id, s)
@@ -84,13 +94,14 @@ export async function GET(request: NextRequest) {
 
     // Franchise pool: active, facilityId IS NULL, franchiseId = caller's franchise.
     const franchise = await getUserFranchise(user.id)
-    let franchisePool: Array<{ id: string; name: string; stylistCode: string }> = []
+    let franchisePool: Array<{ id: string; name: string; stylistCode: string; address: string | null }> = []
     if (franchise) {
       franchisePool = await db
         .select({
           id: stylists.id,
           name: stylists.name,
           stylistCode: stylists.stylistCode,
+          address: stylists.address,
         })
         .from(stylists)
         .where(
@@ -102,12 +113,26 @@ export async function GET(request: NextRequest) {
         )
     }
 
+    // Build nearby zip set for proximity ranking (5-mile default radius)
+    const nearbyZips = facilityZip ? new Set(getZipsWithinMiles(facilityZip, 5)) : null
+
+    function withProximity<T extends { id: string; name: string; stylistCode: string; address: string | null }>(
+      list: T[]
+    ): Array<T & { nearby: boolean }> {
+      return list.map((s) => {
+        const stylistZip = extractZip(s.address ?? '')
+        const nearby = !!(facilityZip && stylistZip && nearbyZips?.has(stylistZip))
+        return { ...s, nearby }
+      }).sort((a, b) => {
+        if (a.nearby !== b.nearby) return a.nearby ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+    }
+
     return Response.json({
       data: {
-        facilityStylists: Array.from(dedup.values()).sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-        franchiseStylists: franchisePool.sort((a, b) => a.name.localeCompare(b.name)),
+        facilityStylists: withProximity(Array.from(dedup.values())),
+        franchiseStylists: withProximity(franchisePool),
       },
     })
   } catch (err) {

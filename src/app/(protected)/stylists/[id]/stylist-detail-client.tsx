@@ -19,6 +19,7 @@ import type {
 import { resolveCommission } from '@/lib/stylist-commission'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 
 const DOC_TYPE_LABEL: Record<ComplianceDocumentType, string> = {
   license: 'License',
@@ -162,6 +163,7 @@ export function StylistDetailClient({
 }: StylistDetailClientProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
   const [stylist, setStylist] = useState(initialStylist)
   const [name, setName] = useState(initialStylist.name)
   const [color, setColor] = useState(initialStylist.color)
@@ -519,6 +521,15 @@ export function StylistDetailClient({
                       type="button"
                       disabled={inviteStatus === 'sending'}
                       onClick={async () => {
+                        if (
+                          !stylist.email ||
+                          !(await confirmSend({
+                            channel: 'email',
+                            recipient: stylist.email,
+                            summary: `Stylist account invite for ${stylist.name}`,
+                          }))
+                        )
+                          return
                         setInviteStatus('sending')
                         setError(null)
                         try {
@@ -1279,6 +1290,7 @@ export function StylistDetailClient({
         </div>
       </div>
     </div>
+    {sendConfirmDialog}
     </ErrorBoundary>
   )
 }

@@ -209,8 +209,8 @@ export function StatCard({
       : 'bg-stone-50 rounded-xl px-4 py-3'
   const valueClass =
     highlight === 'amber'
-      ? 'text-xl font-bold text-amber-700'
-      : 'text-xl font-bold text-stone-900'
+      ? 'text-xl font-bold text-amber-700 tabular-nums'
+      : 'text-xl font-bold text-stone-900 tabular-nums'
   return (
     <div className={container}>
       <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">

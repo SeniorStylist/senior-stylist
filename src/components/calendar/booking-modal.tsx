@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/ui/modal'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Resident, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
 import { useToast } from '@/components/ui/toast'
+import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 
 interface BookingModalProps {
   open: boolean
@@ -118,7 +120,9 @@ export function BookingModal({
   const submittingRef = useRef(false)
 
   const isMobile = useIsMobile()
+  const router = useRouter()
   const { toast } = useToast()
+  const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
 
   // Split services: primaries (non-addon) pickable in the multi-service list; addons are a separate checklist
   const primaryServiceCandidates = services.filter((s) => s.pricingType !== 'addon')
@@ -479,7 +483,11 @@ export function BookingModal({
         onClose()
       } else {
         onBookingChange(json.data)
-        toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success')
+        const bookingResidentId = json.data.residentId
+        toast(mode === 'create' ? 'Appointment booked!' : 'Appointment updated', 'success', bookingResidentId
+          ? { action: { label: 'View', onClick: () => router.push(`/residents/${bookingResidentId}`) } }
+          : undefined
+        )
         onClose()
       }
     } catch {
@@ -1209,6 +1217,25 @@ export function BookingModal({
 
   const handleSendReceipt = async () => {
     if (!booking || mode !== 'edit') return
+    const poaEmail = booking.resident.poaEmail
+    const poaPhone = booking.resident.poaPhone
+    const serviceLabel =
+      booking.service?.name ?? booking.serviceNames?.[0] ?? 'this appointment'
+    const channel = poaEmail && poaPhone ? 'both' : poaPhone ? 'sms' : 'email'
+    const recipient =
+      poaEmail && poaPhone
+        ? `${poaEmail} · ${poaPhone}`
+        : poaPhone && !poaEmail
+          ? poaPhone
+          : poaEmail ?? "the resident's family contact"
+    if (
+      !(await confirmSend({
+        channel,
+        recipient,
+        summary: `Receipt for ${serviceLabel} — ${booking.resident.name}`,
+      }))
+    )
+      return
     setSendingReceipt(true)
     try {
       const res = await fetch(`/api/bookings/${booking.id}/receipt`, { method: 'POST' })
@@ -1267,24 +1294,30 @@ export function BookingModal({
 
   if (isMobile) {
     return (
-      <BottomSheet isOpen={open} onClose={onClose} title={formTitle} footer={formFooter}>
-        {formFields}
-      </BottomSheet>
+      <>
+        <BottomSheet isOpen={open} onClose={onClose} title={formTitle} footer={formFooter}>
+          {formFields}
+        </BottomSheet>
+        {sendConfirmDialog}
+      </>
     )
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg" data-tour="calendar-booking-modal">
-      {formFields}
-      <div className="sticky bottom-0 bg-white px-6 pb-6 border-t border-stone-100 pt-4">
-        {breakdown}
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
-          <Button data-tour="booking-modal-submit" onClick={handleSubmit} loading={submitting} disabled={submitDisabled}>
-            {mode === 'create' ? 'Book appointment' : 'Save changes'}
-          </Button>
+    <>
+      <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg" data-tour="calendar-booking-modal">
+        {formFields}
+        <div className="sticky bottom-0 bg-white px-6 pb-6 border-t border-stone-100 pt-4">
+          {breakdown}
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
+            <Button data-tour="booking-modal-submit" onClick={handleSubmit} loading={submitting} disabled={submitDisabled}>
+              {mode === 'create' ? 'Book appointment' : 'Save changes'}
+            </Button>
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+      {sendConfirmDialog}
+    </>
   )
 }

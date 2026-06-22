@@ -122,7 +122,9 @@ function formatHHMM(t: string): string {
 }
 
 const TODAY_CARD_BASE = 'shrink-0 rounded-2xl text-white shadow-[var(--shadow-md)] transition-all duration-200 ease-out'
-const TODAY_CARD_GRADIENT = { background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }
+const TODAY_CARD_GRADIENT = {
+  background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 60%), radial-gradient(ellipse at 80% 20%, rgba(255,255,255,0.08) 0%, transparent 60%)',
+}
 
 export function DashboardClient({
   facilityId,
@@ -633,7 +635,7 @@ export function DashboardClient({
   }
 
   const bottomZoneContent = (
-    <div className="h-full flex flex-col gap-3 scroll-smooth" style={{ overscrollBehavior: 'contain' }}>
+    <div className="h-full flex flex-col gap-3 scroll-smooth" style={{ overscrollBehavior: 'contain' }} data-tour="dashboard-bottom-zone">
       {/* Tabs */}
       <div className="bg-white rounded-xl border border-stone-200 p-0.5 flex gap-0.5 shrink-0 shadow-[var(--shadow-sm)]">
         {(['residents', 'services', 'stylists'] as const).map((tab) => (
@@ -641,10 +643,10 @@ export function DashboardClient({
             key={tab}
             onClick={() => setActivePanel(tab)}
             className={cn(
-              'flex-1 h-8 text-xs font-medium rounded-lg transition-all duration-150 capitalize active:scale-95',
+              'flex-1 h-8 text-[11px] font-semibold tracking-wide rounded-lg transition-all duration-150 capitalize active:scale-95',
               activePanel === tab
                 ? 'bg-stone-900 text-white shadow-sm'
-                : 'text-stone-600 hover:bg-stone-50'
+                : 'text-stone-500 hover:bg-stone-50'
             )}
           >
             {tab}
@@ -902,7 +904,7 @@ export function DashboardClient({
 
       {/* ── Right panel — hidden on mobile ── */}
       <div
-        className="hidden md:flex w-80 shrink-0 flex-col h-full border-l border-stone-100 p-4 pl-3 gap-3"
+        className="hidden md:flex w-80 shrink-0 flex-col h-full border-l border-stone-100 p-4 pl-3 gap-4"
         style={{ backgroundColor: 'var(--color-panel-bg)' }}
       >
         {/* Pinned top — admin-only */}
@@ -980,11 +982,11 @@ export function DashboardClient({
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
                 <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This week</p>
-                <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisWeek.revenueCents)}</p>
+                <p className="text-sm font-semibold text-stone-800 mt-0.5 tabular-nums">{formatCents(periodStats.thisWeek.revenueCents)}</p>
               </div>
               <div className="rounded-xl bg-white border border-stone-200 px-3 py-2">
                 <p className="text-[10px] text-stone-400 uppercase tracking-wide font-medium">This month</p>
-                <p className="text-sm font-semibold text-stone-800 mt-0.5">{formatCents(periodStats.thisMonth.revenueCents)}</p>
+                <p className="text-sm font-semibold text-stone-800 mt-0.5 tabular-nums">{formatCents(periodStats.thisMonth.revenueCents)}</p>
               </div>
             </div>
           ) : (
@@ -1051,8 +1053,8 @@ function CoverageQueueRow({
   const [substituteId, setSubstituteId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [facilityPool, setFacilityPool] = useState<Array<{ id: string; name: string; stylistCode: string }>>([])
-  const [franchisePool, setFranchisePool] = useState<Array<{ id: string; name: string; stylistCode: string }>>([])
+  const [facilityPool, setFacilityPool] = useState<Array<{ id: string; name: string; stylistCode: string; nearby?: boolean }>>([])
+  const [franchisePool, setFranchisePool] = useState<Array<{ id: string; name: string; stylistCode: string; nearby?: boolean }>>([])
 
   useEffect(() => {
     fetch(`/api/coverage/substitutes?date=${request.startDate}`)
@@ -1126,7 +1128,7 @@ function CoverageQueueRow({
             <optgroup label="This Facility">
               {facilityPool.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.stylistCode})
+                  {s.nearby ? '📍 ' : ''}{s.name} ({s.stylistCode})
                 </option>
               ))}
             </optgroup>
@@ -1135,7 +1137,7 @@ function CoverageQueueRow({
             <optgroup label="Franchise Pool">
               {franchisePool.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.stylistCode})
+                  {s.nearby ? '📍 ' : ''}{s.name} ({s.stylistCode})
                 </option>
               ))}
             </optgroup>
@@ -1221,33 +1223,40 @@ function TodayCard({
         )}
         aria-hidden={!isTall}
       >
-        <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+        <div className="rounded-xl bg-white/[0.12] backdrop-blur-md border border-white/10 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Bookings</div>
-          <div className="text-xl font-semibold mt-0.5">{todayBookings.length}</div>
+          <div className="text-xl font-semibold mt-0.5 tabular-nums">{todayBookings.length}</div>
         </div>
-        <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+        <div className="rounded-xl bg-white/[0.12] backdrop-blur-md border border-white/10 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Completed</div>
-          <div className="text-xl font-semibold mt-0.5">{completedCount}</div>
+          <div className="text-xl font-semibold mt-0.5 tabular-nums">{completedCount}</div>
         </div>
-        <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+        <div className="rounded-xl bg-white/[0.12] backdrop-blur-md border border-white/10 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Revenue</div>
-          <div className="text-xl font-semibold mt-0.5">{formatCents(todayRevenue)}</div>
+          <div className="text-xl font-semibold mt-0.5 tabular-nums">{formatCents(todayRevenue)}</div>
         </div>
-        <div className="rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2">
+        <div className="rounded-xl bg-white/[0.12] backdrop-blur-md border border-white/10 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-white/60 font-medium">Pending</div>
-          <div className="text-xl font-semibold mt-0.5">{pendingCount}</div>
+          <div className="text-xl font-semibold mt-0.5 tabular-nums">{pendingCount}</div>
         </div>
       </div>
       <div
         className={cn(
-          'text-sm text-white/80 overflow-hidden transition-all duration-200 ease-out',
+          'flex items-center gap-2 overflow-hidden transition-all duration-200 ease-out',
           isTall
             ? 'opacity-0 max-h-0 mt-0 pointer-events-none'
             : 'opacity-100 max-h-10 mt-2'
         )}
         aria-hidden={isTall}
       >
-        {todayBookings.length} today · {pendingCount} pending
+        <span className="inline-flex items-center text-xs font-semibold bg-white/15 text-white rounded-full px-2.5 py-0.5 tabular-nums">
+          {todayBookings.length} today
+        </span>
+        {pendingCount > 0 && (
+          <span className="inline-flex items-center text-xs font-semibold bg-amber-400/25 text-amber-100 rounded-full px-2.5 py-0.5 tabular-nums">
+            {pendingCount} pending
+          </span>
+        )}
       </div>
     </div>
   )

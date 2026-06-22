@@ -6,6 +6,22 @@ import { NextRequest } from 'next/server'
 const MAX_PDF_BYTES = 50 * 1024 * 1024
 const MAX_GRID_CHARS = 400_000 // ~ tens of thousands of spreadsheet rows
 
+// Gemini reads PDFs and images natively via inlineData. Price sheets often only
+// exist as a screenshot/photo, so accept those too — not just PDF.
+const FILE_MIME_ALLOW = new Set([
+  'application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+])
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+}
+function resolveFileMime(file: File): string | null {
+  if (file.type && FILE_MIME_ALLOW.has(file.type)) return file.type
+  // Some browsers omit file.type (esp. for HEIC) — fall back to the extension.
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  return (ext && EXT_TO_MIME[ext]) || null
+}
+
 export const runtime = 'nodejs'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -35,7 +51,11 @@ function getColor(cat: string): string {
   return colorMap.get(cat)!
 }
 
-const GEMINI_PROMPT = `You are a price sheet parser for a salon / senior-living facility. Extract every real, purchasable service or item from this price sheet exactly as written.
+const GEMINI_PROMPT = `You are a price sheet parser for a salon / senior-living facility.
+
+STEP 1 — FACILITY NAME: Scan the top of the document (title, header, first few lines) for the name of the senior living community or assisted-living facility this price sheet belongs to. Examples: "Sunrise of Bethesda", "The Gardens of Germantown", "Brightview Senior Living at Tuckerman Lane". This is the COMMUNITY name, NOT the salon provider name ("Senior Stylist" is always the provider — never return it as the facility). Return null if no facility name is clearly visible.
+
+STEP 2 — SERVICES: Extract every real, purchasable service or item from this price sheet exactly as written.
 
 IGNORE everything that is not an actual priced service or item. Do NOT create a row for:
 - section or category headers (e.g. "Resident Services", "Food & Beverage", "Beauty Salon/Barber Shop Price List")
@@ -44,7 +64,7 @@ IGNORE everything that is not an actual priced service or item. Do NOT create a 
 - blank rows or rows that are only a label with no price
 A real service/item has a NAME and almost always a PRICE (or a clearly stated add-on/surcharge). If a row has neither a price nor an add-on amount, do not include it. Use the surrounding section header as the row's "category".
 
-Return a JSON array of service objects. Each object must have:
+Each service object in the "services" array must have:
 - "name": string — the service name exactly as written
 - "price": number — the price in dollars (e.g. 85.00), or null if not a fixed price
 - "category": string — the section/category this service belongs to (e.g. "Shampoo, Sets & Cuts", "Color", "Nail Services")
@@ -57,14 +77,25 @@ Return a JSON array of service objects. Each object must have:
 Pricing type rules:
 - "fixed": standard service with one price
 - "addon": services described as "add $X to service" or "additional $X" or "+$X" — these modify another service, price field should be null, addonAmountCents is the surcharge
-- "tiered": quantity-based pricing ("1-4 ea", "5 or more")
-- "multi_option": multiple named price points to choose from
+- "tiered": PER-UNIT or quantity-based pricing. Use "tiered" in BOTH of these cases:
+  - A flat per-unit price written with "each" / "ea" / "ea." / "per" and NO alternative price (e.g. "Nail polish $8 ea", "PA pack 8 ea.", "$5 each"). Emit a SINGLE tier: pricingTiers [{"minQty":1,"maxQty":999,"unitPriceCents":<price in cents>}], price null. This lets staff enter a quantity at booking so the total becomes price × quantity.
+  - Quantity breaks ("1-4 $5 ea, 5 or more $4 ea") → one tier per break.
+- "multi_option": multiple named price points to choose from. Use this whenever ONE row lists more than one DISTINCT price:
+  - "50/half  75/full" or "$50 half head / $75 full head" → pricingOptions [{"name":"Half","priceCents":5000},{"name":"Full","priceCents":7500}], price null
+  - "10 ea. -or- all 3 for 25" → pricingOptions [{"name":"Each","priceCents":1000},{"name":"All 3","priceCents":2500}], price null (two distinct prices → options, NOT per-unit tiered)
+- A price written with a trailing "+", "and up", or "start at" (e.g. "80+", "Braids (start at) 26") is still pricingType "fixed" — use the number as the price; keep any "(start at)"/"and up" wording in the name.
 
 Important:
 - Extract EVERY service, including add-ons and surcharges
+- Treat a row whose name ends in "(add)", "(add to a service)", or "add" as an addon — set addonAmountCents to the listed amount in cents and price null
 - Do not skip any category or section
 - Category names should match the section headers exactly
-- Return ONLY the JSON array, no markdown, no explanation`
+
+Return a JSON object with exactly these two fields:
+- "facilityName": string or null
+- "services": array of service objects as described above
+
+Return ONLY the JSON object, no markdown, no explanation`
 
 export async function POST(request: NextRequest) {
   // Reset color state per request
@@ -78,9 +109,15 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // The parse is facility-agnostic (it just reads a price sheet). The master
+    // admin uses it for the cross-facility bulk price-sheet tool, so allow them
+    // through even without an admin facility membership.
+    const isMaster = !!user.email && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    if (!isMaster) {
+      const facilityUser = await getUserFacility(user.id)
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const rl = await checkRateLimit('parsePdf', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
@@ -107,10 +144,14 @@ export async function POST(request: NextRequest) {
 
     let parts: Array<Record<string, unknown>>
     if (file) {
+      const mimeType = resolveFileMime(file)
+      if (!mimeType) {
+        return Response.json({ error: 'Unsupported file type. Upload a PDF or an image (PNG/JPG/HEIC).' }, { status: 415 })
+      }
       const buffer = await file.arrayBuffer()
       const base64 = Buffer.from(buffer).toString('base64')
       parts = [
-        { inlineData: { mimeType: 'application/pdf', data: base64 } },
+        { inlineData: { mimeType, data: base64 } },
         { text: GEMINI_PROMPT },
       ]
     } else {
@@ -123,17 +164,36 @@ export async function POST(request: NextRequest) {
     const body = {
       contents: [{ parts }],
       // temperature 0 → repeatable extraction; JSON mode → guaranteed parseable output.
+      // thinkingBudget 0 → disable Gemini 2.5 "thinking", which otherwise burns tens
+      // of seconds over-reasoning messy sheets and times the function out. Structured
+      // extraction from a clean text grid / typed price sheet doesn't need it.
       generationConfig: {
         temperature: 0,
         responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    // Abort before maxDuration so a slow Gemini call returns clean JSON, not an
+    // HTML platform-timeout page (which would crash the client's res.json()).
+    const controller = new AbortController()
+    const abortTimer = setTimeout(() => controller.abort(), 50_000)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } catch (fetchErr) {
+      if ((fetchErr as Error).name === 'AbortError') {
+        return Response.json({ error: 'The price sheet parser timed out. Please try again.' }, { status: 504 })
+      }
+      throw fetchErr
+    } finally {
+      clearTimeout(abortTimer)
+    }
 
     if (!res.ok) {
       const errText = await res.text()
@@ -147,19 +207,25 @@ export async function POST(request: NextRequest) {
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
     let parsed: unknown[]
+    let facilityName: string | null = null
     try {
       const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
       const json = JSON.parse(cleaned)
       if (Array.isArray(json)) {
+        // Old prompt format — bare array, no facility name
         parsed = json
       } else if (json && typeof json === 'object') {
-        // JSON mode without a schema sometimes wraps the array, e.g. {"services":[...]}.
-        // Pull out the first array-valued property rather than failing the whole parse.
-        const arr = Object.values(json as Record<string, unknown>).find((v) => Array.isArray(v))
+        const obj = json as Record<string, unknown>
+        // New prompt format: { facilityName, services }
+        if (typeof obj.facilityName === 'string' && obj.facilityName.trim()) {
+          facilityName = obj.facilityName.trim()
+        }
+        const arr = Array.isArray(obj.services) ? obj.services
+          : Object.values(obj).find((v) => Array.isArray(v))
         if (!arr) throw new Error('Response object contained no services array')
         parsed = arr as unknown[]
       } else {
-        throw new Error('Response is not a JSON array')
+        throw new Error('Response is not a JSON object')
       }
     } catch (parseErr) {
       console.error('[parse-pdf] Failed to parse Gemini response:', parseErr, '\nRaw:', rawText)
@@ -209,7 +275,7 @@ export async function POST(request: NextRequest) {
         }
       })
 
-    return Response.json({ data: rows })
+    return Response.json({ data: { facilityName, rows } })
   } catch (err) {
     console.error('[parse-pdf] error:', err)
     return Response.json({ error: 'Failed to parse PDF' }, { status: 500 })

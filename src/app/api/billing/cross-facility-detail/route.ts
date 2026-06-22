@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       rows = await db.execute(sql`
         SELECT id, name, facility_code, qb_outstanding_balance_cents AS value_cents
         FROM facilities
-        WHERE active = true AND qb_outstanding_balance_cents > 0
+        WHERE active = true AND is_demo = false AND qb_outstanding_balance_cents > 0
         ORDER BY qb_outstanding_balance_cents DESC
       `)
     } else if (type === 'collected') {
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN qb_payments p
           ON p.facility_id = f.id
          AND p.payment_date >= date_trunc('month', CURRENT_DATE)
-        WHERE f.active = true
+        WHERE f.active = true AND f.is_demo = false
         GROUP BY f.id, f.name, f.facility_code
         ORDER BY value_cents DESC
       `)
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN qb_invoices i
           ON i.facility_id = f.id
          AND i.invoice_date >= date_trunc('month', CURRENT_DATE)
-        WHERE f.active = true
+        WHERE f.active = true AND f.is_demo = false
         GROUP BY f.id, f.name, f.facility_code
         ORDER BY value_cents DESC
       `)
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
                END AS days_overdue
         FROM facilities f
         LEFT JOIN qb_invoices i ON i.facility_id = f.id
-        WHERE f.active = true AND f.qb_outstanding_balance_cents > 0
+        WHERE f.active = true AND f.is_demo = false AND f.qb_outstanding_balance_cents > 0
         GROUP BY f.id, f.name, f.facility_code, f.qb_outstanding_balance_cents
         HAVING MAX(i.invoice_date) IS NULL
             OR MAX(i.invoice_date) < (CURRENT_DATE - INTERVAL '30 days')

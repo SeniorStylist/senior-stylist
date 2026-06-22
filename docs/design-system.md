@@ -950,6 +950,27 @@ Service fields in the OCR review step (`ocr-import-modal.tsx`) use `<select>` dr
 - Same `<select>` pattern for add-on service rows.
 - **Price field**: read-only intent — `onChange` only updates `priceCents`, never `serviceId`/`serviceName`. Shows `"from sheet"` hint (`text-[10px] text-stone-400`) below the input to indicate it came from the handwritten log.
 
+### OCR review stylist field — `<select>` dropdown with create-new fallback
+
+The stylist field in the OCR review modal (`ocr-import-modal.tsx`) uses a `<select>` dropdown listing all facility stylists, with a create-new text input revealed when no existing stylist is chosen:
+
+- When `stylists.length > 0`: renders a `<select>` with all facility stylists as options + a `value="__create__"` sentinel at the bottom.
+- Selecting `__create__` sets `stylistId: null` and reveals a plain `<input type="text">` for typing a new stylist name.
+- On load, auto-preselects the OCR-matched stylist (`stylistId` already set from the scan) and shows a "✓ Matched to existing stylist" hint below the select.
+- `sheetHasStylist(sheet)` remains the import-gate: true when `stylistId` is set OR `stylistName.trim()` is non-empty.
+- Never use a raw `<input list="...">` + `<datalist>` for this — it renders as a free-text field on most browsers and hides the available options.
+
+### Bulk price sheet facility detection — two-signal matching
+
+`/master-admin/imports/price-sheets/price-sheets-client.tsx` auto-routes each uploaded file to a facility via two ordered signals:
+
+1. **Filename** (threshold 0.70): F-code prefix (`F177 - Sunrise...`) or fuzzy name match at upload time. Sets `facilitySource: 'filename'`.
+2. **Document content** (threshold 0.65): `detectedFacilityName` returned by Gemini from `parsePriceSheetFile()` is used as a fallback in `processSheet` when filename detection failed. Sets `facilitySource: 'content'`.
+
+The UI shows a small muted hint below the facility selector: `"matched from filename"` or `"matched from file"` (content). A `null` source means no match found and the user must select manually.
+
+`parsePriceSheetFile` returns `ParseResult = { rows: ParsedPriceRow[]; detectedFacilityName: string | null }`. Never call `.rows` on the raw import result — destructure before use.
+
 ### Toast Notifications
 
 ```tsx
@@ -1750,6 +1771,23 @@ Shared motion vocabulary lives in `src/lib/animations.ts`. Import the constants 
 **Invoice Lines table** (scan-check modal Step 2, RFMS_REMITTANCE_SLIP only): `bg-stone-50 rounded-2xl p-4 border border-stone-100`. Header row: `grid grid-cols-[auto_1fr_auto] gap-x-4 text-xs text-stone-400 font-semibold uppercase tracking-wide`. Each line: same grid, `py-1 text-sm`; `confidence === 'low'` rows get `bg-amber-50`. Total row: `border-t border-stone-200 mt-2 pt-2 flex items-center justify-between text-sm`. Total value: `text-emerald-700 font-bold tabular-nums` when matches extracted check amount, `text-red-600` otherwise with ` ≠ check amount` suffix.
 
 **Expandable check detail row** (rfms-view.tsx, remittance checks only): Check # cell renders as `${btnBase} text-stone-700 underline decoration-dotted hover:text-stone-900` button when `residentBreakdown.type === 'remittance_lines'`; plain text otherwise. Expanded detail is a sibling `<div>` (not inside the payment row) with `${expandTransition} px-5 py-3 bg-stone-50 border-b border-stone-100`. Three-column grid: `grid-cols-[6rem_1fr_6rem]` — Ref # (font-mono xs), Date, Amount (text-right tabular-nums). Total row at bottom: emerald when matches `p.amountCents`, amber otherwise. Single-open-at-a-time via `expandedCheckId` state; clicking an already-open row collapses it.
+
+---
+
+### Send Confirmation Dialog (`SendConfirmDialog` / `useSendConfirm`)
+
+`src/components/ui/send-confirm-dialog.tsx` (exported from `src/components/ui/index.ts`) is the canonical "Are you sure you want to send this?" gate for **one-click** email/text sends — buttons that fire a real message the instant they're clicked (Send Receipt, family-portal Send Link, billing Send Statement / Send All, resend invite, stylist account invite).
+
+- **`useSendConfirm()`** returns `{ confirmSend, dialog }`. `confirmSend(opts): Promise<boolean>` resolves `true` on Send, `false` on Cancel/close. Render `{dialog}` once in the component tree. The promise resolver is held in a `useRef` (not in the setState updater) so it never double-fires under StrictMode.
+- **Usage** — gate at the TOP of the existing send handler; nothing else changes:
+  ```ts
+  if (!(await confirmSend({ channel, recipient, summary, warning }))) return
+  // ...existing fetch/toast logic unchanged...
+  ```
+- **`SendConfirmOptions`**: `channel: 'email' | 'sms' | 'both'`, `recipient` (email / phone / "12 residents"), `summary` (one-line "what's being sent"), optional `warning` (amber caution line, e.g. "Last sent Jun 14"), optional `confirmLabel` (default "Send").
+- **Visual**: branches desktop `Modal` / mobile `BottomSheet` via `useIsMobile()` (mirrors `email-day-log-modal.tsx`). Body shows a stone-50 card with a channel icon + label ("Email" / "Text" / "Email + text"), the recipient (font-semibold), and the summary. Footer: Cancel (ghost) + Send (primary). The dialog only gates — the page's existing button spinner + toast handle the actual network call.
+- **Dedup interplay** (billing): for per-resident statement sends where `lastSentAt` is known client-side, pass it as `warning` and send with `force: true` after confirm to bypass the legacy `SendDedupModal` round-trip. For the facility statement (`lastSentAt` only known server-side), gate with `confirmSend` then keep `force: false` so `SendDedupModal` still acts as the second "already sent recently" layer.
+- **Out of scope**: compose-style flows that already make the user type a recipient before sending (Day Log Email modal, the new teammate-invite form) — they're already deliberate. "Copy Link" sends nothing, so no gate.
 
 ---
 

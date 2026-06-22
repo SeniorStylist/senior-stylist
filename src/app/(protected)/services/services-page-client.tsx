@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Sparkles } from 'lucide-react'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
-import { formatPricingLabel } from '@/lib/pricing'
+import { formatPricingLabel, isPerUnitService, perUnitCents, makePerUnitTiers } from '@/lib/pricing'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Service, PricingType, PricingTier, PricingOption } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -20,42 +20,19 @@ const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
 function LongPressRow({
   children,
   className,
-  style,
   onMouseEnter,
   onMouseLeave,
   onLongPress,
-  draggable,
-  onDragStart,
-  onDragEnd,
-  onDragOver,
-  onDrop,
 }: {
   children: React.ReactNode
   className?: string
-  style?: React.CSSProperties
   onMouseEnter?: () => void
   onMouseLeave?: () => void
   onLongPress: () => void
-  draggable?: boolean
-  onDragStart?: React.DragEventHandler
-  onDragEnd?: React.DragEventHandler
-  onDragOver?: React.DragEventHandler
-  onDrop?: React.DragEventHandler
 }) {
   const lp = useLongPress(onLongPress)
   return (
-    <div
-      className={className}
-      style={style}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      {...lp}
-    >
+    <div className={className} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...lp}>
       {children}
     </div>
   )
@@ -65,10 +42,6 @@ function LongPressRow({
 // single open-ended tier, so it reuses the tiered booking flow (quantity stepper,
 // qty × price, billing). pricingPayload() converts it to a tiered service on save.
 type PricingMode = PricingType | 'per_unit'
-
-function makePerUnitTiers(unitPriceCents: number): PricingTier[] {
-  return [{ minQty: 1, maxQty: 999, unitPriceCents }]
-}
 
 function pricingPayload(
   mode: PricingMode,
@@ -102,11 +75,22 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const { toast } = useToast()
   const router = useRouter()
   const [services, setServices] = useState(initialServices)
+  const [isRefreshing, startRefresh] = useTransition()
+
+  // Keep the list in sync with the server: after a facility switch or an import,
+  // the parent re-renders this client with fresh `initialServices` (via
+  // router.refresh()). Without this the local state would keep showing the old
+  // facility's services / pre-import list until a full page reload.
+  useEffect(() => {
+    setServices(initialServices)
+  }, [initialServices])
+
+  const handleRefresh = () => startRefresh(() => router.refresh())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editDuration, setEditDuration] = useState('')
-  const [editPricingType, setEditPricingType] = useState<PricingType>('fixed')
+  const [editPricingType, setEditPricingType] = useState<PricingMode>('fixed')
   const [editAddonAmount, setEditAddonAmount] = useState('')
   const [editTiers, setEditTiers] = useState<PricingTier[]>([])
   const [editOptions, setEditOptions] = useState<PricingOption[]>([])
@@ -116,7 +100,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const [addName, setAddName] = useState('')
   const [addPrice, setAddPrice] = useState('')
   const [addDuration, setAddDuration] = useState('30')
-  const [addPricingType, setAddPricingType] = useState<PricingType>('fixed')
+  const [addPricingType, setAddPricingType] = useState<PricingMode>('fixed')
   const [addAddonAmount, setAddAddonAmount] = useState('')
   const [addTiers, setAddTiers] = useState<PricingTier[]>([{ minQty: 1, maxQty: 10, unitPriceCents: 0 }])
   const [addOptions, setAddOptions] = useState<PricingOption[]>([{ name: '', priceCents: 0 }])
@@ -132,57 +116,6 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const [bulkColorPickerOpen, setBulkColorPickerOpen] = useState(false)
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [bulkUpdating, setBulkUpdating] = useState(false)
-
-  const [dragServiceId, setDragServiceId] = useState<string | null>(null)
-  const [dragOverServiceId, setDragOverServiceId] = useState<string | null>(null)
-  const [dragCategoryName, setDragCategoryName] = useState<string | null>(null)
-  const [dragOverCategoryName, setDragOverCategoryName] = useState<string | null>(null)
-
-  const handleServiceDrop = (targetId: string) => {
-    if (!dragServiceId || dragServiceId === targetId) {
-      setDragServiceId(null); setDragOverServiceId(null); return
-    }
-    const dragged = services.find((s) => s.id === dragServiceId)
-    const target = services.find((s) => s.id === targetId)
-    if (!dragged || !target) return
-    const dragCat = dragged.category?.trim() || 'Other'
-    const targetCat = target.category?.trim() || 'Other'
-    if (dragCat !== targetCat) { setDragServiceId(null); setDragOverServiceId(null); return }
-    const catServices = sortServicesWithinCategory(
-      services.filter((s) => (s.category?.trim() || 'Other') === dragCat)
-    )
-    const withoutDragged = catServices.filter((s) => s.id !== dragServiceId)
-    withoutDragged.splice(withoutDragged.findIndex((s) => s.id === targetId), 0, dragged)
-    const newOrders: Record<string, number> = {}
-    withoutDragged.forEach((s, i) => { newOrders[s.id] = i + 1 })
-    setServices((prev) => prev.map((s) => newOrders[s.id] !== undefined ? { ...s, sortOrder: newOrders[s.id] } : s))
-    setDragServiceId(null); setDragOverServiceId(null)
-    fetch('/api/services/reorder', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'services', orderedIds: withoutDragged.map((s) => s.id) }),
-    }).catch(() => toast('Failed to save order', 'error'))
-  }
-
-  const handleCategoryDrop = (targetCatName: string) => {
-    if (!dragCategoryName || dragCategoryName === targetCatName) {
-      setDragCategoryName(null); setDragOverCategoryName(null); return
-    }
-    const grouped = new Map<string, Service[]>()
-    for (const s of services) {
-      const key = s.category?.trim() || 'Other'
-      if (!grouped.has(key)) grouped.set(key, [])
-      grouped.get(key)!.push(s)
-    }
-    const orderedGroups = sortCategoryGroups([...grouped.entries()], categoryPriority)
-    const cats = orderedGroups.map(([cat]) => cat)
-    const withoutDragged = cats.filter((c) => c !== dragCategoryName)
-    withoutDragged.splice(withoutDragged.findIndex((c) => c === targetCatName), 0, dragCategoryName)
-    setDragCategoryName(null); setDragOverCategoryName(null)
-    fetch('/api/services/reorder', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'categories', orderedCategories: withoutDragged }),
-    }).then(() => router.refresh()).catch(() => toast('Failed to save order', 'error'))
-  }
 
   const [sortKey, setSortKey] = useState<'name' | 'category' | 'duration' | 'price'>('category')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -227,11 +160,13 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   }
 
   const startEdit = (service: Service) => {
+    const perUnit = isPerUnitService(service)
     setEditingId(service.id)
     setEditName(service.name)
-    setEditPrice((service.priceCents / 100).toFixed(2))
+    // For a per-unit service the editable price IS the unit price.
+    setEditPrice(((perUnit ? perUnitCents(service) : service.priceCents) / 100).toFixed(2))
     setEditDuration(service.durationMinutes.toString())
-    setEditPricingType(service.pricingType)
+    setEditPricingType(perUnit ? 'per_unit' : service.pricingType)
     setEditAddonAmount(service.addonAmountCents ? (service.addonAmountCents / 100).toFixed(2) : '')
     setEditTiers(service.pricingTiers ?? [{ minQty: 1, maxQty: 10, unitPriceCents: 0 }])
     setEditOptions(service.pricingOptions ?? [{ name: '', priceCents: 0 }])
@@ -249,12 +184,13 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editName.trim(),
-          priceCents: dollarsToCents(editPrice),
           durationMinutes: parseInt(editDuration),
-          pricingType: editPricingType,
-          addonAmountCents: editPricingType === 'addon' ? dollarsToCents(editAddonAmount) : null,
-          pricingTiers: editPricingType === 'tiered' ? editTiers : null,
-          pricingOptions: editPricingType === 'multi_option' ? editOptions : null,
+          ...pricingPayload(editPricingType, {
+            priceCents: dollarsToCents(editPrice),
+            addonCents: dollarsToCents(editAddonAmount),
+            tiers: editTiers,
+            options: editOptions,
+          }),
         }),
       })
       const json = await res.json()
@@ -283,12 +219,13 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: addName.trim(),
-          priceCents: dollarsToCents(addPrice),
           durationMinutes: parseInt(addDuration),
-          pricingType: addPricingType,
-          addonAmountCents: addPricingType === 'addon' ? dollarsToCents(addAddonAmount) : null,
-          pricingTiers: addPricingType === 'tiered' ? addTiers : null,
-          pricingOptions: addPricingType === 'multi_option' ? addOptions : null,
+          ...pricingPayload(addPricingType, {
+            priceCents: dollarsToCents(addPrice),
+            addonCents: dollarsToCents(addAddonAmount),
+            tiers: addTiers,
+            options: addOptions,
+          }),
         }),
       })
       const json = await res.json()
@@ -344,6 +281,32 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
           subtitle={`${services.length} service${services.length !== 1 ? 's' : ''}`}
         />
         <div className="flex items-center gap-2">
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          title="Refresh services"
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all disabled:opacity-50"
+        >
+          <svg
+            width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={cn(isRefreshing && 'animate-spin')}
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+          </svg>
+          <span className="hidden md:inline">Refresh</span>
+        </button>
+        <Link
+          href="/services/import?mode=update"
+          className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
+          title="Scan a new price sheet and overwrite existing prices"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+          </svg>
+          Update prices
+        </Link>
         <Link
           href="/services/import"
           className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
@@ -407,14 +370,21 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
             <label className="text-xs font-medium text-stone-500">Pricing Type</label>
             <select
               value={addPricingType}
-              onChange={(e) => setAddPricingType(e.target.value as PricingType)}
+              onChange={(e) => setAddPricingType(e.target.value as PricingMode)}
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
             >
               <option value="fixed">Fixed Price</option>
+              <option value="per_unit">Per unit (each)</option>
               <option value="addon">Add-on</option>
-              <option value="tiered">Tiered (per unit)</option>
+              <option value="tiered">Tiered (price breaks)</option>
               <option value="multi_option">Multiple Options</option>
             </select>
+            {addPricingType === 'per_unit' && (
+              <p className="text-xs text-stone-500">
+                The price above is charged <span className="font-medium">per unit</span>. Staff pick a
+                quantity when booking — total = price × quantity (e.g. 7 × $8.00 = $56.00).
+              </p>
+            )}
           </div>
 
           {addPricingType === 'addon' && (
@@ -587,22 +557,8 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   nodes.push(
                     <div
                       key={`cat-${cat}`}
-                      draggable
-                      onDragStart={(e) => { e.stopPropagation(); setDragCategoryName(cat) }}
-                      onDragEnd={() => { setDragCategoryName(null); setDragOverCategoryName(null) }}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverCategoryName(cat) }}
-                      onDrop={(e) => { e.preventDefault(); handleCategoryDrop(cat) }}
-                      className={cn(
-                        'px-5 pt-4 pb-1.5 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-2 cursor-grab select-none transition-colors',
-                        dragOverCategoryName === cat && dragCategoryName !== cat ? 'bg-rose-50' : 'bg-stone-50/50'
-                      )}
+                      className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
                     >
-                      {/* Grip handle — desktop only */}
-                      <svg className="hidden md:block shrink-0 text-stone-300" width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
-                        <circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/>
-                        <circle cx="2" cy="7" r="1.5"/><circle cx="8" cy="7" r="1.5"/>
-                        <circle cx="2" cy="12" r="1.5"/><circle cx="8" cy="12" r="1.5"/>
-                      </svg>
                       {cat}
                     </div>
                   )
@@ -610,20 +566,12 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 }
               }
               nodes.push(
-            <div
+            <LongPressRow
               key={service.id}
-              className={cn(
-                'border-b border-stone-50 last:border-0 transition-colors',
-                dragOverServiceId === service.id && dragServiceId !== service.id ? 'bg-rose-50' : '',
-                dragServiceId === service.id ? 'opacity-40' : ''
-              )}
-              draggable
-              onDragStart={(e) => { e.stopPropagation(); setDragServiceId(service.id) }}
-              onDragEnd={() => { setDragServiceId(null); setDragOverServiceId(null) }}
-              onDragOver={(e) => { e.preventDefault(); setDragOverServiceId(service.id) }}
-              onDrop={(e) => { e.preventDefault(); handleServiceDrop(service.id) }}
+              className="border-b border-stone-50 last:border-0"
               onMouseEnter={() => setHoverId(service.id)}
               onMouseLeave={() => { setHoverId(null); if (confirmArchiveId === service.id) setConfirmArchiveId(null) }}
+              onLongPress={() => setSelectedIds((prev) => { const next = new Set(prev); next.add(service.id); return next })}
             >
               {editingId === service.id ? (
                 /* Inline edit row */
@@ -673,14 +621,21 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   <div className="flex flex-wrap gap-3 items-start">
                     <select
                       value={editPricingType}
-                      onChange={(e) => setEditPricingType(e.target.value as PricingType)}
+                      onChange={(e) => setEditPricingType(e.target.value as PricingMode)}
                       className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
                     >
                       <option value="fixed">Fixed</option>
+                      <option value="per_unit">Per unit (each)</option>
                       <option value="addon">Add-on</option>
-                      <option value="tiered">Tiered</option>
+                      <option value="tiered">Tiered (breaks)</option>
                       <option value="multi_option">Options</option>
                     </select>
+
+                    {editPricingType === 'per_unit' && (
+                      <p className="w-full text-xs text-stone-500 -mt-1">
+                        Charged per unit — staff pick a quantity at booking (total = price × quantity).
+                      </p>
+                    )}
 
                     {editPricingType === 'addon' && (
                       <div className="relative">
@@ -728,19 +683,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
               ) : (
                 /* Normal row */
                 <div className="grid grid-cols-12 gap-4 items-center px-5 py-3.5">
-                  <div className="col-span-1 flex items-center gap-1.5">
-                    {/* Grip handle — desktop only, shows on hover */}
-                    <svg
-                      className={cn(
-                        'hidden md:block shrink-0 text-stone-300 cursor-grab transition-opacity',
-                        hoverId === service.id ? 'opacity-100' : 'opacity-0'
-                      )}
-                      width="10" height="14" viewBox="0 0 10 14" fill="currentColor"
-                    >
-                      <circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/>
-                      <circle cx="2" cy="7" r="1.5"/><circle cx="8" cy="7" r="1.5"/>
-                      <circle cx="2" cy="12" r="1.5"/><circle cx="8" cy="12" r="1.5"/>
-                    </svg>
+                  <div className="col-span-1">
                     <input
                       type="checkbox"
                       checked={selectedIds.has(service.id)}
@@ -827,7 +770,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   </div>
                 </div>
               )}
-            </div>
+            </LongPressRow>
               )
             }
             return nodes

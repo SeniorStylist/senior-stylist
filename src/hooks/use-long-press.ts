@@ -1,40 +1,57 @@
 import { useCallback, useRef } from 'react'
 
-export function useLongPress(onLongPress: () => void, delay = 450) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const moved = useRef(false)
-  const startX = useRef(0)
-  const startY = useRef(0)
+interface LongPressOptions {
+  threshold?: number // ms before triggering (default 450)
+  moveCancelDistance?: number // px of movement to cancel (default 8)
+}
 
-  const start = useCallback(
-    (e: React.TouchEvent) => {
-      moved.current = false
-      startX.current = e.touches[0].clientX
-      startY.current = e.touches[0].clientY
-      timer.current = setTimeout(() => {
-        if (!moved.current) onLongPress()
-      }, delay)
-    },
-    [onLongPress, delay]
-  )
-
-  const move = useCallback((e: React.TouchEvent) => {
-    const dx = Math.abs(e.touches[0].clientX - startX.current)
-    const dy = Math.abs(e.touches[0].clientY - startY.current)
-    if (dx > 10 || dy > 10) {
-      moved.current = true
-      if (timer.current) clearTimeout(timer.current)
-    }
-  }, [])
+/**
+ * Touch-based long-press hook.
+ * Returns event handlers to spread onto the target element.
+ * Movement cancels the press so normal scrolling is unaffected.
+ */
+export function useLongPress(
+  onLongPress: () => void,
+  { threshold = 450, moveCancelDistance = 8 }: LongPressOptions = {}
+) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startPosRef = useRef<{ x: number; y: number } | null>(null)
+  const firedRef = useRef(false)
 
   const cancel = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current)
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    startPosRef.current = null
+    firedRef.current = false
   }, [])
 
-  return {
-    onTouchStart: start,
-    onTouchMove: move,
-    onTouchEnd: cancel,
-    onTouchCancel: cancel,
-  }
+  const onTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      firedRef.current = false
+      startPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      timerRef.current = setTimeout(() => {
+        firedRef.current = true
+        onLongPress()
+      }, threshold)
+    },
+    [onLongPress, threshold]
+  )
+
+  const onTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!startPosRef.current || firedRef.current) return
+      const dx = e.touches[0].clientX - startPosRef.current.x
+      const dy = e.touches[0].clientY - startPosRef.current.y
+      if (Math.sqrt(dx * dx + dy * dy) > moveCancelDistance) cancel()
+    },
+    [cancel, moveCancelDistance]
+  )
+
+  const onTouchEnd = useCallback(() => {
+    cancel()
+  }, [cancel])
+
+  return { onTouchStart, onTouchMove, onTouchEnd }
 }

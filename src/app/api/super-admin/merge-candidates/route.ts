@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, residents, bookings, stylistFacilityAssignments } from '@/db/schema'
-import { eq, count } from 'drizzle-orm'
+import { eq, and, count } from 'drizzle-orm'
 import { fuzzyScore } from '@/lib/fuzzy'
 
 interface FacilityRow {
@@ -34,7 +34,8 @@ export async function GET() {
 
   try {
     const allActive = await db.query.facilities.findMany({
-      where: eq(facilities.active, true),
+      // is_demo filter — Phase 13: never offer the throwaway demo facility for merge.
+      where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
       columns: {
         id: true,
         name: true,

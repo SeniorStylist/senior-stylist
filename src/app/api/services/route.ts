@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+      const i = parsed.error.issues[0]
+      return Response.json({ error: `Invalid data — ${i?.message ?? 'check your input'}` }, { status: 422 })
     }
 
     const {

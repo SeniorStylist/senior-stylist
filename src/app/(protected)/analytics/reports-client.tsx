@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
+import { useToast } from '@/components/ui/toast'
 import { PageHeader } from '@/components/ui/page-header'
 import { BarChart3 } from 'lucide-react'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -104,6 +105,7 @@ export function ReportsClient({
   revSharePercentage,
   exportFacilities,
 }: ReportsClientProps) {
+  const { toast } = useToast()
   const [showExportModal, setShowExportModal] = useState(false)
   const [activeTab, setActiveTab] = useState<ReportTab>('analytics')
   const [month, setMonth] = useState(() => {
@@ -146,6 +148,16 @@ export function ReportsClient({
   }, [activeTab, month, showInvoiceTab])
 
   const handleMarkAllPaid = async () => {
+    // Optimistic update — flip all unpaid rows to paid immediately
+    const snapshot = invoiceData
+    if (invoiceData) {
+      setInvoiceData({
+        ...invoiceData,
+        bookings: invoiceData.bookings.map((b) =>
+          b.paymentStatus === 'unpaid' ? { ...b, paymentStatus: 'paid' } : b
+        ),
+      })
+    }
     setMarkingPaid(true)
     try {
       const res = await fetch('/api/reports/mark-paid', {
@@ -154,11 +166,17 @@ export function ReportsClient({
         body: JSON.stringify({ month }),
       })
       if (res.ok) {
-        // Refresh invoice data
         const res2 = await fetch(`/api/reports/invoice?month=${month}`)
         const json = await res2.json()
         if (json.data) setInvoiceData(json.data)
+      } else {
+        // Rollback on failure
+        setInvoiceData(snapshot)
+        toast.error('Failed to mark all paid — please try again.')
       }
+    } catch {
+      setInvoiceData(snapshot)
+      toast.error('Network error — please try again.')
     } finally {
       setMarkingPaid(false)
     }
@@ -283,17 +301,17 @@ export function ReportsClient({
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-xs text-stone-500 mb-0.5">Gross revenue</p>
-                  <p className="font-semibold text-stone-900">{formatCents(data.totalRevenueCents)}</p>
+                  <p className="font-semibold text-stone-900 tabular-nums">{formatCents(data.totalRevenueCents)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-stone-500 mb-0.5">Rev share deducted</p>
-                  <p className="font-semibold text-stone-900">
+                  <p className="font-semibold text-stone-900 tabular-nums">
                     −{formatCents(Math.round((data.totalRevenueCents * (revSharePercentage ?? 0)) / 100))}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-stone-500 mb-0.5">Net revenue</p>
-                  <p className="font-semibold text-stone-800">
+                  <p className="font-semibold text-stone-800 tabular-nums">
                     {formatCents(
                       data.totalRevenueCents -
                         Math.round((data.totalRevenueCents * (revSharePercentage ?? 0)) / 100),
@@ -310,7 +328,7 @@ export function ReportsClient({
               <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">
                 Total Revenue
               </p>
-              <p className="text-3xl font-bold text-[#8B2E4A]">
+              <p className="text-3xl font-bold text-[#8B2E4A] tabular-nums">
                 {formatCents(data.totalRevenueCents)}
               </p>
             </div>
@@ -435,14 +453,14 @@ export function ReportsClient({
                 {data.commissions.filter((c) => c.commissionPercent > 0).map((c) => (
                   <div key={c.name} className="grid grid-cols-12 gap-2 items-center px-5 py-3 hover:bg-stone-50 transition-colors">
                     <div className="col-span-4 text-sm font-medium text-stone-800">{c.name}</div>
-                    <div className="col-span-3 text-sm text-stone-500">{formatCents(c.revenueCents)} revenue</div>
+                    <div className="col-span-3 text-sm text-stone-500 tabular-nums">{formatCents(c.revenueCents)} revenue</div>
                     <div className="col-span-2 text-sm text-stone-500">{c.commissionPercent}%</div>
-                    <div className="col-span-3 text-sm font-bold text-[#8B2E4A]">{formatCents(c.commissionCents)}</div>
+                    <div className="col-span-3 text-sm font-bold text-[#8B2E4A] tabular-nums">{formatCents(c.commissionCents)}</div>
                   </div>
                 ))}
                 <div className="grid grid-cols-12 gap-2 items-center px-5 py-3 bg-stone-50">
                   <div className="col-span-9 text-sm font-semibold text-stone-600">Total commissions</div>
-                  <div className="col-span-3 text-sm font-bold text-[#8B2E4A]">
+                  <div className="col-span-3 text-sm font-bold text-[#8B2E4A] tabular-nums">
                     {formatCents(data.commissions.reduce((sum, c) => sum + c.commissionCents, 0))}
                   </div>
                 </div>
@@ -523,7 +541,7 @@ export function ReportsClient({
                     </div>
                     <div className="col-span-2 text-sm text-stone-500 truncate">{b.service}</div>
                     <div className="col-span-2 text-sm text-stone-500 truncate">{b.stylist}</div>
-                    <div className="col-span-2 text-sm font-semibold text-stone-700">
+                    <div className="col-span-2 text-sm font-semibold text-stone-700 tabular-nums">
                       {formatCents(b.priceCents)}
                     </div>
                     <div className="col-span-1">
@@ -624,20 +642,20 @@ export function ReportsClient({
                             </div>
                             <div className="col-span-4 text-sm text-stone-800">{b.service}</div>
                             <div className="col-span-3 text-sm text-stone-500">{b.stylist}</div>
-                            <div className="col-span-3 text-right text-sm font-semibold text-stone-700">{formatCents(b.priceCents)}</div>
+                            <div className="col-span-3 text-right text-sm font-semibold text-stone-700 tabular-nums">{formatCents(b.priceCents)}</div>
                           </div>
                         ))}
                       </div>
                       <div className="px-5 py-2.5 bg-stone-50 border-t border-stone-100 flex justify-between">
                         <span className="text-xs font-semibold text-stone-500">Subtotal</span>
-                        <span className="text-sm font-bold text-stone-800">{formatCents(subtotal)}</span>
+                        <span className="text-sm font-bold text-stone-800 tabular-nums">{formatCents(subtotal)}</span>
                       </div>
                     </div>
                   )
                 })}
                 <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 py-4 flex justify-between items-center">
                   <span className="text-sm font-semibold text-stone-600">Grand Total</span>
-                  <span className="text-2xl font-bold text-[#8B2E4A]">{formatCents(grandTotal)}</span>
+                  <span className="text-2xl font-bold text-[#8B2E4A] tabular-nums">{formatCents(grandTotal)}</span>
                 </div>
               </div>
             )
