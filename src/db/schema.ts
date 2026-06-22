@@ -31,6 +31,8 @@ export const profiles = pgTable('profiles', {
   helpProgress: jsonb('help_progress').$type<{ tourId: string; stepIndex: number; scenarioState: Record<string, string> } | null>(),
   // Custom email for feedback notifications (master admin only — 2026-06-12)
   feedbackEmail: text('feedback_email'),
+  // 13A: "What's New" changelog — last time the user dismissed the bell
+  changelogLastReadAt: timestamp('changelog_last_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -72,6 +74,8 @@ export const facilities = pgTable('facilities', {
   portalWelcomeCouponEnabled: boolean('portal_welcome_coupon_enabled').default(false).notNull(),
   portalWelcomeCouponType: text('portal_welcome_coupon_type'), // 'percent' | 'fixed'
   portalWelcomeCouponValue: integer('portal_welcome_coupon_value'), // percent (1-100) or cents
+  // 13E: per-facility opt-in for the daily 8am digest email
+  dailyDigestEnabled: boolean('daily_digest_enabled').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -125,6 +129,8 @@ export const residents = pgTable(
     defaultTipValue: integer('default_tip_value'),
     // Phase 14A: resident birthday for birthday coupons
     dateOfBirth: date('date_of_birth'),
+    // 13G: resident profile photo (stored path in private bucket resident-photos)
+    photoPath: text('photo_path'),
     active: boolean('active').default(true).notNull(),
     // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
     isDemo: boolean('is_demo').default(false).notNull(),
@@ -292,6 +298,8 @@ export const services = pgTable('services', {
   addonAmountCents: integer('addon_amount_cents'),
   pricingTiers: jsonb('pricing_tiers').$type<Array<{ minQty: number; maxQty: number; unitPriceCents: number }>>(),
   pricingOptions: jsonb('pricing_options').$type<Array<{ name: string; priceCents: number }>>(),
+  // 13J: drag-to-reorder — admin can set display order within a category; 0 = unset (name sort)
+  sortOrder: integer('sort_order').default(0).notNull(),
   active: boolean('active').default(true).notNull(),
   // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
   isDemo: boolean('is_demo').default(false).notNull(),
@@ -977,6 +985,20 @@ export const feedbackSubmissions = pgTable('feedback_submissions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusCreatedIdx: index('feedback_submissions_status_created_idx').on(t.status, t.createdAt),
+}))
+
+// 13Q: Web Push subscriptions — one row per browser endpoint per user.
+// RLS service_role_all. Schema is self-bootstrapped by ensurePushSchema() in push-ddl.ts.
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => profiles.id, { onDelete: 'cascade' }).notNull(),
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userEndpointUnique: unique('push_subscriptions_user_endpoint_unique').on(t.userId, t.endpoint),
+  userIdx: index('push_subscriptions_user_idx').on(t.userId),
 }))
 
 // ─── Relations ───────────────────────────────────────────────────────────────

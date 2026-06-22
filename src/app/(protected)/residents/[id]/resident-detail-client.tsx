@@ -78,6 +78,28 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  const handlePhotoUpload = useCallback(async (file: File) => {
+    setUploadingPhoto(true)
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const res = await fetch(`/api/residents/${resident.id}/photo`, { method: 'POST', body: form })
+      const j = await res.json()
+      if (res.ok) {
+        setPhotoUrl(j.data.photoUrl)
+        toast.success('Photo updated')
+      } else {
+        toast.error(j.error ?? 'Upload failed')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }, [resident.id, toast])
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -251,7 +273,32 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
         <div className="col-span-2 space-y-4">
           <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
             <div className="flex justify-between items-start mb-4">
-              <Avatar name={resident.name} size="lg" />
+              <div className="relative group">
+                <Avatar name={resident.name} size="lg" photoUrl={photoUrl ?? undefined} />
+                {canEdit && (
+                  <label
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title={uploadingPhoto ? 'Uploading…' : 'Upload photo'}
+                  >
+                    {uploadingPhoto ? (
+                      <svg className="animate-spin text-white" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".25"/><path d="M12 3a9 9 0 019 9"/></svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      className="sr-only"
+                      disabled={uploadingPhoto}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handlePhotoUpload(file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
               {!editing && canEdit && (
                 <button
                   onClick={() => setEditing(true)}

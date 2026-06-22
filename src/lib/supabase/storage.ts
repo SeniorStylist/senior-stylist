@@ -9,3 +9,4 @@ export function createStorageClient() {
 }
 
 export const COMPLIANCE_BUCKET = 'compliance-docs'
+export const RESIDENT_PHOTOS_BUCKET = 'resident-photos'

@@ -24,6 +24,8 @@ const updateSchema = z.object({
   }).optional(),
   contactEmail: z.string().email().max(320).optional().nullable(),
   qbExpenseAccountId: z.string().max(100).optional().nullable(),
+  // 13E: Daily digest opt-in
+  dailyDigestEnabled: z.boolean().optional(),
   // Phase 14A: Family Portal expansion
   portalSelfSignupEnabled: z.boolean().optional(),
   portalCouponsEnabled: z.boolean().optional(),

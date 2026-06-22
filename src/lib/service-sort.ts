@@ -27,11 +27,20 @@ export function sortCategoryGroups<T>(
   })
 }
 
-export function sortServicesWithinCategory<T extends { name: string; pricingType: string }>(
+export function sortServicesWithinCategory<T extends { name: string; pricingType: string; sortOrder?: number }>(
   items: T[],
 ): T[] {
   const priority = (pt: string) => (pt === 'addon' ? 2 : pt === 'tiered' ? 1 : 0)
+  const hasExplicitOrder = items.some((s) => (s.sortOrder ?? 0) > 0)
   return [...items].sort((a, b) => {
+    // When any item has an explicit sort_order, use that first (0 = unset, falls to name sort)
+    if (hasExplicitOrder) {
+      const oa = a.sortOrder ?? 0
+      const ob = b.sortOrder ?? 0
+      if (oa !== 0 && ob !== 0) return oa - ob
+      if (oa !== 0) return -1
+      if (ob !== 0) return 1
+    }
     const pa = priority(a.pricingType)
     const pb = priority(b.pricingType)
     if (pa !== pb) return pa - pb

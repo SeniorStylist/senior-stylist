@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ChangelogWidget } from '@/components/changelog/changelog-widget'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
@@ -11,6 +12,7 @@ interface TopBarProps {
   facilityName?: string
   facilityCode?: string | null
   role?: NavRole | string
+  changelogLastReadAt?: string | null
 }
 
 const TABS: { href: string; label: string; roles: NavRole[] }[] = [
@@ -19,7 +21,7 @@ const TABS: { href: string; label: string; roles: NavRole[] }[] = [
   { href: '/log', label: 'Daily Log', roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'] },
 ]
 
-export function TopBar({ facilityName, facilityCode, role = 'admin' }: TopBarProps) {
+export function TopBar({ facilityName, facilityCode, role = 'admin', changelogLastReadAt = null }: TopBarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const visibleTabs = TABS.filter((t) => t.roles.includes(role as NavRole))
@@ -63,6 +65,7 @@ export function TopBar({ facilityName, facilityCode, role = 'admin' }: TopBarPro
           <span className="max-w-[220px] truncate">{facilityName}</span>
         </span>
       )}
+      <ChangelogWidget changelogLastReadAt={changelogLastReadAt} />
       {role === 'admin' && (
         <Button variant="primary" size="sm" onClick={() => router.push('/dashboard?new=1')}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

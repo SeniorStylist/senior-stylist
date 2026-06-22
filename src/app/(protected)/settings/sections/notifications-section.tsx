@@ -1,12 +1,43 @@
 'use client'
 
+import { useState } from 'react'
+import { useToast } from '@/components/ui/toast'
+
 interface Props {
   adminEmail: string | null
   role: string
+  dailyDigestEnabled?: boolean
 }
 
-export function NotificationsSection({ adminEmail, role }: Props) {
+export function NotificationsSection({ adminEmail, role, dailyDigestEnabled: initialDigestEnabled = false }: Props) {
   const readOnly = role !== 'admin'
+  const { toast } = useToast()
+  const [digestEnabled, setDigestEnabled] = useState(initialDigestEnabled)
+  const [savingDigest, setSavingDigest] = useState(false)
+
+  const toggleDigest = async () => {
+    if (readOnly) return
+    const next = !digestEnabled
+    setDigestEnabled(next)
+    setSavingDigest(true)
+    try {
+      const res = await fetch('/api/facility', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dailyDigestEnabled: next }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        toast.error(j.error ?? 'Failed to save')
+        setDigestEnabled(!next)
+      }
+    } catch {
+      toast.error('Network error')
+      setDigestEnabled(!next)
+    } finally {
+      setSavingDigest(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -31,6 +62,33 @@ export function NotificationsSection({ adminEmail, role }: Props) {
           New service requests and compliance alerts are sent to this address. Set via the{' '}
           <span className="font-mono text-stone-600">NEXT_PUBLIC_ADMIN_EMAIL</span> environment variable.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-stone-800 mb-1">Morning Digest Email</p>
+            <p className="text-xs text-stone-500">
+              Send a daily 8am summary of today&rsquo;s appointments to all facility admins. The master account always receives the digest — this enables per-facility delivery to your team.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={digestEnabled}
+            disabled={readOnly || savingDigest}
+            onClick={toggleDigest}
+            className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
+              digestEnabled ? 'bg-[#8B2E4A]' : 'bg-stone-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                digestEnabled ? 'translate-x-4' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
