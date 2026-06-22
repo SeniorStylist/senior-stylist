@@ -5,6 +5,16 @@ import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
 import type { Resident, Stylist, Service } from '@/types'
+
+function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
+  const v = label.trim().toLowerCase()
+  if (!v || v === 'unpaid (invoice)' || v === 'unpaid' || v === 'invoice') {
+    return { paymentStatus: 'unpaid', paymentMethod: null }
+  }
+  if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
+  return { paymentStatus: 'paid', paymentMethod: label.trim() || null }
+}
+
 interface OcrRawEntry {
   residentName: string
   roomNumber: string | null
@@ -33,7 +43,7 @@ type EntryState = {
   additionalServiceIds: (string | null)[]
   priceCents: number | null
   tipCents: number | null
-  paymentStatus: 'unpaid' | 'paid' | 'waived'
+  paymentCombo: string
   notes: string | null
   unclear: boolean
   include: boolean
@@ -155,7 +165,7 @@ function buildSheetState(
       additionalServiceIds,
       priceCents: entry.price != null ? Math.round(entry.price * 100) : null,
       tipCents: null,
-      paymentStatus: 'unpaid',
+      paymentCombo: 'Unpaid (Invoice)',
       notes: entry.notes ?? null,
       unclear: entry.unclear ?? false,
       include: true,
@@ -399,7 +409,7 @@ export function OcrImportModal({
             additionalServiceNames: e.additionalServices,
             priceCents: e.priceCents,
             tipCents: e.tipCents,
-            paymentStatus: e.paymentStatus,
+            ...parsePaymentCombo(e.paymentCombo),
             notes: e.notes,
           })),
         })),
@@ -935,15 +945,22 @@ export function OcrImportModal({
                                 {/* Payment Type */}
                                 <div className="col-span-2">
                                   <label className="text-xs text-stone-500 block mb-0.5">Payment Type</label>
-                                  <select
-                                    value={entry.paymentStatus}
-                                    onChange={(e) => updateEntry(activeTab, ei, { paymentStatus: e.target.value as 'unpaid' | 'paid' | 'waived' })}
+                                  <input
+                                    type="text"
+                                    list={`ocr-payment-type-${activeTab}-${ei}`}
+                                    value={entry.paymentCombo}
+                                    onChange={(e) => updateEntry(activeTab, ei, { paymentCombo: e.target.value })}
+                                    placeholder="Unpaid (Invoice)"
                                     className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
-                                  >
-                                    <option value="unpaid">Unpaid (Invoice)</option>
-                                    <option value="paid">Paid</option>
-                                    <option value="waived">Waived</option>
-                                  </select>
+                                  />
+                                  <datalist id={`ocr-payment-type-${activeTab}-${ei}`}>
+                                    <option value="Unpaid (Invoice)" />
+                                    <option value="Cash" />
+                                    <option value="Check" />
+                                    <option value="Card" />
+                                    <option value="ACH" />
+                                    <option value="Waived" />
+                                  </datalist>
                                 </div>
                               </div>
 

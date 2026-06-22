@@ -227,6 +227,7 @@ export interface Booking {
   googleEventId: string | null
   syncError: string | null
   tipCents: number | null
+  paymentMethod: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }

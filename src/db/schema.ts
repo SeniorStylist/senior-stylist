@@ -345,6 +345,8 @@ export const bookings = pgTable('bookings', {
   active: boolean('active').default(true).notNull(),
   // Phase 12E: tip amount in cents (stylist-only — never sums into facility revenue)
   tipCents: integer('tip_cents'),
+  // Free-text payment method label (e.g. 'Cash', 'Check', 'Card', 'ACH') — pairs with paymentStatus
+  paymentMethod: text('payment_method'),
   // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
   isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),

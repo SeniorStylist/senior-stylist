@@ -54,6 +54,7 @@ const importSchema = z.object({
               priceCents: z.number().int().min(0).max(10_000_000).nullable(),
               tipCents: z.number().int().min(0).max(10_000_000).nullable().optional().default(null),
               paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional().default('unpaid'),
+              paymentMethod: z.string().max(100).nullable().optional().default(null),
               notes: z.string().max(2000).nullable(),
             })
             .refine((e) => !e.include || e.residentName.trim().length > 0, {
@@ -305,6 +306,7 @@ export async function POST(request: Request) {
             notes: entry.notes ?? null,
             status: 'completed',
             paymentStatus: entry.paymentStatus ?? 'unpaid',
+            paymentMethod: entry.paymentMethod ?? null,
           })
           createdBookings++
           entryIndex++

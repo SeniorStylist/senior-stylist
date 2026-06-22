@@ -23,6 +23,21 @@ import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 import { EmailDayLogModal } from '@/components/exports/email-day-log-modal'
 
+function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
+  const v = label.trim().toLowerCase()
+  if (!v || v === 'unpaid (invoice)' || v === 'unpaid' || v === 'invoice') {
+    return { paymentStatus: 'unpaid', paymentMethod: null }
+  }
+  if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
+  return { paymentStatus: 'paid', paymentMethod: label.trim() || null }
+}
+
+function paymentComboLabel(paymentStatus: string, paymentMethod: string | null | undefined): string {
+  if (paymentStatus === 'unpaid') return 'Unpaid (Invoice)'
+  if (paymentStatus === 'waived') return 'Waived'
+  return paymentMethod || 'Paid'
+}
+
 interface LogBooking {
   id: string
   startTime: string
@@ -43,6 +58,7 @@ interface LogBooking {
   rawServiceName?: string | null
   importBatch?: { fileName: string } | null
   tipCents: number | null
+  paymentMethod?: string | null
   resident: Resident
   stylist: Stylist
   service: Service | null
@@ -175,7 +191,7 @@ export function LogClient({
   const [editPrice, setEditPrice] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editTipCents, setEditTipCents] = useState('')
-  const [editPaymentStatus, setEditPaymentStatus] = useState<'unpaid' | 'paid' | 'waived'>('unpaid')
+  const [editPaymentCombo, setEditPaymentCombo] = useState('Unpaid (Invoice)')
   const [editDate, setEditDate] = useState('')
   const [editResidentId, setEditResidentId] = useState<string | null>(null)
   const [editResidentName, setEditResidentName] = useState('')
@@ -190,7 +206,7 @@ export function LogClient({
     setEditPrice(((booking.priceCents ?? booking.service?.priceCents ?? 0) / 100).toFixed(2))
     setEditNotes(booking.notes ?? '')
     setEditTipCents(booking.tipCents != null ? (booking.tipCents / 100).toFixed(2) : '')
-    setEditPaymentStatus((booking.paymentStatus as 'unpaid' | 'paid' | 'waived') ?? 'unpaid')
+    setEditPaymentCombo(paymentComboLabel(booking.paymentStatus, booking.paymentMethod ?? null))
     const p = getLocalParts(new Date(booking.startTime), facilityTimezone)
     setEditDate(`${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`)
     setEditResidentId(booking.resident.id)
@@ -204,7 +220,7 @@ export function LogClient({
     setEditPrice('')
     setEditNotes('')
     setEditTipCents('')
-    setEditPaymentStatus('unpaid')
+    setEditPaymentCombo('Unpaid (Invoice)')
     setEditDate('')
     setEditResidentId(null)
     setEditResidentName('')
@@ -222,11 +238,13 @@ export function LogClient({
       const tipFloat = parseFloat(editTipCents)
       const tipCents = editTipCents.trim() && !isNaN(tipFloat) ? Math.round(tipFloat * 100) : null
 
+      const { paymentStatus, paymentMethod } = parsePaymentCombo(editPaymentCombo)
       const body: Record<string, unknown> = {
         priceCents,
         notes: editNotes || null,
         tipCents,
-        paymentStatus: editPaymentStatus,
+        paymentStatus,
+        paymentMethod,
       }
 
       // Date change: preserve the original time-of-day, just shift the date
@@ -1264,15 +1282,22 @@ export function LogClient({
                             {/* Payment Type */}
                             <div>
                               <label className="text-[10px] text-stone-400 uppercase tracking-wide">Payment Type</label>
-                              <select
-                                value={editPaymentStatus}
-                                onChange={(e) => setEditPaymentStatus(e.target.value as 'unpaid' | 'paid' | 'waived')}
+                              <input
+                                type="text"
+                                list="log-payment-type-options"
+                                value={editPaymentCombo}
+                                onChange={(e) => setEditPaymentCombo(e.target.value)}
+                                placeholder="Unpaid (Invoice)"
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
-                              >
-                                <option value="unpaid">Unpaid (Invoice)</option>
-                                <option value="paid">Paid</option>
-                                <option value="waived">Waived</option>
-                              </select>
+                              />
+                              <datalist id="log-payment-type-options">
+                                <option value="Unpaid (Invoice)" />
+                                <option value="Cash" />
+                                <option value="Check" />
+                                <option value="Card" />
+                                <option value="ACH" />
+                                <option value="Waived" />
+                              </datalist>
                             </div>
                             {/* Notes */}
                             <textarea
