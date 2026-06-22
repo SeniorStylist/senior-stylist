@@ -20,19 +20,42 @@ const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120]
 function LongPressRow({
   children,
   className,
+  style,
   onMouseEnter,
   onMouseLeave,
   onLongPress,
+  draggable,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
 }: {
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
   onMouseEnter?: () => void
   onMouseLeave?: () => void
   onLongPress: () => void
+  draggable?: boolean
+  onDragStart?: React.DragEventHandler
+  onDragEnd?: React.DragEventHandler
+  onDragOver?: React.DragEventHandler
+  onDrop?: React.DragEventHandler
 }) {
   const lp = useLongPress(onLongPress)
   return (
-    <div className={className} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...lp}>
+    <div
+      className={className}
+      style={style}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      {...lp}
+    >
       {children}
     </div>
   )
@@ -116,6 +139,58 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
   const [bulkColorPickerOpen, setBulkColorPickerOpen] = useState(false)
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [bulkUpdating, setBulkUpdating] = useState(false)
+
+  // Drag-to-reorder (desktop, category-sort view only)
+  const [dragServiceId, setDragServiceId] = useState<string | null>(null)
+  const [dragOverServiceId, setDragOverServiceId] = useState<string | null>(null)
+  const [dragCategoryName, setDragCategoryName] = useState<string | null>(null)
+  const [dragOverCategoryName, setDragOverCategoryName] = useState<string | null>(null)
+
+  const handleServiceDrop = (targetId: string) => {
+    if (!dragServiceId || dragServiceId === targetId) {
+      setDragServiceId(null); setDragOverServiceId(null); return
+    }
+    const dragged = services.find((s) => s.id === dragServiceId)
+    const target = services.find((s) => s.id === targetId)
+    if (!dragged || !target) { setDragServiceId(null); setDragOverServiceId(null); return }
+    const dragCat = dragged.category?.trim() || 'Other'
+    const targetCat = target.category?.trim() || 'Other'
+    if (dragCat !== targetCat) { setDragServiceId(null); setDragOverServiceId(null); return }
+    const catServices = sortServicesWithinCategory(
+      services.filter((s) => (s.category?.trim() || 'Other') === dragCat)
+    )
+    const withoutDragged = catServices.filter((s) => s.id !== dragServiceId)
+    withoutDragged.splice(withoutDragged.findIndex((s) => s.id === targetId), 0, dragged)
+    const newOrders: Record<string, number> = {}
+    withoutDragged.forEach((s, i) => { newOrders[s.id] = i + 1 })
+    setServices((prev) => prev.map((s) => newOrders[s.id] !== undefined ? { ...s, sortOrder: newOrders[s.id] } : s))
+    setDragServiceId(null); setDragOverServiceId(null)
+    fetch('/api/services/reorder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'services', orderedIds: withoutDragged.map((s) => s.id) }),
+    }).catch(() => toast('Failed to save order', 'error'))
+  }
+
+  const handleCategoryDrop = (targetCatName: string) => {
+    if (!dragCategoryName || dragCategoryName === targetCatName) {
+      setDragCategoryName(null); setDragOverCategoryName(null); return
+    }
+    const grouped = new Map<string, Service[]>()
+    for (const s of services) {
+      const key = s.category?.trim() || 'Other'
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(s)
+    }
+    const orderedGroups = sortCategoryGroups([...grouped.entries()], categoryPriority)
+    const cats = orderedGroups.map(([cat]) => cat)
+    const withoutDragged = cats.filter((c) => c !== dragCategoryName)
+    withoutDragged.splice(withoutDragged.findIndex((c) => c === targetCatName), 0, dragCategoryName)
+    setDragCategoryName(null); setDragOverCategoryName(null)
+    fetch('/api/services/reorder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'categories', orderedCategories: withoutDragged }),
+    }).then(() => router.refresh()).catch(() => toast('Failed to save order', 'error'))
+  }
 
   const [sortKey, setSortKey] = useState<'name' | 'category' | 'duration' | 'price'>('category')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -557,8 +632,21 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   nodes.push(
                     <div
                       key={`cat-${cat}`}
-                      className="px-5 pt-4 pb-1.5 bg-stone-50/50 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
+                      draggable
+                      onDragStart={() => setDragCategoryName(cat)}
+                      onDragEnd={() => { setDragCategoryName(null); setDragOverCategoryName(null) }}
+                      onDragOver={(e) => { if (dragCategoryName && dragCategoryName !== cat) { e.preventDefault(); setDragOverCategoryName(cat) } }}
+                      onDrop={(e) => { e.preventDefault(); handleCategoryDrop(cat) }}
+                      className={cn(
+                        'group flex items-center gap-2 px-5 pt-4 pb-1.5 border-b border-stone-100 text-[11px] font-semibold text-stone-500 uppercase tracking-wide',
+                        dragOverCategoryName === cat ? 'bg-rose-50' : 'bg-stone-50/50'
+                      )}
                     >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="hidden md:block text-stone-300 group-hover:text-stone-400 cursor-grab shrink-0">
+                        <circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" />
+                        <circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" />
+                        <circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" />
+                      </svg>
                       {cat}
                     </div>
                   )
@@ -568,7 +656,16 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
               nodes.push(
             <LongPressRow
               key={service.id}
-              className="border-b border-stone-50 last:border-0"
+              className={cn(
+                'border-b border-stone-50 last:border-0 transition-colors',
+                dragServiceId === service.id && 'opacity-40',
+                dragOverServiceId === service.id && 'bg-rose-50'
+              )}
+              draggable={sortKey === 'category' && editingId !== service.id}
+              onDragStart={() => setDragServiceId(service.id)}
+              onDragEnd={() => { setDragServiceId(null); setDragOverServiceId(null) }}
+              onDragOver={(e) => { if (dragServiceId && dragServiceId !== service.id) { e.preventDefault(); setDragOverServiceId(service.id) } }}
+              onDrop={(e) => { e.preventDefault(); handleServiceDrop(service.id) }}
               onMouseEnter={() => setHoverId(service.id)}
               onMouseLeave={() => { setHoverId(null); if (confirmArchiveId === service.id) setConfirmArchiveId(null) }}
               onLongPress={() => setSelectedIds((prev) => { const next = new Set(prev); next.add(service.id); return next })}
@@ -683,7 +780,14 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
               ) : (
                 /* Normal row */
                 <div className="grid grid-cols-12 gap-4 items-center px-5 py-3.5">
-                  <div className="col-span-1">
+                  <div className="col-span-1 flex items-center gap-1.5">
+                    {sortKey === 'category' && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cn('hidden md:block cursor-grab text-stone-300 transition-opacity', hoverId === service.id ? 'opacity-100' : 'opacity-0')}>
+                        <circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" />
+                        <circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" />
+                        <circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" />
+                      </svg>
+                    )}
                     <input
                       type="checkbox"
                       checked={selectedIds.has(service.id)}
