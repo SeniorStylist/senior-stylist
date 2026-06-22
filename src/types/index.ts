@@ -62,6 +62,7 @@ export interface Facility {
   portalWelcomeCouponEnabled: boolean
   portalWelcomeCouponType: string | null
   portalWelcomeCouponValue: number | null
+  dailyDigestEnabled: boolean
   revSharePercentage?: number | null
   qbRevShareType?: string | null
   createdAt: Date | null
@@ -89,6 +90,7 @@ export interface Resident {
   defaultTipType: string | null
   defaultTipValue: number | null
   dateOfBirth?: string | null
+  photoPath?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null
@@ -195,6 +197,7 @@ export interface Service {
   pricingTiers: PricingTier[] | null
   pricingOptions: PricingOption[] | null
   active: boolean
+  sortOrder: number
   createdAt: Date | null
   updatedAt: Date | null
 }

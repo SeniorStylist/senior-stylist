@@ -165,6 +165,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `has_seen_onboarding_tour` | `boolean NOT NULL DEFAULT false` (Phase 12G) — drives first-login welcome modal; flipped via `POST /api/profile/onboarding-seen` |
 | `has_seen_first_tour` | `boolean NOT NULL DEFAULT false` (Phase 13-Tutorial) — drives `<FirstTourAutoLauncher>` on dashboard; flipped via `POST /api/profile/first-tour-seen` |
 | `help_progress` | `jsonb`, nullable (Phase 13-Tutorial) — scripted tour resume state `{ tourId, stepIndex, scenarioState } \| null`; cleared on tour close/complete |
+| `changelog_last_read_at` | `timestamptz`, nullable (Wave 2) — stamped by `POST /api/profile/changelog-seen`; drives the unread dot on `<ChangelogWidget>` in the TopBar |
 | `created_at`, `updated_at` | Timestamps |
 
 ### `facilities`
@@ -188,6 +189,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `qb_expense_account_id` | `text`, nullable (Phase 10B) — admin-selected QB Expense Account ID used as `AccountRef` on every pushed Bill line |
 | `qb_invoices_last_synced_at` | `timestamptz`, nullable (Phase 11M) — wall-clock timestamp of the last successful invoice sync |
 | `qb_invoices_sync_cursor` | `text`, nullable (Phase 11M) — ISO 8601 timestamp used as `Metadata.LastUpdatedTime > '<cursor>'` filter on the next incremental sync |
+| `daily_digest_enabled` | `boolean NOT NULL DEFAULT false` (Wave 2) — opt-in for the 8am morning digest email; toggled via Settings → Notifications |
 | `active` | Boolean, default true |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -209,6 +211,7 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 - **`default_tip_type`** (Phase 12E): nullable text, one of `'percentage' | 'fixed'`. When set, drives the booking modal's auto-fill on resident pick.
 - **`default_tip_value`** (Phase 12E): nullable integer. Percent (e.g. `15` = 15%) when type is `'percentage'`; cents (e.g. `200` = $2.00) when type is `'fixed'`. Both fields null means no preference.
 - **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — records seeded by the tutorial engine. Filtered out of all user-facing list queries (`eq(residents.isDemo, false)`). Partial index `residents_demo_idx (facility_id) WHERE is_demo = true` accelerates per-facility demo cleanup.
+- **`photo_path`** (Wave 2): `text`, nullable — Supabase Storage path in the private `resident-photos` bucket. Uploaded via `POST /api/residents/[id]/photo` (admin/facility_staff, MIME check, 5 MB cap); deleted via `DELETE /api/residents/[id]/photo`. The path is never returned directly — callers generate signed URLs server-side. `<Avatar>` renders `<img>` when `photoUrl` is provided.
 - **`active`**, **`created_at`**, **`updated_at`**
 - Unique constraint: **`(name, facility_id)`**
 
@@ -269,6 +272,7 @@ Admin-only internal notes attached to a stylist. Never exposed via portal or sty
 - **`addon_amount_cents`**: integer, nullable — add-on surcharge for `addon` type
 - **`pricing_tiers`**: jsonb, nullable — array of `{ minQty, maxQty, unitPriceCents }` for `tiered` type
 - **`pricing_options`**: jsonb, nullable — array of `{ name, priceCents }` for `multi_option` type
+- **`sort_order`** (Wave 2): `integer`, nullable — explicit display order within a category. `sortServicesWithinCategory` (in `src/lib/service-sort.ts`) orders by `sort_order ASC NULLS LAST` first, then name. Drag-to-reorder on the services page (`POST /api/services/reorder`, admin-only) persists changes.
 - **`is_demo`** (Phase 13-Tutorial): `boolean NOT NULL DEFAULT false` — tutorial-seeded service. Filtered from user-facing lists.
 
 ### `bookings`
@@ -574,6 +578,21 @@ RLS enabled. `service_role_all` policy. Append-only audit log — no updates or 
 
 Indexes: `help_step_events_tour_step_action_idx (tour_id, step_index, action)` + `help_step_events_facility_created_idx (facility_id, created_at)`. RLS enabled with `service_role_all`. Written fire-and-forget by the scripted tour engine via `POST /api/help/track`.
 
+### `push_subscriptions` (Wave 2)
+
+Web Push API subscription records. One row per browser/device registration per user.
+
+| Column | Notes |
+|--------|--------|
+| `id` | PK `uuid` `defaultRandom()` |
+| `user_id` | FK → `profiles.id` ON DELETE CASCADE, NOT NULL |
+| `endpoint` | `text` NOT NULL — PushSubscription endpoint URL |
+| `p256dh` | `text` NOT NULL — client public key |
+| `auth` | `text` NOT NULL — auth secret |
+| `created_at` | `timestamptz` NOT NULL default now |
+
+Unique index: `(user_id, endpoint)`. RLS enabled with `service_role_all`. Created by `src/lib/push-ddl.ts::ensurePushSchema()` (module-level `_ensured` guard — same pattern as `feedback-ddl.ts`; called at the top of push subscribe/unsubscribe handlers). Migration also in `drizzle/0014_wave2_wave3.sql`.
+
 ### Declared relations
 
 Drizzle `relations()` connect bookings ↔ resident/stylist/service/facility; facilities ↔ facility_users, residents, stylists, services, bookings, log_entries, invites; invites ↔ facility, invited profile; log_entries ↔ facility, stylist.
@@ -666,6 +685,13 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Stats**: `GET /api/stats` — aggregated booking counts/revenue for today/week/month.
 - **Multi-facility**: `GET /api/facilities`, `POST /api/facilities` (creator becomes admin), `POST /api/facilities/select` sets cookie.
 - **PWA**: `src/app/icon.tsx` + `apple-icon.tsx` (ImageResponse, burgundy #8B2E4A brand color), `manifest.ts` (Next.js MetadataRoute.Manifest), install banner (`src/components/pwa/install-banner.tsx`). `themeColor: '#8B2E4A'` in root layout.
+- **Service worker (Wave 2):** `public/sw.js` registered by `<SWRegister />` (`src/components/pwa/sw-register.tsx`) mounted in `(protected)/layout.tsx`. Strategy: network-first for navigations (offline fallback → `public/offline.html`); cache-first for `/_next/static/**`; **NEVER caches `/api/*`** (avoids stale resident/billing data). Handles `push` events — displays a notification when `sendPushToUser` fires from a server route (e.g. new booking created).
+- **Push notifications (Wave 2):** `src/lib/push.ts::sendPushToUser(userId, payload)` — lazy VAPID init (no-op when `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` env vars are unset, mirrors Twilio pattern). Fired fire-and-forget from `POST /api/bookings` on create. Subscription stored in `push_subscriptions` table. Opt-in toggle in My Account for stylists.
+- **Changelog widget (Wave 2):** `<ChangelogWidget />` in `src/components/changelog/changelog-widget.tsx`. Bell icon in the TopBar (desktop, `hidden md:flex`). Shows an unread dot when `LATEST_CHANGELOG_DATE` in `src/lib/changelog.ts` is newer than `profiles.changelog_last_read_at`. Opening the modal fires `POST /api/profile/changelog-seen` to clear the dot.
+- **Keyboard shortcuts (Wave 2):** `<KeyboardShortcuts />` mounted in `(protected)/layout.tsx`. `N` = new booking (dispatches open-booking-modal event, gated on admin/facility_staff), `?` = toggle shortcuts overlay. `<kbd>` elements styled with `bg-stone-100 rounded px-1.5 py-0.5 text-xs font-mono`.
+- **Drag-to-reorder services (Wave 2):** HTML5 drag handles (`<GripVertical>`, `hidden md:block`) on service rows and category headers in `services-page-client.tsx`. Persisted via `POST /api/services/reorder` on drop. `sortServicesWithinCategory` in `src/lib/service-sort.ts` now honors `sort_order` first, then name.
+- **Resident photo upload (Wave 2):** Photo upload card in `/residents/[id]` (admin/facility_staff). Stored in private Supabase bucket `resident-photos`. `<Avatar>` renders `<img>` when `photoUrl` is provided; falls back to initials. Signed URLs generated server-side, never persisted.
+- **Daily digest email (Wave 2):** 8am daily cron at `GET /api/cron/daily-digest` sends a morning summary (appointments today, outstanding tasks) to opted-in facilities + master roll-up to master admin. Opt-in toggle under Settings → Notifications (`facilities.daily_digest_enabled`). Uses `buildDailySummaryEmailHtml` and the shared `emailHeader` helper in `src/lib/email.ts`.
 - **Brand alignment (full migration complete 2026-04-14)**: Entire app — portal, admin, and all components — uses burgundy `#8B2E4A` (`#72253C` hover, `#C4687A` accent). Portal uses warm blush `#FDF8F8` background. `--color-primary` in globals.css is `#8B2E4A`. Exceptions: `completed` status badge (`bg-teal-50 text-teal-700`, semantic), color picker palette arrays, service/stylist color fallbacks, and DB default column (user-owned data — all retain `#0D7377`).
 - **Super admin CRUD**: `/super-admin` page supports inline edit (name/address/phone/timezone/paymentType) and deactivate/reactivate (2-step confirm) per facility card. Edit calls `PUT /api/super-admin/facility/[id]`. Facility name uniqueness enforced (409) on both create and edit.
 - **Onboarding flow**: new users with valid invite redirect to `/onboarding` (not dashboard error); middleware allows `/onboarding` for users with no facilityUser.
@@ -896,6 +922,13 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/help/track` | Authenticated; rate-limited `helpTrack` (60/min/user) (Phase 13-Tutorial) | Writes one row to `help_step_events`. Body: `{ tourId, stepIndex, action }`. Fire-and-forget from the scripted tour engine — 200 always returned; errors swallowed server-side. |
 | `DELETE /api/help/demo-data` | Authenticated; admin-only (Phase 13-Tutorial) | Soft-deletes (`active=false`) all `is_demo=true` residents, stylists, services, and bookings for the caller's facility. Hard-deletes demo `log_entries` and `stylist_checkins` (no `active` column on those tables). Called from Settings → Advanced "Tutorial Data" card after two-step confirmation. |
 | `POST /api/profile/first-tour-seen` | Authenticated (Phase 13-Tutorial) | Flips `profiles.has_seen_first_tour = true` for the caller. No body required. Returns `{ data: { ok: true } }`. |
+| `POST /api/profile/changelog-seen` | Authenticated (Wave 2) | Stamps `profiles.changelog_last_read_at = now()`. Fired by `<ChangelogWidget>` when the user opens the changelog modal. Returns `{ data: { ok: true } }`. |
+| `POST /api/services/reorder` | **Admin** (Wave 2) | Body: `{ action: 'services', orderedIds: string[] }` OR `{ action: 'categories', orderedCategories: string[] }`. `'services'` updates `sort_order` on each service id in sequence; `'categories'` updates `facilities.serviceCategoryOrder`. Scoped to caller's facility. `revalidateTag('facilities', {})` on category reorder. |
+| `POST /api/residents/[id]/photo` | **Admin / facility_staff** (Wave 2) | Multipart `file` upload. MIME allowlist: `image/jpeg image/png image/webp`. 5 MB cap. Uploads to private `resident-photos` bucket at `{facilityId}/{residentId}/photo.{ext}` (service-role key). Updates `residents.photo_path`. Returns `{ data: { photoPath } }`. |
+| `DELETE /api/residents/[id]/photo` | **Admin / facility_staff** (Wave 2) | Deletes the storage object and clears `residents.photo_path`. |
+| `POST /api/push/subscribe` | Authenticated (Wave 2) | Body: `{ endpoint, p256dh, auth }`. Upserts a row in `push_subscriptions` (on conflict `(user_id, endpoint)` → no-op). Calls `ensurePushSchema()`. Returns `{ data: { ok: true } }`. |
+| `POST /api/push/unsubscribe` | Authenticated (Wave 2) | Body: `{ endpoint }`. Deletes the matching `push_subscriptions` row for the caller. Returns `{ data: { ok: true } }`. |
+| `GET /api/cron/daily-digest` | **Vercel Cron** (`Bearer CRON_SECRET`) (Wave 2) | Daily at 08:00 UTC (`0 8 * * *` in `vercel.json`). Fetches all active facilities with `daily_digest_enabled = true` plus the master roll-up. Sends the digest email via `buildDailySummaryEmailHtml` (in `src/lib/email.ts`, follows the shared `emailHeader` pattern). `maxDuration=60`. |
 | `GET /api/cron/help-demo-cleanup` | **Vercel Cron** (`Bearer CRON_SECRET`) (Phase 13-Tutorial) | Weekly Sunday 03:00 UTC. Hard-deletes all `is_demo=true AND active=false` records older than 90 days from residents/stylists/services/bookings. Hard-deletes orphaned demo log_entries and stylist_checkins older than 90 days. `maxDuration=60`. |
 | `POST /api/feedback` | Authenticated, rate-limited `feedback` (10/h/user) (2026-06-11, v2 2026-06-12) | Body `{ category: bug\|idea\|praise\|other, message ≤2000, pagePath ≤300 (path+query), meta? { viewport, screen, dpr, timezone, language, standalone, online } }`. Inserts `feedback_submissions` row (facility/role context best-effort via `getUserFacility`); fire-and-forget notification email to `profiles.feedback_email` of the master admin (fallback `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`) with a Device summary row. Calls `ensureFeedbackSchema()` (self-bootstrapping DDL — `src/lib/feedback-ddl.ts`). |
 | `GET /api/feedback` | **Master admin** | 200 most recent submissions, batch-resolved sender/facility names, includes `meta`. |

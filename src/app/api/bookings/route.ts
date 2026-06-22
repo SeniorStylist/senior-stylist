@@ -22,6 +22,7 @@ import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { sendPushToUser } from '@/lib/push'
 
 const createSchema = z.object({
   residentId: z.string().uuid(),
@@ -330,6 +331,21 @@ export async function POST(request: NextRequest) {
         stylistId: booking.stylistId,
         serviceId: booking.serviceId ?? service.id,
       }).catch(err => console.error('Stylist calendar sync failed:', err))
+    }
+
+    // Push notification to stylist — fire-and-forget (skipped for demo bookings)
+    if (!isDemo) {
+      db.query.profiles.findFirst({ where: (p, { eq }) => eq(p.stylistId, stylist.id) })
+        .then(profile => {
+          if (profile) {
+            return sendPushToUser(profile.id, {
+              title: 'New booking',
+              body: `${resident.name} — ${service.name}`,
+              url: '/dashboard',
+            })
+          }
+        })
+        .catch(() => {})
     }
 
     // Fetch final booking with relations

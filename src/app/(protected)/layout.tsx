@@ -22,6 +22,7 @@ import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
 import { ScriptedTourOverlay } from '@/components/help/scripted-tour/scripted-tour-overlay'
 import { FeedbackWidget } from '@/components/feedback/feedback-widget'
 import { KeyboardShortcuts } from '@/components/shortcuts/keyboard-shortcuts'
+import { SWRegister } from '@/components/pwa/sw-register'
 
 const LAYOUT_TIMEOUT_MS = 8000
 
@@ -31,6 +32,7 @@ interface LayoutData {
   allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[]
   activeRole: string
   activeFacilityId: string
+  changelogLastReadAt: string | null
 }
 
 async function fetchLayoutData(userId: string): Promise<LayoutData> {
@@ -85,12 +87,18 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
   const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
   const rawRole = active?.role ?? 'admin'
 
+  const profileRow = await db.query.profiles.findFirst({
+    where: (p, { eq }) => eq(p.id, userId),
+    columns: { changelogLastReadAt: true },
+  })
+
   return {
     facilityName: active?.name,
     facilityCode: active?.facilityCode ?? null,
     allFacilities,
     activeFacilityId: active?.id ?? '',
     activeRole: rawRole === 'super_admin' ? 'admin' : rawRole,
+    changelogLastReadAt: profileRow?.changelogLastReadAt?.toISOString() ?? null,
   }
 }
 
@@ -111,6 +119,7 @@ export default async function ProtectedLayout({
   let allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[] = []
   let activeRole: string = 'admin'
   let activeFacilityId: string = ''
+  let changelogLastReadAt: string | null = null
 
   let facilityData: LayoutData | null = null
   try {
@@ -130,6 +139,7 @@ export default async function ProtectedLayout({
     allFacilities = facilityData.allFacilities
     activeRole = facilityData.activeRole
     activeFacilityId = facilityData.activeFacilityId
+    changelogLastReadAt = facilityData.changelogLastReadAt
   }
 
   const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
@@ -160,7 +170,7 @@ export default async function ProtectedLayout({
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
-        <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} />
+        <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} changelogLastReadAt={changelogLastReadAt} />
         <div className="main-content flex-1 min-h-0 overflow-auto">
           <ToastProvider>
             <TourRouterProvider />
@@ -185,6 +195,7 @@ export default async function ProtectedLayout({
       <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
       <InstallBanner />
       <DebugBadge />
+      <SWRegister />
     </div>
   )
 }

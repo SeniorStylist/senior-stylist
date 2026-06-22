@@ -210,6 +210,9 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [installGuideOpen, setInstallGuideOpen] = useState(false)
   const [installable, setInstallable] = useState(false)
   const [installDeviceType, setInstallDeviceType] = useState<ReturnType<typeof detectDevice>>('unknown')
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushSupported, setPushSupported] = useState(false)
 
   useEffect(() => {
     if (isInstallable()) {
@@ -217,6 +220,58 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
       setInstallDeviceType(detectDevice())
     }
   }, [])
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    setPushSupported(true)
+    navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription())
+      .then(sub => { if (sub) setPushEnabled(true) })
+      .catch(() => {})
+  }, [])
+
+  const handlePushToggle = async () => {
+    if (pushLoading) return
+    setPushLoading(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      if (pushEnabled) {
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          })
+          await sub.unsubscribe()
+        }
+        setPushEnabled(false)
+      } else {
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') return
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        if (!vapidKey) return
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidKey,
+        })
+        const json = sub.toJSON()
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: json.endpoint,
+            p256dh: json.keys?.p256dh ?? '',
+            auth: json.keys?.auth ?? '',
+          }),
+        })
+        setPushEnabled(true)
+      }
+    } catch {
+      // silently ignore — push is opt-in
+    } finally {
+      setPushLoading(false)
+    }
+  }
 
   const todayStr = (() => {
     const d = new Date()
@@ -1104,6 +1159,36 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Booking alerts card — only shown when Push is supported */}
+      {pushSupported && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(139,46,74,0.08)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-stone-900">Booking alerts</p>
+              <p className="text-xs text-stone-500 mt-0.5">Get notified when new appointments are added</p>
+            </div>
+            <button
+              onClick={handlePushToggle}
+              disabled={pushLoading}
+              aria-pressed={pushEnabled}
+              className="shrink-0 w-11 h-6 rounded-full transition-colors relative disabled:opacity-50"
+              style={{ backgroundColor: pushEnabled ? '#8B2E4A' : '#d6d3d1' }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }}
+              />
+            </button>
           </div>
         </div>
       )}

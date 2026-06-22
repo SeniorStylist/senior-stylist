@@ -810,3 +810,75 @@ export function buildBookingReceiptHtml(params: {
 </body>
 </html>`.trim()
 }
+
+export interface DigestFacilitySummary {
+  facilityName: string
+  facilityCode: string | null
+  appointmentCount: number
+  stylistNames: string[]
+}
+
+export function buildDailySummaryEmailHtml(params: {
+  dateLabel: string
+  facilities: DigestFacilitySummary[]
+  isMasterDigest: boolean
+}): string {
+  const { dateLabel, facilities, isMasterDigest } = params
+  const totalAppts = facilities.reduce((s, f) => s + f.appointmentCount, 0)
+
+  const facilityRows = facilities
+    .map((f) => {
+      const stylists = f.stylistNames.length > 0 ? escHtml(f.stylistNames.join(', ')) : '<span style="color:#A8A29E;">—</span>'
+      const code = f.facilityCode
+        ? `<span style="font-size:11px;font-family:monospace;background:rgba(139,46,74,0.1);color:#8B2E4A;padding:2px 7px;border-radius:6px;margin-left:6px;">${escHtml(f.facilityCode)}</span>`
+        : ''
+      return `<tr>
+        <td style="padding:10px 0;border-bottom:1px solid #F5F5F4;font-size:14px;font-weight:600;color:#1C1917;">${escHtml(f.facilityName)}${code}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #F5F5F4;text-align:center;font-size:14px;font-weight:700;color:#8B2E4A;">${f.appointmentCount}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid #F5F5F4;font-size:12px;color:#78716C;">${stylists}</td>
+      </tr>`
+    })
+    .join('')
+
+  const emptyState = facilities.length === 0
+    ? '<p style="text-align:center;color:#A8A29E;font-size:14px;padding:24px 0;">No appointments scheduled today.</p>'
+    : ''
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Morning Digest', title: isMasterDigest ? 'Daily Summary' : (facilities[0]?.facilityName ?? 'Daily Summary'), subtitle: dateLabel })}
+    <div style="padding:24px 32px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <tr>
+          <td style="width:50%;padding:12px;background:#F9EFF2;border-radius:10px;text-align:center;">
+            <div style="color:#8B2E4A;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Total Appointments</div>
+            <div style="color:#1C1917;font-size:26px;font-weight:700;margin-top:4px;">${totalAppts}</div>
+          </td>
+          <td style="width:8px;"></td>
+          <td style="width:50%;padding:12px;background:#F5F5F4;border-radius:10px;text-align:center;">
+            <div style="color:#78716C;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Facilities Active</div>
+            <div style="color:#1C1917;font-size:26px;font-weight:700;margin-top:4px;">${facilities.filter((f) => f.appointmentCount > 0).length}</div>
+          </td>
+        </tr>
+      </table>
+      ${facilities.length > 0 ? `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:11px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:0.08em;padding-bottom:8px;border-bottom:2px solid #E7E5E4;">Facility</th>
+            <th style="text-align:center;font-size:11px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:0.08em;padding-bottom:8px;border-bottom:2px solid #E7E5E4;">Appts</th>
+            <th style="text-align:left;font-size:11px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:0.08em;padding-bottom:8px;border-bottom:2px solid #E7E5E4;">Stylists</th>
+          </tr>
+        </thead>
+        <tbody>${facilityRows}</tbody>
+      </table>` : emptyState}
+      <p style="margin:24px 0 0;font-size:12px;color:#A8A29E;text-align:center;">Sent automatically at 8:00 AM by Senior Stylist</p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
