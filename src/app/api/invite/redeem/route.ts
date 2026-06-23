@@ -79,23 +79,36 @@ export async function GET(request: NextRequest) {
 
   const role = invite.inviteRole || 'stylist'
 
-  // Stylist: try to auto-link to a stylist record by name match
+  // Stylist: auto-link to a stylist record — try email first, fall back to name
   if (role === 'stylist') {
+    const userEmail = user.email?.toLowerCase().trim() ?? ''
     const userFullName = (user.user_metadata?.full_name ?? '').trim()
-    if (userFullName) {
-      const matched = await db.query.stylists.findFirst({
+
+    let matched = userEmail
+      ? await db.query.stylists.findFirst({
+          where: and(
+            eq(stylists.facilityId, invite.facilityId),
+            eq(stylists.active, true),
+            ilike(stylists.email, userEmail),
+          ),
+        })
+      : null
+
+    if (!matched && userFullName) {
+      matched = await db.query.stylists.findFirst({
         where: and(
           eq(stylists.facilityId, invite.facilityId),
           eq(stylists.active, true),
-          ilike(stylists.name, userFullName)
+          ilike(stylists.name, userFullName),
         ),
       })
-      if (matched) {
-        await db
-          .update(profiles)
-          .set({ stylistId: matched.id, updatedAt: new Date() })
-          .where(eq(profiles.id, user.id))
-      }
+    }
+
+    if (matched) {
+      await db
+        .update(profiles)
+        .set({ stylistId: matched.id, updatedAt: new Date() })
+        .where(eq(profiles.id, user.id))
     }
     return NextResponse.redirect(new URL('/my-account?welcome=1', request.url))
   }

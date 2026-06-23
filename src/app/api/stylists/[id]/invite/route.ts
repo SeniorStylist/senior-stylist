@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { db } from '@/db'
-import { stylists, profiles } from '@/db/schema'
+import { invites, stylists, profiles, facilityUsers, facilities } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
+import { sendEmail } from '@/lib/email'
+import { buildInviteEmailHtml } from '@/app/api/invites/route'
+import crypto from 'crypto'
 
 export async function POST(
   _req: NextRequest,
@@ -31,8 +34,7 @@ export async function POST(
 
     // Scope guard: stylist must be in caller's franchise or same facility
     const franchise = await getUserFranchise(user.id)
-    const inFranchise =
-      franchise && stylist.franchiseId === franchise.franchiseId
+    const inFranchise = franchise && stylist.franchiseId === franchise.franchiseId
     const inFacility = stylist.facilityId === facilityUser.facilityId
     if (!inFranchise && !inFacility) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
@@ -57,48 +59,102 @@ export async function POST(
       )
     }
 
-    // Rate limit: 1 invite per 24 hours
-    if (stylist.lastInviteSentAt) {
-      const hoursSince =
-        (Date.now() - new Date(stylist.lastInviteSentAt as unknown as string).getTime()) /
-        3_600_000
-      if (hoursSince < 24) {
-        return Response.json(
-          {
-            error: `Invite sent ${Math.floor(hoursSince)} hour${Math.floor(hoursSince) === 1 ? '' : 's'} ago — wait 24h before resending`,
-          },
-          { status: 429 },
-        )
+    await ensureInviteTrackingSchema()
+
+    const normalizedEmail = stylist.email.toLowerCase().trim()
+    const facilityId = facilityUser.facilityId
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+
+    const facility = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { name: true },
+    })
+    const facilityName = facility?.name ?? 'Senior Stylist'
+
+    // Dedup: check for an existing invite at this email + facility
+    const existingInvite = await db.query.invites.findFirst({
+      where: and(eq(invites.email, normalizedEmail), eq(invites.facilityId, facilityId)),
+    })
+
+    if (existingInvite) {
+      if (existingInvite.used) {
+        // Check if they actually have active access
+        const profileForEmail = await db.query.profiles.findFirst({
+          where: (p, { eq: eqFn }) => eqFn(p.email, normalizedEmail),
+          columns: { id: true },
+        })
+        const hasActiveAccess = profileForEmail
+          ? !!(await db.query.facilityUsers.findFirst({
+              where: and(
+                eq(facilityUsers.facilityId, facilityId),
+                eq(facilityUsers.userId, profileForEmail.id)
+              ),
+            }))
+          : false
+
+        if (hasActiveAccess) {
+          return Response.json(
+            { error: 'This stylist already has access to this facility' },
+            { status: 409 }
+          )
+        }
+        // No active access — delete stale invite and fall through to fresh insert
+        await db.delete(invites).where(eq(invites.id, existingInvite.id))
+      } else {
+        // Pending invite — refresh token + expiry and resend
+        const newToken = crypto.randomBytes(32).toString('hex')
+        const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        await db
+          .update(invites)
+          .set({ token: newToken, expiresAt: newExpiresAt })
+          .where(eq(invites.id, existingInvite.id))
+
+        const acceptUrl = `${appUrl}/invite/accept?token=${newToken}`
+        const emailSent = await sendEmail({
+          to: normalizedEmail,
+          subject: `You're invited to join ${facilityName}`,
+          html: buildInviteEmailHtml({ facilityName, role: 'stylist', acceptUrl }),
+        })
+        await db
+          .update(invites)
+          .set({ lastSentAt: new Date(), emailFailed: !emailSent })
+          .where(eq(invites.id, existingInvite.id))
+
+        await db.update(stylists).set({ lastInviteSentAt: new Date() }).where(eq(stylists.id, stylistId))
+        return Response.json({ data: { invited: true, emailSent } })
       }
     }
 
-    // Send invite via service-role admin client
-    const supabaseAdmin = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    )
+    // Create a new invite
+    const token = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      stylist.email,
-      {
-        data: { stylist_id: stylistId },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/invite/accept`,
-      },
-    )
+    const [invite] = await db
+      .insert(invites)
+      .values({
+        facilityId,
+        email: normalizedEmail,
+        invitedBy: user.id,
+        inviteRole: 'stylist',
+        token,
+        expiresAt,
+      })
+      .returning()
 
-    if (inviteError) {
-      console.error('POST /api/stylists/[id]/invite error:', inviteError)
-      return Response.json({ error: inviteError.message }, { status: 500 })
-    }
-
-    // Record the invite timestamp
+    const acceptUrl = `${appUrl}/invite/accept?token=${token}`
+    const emailSent = await sendEmail({
+      to: normalizedEmail,
+      subject: `You're invited to join ${facilityName}`,
+      html: buildInviteEmailHtml({ facilityName, role: 'stylist', acceptUrl }),
+    })
     await db
-      .update(stylists)
-      .set({ lastInviteSentAt: new Date() })
-      .where(eq(stylists.id, stylistId))
+      .update(invites)
+      .set({ lastSentAt: new Date(), emailFailed: !emailSent })
+      .where(eq(invites.id, invite.id))
 
-    return Response.json({ data: { invited: true } })
+    await db.update(stylists).set({ lastInviteSentAt: new Date() }).where(eq(stylists.id, stylistId))
+
+    return Response.json({ data: { invited: true, emailSent } })
   } catch (err) {
     console.error('POST /api/stylists/[id]/invite error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
