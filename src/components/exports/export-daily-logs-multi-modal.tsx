@@ -47,6 +47,7 @@ export function ExportDailyLogsMultiModal({
   const isMobile = useIsMobile()
   const [startDate, setStartDate] = useState(firstOfMonthIso())
   const [endDate, setEndDate] = useState(todayIso())
+  const [mailSubject, setMailSubject] = useState('Senior Stylist Export')
   const [selected, setSelected] = useState<Set<string>>(() => {
     const initial = new Set<string>()
     if (defaultSelectedId) initial.add(defaultSelectedId)
@@ -90,9 +91,7 @@ export function ExportDailyLogsMultiModal({
   const handleExport = () => {
     if (!canExport) return
     const ids = Array.from(selected).join(',')
-    const url = `/api/exports/daily-logs?facilityIds=${encodeURIComponent(
-      ids,
-    )}&startDate=${startDate}&endDate=${endDate}`
+    const url = `/api/exports/daily-logs?facilityIds=${encodeURIComponent(ids)}&startDate=${startDate}&endDate=${endDate}&mailSubject=${encodeURIComponent(mailSubject.trim() || 'Senior Stylist Export')}`
     window.open(url, '_blank')
     onClose()
   }
@@ -121,6 +120,21 @@ export function ExportDailyLogsMultiModal({
         />
       </div>
       {dateError && <p className="text-xs text-red-600">{dateError}</p>}
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="export-multi-mail-subject" className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+          Mail Subject (column B in the export)
+        </label>
+        <input
+          id="export-multi-mail-subject"
+          type="text"
+          value={mailSubject}
+          maxLength={200}
+          onChange={(e) => setMailSubject(e.target.value)}
+          placeholder="Senior Stylist Export"
+          className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+        />
+      </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

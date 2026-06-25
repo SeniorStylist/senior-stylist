@@ -30,8 +30,32 @@ export function detectDevice(): DeviceType {
   return 'desktop'
 }
 
+/**
+ * True when running inside the Capacitor native shell (iOS/Android app builds),
+ * false in any browser/PWA context. Used to branch UI and capabilities toward
+ * native plugins (native push, camera, biometrics) vs. their web equivalents.
+ *
+ * Capacitor injects `window.Capacitor` at runtime; we feature-detect it rather
+ * than importing `@capacitor/core` so this helper stays safe in pure-web bundles.
+ */
+export function isNativeApp(): boolean {
+  if (typeof window === 'undefined') return false
+  const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+  return cap?.isNativePlatform?.() === true
+}
+
+/** 'ios' | 'android' when in the native shell, otherwise 'web'. */
+export function nativePlatform(): 'ios' | 'android' | 'web' {
+  if (typeof window === 'undefined') return 'web'
+  const cap = (window as { Capacitor?: { getPlatform?: () => string } }).Capacitor
+  const p = cap?.getPlatform?.()
+  return p === 'ios' || p === 'android' ? p : 'web'
+}
+
 export function isInstallable(): boolean {
   if (typeof window === 'undefined') return false
+  // Already installed as a native app — never prompt the PWA install flow.
+  if (isNativeApp()) return false
   if (window.matchMedia('(display-mode: standalone)').matches) return false
   if ((window.navigator as { standalone?: boolean }).standalone === true) return false
   const device = detectDevice()

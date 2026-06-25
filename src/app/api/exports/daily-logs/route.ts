@@ -31,6 +31,7 @@ const querySchema = z.object({
     .pipe(z.array(z.string().uuid()).min(1).max(50)),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  mailSubject: z.string().max(200).optional(),
 })
 
 const HEADERS = [
@@ -115,11 +116,12 @@ export async function GET(request: NextRequest) {
       facilityIds: url.searchParams.get('facilityIds') ?? '',
       startDate: url.searchParams.get('startDate') ?? '',
       endDate: url.searchParams.get('endDate') ?? '',
+      mailSubject: url.searchParams.get('mailSubject') ?? undefined,
     })
     if (!parsed.success) {
       return Response.json({ error: 'Invalid query params' }, { status: 400 })
     }
-    const { facilityIds, startDate, endDate } = parsed.data
+    const { facilityIds, startDate, endDate, mailSubject } = parsed.data
 
     const days = diffDays(startDate, endDate)
     if (days < 0) {
@@ -271,7 +273,7 @@ export async function GET(request: NextRequest) {
 
       ws.addRow({
         no: i + 1,
-        mailSubject: 'Senior Stylist Export',
+        mailSubject: mailSubject ?? 'Senior Stylist Export',
         mailDate,
         mailTime,
         serviceDate: fac ? formatMailDate(b.startTime as Date, tz) : NOT_FILLED,

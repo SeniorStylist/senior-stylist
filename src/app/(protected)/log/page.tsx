@@ -7,7 +7,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
-import { eq, and, gte, lt } from 'drizzle-orm'
+import { eq, and, gte, lt, asc } from 'drizzle-orm'
 import { LogClient } from './log-client'
 
 export default async function LogPage() {
@@ -20,6 +20,10 @@ export default async function LogPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
   const { facilityId } = facilityUser
+
+  const isMaster =
+    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   // If user is a stylist, look up their linked stylist profile for filtering.
   // Skip in debug impersonation: a master admin previewing "Stylist" has no
@@ -47,6 +51,7 @@ export default async function LogPage() {
     stylistsList,
     servicesList,
     facility,
+    exportFacilitiesRaw,
   ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
@@ -82,6 +87,15 @@ export default async function LogPage() {
       where: eq(facilities.id, facilityId),
       columns: { serviceCategoryOrder: true, timezone: true, name: true },
     }),
+    // Bookkeepers and master admin have cross-facility export access; fetch all
+    // active facilities so the Export modal can offer multi-facility selection.
+    (facilityUser.role === 'bookkeeper' || isMaster)
+      ? db.query.facilities.findMany({
+          where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+          columns: { id: true, name: true, facilityCode: true },
+          orderBy: [asc(facilities.name)],
+        })
+      : Promise.resolve(null),
   ])
 
   const mostUsedMap = await getMostUsedServiceIds(facilityId)
@@ -89,6 +103,13 @@ export default async function LogPage() {
     ...r,
     mostUsedServiceId: mostUsedMap.get(r.id) ?? null,
   }))
+
+  // Shape export facilities: bookkeeper/master get the full list; everyone else
+  // gets a single-item list (their current facility) so LogClient can use a
+  // unified prop regardless of role.
+  const exportFacilities = exportFacilitiesRaw ?? [
+    { id: facilityId, name: facility?.name ?? '', facilityCode: null },
+  ]
 
   return (
     <LogClient
@@ -104,6 +125,7 @@ export default async function LogPage() {
       facilityId={facilityId}
       facilityName={facility?.name ?? ''}
       role={facilityUser.role}
+      exportFacilities={exportFacilities}
     />
   )
   } catch (err) {

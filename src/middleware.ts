@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/family') ||
     pathname.startsWith('/api/portal') ||
     pathname.startsWith('/api/cron') ||
+    pathname.startsWith('/api/access-requests') || // public — no Supabase auth needed
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/terms')
 
