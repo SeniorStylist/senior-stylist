@@ -131,7 +131,7 @@ function coverageStatusBadge(status: CoverageRequest['status']) {
   )
 }
 
-const DOC_TYPE_LABEL: Record<ComplianceDocumentType, string> = {
+const DOC_TYPE_LABEL: Record<string, string> = {
   license: 'License',
   insurance: 'Insurance',
   w9: 'W-9',
@@ -139,7 +139,7 @@ const DOC_TYPE_LABEL: Record<ComplianceDocumentType, string> = {
   background_check: 'Background Check',
 }
 
-const DOC_TYPE_BADGE: Record<ComplianceDocumentType, string> = {
+const DOC_TYPE_BADGE: Record<string, string> = {
   license: 'bg-blue-50 text-blue-700',
   insurance: 'bg-purple-50 text-purple-700',
   w9: 'bg-stone-100 text-stone-600',
@@ -696,8 +696,6 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
               >
                 <option value="license">License</option>
                 <option value="insurance">Insurance</option>
-                <option value="w9">W-9</option>
-                <option value="contractor_agreement">Contractor Agreement</option>
                 <option value="background_check">Background Check</option>
               </select>
             </div>
