@@ -22,6 +22,7 @@ import { LogSheetsModal } from '@/components/log/log-sheets-modal'
 import { HelpTip } from '@/components/ui/help-tip'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
+import { ExportDailyLogsMultiModal, type ExportFacilityOption } from '@/components/exports/export-daily-logs-multi-modal'
 import { EmailDayLogModal } from '@/components/exports/email-day-log-modal'
 
 function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
@@ -89,6 +90,7 @@ interface LogClientProps {
   facilityId: string
   facilityName: string
   role?: string
+  exportFacilities?: ExportFacilityOption[]
 }
 
 // Round a date to nearest 30 min IN THE FACILITY'S TIMEZONE.
@@ -153,6 +155,7 @@ export function LogClient({
   facilityId,
   facilityName,
   role = 'admin',
+  exportFacilities,
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
   // facility_staff is read-only; bookkeeper can scan and edit billing fields
@@ -679,7 +682,7 @@ export function LogClient({
             onClick={() => setSheetsOpen(true)}
             title="Log sheet history"
             aria-label="Log sheet history"
-            className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#D4A0B0] bg-[#F9EFF2] text-[#8B2E4A] hover:bg-[#F2E0E6] hover:border-[#C4687A] transition-colors text-xs font-semibold min-h-[44px]"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -688,7 +691,7 @@ export function LogClient({
               <line x1="16" y1="17" x2="8" y2="17"/>
               <polyline points="10 9 9 9 8 9"/>
             </svg>
-            <span className="hidden md:inline">Sheets</span>
+            <span>Sheets</span>
           </button>
         )}
         <button
@@ -698,13 +701,13 @@ export function LogClient({
           data-tour-mobile="log-email-day"
           title="Email day log"
           aria-label="Email day log"
-          className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="4" width="20" height="16" rx="2"/>
             <path d="M22 7l-10 6L2 7"/>
           </svg>
-          <span className="hidden md:inline">Email</span>
+          <span>Email</span>
         </button>
         <button
           type="button"
@@ -713,7 +716,7 @@ export function LogClient({
           data-tour-mobile="log-export-excel"
           title="Export to Excel"
           aria-label="Export to Excel"
-          className="inline-flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -721,7 +724,7 @@ export function LogClient({
             <line x1="8" y1="13" x2="12" y2="17"/>
             <line x1="12" y1="13" x2="8" y2="17"/>
           </svg>
-          <span className="hidden md:inline">Export</span>
+          <span>Export</span>
         </button>
       </div>
 
@@ -1611,12 +1614,24 @@ export function LogClient({
         date={date}
       />
 
-      <ExportDailyLogsModal
-        open={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        facilityId={facilityId}
-        facilityName={facilityName}
-      />
+      {/* Bookkeepers / master admin get the multi-facility modal so they can
+          export all facilities for a date range in one download. Everyone else
+          gets the single-facility modal (exportFacilities has exactly one entry). */}
+      {exportFacilities && exportFacilities.length > 1 ? (
+        <ExportDailyLogsMultiModal
+          open={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          facilities={exportFacilities}
+          defaultSelectedId={facilityId}
+        />
+      ) : (
+        <ExportDailyLogsModal
+          open={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          facilityId={facilityId}
+          facilityName={facilityName}
+        />
+      )}
 
       <EmailDayLogModal
         open={showEmailModal}

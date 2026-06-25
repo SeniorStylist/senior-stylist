@@ -36,6 +36,7 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
   const isMobile = useIsMobile()
   const [startDate, setStartDate] = useState(firstOfMonthIso())
   const [endDate, setEndDate] = useState(todayIso())
+  const [mailSubject, setMailSubject] = useState(`Senior Stylist – ${facilityName}`)
 
   const error = useMemo<string | null>(() => {
     if (!startDate || !endDate) return null
@@ -47,9 +48,7 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
 
   const handleExport = () => {
     if (error) return
-    const url = `/api/exports/daily-logs?facilityIds=${encodeURIComponent(
-      facilityId,
-    )}&startDate=${startDate}&endDate=${endDate}`
+    const url = `/api/exports/daily-logs?facilityIds=${encodeURIComponent(facilityId)}&startDate=${startDate}&endDate=${endDate}&mailSubject=${encodeURIComponent(mailSubject.trim() || 'Senior Stylist Export')}`
     window.open(url, '_blank')
     onClose()
   }
@@ -79,6 +78,15 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
         />
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
+      <Input
+        id="export-mail-subject"
+        label="Mail Subject (column B in the export)"
+        type="text"
+        value={mailSubject}
+        maxLength={200}
+        onChange={(e) => setMailSubject(e.target.value)}
+        placeholder="Senior Stylist Export"
+      />
     </div>
   )
 
