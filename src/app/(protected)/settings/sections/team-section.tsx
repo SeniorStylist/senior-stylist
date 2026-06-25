@@ -9,6 +9,7 @@ export interface ConnectedUser {
   facilityId: string
   role: string
   lastSignIn: string | null
+  stylistId: string | null
   stylistName: string | null
   profile: {
     id: string
@@ -45,6 +46,7 @@ interface AccessRequestData {
 
 interface Props {
   connectedUsers: ConnectedUser[]
+  facilityStylists: { id: string; name: string }[]
   currentUserId: string
   isSuperAdmin: boolean
   facilityId: string
@@ -81,6 +83,7 @@ function roleBadgeLabel(role: string | null | undefined): string {
 
 export function TeamSection({
   connectedUsers,
+  facilityStylists,
   currentUserId,
   isSuperAdmin,
   facilityId,
@@ -94,6 +97,11 @@ export function TeamSection({
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
   const [teamToast, setTeamToast] = useState<string | null>(null)
+
+  // Stylist link picker (admin assigns a member's login to a directory record)
+  const [assigningUserId, setAssigningUserId] = useState<string | null>(null)
+  const [savingStylistFor, setSavingStylistFor] = useState<string | null>(null)
+  const [stylistPickerSearch, setStylistPickerSearch] = useState('')
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('')
@@ -193,6 +201,37 @@ export function TeamSection({
     } finally {
       setRemovingUserId(null)
       setConfirmRemoveId(null)
+      setTimeout(() => setTeamToast(null), 3000)
+    }
+  }
+
+  // Admin links (or unlinks, stylistId=null) a member's login to a stylist
+  // directory record. Updates the row live on success.
+  async function handleAssignStylist(userId: string, stylistId: string | null) {
+    setSavingStylistFor(userId)
+    try {
+      const res = await fetch(`/api/facility/users/${userId}/stylist`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stylistId }),
+      })
+      const j = await res.json()
+      if (!res.ok) {
+        setTeamToast(j.error ?? 'Failed to update stylist link')
+      } else {
+        setLocalUsers((prev) =>
+          prev.map((u) =>
+            u.userId === userId
+              ? { ...u, stylistId: j.data.stylistId ?? null, stylistName: j.data.stylistName ?? null }
+              : u,
+          ),
+        )
+        setTeamToast(stylistId ? 'Stylist linked' : 'Stylist link removed')
+        setAssigningUserId(null)
+        setStylistPickerSearch('')
+      }
+    } finally {
+      setSavingStylistFor(null)
       setTimeout(() => setTeamToast(null), 3000)
     }
   }
@@ -403,9 +442,98 @@ export function TeamSection({
                 <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', roleBadgeClass(cu.role))}>
                   {roleBadgeLabel(cu.role)}
                 </span>
-                {cu.stylistName && (
-                  <span className="text-xs text-stone-400 truncate hidden sm:inline">↔ {cu.stylistName}</span>
-                )}
+                {(() => {
+                  const isOpen = assigningUserId === cu.userId
+                  const isSaving = savingStylistFor === cu.userId
+                  const q = stylistPickerSearch.trim().toLowerCase()
+                  const options = facilityStylists.filter((s) => !q || s.name.toLowerCase().includes(q))
+                  const isTaken = (sid: string) =>
+                    localUsers.some((u) => u.userId !== cu.userId && u.stylistId === sid)
+                  return (
+                    <div className="relative shrink-0 hidden sm:block">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStylistPickerSearch('')
+                          setAssigningUserId(isOpen ? null : cu.userId)
+                        }}
+                        disabled={isSaving}
+                        title={cu.stylistName ? `Linked to ${cu.stylistName} — click to change` : 'Link to a stylist record'}
+                        className={cn(
+                          'text-xs px-2 py-0.5 rounded-full border transition-colors disabled:opacity-50 max-w-[160px] truncate',
+                          cu.stylistName
+                            ? 'border-stone-200 text-stone-500 hover:border-[#C4687A] hover:text-[#8B2E4A]'
+                            : 'border-dashed border-stone-300 text-stone-400 hover:border-[#C4687A] hover:text-[#8B2E4A]'
+                        )}
+                      >
+                        {isSaving ? '…' : cu.stylistName ? `↔ ${cu.stylistName}` : '+ Assign stylist'}
+                      </button>
+                      {isOpen && (
+                        <>
+                          <button
+                            type="button"
+                            aria-label="Close"
+                            className="fixed inset-0 z-40 cursor-default"
+                            onClick={() => setAssigningUserId(null)}
+                          />
+                          <div className="absolute right-0 top-full mt-1 z-50 w-60 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden">
+                            {facilityStylists.length > 6 && (
+                              <input
+                                type="search"
+                                autoFocus
+                                placeholder="Search stylists…"
+                                value={stylistPickerSearch}
+                                onChange={(e) => setStylistPickerSearch(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border-b border-stone-100 focus:outline-none"
+                              />
+                            )}
+                            <div className="max-h-56 overflow-y-auto py-1">
+                              {options.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-stone-400">
+                                  {facilityStylists.length === 0 ? 'No stylists in the directory yet.' : 'No matches.'}
+                                </p>
+                              ) : (
+                                options.map((s) => {
+                                  const taken = isTaken(s.id)
+                                  const isCurrent = cu.stylistId === s.id
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      type="button"
+                                      disabled={taken || isSaving}
+                                      onClick={() => handleAssignStylist(cu.userId, s.id)}
+                                      className={cn(
+                                        'w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2',
+                                        taken
+                                          ? 'text-stone-300 cursor-not-allowed'
+                                          : 'text-stone-700 hover:bg-[#F9EFF2]',
+                                        isCurrent && 'bg-[#F9EFF2] text-[#8B2E4A] font-medium'
+                                      )}
+                                    >
+                                      <span className="truncate">{s.name}</span>
+                                      {isCurrent && <span className="text-xs">✓</span>}
+                                      {taken && !isCurrent && <span className="text-[10px] shrink-0">linked</span>}
+                                    </button>
+                                  )
+                                })
+                              )}
+                            </div>
+                            {cu.stylistId && (
+                              <button
+                                type="button"
+                                disabled={isSaving}
+                                onClick={() => handleAssignStylist(cu.userId, null)}
+                                className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 border-t border-stone-100 disabled:opacity-50"
+                              >
+                                Remove link
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
                 {(() => {
                   const status = !cu.lastSignIn
                     ? 'invited'
