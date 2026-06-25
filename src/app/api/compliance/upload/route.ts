@@ -10,7 +10,7 @@ import { NextRequest } from 'next/server'
 export const maxDuration = 30
 export const dynamic = 'force-dynamic'
 
-const DOCUMENT_TYPES = ['license', 'insurance', 'w9', 'contractor_agreement', 'background_check'] as const
+const DOCUMENT_TYPES = ['license', 'insurance', 'background_check'] as const
 const MAX_BYTES = 10 * 1024 * 1024
 const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png'])
 const MIME_EXT: Record<string, string> = {

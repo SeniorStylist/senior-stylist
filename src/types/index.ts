@@ -160,8 +160,6 @@ export interface SubstituteOption {
 export type ComplianceDocumentType =
   | 'license'
   | 'insurance'
-  | 'w9'
-  | 'contractor_agreement'
   | 'background_check'
 
 export interface ComplianceDocument {
