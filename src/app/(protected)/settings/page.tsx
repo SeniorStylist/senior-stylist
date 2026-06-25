@@ -95,13 +95,22 @@ export default async function SettingsPage() {
   }
 
   const usersWithStatus = connectedUsers.map((cu) => {
-    const stylistId = (cu.profile as { stylistId?: string | null } | null)?.stylistId
+    const stylistId = (cu.profile as { stylistId?: string | null } | null)?.stylistId ?? null
     return {
       ...cu,
       lastSignIn: authMap.get(cu.userId) ?? null,
+      stylistId,
       stylistName: stylistId ? (stylistNameMap.get(stylistId) ?? null) : null,
     }
   })
+
+  // Active stylist directory records at this facility — admins pick from these
+  // to link a team member's login to a stylist record (Team & Roles).
+  const facilityStylists = await db
+    .select({ id: stylists.id, name: stylists.name })
+    .from(stylists)
+    .where(and(eq(stylists.facilityId, facilityUser.facilityId), eq(stylists.active, true)))
+    .orderBy(stylists.name)
 
   const isMaster = !!(process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)
 
@@ -109,6 +118,7 @@ export default async function SettingsPage() {
     <SettingsClient
       facility={toClientJson(sanitizeFacility(facility))}
       connectedUsers={toClientJson(usersWithStatus)}
+      facilityStylists={toClientJson(facilityStylists)}
       currentUserId={user.id}
       currentUserEmail={user.email ?? null}
       role={facilityUser.role}

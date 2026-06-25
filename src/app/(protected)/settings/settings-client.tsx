@@ -41,6 +41,7 @@ interface ClaimRequest {
 interface SettingsClientProps {
   facility: PublicFacility
   connectedUsers: ConnectedUser[]
+  facilityStylists: { id: string; name: string }[]
   currentUserId: string
   currentUserEmail: string | null
   role: string
@@ -111,6 +112,7 @@ const TAB_TO_SECTION: Record<string, CategoryId> = {
 export function SettingsClient({
   facility,
   connectedUsers,
+  facilityStylists,
   currentUserId,
   currentUserEmail,
   role,
@@ -340,6 +342,7 @@ export function SettingsClient({
           {activeSection === 'team' && isAdmin && (
             <TeamSection
               connectedUsers={connectedUsers}
+              facilityStylists={facilityStylists}
               currentUserId={currentUserId}
               isSuperAdmin={isSuperAdmin}
               facilityId={facility.id}
