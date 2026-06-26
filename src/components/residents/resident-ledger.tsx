@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { formatCents } from '@/lib/utils'
+import { useToast } from '@/components/ui/toast'
 
 // Mirror of canAccessBilling — replicated inline to avoid importing the
 // server-only get-facility-id module into a client bundle.
@@ -28,6 +29,13 @@ interface LedgerCredit {
   remainingCents: number
 }
 
+interface OpenInvoice {
+  id: string
+  invoiceNum: string
+  invoiceDate: string
+  openBalanceCents: number
+}
+
 interface LedgerData {
   summary: {
     currentBalanceCents: number
@@ -37,6 +45,7 @@ interface LedgerData {
   }
   entries: LedgerEntry[]
   credits: LedgerCredit[]
+  openInvoices: OpenInvoice[]
 }
 
 function fmtDate(d: string): string {
@@ -115,19 +124,24 @@ export function ResidentLedger({ residentId, role }: { residentId: string; role:
                 <SummaryTile label="Total paid" value={formatCents(data.summary.totalPaidCents)} tone="neutral" />
               </div>
 
-              {/* Available credits detail */}
+              {/* Available credits — apply each to chosen open invoices */}
               {data.credits.length > 0 && (
                 <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
-                  <p className="text-xs font-semibold text-emerald-800 mb-1.5">Available credit on account</p>
-                  <div className="space-y-1">
+                  <p className="text-xs font-semibold text-emerald-800 mb-2">Available credit on account</p>
+                  <div className="space-y-2">
                     {data.credits.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between text-xs text-emerald-900">
-                        <span>{fmtDate(c.txnDate)}{c.num ? ` · #${c.num}` : ''}</span>
-                        <span className="font-semibold">{formatCents(c.remainingCents)} of {formatCents(c.amountCents)}</span>
-                      </div>
+                      <CreditRow
+                        key={c.id}
+                        residentId={residentId}
+                        credit={c}
+                        openInvoices={data.openInvoices}
+                        onApplied={load}
+                      />
                     ))}
                   </div>
-                  <p className="text-[11px] text-emerald-700 mt-2">Apply credit to invoices from the Billing → unapplied credits screen.</p>
+                  <p className="text-[11px] text-emerald-700 mt-2">
+                    Applying records it on the site only — mirror it in QuickBooks too, or the next QB import will revert it.
+                  </p>
                 </div>
               )}
 
@@ -161,6 +175,105 @@ export function ResidentLedger({ residentId, role }: { residentId: string; role:
                   </div>
                 </div>
               )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CreditRow({
+  residentId,
+  credit,
+  openInvoices,
+  onApplied,
+}: {
+  residentId: string
+  credit: LedgerCredit
+  openInvoices: OpenInvoice[]
+  onApplied: () => void
+}) {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [applying, setApplying] = useState(false)
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const apply = async () => {
+    if (selected.size === 0) return
+    setApplying(true)
+    try {
+      const res = await fetch(`/api/residents/${residentId}/credits/${credit.id}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceIds: Array.from(selected) }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success(`Applied ${formatCents(j.data?.appliedCents ?? 0)} to invoices`)
+        setOpen(false)
+        setSelected(new Set())
+        onApplied()
+      } else {
+        toast.error(typeof j.error === 'string' ? j.error : 'Failed to apply credit')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg bg-white/60 border border-emerald-100 px-3 py-2">
+      <div className="flex items-center justify-between text-xs text-emerald-900">
+        <span>{fmtDate(credit.txnDate)}{credit.num ? ` · ${credit.num}` : ''}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">{formatCents(credit.remainingCents)} of {formatCents(credit.amountCents)}</span>
+          {openInvoices.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="text-[11px] font-semibold text-emerald-800 border border-emerald-200 rounded-md px-2 py-0.5 hover:bg-emerald-100"
+            >
+              {open ? 'Cancel' : 'Apply'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-2 pt-2 border-t border-emerald-100">
+          {openInvoices.length === 0 ? (
+            <p className="text-[11px] text-emerald-700">No open invoices to apply to.</p>
+          ) : (
+            <>
+              <p className="text-[11px] text-emerald-700 mb-1.5">Choose invoices (oldest selected first):</p>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {openInvoices.map((inv) => (
+                  <label key={inv.id} className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer">
+                    <input type="checkbox" checked={selected.has(inv.id)} onChange={() => toggle(inv.id)} className="accent-[#8B2E4A]" />
+                    <span className="flex-1">#{inv.invoiceNum} · {fmtDate(inv.invoiceDate)}</span>
+                    <span className="font-semibold text-amber-700">{formatCents(inv.openBalanceCents)} open</span>
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={apply}
+                disabled={applying || selected.size === 0}
+                className="mt-2 bg-[#8B2E4A] text-white text-[11px] font-semibold rounded-md px-3 py-1.5 hover:bg-[#72253C] disabled:opacity-50"
+              >
+                {applying ? 'Applying…' : `Apply credit to ${selected.size} invoice${selected.size === 1 ? '' : 's'}`}
+              </button>
             </>
           )}
         </div>

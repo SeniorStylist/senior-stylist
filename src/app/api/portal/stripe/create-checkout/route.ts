@@ -9,6 +9,9 @@ import { z } from 'zod'
 const schema = z.object({
   residentId: z.string().uuid(),
   amountCents: z.number().int().min(50).max(10_000_000),
+  // 'balance' = pay outstanding now (auto-applied FIFO in the webhook);
+  // 'prepay' = add funds to the account as an unapplied credit (manual attribution).
+  purpose: z.enum(['balance', 'prepay']).default('balance'),
 })
 
 export async function POST(request: NextRequest) {
@@ -23,7 +26,7 @@ export async function POST(request: NextRequest) {
     const parsed = schema.safeParse(body)
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
 
-    const { residentId, amountCents } = parsed.data
+    const { residentId, amountCents, purpose } = parsed.data
     const residentMatch = session.residents.find((r) => r.residentId === residentId)
     if (!residentMatch) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -48,6 +51,7 @@ export async function POST(request: NextRequest) {
     const stripe = new Stripe(stripeKey)
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
 
+    const isPrepay = purpose === 'prepay'
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
@@ -56,7 +60,9 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             unit_amount: amountCents,
-            product_data: { name: `Balance payment for ${resident.name}` },
+            product_data: {
+              name: isPrepay ? `Account credit for ${resident.name}` : `Balance payment for ${resident.name}`,
+            },
           },
           quantity: 1,
         },
@@ -64,7 +70,7 @@ export async function POST(request: NextRequest) {
       success_url: `${appUrl}/family/${encodeURIComponent(facility.facilityCode)}/billing?payment=success`,
       cancel_url: `${appUrl}/family/${encodeURIComponent(facility.facilityCode)}/billing`,
       metadata: {
-        type: 'portal_balance',
+        type: isPrepay ? 'portal_prepay' : 'portal_balance',
         residentId: resident.id,
         residentName: resident.name,
         facilityId: facility.id,

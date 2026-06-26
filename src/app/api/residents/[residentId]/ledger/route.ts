@@ -122,6 +122,11 @@ export async function GET(
       return { ...e, balanceCents: running }
     })
 
+    // Open invoices (for the credit-apply picker) — newest-relevant first.
+    const openInvoices = invoices
+      .filter((i) => i.openBalanceCents > 0)
+      .map((i) => ({ id: i.id, invoiceNum: i.invoiceNum, invoiceDate: String(i.invoiceDate), openBalanceCents: i.openBalanceCents }))
+
     const totalInvoicedCents = invoices.reduce((s, i) => s + i.amountCents, 0)
     const totalPaidCents = payments.reduce((s, p) => s + p.amountCents, 0)
     const availableCreditCents = credits.reduce((s, c) => s + c.remainingCents, 0)
@@ -136,6 +141,7 @@ export async function GET(
         // newest first for display
         entries: withBalance.reverse(),
         credits,
+        openInvoices,
       },
     })
   } catch (err) {
