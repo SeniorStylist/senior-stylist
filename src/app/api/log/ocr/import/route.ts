@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches } from '@/db/schema'
-import { eq, and, isNull } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
 import crypto from 'crypto'
@@ -37,6 +37,8 @@ const importSchema = z.object({
         // stylist record yet, so we accept a name and create one on import.
         stylistId: z.string().uuid().nullable(),
         stylistName: z.string().max(200).optional().default(''),
+        // Per-sheet "Mail Subject" for the daily-log Excel export (column B)
+        mailSubject: z.string().max(200).optional().default(''),
         entries: z.array(
           z
             .object({
@@ -245,12 +247,14 @@ export async function POST(request: Request) {
             }
           }
 
-          // If user added a room number during review for a matched resident who has none, update it
+          // Residents change rooms frequently — the log sheet is the source of
+          // truth, so update the resident's room to the scanned value whenever
+          // one is provided. (Skip blanks so an empty scan never wipes a room.)
           if (residentId && entry.roomNumber?.trim()) {
             await tx
               .update(residents)
               .set({ roomNumber: entry.roomNumber.trim() })
-              .where(and(eq(residents.id, residentId), isNull(residents.roomNumber)))
+              .where(eq(residents.id, residentId))
           }
 
           // Resolve or create a service by name (shared helper used for primary + additionals)
@@ -328,6 +332,7 @@ export async function POST(request: Request) {
             status: 'completed',
             paymentStatus: entry.paymentStatus ?? 'unpaid',
             paymentMethod: entry.paymentMethod ?? null,
+            mailSubject: sheet.mailSubject?.trim() || null,
             source: 'historical_import',
             importBatchId: importBatchId ?? undefined,
           })

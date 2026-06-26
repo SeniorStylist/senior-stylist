@@ -4,16 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
+import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo } from '@/lib/payments'
 import type { Resident, Stylist, Service } from '@/types'
-
-function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
-  const v = label.trim().toLowerCase()
-  if (!v || v === 'unpaid (invoice)' || v === 'unpaid' || v === 'invoice') {
-    return { paymentStatus: 'unpaid', paymentMethod: null }
-  }
-  if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
-  return { paymentStatus: 'paid', paymentMethod: label.trim() || null }
-}
 
 interface OcrRawEntry {
   residentName: string
@@ -54,6 +46,7 @@ type SheetState = {
   date: string
   stylistId: string | null
   stylistName: string // OCR-read or typed name; drives match-or-create of the stylist
+  mailSubject: string // per-sheet "Mail Subject" for the Excel export (column B)
   entries: EntryState[]
 }
 
@@ -177,6 +170,7 @@ function buildSheetState(
     date: raw.date ?? fallbackDate,
     stylistId,
     stylistName,
+    mailSubject: '',
     entries,
   }
 }
@@ -398,6 +392,7 @@ export function OcrImportModal({
           date: s.date,
           stylistId: s.stylistId,
           stylistName: s.stylistName.trim(),
+          mailSubject: s.mailSubject.trim(),
           entries: s.entries.map(e => ({
             include: e.include,
             residentId: e.residentId,
@@ -738,6 +733,19 @@ export function OcrImportModal({
                           <p className="text-xs text-red-500 mt-0.5">Required — select a stylist or type a new name</p>
                         )}
                       </div>
+                      {/* Per-sheet Mail Subject → column B of the Excel export */}
+                      <div className="flex-1 min-w-[180px]">
+                        <label className="text-xs font-medium text-stone-600 block mb-1">Mail Subject</label>
+                        <input
+                          type="text"
+                          value={sheet.mailSubject}
+                          maxLength={200}
+                          onChange={(e) => updateSheet(activeTab, { mailSubject: e.target.value })}
+                          placeholder="Senior Stylist Export"
+                          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
+                        />
+                        <p className="text-[10px] text-stone-400 mt-0.5">Shows in column B of the export</p>
+                      </div>
                     </div>
 
                     {/* Entry list */}
@@ -827,20 +835,18 @@ export function OcrImportModal({
                                   )}
                                 </div>
 
-                                {/* Room # — editable for new residents; read-only or addable for matched residents */}
-                                {entry.residentId ? (() => {
-                                  const matched = residents.find(r => r.id === entry.residentId)
-                                  if (matched?.roomNumber) {
-                                    return (
-                                      <div>
-                                        <label className="text-xs text-stone-500 block mb-0.5">Room #</label>
-                                        <p className="text-xs text-stone-500 px-2 py-2 min-h-[44px] flex items-center">{matched.roomNumber}</p>
-                                      </div>
-                                    )
-                                  }
+                                {/* Room # — always editable, prefilled from the scanned sheet.
+                                    Residents change rooms often, so the sheet wins; importing a
+                                    new value updates the resident's stored room. */}
+                                {(() => {
+                                  const matched = entry.residentId
+                                    ? residents.find(r => r.id === entry.residentId)
+                                    : null
+                                  const storedRoom = matched?.roomNumber?.trim() || null
+                                  const scannedRoom = entry.roomNumber?.trim() || null
                                   return (
                                     <div>
-                                      <label className="text-xs text-stone-500 block mb-0.5">Room # <span className="text-stone-400">(add)</span></label>
+                                      <label className="text-xs text-stone-500 block mb-0.5">Room #</label>
                                       <input
                                         type="text"
                                         placeholder="optional"
@@ -850,49 +856,54 @@ export function OcrImportModal({
                                         }
                                         className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
                                       />
+                                      {storedRoom && scannedRoom && storedRoom !== scannedRoom && (
+                                        <p className="text-[10px] text-amber-600 mt-0.5">current: Rm {storedRoom} — will update to {scannedRoom}</p>
+                                      )}
                                     </div>
                                   )
-                                })() : (
-                                  <div>
-                                    <label className="text-xs text-stone-500 block mb-0.5">Room #</label>
-                                    <input
-                                      type="text"
-                                      placeholder="optional"
-                                      value={entry.roomNumber ?? ''}
-                                      onChange={(e) =>
-                                        updateEntry(activeTab, ei, { roomNumber: e.target.value || null })
-                                      }
-                                      className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
-                                    />
-                                  </div>
-                                )}
+                                })()}
 
-                                {/* Service — type-or-pick combo: pick an existing service OR type a
-                                    new name to create it (mirrors the stylist/resident fields). */}
+                                {/* Service — visible dropdown of existing services + "New service"
+                                    option that reveals a text input (mirrors the stylist field). The
+                                    old <input list> + <datalist> rendered as an invisible free-text
+                                    field on most browsers, so bookkeepers couldn't tell they could
+                                    create a service. */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  <input
-                                    type="text"
-                                    list={`services-${activeTab}-${ei}`}
-                                    value={entry.serviceName ?? ''}
+                                  <select
+                                    value={entry.serviceId ?? '__create__'}
                                     onChange={(e) => {
                                       const val = e.target.value
-                                      const matched = services.find(
-                                        s => s.name.toLowerCase() === val.trim().toLowerCase()
-                                      )
-                                      updateEntry(activeTab, ei, { serviceName: val, serviceId: matched?.id ?? null })
+                                      if (val === '__create__') {
+                                        // Keep serviceName so an OCR-read name stays in the text input
+                                        updateEntry(activeTab, ei, { serviceId: null })
+                                      } else {
+                                        const picked = services.find(s => s.id === val)
+                                        updateEntry(activeTab, ei, { serviceId: val, serviceName: picked?.name ?? '' })
+                                      }
                                     }}
-                                    placeholder="Type or pick service…"
                                     className={cn(
                                       'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]',
                                       entry.serviceId || (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
                                     )}
-                                  />
-                                  <datalist id={`services-${activeTab}-${ei}`}>
+                                  >
                                     {services.map(s => (
-                                      <option key={s.id} value={s.name}>{formatCents(s.priceCents)}</option>
+                                      <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
                                     ))}
-                                  </datalist>
+                                    <option value="__create__">➕ New service (type name below)…</option>
+                                  </select>
+                                  {!entry.serviceId && (
+                                    <input
+                                      type="text"
+                                      value={entry.serviceName ?? ''}
+                                      onChange={(e) => updateEntry(activeTab, ei, { serviceName: e.target.value })}
+                                      placeholder="New service name…"
+                                      className={cn(
+                                        'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A] mt-1.5',
+                                        (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
+                                      )}
+                                    />
+                                  )}
                                   {entry.serviceId ? null
                                     : (entry.serviceName ?? '').trim() ? (
                                       <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
@@ -942,26 +953,38 @@ export function OcrImportModal({
                                   />
                                 </div>
 
-                                {/* Payment Type */}
-                                <div className="col-span-2">
-                                  <label className="text-xs text-stone-500 block mb-0.5">Payment Type</label>
-                                  <input
-                                    type="text"
-                                    list={`ocr-payment-type-${activeTab}-${ei}`}
-                                    value={entry.paymentCombo}
-                                    onChange={(e) => updateEntry(activeTab, ei, { paymentCombo: e.target.value })}
-                                    placeholder="Unpaid (Invoice)"
-                                    className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
-                                  />
-                                  <datalist id={`ocr-payment-type-${activeTab}-${ei}`}>
-                                    <option value="Unpaid (Invoice)" />
-                                    <option value="Cash" />
-                                    <option value="Check" />
-                                    <option value="Card" />
-                                    <option value="ACH" />
-                                    <option value="Waived" />
-                                  </datalist>
-                                </div>
+                                {/* Payment Type — visible dropdown (was an invisible <datalist>).
+                                    "Custom…" reveals a text input for types like COF/RA. */}
+                                {(() => {
+                                  const isCustom = !PAYMENT_TYPE_OPTIONS.includes(entry.paymentCombo as typeof PAYMENT_TYPE_OPTIONS[number])
+                                  return (
+                                    <div className="col-span-2">
+                                      <label className="text-xs text-stone-500 block mb-0.5">Payment Type</label>
+                                      <select
+                                        value={isCustom ? '__custom__' : entry.paymentCombo}
+                                        onChange={(e) => {
+                                          const val = e.target.value
+                                          updateEntry(activeTab, ei, { paymentCombo: val === '__custom__' ? '' : val })
+                                        }}
+                                        className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
+                                      >
+                                        {PAYMENT_TYPE_OPTIONS.map(o => (
+                                          <option key={o} value={o}>{o}</option>
+                                        ))}
+                                        <option value="__custom__">➕ Custom…</option>
+                                      </select>
+                                      {isCustom && (
+                                        <input
+                                          type="text"
+                                          value={entry.paymentCombo}
+                                          onChange={(e) => updateEntry(activeTab, ei, { paymentCombo: e.target.value })}
+                                          placeholder="e.g. COF, RA"
+                                          className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A] mt-1.5"
+                                        />
+                                      )}
+                                    </div>
+                                  )
+                                })()}
                               </div>
 
                               {/* Additional services (add-ons) */}

@@ -355,6 +355,9 @@ export const bookings = pgTable('bookings', {
   tipCents: integer('tip_cents'),
   // Free-text payment method label (e.g. 'Cash', 'Check', 'Card', 'ACH') — pairs with paymentStatus
   paymentMethod: text('payment_method'),
+  // Per-log-sheet "Mail Subject" entered at OCR-scan time; drives column B of the
+  // daily-log Excel export (export-modal subject is the fallback when null)
+  mailSubject: text('mail_subject'),
   // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
   isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
