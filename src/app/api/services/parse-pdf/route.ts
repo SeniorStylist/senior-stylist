@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
 
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     if (!isMaster) {
       const facilityUser = await getUserFacility(user.id)
       if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-      if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const rl = await checkRateLimit('parsePdf', user.id)

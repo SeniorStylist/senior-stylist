@@ -112,7 +112,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       {
         href: '/services',
         label: 'Services',
-        roles: ['admin'],
+        roles: ['admin', 'facility_staff'],
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="8" y1="6" x2="21" y2="6"/>
@@ -214,9 +214,10 @@ interface SidebarProps {
   allFacilities?: FacilityOption[]
   role?: string
   debugMode?: boolean
+  isFranchiseAdmin?: boolean
 }
 
-export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false }: SidebarProps) {
+export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false, isFranchiseAdmin = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -548,6 +549,25 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             Settings
           </Link>
         )}
+          {isFranchiseAdmin && (
+            <Link
+              href="/franchise"
+              prefetch={true}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
+                pathname === '/franchise'
+                  ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
+                  : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
+              )}
+            >
+              <span className={cn(pathname === '/franchise' ? 'text-[#E8A0B0]' : 'text-white/50')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/>
+                </svg>
+              </span>
+              Franchise
+            </Link>
+          )}
           {process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode && (
             <Link
               href="/master-admin"
