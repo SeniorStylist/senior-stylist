@@ -19,10 +19,10 @@ const bodySchema = z.object({
 // open invoices. The operator picks where the money goes — no auto-apply.
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ residentId: string; creditId: string }> },
+  { params }: { params: Promise<{ id: string; creditId: string }> },
 ) {
   try {
-    const { residentId, creditId } = await params
+    const { id: residentId, creditId } = await params
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

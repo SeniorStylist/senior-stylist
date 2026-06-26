@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic'
 // (unapplied) credit. Facility-side, gated to canAccessBilling.
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ residentId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { residentId } = await params
+    const { id: residentId } = await params
 
     const supabase = await createClient()
     const {
