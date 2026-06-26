@@ -939,16 +939,34 @@ When a slow async operation (Gemini API call, large upload) runs from a page —
 
 State: `parsing: boolean` + `progress: number (0–100)`. Set `parsing=false` in `finally` so errors also dismiss the overlay.
 
-### OCR review service fields — `<select>` with fuzzy pre-select
+### Picker anti-pattern — NEVER `<input list>` + `<datalist>` (2026-06-26)
 
-Service fields in the OCR review step (`ocr-import-modal.tsx`) use `<select>` dropdowns (NOT free-text inputs) so users always pick from existing services. Pattern:
+`<input list="…">` + `<datalist>` renders as a **plain free-text field on most browsers** — the dropdown arrow and options are invisible, so users can't tell they can pick OR create. This repeatedly read to bookkeepers as "I can only accept the suggestion" / "the dropdown only shows one option." **Always use a real `<select>` + a sentinel option that reveals a text `<input>`** for any pick-or-create field. Canonical pattern (mirrors the stylist field):
 
-- Options: existing services grouped by category (`<optgroup>`), price shown via `formatCents(s.priceCents)`. When only 1 category, flat list (no optgroups).
-- `__new__${name}` value at bottom: shown when `!entry.serviceId && entry.serviceName`. Selecting it keeps `serviceId = null` so the import route creates a new service.
-- Pre-selection at load time via two-signal IIFE in `buildSheetState`: (1) `fuzzyBestMatch(nonAddonServices, name)` for name score, (2) `nonAddonServices.filter(s => s.priceCents === ocrPrice)` for exact price match. If unique price match and nameScore < 0.85, price wins. If name match found, trust it (price mismatch = add-ons bundled in total). If no name match, fall back to unique price match. Add-on rows use full `services` list (name-only).
+- `<select value={id ?? '__create__'}>` lists existing rows + a `<option value="__create__">➕ New … (type below)…</option>` (or `__custom__` for free-text values).
+- Selecting the sentinel clears the id and renders a `<input type="text">` bound to the name/label.
+- Hints below: "✓ Matched" / "Will create new …".
+- Converted fields in `ocr-import-modal.tsx` + `log-client.tsx`: **Service**, **Payment Type**; stylist was done earlier (b0c7440).
+
+### OCR review service field — `<select>` + create-new (2026-06-26)
+
+The OCR review **Service** field (`ocr-import-modal.tsx`) is a `<select>` of existing services (`name · formatCents(price)`) + a `➕ New service` sentinel that reveals a text input (was an invisible `<input list>`+`<datalist>` — the latest field to get the b0c7440 treatment). Selecting create keeps `serviceId = null` so the import route creates the service (price 0 / 30 min defaults — booking price comes from the sheet).
+
+- Pre-selection at load time via two-signal IIFE in `buildSheetState`: (1) `fuzzyBestMatch(nonAddonServices, name)` for name score, (2) `nonAddonServices.filter(s => s.priceCents === ocrPrice)` for exact price match. If unique price match and nameScore < 0.85, price wins. If name match found, trust it (price mismatch = add-ons bundled in total). If no name match, fall back to unique price match. Add-on rows use a `<select>` over the full `services` list with a `__new__${name}` create value.
 - `fuzzyScore(a,b)`: 1.0 for exact, 0.85 for substring containment, else word-set overlap ratio (using `normalizeWords`). `fuzzyBestMatch` scans all items and returns the highest scorer above threshold.
-- Same `<select>` pattern for add-on service rows.
 - **Price field**: read-only intent — `onChange` only updates `priceCents`, never `serviceId`/`serviceName`. Shows `"from sheet"` hint (`text-[10px] text-stone-400`) below the input to indicate it came from the handwritten log.
+
+### Payment Type — `<select>` + "➕ Custom…" (OCR review + daily-log edit, 2026-06-26)
+
+Both the OCR review modal and the daily-log inline edit (`log-client.tsx`) render Payment Type as a `<select>` of `PAYMENT_TYPE_OPTIONS` (from `src/lib/payments.ts`: Unpaid (Invoice) / Cash / Check / Card / ACH / RFMS / COF / RA / Waived) + a `➕ Custom…` option that reveals a text input (placeholder `"e.g. COF, RA"`). The selected label is stored as a combo string and split on submit via `parsePaymentCombo`. **Billing semantics:** Cash/Check/Card/ACH → `paid`; RFMS/COF/RA/custom → `unpaid` (open invoice) carrying a display label in `payment_method`; the Excel export shows that label. Seed the select from an existing booking via `comboLabel(status, method)` (method wins, so an unpaid "RFMS" booking shows "RFMS").
+
+### OCR review room # — always editable, sheet wins (2026-06-26)
+
+The OCR review **Room #** is always an editable `<input>` prefilled from the scanned sheet (previously read-only when the matched resident already had a room). When the matched resident's stored room differs, an amber hint shows `current: Rm X — will update to Y`. On import the resident's room is updated to the scanned value (residents change rooms). The daily-log edit form also has an editable Room # field (writes to the resident via the booking PUT's `roomNumber` field).
+
+### Per-sheet Mail Subject (OCR review, 2026-06-26)
+
+Each scanned sheet's header has a **Mail Subject** text input (alongside Date/Stylist) → written to every booking's `mail_subject` and used for column B of the daily-log Excel export (export-modal subject is the fallback). Mirrors the per-sheet stylist-name field pattern.
 
 ### OCR review stylist field — `<select>` dropdown with create-new fallback
 
