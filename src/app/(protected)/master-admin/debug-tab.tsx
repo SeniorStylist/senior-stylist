@@ -14,18 +14,21 @@ interface DebugTabProps {
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin',
+  admin: 'Facility Admin',
+  super_admin: 'Franchise Admin',
   facility_staff: 'Facility Staff',
   bookkeeper: 'Bookkeeper',
   stylist: 'Stylist',
 }
+
+type DebugRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist'
 
 export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
   const eligible = facilities.filter((f) => f.facilityCode)
   const [selectedId, setSelectedId] = useState(() =>
     eligible.some((f) => f.id === currentFacilityId) ? currentFacilityId : ''
   )
-  const [loading, setLoading] = useState<'admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | null>(null)
+  const [loading, setLoading] = useState<DebugRole | null>(null)
   const [currentDebug, setCurrentDebug] = useState<{ role: string; facilityName: string } | null>(null)
 
   useEffect(() => {
@@ -44,7 +47,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
 
   const selected = eligible.find((f) => f.id === selectedId)
 
-  const handleImpersonate = async (role: 'admin' | 'facility_staff' | 'bookkeeper' | 'stylist') => {
+  const handleImpersonate = async (role: DebugRole) => {
     if (!selected) return
     setLoading(role)
     try {
@@ -66,17 +69,32 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     window.location.href = '/master-admin'
   }
 
-  const handleOpenPortal = () => {
-    if (!selected?.facilityCode) return
-    window.open(`/family/${encodeURIComponent(selected.facilityCode)}`, '_blank')
+  const [portalLoading, setPortalLoading] = useState(false)
+  const handleOpenPortal = async () => {
+    if (!selected) return
+    setPortalLoading(true)
+    try {
+      const res = await fetch('/api/debug/portal-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facilityId: selected.id }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok && j.data?.facilityCode) {
+        window.open(`/family/${encodeURIComponent(j.data.facilityCode)}`, '_blank')
+      }
+    } finally {
+      setPortalLoading(false)
+    }
   }
 
-  const rows: { role: 'admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'portal'; label: string; desc: string }[] = [
-    { role: 'admin', label: 'Admin View', desc: 'Full admin access — residents, billing, settings, reports' },
-    { role: 'facility_staff', label: 'Facility Staff View', desc: 'Scheduling and resident management; no billing/payroll' },
+  const rows: { role: DebugRole | 'portal'; label: string; desc: string }[] = [
+    { role: 'admin', label: 'Facility Admin View', desc: 'Full admin of one facility — residents, billing, settings, reports' },
+    { role: 'super_admin', label: 'Franchise Admin View', desc: 'Admin across all the franchise’s facilities + the Franchise dashboard' },
+    { role: 'facility_staff', label: 'Facility Staff View', desc: 'Front desk — scheduling, residents, services, sign-up sheet; no billing/payroll' },
     { role: 'bookkeeper', label: 'Bookkeeper View', desc: 'Billing, payments, payroll; read-only residents/log' },
     { role: 'stylist', label: 'Stylist View', desc: 'Calendar + daily log only; no residents or billing' },
-    { role: 'portal', label: 'Family Portal', desc: 'Opens the family portal in a new tab (no impersonation cookie)' },
+    { role: 'portal', label: 'Family Portal (demo)', desc: 'Log in as a fake POA with demo data — no magic link needed' },
   ]
 
   return (
@@ -136,13 +154,13 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
                 if (role === 'portal') handleOpenPortal()
                 else handleImpersonate(role)
               }}
-              disabled={!selectedId || (role !== 'portal' && loading !== null) || (role === 'portal' && !selected?.facilityCode)}
+              disabled={!selectedId || (role !== 'portal' && loading !== null) || (role === 'portal' && (!selected?.facilityCode || portalLoading))}
               className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#8B2E4A' }}
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#72253C' }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#8B2E4A' }}
             >
-              {role !== 'portal' && loading === role ? 'Loading…' : role === 'portal' ? 'Open →' : 'Enter'}
+              {role === 'portal' ? (portalLoading ? 'Opening…' : 'Open →') : loading === role ? 'Loading…' : 'Enter'}
             </button>
           </div>
         ))}

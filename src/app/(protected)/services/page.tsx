@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { services, facilities } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { ServicesPageClient } from './services-page-client'
@@ -16,7 +16,7 @@ export default async function ServicesPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  if (facilityUser.role !== 'admin') redirect('/dashboard')
+  if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) redirect('/dashboard')
 
   try {
   // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.

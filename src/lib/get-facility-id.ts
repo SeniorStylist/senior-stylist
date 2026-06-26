@@ -124,6 +124,39 @@ export async function getUserFacility(userId: string) {
   }
 }
 
+/**
+ * True when the current user is a FRANCHISE admin (raw `super_admin` role) — used
+ * to gate the franchise-only UI (the /franchise dashboard + nav link). This reads
+ * the RAW role, NOT the normalized one: `getUserFacility()` rewrites super_admin →
+ * admin so all admin guards pass, which means it can't tell us "is this a franchise
+ * owner". So we read the un-normalized role here (honoring the master-gated debug
+ * cookie, exactly like getUserFacility). Master admin is detected separately.
+ */
+export async function isFranchiseAdmin(userId: string): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+
+    const debugRaw = cookieStore.get('__debug_role')?.value
+    if (debugRaw) {
+      try {
+        const debug = JSON.parse(debugRaw) as { role: string; facilityId: string }
+        if (debug.role && debug.facilityId && (await isMasterAdmin(userId))) {
+          return debug.role === 'super_admin'
+        }
+      } catch { /* malformed cookie — fall through */ }
+    }
+
+    const selected = cookieStore.get('selected_facility_id')?.value
+    const rows = await db.query.facilityUsers.findMany({ where: eq(facilityUsers.userId, userId) })
+    if (rows.length === 0) return false
+    const row = (selected && rows.find((r) => r.facilityId === selected)) || rows[0]
+    return row.role === 'super_admin'
+  } catch (err) {
+    console.error('[isFranchiseAdmin] error:', err)
+    return false
+  }
+}
+
 export async function getUserFranchise(userId: string): Promise<{
   franchiseId: string
   franchiseName: string

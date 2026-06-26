@@ -10,10 +10,11 @@ interface FacilityOption {
   role: string
 }
 
-type DebugRole = 'admin' | 'facility_staff' | 'bookkeeper' | 'stylist'
+type DebugRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist'
 
 const ROLE_LABELS: Record<DebugRole, string> = {
-  admin: 'Admin',
+  admin: 'Facility Admin',
+  super_admin: 'Franchise Admin',
   facility_staff: 'Facility Staff',
   bookkeeper: 'Bookkeeper',
   stylist: 'Stylist',

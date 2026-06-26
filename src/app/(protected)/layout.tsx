@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { facilities, facilityUsers, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
+import { isFranchiseAdmin } from '@/lib/get-facility-id'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TopBar } from '@/components/layout/top-bar'
 import { MobileNav } from '@/components/layout/mobile-nav'
@@ -145,6 +146,7 @@ export default async function ProtectedLayout({
   const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   let debugMode = false
+  let franchiseAdmin = false
   if (isMaster) {
     const cookieStore = await cookies()
     const debugRaw = cookieStore.get('__debug_role')?.value
@@ -156,9 +158,15 @@ export default async function ProtectedLayout({
           facilityName = debug.facilityName
           activeFacilityId = debug.facilityId
           debugMode = true
+          // Impersonating a franchise admin → show the Franchise nav + dashboard.
+          franchiseAdmin = debug.role === 'super_admin'
         }
       } catch { /* malformed */ }
     }
+  }
+  // Real franchise owners (raw super_admin role) also get the Franchise nav.
+  if (!debugMode) {
+    franchiseAdmin = await isFranchiseAdmin(user.id)
   }
 
   return (
@@ -166,7 +174,7 @@ export default async function ProtectedLayout({
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} isFranchiseAdmin={franchiseAdmin} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />

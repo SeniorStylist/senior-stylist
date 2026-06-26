@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin',
+  admin: 'Facility Admin',
+  super_admin: 'Franchise Admin',
   facility_staff: 'Facility Staff',
   bookkeeper: 'Bookkeeper',
   stylist: 'Stylist',
