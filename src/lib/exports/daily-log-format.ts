@@ -7,9 +7,19 @@ export function formatServices(names: string[]): string {
   return clean.slice(0, -1).join(', ') + ' & ' + clean[clean.length - 1]
 }
 
-export function paymentTypeLabel(status: string | null | undefined): string {
+// Payment Type column. The free-text `method` (Cash/Check/Card/ACH/RFMS/COF/RA/
+// custom) is the bookkeeper's chosen label and wins when present; otherwise fall
+// back to the status. RFMS/COF/RA are stored unpaid (open invoice) but still
+// carry a method, so they export as their literal label — not "Invoice".
+export function paymentTypeLabel(
+  status: string | null | undefined,
+  method?: string | null
+): string {
+  const m = method?.trim()
+  if (m) return m
   if (status === 'unpaid') return 'Invoice'
-  if (status === 'paid' || status === 'waived') return 'Other'
+  if (status === 'waived') return 'Waived'
+  if (status === 'paid') return 'Other'
   return NOT_FILLED
 }
 

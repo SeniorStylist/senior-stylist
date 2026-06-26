@@ -24,21 +24,8 @@ import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 import { ExportDailyLogsMultiModal, type ExportFacilityOption } from '@/components/exports/export-daily-logs-multi-modal'
 import { EmailDayLogModal } from '@/components/exports/email-day-log-modal'
+import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo, comboLabel } from '@/lib/payments'
 
-function parsePaymentCombo(label: string): { paymentStatus: 'unpaid' | 'paid' | 'waived'; paymentMethod: string | null } {
-  const v = label.trim().toLowerCase()
-  if (!v || v === 'unpaid (invoice)' || v === 'unpaid' || v === 'invoice') {
-    return { paymentStatus: 'unpaid', paymentMethod: null }
-  }
-  if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
-  return { paymentStatus: 'paid', paymentMethod: label.trim() || null }
-}
-
-function paymentComboLabel(paymentStatus: string, paymentMethod: string | null | undefined): string {
-  if (paymentStatus === 'unpaid') return 'Unpaid (Invoice)'
-  if (paymentStatus === 'waived') return 'Waived'
-  return paymentMethod || 'Paid'
-}
 
 interface LogBooking {
   id: string
@@ -201,6 +188,7 @@ export function LogClient({
   const [editResidentName, setEditResidentName] = useState('')
   const [editServiceId, setEditServiceId] = useState<string | null>(null)
   const [editServiceName, setEditServiceName] = useState('')
+  const [editRoomNumber, setEditRoomNumber] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -210,13 +198,14 @@ export function LogClient({
     setEditPrice(((booking.priceCents ?? booking.service?.priceCents ?? 0) / 100).toFixed(2))
     setEditNotes(booking.notes ?? '')
     setEditTipCents(booking.tipCents != null ? (booking.tipCents / 100).toFixed(2) : '')
-    setEditPaymentCombo(paymentComboLabel(booking.paymentStatus, booking.paymentMethod ?? null))
+    setEditPaymentCombo(comboLabel(booking.paymentStatus, booking.paymentMethod ?? null))
     const p = getLocalParts(new Date(booking.startTime), facilityTimezone)
     setEditDate(`${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`)
     setEditResidentId(booking.resident.id)
     setEditResidentName(booking.resident.name)
     setEditServiceId(booking.service?.id ?? null)
     setEditServiceName(booking.service?.name ?? booking.serviceNames?.[0] ?? booking.rawServiceName ?? '')
+    setEditRoomNumber(booking.resident.roomNumber ?? '')
   }
 
   const cancelEditBooking = () => {
@@ -230,6 +219,7 @@ export function LogClient({
     setEditResidentName('')
     setEditServiceId(null)
     setEditServiceName('')
+    setEditRoomNumber('')
   }
 
   const saveEditBooking = async () => {
@@ -271,6 +261,12 @@ export function LogClient({
         body.serviceId = editServiceId
       }
 
+      // Room # change — applied to the booking's resident record. Skip when the
+      // resident itself is being swapped (the room field still shows the old one).
+      if (!body.residentId && editRoomNumber.trim() !== (booking?.resident.roomNumber ?? '')) {
+        body.roomNumber = editRoomNumber.trim() || null
+      }
+
       const res = await fetch(`/api/bookings/${editingBookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -283,9 +279,15 @@ export function LogClient({
           setBookings((prev) => prev.filter((b) => b.id !== editingBookingId))
           toast('Updated — booking moved to new date', 'success')
         } else {
-          setBookings((prev) => prev.map((b) =>
-            b.id === editingBookingId ? { ...b, ...json.data } : b
-          ))
+          setBookings((prev) => prev.map((b) => {
+            if (b.id !== editingBookingId) return b
+            const merged = { ...b, ...json.data }
+            // Room # lives on the resident record, not the booking — patch it locally.
+            if ('roomNumber' in body) {
+              merged.resident = { ...merged.resident, roomNumber: body.roomNumber as string | null }
+            }
+            return merged
+          }))
           toast('Updated', 'success')
         }
         setEditingBookingId(null)
@@ -1151,7 +1153,10 @@ export function LogClient({
                   const isCancelled = booking.status === 'cancelled'
                   const isUpdating = updatingId === booking.id
                   const isEditing = editingBookingId === booking.id
-                  const canEdit = canWrite && !isCancelled && !isFinalized && (!stylistFilter || booking.stylist.id === stylistFilter)
+                  // Bookkeepers/admins can edit even after a day is finalized (post-hoc
+                  // billing corrections); stylists stay locked out of finalized sections.
+                  const canEditFinalized = role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
+                  const canEdit = canWrite && !isCancelled && (!isFinalized || canEditFinalized) && (!stylistFilter || booking.stylist.id === stylistFilter)
 
                   return (
                     <div
@@ -1256,6 +1261,17 @@ export function LogClient({
                                 {residents.map(r => <option key={r.id} value={r.name} />)}
                               </datalist>
                             </div>
+                            {/* Room # — writes to the resident record (residents change rooms) */}
+                            <div>
+                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Room #</label>
+                              <input
+                                type="text"
+                                value={editRoomNumber}
+                                onChange={(e) => setEditRoomNumber(e.target.value)}
+                                placeholder="Room #"
+                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                              />
+                            </div>
                             {/* Service */}
                             <div>
                               <label className="text-[10px] text-stone-400 uppercase tracking-wide">Service</label>
@@ -1302,26 +1318,34 @@ export function LogClient({
                                 />
                               </div>
                             </div>
-                            {/* Payment Type */}
-                            <div>
-                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Payment Type</label>
-                              <input
-                                type="text"
-                                list="log-payment-type-options"
-                                value={editPaymentCombo}
-                                onChange={(e) => setEditPaymentCombo(e.target.value)}
-                                placeholder="Unpaid (Invoice)"
-                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
-                              />
-                              <datalist id="log-payment-type-options">
-                                <option value="Unpaid (Invoice)" />
-                                <option value="Cash" />
-                                <option value="Check" />
-                                <option value="Card" />
-                                <option value="ACH" />
-                                <option value="Waived" />
-                              </datalist>
-                            </div>
+                            {/* Payment Type — visible dropdown + "Custom…" for COF/RA/etc. */}
+                            {(() => {
+                              const isCustom = !PAYMENT_TYPE_OPTIONS.includes(editPaymentCombo as typeof PAYMENT_TYPE_OPTIONS[number])
+                              return (
+                                <div>
+                                  <label className="text-[10px] text-stone-400 uppercase tracking-wide">Payment Type</label>
+                                  <select
+                                    value={isCustom ? '__custom__' : editPaymentCombo}
+                                    onChange={(e) => setEditPaymentCombo(e.target.value === '__custom__' ? '' : e.target.value)}
+                                    className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                  >
+                                    {PAYMENT_TYPE_OPTIONS.map(o => (
+                                      <option key={o} value={o}>{o}</option>
+                                    ))}
+                                    <option value="__custom__">➕ Custom…</option>
+                                  </select>
+                                  {isCustom && (
+                                    <input
+                                      type="text"
+                                      value={editPaymentCombo}
+                                      onChange={(e) => setEditPaymentCombo(e.target.value)}
+                                      placeholder="e.g. COF, RA"
+                                      className="mt-1.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                    />
+                                  )}
+                                </div>
+                              )
+                            })()}
                             {/* Notes */}
                             <textarea
                               value={editNotes}

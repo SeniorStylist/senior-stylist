@@ -273,7 +273,9 @@ export async function GET(request: NextRequest) {
 
       ws.addRow({
         no: i + 1,
-        mailSubject: mailSubject ?? 'Senior Stylist Export',
+        // Per-sheet subject entered at scan time wins; the export-modal subject
+        // is the fallback for rows scanned without one.
+        mailSubject: b.mailSubject?.trim() || mailSubject || 'Senior Stylist Export',
         mailDate,
         mailTime,
         serviceDate: fac ? formatMailDate(b.startTime as Date, tz) : NOT_FILLED,
@@ -285,7 +287,7 @@ export async function GET(request: NextRequest) {
         amount: dollarsNumber((b.priceCents ?? 0) + (b.addonTotalCents ?? 0)),
         notes: notesCell(b.notes),
         tips: tipsCell(b.tipCents),
-        paymentType: paymentTypeLabel(b.paymentStatus),
+        paymentType: paymentTypeLabel(b.paymentStatus, b.paymentMethod),
       })
     })
 

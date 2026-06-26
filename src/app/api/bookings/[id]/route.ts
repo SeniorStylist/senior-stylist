@@ -33,6 +33,9 @@ const updateSchema = z.object({
   addonChecked: z.boolean().optional(),
   tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   paymentMethod: z.string().max(100).nullable().optional(),
+  // Room # is a RESIDENT field, not a booking column — applied to the booking's
+  // resident record (residents change rooms; the log sheet is the source of truth).
+  roomNumber: z.string().max(50).nullable().optional(),
 })
 
 export async function GET(
@@ -117,7 +120,7 @@ export async function PUT(
       const BOOKKEEPER_ALLOWED = new Set([
         'residentId', 'serviceId', 'serviceIds', 'addonServiceIds', 'addonChecked',
         'priceCents', 'paymentStatus', 'paymentMethod', 'notes', 'tipCents',
-        'selectedQuantity', 'selectedOption',
+        'selectedQuantity', 'selectedOption', 'roomNumber',
         'startTime', // allow date correction after log sheet import
       ])
       for (const key of Object.keys(updates) as Array<keyof typeof updates>) {
@@ -304,12 +307,26 @@ export async function PUT(
     if (updates.addonServiceIds !== undefined) setPayload.addonServiceIds = updates.addonServiceIds.length > 0 ? updates.addonServiceIds : null
     if (addonTotalCents !== undefined) setPayload.addonTotalCents = addonTotalCents
     if (updates.tipCents !== undefined) setPayload.tipCents = updates.tipCents
+    if (updates.paymentMethod !== undefined) setPayload.paymentMethod = updates.paymentMethod
 
     const [updated] = await db
       .update(bookings)
       .set(setPayload)
       .where(and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)))
       .returning()
+
+    // Room # correction — applied to the booking's (effective) resident, not the
+    // booking. Admin/facility_staff/bookkeeper only; stylists never edit residents.
+    if (
+      updates.roomNumber !== undefined &&
+      (isAdminOrAbove(facilityUser.role) || isFacilityStaff(facilityUser.role) || facilityUser.role === 'bookkeeper')
+    ) {
+      const targetResidentId = updates.residentId ?? existing.residentId
+      await db
+        .update(residents)
+        .set({ roomNumber: updates.roomNumber?.trim() || null })
+        .where(and(eq(residents.id, targetResidentId), eq(residents.facilityId, facilityId)))
+    }
 
     // Auto-set default service after 3+ completions with same service
     if (updates.status === 'completed') {
