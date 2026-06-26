@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db'
 import { portalCoupons, portalCouponRedemptions } from '@/db/schema'
-import { and, eq, desc, sql, inArray } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 
