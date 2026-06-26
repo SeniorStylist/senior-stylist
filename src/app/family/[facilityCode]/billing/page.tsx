@@ -11,10 +11,10 @@ export default async function BillingPage({
   searchParams,
 }: {
   params: Promise<{ facilityCode: string }>
-  searchParams: Promise<{ residentId?: string; payment?: string }>
+  searchParams: Promise<{ residentId?: string; payment?: string; gift?: string }>
 }) {
   const { facilityCode } = await params
-  const { residentId: searchResidentId, payment } = await searchParams
+  const { residentId: searchResidentId, payment, gift } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
   const { residentsAtFacility } = await requirePortalAuth(decoded)
   const selected =
@@ -55,6 +55,7 @@ export default async function BillingPage({
       outstandingCents={outstanding}
       stripeAvailable={stripeAvailable}
       paymentSuccess={payment === 'success'}
+      giftSuccess={gift === 'success'}
       facilityPhone={facilityRow?.phone ?? null}
       facilityEmail={facilityRow?.contactEmail ?? null}
       invoices={invoices.map((i) => ({
