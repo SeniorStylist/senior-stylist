@@ -69,6 +69,25 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     window.location.href = '/master-admin'
   }
 
+  const [franchiseLoading, setFranchiseLoading] = useState<'setup' | 'teardown' | null>(null)
+  const handleDemoFranchise = async (teardown: boolean) => {
+    setFranchiseLoading(teardown ? 'teardown' : 'setup')
+    try {
+      const res = await fetch('/api/debug/setup-demo-franchise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teardown }),
+      })
+      if (res.ok) {
+        window.location.href = teardown ? '/master-admin' : '/franchise'
+      } else {
+        setFranchiseLoading(null)
+      }
+    } catch {
+      setFranchiseLoading(null)
+    }
+  }
+
   const [portalLoading, setPortalLoading] = useState(false)
   const handleOpenPortal = async () => {
     if (!selected) return
@@ -164,6 +183,33 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* Franchise demo — one-click sample franchise to preview the dashboard */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+        <p className="text-sm font-semibold text-stone-900">Franchise demo</p>
+        <p className="text-xs text-stone-500 mt-0.5">
+          Creates a throwaway sample franchise (Symphony Manor + Sunrise of Bethesda, demo data) and drops you into the Franchise Admin dashboard. Hidden from your real facility lists.
+        </p>
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => handleDemoFranchise(false)}
+            disabled={franchiseLoading !== null}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#8B2E4A' }}
+            onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#72253C' }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#8B2E4A' }}
+          >
+            {franchiseLoading === 'setup' ? 'Setting up…' : 'Set up & preview demo franchise'}
+          </button>
+          <button
+            onClick={() => handleDemoFranchise(true)}
+            disabled={franchiseLoading !== null}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {franchiseLoading === 'teardown' ? 'Removing…' : 'Remove demo franchise'}
+          </button>
+        </div>
       </div>
     </div>
   )

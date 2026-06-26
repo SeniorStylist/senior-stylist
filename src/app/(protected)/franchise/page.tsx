@@ -29,18 +29,23 @@ export default async function FranchisePage() {
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
     const monthStartDate = monthStart.toISOString().slice(0, 10)
 
-    const [facs, bookingRows, payRows] = await Promise.all([
-      db.query.facilities.findMany({
-        where: and(inArray(facilities.id, ids), eq(facilities.active, true)),
-        columns: { id: true, name: true, facilityCode: true, qbOutstandingBalanceCents: true },
-      }),
+    const facs = await db.query.facilities.findMany({
+      where: and(inArray(facilities.id, ids), eq(facilities.active, true)),
+      columns: { id: true, name: true, facilityCode: true, qbOutstandingBalanceCents: true, isDemo: true },
+    })
+    // A demo franchise (is_demo facilities) counts its demo bookings/payments so the
+    // MTD tiles populate; a real franchise counts only real records. Franchises are
+    // homogeneous — never a real+demo mix.
+    const demoFranchise = facs.some((f) => f.isDemo)
+
+    const [bookingRows, payRows] = await Promise.all([
       db
         .select({ facilityId: bookings.facilityId, n: sql<number>`count(*)::int` })
         .from(bookings)
         .where(and(
           inArray(bookings.facilityId, ids),
           eq(bookings.active, true),
-          eq(bookings.isDemo, false),
+          eq(bookings.isDemo, demoFranchise),
           eq(bookings.status, 'completed'),
           gte(bookings.startTime, monthStart),
         ))
@@ -50,7 +55,7 @@ export default async function FranchisePage() {
         .from(qbPayments)
         .where(and(
           inArray(qbPayments.facilityId, ids),
-          eq(qbPayments.isDemo, false),
+          eq(qbPayments.isDemo, demoFranchise),
           gte(qbPayments.paymentDate, monthStartDate),
         ))
         .groupBy(qbPayments.facilityId),
