@@ -10,6 +10,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
+import { ResidentLedger } from '@/components/residents/resident-ledger'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -630,6 +631,8 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           )}
         </div>
       </div>
+
+      <ResidentLedger residentId={resident.id} role={role} />
     </div>
     {sendConfirmDialog}
     </ErrorBoundary>
