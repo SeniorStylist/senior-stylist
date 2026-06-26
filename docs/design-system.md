@@ -968,6 +968,30 @@ The OCR review **Room #** is always an editable `<input>` prefilled from the sca
 
 Each scanned sheet's header has a **Mail Subject** text input (alongside Date/Stylist) → written to every booking's `mail_subject` and used for column B of the daily-log Excel export (export-modal subject is the fallback). Mirrors the per-sheet stylist-name field pattern.
 
+### Resident account ledger card (2026-06-26)
+
+`<ResidentLedger>` (`src/components/residents/resident-ledger.tsx`) on `/residents/[id]` — a collapsible card (lazy-loads `GET /api/residents/[id]/ledger` on first open) shown only to billing roles (`canSeeBilling` replicated inline — do NOT import the server `get-facility-id` into a client component). Layout: 4 summary tiles (Current balance amber/sky-tinted by sign, Available credit emerald, Total invoiced, Total paid), an available-credit panel where each credit has an **Apply** action (checkbox list of open invoices → `POST .../credits/[creditId]/apply`), then a 5-col invoices/payments table (Date · Description · Charge · Payment in `(parens)` emerald · running Balance). All money cells use `.tabular-nums`. Reuse this card pattern for any "money history for one entity" surface.
+
+### Account-credit application UI (manual attribution)
+
+Credits (prepay/gift/coupon) are NEVER auto-applied — the operator picks the invoices. The pattern: list each credit's remaining amount, an "Apply" toggle reveals the resident's open invoices as a checkbox list, and a burgundy "Apply credit to N invoices" button POSTs the chosen ids. Always show the QB caveat ("applying records it on the site only — mirror it in QuickBooks or the next import reverts it").
+
+### Coupon manager (Settings → Family Portal, 2026-06-26)
+
+`<CouponManager>` (`src/components/settings/coupon-manager.tsx`) — admin CRUD inside the Family Portal coupons card. "+ New coupon" reveals an inline form (code optional/auto-gen, type, fixed/percent + value, description, max uses, expiry). Each coupon row shows the mono code + discount + type chip + usage, with "Issue" (reveals a resident `<select>` of portal-account-linked families) and "Deactivate/Activate". Optimistic list updates.
+
+### Portal "Add funds" + "Send a gift" (family billing page, 2026-06-26)
+
+On `/family/[code]/billing`: **Add funds** (always shown when Stripe configured) — amount input → `create-checkout` with `purpose:'prepay'` → banked as account credit. **Send a gift** — collapsible (`+`/`−`) section: recipient name + room (recommended) + amount + optional "your name" → `POST /api/portal/gift/create-checkout` → Stripe. Both use the outline/secondary button style to sit below the primary "Pay with card". `?gift=success` shows a "Gift sent — thank you!" toast.
+
+### Portal contact card (family profile, 2026-06-26)
+
+On `/family/[code]/profile`, a **Contact Information** card per resident (above Tip Preferences): editable resident phone + POA name/phone/address/city via a shared `<Field>` helper. `poaEmail` renders as a disabled read-only input with a "your email is your login — contact the facility to change it" note. Dirty-tracking enables Save.
+
+### Signage editor + print (2026-06-26)
+
+`/signage` (`signage-client.tsx`) — left controls (template chips grouped General/Holiday, accent-color swatches, facility-name toggle, title/subtitle/date-banner/body/footer inputs), right a WYSIWYG **`<iframe srcDoc={html}>`** preview at `aspect-[8.5/11]`. **Print pattern (reusable for any printable artifact)**: build ONE self-contained HTML doc string (`buildSignHtml`, fonts `@import`-ed, `@page margin:0`, vh-sized type so it scales to the page, `print-color-adjust:exact`), render it in the preview iframe AND, on Print, `window.open('','_blank')` + `document.write(html)` + `setTimeout(() => w.print(), 450)` (font-load beat). Sidesteps the fixed app shell — no `@media print` visibility hacks on the main document. Browser "Save as PDF" handles PDF; no PDF dependency.
+
 ### OCR review stylist field — `<select>` dropdown with create-new fallback
 
 The stylist field in the OCR review modal (`ocr-import-modal.tsx`) uses a `<select>` dropdown listing all facility stylists, with a create-new text input revealed when no existing stylist is chosen:
