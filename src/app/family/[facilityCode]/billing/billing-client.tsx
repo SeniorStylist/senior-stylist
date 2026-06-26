@@ -21,6 +21,7 @@ interface Props {
   outstandingCents: number
   stripeAvailable: boolean
   paymentSuccess: boolean
+  giftSuccess: boolean
   facilityPhone: string | null
   facilityEmail: string | null
   invoices: Invoice[]
@@ -42,6 +43,7 @@ export function BillingClient({
   outstandingCents,
   stripeAvailable,
   paymentSuccess,
+  giftSuccess,
   facilityPhone,
   facilityEmail,
   invoices,
@@ -50,15 +52,23 @@ export function BillingClient({
   const { toast } = useToast()
   const [amountInput, setAmountInput] = useState((outstandingCents / 100).toFixed(2))
   const [submitting, setSubmitting] = useState(false)
+  const [prepayInput, setPrepayInput] = useState('')
+  const [prepaySubmitting, setPrepaySubmitting] = useState(false)
+  const [showGift, setShowGift] = useState(false)
+  const [giftName, setGiftName] = useState('')
+  const [giftRoom, setGiftRoom] = useState('')
+  const [giftFrom, setGiftFrom] = useState('')
+  const [giftAmount, setGiftAmount] = useState('')
+  const [giftSubmitting, setGiftSubmitting] = useState(false)
   const shownToastRef = useRef(false)
 
   useEffect(() => {
-    if (paymentSuccess && !shownToastRef.current) {
+    if ((paymentSuccess || giftSuccess) && !shownToastRef.current) {
       shownToastRef.current = true
-      toast.success('Payment received — thank you!')
+      toast.success(giftSuccess ? 'Gift sent — thank you!' : 'Payment received — thank you!')
       router.replace(`/family/${encodeURIComponent(facilityCode)}/billing?residentId=${residentId}`)
     }
-  }, [paymentSuccess, toast, router, facilityCode, residentId])
+  }, [paymentSuccess, giftSuccess, toast, router, facilityCode, residentId])
 
   const onPay = async () => {
     const amountCents = Math.round(parseFloat(amountInput) * 100)
@@ -83,6 +93,68 @@ export function BillingClient({
       toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const onAddFunds = async () => {
+    const amountCents = Math.round(parseFloat(prepayInput) * 100)
+    if (!Number.isFinite(amountCents) || amountCents < 50) {
+      toast.error('Enter an amount of at least $0.50.')
+      return
+    }
+    setPrepaySubmitting(true)
+    try {
+      const res = await fetch('/api/portal/stripe/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId, amountCents, purpose: 'prepay' }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(j.error ?? 'Could not start checkout.')
+        return
+      }
+      window.location.href = j.data.checkoutUrl
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setPrepaySubmitting(false)
+    }
+  }
+
+  const onSendGift = async () => {
+    const amountCents = Math.round(parseFloat(giftAmount) * 100)
+    if (!giftName.trim()) {
+      toast.error('Enter the resident’s name.')
+      return
+    }
+    if (!Number.isFinite(amountCents) || amountCents < 50) {
+      toast.error('Enter an amount of at least $0.50.')
+      return
+    }
+    setGiftSubmitting(true)
+    try {
+      const res = await fetch('/api/portal/gift/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facilityCode,
+          recipientName: giftName.trim(),
+          recipientRoom: giftRoom.trim() || undefined,
+          amountCents,
+          gifterName: giftFrom.trim() || undefined,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(j.error ?? 'Could not start checkout.')
+        return
+      }
+      window.location.href = j.data.checkoutUrl
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setGiftSubmitting(false)
     }
   }
 
@@ -142,6 +214,78 @@ export function BillingClient({
             {submitting ? 'Loading…' : 'Pay with card'}
           </button>
           <p className="text-[11px] text-stone-400 text-center mt-2">Secure payment via Stripe.</p>
+        </section>
+      )}
+
+      {stripeAvailable && (
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
+          <h2 className="text-sm font-semibold text-stone-900 mb-1">Add funds to account</h2>
+          <p className="text-xs text-stone-500 mb-3">Prepay credit toward future services. The facility applies it to your invoices.</p>
+          <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
+            Amount
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0.50"
+                value={prepayInput}
+                onChange={(e) => setPrepayInput(e.target.value)}
+                placeholder="50.00"
+                className="w-full rounded-xl border border-stone-200 pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+              />
+            </div>
+          </label>
+          <button
+            type="button"
+            onClick={onAddFunds}
+            disabled={prepaySubmitting}
+            className="w-full mt-3 bg-white text-[#8B2E4A] border border-[#8B2E4A] text-sm font-semibold rounded-xl px-5 py-3 hover:bg-[#F9EFF2] disabled:opacity-60"
+          >
+            {prepaySubmitting ? 'Loading…' : 'Add funds with card'}
+          </button>
+          <p className="text-[11px] text-stone-400 text-center mt-2">Secure payment via Stripe.</p>
+        </section>
+      )}
+
+      {stripeAvailable && (
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
+          <button type="button" onClick={() => setShowGift((s) => !s)} className="w-full flex items-center justify-between text-left">
+            <div>
+              <h2 className="text-sm font-semibold text-stone-900">Send a gift</h2>
+              <p className="text-xs text-stone-500 mt-0.5">Gift account credit to another resident at this facility.</p>
+            </div>
+            <span className="text-[#8B2E4A] text-lg leading-none">{showGift ? '−' : '+'}</span>
+          </button>
+          {showGift && (
+            <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5 col-span-2">
+                  Resident’s name
+                  <input value={giftName} onChange={(e) => setGiftName(e.target.value)} placeholder="Jane Doe" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
+                </label>
+                <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
+                  Room # <span className="font-normal text-stone-400">(recommended)</span>
+                  <input value={giftRoom} onChange={(e) => setGiftRoom(e.target.value)} placeholder="12" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
+                </label>
+                <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
+                  Amount
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">$</span>
+                    <input type="number" step="0.01" min="0.50" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value)} placeholder="25.00" className="w-full rounded-xl border border-stone-200 pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
+                  </div>
+                </label>
+                <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5 col-span-2">
+                  Your name <span className="font-normal text-stone-400">(optional)</span>
+                  <input value={giftFrom} onChange={(e) => setGiftFrom(e.target.value)} placeholder="From…" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
+                </label>
+              </div>
+              <button type="button" onClick={onSendGift} disabled={giftSubmitting} className="w-full bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60">
+                {giftSubmitting ? 'Loading…' : 'Send gift with card'}
+              </button>
+              <p className="text-[11px] text-stone-400 text-center">The credit is added to the resident’s account for the facility to apply.</p>
+            </div>
+          )}
         </section>
       )}
 

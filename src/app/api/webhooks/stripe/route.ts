@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
 
       if (metadataType === 'portal_balance') {
         await handlePortalBalance(session)
+      } else if (metadataType === 'portal_prepay') {
+        await handlePortalCredit(session, 'Prepayment')
+      } else if (metadataType === 'portal_gift') {
+        await handlePortalCredit(session, 'Gift')
       } else {
         const bookingId = session.metadata?.bookingId
         if (bookingId) {
@@ -136,6 +140,36 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
 
   revalidateTag('billing', {})
   revalidateTag('bookings', {})
+}
+
+// Prepayment / gift → bank an unapplied account credit on the TARGET resident
+// (no auto-apply). A bookkeeper/admin attributes it to invoices manually from the
+// resident ledger. For gifts, the target resident is the recipient; the gifter's
+// name (if provided) is recorded in the credit memo/num.
+async function handlePortalCredit(session: StripeCheckoutSession, source: 'Prepayment' | 'Gift'): Promise<void> {
+  const md = session.metadata ?? {}
+  const residentId = md.residentId
+  const facilityId = md.facilityId
+  const amountCents = session.amount_total ?? 0
+  const stripePaymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null
+
+  if (!residentId || !facilityId || amountCents <= 0) {
+    console.error('[stripe webhook portal credit] missing metadata or zero amount', { md, amountCents, source })
+    return
+  }
+
+  const { createAccountCredit } = await import('@/lib/account-credits')
+  const numParts = [source === 'Gift' && md.gifterName ? `Gift from ${md.gifterName}` : null, stripePaymentIntentId]
+    .filter(Boolean)
+  await createAccountCredit({
+    facilityId,
+    residentId,
+    amountCents,
+    source,
+    num: numParts.join(' · ') || null,
+  })
+
+  revalidateTag('billing', {})
 }
 
 // Phase 12E — fire-and-forget booking receipt after Stripe card payment.
