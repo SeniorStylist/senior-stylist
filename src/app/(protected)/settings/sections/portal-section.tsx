@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/toast'
 import type { PublicFacility } from '@/lib/sanitize'
+import { CouponManager } from '@/components/settings/coupon-manager'
 
 interface ClaimRequest {
   id: string
@@ -238,6 +239,9 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                 )}
               </div>
             )}
+
+            {/* Full coupon catalog: create / manage / issue */}
+            <CouponManager />
           </div>
         )}
       </div>
