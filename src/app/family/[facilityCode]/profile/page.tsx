@@ -29,6 +29,12 @@ export default async function ProfilePage({
             roomNumber: true,
             defaultTipType: true,
             defaultTipValue: true,
+            phone: true,
+            poaName: true,
+            poaEmail: true,
+            poaPhone: true,
+            poaAddress: true,
+            poaCity: true,
           },
         })
       : Promise.resolve([]),
