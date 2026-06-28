@@ -9,6 +9,7 @@ import { Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
+import { TakePaymentModal } from './take-payment-modal'
 
 interface AutopayState {
   autopayEnabled: boolean
@@ -34,17 +35,20 @@ function dollars(cents: number): string {
 
 export function CofPanel({
   residentId,
+  residentName,
   role,
   poaEmail,
   poaPhone,
 }: {
   residentId: string
+  residentName: string
   role: string
   poaEmail?: string | null
   poaPhone?: string | null
 }) {
   const { toast } = useToast()
   const { confirmSend, dialog } = useSendConfirm()
+  const [takeOpen, setTakeOpen] = useState(false)
   const [state, setState] = useState<AutopayState | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -202,9 +206,12 @@ export function CofPanel({
         <Button size="sm" variant="secondary" onClick={saveAutopay} loading={saving}>Save</Button>
       </div>
 
-      <div className="flex items-center gap-2 pt-3 border-t border-stone-100">
+      <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-stone-100">
         <Button size="sm" onClick={collectNow} loading={collecting} disabled={state.outstandingCents <= 0}>
           Collect now
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setTakeOpen(true)}>
+          Take card payment
         </Button>
         <Button
           size="sm"
@@ -217,6 +224,14 @@ export function CofPanel({
         </Button>
       </div>
       {dialog}
+      <TakePaymentModal
+        open={takeOpen}
+        onClose={() => setTakeOpen(false)}
+        residentId={residentId}
+        residentName={residentName}
+        defaultAmountCents={state.outstandingCents > 0 ? state.outstandingCents : 0}
+        onPaid={load}
+      />
     </div>
   )
 }

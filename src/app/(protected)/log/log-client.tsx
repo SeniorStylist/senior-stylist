@@ -13,6 +13,7 @@ import {
 } from '@/lib/service-sort'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TakePaymentModal } from '@/components/payments/take-payment-modal'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -152,6 +153,7 @@ export function LogClient({
   const [showExportModal, setShowExportModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [bookings, setBookings] = useState(initialBookings)
+  const [payBooking, setPayBooking] = useState<LogBooking | null>(null)
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [loading, setLoading] = useState(false)
   // Increments on each successful fetch to re-trigger the enter animation
@@ -1430,6 +1432,19 @@ export function LogClient({
 
                       {/* Actions */}
                       <div className="shrink-0 flex items-center gap-1.5">
+                        {/* Take card payment — unpaid, editable bookings only */}
+                        {canEdit && !isEditing && !isCancelled && booking.paymentStatus !== 'paid' && (
+                          <button
+                            onClick={() => setPayBooking(booking)}
+                            className="text-stone-400 hover:text-[#8B2E4A] p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                            title="Take card payment"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                              <line x1="1" y1="10" x2="23" y2="10" />
+                            </svg>
+                          </button>
+                        )}
                         {/* Edit button */}
                         {canEdit && !isEditing && (
                           <button
@@ -1673,6 +1688,26 @@ export function LogClient({
         role={role}
         isMasterAdmin={false}
       />
+
+      {payBooking && (
+        <TakePaymentModal
+          open={!!payBooking}
+          onClose={() => setPayBooking(null)}
+          residentId={payBooking.resident.id}
+          residentName={payBooking.resident.name}
+          defaultAmountCents={
+            (payBooking.priceCents ?? payBooking.service?.priceCents ?? 0) +
+            (payBooking.addonTotalCents ?? 0) +
+            (payBooking.tipCents ?? 0)
+          }
+          bookingIds={[payBooking.id]}
+          onPaid={() =>
+            setBookings((prev) =>
+              prev.map((b) => (b.id === payBooking.id ? { ...b, paymentStatus: 'paid', paymentMethod: 'Card' } : b)),
+            )
+          }
+        />
+      )}
     </div>
     </ErrorBoundary>
   )

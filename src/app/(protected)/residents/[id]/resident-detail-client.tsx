@@ -640,6 +640,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
         <SavedCardsCard residentId={resident.id} role={role} />
         <CofPanel
           residentId={resident.id}
+          residentName={resident.name}
           role={role}
           poaEmail={resident.poaEmail}
           poaPhone={resident.poaPhone}

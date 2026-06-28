@@ -9,24 +9,16 @@
 // enters the bundle for users who don't open the form.
 
 import { useEffect, useState } from 'react'
-import { loadStripe, type Stripe } from '@stripe/stripe-js'
+import { type Stripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { getStripePromise } from './stripe-browser'
 
 interface AddCardFormProps {
   residentId: string
   onSaved?: () => void
   onCancel?: () => void
-}
-
-// Cache the Stripe.js singleton per publishable key across mounts.
-let stripePromiseCache: { key: string; promise: Promise<Stripe | null> } | null = null
-function getStripePromise(key: string): Promise<Stripe | null> {
-  if (!stripePromiseCache || stripePromiseCache.key !== key) {
-    stripePromiseCache = { key, promise: loadStripe(key) }
-  }
-  return stripePromiseCache.promise
 }
 
 export function AddCardForm({ residentId, onSaved, onCancel }: AddCardFormProps) {

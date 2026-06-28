@@ -50,6 +50,22 @@ export async function POST(request: NextRequest) {
       return Response.json({ received: true })
     }
 
+    // Payments (COF) backstop — finalize an in-app card collection if the client
+    // confirm POST didn't land. Only in-app PIs (metadata.inApp='1'); the engine's
+    // off-session charges record synchronously and are skipped. Idempotent.
+    if (event.type === 'payment_intent.succeeded') {
+      const pi = event.data.object
+      if (pi.metadata?.inApp === '1') {
+        try {
+          const { finalizeInAppPayment } = await import('@/lib/payments/finalize')
+          await finalizeInAppPayment(pi.id)
+        } catch (e) {
+          console.error('[stripe webhook payment_intent] finalize failed:', e)
+        }
+      }
+      return Response.json({ received: true })
+    }
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
       const metadataType = session.metadata?.type
