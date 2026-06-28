@@ -435,6 +435,16 @@ export async function PUT(
       },
     })
 
+    // COF auto-collect — when a booking flips to completed and the facility is in
+    // 'on_completion' mode, attempt to charge the resident's card/salon account.
+    // Fire-and-forget (never blocks/fails the response); the helper self-gates on
+    // facility mode + resident autopay + demo. Skipped for demo/tutorial bookings.
+    if (updates.status === 'completed' && existing.status !== 'completed' && !updated.isDemo) {
+      import('@/lib/payments/triggers').then(({ autoCollectOnCompletion }) =>
+        autoCollectOnCompletion(id),
+      ).catch((e) => console.error('[autopay on-completion] failed:', e))
+    }
+
     revalidateTag('bookings', {})
     return Response.json({ data: toClientJson(data) })
   } catch (err) {

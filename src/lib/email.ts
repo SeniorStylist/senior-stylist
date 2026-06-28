@@ -376,6 +376,48 @@ export function buildResidentStatementHtml(params: {
 </html>`.trim()
 }
 
+// Payments (COF) — failover pay-link email. Sent when an automatic card/account
+// collection couldn't be completed (declined card / empty account) or when an
+// admin manually requests payment. The button opens a magic-link to the portal.
+export function buildPaymentRequestEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  outstandingCents: number
+  payUrl: string
+  poaName?: string | null
+  reason?: string | null
+}): string {
+  const { residentName, facilityName, outstandingCents, payUrl, poaName, reason } = params
+  const greeting = poaName ? `Dear ${escHtml(poaName)},` : 'Dear Resident Family,'
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Payment Request', title: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">${greeting}</p>
+      <p style="margin:0 0 20px;color:#1C1917;font-size:14px;line-height:1.6;">
+        We were unable to complete payment for <strong>${escHtml(residentName)}</strong>'s recent salon services${reason ? ` (${escHtml(reason)})` : ''}.
+        The current balance is shown below — you can pay securely online in a few taps.
+      </p>
+      <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:16px 20px;margin-bottom:22px;">
+        <p style="margin:0;font-size:13px;color:#78716C;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Amount Due</p>
+        <p style="margin:4px 0 0;font-size:26px;font-weight:700;color:#B45309;">${fmtCents(outstandingCents)}</p>
+      </div>
+      <div style="text-align:center;margin:8px 0 18px;">
+        <a href="${payUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:12px;">Pay now</a>
+      </div>
+      <p style="margin:0;color:#A8A29E;font-size:12px;line-height:1.6;text-align:center;">
+        This secure link signs you in to your family account. You can also reply to this email or call the facility to arrange payment.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 export function buildPortalMagicLinkEmailHtml(params: {
   residentNames: string[]
   facilityName: string

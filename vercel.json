@@ -3,6 +3,7 @@
     { "path": "/api/cron/compliance-alerts", "schedule": "0 9 * * *" },
     { "path": "/api/cron/portal-cleanup", "schedule": "0 4 * * *" },
     { "path": "/api/cron/help-demo-cleanup", "schedule": "0 3 * * 0" },
-    { "path": "/api/cron/daily-digest", "schedule": "0 8 * * *" }
+    { "path": "/api/cron/daily-digest", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/autopay-sweep", "schedule": "0 6 * * *" }
   ]
 }

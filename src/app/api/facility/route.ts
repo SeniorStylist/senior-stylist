@@ -32,6 +32,9 @@ const updateSchema = z.object({
   portalWelcomeCouponEnabled: z.boolean().optional(),
   portalWelcomeCouponType: z.enum(['fixed', 'percent']).optional().nullable(),
   portalWelcomeCouponValue: z.number().int().min(1).max(10_000_000).optional().nullable(),
+  // Payments (COF) — facility-level auto-collect config
+  autopayMode: z.enum(['manual', 'on_completion']).optional(),
+  autopaySweepCadence: z.enum(['off', 'nightly', 'biweekly', 'monthly']).optional(),
 })
 
 export async function GET() {
@@ -77,6 +80,12 @@ export async function PUT(request: NextRequest) {
     const parsed = updateSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    // Ensure the COF columns exist before writing them (pre-migration safety).
+    if (parsed.data.autopayMode !== undefined || parsed.data.autopaySweepCadence !== undefined) {
+      const { ensurePaymentsSchema } = await import('@/lib/payments-ddl')
+      await ensurePaymentsSchema()
     }
 
     // Check for duplicate name (case-insensitive) among active facilities, excluding current

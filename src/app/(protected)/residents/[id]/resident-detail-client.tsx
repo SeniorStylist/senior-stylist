@@ -12,6 +12,7 @@ import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
 import { ResidentLedger } from '@/components/residents/resident-ledger'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
+import { CofPanel } from '@/components/payments/cof-panel'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -635,8 +636,14 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
 
       <ResidentLedger residentId={resident.id} role={role} />
 
-      <div className="mt-4">
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         <SavedCardsCard residentId={resident.id} role={role} />
+        <CofPanel
+          residentId={resident.id}
+          role={role}
+          poaEmail={resident.poaEmail}
+          poaPhone={resident.poaPhone}
+        />
       </div>
     </div>
     {sendConfirmDialog}

@@ -193,6 +193,30 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
     }
   }
 
+  // ─── Automatic payment (COF) ──────────────────────────────────────────
+  const [autopayMode, setAutopayMode] = useState((facility.autopayMode as string | null) ?? 'manual')
+  const [autopayCadence, setAutopayCadence] = useState((facility.autopaySweepCadence as string | null) ?? 'off')
+  const [savingAutopay, setSavingAutopay] = useState(false)
+  const [savedAutopay, setSavedAutopay] = useState(false)
+
+  async function handleSaveAutopay() {
+    setSavingAutopay(true)
+    try {
+      const res = await fetch('/api/facility', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autopayMode, autopaySweepCadence: autopayCadence }),
+      })
+      if (res.ok) {
+        setSavedAutopay(true)
+        setTimeout(() => setSavedAutopay(false), 2000)
+        router.refresh()
+      }
+    } finally {
+      setSavingAutopay(false)
+    }
+  }
+
   // ─── Revenue Share ────────────────────────────────────────────────────
   const paymentType = facility.paymentType ?? 'facility'
   const showRevShareRow = paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid'
@@ -478,6 +502,48 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
             {savedStripe ? 'Saved!' : savingStripe ? 'Saving…' : 'Save Keys'}
           </button>
         </div>
+      </div>
+
+      {/* Automatic payment (COF) card */}
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+        <h3 className="text-sm font-semibold text-stone-800 mb-1">Automatic payment</h3>
+        <p className="text-xs text-stone-500 mb-4">
+          Controls how Card-On-File residents are charged for services. Per-resident card &amp;
+          auto-pay setup lives on each resident&apos;s page.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">When to collect</span>
+            <select
+              value={autopayMode}
+              onChange={(e) => setAutopayMode(e.target.value)}
+              className="mt-1 w-full text-sm border border-stone-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50"
+            >
+              <option value="manual">Manual only (Collect-now button)</option>
+              <option value="on_completion">Automatically when a service is completed</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Catch-up sweep</span>
+            <select
+              value={autopayCadence}
+              onChange={(e) => setAutopayCadence(e.target.value)}
+              className="mt-1 w-full text-sm border border-stone-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50"
+            >
+              <option value="off">Off</option>
+              <option value="nightly">Every night</option>
+              <option value="biweekly">Every two weeks</option>
+              <option value="monthly">Every month</option>
+            </select>
+          </label>
+        </div>
+        <button
+          onClick={handleSaveAutopay}
+          disabled={savingAutopay}
+          className="mt-4 px-4 py-2 rounded-lg bg-[#8B2E4A] text-white text-sm font-semibold disabled:opacity-50"
+        >
+          {savedAutopay ? 'Saved!' : savingAutopay ? 'Saving…' : 'Save'}
+        </button>
       </div>
 
       {/* Revenue Share card */}

@@ -65,6 +65,9 @@ export interface Facility {
   dailyDigestEnabled: boolean
   revSharePercentage?: number | null
   qbRevShareType?: string | null
+  // Payments (COF) — facility auto-collect config
+  autopayMode?: string | null
+  autopaySweepCadence?: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }

@@ -62,3 +62,16 @@ export function buildReceiptSms(data: {
     `Thank you! -${data.facilityName}`
   )
 }
+
+// Payments (COF) — failover pay-link SMS. The link is a portal magic-link.
+export function buildPaymentRequestSms(data: {
+  facilityName: string
+  residentName: string
+  outstandingCents: number
+  payUrl: string
+}): string {
+  return (
+    `${data.facilityName}: a balance of $${(data.outstandingCents / 100).toFixed(2)} is due for ${data.residentName}'s salon services. ` +
+    `Pay securely here: ${data.payUrl}`
+  )
+}
