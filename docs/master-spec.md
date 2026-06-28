@@ -828,6 +828,14 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/bookings/recurring` | Authenticated | Create parent + child recurring bookings; returns `{ parentId, count, skipped: [{date, reason}] }`. Accepts same pricing + multi-service fields as POST /api/bookings. `stylistId` is optional — each occurrence resolves its own stylist via `resolveAvailableStylists` + `pickStylistWithLeastLoad`; occurrences with no available stylist or booking conflicts are skipped (reported in `skipped[]`) rather than failing the whole batch |
 | `GET/PUT/DELETE /api/bookings/[id]` | Authenticated | Single booking; updates sync Google Calendar when configured; supports `payment_status` |
 | `POST /api/bookings/sync` | Authenticated | Push unsynced scheduled bookings to Google Calendar |
+| `POST /api/payments/setup-intent` | Portal POA or billing staff | Create Stripe Customer + SetupIntent for saving a card (COF). Returns `clientSecret` + `publishableKey` |
+| `GET/POST/DELETE /api/payments/methods` | Portal POA or billing staff | List / persist (from `setupIntentId`) / soft-remove saved cards (tokens only) |
+| `POST /api/payments/collect` | Billing staff | Collect a COF balance now (salon account + saved card) via `collectForResident`; auto-fires failover pay-link on the uncollected remainder |
+| `POST /api/payments/request-payment` | Billing staff | Email/SMS the payor a portal pay-link (`sendPaymentRequest`) |
+| `GET/POST /api/payments/autopay` | Billing staff | Read / set a resident's `autopay_enabled` + `autopay_method` + default card |
+| `POST /api/payments/intent` | Staff (facility-scope) or stylist (own bookings) | In-app on-session PaymentIntent for the Take-Payment Stripe Element; optional `savePaymentMethod` |
+| `POST /api/payments/intent/confirm` | Authenticated | Finalize an in-app card payment (`finalizeInAppPayment`, idempotent by PI id) |
+| `GET /api/cron/autopay-sweep` | Bearer `CRON_SECRET` | Nightly cadence-aware COF sweep (nightly/biweekly/monthly per facility); fires failover pay-links |
 | `GET /api/stats` | Authenticated | Today / week / month totals |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |

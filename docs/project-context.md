@@ -574,6 +574,15 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Payments — Card-On-File & In-App Collection (SHIPPED 2026-06-28, P1–P3)
+
+Built from the boss's "Payment Considerations" note. Real saved cards + auto-collect + a stylist phone card-reader. On a single Senior Stylist **platform** Stripe account (rev-share split internally). See the full **"Payments — Card-On-File (COF) & In-App Collection"** section in `CLAUDE.md` for the contract.
+- **P1 — foundation** (commit 968938b): `payment_methods` table + `residents.stripe_customer_id/autopay_*` + `facilities.autopay_*` + `qb_payments.stripe_payment_intent_id/collected_by` + `bookings.autopay_*` (`drizzle/0016_payments_cof.sql` + `src/lib/payments-ddl.ts`). `src/lib/payments/` (stripe-client, customer, charge engine `collectForResident`). Add-card flow (SetupIntent + Stripe Elements `<AddCardForm>`/`<SavedCardsCard>`) on admin resident detail + family-portal billing. Routes: `/api/payments/{setup-intent,methods}`.
+- **P2 — smart COF + failover** (commit d43ce2c): pay-link email/SMS builders + `sendPaymentRequest`; `/api/payments/{collect,request-payment,autopay}`; on-completion hook in `PUT /api/bookings/[id]`; nightly `/api/cron/autopay-sweep` (cadence-aware) + `vercel.json`; facility config in Settings → Billing; `<CofPanel>` (resident autopay + Collect-now + Send-pay-link).
+- **P3 — in-app collection** (commit aa6bdfd): `/api/payments/intent` + `/intent/confirm` + `finalizeInAppPayment`; `payment_intent.succeeded` webhook backstop; `<TakePaymentModal>` (Payment Element) on `<CofPanel>` + each unpaid daily-log row.
+- **Phase 4 (deferred, NOT built)**: Tap to Pay (Stripe Terminal native — Josh's preferred capture, reuses `/api/payments/intent`), photo card-scan, electronic check→ACH deposit.
+- **Infra (Josh) before go-live**: (1) Stripe production/merchant account approved. (2) Vercel env: `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (platform account), then `PAYMENTS_LIVE_ENABLED=true`. (3) Enable webhook events `setup_intent.succeeded` + `payment_intent.succeeded`. (4) Apply `drizzle/0016_payments_cof.sql`. Everything is buildable/testable NOW in Stripe test mode without these.
+
 ---
 
 ## 6. CURRENT STATUS
