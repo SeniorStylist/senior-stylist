@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
+import { SavedCardsCard } from '@/components/payments/saved-cards-card'
 
 interface Invoice {
   id: string
@@ -247,6 +248,9 @@ export function BillingClient({
           <p className="text-[11px] text-stone-400 text-center mt-2">Secure payment via Stripe.</p>
         </section>
       )}
+
+      {/* Card on file — save a card for automatic payment of services (COF). */}
+      <SavedCardsCard residentId={residentId} />
 
       {stripeAvailable && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">

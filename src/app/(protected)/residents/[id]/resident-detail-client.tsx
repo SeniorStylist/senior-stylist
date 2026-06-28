@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
 import { ResidentLedger } from '@/components/residents/resident-ledger'
+import { SavedCardsCard } from '@/components/payments/saved-cards-card'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -633,6 +634,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       </div>
 
       <ResidentLedger residentId={resident.id} role={role} />
+
+      <div className="mt-4">
+        <SavedCardsCard residentId={resident.id} role={role} />
+      </div>
     </div>
     {sendConfirmDialog}
     </ErrorBoundary>

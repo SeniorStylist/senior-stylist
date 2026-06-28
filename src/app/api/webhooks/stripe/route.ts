@@ -30,6 +30,26 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
+    // Payments (COF) backstop — persist a saved card if the client-side POST to
+    // /api/payments/methods didn't land. Idempotent via the unique pm index.
+    if (event.type === 'setup_intent.succeeded') {
+      const si = event.data.object
+      const md = si.metadata ?? {}
+      if (md.residentId && md.facilityId) {
+        try {
+          const { saveCardFromSetupIntent } = await import('@/lib/payments/methods')
+          await saveCardFromSetupIntent(si.id, {
+            residentId: md.residentId,
+            facilityId: md.facilityId,
+            createdBy: md.createdBy || null,
+          })
+        } catch (e) {
+          console.error('[stripe webhook setup_intent] persist failed:', e)
+        }
+      }
+      return Response.json({ received: true })
+    }
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object
       const metadataType = session.metadata?.type

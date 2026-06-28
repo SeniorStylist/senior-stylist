@@ -76,6 +76,12 @@ export const facilities = pgTable('facilities', {
   portalWelcomeCouponValue: integer('portal_welcome_coupon_value'), // percent (1-100) or cents
   // 13E: per-facility opt-in for the daily 8am digest email
   dailyDigestEnabled: boolean('daily_digest_enabled').default(false).notNull(),
+  // Payments (COF) — facility-level auto-collect config.
+  // mode: 'manual' (Collect-now button only) | 'on_completion' (charge when a booking is completed)
+  autopayMode: text('autopay_mode').default('manual').notNull(),
+  // sweep cadence: 'off' | 'nightly' | 'biweekly' | 'monthly'
+  autopaySweepCadence: text('autopay_sweep_cadence').default('off').notNull(),
+  autopayLastSweptAt: timestamp('autopay_last_swept_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -122,6 +128,12 @@ export const residents = pgTable(
     qbCustomerId: text('qb_customer_id'),
     qbOutstandingBalanceCents: integer('qb_outstanding_balance_cents').default(0),
     residentPaymentType: text('resident_payment_type'),
+    // Payments (COF) — Stripe customer for saved cards + per-resident auto-collect config.
+    stripeCustomerId: text('stripe_customer_id'),
+    autopayEnabled: boolean('autopay_enabled').default(false).notNull(),
+    // 'salon_then_card' (draw prepaid credit first, then charge saved card) |
+    // 'card' (charge saved card only) | 'salon_account' (prepaid credit only)
+    autopayMethod: text('autopay_method'),
     lastPortalInviteSentAt: timestamp('last_portal_invite_sent_at', { withTimezone: true }),
     // Phase 12E: per-resident default tip preference
     // type='percentage' → value is integer percent (e.g. 15 = 15%); type='fixed' → value is cents
@@ -358,6 +370,9 @@ export const bookings = pgTable('bookings', {
   // Per-log-sheet "Mail Subject" entered at OCR-scan time; drives column B of the
   // daily-log Excel export (export-modal subject is the fallback when null)
   mailSubject: text('mail_subject'),
+  // Payments (COF) — auto-collect audit: when the engine last tried, and why it failed.
+  autopayAttemptedAt: timestamp('autopay_attempted_at', { withTimezone: true }),
+  autopayLastError: text('autopay_last_error'),
   // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
   isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -656,12 +671,39 @@ export const qbPayments = pgTable('qb_payments', {
   revShareAmountCents: integer('rev_share_amount_cents'),
   revShareType: text('rev_share_type'),
   seniorStylistAmountCents: integer('senior_stylist_amount_cents'),
+  // Payments (COF) — Stripe charge linkage + who ran an in-app collection.
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  collectedBy: uuid('collected_by'),
   // Phase 13 — demo payment for the scripted billing tutorial.
   isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 }, (t) => ({
   // billing summary: WHERE facility_id = X AND payment_date BETWEEN Y AND Z ORDER BY payment_date DESC
   facilityDateIdx: index('qb_payments_facility_date_idx').on(t.facilityId, t.paymentDate.desc()),
+}))
+
+// Saved cards (Card-On-File). Stripe vaults the card; we store only the tokens +
+// display fields (brand/last4/exp). No PAN/CVC ever touches our DB. One Stripe
+// Customer per resident (residents.stripe_customer_id); a resident may have several
+// cards but exactly one default (isDefault). Created by drizzle/0016_payments_cof.sql.
+export const paymentMethods = pgTable('payment_methods', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'cascade' }).notNull(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  stripePaymentMethodId: text('stripe_payment_method_id').notNull(),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  isDefault: boolean('is_default').default(false).notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdBy: uuid('created_by'),
+  isDemo: boolean('is_demo').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  residentActiveIdx: index('payment_methods_resident_active_idx').on(t.residentId).where(sql`active = true`),
+  pmIdUnique: uniqueIndex('payment_methods_stripe_pm_unique').on(t.stripePaymentMethodId),
 }))
 
 // Snapshot of QB payments/credit memos never applied to an invoice — explains the
@@ -1097,6 +1139,18 @@ export const importBatchesRelations = relations(importBatches, ({ one, many }) =
 
 export const residentsRelations = relations(residents, ({ many }) => ({
   bookings: many(bookings),
+  paymentMethods: many(paymentMethods),
+}))
+
+export const paymentMethodsRelations = relations(paymentMethods, ({ one }) => ({
+  resident: one(residents, {
+    fields: [paymentMethods.residentId],
+    references: [residents.id],
+  }),
+  facility: one(facilities, {
+    fields: [paymentMethods.facilityId],
+    references: [facilities.id],
+  }),
 }))
 
 export const stylistsRelations = relations(stylists, ({ one, many }) => ({
