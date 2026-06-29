@@ -312,12 +312,20 @@ export const services = pgTable('services', {
   pricingOptions: jsonb('pricing_options').$type<Array<{ name: string; priceCents: number }>>(),
   // 13J: drag-to-reorder — admin can set display order within a category; 0 = unset (name sort)
   sortOrder: integer('sort_order').default(0).notNull(),
+  // Origin: 'price_list' = the facility's real catalog (price-sheet import or admin-added) —
+  // shown to families + staff + scheduling. 'ocr_import' = ad-hoc service a bookkeeper created
+  // while logging — visible ONLY on logging surfaces (scan review + daily-log edit) until an
+  // admin promotes it. See POST /api/services/[id]/promote.
+  source: text('source').default('price_list').notNull(),
   active: boolean('active').default(true).notNull(),
   // Phase 13-Tutorial: demo seed record — filtered out of all user-facing lists
   isDemo: boolean('is_demo').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}, (t) => ({
+  // price-list vs bookkeeper-created filtering, scoped to active facility services
+  facilitySourceIdx: index('services_facility_source_idx').on(t.facilityId, t.source).where(sql`active = true`),
+}))
 
 export const bookings = pgTable('bookings', {
   id: uuid('id').primaryKey().defaultRandom(),

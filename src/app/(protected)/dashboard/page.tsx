@@ -115,7 +115,8 @@ export default async function DashboardPage() {
         where: and(
           eq(services.facilityId, facilityUser.facilityId),
           eq(services.active, true),
-          eq(services.isDemo, tutorialMode) // is_demo filter — Phase 13 (demo-only during a tour)
+          eq(services.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
+          eq(services.source, 'price_list') // price-list catalog only (hide bookkeeper ad-hoc)
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),

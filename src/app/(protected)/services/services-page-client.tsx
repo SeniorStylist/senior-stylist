@@ -9,6 +9,7 @@ import { Sparkles } from 'lucide-react'
 import { cn, formatCents, dollarsToCents } from '@/lib/utils'
 import { formatPricingLabel, isPerUnitService, perUnitCents, makePerUnitTiers } from '@/lib/pricing'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
+import { AdhocServicesPanel } from '@/components/services/adhoc-services-panel'
 import type { Service, PricingType, PricingTier, PricingOption } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -881,6 +882,9 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
           })()}
         </div>
       )}
+
+      {/* Bookkeeper-added (ad-hoc) services — admin can promote into the price list */}
+      <AdhocServicesPanel />
     </div>
 
       {/* ── Multi-select floating action bar ── */}

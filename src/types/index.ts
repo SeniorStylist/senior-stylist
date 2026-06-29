@@ -199,6 +199,8 @@ export interface Service {
   pricingOptions: PricingOption[] | null
   active: boolean
   sortOrder: number
+  // 'price_list' (real facility catalog) | 'ocr_import' (ad-hoc bookkeeper-created while logging)
+  source?: string
   createdAt: Date | null
   updatedAt: Date | null
 }

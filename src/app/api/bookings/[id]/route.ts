@@ -122,6 +122,7 @@ export async function PUT(
         'priceCents', 'paymentStatus', 'paymentMethod', 'notes', 'tipCents',
         'selectedQuantity', 'selectedOption', 'roomNumber',
         'startTime', // allow date correction after log sheet import
+        'stylistId', // allow stylist correction after log sheet import (validated against facility below)
       ])
       for (const key of Object.keys(updates) as Array<keyof typeof updates>) {
         if (!BOOKKEEPER_ALLOWED.has(key)) {
@@ -255,8 +256,18 @@ export async function PUT(
         ? new Date(effectiveStartTime.getTime() + effectiveDuration * 60000)
         : undefined
 
-    // Check stylist conflict if stylist or time window changed
-    if (updates.stylistId || updates.startTime || serviceChanged) {
+    // Check stylist conflict if stylist or time window changed.
+    // SKIP for daily-log records (completed / no_show / historical imports) — these
+    // are records of what already happened, not live calendar reservations, and the
+    // OCR importer stacks many same-stylist completed bookings into adjacent 30-min
+    // slots. Running the overlap guard there produced spurious 409s when bookkeepers
+    // corrected a service/amount (the "Update Failed" report). The guard belongs only
+    // on live scheduled appointments.
+    const isLogRecord =
+      existing.status === 'completed' ||
+      existing.status === 'no_show' ||
+      existing.source === 'historical_import'
+    if (!isLogRecord && (updates.stylistId || updates.startTime || serviceChanged)) {
       const effectiveEndTime =
         endTime ??
         new Date(effectiveStartTime.getTime() + effectiveDuration * 60000)

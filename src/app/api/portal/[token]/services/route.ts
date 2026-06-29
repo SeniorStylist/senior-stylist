@@ -20,7 +20,8 @@ export async function GET(
     }
 
     const data = await db.query.services.findMany({
-      where: and(eq(services.facilityId, resident.facilityId), eq(services.active, true)),
+      // price-list catalog only — families never see bookkeeper ad-hoc logging services
+      where: and(eq(services.facilityId, resident.facilityId), eq(services.active, true), eq(services.source, 'price_list')),
       columns: {
         id: true,
         name: true,

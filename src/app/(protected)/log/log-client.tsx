@@ -130,6 +130,24 @@ function formatLogDate(dateStr: string, tz: string): string {
   })
 }
 
+// Pull a human-readable message out of an API error response. Handles a plain
+// string `error`, a Zod `flatten()` object ({ fieldErrors, formErrors }), and the
+// `{ error: { fieldErrors, formErrors } }` shape the booking PUT returns on 422 —
+// so the daily log shows the real reason instead of a generic "Update failed".
+function firstErrorMessage(json: unknown): string | null {
+  if (!json || typeof json !== 'object') return null
+  const err = (json as { error?: unknown }).error
+  if (typeof err === 'string') return err
+  const obj = (err && typeof err === 'object' ? err : json) as {
+    fieldErrors?: Record<string, string[]>
+    formErrors?: string[]
+  }
+  const field = obj.fieldErrors && Object.values(obj.fieldErrors).flat().find(Boolean)
+  if (field) return field
+  const form = obj.formErrors?.find(Boolean)
+  return form ?? null
+}
+
 export function LogClient({
   initialDate,
   initialBookings,
@@ -190,6 +208,8 @@ export function LogClient({
   const [editResidentName, setEditResidentName] = useState('')
   const [editServiceId, setEditServiceId] = useState<string | null>(null)
   const [editServiceName, setEditServiceName] = useState('')
+  const [editServiceCreate, setEditServiceCreate] = useState(false) // typing a brand-new service
+  const [editStylistId, setEditStylistId] = useState<string | null>(null)
   const [editRoomNumber, setEditRoomNumber] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -207,6 +227,8 @@ export function LogClient({
     setEditResidentName(booking.resident.name)
     setEditServiceId(booking.service?.id ?? null)
     setEditServiceName(booking.service?.name ?? booking.serviceNames?.[0] ?? booking.rawServiceName ?? '')
+    setEditServiceCreate(false)
+    setEditStylistId(booking.stylist.id)
     setEditRoomNumber(booking.resident.roomNumber ?? '')
   }
 
@@ -221,6 +243,8 @@ export function LogClient({
     setEditResidentName('')
     setEditServiceId(null)
     setEditServiceName('')
+    setEditServiceCreate(false)
+    setEditStylistId(null)
     setEditRoomNumber('')
   }
 
@@ -258,9 +282,33 @@ export function LogClient({
         body.residentId = editResidentId
       }
 
-      // Service change
-      if (editServiceId && editServiceId !== booking?.service?.id) {
-        body.serviceId = editServiceId
+      // Stylist change — correct the stylist after a log-sheet import
+      if (editStylistId && editStylistId !== booking?.stylist.id) {
+        body.stylistId = editStylistId
+      }
+
+      // Service change. If the bookkeeper typed a brand-new service name, create it
+      // first (an ad-hoc logging service — source='ocr_import', priced from this row).
+      let resolvedServiceId = editServiceId
+      if (editServiceCreate && editServiceName.trim() && !resolvedServiceId) {
+        const createRes = await fetch('/api/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: editServiceName.trim(),
+            priceCents: priceCents > 0 ? priceCents : 0,
+            durationMinutes: 30,
+          }),
+        })
+        const cj = await createRes.json().catch(() => ({}))
+        if (!createRes.ok) {
+          toast(firstErrorMessage(cj) ?? 'Could not create service', 'error')
+          return
+        }
+        resolvedServiceId = cj.data?.id ?? null
+      }
+      if (resolvedServiceId && resolvedServiceId !== booking?.service?.id) {
+        body.serviceId = resolvedServiceId
       }
 
       // Room # change — applied to the booking's resident record. Skip when the
@@ -294,8 +342,8 @@ export function LogClient({
         }
         setEditingBookingId(null)
       } else {
-        const json = await res.json()
-        toast(typeof json.error === 'string' ? json.error : 'Update failed', 'error')
+        const json = await res.json().catch(() => ({}))
+        toast(firstErrorMessage(json) ?? 'Update failed', 'error')
       }
     } finally {
       setSavingEdit(false)
@@ -1274,25 +1322,50 @@ export function LogClient({
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                               />
                             </div>
-                            {/* Service */}
+                            {/* Service — pick existing or "➕ New service" (inline-create) */}
                             <div>
                               <label className="text-[10px] text-stone-400 uppercase tracking-wide">Service</label>
-                              <input
-                                type="text"
-                                list={`edit-services-${booking.id}`}
-                                value={editServiceName}
+                              <select
+                                value={editServiceCreate ? '__create__' : (editServiceId ?? '')}
                                 onChange={(e) => {
                                   const val = e.target.value
-                                  const matched = services.find(s => s.name.toLowerCase() === val.toLowerCase())
-                                  setEditServiceName(val)
-                                  setEditServiceId(matched?.id ?? null)
+                                  if (val === '__create__') {
+                                    setEditServiceCreate(true)
+                                    setEditServiceId(null)
+                                    setEditServiceName('')
+                                  } else {
+                                    const picked = services.find(s => s.id === val)
+                                    setEditServiceCreate(false)
+                                    setEditServiceId(val || null)
+                                    setEditServiceName(picked?.name ?? '')
+                                  }
                                 }}
-                                placeholder="Service name…"
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
-                              />
-                              <datalist id={`edit-services-${booking.id}`}>
-                                {services.map(s => <option key={s.id} value={s.name} />)}
-                              </datalist>
+                              >
+                                <option value="">Select a service…</option>
+                                {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                <option value="__create__">➕ New service (type name below)…</option>
+                              </select>
+                              {editServiceCreate && (
+                                <input
+                                  type="text"
+                                  value={editServiceName}
+                                  onChange={(e) => setEditServiceName(e.target.value)}
+                                  placeholder="New service name…"
+                                  className="mt-1.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                />
+                              )}
+                            </div>
+                            {/* Stylist — correct the stylist after a log-sheet import */}
+                            <div>
+                              <label className="text-[10px] text-stone-400 uppercase tracking-wide">Stylist</label>
+                              <select
+                                value={editStylistId ?? ''}
+                                onChange={(e) => setEditStylistId(e.target.value || null)}
+                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                              >
+                                {stylists.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                              </select>
                             </div>
                             {/* Price + Tips row */}
                             <div className="flex items-center gap-3">

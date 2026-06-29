@@ -44,7 +44,7 @@ export default async function RequestServicePage({
       pricingOptions: services.pricingOptions,
     })
     .from(services)
-    .where(and(eq(services.facilityId, selected.facilityId), eq(services.active, true)))
+    .where(and(eq(services.facilityId, selected.facilityId), eq(services.active, true), eq(services.source, 'price_list')))
     .orderBy(asc(services.name))
 
   const grouped = new Map<string, typeof allServices>()

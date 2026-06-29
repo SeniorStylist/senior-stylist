@@ -285,6 +285,7 @@ export async function POST(request: Request) {
                 name,
                 priceCents: 0,
                 durationMinutes: 30,
+                source: 'ocr_import', // ad-hoc logging service — hidden from families/staff
               })
               .returning({ id: services.id })
             serviceMap.set(key, newService.id)

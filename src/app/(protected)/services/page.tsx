@@ -26,7 +26,10 @@ export default async function ServicesPage() {
       where: and(
         eq(services.facilityId, facilityUser.facilityId),
         eq(services.active, true),
-        eq(services.isDemo, tutorialMode)
+        eq(services.isDemo, tutorialMode),
+        // price-list catalog only — bookkeeper-added ad-hoc services load via the
+        // "Show bookkeeper-added" toggle (GET /api/services?includeAdhoc=1)
+        eq(services.source, 'price_list')
       ),
       orderBy: (t, { asc, desc }) => [desc(t.category), asc(t.name)],
     }),
