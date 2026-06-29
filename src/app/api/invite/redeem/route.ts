@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
-import { eq, and, ilike } from 'drizzle-orm'
+import { invites, facilityUsers, profiles } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
+import { linkStylistByEmailOrName } from '@/lib/onboarding'
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')
@@ -80,36 +81,9 @@ export async function GET(request: NextRequest) {
   const role = invite.inviteRole || 'stylist'
 
   // Stylist: auto-link to a stylist record — try email first, fall back to name
+  // (shared helper, also used by the heal-on-login path so the logic never drifts).
   if (role === 'stylist') {
-    const userEmail = user.email?.toLowerCase().trim() ?? ''
-    const userFullName = (user.user_metadata?.full_name ?? '').trim()
-
-    let matched = userEmail
-      ? await db.query.stylists.findFirst({
-          where: and(
-            eq(stylists.facilityId, invite.facilityId),
-            eq(stylists.active, true),
-            ilike(stylists.email, userEmail),
-          ),
-        })
-      : null
-
-    if (!matched && userFullName) {
-      matched = await db.query.stylists.findFirst({
-        where: and(
-          eq(stylists.facilityId, invite.facilityId),
-          eq(stylists.active, true),
-          ilike(stylists.name, userFullName),
-        ),
-      })
-    }
-
-    if (matched) {
-      await db
-        .update(profiles)
-        .set({ stylistId: matched.id, updatedAt: new Date() })
-        .where(eq(profiles.id, user.id))
-    }
+    await linkStylistByEmailOrName(user.id, invite.facilityId, user.email, user.user_metadata?.full_name ?? null)
     return NextResponse.redirect(new URL('/my-account?welcome=1', request.url))
   }
 

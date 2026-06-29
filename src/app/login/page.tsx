@@ -8,6 +8,10 @@ import Image from 'next/image'
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [magicLoading, setMagicLoading] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect')
@@ -27,6 +31,54 @@ function LoginForm() {
     })
   }
 
+  const sendMagicLink = async () => {
+    if (!email.trim()) return
+    setMagicLoading(true)
+    setError(null)
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          // Only let EXISTING users sign in — don't create orphan auth accounts
+          // from arbitrary emails. (For non-existent emails Supabase returns
+          // success without sending, so we never leak who has an account.)
+          shouldCreateUser: false,
+          emailRedirectTo: callbackUrl,
+        },
+      })
+      if (otpError) setError(otpError.message)
+      else setSent(true)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setMagicLoading(false)
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ backgroundColor: '#fdf2f4' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-stone-900 mb-2" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            Check your email
+          </h1>
+          <p className="text-sm text-stone-500 leading-relaxed">
+            If an account exists for <span className="font-semibold text-stone-700">{email}</span>, we sent a sign-in link. Click it to log in.
+          </p>
+          <button onClick={() => { setSent(false); setError(null) }} className="mt-6 text-sm font-semibold text-[#8B2E4A] hover:underline">
+            Use a different email
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
@@ -40,6 +92,46 @@ function LoginForm() {
           <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
             Sign in to your account
           </p>
+
+          {/* Magic link (email) — same method stylists onboard with */}
+          <div className="space-y-3 text-left">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              onKeyDown={(e) => e.key === 'Enter' && sendMagicLink()}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+            />
+            <button
+              onClick={sendMagicLink}
+              disabled={magicLoading || !email.trim()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl hover:bg-[#72253C] active:scale-95 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {magicLoading ? (
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="M22 7l-10 7L2 7" />
+                </svg>
+              )}
+              {magicLoading ? 'Sending…' : 'Send magic link'}
+            </button>
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-stone-200" />
+            <span className="text-xs text-stone-400 font-medium">or</span>
+            <div className="flex-1 h-px bg-stone-200" />
+          </div>
+
           <button
             onClick={signInWithGoogle}
             disabled={loading}

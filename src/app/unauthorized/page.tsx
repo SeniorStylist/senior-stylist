@@ -111,10 +111,13 @@ export default function UnauthorizedPage() {
             </h1>
 
             {userEmail && (
-              <p className="text-xs text-stone-400 text-center mb-5">
+              <p className="text-xs text-stone-400 text-center mb-2">
                 Signed in as <span className="font-medium text-stone-600">{userEmail}</span>
               </p>
             )}
+            <p className="text-xs text-stone-400 text-center mb-5">
+              Already invited? Sign out and sign back in with the exact email your invite was sent to.
+            </p>
 
             <div className="space-y-4">
               {/* Name input */}
