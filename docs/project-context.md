@@ -574,6 +574,13 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Bookkeeper daily-log fixes (SHIPPED 2026-06-29, Workstreams A/B/C)
+
+From bookkeeper feedback — two bugs + a services-model split. See the **"Bookkeeper daily-log fixes"** section in `CLAUDE.md` for the contract. **Apply DB before deploy**: `drizzle/0017_services_source.sql` (the `services.source` filter is on every service-list query) + `drizzle/0018_ocr_batch_payload.sql`.
+- **A (commit 47d35ba)** — daily-log edit: real service `<select>`+inline-create + stylist `<select>`; `stylistId` in bookkeeper allowlist; skip the time-conflict guard for log records (fixes the service/amount "Update Failed" 409); surface the real API error; bookkeepers can create ad-hoc services.
+- **B (47d35ba)** — `services.source` ('price_list' | 'ocr_import') + migration 0017 (backfill) + surface-based visibility (families/staff/scheduling see price_list only; logging surfaces see all; `GET /api/services?includeAdhoc=1`) + `POST /api/services/[id]/promote` + `<AdhocServicesPanel>` on /services.
+- **C (commit 57eac57)** — OCR import accepts `facilityId` (bookkeeper/master cross-facility); scan-modal "Import to facility" selector; `import_batches.review_payload` (0018); `POST /api/log/ocr/batch/[id]/undo`; prominent daily-log "Undo & edit" banner that rolls back + reopens the review pre-filled.
+
 ### Payments — Card-On-File & In-App Collection (SHIPPED 2026-06-28, P1–P3)
 
 Built from the boss's "Payment Considerations" note. Real saved cards + auto-collect + a stylist phone card-reader. On a single Senior Stylist **platform** Stripe account (rev-share split internally). See the full **"Payments — Card-On-File (COF) & In-App Collection"** section in `CLAUDE.md` for the contract.

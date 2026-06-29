@@ -2775,3 +2775,9 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Elements appearance**: always pass `appearance: { theme: 'stripe', variables: { colorPrimary: '#8B2E4A' } }` so the iframe matches the burgundy brand.
 - **Consent copy is required** on any card-capture surface ("Your card is stored securely by Stripe… You authorize Senior Stylist to charge this card for services rendered.") — never collect a card without it.
 - **One-click sends** ("Send payment link") go through `useSendConfirm()` per the send-confirmation gate rule.
+
+### Bookkeeper daily-log fixes (2026-06-29)
+- **Service/stylist picker in the daily-log edit** (`log-client.tsx`): a `<select>` of services + a `➕ New service` sentinel that reveals a text input (inline-create) — the canonical pattern (mirrors the OCR modal + payment-type combo). NEVER use `<input list=...>`+`<datalist>` for service/stylist/facility pickers — most browsers render it as plain free-text and it silently drops unmatched values. The stylist field is a plain `<select>` of facility stylists (pick-only).
+- **"Undo & edit" banner** (`log-client.tsx`): amber `rounded-2xl border-amber-200 bg-amber-50` strip with a burgundy action button, shown above the day's list when the day has OCR-imported bookings. Rolls back the import and reopens the scan-review modal pre-filled. Pattern for "roll back the last bulk action and let me re-do it cleanly".
+- **`<AdhocServicesPanel>`** (`src/components/services/adhoc-services-panel.tsx`): collapsible card at the bottom of `/services` listing bookkeeper-created (`source='ocr_import'`) services with a Promote action; lazy-fetches `?includeAdhoc=1` and renders null when empty (no clutter).
+- **Surface error messages, never a blanket "failed"**: `firstErrorMessage(json)` reads a string `error` OR a Zod `flatten()` (`{fieldErrors, formErrors}`) shape so users see the real reason. Use it wherever an API can 422 with a flattened error.

@@ -836,6 +836,10 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/payments/intent` | Staff (facility-scope) or stylist (own bookings) | In-app on-session PaymentIntent for the Take-Payment Stripe Element; optional `savePaymentMethod` |
 | `POST /api/payments/intent/confirm` | Authenticated | Finalize an in-app card payment (`finalizeInAppPayment`, idempotent by PI id) |
 | `GET /api/cron/autopay-sweep` | Bearer `CRON_SECRET` | Nightly cadence-aware COF sweep (nightly/biweekly/monthly per facility); fires failover pay-links |
+| `GET/POST /api/services` | Facility user / admin+staff(+bookkeeper) | GET defaults to `source='price_list'`; `?includeAdhoc=1` returns all. POST: bookkeeper allowed but forced to ad-hoc `source='ocr_import'` fixed pricing |
+| `POST /api/services/[id]/promote` | admin/facility_staff | Promote a bookkeeper-created ad-hoc service into the price list (`source='price_list'` + optional price/category) |
+| `POST /api/log/ocr/import` | canScanLogs / master | Now accepts optional `facilityId` (bookkeeper/master cross-facility, IDOR-validated); stores confirmed sheets on `import_batches.review_payload` |
+| `POST /api/log/ocr/batch/[id]/undo` | canScanLogs / master | Rolls back an OCR scan batch (soft-delete bookings) and returns its saved review sheets for "Undo & edit" |
 | `GET /api/stats` | Authenticated | Today / week / month totals |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |
