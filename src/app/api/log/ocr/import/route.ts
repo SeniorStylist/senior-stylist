@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches } from '@/db/schema'
+import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches, facilities } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -28,6 +28,9 @@ function fuzzyScore(a: string, b: string): number {
 }
 
 const importSchema = z.object({
+  // Optional target facility — bookkeepers (cross-facility) and master can import
+  // a scan to a chosen facility; admin/facility_staff are pinned to their own.
+  facilityId: z.string().uuid().optional(),
   sheets: z.array(
     z
       .object({
@@ -92,8 +95,6 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const facilityId = facilityUser.facilityId
-
     const body = await request.json()
     const parsed = importSchema.safeParse(body)
     if (!parsed.success) {
@@ -106,6 +107,22 @@ export async function POST(request: Request) {
         { error: `Couldn't import — ${msg} (${where}).` },
         { status: 422 }
       )
+    }
+
+    // Resolve the target facility. Bookkeeper (cross-facility by role) + master may
+    // import to any active facility; admin/facility_staff are pinned to their own.
+    let facilityId = facilityUser.facilityId
+    if (parsed.data.facilityId && parsed.data.facilityId !== facilityUser.facilityId) {
+      const canCrossFacility = isMasterAdmin || facilityUser.role === 'bookkeeper'
+      if (!canCrossFacility) {
+        return Response.json({ error: 'You can only import to your own facility.' }, { status: 403 })
+      }
+      const target = await db.query.facilities.findFirst({
+        where: and(eq(facilities.id, parsed.data.facilityId), eq(facilities.active, true)),
+        columns: { id: true },
+      })
+      if (!target) return Response.json({ error: 'Target facility not found.' }, { status: 404 })
+      facilityId = target.id
     }
 
     let createdResidents = 0
@@ -177,6 +194,9 @@ export async function POST(request: Request) {
           rowCount: 0,
           matchedCount: 0,
           unresolvedCount: 0,
+          // Store the confirmed review sheets so an "Undo & edit" can reopen the
+          // scan review pre-filled (change facility/stylist, re-import).
+          reviewPayload: parsed.data.sheets,
         })
         .returning({ id: importBatches.id })
       importBatchId = batch.id

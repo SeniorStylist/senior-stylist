@@ -46,7 +46,7 @@ interface LogBooking {
   totalDurationMinutes: number | null
   source?: string | null
   rawServiceName?: string | null
-  importBatch?: { fileName: string } | null
+  importBatch?: { id: string; fileName: string } | null
   tipCents: number | null
   paymentMethod?: string | null
   resident: Resident
@@ -390,6 +390,10 @@ export function LogClient({
   // OCR import modal
   const [ocrOpen, setOcrOpen] = useState(false)
   const [sheetsOpen, setSheetsOpen] = useState(false)
+  // "Undo & edit": holds the confirmed sheets returned by the rollback so the OCR
+  // modal can reopen pre-filled (change facility/stylist, re-import).
+  const [ocrSeedSheets, setOcrSeedSheets] = useState<unknown[] | null>(null)
+  const [undoingBatch, setUndoingBatch] = useState(false)
 
   const { toast } = useToast()
   const today = new Date().toISOString().split('T')[0]
@@ -416,6 +420,31 @@ export function LogClient({
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  // "Undo & edit" — the most recent OCR scan batch among today's visible bookings.
+  const todayOcrBatch =
+    bookings.find((b) => b.source === 'historical_import' && b.importBatch?.id)?.importBatch ?? null
+
+  const undoBatchAndEdit = async (batchId: string) => {
+    setUndoingBatch(true)
+    try {
+      const res = await fetch(`/api/log/ocr/batch/${batchId}/undo`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(firstErrorMessage(j) ?? 'Could not undo import', 'error')
+        return
+      }
+      await navigateDate(date) // drop the rolled-back bookings from view
+      if (Array.isArray(j.data?.sheets) && j.data.sheets.length > 0) {
+        setOcrSeedSheets(j.data.sheets)
+        setOcrOpen(true)
+      } else {
+        toast('Import undone', 'success')
+      }
+    } finally {
+      setUndoingBatch(false)
     }
   }
 
@@ -779,6 +808,25 @@ export function LogClient({
           <span>Export</span>
         </button>
       </div>
+
+      {/* Undo & edit — roll back a scan import and reopen the review pre-filled */}
+      {canWrite && todayOcrBatch && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-amber-800 min-w-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+              <path d="M3 7v6h6" /><path d="M21 17a9 9 0 00-15-6.7L3 13" />
+            </svg>
+            <span className="truncate">Imported from a scanned sheet. Wrong facility or stylist?</span>
+          </div>
+          <button
+            onClick={() => undoBatchAndEdit(todayOcrBatch.id)}
+            disabled={undoingBatch}
+            className="shrink-0 text-sm font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] rounded-xl px-3.5 py-2 transition-colors disabled:opacity-50"
+          >
+            {undoingBatch ? 'Undoing…' : 'Undo & edit'}
+          </button>
+        </div>
+      )}
 
       {/* Pull-to-refresh indicator */}
       {pullRefreshing && (
@@ -1718,12 +1766,16 @@ export function LogClient({
 
       <OcrImportModal
         open={ocrOpen}
-        onClose={() => setOcrOpen(false)}
-        onImported={() => navigateDate(date)}
+        onClose={() => { setOcrOpen(false); setOcrSeedSheets(null) }}
+        onImported={() => { setOcrSeedSheets(null); navigateDate(date) }}
         residents={residents}
         stylists={stylists}
         services={services}
         date={date}
+        facilities={exportFacilities}
+        currentFacilityId={facilityId}
+        role={role}
+        initialSheets={ocrSeedSheets}
       />
 
       {/* Bookkeepers / master admin get the multi-facility modal so they can

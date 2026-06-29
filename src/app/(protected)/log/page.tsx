@@ -61,7 +61,7 @@ export default async function LogPage() {
         gte(bookings.startTime, dayStart),
         lt(bookings.startTime, dayEnd)
       ),
-      with: { resident: true, stylist: true, service: true, importBatch: { columns: { fileName: true } } },
+      with: { resident: true, stylist: true, service: true, importBatch: { columns: { id: true, fileName: true } } },
       orderBy: (t, { asc }) => [asc(t.startTime)],
     }),
     db.query.logEntries.findMany({

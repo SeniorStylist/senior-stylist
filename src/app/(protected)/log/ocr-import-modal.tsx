@@ -4,8 +4,32 @@ import { useState, useRef, useEffect } from 'react'
 import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
-import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo } from '@/lib/payments'
+import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo, comboLabel } from '@/lib/payments'
 import type { Resident, Stylist, Service } from '@/types'
+
+// Shape of the confirmed sheets stored on the import batch (review_payload) —
+// used to reopen the scan review pre-filled via "Undo & edit".
+type SavedSheet = {
+  date: string
+  stylistId: string | null
+  stylistName: string
+  mailSubject: string
+  entries: Array<{
+    include: boolean
+    residentId: string | null
+    residentName: string
+    roomNumber: string | null
+    serviceId: string | null
+    serviceName: string
+    additionalServiceIds: (string | null)[]
+    additionalServiceNames: string[]
+    priceCents: number | null
+    tipCents: number | null
+    paymentStatus: string
+    paymentMethod: string | null
+    notes: string | null
+  }>
+}
 
 interface OcrRawEntry {
   residentName: string
@@ -60,6 +84,39 @@ interface OcrImportModalProps {
   stylists: Stylist[]
   services: Service[]
   date: string
+  // Cross-facility import target (bookkeeper/master). When more than one, a facility
+  // selector is shown so the scan can be imported to the chosen facility.
+  facilities?: { id: string; name: string; facilityCode?: string | null }[]
+  currentFacilityId?: string
+  role?: string
+  // "Undo & edit": confirmed sheets from a rolled-back import — seeds the review step.
+  initialSheets?: unknown[] | null
+}
+
+// Rebuild review state from a saved import payload (for "Undo & edit").
+function buildSheetFromSaved(s: SavedSheet, idx: number): SheetState {
+  return {
+    imageIndex: idx,
+    date: s.date,
+    stylistId: s.stylistId,
+    stylistName: s.stylistName ?? '',
+    mailSubject: s.mailSubject ?? '',
+    entries: (s.entries ?? []).map((e) => ({
+      residentName: e.residentName ?? '',
+      roomNumber: e.roomNumber ?? null,
+      residentId: e.residentId ?? null,
+      serviceName: e.serviceName ?? '',
+      serviceId: e.serviceId ?? null,
+      additionalServices: e.additionalServiceNames ?? [],
+      additionalServiceIds: e.additionalServiceIds ?? [],
+      priceCents: e.priceCents ?? null,
+      tipCents: e.tipCents ?? null,
+      paymentCombo: comboLabel(e.paymentStatus ?? 'unpaid', e.paymentMethod ?? null),
+      notes: e.notes ?? null,
+      unclear: false,
+      include: e.include ?? true,
+    })),
+  }
 }
 
 async function renderPdfPage(file: File, scale: number): Promise<string> {
@@ -183,8 +240,16 @@ export function OcrImportModal({
   stylists,
   services,
   date,
+  facilities,
+  currentFacilityId,
+  initialSheets,
 }: OcrImportModalProps) {
   const { toast } = useToast()
+
+  const facilityOptions = facilities ?? []
+  // The facility list is only >1 for bookkeeper/master (per log/page.tsx).
+  const canPickFacility = facilityOptions.length > 1
+  const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId ?? '')
 
   const [step, setStep] = useState<Step>('upload')
   const [files, setFiles] = useState<File[]>([])
@@ -231,8 +296,42 @@ export function OcrImportModal({
     setImportError(null)
   }
 
+  // Seed the review step from a rolled-back import ("Undo & edit").
+  const seededRef = useRef<unknown[] | null>(null)
+  useEffect(() => {
+    if (!open) { seededRef.current = null; return }
+    if (Array.isArray(initialSheets) && initialSheets.length > 0 && initialSheets !== seededRef.current) {
+      seededRef.current = initialSheets
+      setSheets((initialSheets as SavedSheet[]).map((s, i) => buildSheetFromSaved(s, i)))
+      setActiveTab(0)
+      setStep('review')
+      setSelectedFacilityId(currentFacilityId ?? '')
+    }
+  }, [open, initialSheets, currentFacilityId])
+
+  // Switching the target facility invalidates resident/service/stylist ids resolved
+  // for the original facility — clear them so the server re-resolves by name.
+  const handleFacilityChange = (val: string) => {
+    setSelectedFacilityId(val)
+    if (val !== (currentFacilityId ?? '')) {
+      setSheets((prev) =>
+        prev.map((s) => ({
+          ...s,
+          stylistId: null,
+          entries: s.entries.map((en) => ({
+            ...en,
+            residentId: null,
+            serviceId: null,
+            additionalServiceIds: en.additionalServiceIds.map(() => null),
+          })),
+        })),
+      )
+    }
+  }
+
   const handleClose = () => {
     reset()
+    setSelectedFacilityId(currentFacilityId ?? '')
     onClose()
   }
 
@@ -388,6 +487,7 @@ export function OcrImportModal({
     setImportError(null)
     try {
       const payload = {
+        facilityId: selectedFacilityId || undefined,
         sheets: validSheets.map(s => ({
           date: s.date,
           stylistId: s.stylistId,
@@ -608,6 +708,29 @@ export function OcrImportModal({
           {/* ── STEP 2: REVIEW ── */}
           {step === 'review' && sheets.length > 0 && (
             <div data-tour="ocr-results-table">
+              {/* Facility target — bookkeeper/master can import this scan to a chosen
+                  facility. Switching clears resolved ids so the server re-matches names. */}
+              {canPickFacility && (
+                <div className="px-5 pt-4 shrink-0">
+                  <label className="text-[10px] text-stone-400 uppercase tracking-wide">Import to facility</label>
+                  <select
+                    value={selectedFacilityId}
+                    onChange={(e) => handleFacilityChange(e.target.value)}
+                    className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                  >
+                    {facilityOptions.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedFacilityId !== (currentFacilityId ?? '') && (
+                    <p className="mt-1 text-[11px] text-amber-600">
+                      Residents, services &amp; stylists will be matched/created in the selected facility by name.
+                    </p>
+                  )}
+                </div>
+              )}
               {/* Sheet tabs */}
               {sheets.length > 1 && (
                 <div className="flex gap-1.5 px-5 pt-4 overflow-x-auto shrink-0">

@@ -950,6 +950,10 @@ export const importBatches = pgTable('import_batches', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   // Soft-delete for batch rollback (Phase 12C)
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  // OCR daily-log scans store the exact confirmed review sheets here so an
+  // "Undo & edit" can reopen the scan review pre-filled (change facility/stylist
+  // and re-import without re-scanning). Null for non-OCR batches.
+  reviewPayload: jsonb('review_payload'),
 }, (t) => ({
   // Imports hub: latest per source_type
   sourceCreatedIdx: index('import_batches_source_created_idx').on(t.sourceType, t.createdAt.desc()),
