@@ -840,6 +840,8 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/services/[id]/promote` | admin/facility_staff | Promote a bookkeeper-created ad-hoc service into the price list (`source='price_list'` + optional price/category) |
 | `POST /api/log/ocr/import` | canScanLogs / master | Now accepts optional `facilityId` (bookkeeper/master cross-facility, IDOR-validated); stores confirmed sheets on `import_batches.review_payload` |
 | `POST /api/log/ocr/batch/[id]/undo` | canScanLogs / master | Rolls back an OCR scan batch (soft-delete bookings) and returns its saved review sheets for "Undo & edit" |
+| `POST /api/coverage` | Stylist | 13F: now creates `status='pending'` (admin approval required); overlap dedup covers pending+open |
+| `PUT /api/coverage/[id]` | Admin (or requester cancel) | 13F: gains `action:'approve'\|'deny'` + `deniedReason` on pending requests (stamps approved_by/at, emails the stylist); stylist self-cancel allowed for pending\|open |
 | `GET /api/stats` | Authenticated | Today / week / month totals |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |

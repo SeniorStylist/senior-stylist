@@ -574,6 +574,17 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Polish sweep — 12ZZ/13B/13C/13F (SHIPPED 2026-07-03)
+
+Closes the polish backlog (see CLAUDE.md "polish sweep" entry for the contract). 12ZZ toast
+actions wired at all remaining call sites (booking-cancel Undo, walk-in View, mark-paid toasts);
+13B optimistic+rollback on finalize/delete/advanceStatus/add-resident; 13C family-portal
+`loading.tsx` skeletons (`<PortalPageSkeleton>`); 13F time-off **approval workflow**
+(pending → approve/deny with audit columns + decision emails; migration
+`drizzle/0019_coverage_approval.sql` — **apply before/with deploy**). Audit findings: 13H
+(portal large-print) and 13L (branded emails) were already shipped; the printable
+`/invoice/[facilityId]` page is deliberately facility-branded. Commits 662af5b, 62d92bd, b8c32f2.
+
 ### Bookkeeper daily-log fixes (SHIPPED 2026-06-29, Workstreams A/B/C)
 
 From bookkeeper feedback — two bugs + a services-model split. See the **"Bookkeeper daily-log fixes"** section in `CLAUDE.md` for the contract. **Apply DB before deploy**: `drizzle/0017_services_source.sql` (the `services.source` filter is on every service-list query) + `drizzle/0018_ocr_batch_payload.sql`.
