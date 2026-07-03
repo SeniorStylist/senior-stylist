@@ -119,11 +119,14 @@ function formatCoverageDate(iso: string): string {
 
 function coverageStatusBadge(status: CoverageRequest['status']) {
   const map = {
-    open: { cls: 'bg-amber-50 text-amber-700', label: 'Open' },
+    // 13F: requests start pending (awaiting admin decision), then open (approved)
+    pending: { cls: 'bg-amber-50 text-amber-700', label: 'Pending approval' },
+    open: { cls: 'bg-sky-50 text-sky-700', label: 'Approved — finding coverage' },
     filled: { cls: 'bg-emerald-50 text-emerald-700', label: 'Filled' },
     cancelled: { cls: 'bg-stone-100 text-stone-500', label: 'Cancelled' },
+    denied: { cls: 'bg-rose-50 text-rose-700', label: 'Denied' },
   }
-  const s = map[status]
+  const s = map[status] ?? map.pending
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${s.cls}`}>
       {s.label}
@@ -1010,8 +1013,11 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                         {r.reason || '—'}
                       </span>
                     </div>
+                    {r.status === 'denied' && r.deniedReason && (
+                      <p className="text-[11px] text-rose-600 mt-1">Admin: {r.deniedReason}</p>
+                    )}
                   </div>
-                  {r.status === 'open' && (
+                  {(r.status === 'open' || r.status === 'pending') && (
                     confirmCancelId === r.id ? (
                       <div className="flex gap-1 shrink-0">
                         <button

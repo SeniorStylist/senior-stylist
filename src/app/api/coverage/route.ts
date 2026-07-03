@@ -9,11 +9,12 @@ import {
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sendEmail, buildCoverageRequestEmailHtml } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { and, asc, eq, lte, gte } from 'drizzle-orm'
+import { and, asc, eq, lte, gte, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-const STATUS_VALUES = ['open', 'filled', 'cancelled'] as const
+// 13F: 'pending' awaits admin approval; 'open' = approved, needs a substitute
+const STATUS_VALUES = ['pending', 'open', 'filled', 'cancelled', 'denied'] as const
 
 const createSchema = z
   .object({
@@ -129,17 +130,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Overlap-based duplicate check: new.startDate <= existing.endDate AND new.endDate >= existing.startDate
+    // 13F: pending requests count too — a second overlapping ask is a duplicate.
     const existingOpen = await db.query.coverageRequests.findFirst({
       where: and(
         eq(coverageRequests.stylistId, stylist.id),
-        eq(coverageRequests.status, 'open'),
+        inArray(coverageRequests.status, ['pending', 'open']),
         lte(coverageRequests.startDate, parsed.data.endDate),
         gte(coverageRequests.endDate, parsed.data.startDate),
       ),
     })
     if (existingOpen) {
       return Response.json(
-        { error: 'You already have an open request overlapping that date range' },
+        { error: 'You already have a request overlapping that date range' },
         { status: 409 }
       )
     }
@@ -152,6 +154,8 @@ export async function POST(request: NextRequest) {
         startDate: parsed.data.startDate,
         endDate: parsed.data.endDate,
         reason: parsed.data.reason ?? null,
+        // 13F: requests start pending — an admin approves (→ open) or denies.
+        status: 'pending',
       })
       .returning()
 

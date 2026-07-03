@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability, stylistCheckins, bookings } from '@/db/schema'
-import { eq, and, gte, lt, notInArray, asc } from 'drizzle-orm'
+import { eq, and, gte, lt, notInArray, inArray, asc } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
@@ -132,7 +132,8 @@ export default async function DashboardPage() {
         ? db.query.coverageRequests.findMany({
             where: and(
               eq(coverageRequests.facilityId, facilityUser.facilityId),
-              eq(coverageRequests.status, 'open')
+              // 13F: pending (needs approve/deny) + open (approved, needs substitute)
+              inArray(coverageRequests.status, ['pending', 'open'])
             ),
             with: { stylist: { columns: { id: true, name: true } } },
             orderBy: (t, { asc }) => [asc(t.startDate), asc(t.createdAt)],

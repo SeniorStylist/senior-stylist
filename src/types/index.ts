@@ -386,7 +386,8 @@ export interface PayDeduction {
   createdAt: string
 }
 
-export type CoverageRequestStatus = 'open' | 'filled' | 'cancelled'
+// 13F: 'pending' awaits admin approval; 'open' = approved, needs a substitute
+export type CoverageRequestStatus = 'pending' | 'open' | 'filled' | 'cancelled' | 'denied'
 
 export interface CoverageRequest {
   id: string
@@ -399,6 +400,10 @@ export interface CoverageRequest {
   substituteStylistId: string | null
   assignedBy: string | null
   assignedAt: string | null
+  // 13F approval audit
+  approvedBy?: string | null
+  approvedAt?: string | null
+  deniedReason?: string | null
   createdAt?: string | null
   updatedAt?: string | null
   stylist?: { id: string; name: string } | null

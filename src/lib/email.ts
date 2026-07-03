@@ -616,6 +616,35 @@ export function buildCoverageFilledEmailHtml(params: {
 </html>`.trim()
 }
 
+// 13F: time-off approval decision (approved → substitute search begins; denied → reason shown)
+export function buildCoverageDecisionEmailHtml(params: {
+  stylistName: string
+  approved: boolean
+  startDate: string
+  endDate: string
+  facilityName: string
+  deniedReason?: string | null
+}): string {
+  const { stylistName, approved, startDate, endDate, facilityName, deniedReason } = params
+  const rangeLabel = formatDateRange(startDate, endDate)
+  const body = approved
+    ? `Hi ${escHtml(stylistName)}, your time-off request for <strong>${rangeLabel}</strong> has been <strong style="color:#047857;">approved</strong>. We're finding coverage for your appointments — you'll get another email once a substitute is confirmed.`
+    : `Hi ${escHtml(stylistName)}, unfortunately your time-off request for <strong>${rangeLabel}</strong> was <strong style="color:#B91C1C;">not approved</strong>.${deniedReason ? ` Reason: <em>${escHtml(deniedReason)}</em>.` : ''} Please talk to your facility admin if you have questions.`
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ title: approved ? 'Time Off Approved' : 'Time Off Request Denied', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0;color:#1C1917;font-size:15px;line-height:1.6;">${body}</p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

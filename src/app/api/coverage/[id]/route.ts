@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { coverageRequests, profiles, stylists } from '@/db/schema'
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
-import { sendEmail, buildCoverageFilledEmailHtml } from '@/lib/email'
+import { sendEmail, buildCoverageFilledEmailHtml, buildCoverageDecisionEmailHtml } from '@/lib/email'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -18,6 +18,9 @@ const updateSchema = z
     reason: z.string().max(2000).nullable().optional(),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    // 13F: admin decision on a pending request
+    action: z.enum(['approve', 'deny']).optional(),
+    deniedReason: z.string().max(500).optional(),
   })
   .refine(
     (v) =>
@@ -25,7 +28,8 @@ const updateSchema = z
       v.substituteStylistId !== undefined ||
       v.reason !== undefined ||
       v.startDate !== undefined ||
-      v.endDate !== undefined,
+      v.endDate !== undefined ||
+      v.action !== undefined,
     { message: 'At least one field is required' },
   )
   .refine(
@@ -73,8 +77,10 @@ export async function PUT(
       const onlyCancelling =
         parsed.data.status === 'cancelled' &&
         parsed.data.substituteStylistId === undefined &&
-        parsed.data.reason === undefined
-      if (!onlyCancelling || existing.status !== 'open') {
+        parsed.data.reason === undefined &&
+        parsed.data.action === undefined
+      // 13F: a stylist may cancel their own request while it's pending OR approved-open
+      if (!onlyCancelling || (existing.status !== 'open' && existing.status !== 'pending')) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
 
@@ -90,6 +96,62 @@ export async function PUT(
         .where(eq(coverageRequests.id, id))
         .returning()
       return Response.json({ data: { request: updated } })
+    }
+
+    // ── 13F: admin decision on a pending request ────────────────────────────
+    if (parsed.data.action) {
+      if (existing.status !== 'pending') {
+        return Response.json({ error: 'Only pending requests can be approved or denied' }, { status: 422 })
+      }
+      const approved = parsed.data.action === 'approve'
+      const [decided] = await db
+        .update(coverageRequests)
+        .set(
+          approved
+            ? { status: 'open', approvedBy: user.id, approvedAt: new Date(), deniedReason: null, updatedAt: new Date() }
+            : { status: 'denied', approvedBy: user.id, approvedAt: new Date(), deniedReason: parsed.data.deniedReason ?? null, updatedAt: new Date() },
+        )
+        .where(eq(coverageRequests.id, id))
+        .returning()
+
+      // Notify the requesting stylist — background send, fire-and-forget.
+      try {
+        const requester = await db.query.stylists.findFirst({
+          where: eq(stylists.id, existing.stylistId),
+          columns: { id: true, name: true },
+        })
+        const requesterProfile = await db.query.profiles.findFirst({
+          where: eq(profiles.stylistId, existing.stylistId),
+          columns: { email: true },
+        })
+        const facility = await db.query.facilities.findFirst({
+          where: (f, { eq: eqOp }) => eqOp(f.id, facilityUser.facilityId),
+          columns: { name: true },
+        })
+        if (requesterProfile?.email && requester) {
+          const html = buildCoverageDecisionEmailHtml({
+            stylistName: requester.name,
+            approved,
+            startDate: existing.startDate,
+            endDate: existing.endDate,
+            facilityName: facility?.name ?? 'Facility',
+            deniedReason: parsed.data.deniedReason ?? null,
+          })
+          const rangeLabel =
+            existing.startDate === existing.endDate
+              ? existing.startDate
+              : `${existing.startDate} – ${existing.endDate}`
+          sendEmail({
+            to: requesterProfile.email,
+            subject: approved ? `Time off approved for ${rangeLabel}` : `Time off request for ${rangeLabel}`,
+            html,
+          }).catch((err) => console.error('[coverage PUT decision] send failed:', err))
+        }
+      } catch (emailErr) {
+        console.error('[coverage PUT decision] email setup failed:', emailErr)
+      }
+
+      return Response.json({ data: { request: decided } })
     }
 
     const updates: Partial<typeof coverageRequests.$inferInsert> = {
@@ -218,7 +280,7 @@ export async function DELETE(
       if (
         !profile?.stylistId ||
         profile.stylistId !== existing.stylistId ||
-        existing.status !== 'open'
+        (existing.status !== 'open' && existing.status !== 'pending')
       ) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }

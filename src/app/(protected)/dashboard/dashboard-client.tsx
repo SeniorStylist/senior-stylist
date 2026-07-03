@@ -712,7 +712,7 @@ export function DashboardClient({
         {isAdmin && openCoverageCount > 0 && (
           <div className="shrink-0 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between">
             <p className="text-sm text-amber-800">
-              <span className="font-semibold">{openCoverageCount}</span> open coverage request{openCoverageCount > 1 ? 's' : ''} need attention
+              <span className="font-semibold">{openCoverageCount}</span> time-off / coverage request{openCoverageCount > 1 ? 's' : ''} need attention
             </p>
             <button
               type="button"
@@ -963,6 +963,13 @@ export function DashboardClient({
                       request={r}
                       stylists={stylists.filter((s) => s.id !== r.stylistId)}
                       onAssigned={(id) => setCoverageQueue((prev) => prev.filter((x) => x.id !== id))}
+                      onDecided={(id, approved) =>
+                        setCoverageQueue((prev) =>
+                          approved
+                            ? prev.map((x) => (x.id === id ? { ...x, status: 'open' as const } : x))
+                            : prev.filter((x) => x.id !== id),
+                        )
+                      }
                     />
                   ))}
                 </ul>
@@ -1045,14 +1052,19 @@ export function DashboardClient({
 function CoverageQueueRow({
   request,
   onAssigned,
+  onDecided,
 }: {
   request: CoverageRequest
   stylists: Stylist[]
   onAssigned: (id: string) => void
+  onDecided?: (id: string, approved: boolean) => void
 }) {
   const [substituteId, setSubstituteId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 13F: pending requests show Approve / Deny before the substitute search
+  const [denying, setDenying] = useState(false)
+  const [denyReason, setDenyReason] = useState('')
   const [facilityPool, setFacilityPool] = useState<Array<{ id: string; name: string; stylistCode: string; nearby?: boolean }>>([])
   const [franchisePool, setFranchisePool] = useState<Array<{ id: string; name: string; stylistCode: string; nearby?: boolean }>>([])
 
@@ -1101,6 +1113,106 @@ function CoverageQueueRow({
       setError('Network error')
       setSaving(false)
     }
+  }
+
+  // 13F: approve → request enters the substitute search; deny → removed + stylist emailed
+  async function handleDecision(approve: boolean) {
+    if (saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/coverage/${request.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          approve
+            ? { action: 'approve' }
+            : { action: 'deny', deniedReason: denyReason.trim() || undefined },
+        ),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error ?? 'Failed to update request')
+        return
+      }
+      onDecided?.(request.id, approve)
+    } catch {
+      setError('Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 13F: pending requests need an approve/deny decision before the substitute search
+  if (request.status === 'pending') {
+    return (
+      <li className="px-4 py-3 space-y-2 bg-amber-50/40">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-stone-900 truncate">
+              {request.stylist?.name ?? 'Stylist'}
+            </p>
+            <p className="text-xs text-stone-500">{dateLabel}</p>
+          </div>
+          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
+            Needs approval
+          </span>
+        </div>
+        {request.reason && (
+          <p className="text-xs text-stone-500 line-clamp-2">{request.reason}</p>
+        )}
+        {!denying ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleDecision(true)}
+              disabled={saving}
+              className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-50 transition-colors"
+            >
+              {saving ? '…' : 'Approve'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDenying(true)}
+              disabled={saving}
+              className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:opacity-50 transition-colors"
+            >
+              Deny
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={denyReason}
+              onChange={(e) => setDenyReason(e.target.value)}
+              placeholder="Reason (optional)…"
+              maxLength={500}
+              className="w-full text-xs rounded-lg border border-stone-200 px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleDecision(false)}
+                disabled={saving}
+                className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 transition-colors"
+              >
+                {saving ? '…' : 'Confirm deny'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDenying(false); setDenyReason('') }}
+                disabled={saving}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </li>
+    )
   }
 
   return (

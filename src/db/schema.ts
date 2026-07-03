@@ -287,10 +287,16 @@ export const coverageRequests = pgTable('coverage_requests', {
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   reason: text('reason'),
+  // 13F: 'pending' (awaiting admin decision) → 'open' (approved, needs substitute)
+  // → 'filled' | 'denied' | 'cancelled'. Pre-13F rows default 'open' (approved).
   status: text('status').default('open').notNull(),
   substituteStylistId: uuid('substitute_stylist_id').references(() => stylists.id),
   assignedBy: uuid('assigned_by').references(() => profiles.id),
   assignedAt: timestamp('assigned_at'),
+  // 13F approval audit trail
+  approvedBy: uuid('approved_by').references(() => profiles.id),
+  approvedAt: timestamp('approved_at'),
+  deniedReason: text('denied_reason'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
