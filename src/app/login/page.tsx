@@ -1,10 +1,12 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import Image from 'next/image'
+import { isNativeApp } from '@/lib/detect-device'
+import { haptics } from '@/lib/haptics'
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
@@ -12,9 +14,20 @@ function LoginForm() {
   const [magicLoading, setMagicLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Native app: Google OAuth is blocked inside webviews and emailed links can't
+  // reopen the app, so the app uses a typed 6-digit email code instead.
+  const [isNative, setIsNative] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
+  const [code, setCode] = useState('')
+  const [sendingCode, setSendingCode] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const supabase = createClient()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect')
+
+  useEffect(() => {
+    setIsNative(isNativeApp())
+  }, [])
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
   const callbackUrl = redirect
@@ -53,6 +66,126 @@ function LoginForm() {
     } finally {
       setMagicLoading(false)
     }
+  }
+
+  // Native app: email a 6-digit code, then verify it in-app (no browser round-trip).
+  const sendCode = async () => {
+    if (!email.trim()) return
+    haptics.light()
+    setSendingCode(true)
+    setError(null)
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { shouldCreateUser: false },
+      })
+      if (otpError) setError(otpError.message)
+      else setCodeSent(true)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setSendingCode(false)
+    }
+  }
+
+  const verifyCode = async () => {
+    const token = code.trim()
+    if (token.length < 6) return
+    haptics.light()
+    setVerifying(true)
+    setError(null)
+    try {
+      const { error: verifyErr } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: 'email' })
+      if (verifyErr) {
+        haptics.error()
+        setError(verifyErr.message || 'Invalid or expired code')
+        return
+      }
+      haptics.success()
+      window.location.href = redirect && redirect.startsWith('/') ? redirect : '/dashboard'
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  // ── Native app login (typed email code) ──────────────────────────────────
+  if (isNative) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
+          <div className="mb-8">
+            <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
+          </div>
+
+          {!codeSent ? (
+            <div className="space-y-3 text-left">
+              <p className="text-sm font-medium text-center mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                Sign in to your account
+              </p>
+              <input
+                type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                onKeyDown={(e) => e.key === 'Enter' && sendCode()}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+              />
+              <button
+                onClick={sendCode}
+                disabled={sendingCode || !email.trim()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl active:scale-95 transition-all duration-150 disabled:opacity-60"
+              >
+                {sendingCode ? 'Sending…' : 'Email me a sign-in code'}
+              </button>
+              {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+            </div>
+          ) : (
+            <div className="space-y-3 text-left">
+              <p className="text-sm font-medium text-center" style={{ color: 'var(--color-text-secondary)' }}>
+                Enter the 6-digit code
+              </p>
+              <p className="text-xs text-stone-500 text-center mb-1">
+                Sent to <span className="font-semibold text-stone-700">{email}</span>
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="••••••"
+                onKeyDown={(e) => e.key === 'Enter' && verifyCode()}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-center text-lg tracking-[0.4em] text-stone-900 placeholder:text-stone-300 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+              />
+              <button
+                onClick={verifyCode}
+                disabled={verifying || code.trim().length < 6}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl active:scale-95 transition-all duration-150 disabled:opacity-60"
+              >
+                {verifying ? 'Verifying…' : 'Verify & sign in'}
+              </button>
+              {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+              <button
+                onClick={() => { setCodeSent(false); setCode(''); setError(null) }}
+                className="w-full text-center text-sm font-semibold text-[#8B2E4A] pt-1"
+              >
+                Use a different email
+              </button>
+            </div>
+          )}
+
+          <p className="text-xs mt-6" style={{ color: 'var(--color-text-muted)' }}>
+            For authorized facility staff only
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (sent) {

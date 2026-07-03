@@ -46,6 +46,37 @@ Full strategy, sequencing (Android first), and the Apple Guideline 4.2 plan live
 4. In review notes, list the native features (push, biometrics, native camera) and provide a demo
    login to pre-empt Guideline 4.2.
 
+## Native foundation (Phase N1 — wired 2026-06-29)
+
+Installed plugins: `@capacitor/haptics`, `status-bar`, `splash-screen`, `keyboard`, `app`.
+
+- **`src/lib/haptics.ts`** — `haptics.light/medium/heavy/success/warning/error/selection()`. No-op on
+  web/SSR; plugin dynamically imported so it never enters the web bundle. Call from any handler.
+- **`src/components/native/native-bridge.tsx`** — mounted in `src/app/layout.tsx`. Runs once, native
+  only: hides the splash when the web is interactive, sets StatusBar (light text, burgundy on Android,
+  no overlay), keyboard native-resize, Android hardware back → `router.back()`/`exitApp()`, and
+  `router.refresh()` on app resume. All plugin imports dynamic + try/caught.
+- **Native login (in-app):** Google OAuth is **blocked inside webviews** and emailed magic-**links**
+  can't reopen the app, so `src/app/login/page.tsx` shows a **typed 6-digit email code** flow when
+  `isNativeApp()` (email → `signInWithOtp({shouldCreateUser:false})` → `verifyOtp({type:'email'})` →
+  hard-nav to the target). Web keeps Google + magic-link unchanged.
+  - ⚠️ **Josh action (Supabase):** the login email must actually SHOW the code. In Supabase → Auth →
+    Email Templates → **Magic Link**, ensure the template includes the token, e.g.
+    `Your code is {{ .Token }}` (alongside or instead of the `{{ .ConfirmationURL }}` link). Without
+    it, the app's code screen has nothing to type.
+
+## Run it locally (Josh, on the Mac)
+1. `npm install` (picks up the new plugins).
+2. `npm run cap:sync` (copies plugins/config into `ios/` + `android/`; runs `pod install` on macOS).
+3. `npm run cap:ios` (Xcode) and/or `npm run cap:android` (Android Studio) → run on a simulator, then
+   a **real device**.
+4. **N1 gate — verify on a real device:** OTP login works, the session persists across navigation, the
+   Android back button behaves, and the splash hides cleanly. If cookie auth fails in the WebView, stop
+   and pivot before N2 polish.
+
+> The WebView points at the LIVE site, so the app runs against production data immediately — no local
+> Next.js server needed just to test the shell. (`.env.local` + `npm run dev` is only for web dev.)
+
 ## Open follow-ups (see plan Phase C)
 
 - Native push (FCM/APNs) bridge + `push_subscriptions.platform` column.

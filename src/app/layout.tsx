@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { NativeBridge } from '@/components/native/native-bridge'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist',
@@ -40,7 +41,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <NativeBridge />
+        {children}
+      </body>
     </html>
   )
 }
