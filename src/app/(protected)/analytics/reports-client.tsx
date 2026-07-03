@@ -166,6 +166,7 @@ export function ReportsClient({
         body: JSON.stringify({ month }),
       })
       if (res.ok) {
+        toast.success('All invoices marked paid')
         const res2 = await fetch(`/api/reports/invoice?month=${month}`)
         const json = await res2.json()
         if (json.data) setInvoiceData(json.data)

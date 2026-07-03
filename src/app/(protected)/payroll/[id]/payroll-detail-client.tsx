@@ -208,6 +208,14 @@ export function PayrollDetailClient({
       return
     }
     setAdvancingStatus(true)
+    // 13B: optimistic — flip the status immediately, roll back if the server rejects.
+    const prevStatus = currentStatus
+    setCurrentStatus(target)
+    setConfirmPaid(false)
+    if (target === 'paid') {
+      setExpandedId(null)
+      setAddingDeductionForId(null)
+    }
     try {
       const res = await fetch(`/api/pay-periods/${period.id}`, {
         method: 'PUT',
@@ -216,15 +224,14 @@ export function PayrollDetailClient({
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
+        setCurrentStatus(prevStatus)
         toast.error(typeof j.error === 'string' ? j.error : 'Failed to update status')
         return
       }
-      setCurrentStatus(target)
-      setConfirmPaid(false)
-      if (target === 'paid') {
-        setExpandedId(null)
-        setAddingDeductionForId(null)
-      }
+      toast.success(target === 'paid' ? 'Pay period marked paid' : 'Pay period moved to processing')
+    } catch {
+      setCurrentStatus(prevStatus)
+      toast.error('Network error — status not updated')
     } finally {
       setAdvancingStatus(false)
     }

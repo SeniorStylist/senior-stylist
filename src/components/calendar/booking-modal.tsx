@@ -520,8 +520,34 @@ export function BookingModal({
         }),
       })
       if (res.ok) {
-        onBookingDeleted(booking!.id)
-        toast('Appointment cancelled', 'info')
+        const cancelledId = booking!.id
+        onBookingDeleted(cancelledId)
+        // 12ZZ: Undo restores the booking (PUT status back to scheduled) and re-adds
+        // it to the calendar via onBookingChange (which upserts). If the slot was
+        // taken meanwhile, the conflict error surfaces in the toast.
+        toast('Appointment cancelled', 'info', {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              try {
+                const r = await fetch(`/api/bookings/${cancelledId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'scheduled' }),
+                })
+                const j = await r.json().catch(() => ({}))
+                if (r.ok && j.data) {
+                  onBookingChange(j.data)
+                  toast('Appointment restored', 'success')
+                } else {
+                  toast(typeof j.error === 'string' ? j.error : 'Could not restore appointment', 'error')
+                }
+              } catch {
+                toast('Network error — could not restore', 'error')
+              }
+            },
+          },
+        })
         onClose()
       } else {
         const json = await res.json()
@@ -993,7 +1019,7 @@ export function BookingModal({
             </div>
           ) : !startTime || selectedServiceIds.filter((id) => !!id).length === 0 ? (
             <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
-              Pick a date and service(s) to see who's scheduled.
+              Pick a date and service(s) to see who&apos;s scheduled.
             </div>
           ) : loadingStylists ? (
             <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">

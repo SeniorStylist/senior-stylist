@@ -114,31 +114,61 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
     if (!name.trim()) { setAddError('Name is required'); return }
     setAdding(true)
     setAddError(null)
+    // 13B: optimistic — insert a temp row + close the form immediately; reconcile the
+    // server id on success, remove the temp row (and reopen the form) on failure.
+    const tempId = `optimistic-${Date.now()}`
+    const optimisticRow = {
+      id: tempId,
+      name: name.trim(),
+      roomNumber: roomNumber.trim() || null,
+      phone: phone.trim() || null,
+      lastVisit: null,
+      totalSpent: 0,
+      appointmentCount: 0,
+    }
+    const formSnapshot = { name, roomNumber, phone }
+    setResidents((prev) => [optimisticRow as (typeof prev)[number], ...prev])
+    setName('')
+    setRoomNumber('')
+    setPhone('')
+    setShowAdd(false)
     try {
       const res = await fetch('/api/residents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
-          roomNumber: roomNumber.trim() || undefined,
-          phone: phone.trim() || undefined,
+          name: formSnapshot.name.trim(),
+          roomNumber: formSnapshot.roomNumber.trim() || undefined,
+          phone: formSnapshot.phone.trim() || undefined,
         }),
       })
       const json = await res.json()
       if (res.ok) {
-        setResidents([{ ...json.data, lastVisit: null, totalSpent: 0, appointmentCount: 0 }, ...residents])
-        setName('')
-        setRoomNumber('')
-        setPhone('')
-        setShowAdd(false)
+        // Reconcile the temp row with the real record (server id + fields)
+        setResidents((prev) =>
+          prev.map((r) =>
+            r.id === tempId ? { ...json.data, lastVisit: null, totalSpent: 0, appointmentCount: 0 } : r,
+          ),
+        )
         const newId = json.data.id
         toast('Resident added', 'success', {
           action: { label: 'View', onClick: () => router.push(`/residents/${newId}`) },
         })
       } else {
+        // Roll back: remove the temp row, restore + reopen the form
+        setResidents((prev) => prev.filter((r) => r.id !== tempId))
+        setName(formSnapshot.name)
+        setRoomNumber(formSnapshot.roomNumber)
+        setPhone(formSnapshot.phone)
+        setShowAdd(true)
         setAddError(json.error ?? 'Failed to add resident')
       }
     } catch {
+      setResidents((prev) => prev.filter((r) => r.id !== tempId))
+      setName(formSnapshot.name)
+      setRoomNumber(formSnapshot.roomNumber)
+      setPhone(formSnapshot.phone)
+      setShowAdd(true)
       setAddError('Network error')
     } finally {
       setAdding(false)

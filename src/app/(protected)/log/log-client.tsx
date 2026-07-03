@@ -352,17 +352,23 @@ export function LogClient({
 
   const deleteImportedBooking = async (bookingId: string) => {
     setDeletingId(bookingId)
+    // 13B: optimistic — remove the row immediately, restore the snapshot on failure.
+    const snapshot = bookings
+    setBookings((prev) => prev.filter((b) => b.id !== bookingId))
+    setConfirmDeleteId(null)
+    setEditingBookingId(null)
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' })
       if (res.ok) {
-        setBookings((prev) => prev.filter((b) => b.id !== bookingId))
-        setConfirmDeleteId(null)
-        setEditingBookingId(null)
         toast('Booking removed', 'success')
       } else {
-        const json = await res.json()
+        const json = await res.json().catch(() => ({}))
+        setBookings(snapshot)
         toast(typeof json.error === 'string' ? json.error : 'Delete failed', 'error')
       }
+    } catch {
+      setBookings(snapshot)
+      toast('Network error — delete failed', 'error')
     } finally {
       setDeletingId(null)
     }
@@ -532,6 +538,15 @@ export function LogClient({
     }
     setFinalizingId(stylistId)
     const existing = getLogEntry(stylistId)
+    // 13B: optimistic — flip the existing entry to finalized immediately, snapshot
+    // for rollback. (The create path has no entry to flip; it stays post-response.)
+    const snapshot = logEntries
+    if (existing) {
+      setLogEntries((prev) =>
+        prev.map((e) => (e.stylistId === stylistId ? { ...e, finalized: true } : e)),
+      )
+      setConfirmFinalizeId(null)
+    }
     try {
       const url = existing ? `/api/log/${existing.id}` : '/api/log'
       const method = existing ? 'PUT' : 'POST'
@@ -544,7 +559,7 @@ export function LogClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const json = await res.json()
+      const json = await res.json().catch(() => ({}))
       if (res.ok) {
         setLogEntries((prev) => {
           const filtered = prev.filter((e) => e.stylistId !== stylistId)
@@ -558,7 +573,13 @@ export function LogClient({
             onClick: () => handleUnfinalize(finalizedEntry.stylistId),
           },
         })
+      } else {
+        if (existing) setLogEntries(snapshot)
+        toast(firstErrorMessage(json) ?? 'Could not finalize the day', 'error')
       }
+    } catch {
+      if (existing) setLogEntries(snapshot)
+      toast('Network error — could not finalize', 'error')
     } finally {
       setFinalizingId(null)
     }
@@ -665,7 +686,17 @@ export function LogClient({
         setWiCreateName('')
         setWiCreateRoom('')
         setWiCreateError(null)
-        toast('Appointment booked!', 'success')
+        const newBookingId = json.data?.id as string | undefined
+        toast('Appointment booked!', 'success', newBookingId ? {
+          action: {
+            label: 'View',
+            onClick: () => {
+              document
+                .getElementById(`log-booking-${newBookingId}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            },
+          },
+        } : undefined)
       } else {
         setWiError(json.error?.message ?? json.error ?? 'Failed to add walk-in')
       }
@@ -1259,6 +1290,7 @@ export function LogClient({
                   return (
                     <div
                       key={booking.id}
+                      id={`log-booking-${booking.id}`}
                       className={cn(
                         'flex items-start gap-3 px-4 py-3.5 transition-colors',
                         isCompleted && 'bg-green-50/40',
