@@ -574,6 +574,15 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Native N3 — push bridge, FCM flag-gated (SHIPPED 2026-07-05)
+
+Native push for the app, dormant until `FIREBASE_SERVICE_ACCOUNT_BASE64` is set. FCM for both
+platforms (iOS via APNs-through-Firebase). `push_subscriptions.platform` + nullable web keys
+(0020, self-bootstrapped — `sendPushToUser` never throws pre-migration). Native token registration
+via the /my-account toggle only (never on launch); silent rotation refresh from `<NativeBridge>`.
+Go-live gate for Josh (Firebase project, plist/json files, APNs key, Xcode capabilities) in
+docs/native-app.md. Commits 13ddd6a + 1b37a7e. See CLAUDE.md N3 entry.
+
 ### Native N2 — haptics + native-feel polish (SHIPPED 2026-07-05)
 
 All Capacitor-gated (zero web impact; helper no-ops off-native). Toast `push()` is the single
