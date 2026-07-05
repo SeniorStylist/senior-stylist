@@ -6,6 +6,8 @@ import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useToast } from '@/components/ui/toast'
+import { downloadExportFile } from '@/lib/exports/download-export'
 
 function todayIso(): string {
   const now = new Date()
@@ -45,9 +47,11 @@ export function ExportDailyLogsMultiModal({
   defaultSelectedId,
 }: Props) {
   const isMobile = useIsMobile()
+  const { toast } = useToast()
   const [startDate, setStartDate] = useState(firstOfMonthIso())
   const [endDate, setEndDate] = useState(todayIso())
   const [mailSubject, setMailSubject] = useState('Senior Stylist Export')
+  const [exporting, setExporting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => {
     const initial = new Set<string>()
     if (defaultSelectedId) initial.add(defaultSelectedId)
@@ -88,11 +92,20 @@ export function ExportDailyLogsMultiModal({
   const selectAll = () => setSelected(new Set(filteredFacilities.map((f) => f.id)))
   const clearAll = () => setSelected(new Set())
 
-  const handleExport = () => {
-    if (!canExport) return
-    const ids = Array.from(selected).join(',')
+  const handleExport = async () => {
+    if (!canExport || exporting) return
+    // Everything selected → 'all' sentinel (expanded server-side). Keeps the URL
+    // short with 100+ facilities and never trips the explicit-list length cap.
+    const ids =
+      selected.size === facilities.length ? 'all' : Array.from(selected).join(',')
     const url = `/api/exports/daily-logs?facilityIds=${encodeURIComponent(ids)}&startDate=${startDate}&endDate=${endDate}&mailSubject=${encodeURIComponent(mailSubject.trim() || 'Senior Stylist Export')}`
-    window.open(url, '_blank')
+    setExporting(true)
+    const result = await downloadExportFile(url, `daily-logs_${startDate}_to_${endDate}.xlsx`)
+    setExporting(false)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
     onClose()
   }
 
@@ -201,8 +214,8 @@ export function ExportDailyLogsMultiModal({
       <Button variant="ghost" onClick={onClose} className="flex-1">
         Cancel
       </Button>
-      <Button onClick={handleExport} disabled={!canExport} className="flex-1">
-        Export
+      <Button onClick={handleExport} disabled={!canExport || exporting} className="flex-1">
+        {exporting ? 'Preparing export…' : 'Export'}
       </Button>
     </div>
   )

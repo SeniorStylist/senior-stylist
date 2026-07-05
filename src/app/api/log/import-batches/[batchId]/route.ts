@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { bookings, importBatches, facilities } from '@/db/schema'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { bookings, importBatches, facilities, residents, services } from '@/db/schema'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { revalidateTag } from 'next/cache'
 import { z } from 'zod'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,15 +132,139 @@ export async function PUT(
       })
       if (!target) return Response.json({ error: 'Target facility not found' }, { status: 404 })
 
+      // Moving a batch must ALSO re-point each booking's resident + services to
+      // records in the target facility — flipping only bookings.facility_id leaves
+      // bookings referencing residents/services that live in the source facility,
+      // which breaks facility scoping everywhere (daily log, billing, exports).
       await db.transaction(async (tx) => {
+        const batchBookings = await tx
+          .select({
+            id: bookings.id,
+            residentId: bookings.residentId,
+            serviceId: bookings.serviceId,
+            serviceIds: bookings.serviceIds,
+          })
+          .from(bookings)
+          .where(eq(bookings.importBatchId, batchId))
+
+        // ── Residents: match in target (fuzzy ≥ 0.8) → move the row if this batch
+        // is its only usage → otherwise clone into the target facility.
+        const residentIds = [
+          ...new Set(batchBookings.map((b) => b.residentId).filter((id): id is string => !!id)),
+        ]
+        const sourceResidents = residentIds.length
+          ? await tx
+              .select({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
+              .from(residents)
+              .where(inArray(residents.id, residentIds))
+          : []
+        const targetResidents = await tx
+          .select({ id: residents.id, name: residents.name })
+          .from(residents)
+          .where(and(eq(residents.facilityId, targetFacilityId), eq(residents.active, true)))
+
+        const residentIdMap = new Map<string, string>()
+        for (const r of sourceResidents) {
+          const match = fuzzyBestMatch(targetResidents, r.name, 0.8)
+          if (match) {
+            residentIdMap.set(r.id, match.id)
+            continue
+          }
+          // Any active bookings OUTSIDE this batch? Then the resident genuinely
+          // belongs to the source facility — clone instead of moving.
+          const usedElsewhere = await tx
+            .select({ id: bookings.id })
+            .from(bookings)
+            .where(
+              and(
+                eq(bookings.residentId, r.id),
+                eq(bookings.active, true),
+                or(isNull(bookings.importBatchId), ne(bookings.importBatchId, batchId)),
+              ),
+            )
+            .limit(1)
+          if (usedElsewhere.length === 0) {
+            await tx
+              .update(residents)
+              .set({ facilityId: targetFacilityId })
+              .where(eq(residents.id, r.id))
+            residentIdMap.set(r.id, r.id)
+          } else {
+            const [created] = await tx
+              .insert(residents)
+              .values({
+                facilityId: targetFacilityId,
+                name: r.name,
+                roomNumber: r.roomNumber,
+                portalToken: crypto.randomBytes(8).toString('hex'),
+              })
+              .returning({ id: residents.id })
+            residentIdMap.set(r.id, created.id)
+          }
+        }
+
+        // ── Services: find-or-create by name in the target facility. Never move a
+        // service row — other source-facility bookings may reference it.
+        const serviceIdSet = new Set<string>()
+        for (const b of batchBookings) {
+          if (b.serviceId) serviceIdSet.add(b.serviceId)
+          for (const id of b.serviceIds ?? []) if (id) serviceIdSet.add(id)
+        }
+        const sourceServices = serviceIdSet.size
+          ? await tx
+              .select({
+                id: services.id,
+                name: services.name,
+                priceCents: services.priceCents,
+                durationMinutes: services.durationMinutes,
+              })
+              .from(services)
+              .where(inArray(services.id, [...serviceIdSet]))
+          : []
+        const targetServices = await tx
+          .select({ id: services.id, name: services.name })
+          .from(services)
+          .where(and(eq(services.facilityId, targetFacilityId), eq(services.active, true)))
+
+        const serviceIdMap = new Map<string, string>()
+        for (const s of sourceServices) {
+          const match = fuzzyBestMatch(targetServices, s.name, 0.8)
+          if (match) {
+            serviceIdMap.set(s.id, match.id)
+            continue
+          }
+          const [created] = await tx
+            .insert(services)
+            .values({
+              facilityId: targetFacilityId,
+              name: s.name,
+              priceCents: s.priceCents,
+              durationMinutes: s.durationMinutes ?? 30,
+              source: 'ocr_import', // ad-hoc logging service — hidden from families/staff
+            })
+            .returning({ id: services.id })
+          serviceIdMap.set(s.id, created.id)
+          targetServices.push({ id: created.id, name: s.name })
+        }
+
+        // ── Re-point every booking in the batch.
+        for (const b of batchBookings) {
+          await tx
+            .update(bookings)
+            .set({
+              facilityId: targetFacilityId,
+              residentId: b.residentId ? (residentIdMap.get(b.residentId) ?? b.residentId) : b.residentId,
+              serviceId: b.serviceId ? (serviceIdMap.get(b.serviceId) ?? b.serviceId) : b.serviceId,
+              serviceIds: (b.serviceIds ?? []).map((id) => (id ? (serviceIdMap.get(id) ?? id) : id)),
+              updatedAt: new Date(),
+            })
+            .where(eq(bookings.id, b.id))
+        }
+
         await tx
           .update(importBatches)
           .set({ facilityId: targetFacilityId })
           .where(eq(importBatches.id, batchId))
-        await tx
-          .update(bookings)
-          .set({ facilityId: targetFacilityId, updatedAt: new Date() })
-          .where(eq(bookings.importBatchId, batchId))
       })
 
       revalidateTag('bookings', {})

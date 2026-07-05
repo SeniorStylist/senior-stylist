@@ -6,6 +6,8 @@ import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useToast } from '@/components/ui/toast'
+import { downloadExportFile } from '@/lib/exports/download-export'
 
 function todayIso(): string {
   const now = new Date()
@@ -34,9 +36,11 @@ interface Props {
 
 export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }: Props) {
   const isMobile = useIsMobile()
+  const { toast } = useToast()
   const [startDate, setStartDate] = useState(firstOfMonthIso())
   const [endDate, setEndDate] = useState(todayIso())
   const [mailSubject, setMailSubject] = useState(`Senior Stylist – ${facilityName}`)
+  const [exporting, setExporting] = useState(false)
 
   const error = useMemo<string | null>(() => {
     if (!startDate || !endDate) return null
@@ -46,10 +50,16 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
     return null
   }, [startDate, endDate])
 
-  const handleExport = () => {
-    if (error) return
+  const handleExport = async () => {
+    if (error || exporting) return
     const url = `/api/exports/daily-logs?facilityIds=${encodeURIComponent(facilityId)}&startDate=${startDate}&endDate=${endDate}&mailSubject=${encodeURIComponent(mailSubject.trim() || 'Senior Stylist Export')}`
-    window.open(url, '_blank')
+    setExporting(true)
+    const result = await downloadExportFile(url, `daily-logs_${startDate}_to_${endDate}.xlsx`)
+    setExporting(false)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
     onClose()
   }
 
@@ -95,8 +105,8 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
       <Button variant="ghost" onClick={onClose} className="flex-1">
         Cancel
       </Button>
-      <Button onClick={handleExport} disabled={!!error} className="flex-1">
-        Export
+      <Button onClick={handleExport} disabled={!!error || exporting} className="flex-1">
+        {exporting ? 'Preparing export…' : 'Export'}
       </Button>
     </div>
   )

@@ -956,6 +956,14 @@ The OCR review **Service** field (`ocr-import-modal.tsx`) is a `<select>` of exi
 - `fuzzyScore(a,b)`: 1.0 for exact, 0.85 for substring containment, else word-set overlap ratio (using `normalizeWords`). `fuzzyBestMatch` scans all items and returns the highest scorer above threshold.
 - **Price field**: read-only intent — `onChange` only updates `priceCents`, never `serviceId`/`serviceName`. Shows `"from sheet"` hint (`text-[10px] text-stone-400`) below the input to indicate it came from the handwritten log.
 
+### Scan modal facility targeting — pre-scan picker + mismatch banner (2026-07-05)
+
+Wrong-facility scan imports (the Glen Meadow → Ginger Cove bookkeeper bug) are guarded by three layers in `ocr-import-modal.tsx`:
+
+- **Upload-step picker** (bookkeeper/master only, `canPickFacility`): stone-50 card above the dropzone — `text-xs font-semibold` label "Scanning sheets for facility", full-width `<select>` (`F### · Name` options), helper line "Handwriting is matched against this facility's residents, stylists & services." Choosing a facility BEFORE scanning fetches its rosters (`GET /api/log/ocr/rosters`) so Gemini gets the right name lists. The review-step picker matches this styling (was a `text-[10px]` afterthought).
+- **State contract:** `reset()` MUST restore `selectedFacilityId` to `currentFacilityId` and clear `fetchedRosters` — the import-success path calls `reset()` and the original bug was the picker silently keeping the last-used facility for the next scan. Roster swap is a derived-const pattern: props hold the pinned facility's rosters; `fetchedRosters` state overrides them; `residents/stylists/services` consts pick `fetchedRosters ?? props`. Facility change re-matches all sheet entries by name via `rematchSheetState` (ids re-resolved, user-typed names kept).
+- **Mismatch banner** (review step, above sheet tabs): when Gemini's `detectedFacility` (read off the sheet header) ≠ selected target → amber `border-amber-300 bg-amber-50` card "⚠️ This sheet looks like F142 · Glen Meadow / You're importing to F141 · Ginger Cove" + burgundy "Switch to Glen Meadow" button (runs the same facility-change handler). Match → single emerald `✓ Sheet facility matches` line. Multiple distinct detections across sheets → "import them separately" warning. No detection (`null`) → nothing renders.
+
 ### Payment Type — `<select>` + "➕ Custom…" (OCR review + daily-log edit, 2026-06-26)
 
 Both the OCR review modal and the daily-log inline edit (`log-client.tsx`) render Payment Type as a `<select>` of `PAYMENT_TYPE_OPTIONS` (from `src/lib/payments.ts`: Unpaid (Invoice) / Cash / Check / Card / ACH / RFMS / COF / RA / Waived) + a `➕ Custom…` option that reveals a text input (placeholder `"e.g. COF, RA"`). The selected label is stored as a combo string and split on submit via `parsePaymentCombo`. **Billing semantics:** Cash/Check/Card/ACH → `paid`; RFMS/COF/RA/custom → `unpaid` (open invoice) carrying a display label in `payment_method`; the Excel export shows that label. Seed the select from an existing booking via `comboLabel(status, method)` (method wins, so an unpaid "RFMS" booking shows "RFMS").
@@ -1839,7 +1847,7 @@ A visual-only pass — zero logic changes — to make the app feel like a premiu
 
 ### Shadow tokens
 
-Four CSS variables on `:root` in `globals.css` — use via `shadow-[var(--shadow-*)]`. Do NOT roll custom shadows inline.
+Four CSS variables on `:root` in `globals.css` — use via `shadow-[var(--shadow-sm)]` (or `-md`/`-lg`). Do NOT roll custom shadows inline.
 
 ```css
 --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
@@ -2588,7 +2596,7 @@ A styled `.xlsx` export of the daily log, matching the bookkeeper's existing acc
 - **`/log` Export Excel button** — in the header next to the date arrows, with `data-tour="log-export-excel"` + `data-tour-mobile="log-export-excel"`. Icon-only on mobile (`<span className="hidden md:inline">Export</span>`), icon+text on `md+`. Opens `<ExportDailyLogsModal>` (`src/components/exports/export-daily-logs-modal.tsx`) — single-facility, date range only.
 - **`/analytics` Export Excel button** — in the header next to the month picker, with `data-tour="analytics-export-excel"`. Opens `<ExportDailyLogsMultiModal>` (`src/components/exports/export-daily-logs-multi-modal.tsx`) — multi-facility checkbox list + date range. Master admin sees all active facilities; admin/bookkeeper see their `facilityUsers` memberships.
 - Both modals branch desktop `<Modal>` vs mobile `<BottomSheet>` via `useIsMobile()` — same component, two render paths. Date-range defaults to month-to-date.
-- Both submit via `window.open('/api/exports/daily-logs?facilityIds=…&startDate=…&endDate=…')` to trigger the browser download. No client-side blob handling.
+- **Export download pattern (2026-07-05 — canonical for ALL authenticated file-download endpoints):** both modals call `downloadExportFile(url, fallbackName)` from `src/lib/exports/download-export.ts` — `fetch` → on `!res.ok` parse the `{error}` JSON and return it (caller shows `toast.error(realMessage)`); on success blob → `URL.createObjectURL` → programmatic `<a download>` (filename from `Content-Disposition`, revoked after 10s). Button shows "Preparing export…" + disabled while in flight; modal closes only on success. **NEVER `window.open(url)` for authenticated exports** — an API error (400/403/429) renders as a dead raw-JSON tab (the bookkeepers' "Invalid Error" report). Multi modal sends `facilityIds=all` when every listed facility is selected (server expands per caller scope) — keeps the URL short at 100+ facilities.
 
 ### Dependency
 

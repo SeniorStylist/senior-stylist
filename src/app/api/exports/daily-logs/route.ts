@@ -24,11 +24,16 @@ export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 const querySchema = z.object({
-  facilityIds: z
-    .string()
-    .min(1)
-    .transform((s) => s.split(',').map((id) => id.trim()).filter(Boolean))
-    .pipe(z.array(z.string().uuid()).min(1).max(50)),
+  // Either the literal 'all' (expanded server-side to every facility the caller can
+  // access — avoids a 100+-UUID query string) or an explicit comma-separated list.
+  facilityIds: z.union([
+    z.literal('all'),
+    z
+      .string()
+      .min(1)
+      .transform((s) => s.split(',').map((id) => id.trim()).filter(Boolean))
+      .pipe(z.array(z.string().uuid()).min(1).max(200)),
+  ]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   mailSubject: z.string().max(200).optional(),
@@ -143,7 +148,15 @@ export async function GET(request: NextRequest) {
     let stylistScopeId: string | null = null
 
     if (isMaster) {
-      allowedFacilityIds = new Set(facilityIds)
+      if (facilityIds === 'all') {
+        const active = await db.query.facilities.findMany({
+          where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+          columns: { id: true },
+        })
+        allowedFacilityIds = new Set(active.map((f) => f.id))
+      } else {
+        allowedFacilityIds = new Set(facilityIds)
+      }
     } else {
       const facilityUser = await getUserFacility(user.id)
       if (!facilityUser) return new Response('No facility', { status: 400 })
@@ -174,13 +187,20 @@ export async function GET(request: NextRequest) {
         allowedFacilityIds = new Set(memberships.map((m) => m.facilityId))
       }
 
-      const denied = facilityIds.filter((id) => !allowedFacilityIds.has(id))
-      if (denied.length > 0) {
-        return Response.json({ error: 'Forbidden facility access' }, { status: 403 })
+      if (facilityIds !== 'all') {
+        const denied = facilityIds.filter((id) => !allowedFacilityIds.has(id))
+        if (denied.length > 0) {
+          return Response.json({ error: 'Forbidden facility access' }, { status: 403 })
+        }
       }
     }
 
-    const targetFacilityIds = facilityIds.filter((id) => allowedFacilityIds.has(id))
+    // 'all' = everything the caller can access (for a stylist that's their own
+    // facility; for bookkeeper/master it's every active facility).
+    const targetFacilityIds =
+      facilityIds === 'all'
+        ? [...allowedFacilityIds]
+        : facilityIds.filter((id) => allowedFacilityIds.has(id))
     if (targetFacilityIds.length === 0) {
       return Response.json({ error: 'No accessible facilities' }, { status: 400 })
     }

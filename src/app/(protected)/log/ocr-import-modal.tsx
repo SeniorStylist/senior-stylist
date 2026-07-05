@@ -7,6 +7,17 @@ import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
 import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo, comboLabel } from '@/lib/payments'
 import type { Resident, Stylist, Service } from '@/types'
 
+// Minimal roster shapes — everything the scan/review flow actually reads. Using
+// these (instead of the full types) lets the modal swap in rosters fetched for a
+// different target facility (GET /api/log/ocr/rosters) interchangeably with the
+// full rows passed as props for the pinned facility.
+export type RosterResident = Pick<Resident, 'id' | 'name' | 'roomNumber'>
+export type RosterStylist = Pick<Stylist, 'id' | 'name'>
+export type RosterService = Pick<Service, 'id' | 'name' | 'priceCents' | 'pricingType'>
+type Rosters = { residents: RosterResident[]; stylists: RosterStylist[]; services: RosterService[] }
+
+type DetectedFacility = { id: string; name: string; facilityCode: string | null }
+
 // Shape of the confirmed sheets stored on the import batch (review_payload) —
 // used to reopen the scan review pre-filled via "Undo & edit".
 type SavedSheet = {
@@ -45,6 +56,8 @@ interface OcrRawSheet {
   imageIndex: number
   date: string | null
   stylistName: string | null
+  facilityName?: string | null
+  detectedFacility?: DetectedFacility | null
   entries: OcrRawEntry[]
   error?: string
 }
@@ -71,6 +84,9 @@ type SheetState = {
   stylistId: string | null
   stylistName: string // OCR-read or typed name; drives match-or-create of the stylist
   mailSubject: string // per-sheet "Mail Subject" for the Excel export (column B)
+  // Facility read off the sheet itself (Gemini) matched to a real facility — used
+  // by the review step to warn when the import target doesn't match the sheet.
+  detectedFacility?: DetectedFacility | null
   entries: EntryState[]
 }
 
@@ -80,9 +96,9 @@ interface OcrImportModalProps {
   open: boolean
   onClose: () => void
   onImported: () => void
-  residents: Resident[]
-  stylists: Stylist[]
-  services: Service[]
+  residents: RosterResident[]
+  stylists: RosterStylist[]
+  services: RosterService[]
   date: string
   // Cross-facility import target (bookkeeper/master). When more than one, a facility
   // selector is shown so the scan can be imported to the chosen facility.
@@ -91,6 +107,9 @@ interface OcrImportModalProps {
   role?: string
   // "Undo & edit": confirmed sheets from a rolled-back import — seeds the review step.
   initialSheets?: unknown[] | null
+  // Facility the rolled-back import belonged to — seeds the facility selector so the
+  // user sees where it WAS imported and can pick the right one.
+  initialFacilityId?: string | null
 }
 
 // Rebuild review state from a saved import payload (for "Undo & edit").
@@ -152,20 +171,53 @@ const SCAN_TIPS = [
   "The more you use it, the better the matching gets 🎯",
 ]
 
+// Resolve a stylist name to an id: unique fuzzy match, or the only stylist.
+function matchStylistId(stylists: RosterStylist[], name: string): string | null {
+  const trimmed = name.trim()
+  if (trimmed) {
+    const matches = fuzzyMatches(stylists, trimmed)
+    if (matches.length === 1) return matches[0].id
+  }
+  return stylists.length === 1 ? stylists[0].id : null
+}
+
+// Name + exact-price service matching (shared by initial build and facility rematch).
+function matchService(
+  services: RosterService[],
+  serviceName: string,
+  priceCents: number | null,
+): RosterService | null {
+  const nonAddonServices = services.filter(s => s.pricingType !== 'addon')
+  const byName = fuzzyBestMatch(nonAddonServices, serviceName)
+  if (!priceCents) return byName
+
+  // Services whose catalog price exactly matches the sheet price
+  const byPrice = nonAddonServices.filter(s => s.priceCents === priceCents)
+
+  if (byPrice.length === 1) {
+    // Single exact-price match — use it unless name match is very confident
+    const nameScore = byName ? fuzzyScore(serviceName, byName.name) : 0
+    if (nameScore < 0.85) return byPrice[0]
+  }
+
+  if (byName) {
+    // Name match found — trust it (price mismatch may mean combined services)
+    return byName
+  }
+
+  // No name match — fall back to unique price match
+  return byPrice.length === 1 ? byPrice[0] : null
+}
+
 function buildSheetState(
   raw: OcrRawSheet,
-  residents: Resident[],
-  stylists: Stylist[],
-  services: Service[],
+  residents: RosterResident[],
+  stylists: RosterStylist[],
+  services: RosterService[],
   fallbackDate: string
 ): SheetState {
-  let stylistId: string | null = null
   const rawStylistName = (raw.stylistName ?? '').trim()
-  if (rawStylistName) {
-    const matches = fuzzyMatches(stylists, rawStylistName)
-    if (matches.length === 1) stylistId = matches[0].id
-  }
-  if (!stylistId && stylists.length === 1) stylistId = stylists[0].id
+  const stylistId = matchStylistId(stylists, rawStylistName)
   // Keep the name even when no existing stylist matches — the review UI offers
   // "create new stylist" pre-filled with it (mirrors resident/service handling).
   const stylistName = stylistId
@@ -175,29 +227,7 @@ function buildSheetState(
   const entries: EntryState[] = (raw.entries ?? []).map((entry) => {
     const resMatches = fuzzyMatches(residents, entry.residentName ?? '')
     const ocrPrice = entry.price != null ? Math.round(entry.price * 100) : null
-    const nonAddonServices = services.filter(s => s.pricingType !== 'addon')
-
-    const svcBest = (() => {
-      const byName = fuzzyBestMatch(nonAddonServices, entry.serviceName ?? '')
-      if (!ocrPrice) return byName
-
-      // Services whose catalog price exactly matches the sheet price
-      const byPrice = nonAddonServices.filter(s => s.priceCents === ocrPrice)
-
-      if (byPrice.length === 1) {
-        // Single exact-price match — use it unless name match is very confident
-        const nameScore = byName ? fuzzyScore(entry.serviceName ?? '', byName.name) : 0
-        if (nameScore < 0.85) return byPrice[0]
-      }
-
-      if (byName) {
-        // Name match found — trust it (price mismatch may mean combined services)
-        return byName
-      }
-
-      // No name match — fall back to unique price match
-      return byPrice.length === 1 ? byPrice[0] : null
-    })()
+    const svcBest = matchService(services, entry.serviceName ?? '', ocrPrice)
     const additionalServices = (entry.additionalServices ?? []).filter(
       (s): s is string => typeof s === 'string' && s.trim().length > 0
     )
@@ -228,7 +258,37 @@ function buildSheetState(
     stylistId,
     stylistName,
     mailSubject: '',
+    detectedFacility: raw.detectedFacility ?? null,
     entries,
+  }
+}
+
+// Re-resolve a sheet's matches against a DIFFERENT facility's rosters (after the
+// user switches the import target). Names are kept; ids are re-matched so the
+// review dropdowns and the import payload point at the target facility's records.
+function rematchSheetState(
+  s: SheetState,
+  residents: RosterResident[],
+  stylists: RosterStylist[],
+  services: RosterService[],
+): SheetState {
+  return {
+    ...s,
+    stylistId: matchStylistId(stylists, s.stylistName),
+    entries: s.entries.map((e) => {
+      const resMatches = fuzzyMatches(residents, e.residentName)
+      const svcBest = e.serviceName.trim()
+        ? matchService(services, e.serviceName, e.priceCents)
+        : null
+      return {
+        ...e,
+        residentId: resMatches.length === 1 ? resMatches[0].id : null,
+        serviceId: svcBest?.id ?? null,
+        additionalServiceIds: e.additionalServices.map(
+          (name) => fuzzyBestMatch(services, name)?.id ?? null,
+        ),
+      }
+    }),
   }
 }
 
@@ -236,13 +296,14 @@ export function OcrImportModal({
   open,
   onClose,
   onImported,
-  residents,
-  stylists,
-  services,
+  residents: residentsProp,
+  stylists: stylistsProp,
+  services: servicesProp,
   date,
   facilities,
   currentFacilityId,
   initialSheets,
+  initialFacilityId,
 }: OcrImportModalProps) {
   const { toast } = useToast()
 
@@ -250,6 +311,16 @@ export function OcrImportModal({
   // The facility list is only >1 for bookkeeper/master (per log/page.tsx).
   const canPickFacility = facilityOptions.length > 1
   const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId ?? '')
+
+  // Rosters for the SELECTED facility. Props cover the pinned facility; when the
+  // user targets a different facility we fetch its rosters so (a) Gemini matches
+  // handwriting against the right names and (b) review dropdowns show the right
+  // residents/stylists/services. Null = use the props (pinned facility).
+  const [fetchedRosters, setFetchedRosters] = useState<(Rosters & { facilityId: string }) | null>(null)
+  const [rostersLoading, setRostersLoading] = useState(false)
+  const residents = fetchedRosters?.residents ?? residentsProp
+  const stylists = fetchedRosters?.stylists ?? stylistsProp
+  const services = fetchedRosters?.services ?? servicesProp
 
   const [step, setStep] = useState<Step>('upload')
   const [files, setFiles] = useState<File[]>([])
@@ -294,6 +365,59 @@ export function OcrImportModal({
     setActiveTab(0)
     setImporting(false)
     setImportError(null)
+    // Restore the facility target to the pinned facility. This runs on BOTH exit
+    // paths (successful import AND manual close) — leaving the previous selection
+    // behind silently sent the next scan to the wrong facility (the Glen Meadow →
+    // Ginger Cove bug reported by bookkeeping).
+    setSelectedFacilityId(currentFacilityId ?? '')
+    setFetchedRosters(null)
+    setRostersLoading(false)
+  }
+
+  const fetchRostersFor = async (facilityId: string): Promise<Rosters | null> => {
+    setRostersLoading(true)
+    try {
+      const res = await fetch(`/api/log/ocr/rosters?facilityId=${facilityId}`)
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(typeof json.error === 'string' ? json.error : 'Could not load facility records')
+      }
+      return json.data as Rosters
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not load facility records', 'error')
+      return null
+    } finally {
+      setRostersLoading(false)
+    }
+  }
+
+  // Switching the target facility swaps in that facility's rosters and re-resolves
+  // resident/service/stylist matches against them (names are kept, ids re-matched)
+  // so the review dropdowns and the import payload point at the right records.
+  const handleFacilityChange = async (val: string, opts?: { rematch?: boolean }) => {
+    const prev = selectedFacilityId
+    if (!val || val === prev) return
+    setSelectedFacilityId(val)
+    let nextRosters: Rosters
+    if (val === (currentFacilityId ?? '')) {
+      setFetchedRosters(null)
+      nextRosters = { residents: residentsProp, stylists: stylistsProp, services: servicesProp }
+    } else {
+      const fetched = await fetchRostersFor(val)
+      if (!fetched) {
+        setSelectedFacilityId(prev) // fetch failed — revert the selection
+        return
+      }
+      setFetchedRosters({ facilityId: val, ...fetched })
+      nextRosters = fetched
+    }
+    if (opts?.rematch !== false) {
+      setSheets((prevSheets) =>
+        prevSheets.map((s) =>
+          rematchSheetState(s, nextRosters.residents, nextRosters.stylists, nextRosters.services),
+        ),
+      )
+    }
   }
 
   // Seed the review step from a rolled-back import ("Undo & edit").
@@ -305,33 +429,18 @@ export function OcrImportModal({
       setSheets((initialSheets as SavedSheet[]).map((s, i) => buildSheetFromSaved(s, i)))
       setActiveTab(0)
       setStep('review')
-      setSelectedFacilityId(currentFacilityId ?? '')
+      // Show the facility the batch was originally imported to (ids in the saved
+      // payload belong to it) — no rematch needed, just its rosters for the UI.
+      const target = initialFacilityId ?? currentFacilityId ?? ''
+      if (target && target !== selectedFacilityId) {
+        void handleFacilityChange(target, { rematch: false })
+      }
     }
-  }, [open, initialSheets, currentFacilityId])
-
-  // Switching the target facility invalidates resident/service/stylist ids resolved
-  // for the original facility — clear them so the server re-resolves by name.
-  const handleFacilityChange = (val: string) => {
-    setSelectedFacilityId(val)
-    if (val !== (currentFacilityId ?? '')) {
-      setSheets((prev) =>
-        prev.map((s) => ({
-          ...s,
-          stylistId: null,
-          entries: s.entries.map((en) => ({
-            ...en,
-            residentId: null,
-            serviceId: null,
-            additionalServiceIds: en.additionalServiceIds.map(() => null),
-          })),
-        })),
-      )
-    }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialSheets, currentFacilityId, initialFacilityId])
 
   const handleClose = () => {
     reset()
-    setSelectedFacilityId(currentFacilityId ?? '')
     onClose()
   }
 
@@ -618,6 +727,32 @@ export function OcrImportModal({
             )
           })() : (
             <div className="px-5 py-4 space-y-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
+              {/* Facility target — pick BEFORE scanning so Gemini matches handwriting
+                  against the RIGHT facility's residents/stylists/services. */}
+              {canPickFacility && (
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                  <label className="text-xs font-semibold text-stone-600 block mb-1">
+                    Scanning sheets for facility
+                  </label>
+                  <select
+                    value={selectedFacilityId}
+                    onChange={(e) => void handleFacilityChange(e.target.value)}
+                    disabled={rostersLoading}
+                    className="w-full min-h-[44px] bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 disabled:opacity-60"
+                  >
+                    {facilityOptions.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    {rostersLoading
+                      ? 'Loading facility records…'
+                      : "Handwriting is matched against this facility's residents, stylists & services."}
+                  </p>
+                </div>
+              )}
               <div
                 data-tour="ocr-upload-area"
                 className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#8B2E4A] hover:bg-rose-50/30 transition-colors"
@@ -709,14 +844,15 @@ export function OcrImportModal({
           {step === 'review' && sheets.length > 0 && (
             <div data-tour="ocr-results-table">
               {/* Facility target — bookkeeper/master can import this scan to a chosen
-                  facility. Switching clears resolved ids so the server re-matches names. */}
+                  facility. Switching re-matches names against that facility's records. */}
               {canPickFacility && (
                 <div className="px-5 pt-4 shrink-0">
-                  <label className="text-[10px] text-stone-400 uppercase tracking-wide">Import to facility</label>
+                  <label className="text-xs font-semibold text-stone-600 block mb-1">Import to facility</label>
                   <select
                     value={selectedFacilityId}
-                    onChange={(e) => handleFacilityChange(e.target.value)}
-                    className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-2 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                    onChange={(e) => void handleFacilityChange(e.target.value)}
+                    disabled={rostersLoading}
+                    className="w-full min-h-[44px] bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 disabled:opacity-60"
                   >
                     {facilityOptions.map((f) => (
                       <option key={f.id} value={f.id}>
@@ -724,13 +860,73 @@ export function OcrImportModal({
                       </option>
                     ))}
                   </select>
-                  {selectedFacilityId !== (currentFacilityId ?? '') && (
+                  {rostersLoading && (
+                    <p className="mt-1 text-[11px] text-stone-500">Loading facility records…</p>
+                  )}
+                  {!rostersLoading && selectedFacilityId !== (currentFacilityId ?? '') && (
                     <p className="mt-1 text-[11px] text-amber-600">
                       Residents, services &amp; stylists will be matched/created in the selected facility by name.
                     </p>
                   )}
                 </div>
               )}
+
+              {/* Sheet-facility guard — warn when the facility printed on the scanned
+                  sheets doesn't match the import target (wrong-facility import guard). */}
+              {(() => {
+                const detected = sheets
+                  .map((s) => s.detectedFacility)
+                  .filter((d): d is DetectedFacility => !!d)
+                const distinct = [...new Map(detected.map((d) => [d.id, d])).values()]
+                const label = (f: { name: string; facilityCode?: string | null }) =>
+                  f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name
+                if (distinct.length === 0) return null
+                if (distinct.length > 1) {
+                  return (
+                    <div className="mx-5 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                      <p className="text-xs font-semibold text-amber-800">
+                        ⚠️ These sheets appear to come from different facilities:{' '}
+                        {distinct.map(label).join(', ')}
+                      </p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">
+                        All sheets in one import go to a single facility — scan and import them separately.
+                      </p>
+                    </div>
+                  )
+                }
+                const d = distinct[0]
+                if (d.id === selectedFacilityId) {
+                  return (
+                    <p className="mx-5 mt-2 text-[11px] text-emerald-700">
+                      ✓ Sheet facility matches: {label(d)}
+                    </p>
+                  )
+                }
+                const selectedOption = facilityOptions.find((f) => f.id === selectedFacilityId)
+                return (
+                  <div className="mx-5 mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3">
+                    <p className="text-sm font-semibold text-amber-900">
+                      ⚠️ This sheet looks like {label(d)}
+                    </p>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      You&apos;re importing to{' '}
+                      <span className="font-semibold">
+                        {selectedOption ? label(selectedOption) : 'a different facility'}
+                      </span>
+                      . Double-check before importing.
+                    </p>
+                    {canPickFacility && (
+                      <button
+                        onClick={() => void handleFacilityChange(d.id)}
+                        disabled={rostersLoading}
+                        className="mt-2 px-3 py-1.5 rounded-lg bg-[#8B2E4A] text-white text-xs font-semibold hover:bg-[#7A2841] transition-colors disabled:opacity-60"
+                      >
+                        Switch to {d.name}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
               {/* Sheet tabs */}
               {sheets.length > 1 && (
                 <div className="flex gap-1.5 px-5 pt-4 overflow-x-auto shrink-0">
@@ -1259,7 +1455,7 @@ export function OcrImportModal({
               </button>
               <button
                 onClick={handleScan}
-                disabled={files.length === 0 || scanning}
+                disabled={files.length === 0 || scanning || rostersLoading}
                 className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {scanning ? (
@@ -1311,7 +1507,7 @@ export function OcrImportModal({
               </button>
               <button
                 onClick={handleImport}
-                disabled={importing || summary.bookings === 0}
+                disabled={importing || summary.bookings === 0 || rostersLoading}
                 data-tour="ocr-import-button"
                 className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >

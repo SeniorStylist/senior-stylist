@@ -399,6 +399,8 @@ export function LogClient({
   // "Undo & edit": holds the confirmed sheets returned by the rollback so the OCR
   // modal can reopen pre-filled (change facility/stylist, re-import).
   const [ocrSeedSheets, setOcrSeedSheets] = useState<unknown[] | null>(null)
+  // Facility the rolled-back batch belonged to — seeds the modal's facility picker.
+  const [ocrSeedFacilityId, setOcrSeedFacilityId] = useState<string | null>(null)
   const [undoingBatch, setUndoingBatch] = useState(false)
 
   const { toast } = useToast()
@@ -445,6 +447,7 @@ export function LogClient({
       await navigateDate(date) // drop the rolled-back bookings from view
       if (Array.isArray(j.data?.sheets) && j.data.sheets.length > 0) {
         setOcrSeedSheets(j.data.sheets)
+        setOcrSeedFacilityId(typeof j.data?.facilityId === 'string' ? j.data.facilityId : null)
         setOcrOpen(true)
       } else {
         toast('Import undone', 'success')
@@ -1798,8 +1801,8 @@ export function LogClient({
 
       <OcrImportModal
         open={ocrOpen}
-        onClose={() => { setOcrOpen(false); setOcrSeedSheets(null) }}
-        onImported={() => { setOcrSeedSheets(null); navigateDate(date) }}
+        onClose={() => { setOcrOpen(false); setOcrSeedSheets(null); setOcrSeedFacilityId(null) }}
+        onImported={() => { setOcrSeedSheets(null); setOcrSeedFacilityId(null); navigateDate(date) }}
         residents={residents}
         stylists={stylists}
         services={services}
@@ -1808,6 +1811,7 @@ export function LogClient({
         currentFacilityId={facilityId}
         role={role}
         initialSheets={ocrSeedSheets}
+        initialFacilityId={ocrSeedFacilityId}
       />
 
       {/* Bookkeepers / master admin get the multi-facility modal so they can

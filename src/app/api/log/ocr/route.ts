@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { db } from '@/db'
+import { facilities } from '@/db/schema'
+import { and, eq } from 'drizzle-orm'
+import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { NextRequest } from 'next/server'
 
 export const maxDuration = 120
@@ -15,6 +19,7 @@ Return ONLY a valid JSON object with this exact shape:
 {
   "date": "YYYY-MM-DD or null if not found",
   "stylistName": "name of stylist if shown on sheet header or null",
+  "facilityName": "name of the facility/community printed on the sheet or null",
   "entries": [
     {
       "residentName": "string",
@@ -32,6 +37,7 @@ Rules:
 - Preserve the ORDER of entries exactly as they appear
 - If a date appears in the header (e.g. 'March 15' or '3/15/26'), extract it as YYYY-MM-DD
 - STYLIST: the stylist/beautician name is almost always written or printed near the TOP of the sheet (by the date or facility name), and may be labeled "Stylist", "Beautician", "Cosmetologist", or "Operator". Look carefully for it and return it in stylistName. Return null only if there is genuinely no name anywhere on the sheet.
+- FACILITY: the facility/community name is usually printed or written near the TOP of the sheet (letterhead, header, or title — e.g. "Sunrise of Bethesda", "Glen Meadow"). Return it in facilityName EXACTLY as printed, including any code prefix like "F141". Return null if no facility name appears on the sheet.
 - For unclear handwriting, include your best guess and set unclear: true
 - price is a number in dollars (not cents), or null if not readable. The price column contains the EXACT dollar amount charged for all services on that row combined. Extract it precisely — never estimate or default. If you cannot read the price clearly, set price to null.
 - Include ALL notes written next to any entry
@@ -185,6 +191,30 @@ export async function POST(request: NextRequest) {
     // Images + PDFs — Gemini handles PDFs natively via inlineData
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']
 
+    // Active facilities for sheet-facility detection — the printed facility name on
+    // each sheet is fuzzy-matched so the review UI can warn when the import target
+    // doesn't match the sheet (wrong-facility import guard).
+    const activeFacilities = await db.query.facilities.findMany({
+      where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+      columns: { id: true, name: true, facilityCode: true },
+    })
+    const detectFacility = (
+      rawName: string | null | undefined,
+    ): { id: string; name: string; facilityCode: string | null } | null => {
+      const raw = (rawName ?? '').trim()
+      if (!raw) return null
+      // Exact facility-code match first ("F141 - Ginger Cove" or a bare "F141")
+      const codeMatch = raw.match(/\bF\d{2,4}\b/i)
+      if (codeMatch) {
+        const code = codeMatch[0].toUpperCase()
+        const byCode = activeFacilities.find((f) => f.facilityCode?.toUpperCase() === code)
+        if (byCode) return byCode
+      }
+      // Strip a leading F-code prefix before fuzzy name matching
+      const nameOnly = raw.replace(/^F\d{2,4}\s*[-·—]\s*/i, '').trim() || raw
+      return fuzzyBestMatch(activeFacilities, nameOnly, 0.7)
+    }
+
     const sheets: unknown[] = []
 
     for (let i = 0; i < files.length; i++) {
@@ -207,7 +237,7 @@ export async function POST(request: NextRequest) {
           ),
         ])
 
-        let parsed: { date: string | null; stylistName: string | null; entries: unknown[] }
+        let parsed: { date: string | null; stylistName: string | null; facilityName?: string | null; entries: unknown[] }
         try {
           const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
           parsed = JSON.parse(cleaned)
@@ -230,6 +260,8 @@ export async function POST(request: NextRequest) {
           imageIndex: i,
           date: parsed.date ?? null,
           stylistName: parsed.stylistName ?? null,
+          facilityName: parsed.facilityName ?? null,
+          detectedFacility: detectFacility(parsed.facilityName),
           entries: parsed.entries,
         })
       } catch (err) {
