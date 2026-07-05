@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { formatCents } from '@/lib/utils'
+import { haptics } from '@/lib/haptics'
 import { resolvePrice, formatPricingLabel } from '@/lib/pricing'
 import { computeTipCents } from '@/lib/tips'
 import { toDateTimeLocalInTz, fromDateTimeLocalInTz, formatDateInTz, formatTimeInTz } from '@/lib/time'
@@ -462,10 +463,12 @@ export function BookingModal({
       const json = await res.json()
 
       if (res.status === 409) {
+        haptics.error() // inline error (no toast) — explicit haptic, no double-fire
         setError('This stylist already has a booking at that time.')
         return
       }
       if (!res.ok) {
+        haptics.error()
         setError(
           typeof json.error === 'string'
             ? json.error

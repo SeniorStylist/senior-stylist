@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { haptics } from '@/lib/haptics'
 import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
@@ -166,7 +167,7 @@ export function MobileNav({ role = 'admin' }: MobileNavProps) {
             key={item.href}
             href={item.href}
             prefetch={true}
-            onClick={() => setPendingHref(item.href)}
+            onClick={() => { haptics.selection(); setPendingHref(item.href) }}
             data-tour-mobile={tourSlug}
             className={cn(
               'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',

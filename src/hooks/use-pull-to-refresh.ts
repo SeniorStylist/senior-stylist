@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { haptics } from '@/lib/haptics'
 
 const PULL_THRESHOLD = 64 // px needed to trigger refresh
 
@@ -32,6 +33,7 @@ export function usePullToRefresh(onRefresh: () => Promise<void> | void) {
     activeRef.current = false
     const diff = e.changedTouches[0].clientY - startYRef.current
     if (diff >= PULL_THRESHOLD) {
+      haptics.medium() // N2: thump at the moment the refresh actually triggers
       setPullProgress(0)
       setRefreshing(true)
       try {

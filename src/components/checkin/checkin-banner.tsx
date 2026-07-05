@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useToast } from '@/components/ui/toast'
+import { haptics } from '@/lib/haptics'
 import { formatTimeInTz } from '@/lib/time'
 import { RescheduleSheet, type RescheduleBooking } from './reschedule-sheet'
 
@@ -77,6 +78,9 @@ export function CheckInBanner({
   }
 
   function handleSheetConfirm() {
+    // N2: reschedule-confirmed completion shows no toast, so fire the success
+    // haptic explicitly here (the immediate check-in path gets it via toast.success)
+    haptics.success()
     setSheetOpen(false)
     startFadeOut()
   }

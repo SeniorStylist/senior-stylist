@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { haptics } from '@/lib/haptics'
 
 type ToastType = 'success' | 'error' | 'info' | 'loading'
 
@@ -48,6 +49,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (message: string, type: ToastType = 'success', opts?: ToastOptions) => {
       counterRef.current += 1
       const id = `toast-${counterRef.current}`
+      // N2: haptic at toast creation — the single chokepoint every success/error
+      // flows through (booking save, payment collected, check-in, walk-in, …).
+      // Fires once here, never per render; no-op outside the native app.
+      // Do NOT also call haptics.success/error at toast call sites — double-buzz.
+      if (type === 'success') haptics.success()
+      else if (type === 'error') haptics.error()
       setToasts((prev) => {
         const next = [...prev, { id, type, message, visible: true, action: opts?.action }]
         return next.slice(-3)

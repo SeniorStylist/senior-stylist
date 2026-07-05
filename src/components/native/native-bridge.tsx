@@ -18,6 +18,11 @@ export function NativeBridge() {
     const platform = nativePlatform()
     const cleanups: Array<() => void> = []
 
+    // N2: enable native-only CSS (globals.css `html.native-app { … }`) without
+    // touching the web build — e.g. suppressing the iOS long-press callout.
+    document.documentElement.classList.add('native-app')
+    cleanups.push(() => document.documentElement.classList.remove('native-app'))
+
     ;(async () => {
       // Status bar — light text over the burgundy header; don't overlay the webview
       // (the layout already handles safe-area insets itself).

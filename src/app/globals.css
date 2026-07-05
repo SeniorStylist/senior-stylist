@@ -76,6 +76,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Phase N2 — native-app-only layer. The `native-app` class is added to <html> by
+   <NativeBridge> ONLY inside the Capacitor shell, so these rules never affect the
+   web/PWA. touch-callout is inherited — the root rule suppresses the iOS
+   long-press callout/magnifier app-wide for a native feel. */
+html.native-app {
+  -webkit-touch-callout: none;
+}
+
 /* Phase 12X — fluid typography for DM Serif Display headings */
 h1 {
   font-size: clamp(1.625rem, 4vw, 2.25rem);
