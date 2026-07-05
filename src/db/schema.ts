@@ -1057,9 +1057,14 @@ export const feedbackSubmissions = pgTable('feedback_submissions', {
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => profiles.id, { onDelete: 'cascade' }).notNull(),
+  // Web rows: endpoint = the push-service URL. Native rows (N3): endpoint = the FCM
+  // device token (iOS routes through APNs via Firebase; single server credential).
   endpoint: text('endpoint').notNull(),
-  p256dh: text('p256dh').notNull(),
-  auth: text('auth').notNull(),
+  // Web-push encryption keys — null for native (FCM) rows.
+  p256dh: text('p256dh'),
+  auth: text('auth'),
+  // N3: 'web' | 'ios' | 'android' — drives the send rail in sendPushToUser.
+  platform: text('platform').default('web').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userEndpointUnique: unique('push_subscriptions_user_endpoint_unique').on(t.userId, t.endpoint),

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
-import { isInstallable, detectDevice } from '@/lib/detect-device'
+import { isInstallable, detectDevice, isNativeApp } from '@/lib/detect-device'
+import { enableNativePush, disableNativePush, nativePushEnabled } from '@/lib/native-push'
 import { InstallGuide } from '@/components/pwa/install-guide'
 import { PageHeader } from '@/components/ui/page-header'
 import { UserRound } from 'lucide-react'
@@ -225,6 +226,12 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   }, [])
 
   useEffect(() => {
+    // N3: in the native app, push runs over APNs/FCM (no service worker needed)
+    if (isNativeApp()) {
+      setPushSupported(true)
+      setPushEnabled(nativePushEnabled())
+      return
+    }
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     setPushSupported(true)
     navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription())
@@ -236,6 +243,17 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
     if (pushLoading) return
     setPushLoading(true)
     try {
+      // N3: native rail — register/unregister via Capacitor instead of web-push
+      if (isNativeApp()) {
+        if (pushEnabled) {
+          await disableNativePush()
+          setPushEnabled(false)
+        } else {
+          const ok = await enableNativePush()
+          setPushEnabled(ok)
+        }
+        return
+      }
       const reg = await navigator.serviceWorker.ready
       if (pushEnabled) {
         const sub = await reg.pushManager.getSubscription()

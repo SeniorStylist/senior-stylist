@@ -5,7 +5,9 @@ import { ensurePushSchema } from '@/lib/push-ddl'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
-const schema = z.object({ endpoint: z.string().url().max(2000) })
+// endpoint is a push-service URL for web rows, or a bare FCM device token for
+// native rows (N3) — so no .url() constraint.
+const schema = z.object({ endpoint: z.string().min(10).max(2000) })
 
 export async function POST(request: Request) {
   try {

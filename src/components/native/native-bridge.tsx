@@ -9,6 +9,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { isNativeApp, nativePlatform } from '@/lib/detect-device'
+import { resumeNativePushIfEnabled } from '@/lib/native-push'
 
 export function NativeBridge() {
   const router = useRouter()
@@ -62,6 +63,10 @@ export function NativeBridge() {
         const { SplashScreen } = await import('@capacitor/splash-screen')
         await SplashScreen.hide()
       } catch { /* ignore */ }
+
+      // N3: silently refresh the FCM token for users who already opted in to
+      // push (tokens rotate). Never prompts — opt-in lives in /my-account.
+      void resumeNativePushIfEnabled()
     })()
 
     return () => cleanups.forEach((fn) => fn())

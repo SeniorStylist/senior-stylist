@@ -82,6 +82,37 @@ All native-gated (no web impact). **The haptics contract:**
   `-webkit-touch-callout: none` to suppress the iOS long-press callout). This is THE mechanism for
   any future in-app-only styling.
 
+## Native push (Phase N3 — wired 2026-07-05, dormant until Firebase configured)
+
+Architecture: **FCM for BOTH platforms** (iOS pushes route through APNs via Firebase) — one server
+credential. Mirrors the TWILIO/VAPID gating: a strict no-op until `FIREBASE_SERVICE_ACCOUNT_BASE64`
+is set (.env.local + Vercel).
+
+- **Rows**: `push_subscriptions.platform` (`'web'|'ios'|'android'`, migration
+  `drizzle/0020_push_platform.sql`, self-bootstrapped by `push-ddl.ts`). Native rows store the FCM
+  device token in `endpoint` with null `p256dh`/`auth`.
+- **Server**: `sendPushToUser` (`src/lib/push.ts`) branches per row — web → web-push (unchanged),
+  native → `sendFcmToToken` (`src/lib/push-fcm.ts`, firebase-admin, prunes
+  `registration-token-not-registered`). Never throws.
+- **Client**: `src/lib/native-push.ts` — `enableNativePush()` (permission + register + POST
+  `{platform, token}` to `/api/push/subscribe`), `disableNativePush()`, and
+  `resumeNativePushIfEnabled()` (silent token refresh, called from `<NativeBridge>`; never prompts).
+  The /my-account push toggle branches on `isNativeApp()` — native uses this rail instead of the
+  service worker. Permission is requested ONLY from the toggle, never on launch.
+
+### N3 go-live gate (Josh)
+1. Create a **Firebase project** → add an **Android app** (`com.seniorstylist.app`) → download
+   `google-services.json` → place at `android/app/google-services.json`.
+2. Add an **iOS app** (same bundle id) → download `GoogleService-Info.plist` → add to the Xcode
+   project (App target). Upload your **APNs Auth Key** (Apple Developer → Keys) under Firebase →
+   Project settings → Cloud Messaging → Apple app configuration.
+3. Xcode: enable capabilities **Push Notifications** + **Background Modes → Remote notifications**.
+4. Firebase → Project settings → Service accounts → **Generate new private key** →
+   `base64 -i serviceAccount.json | tr -d '\n'` → set `FIREBASE_SERVICE_ACCOUNT_BASE64` in
+   .env.local + Vercel.
+5. Apply `drizzle/0020_push_platform.sql` in Supabase (idempotent; push-ddl also self-bootstraps).
+6. Test: in the app, My Account → enable push → send yourself a test (any `sendPushToUser` caller).
+
 ## Run it locally (Josh, on the Mac)
 1. `npm install` (picks up the new plugins).
 2. `npm run cap:sync` (copies plugins/config into `ios/` + `android/`; runs `pod install` on macOS).
