@@ -97,6 +97,16 @@ Tailwind CSS 4, Vercel
 
 ## 5. PHASE ROADMAP
 
+### Native N2 — haptics + native-feel polish (SHIPPED 2026-07-05)
+
+All Capacitor-gated (zero web impact; helper no-ops off-native). Toast `push()` is the single
+source of success/error haptics (never duplicate at toast call sites); `<Button>` light press
+haptic; mobile-nav selection; pull-to-refresh medium at trigger; explicit success haptic only on
+the no-toast check-in reschedule confirm; booking-modal inline-error haptics; `html.native-app`
+class (set by `<NativeBridge>`) is the native-only CSS mechanism (currently kills the iOS
+long-press callout). Commit 0b3039a. N1 device gate (Mac run + Supabase `{{ .Token }}` template)
+still on Josh. See CLAUDE.md N2 entry + docs/native-app.md.
+
 ### Phase 1 COMPLETE
 - Full invite flow fixed — RLS blind spot was root cause
   facility_users and invites needed authenticated SELECT policies

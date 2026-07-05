@@ -65,6 +65,23 @@ Installed plugins: `@capacitor/haptics`, `status-bar`, `splash-screen`, `keyboar
     `Your code is {{ .Token }}` (alongside or instead of the `{{ .ConfirmationURL }}` link). Without
     it, the app's code screen has nothing to type.
 
+## Haptics + native polish (Phase N2 — wired 2026-07-05)
+
+All native-gated (no web impact). **The haptics contract:**
+- **Toast layer is the single source of success/error haptics** — `push()` in
+  `src/components/ui/toast.tsx` fires `haptics.success()`/`haptics.error()` once at toast creation.
+  Any flow that shows a success/error toast is automatically covered. **Never also call
+  `haptics.success/error` at a call site that toasts — double-buzz.** Explicit call-site haptics are
+  ONLY for completions with no toast (currently: check-in reschedule confirm in `checkin-banner.tsx`,
+  booking-modal inline `setError` branches).
+- `<Button>` fires `haptics.light()` on every enabled press (bare `<button>`s are not blanket-covered
+  — add individually only where it matters).
+- Mobile-nav tabs → `haptics.selection()`; pull-to-refresh trigger → `haptics.medium()`.
+- **Native-only CSS layer**: `<NativeBridge>` adds the `native-app` class to `<html>` inside the
+  shell; scope native-only rules as `html.native-app { … }` in globals.css (currently:
+  `-webkit-touch-callout: none` to suppress the iOS long-press callout). This is THE mechanism for
+  any future in-app-only styling.
+
 ## Run it locally (Josh, on the Mac)
 1. `npm install` (picks up the new plugins).
 2. `npm run cap:sync` (copies plugins/config into `ios/` + `android/`; runs `pod install` on macOS).
