@@ -31,9 +31,22 @@ export async function sendPushToUser(
   userId: string,
   payload: { title: string; body: string; url?: string }
 ): Promise<void> {
-  const subs = await db.query.pushSubscriptions.findMany({
-    where: eq(pushSubscriptions.userId, userId),
-  })
+  // Self-bootstrap the platform column (N3) so a send can never fail on a
+  // pre-migration DB; ensurePushSchema is a module-guarded no-op after the first call.
+  const { ensurePushSchema } = await import('@/lib/push-ddl')
+  await ensurePushSchema()
+
+  let subs: Awaited<ReturnType<typeof db.query.pushSubscriptions.findMany>>
+  try {
+    subs = await db.query.pushSubscriptions.findMany({
+      where: eq(pushSubscriptions.userId, userId),
+    })
+  } catch (err) {
+    // Push is always best-effort — never let a schema/connection hiccup propagate
+    // into the caller (bookings, crons, webhooks all fire-and-forget this).
+    console.error('[sendPushToUser] subscription query failed:', err)
+    return
+  }
   if (subs.length === 0) return
 
   const wp = await getWebPush()
