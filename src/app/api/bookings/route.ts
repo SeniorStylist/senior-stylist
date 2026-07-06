@@ -336,11 +336,21 @@ export async function POST(request: NextRequest) {
     // Push notification to stylist — fire-and-forget (skipped for demo bookings)
     if (!isDemo) {
       db.query.profiles.findFirst({ where: (p, { eq }) => eq(p.stylistId, stylist.id) })
-        .then(profile => {
+        .then(async profile => {
           if (profile) {
+            // W6: include the local date+time (facility tz) in the body
+            const fac = await db.query.facilities.findFirst({
+              where: eq(facilities.id, facilityId),
+              columns: { timezone: true },
+            }).catch(() => null)
+            const tz = fac?.timezone ?? 'America/New_York'
+            const when = booking.startTime.toLocaleString('en-US', {
+              weekday: 'short', month: 'short', day: 'numeric',
+              hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz,
+            })
             return sendPushToUser(profile.id, {
               title: 'New booking',
-              body: `${resident.name} — ${service.name}`,
+              body: `${resident.name} — ${service.name} · ${when}`,
               url: '/dashboard',
             })
           }

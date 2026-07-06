@@ -456,6 +456,24 @@ export async function PUT(
       ).catch((e) => console.error('[autopay on-completion] failed:', e))
     }
 
+    // W6: push the stylist when a scheduled booking's time moves — fire-and-forget.
+    if (
+      updates.startTime !== undefined &&
+      new Date(updates.startTime).getTime() !== new Date(existing.startTime).getTime() &&
+      updated.status === 'scheduled' &&
+      !updated.isDemo
+    ) {
+      import('@/lib/push-booking').then(({ notifyBookingChange }) =>
+        notifyBookingChange(id, 'rescheduled'),
+      ).catch(() => {})
+    }
+    // Cancellation via PUT (status flip) — same push as the DELETE path.
+    if (updates.status === 'cancelled' && existing.status !== 'cancelled' && !updated.isDemo) {
+      import('@/lib/push-booking').then(({ notifyBookingChange }) =>
+        notifyBookingChange(id, 'cancelled'),
+      ).catch(() => {})
+    }
+
     revalidateTag('bookings', {})
     return Response.json({ data: toClientJson(data) })
   } catch (err) {
@@ -531,6 +549,13 @@ export async function DELETE(
           }
         })
         .catch(err => console.error('Stylist calendar sync failed:', err))
+    }
+
+    // W6: push the stylist about the cancellation — fire-and-forget.
+    if (!existing.isDemo) {
+      import('@/lib/push-booking').then(({ notifyBookingChange }) =>
+        notifyBookingChange(id, 'cancelled'),
+      ).catch(() => {})
     }
 
     revalidateTag('bookings', {})

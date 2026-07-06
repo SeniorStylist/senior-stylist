@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import { isInstallable, detectDevice, isNativeApp } from '@/lib/detect-device'
 import { enableNativePush, disableNativePush, nativePushEnabled } from '@/lib/native-push'
+import { appLockEnabled, setAppLockEnabled, isBiometricAvailable, verifyAppLock } from '@/lib/app-lock'
+import { haptics } from '@/lib/haptics'
 import { InstallGuide } from '@/components/pwa/install-guide'
 import { PageHeader } from '@/components/ui/page-header'
 import { UserRound } from 'lucide-react'
@@ -217,6 +219,40 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
   const [pushSupported, setPushSupported] = useState(false)
+  // W4: biometric App Lock (native app only)
+  const [lockAvailable, setLockAvailable] = useState(false)
+  const [lockEnabled, setLockEnabled] = useState(false)
+  const [lockLoading, setLockLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isNativeApp()) return
+    setLockEnabled(appLockEnabled())
+    void isBiometricAvailable().then(setLockAvailable)
+  }, [])
+
+  const handleLockToggle = async () => {
+    if (lockLoading) return
+    setLockLoading(true)
+    try {
+      if (lockEnabled) {
+        setAppLockEnabled(false)
+        setLockEnabled(false)
+        haptics.light()
+      } else {
+        // Prove the biometric works before trusting it as the gate
+        const ok = await verifyAppLock()
+        if (!ok) {
+          haptics.error() // verification failed/cancelled — toggle stays off
+          return
+        }
+        setAppLockEnabled(true)
+        setLockEnabled(true)
+        haptics.success()
+      }
+    } finally {
+      setLockLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (isInstallable()) {
@@ -1209,6 +1245,36 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
               <span
                 className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
                 style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }}
+              />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* App Lock card — native app + biometrics available (W4) */}
+      {lockAvailable && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(139,46,74,0.08)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-stone-900">App Lock</p>
+              <p className="text-xs text-stone-500 mt-0.5">Require Face ID / fingerprint to open the app</p>
+            </div>
+            <button
+              onClick={handleLockToggle}
+              disabled={lockLoading}
+              aria-pressed={lockEnabled}
+              className="shrink-0 w-11 h-6 rounded-full transition-colors relative disabled:opacity-50"
+              style={{ backgroundColor: lockEnabled ? '#8B2E4A' : '#d6d3d1' }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                style={{ transform: lockEnabled ? 'translateX(20px)' : 'translateX(0)' }}
               />
             </button>
           </div>

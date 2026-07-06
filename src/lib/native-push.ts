@@ -84,6 +84,28 @@ export async function disableNativePush(): Promise<void> {
   }
 }
 
+let _tapWired = false
+
+/**
+ * W6: navigate when the user taps a notification. The FCM payload carries
+ * data.url (set by sendFcmToToken); fall back to /dashboard. Hard navigation is
+ * intentional — the app may be cold-starting from the tap.
+ */
+export async function wirePushTapNavigation(): Promise<void> {
+  if (!isNativeApp() || _tapWired) return
+  _tapWired = true
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications')
+    await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      const url = (action.notification?.data as { url?: string } | undefined)?.url
+      if (url && url.startsWith('/')) window.location.assign(url)
+      else window.location.assign('/dashboard')
+    })
+  } catch {
+    _tapWired = false
+  }
+}
+
 /**
  * Silent re-registration on app start/resume for users who previously opted in —
  * FCM tokens rotate, and re-posting keeps the server row fresh. Never prompts

@@ -1,18 +1,20 @@
 'use client'
 
-// Wires the Capacitor native shell to the web app. Renders nothing; runs once on
-// mount and ONLY inside the native app (no-op on web/PWA/SSR). Handles: hiding the
-// splash once the web is interactive, status-bar styling, keyboard resize, the
-// Android hardware back button, and session refresh on app resume. All plugin
-// imports are dynamic so nothing lands in the web bundle.
+// Wires the Capacitor native shell to the web app. Runs ONLY inside the native app
+// (no-op on web/PWA/SSR). Handles: hiding the splash once the web is interactive,
+// status-bar styling, keyboard resize, the Android hardware back button, session
+// refresh on app resume, push token refresh + notification-tap navigation, and an
+// offline banner. All plugin imports are dynamic so nothing lands in the web bundle.
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isNativeApp, nativePlatform } from '@/lib/detect-device'
-import { resumeNativePushIfEnabled } from '@/lib/native-push'
+import { resumeNativePushIfEnabled, wirePushTapNavigation } from '@/lib/native-push'
 
 export function NativeBridge() {
   const router = useRouter()
+  // W5: offline awareness — banner shown while the device has no connection.
+  const [offline, setOffline] = useState(false)
 
   useEffect(() => {
     if (!isNativeApp()) return
@@ -58,6 +60,17 @@ export function NativeBridge() {
         cleanups.push(() => state.remove())
       } catch { /* ignore */ }
 
+      // W5: offline banner — initial status + live changes.
+      try {
+        const { Network } = await import('@capacitor/network')
+        const status = await Network.getStatus()
+        setOffline(!status.connected)
+        const net = await Network.addListener('networkStatusChange', (s) => {
+          setOffline(!s.connected)
+        })
+        cleanups.push(() => net.remove())
+      } catch { /* ignore */ }
+
       // Hide the splash now that the web app is mounted + interactive.
       try {
         const { SplashScreen } = await import('@capacitor/splash-screen')
@@ -67,10 +80,22 @@ export function NativeBridge() {
       // N3: silently refresh the FCM token for users who already opted in to
       // push (tokens rotate). Never prompts — opt-in lives in /my-account.
       void resumeNativePushIfEnabled()
+
+      // W6: notification tap → navigate to the push payload's url.
+      void wirePushTapNavigation()
     })()
 
     return () => cleanups.forEach((fn) => fn())
   }, [router])
 
-  return null
+  if (!offline) return null
+
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-[260] text-center text-[12px] font-semibold text-white bg-stone-800/95 backdrop-blur-sm"
+      style={{ paddingTop: 'calc(0.3rem + env(safe-area-inset-top))', paddingBottom: '0.3rem' }}
+    >
+      No internet connection — changes won&apos;t save
+    </div>
+  )
 }
