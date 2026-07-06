@@ -974,3 +974,89 @@ export function buildDailySummaryEmailHtml(params: {
 </body>
 </html>`.trim()
 }
+
+// ─── Phase 15 F2 — weekly owner digest ───────────────────────────────────────
+
+export interface WeeklyFacilitySummary {
+  facilityName: string
+  facilityCode: string | null
+  completedCount: number
+  // price_cents + addon_total_cents only — never add tip_cents
+  revenueCents: number
+  paymentsCents: number
+  cancelledCount: number
+  newResidents: number
+}
+
+export function buildWeeklyDigestEmailHtml(params: {
+  weekLabel: string
+  facilities: WeeklyFacilitySummary[]
+}): string {
+  const { weekLabel, facilities } = params
+  const dollars = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const totals = facilities.reduce(
+    (acc, f) => ({
+      completed: acc.completed + f.completedCount,
+      revenue: acc.revenue + f.revenueCents,
+      payments: acc.payments + f.paymentsCents,
+      cancelled: acc.cancelled + f.cancelledCount,
+      newResidents: acc.newResidents + f.newResidents,
+    }),
+    { completed: 0, revenue: 0, payments: 0, cancelled: 0, newResidents: 0 },
+  )
+
+  const th = (label: string, align = 'left') =>
+    `<th style="text-align:${align};font-size:10px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:0.06em;padding:0 4px 8px;border-bottom:2px solid #E7E5E4;">${label}</th>`
+  const td = (content: string, align = 'left', extra = '') =>
+    `<td style="text-align:${align};padding:9px 4px;border-bottom:1px solid #F5F5F4;font-size:12.5px;color:#1C1917;${extra}">${content}</td>`
+
+  const rows = facilities
+    .map((f) => {
+      const code = f.facilityCode
+        ? `<span style="font-size:10px;font-family:monospace;color:#A8A29E;margin-right:5px;">${escHtml(f.facilityCode)}</span>`
+        : ''
+      return `<tr>
+        ${td(`${code}<span style="font-weight:600;">${escHtml(f.facilityName)}</span>`)}
+        ${td(String(f.completedCount), 'center')}
+        ${td(dollars(f.revenueCents), 'right', 'font-weight:600;color:#8B2E4A;')}
+        ${td(dollars(f.paymentsCents), 'right')}
+        ${td(f.cancelledCount > 0 ? String(f.cancelledCount) : '—', 'center', f.cancelledCount > 0 ? '' : 'color:#A8A29E;')}
+        ${td(f.newResidents > 0 ? `+${f.newResidents}` : '—', 'center', f.newResidents > 0 ? 'color:#047857;font-weight:600;' : 'color:#A8A29E;')}
+      </tr>`
+    })
+    .join('')
+
+  const tile = (label: string, value: string, tinted = false) => `
+    <td style="width:33%;padding:12px 8px;background:${tinted ? '#F9EFF2' : '#F5F5F4'};border-radius:10px;text-align:center;">
+      <div style="color:${tinted ? '#8B2E4A' : '#78716C'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">${label}</div>
+      <div style="color:#1C1917;font-size:22px;font-weight:700;margin-top:4px;">${value}</div>
+    </td>`
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:640px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Weekly Digest', title: 'Week in Review', subtitle: weekLabel })}
+    <div style="padding:24px 28px;">
+      <table style="width:100%;border-collapse:separate;border-spacing:6px 0;margin:0 -6px 20px;">
+        <tr>
+          ${tile('Appointments', String(totals.completed), true)}
+          ${tile('Service Revenue', dollars(totals.revenue))}
+          ${tile('Collected', dollars(totals.payments))}
+        </tr>
+      </table>
+      ${facilities.length > 0 ? `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>${th('Facility')}${th('Appts', 'center')}${th('Revenue', 'right')}${th('Collected', 'right')}${th('Cxl', 'center')}${th('New Res.', 'center')}</tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>` : '<p style="text-align:center;color:#A8A29E;font-size:14px;padding:24px 0;">No activity this week.</p>'}
+      <p style="margin:24px 0 0;font-size:12px;color:#A8A29E;text-align:center;">Sent every Monday by Senior Stylist · revenue excludes tips</p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
