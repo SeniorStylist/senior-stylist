@@ -4,7 +4,7 @@
 // stripe_payment_method_id.
 
 import { db } from '@/db'
-import { paymentMethods } from '@/db/schema'
+import { paymentMethods, residents } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
 import { getPlatformStripe } from './stripe-client'
@@ -34,6 +34,17 @@ export async function saveCardFromSetupIntent(
   if (!pm || typeof pm === 'string') throw new Error('SetupIntent has no expanded payment method')
   const customerId = typeof si.customer === 'string' ? si.customer : si.customer?.id
   if (!customerId) throw new Error('SetupIntent has no customer')
+
+  // The SetupIntent must have been created for THIS resident — the setup-intent
+  // route stamps the resident's Stripe customer, so a mismatched customer means a
+  // forged/foreign setupIntentId (would vault someone else's card under this resident).
+  const resident = await db.query.residents.findFirst({
+    where: eq(residents.id, ctx.residentId),
+    columns: { stripeCustomerId: true },
+  })
+  if (!resident?.stripeCustomerId || resident.stripeCustomerId !== customerId) {
+    throw new Error('SetupIntent does not belong to this resident')
+  }
 
   const brand = pm.card?.brand ?? null
   const last4 = pm.card?.last4 ?? null

@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { residents, services, facilities } from '@/db/schema'
+import { residents, services, facilities, bookings } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -32,6 +32,21 @@ export async function POST(
     }
 
     const { bookingId, serviceId } = parsed.data
+
+    // The webhook marks metadata.bookingId as paid — validate the booking belongs
+    // to THIS resident before creating the session (a forged UUID would otherwise
+    // let a token holder flip any booking in any facility to paid).
+    const booking = await db.query.bookings.findFirst({
+      where: and(
+        eq(bookings.id, bookingId),
+        eq(bookings.residentId, resident.id),
+        eq(bookings.facilityId, resident.facilityId),
+      ),
+      columns: { id: true },
+    })
+    if (!booking) {
+      return Response.json({ error: 'Booking not found' }, { status: 404 })
+    }
 
     const [service, facility] = await Promise.all([
       db.query.services.findFirst({

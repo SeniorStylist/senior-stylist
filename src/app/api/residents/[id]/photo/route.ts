@@ -75,7 +75,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from(RESIDENT_PHOTOS_BUCKET)
       .createSignedUrl(path, 3600)
 
-    return Response.json({ data: { photoPath: path, photoUrl: signedData?.signedUrl ?? null } })
+    // Signed URL only — raw storage paths are never returned to clients (documented invariant).
+    return Response.json({ data: { photoUrl: signedData?.signedUrl ?? null } })
   } catch (err) {
     console.error('[POST /api/residents/[id]/photo] error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

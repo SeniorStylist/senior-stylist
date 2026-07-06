@@ -171,6 +171,24 @@ export async function POST(request: Request) {
       }
     }
 
+    // Same IDOR guard for resident + service ids: any provided UUID must belong
+    // to the target facility (the loaded lists above are already facility-scoped).
+    // Only included entries matter — excluded rows are never inserted.
+    const validResidentIds = new Set(existingResidents.map((r) => r.id))
+    const validServiceIds = new Set(existingServices.map((s) => s.id))
+    for (const sheet of parsed.data.sheets) {
+      for (const entry of sheet.entries) {
+        if (!entry.include) continue
+        if (entry.residentId && !validResidentIds.has(entry.residentId)) {
+          return Response.json({ error: 'An entry references a resident outside the target facility.' }, { status: 403 })
+        }
+        const referencedServiceIds = [entry.serviceId, ...(entry.additionalServiceIds ?? [])]
+        if (referencedServiceIds.some((id) => id && !validServiceIds.has(id))) {
+          return Response.json({ error: 'An entry references a service outside the target facility.' }, { status: 403 })
+        }
+      }
+    }
+
     // In-memory dedup maps — prevent duplicate inserts within a single import
     const residentMap = new Map<string, string>()
     const serviceMap = new Map<string, string>()

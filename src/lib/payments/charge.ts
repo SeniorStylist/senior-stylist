@@ -250,7 +250,13 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
 
   const card = await db.query.paymentMethods.findFirst({
     where: opts.paymentMethodId
-      ? and(eq(paymentMethods.stripePaymentMethodId, opts.paymentMethodId), eq(paymentMethods.active, true))
+      ? // Always scope to the resident — an explicit paymentMethodId must belong to
+        // THIS resident, never a card vaulted for someone else (IDOR guard).
+        and(
+          eq(paymentMethods.stripePaymentMethodId, opts.paymentMethodId),
+          eq(paymentMethods.residentId, resident.id),
+          eq(paymentMethods.active, true),
+        )
       : and(eq(paymentMethods.residentId, resident.id), eq(paymentMethods.active, true)),
     orderBy: [desc(paymentMethods.isDefault), desc(paymentMethods.createdAt)],
   })
