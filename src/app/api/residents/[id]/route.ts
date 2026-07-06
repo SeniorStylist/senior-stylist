@@ -20,6 +20,8 @@ const updateSchema = z.object({
   poaNotificationsEnabled: z.boolean().optional(),
   defaultTipType: z.enum(['percentage', 'fixed']).nullable().optional(),
   defaultTipValue: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  // Phase 15 F3 — birthday reminders (column existed since 14A, UI writes it now)
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 })
 
 export async function GET(

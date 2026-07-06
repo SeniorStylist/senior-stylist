@@ -887,6 +887,8 @@ export interface DigestFacilitySummary {
   facilityCode: string | null
   appointmentCount: number
   stylistNames: string[]
+  // Phase 15 F3 — resident birthdays today + next 7 days (optional section)
+  birthdays?: { name: string; dateLabel: string; isToday: boolean }[]
 }
 
 export function buildDailySummaryEmailHtml(params: {
@@ -910,6 +912,24 @@ export function buildDailySummaryEmailHtml(params: {
       </tr>`
     })
     .join('')
+
+  // Phase 15 F3 — birthdays section (today + next 7 days), shown when any facility has one
+  const allBirthdays = facilities.flatMap((f) =>
+    (f.birthdays ?? []).map((b) => ({ ...b, facilityName: f.facilityName })),
+  )
+  const birthdaySection = allBirthdays.length > 0
+    ? `<div style="margin-top:20px;padding:14px 16px;background:#FDF6F8;border:1px solid rgba(139,46,74,0.15);border-radius:12px;">
+        <div style="font-size:11px;font-weight:700;color:#8B2E4A;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🎂 Birthdays</div>
+        ${allBirthdays
+          .map(
+            (b) => `<div style="font-size:13px;color:#1C1917;padding:3px 0;">
+              <span style="font-weight:600;">${escHtml(b.name)}</span>
+              <span style="color:#78716C;"> — ${escHtml(b.dateLabel)}${b.isToday ? ' (today!)' : ''}${isMasterDigest ? ` · ${escHtml(b.facilityName)}` : ''}</span>
+            </div>`,
+          )
+          .join('')}
+      </div>`
+    : ''
 
   const emptyState = facilities.length === 0
     ? '<p style="text-align:center;color:#A8A29E;font-size:14px;padding:24px 0;">No appointments scheduled today.</p>'
@@ -946,6 +966,7 @@ export function buildDailySummaryEmailHtml(params: {
         </thead>
         <tbody>${facilityRows}</tbody>
       </table>` : emptyState}
+      ${birthdaySection}
       <p style="margin:24px 0 0;font-size:12px;color:#A8A29E;text-align:center;">Sent automatically at 8:00 AM by Senior Stylist</p>
     </div>
     ${EMAIL_FOOTER}

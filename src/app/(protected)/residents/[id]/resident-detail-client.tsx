@@ -73,6 +73,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [name, setName] = useState(initialResident.name)
   const [roomNumber, setRoomNumber] = useState(initialResident.roomNumber ?? '')
   const [phone, setPhone] = useState(initialResident.phone ?? '')
+  const [dateOfBirth, setDateOfBirth] = useState((initialResident.dateOfBirth ?? '').slice(0, 10))
   const [notes, setNotes] = useState(initialResident.notes ?? '')
   const [defaultServiceId, setDefaultServiceId] = useState(initialResident.defaultServiceId ?? '')
   const [poaName, setPoaName] = useState(initialResident.poaName ?? '')
@@ -182,6 +183,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           name: name.trim(),
           roomNumber: roomNumber.trim() || undefined,
           phone: phone.trim() || undefined,
+          dateOfBirth: dateOfBirth || null,
           notes: notes.trim() || undefined,
           defaultServiceId: defaultServiceId || null,
           poaName: poaName.trim() || undefined,
@@ -227,6 +229,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     setName(resident.name)
     setRoomNumber(resident.roomNumber ?? '')
     setPhone(resident.phone ?? '')
+    setDateOfBirth((resident.dateOfBirth ?? '').slice(0, 10))
     setNotes(resident.notes ?? '')
     setDefaultServiceId(resident.defaultServiceId ?? '')
     setPoaName(resident.poaName ?? '')
@@ -359,6 +362,15 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   />
                 </div>
                 <div>
+                  <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">Birthday</label>
+                  <input
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
+                  />
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">Notes</label>
                   <textarea
                     value={notes}
@@ -454,6 +466,12 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                 <InfoRow label="Name" value={resident.name} />
                 <InfoRow label="Room" value={resident.roomNumber ? `Room ${resident.roomNumber}` : undefined} />
                 <InfoRow label="Phone" value={resident.phone ?? undefined} />
+                <InfoRow
+                  label="Birthday"
+                  value={resident.dateOfBirth
+                    ? new Date(resident.dateOfBirth.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+                    : undefined}
+                />
                 {preferredServiceName && (
                   <div>
                     <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Preferred Service</p>

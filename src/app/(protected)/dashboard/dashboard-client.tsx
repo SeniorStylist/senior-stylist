@@ -236,6 +236,34 @@ export function DashboardClient({
     return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
   }, [facility.timezone])
 
+  // Phase 15 F3 — upcoming resident birthdays (today + next 7 days, facility-tz
+  // anchored). Computed from the residents already loaded — no extra query.
+  const upcomingBirthdays = useMemo(() => {
+    const anchor = new Date(todayDateStr + 'T00:00:00')
+    const monthDays: string[] = []
+    for (let i = 0; i <= 7; i++) {
+      const d = new Date(anchor.getTime() + i * 24 * 60 * 60 * 1000)
+      monthDays.push(`${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    }
+    return residents
+      .flatMap((r) => {
+        if (!r.dateOfBirth) return []
+        const idx = monthDays.indexOf(String(r.dateOfBirth).slice(5, 10))
+        if (idx === -1) return []
+        const when = new Date(anchor.getTime() + idx * 24 * 60 * 60 * 1000)
+        return [{
+          id: r.id,
+          name: r.name,
+          roomNumber: r.roomNumber,
+          isToday: idx === 0,
+          sortIdx: idx,
+          dateLabel: idx === 0 ? 'Today' : when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        }]
+      })
+      .sort((a, b) => a.sortIdx - b.sortIdx)
+      .slice(0, 6)
+  }, [residents, todayDateStr])
+
   // Fetch pending sign-up sheet entries (stylist sees their own + unassigned;
   // facility staff/admin see them via the slide-over panel only).
   useEffect(() => {
@@ -942,6 +970,29 @@ export function DashboardClient({
                     {workingTomorrow.map((s) => s.name.split(' ')[0]).join(', ')}
                   </p>
                 )}
+              </div>
+            )}
+
+            {upcomingBirthdays.length > 0 && (
+              <div className="shrink-0 bg-white rounded-2xl border border-stone-100 px-4 py-3 shadow-sm">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-2">
+                  🎂 Upcoming Birthdays
+                </p>
+                <div className="space-y-1">
+                  {upcomingBirthdays.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between gap-2 min-w-0">
+                      <span className="text-[12px] font-medium text-stone-700 truncate">
+                        {b.name}
+                        {b.roomNumber && <span className="text-stone-400 font-normal"> · Rm {b.roomNumber}</span>}
+                      </span>
+                      <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                        b.isToday ? 'bg-[#8B2E4A] text-white' : 'bg-rose-50 text-[#8B2E4A]'
+                      }`}>
+                        {b.dateLabel}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

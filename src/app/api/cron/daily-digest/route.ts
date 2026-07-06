@@ -1,9 +1,10 @@
 import { db } from '@/db'
-import { bookings, facilities, facilityUsers, profiles } from '@/db/schema'
-import { and, eq, gte, lt, inArray } from 'drizzle-orm'
+import { bookings, facilities, facilityUsers, profiles, residents } from '@/db/schema'
+import { and, eq, gte, isNotNull, lt, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { dayRangeInTimezone } from '@/lib/time'
 import { sendEmail, buildDailySummaryEmailHtml, type DigestFacilitySummary } from '@/lib/email'
+import { notifyManyUsers } from '@/lib/notify'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -70,14 +71,84 @@ export async function GET(request: NextRequest) {
       if (stylistName) agg.stylistNames.add(stylistName)
     }
 
+    // Phase 15 F3 — resident birthdays (today + next 7 days). ONE batched query;
+    // month-day matching in JS. The cron fires at 8am UTC (0-4am US local), so the
+    // UTC calendar date equals every US facility's local date.
+    const dobResidents = allActiveFacilities.length
+      ? await db.query.residents.findMany({
+          where: and(
+            inArray(residents.facilityId, allActiveFacilities.map((f) => f.id)),
+            eq(residents.active, true),
+            eq(residents.isDemo, false), // is_demo filter — Phase 13
+            isNotNull(residents.dateOfBirth),
+          ),
+          columns: { facilityId: true, name: true, roomNumber: true, dateOfBirth: true },
+        })
+      : []
+    const upcomingMonthDays: string[] = [] // 'MM-DD' for today..+7 (UTC-derived, see above)
+    for (let i = 0; i <= 7; i++) {
+      const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000)
+      upcomingMonthDays.push(d.toISOString().slice(5, 10))
+    }
+    const birthdaysByFacility = new Map<string, { name: string; dateLabel: string; isToday: boolean }[]>()
+    const todayBirthdays: { facilityId: string; name: string; roomNumber: string | null }[] = []
+    for (const r of dobResidents) {
+      const monthDay = String(r.dateOfBirth).slice(5, 10)
+      const idx = upcomingMonthDays.indexOf(monthDay)
+      if (idx === -1) continue
+      const when = new Date(now.getTime() + idx * 24 * 60 * 60 * 1000)
+      const entry = {
+        name: r.name,
+        dateLabel: when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }),
+        isToday: idx === 0,
+      }
+      const list = birthdaysByFacility.get(r.facilityId) ?? []
+      list.push(entry)
+      birthdaysByFacility.set(r.facilityId, list)
+      if (idx === 0) todayBirthdays.push({ facilityId: r.facilityId, name: r.name, roomNumber: r.roomNumber })
+    }
+
     const summaryFor = (f: (typeof allActiveFacilities)[number]): DigestFacilitySummary | null => {
       const agg = perFacility.get(f.id)
-      if (!agg || agg.count === 0) return null
+      const birthdays = birthdaysByFacility.get(f.id)
+      // Include a facility with zero appointments if it has upcoming birthdays.
+      if ((!agg || agg.count === 0) && (!birthdays || birthdays.length === 0)) return null
       return {
         facilityName: f.name,
         facilityCode: f.facilityCode ?? null,
-        appointmentCount: agg.count,
-        stylistNames: [...agg.stylistNames],
+        appointmentCount: agg?.count ?? 0,
+        stylistNames: agg ? [...agg.stylistNames] : [],
+        birthdays,
+      }
+    }
+
+    // Day-of birthday bell/push to facility admins — ONE admin join across all
+    // affected facilities + ONE batched insert (never notifyFacilityAdmins in a loop).
+    if (todayBirthdays.length > 0) {
+      try {
+        const affectedIds = [...new Set(todayBirthdays.map((b) => b.facilityId))]
+        const admins = await db
+          .select({ userId: facilityUsers.userId, facilityId: facilityUsers.facilityId })
+          .from(facilityUsers)
+          .innerJoin(profiles, eq(profiles.id, facilityUsers.userId))
+          .where(and(inArray(facilityUsers.facilityId, affectedIds), eq(facilityUsers.role, 'admin')))
+        const rows = admins.flatMap((a) =>
+          todayBirthdays
+            .filter((b) => b.facilityId === a.facilityId)
+            .map((b) => ({
+              userId: a.userId,
+              payload: {
+                type: 'birthday' as const,
+                title: '🎂 Resident birthday today',
+                body: b.roomNumber ? `${b.name} (Room ${b.roomNumber})` : b.name,
+                url: '/residents',
+                facilityId: b.facilityId,
+              },
+            })),
+        )
+        await notifyManyUsers(rows)
+      } catch (err) {
+        console.error('[daily-digest] birthday notify failed:', err)
       }
     }
 
@@ -127,6 +198,7 @@ export async function GET(request: NextRequest) {
           facilityCode: facility.facilityCode ?? null,
           appointmentCount: agg?.count ?? 0,
           stylistNames: agg ? [...agg.stylistNames] : [],
+          birthdays: birthdaysByFacility.get(facility.id),
         }
         const html = buildDailySummaryEmailHtml({ dateLabel, facilities: [summary], isMasterDigest: false })
 
