@@ -78,11 +78,12 @@ export default async function DashboardPage() {
   try {
     // Phase 12T — pre-compute facility timezone + today's date range so the
     // stylist check-in + today's bookings queries below can use them.
-    const facilityTzRow = await db.query.facilities.findFirst({
+    // ONE facility fetch serves the tz pre-compute AND the client prop (audit
+    // 2026-07: this row was fetched 3× on every dashboard render).
+    const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityUser.facilityId),
-      columns: { timezone: true },
     })
-    const facilityTz = facilityTzRow?.timezone ?? 'America/New_York'
+    const facilityTz = facility?.timezone ?? 'America/New_York'
     const todayParts = getLocalParts(new Date(), facilityTz)
     const todayDateStr = `${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`
     const todayRange = dayRangeInTimezone(todayDateStr, facilityTz)
@@ -91,10 +92,7 @@ export default async function DashboardPage() {
     // tutorial's seeded resident/service/booking appear in the booking modal etc.
     const tutorialMode = await isTutorialModeActive()
 
-    const [facility, residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings] = await Promise.all([
-      db.query.facilities.findFirst({
-        where: eq(facilities.id, facilityUser.facilityId),
-      }),
+    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings] = await Promise.all([
       db.query.residents.findMany({
         where: and(
           eq(residents.facilityId, facilityUser.facilityId),
@@ -144,11 +142,7 @@ export default async function DashboardPage() {
             // Phase 12F — "today" / "tomorrow" anchored to facility tz so
             // a midnight boundary in the viewer's tz can't shift the queried day.
             const today = new Date()
-            const facilityRow = await db.query.facilities.findFirst({
-              where: eq(facilities.id, facilityUser.facilityId),
-              columns: { timezone: true },
-            })
-            const tz = facilityRow?.timezone ?? 'America/New_York'
+            const tz = facilityTz
             const localWeekday = new Intl.DateTimeFormat('en-US', {
               timeZone: tz, weekday: 'short',
             }).format(today)

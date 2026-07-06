@@ -28,66 +28,80 @@ export async function GET(request: NextRequest) {
     })
 
     let stylistsNotified = 0
-    let facilitiesWithBookings = 0
 
+    // Per-facility "tomorrow" windows (facility-local dates differ by timezone).
+    // Computed in JS so the whole cron needs only THREE queries total — with the
+    // max:1 pooled connection, a per-facility query loop serializes into hundreds
+    // of round-trips and risks the 60s cap at ~100+ facilities.
+    const windows = new Map<string, { start: Date; end: Date; tz: string; name: string }>()
     for (const facility of activeFacilities) {
-      try {
-        const tz = facility.timezone ?? 'America/New_York'
-        // "Tomorrow" anchored to the FACILITY's local date (not UTC).
-        const p = getLocalParts(new Date(), tz)
-        const todayLocal = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
-        const range = dayRangeInTimezone(todayLocal, tz, 1)
-        if (!range) continue
+      const tz = facility.timezone ?? 'America/New_York'
+      const p = getLocalParts(new Date(), tz)
+      const todayLocal = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+      const range = dayRangeInTimezone(todayLocal, tz, 1)
+      if (range) windows.set(facility.id, { ...range, tz, name: facility.name })
+    }
+    if (windows.size === 0) {
+      return Response.json({ data: { facilities: 0, facilitiesWithBookings: 0, stylistsNotified: 0 } })
+    }
 
-        const rows = await db.query.bookings.findMany({
-          where: and(
-            eq(bookings.facilityId, facility.id),
-            eq(bookings.active, true),
-            eq(bookings.isDemo, false),
-            ne(bookings.status, 'cancelled'),
-            gte(bookings.startTime, range.start),
-            lt(bookings.startTime, range.end),
-          ),
-          columns: { stylistId: true, startTime: true },
-        })
-        if (rows.length === 0) continue
-        facilitiesWithBookings++
+    // One bookings query over the union window; rows are re-filtered per facility
+    // against that facility's own local-tomorrow range below.
+    const allWindows = [...windows.values()]
+    const globalStart = new Date(Math.min(...allWindows.map((w) => w.start.getTime())))
+    const globalEnd = new Date(Math.max(...allWindows.map((w) => w.end.getTime())))
+    const rows = await db.query.bookings.findMany({
+      where: and(
+        inArray(bookings.facilityId, [...windows.keys()]),
+        eq(bookings.active, true),
+        eq(bookings.isDemo, false),
+        ne(bookings.status, 'cancelled'),
+        gte(bookings.startTime, globalStart),
+        lt(bookings.startTime, globalEnd),
+      ),
+      columns: { facilityId: true, stylistId: true, startTime: true },
+    })
 
-        // Group by stylist; find each stylist's earliest start.
-        const byStylist = new Map<string, { count: number; first: Date }>()
-        for (const r of rows) {
-          const cur = byStylist.get(r.stylistId)
-          const start = new Date(r.startTime)
-          if (!cur) byStylist.set(r.stylistId, { count: 1, first: start })
-          else {
-            cur.count++
-            if (start < cur.first) cur.first = start
-          }
-        }
-
-        // One query for all profiles of tomorrow's stylists at this facility.
-        const stylistIds = [...byStylist.keys()]
-        const stylistProfiles = await db.query.profiles.findMany({
-          where: inArray(profiles.stylistId, stylistIds),
-          columns: { id: true, stylistId: true },
-        })
-
-        await Promise.allSettled(
-          stylistProfiles.map(async (prof) => {
-            const info = prof.stylistId ? byStylist.get(prof.stylistId) : undefined
-            if (!info) return
-            await sendPushToUser(prof.id, {
-              title: `Tomorrow: ${info.count} appointment${info.count === 1 ? '' : 's'}`,
-              body: `First at ${formatTimeInTz(info.first, tz)} — ${facility.name}`,
-              url: '/dashboard',
-            })
-            stylistsNotified++
-          }),
-        )
-      } catch (facilityErr) {
-        console.error(`[schedule-reminders] facility ${facility.id} failed:`, facilityErr)
+    // Group by (facility, stylist); track each stylist's earliest start per facility.
+    const byFacilityStylist = new Map<string, { facilityId: string; stylistId: string; count: number; first: Date }>()
+    for (const r of rows) {
+      const w = windows.get(r.facilityId)
+      if (!w) continue
+      const start = new Date(r.startTime)
+      if (start < w.start || start >= w.end) continue // outside THIS facility's local tomorrow
+      const key = `${r.facilityId}|${r.stylistId}`
+      const cur = byFacilityStylist.get(key)
+      if (!cur) byFacilityStylist.set(key, { facilityId: r.facilityId, stylistId: r.stylistId, count: 1, first: start })
+      else {
+        cur.count++
+        if (start < cur.first) cur.first = start
       }
     }
+    const facilitiesWithBookings = new Set([...byFacilityStylist.values()].map((v) => v.facilityId)).size
+
+    // One profiles query for every stylist with bookings tomorrow, any facility.
+    const allStylistIds = [...new Set([...byFacilityStylist.values()].map((v) => v.stylistId))]
+    const stylistProfiles = allStylistIds.length
+      ? await db.query.profiles.findMany({
+          where: inArray(profiles.stylistId, allStylistIds),
+          columns: { id: true, stylistId: true },
+        })
+      : []
+    const profileByStylist = new Map(stylistProfiles.map((p) => [p.stylistId, p.id]))
+
+    await Promise.allSettled(
+      [...byFacilityStylist.values()].map(async (info) => {
+        const userId = profileByStylist.get(info.stylistId)
+        const w = windows.get(info.facilityId)
+        if (!userId || !w) return
+        await sendPushToUser(userId, {
+          title: `Tomorrow: ${info.count} appointment${info.count === 1 ? '' : 's'}`,
+          body: `First at ${formatTimeInTz(info.first, w.tz)} — ${w.name}`,
+          url: '/dashboard',
+        })
+        stylistsNotified++
+      }),
+    )
 
     return Response.json({ data: { facilities: activeFacilities.length, facilitiesWithBookings, stylistsNotified } })
   } catch (err) {

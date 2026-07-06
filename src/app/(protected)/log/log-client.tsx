@@ -13,7 +13,12 @@ import {
 } from '@/lib/service-sort'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
-import { TakePaymentModal } from '@/components/payments/take-payment-modal'
+import dynamic from 'next/dynamic'
+// Stripe Elements stays out of the daily-log bundle until a card payment is taken
+const TakePaymentModal = dynamic(
+  () => import('@/components/payments/take-payment-modal').then((m) => m.TakePaymentModal),
+  { ssr: false },
+)
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'

@@ -65,7 +65,19 @@ export default async function StylistDetailPage({
   // Start of current month
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-  const [upcomingBookings, allTimeBookings] = await Promise.all([
+  // All queries below depend only on (id, facilityUser, franchise, date anchors) —
+  // fan them out in ONE Promise.all (audit 2026-07: was ~6 sequential awaits).
+  const [
+    upcomingBookings,
+    allTimeBookings,
+    allBookingsWithService,
+    availability,
+    docs,
+    franchiseFacilityOptions,
+    assignments,
+    notes,
+    linkedProfile,
+  ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityUser.facilityId),
@@ -84,6 +96,71 @@ export default async function StylistDetailPage({
         ne(bookings.status, 'cancelled')
       ),
     }),
+    // This month's bookings with service names for the commission breakdown
+    db.query.bookings.findMany({
+      where: and(
+        eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.stylistId, id),
+        ne(bookings.status, 'cancelled'),
+        gte(bookings.startTime, startOfMonth)
+      ),
+      with: { service: true },
+    }),
+    db.query.stylistAvailability.findMany({
+      where: and(
+        eq(stylistAvailability.stylistId, id),
+        eq(stylistAvailability.facilityId, facilityUser.facilityId)
+      ),
+      orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
+    }),
+    db.query.complianceDocuments.findMany({
+      where: and(
+        eq(complianceDocuments.stylistId, id),
+        eq(complianceDocuments.facilityId, facilityUser.facilityId)
+      ),
+      orderBy: [desc(complianceDocuments.uploadedAt)],
+    }),
+    franchise
+      ? db
+          .select({ id: facilities.id, name: facilities.name })
+          .from(facilities)
+          .innerJoin(franchiseFacilities, eq(franchiseFacilities.facilityId, facilities.id))
+          .where(eq(franchiseFacilities.franchiseId, franchise.franchiseId))
+          .orderBy(facilities.name)
+      : Promise.resolve([]),
+    db
+      .select({
+        id: stylistFacilityAssignments.id,
+        stylistId: stylistFacilityAssignments.stylistId,
+        facilityId: stylistFacilityAssignments.facilityId,
+        facilityName: facilities.name,
+        commissionPercent: stylistFacilityAssignments.commissionPercent,
+        active: stylistFacilityAssignments.active,
+        createdAt: stylistFacilityAssignments.createdAt,
+        updatedAt: stylistFacilityAssignments.updatedAt,
+      })
+      .from(stylistFacilityAssignments)
+      .innerJoin(facilities, eq(facilities.id, stylistFacilityAssignments.facilityId))
+      .where(eq(stylistFacilityAssignments.stylistId, id))
+      .orderBy(facilities.name),
+    db
+      .select({
+        id: stylistNotes.id,
+        stylistId: stylistNotes.stylistId,
+        authorUserId: stylistNotes.authorUserId,
+        body: stylistNotes.body,
+        createdAt: stylistNotes.createdAt,
+        updatedAt: stylistNotes.updatedAt,
+        authorEmail: profiles.email,
+      })
+      .from(stylistNotes)
+      .innerJoin(profiles, eq(profiles.id, stylistNotes.authorUserId))
+      .where(eq(stylistNotes.stylistId, id))
+      .orderBy(desc(stylistNotes.createdAt)),
+    db.query.profiles.findFirst({
+      where: eq(profiles.stylistId, id),
+      columns: { id: true },
+    }),
   ])
 
   const weekBookings = allTimeBookings.filter(
@@ -92,16 +169,6 @@ export default async function StylistDetailPage({
   const monthBookings = allTimeBookings.filter(
     (b) => new Date(b.startTime) >= startOfMonth
   )
-  // Get this month's bookings with service names for commission breakdown
-  const allBookingsWithService = await db.query.bookings.findMany({
-    where: and(
-      eq(bookings.facilityId, facilityUser.facilityId),
-      eq(bookings.stylistId, id),
-      ne(bookings.status, 'cancelled'),
-      gte(bookings.startTime, startOfMonth)
-    ),
-    with: { service: true },
-  })
 
   const completedMonthBookings = allBookingsWithService.filter((b) => b.status === 'completed')
   const monthRevenue = completedMonthBookings.reduce((sum, b) => sum + (b.priceCents ?? 0), 0)
@@ -135,21 +202,6 @@ export default async function StylistDetailPage({
     serviceBreakdown,
   }
 
-  const availability = await db.query.stylistAvailability.findMany({
-    where: and(
-      eq(stylistAvailability.stylistId, id),
-      eq(stylistAvailability.facilityId, facilityUser.facilityId)
-    ),
-    orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
-  })
-
-  const docs = await db.query.complianceDocuments.findMany({
-    where: and(
-      eq(complianceDocuments.stylistId, id),
-      eq(complianceDocuments.facilityId, facilityUser.facilityId)
-    ),
-    orderBy: [desc(complianceDocuments.uploadedAt)],
-  })
   const storage = createStorageClient()
   const complianceDocs = await Promise.all(
     docs.map(async (d) => {
@@ -160,54 +212,9 @@ export default async function StylistDetailPage({
     })
   )
 
-  const franchiseFacilityOptions = franchise
-    ? await db
-        .select({ id: facilities.id, name: facilities.name })
-        .from(facilities)
-        .innerJoin(franchiseFacilities, eq(franchiseFacilities.facilityId, facilities.id))
-        .where(eq(franchiseFacilities.franchiseId, franchise.franchiseId))
-        .orderBy(facilities.name)
-    : []
-
-  const [assignments, notes] = await Promise.all([
-    db
-      .select({
-        id: stylistFacilityAssignments.id,
-        stylistId: stylistFacilityAssignments.stylistId,
-        facilityId: stylistFacilityAssignments.facilityId,
-        facilityName: facilities.name,
-        commissionPercent: stylistFacilityAssignments.commissionPercent,
-        active: stylistFacilityAssignments.active,
-        createdAt: stylistFacilityAssignments.createdAt,
-        updatedAt: stylistFacilityAssignments.updatedAt,
-      })
-      .from(stylistFacilityAssignments)
-      .innerJoin(facilities, eq(facilities.id, stylistFacilityAssignments.facilityId))
-      .where(eq(stylistFacilityAssignments.stylistId, id))
-      .orderBy(facilities.name),
-    db
-      .select({
-        id: stylistNotes.id,
-        stylistId: stylistNotes.stylistId,
-        authorUserId: stylistNotes.authorUserId,
-        body: stylistNotes.body,
-        createdAt: stylistNotes.createdAt,
-        updatedAt: stylistNotes.updatedAt,
-        authorEmail: profiles.email,
-      })
-      .from(stylistNotes)
-      .innerJoin(profiles, eq(profiles.id, stylistNotes.authorUserId))
-      .where(eq(stylistNotes.stylistId, id))
-      .orderBy(desc(stylistNotes.createdAt)),
-  ])
-
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   const isMasterAdmin = !!superAdminEmail && user.email === superAdminEmail
 
-  const linkedProfile = await db.query.profiles.findFirst({
-    where: eq(profiles.stylistId, id),
-    columns: { id: true },
-  })
   const hasLinkedAccount = !!linkedProfile
 
   return (

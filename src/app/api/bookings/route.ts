@@ -76,6 +76,9 @@ export async function GET(request: NextRequest) {
         importBatch: { columns: { fileName: true } },
       },
       orderBy: (t, { asc }) => [asc(t.startTime)],
+      // Defensive cap — the calendar always passes start/end (a range never nears
+      // this), but a param-less call must not dump a facility's full history.
+      limit: 5000,
     })
 
     return Response.json({ data: toClientJson(data) })
@@ -280,12 +283,17 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
+    // ONE facility fetch serves GCal sync, push tz, confirmation-email tz, and the
+    // POA email below (audit 2026-07: this row was fetched 4× per booking create).
+    const facilityRow = isDemo
+      ? null
+      : await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) }).catch(() => null)
+    const facilityTz = facilityRow?.timezone ?? 'America/New_York'
+
     // Attempt GCal sync — never for demo (tutorial) bookings
     try {
       if (!isDemo && isCalendarConfigured()) {
-        const facility = await db.query.facilities.findFirst({
-          where: eq(facilities.id, facilityId),
-        })
+        const facility = facilityRow
 
         if (facility?.calendarId) {
           const googleEventId = await createCalendarEvent(
@@ -339,11 +347,7 @@ export async function POST(request: NextRequest) {
         .then(async profile => {
           if (profile) {
             // W6: include the local date+time (facility tz) in the body
-            const fac = await db.query.facilities.findFirst({
-              where: eq(facilities.id, facilityId),
-              columns: { timezone: true },
-            }).catch(() => null)
-            const tz = fac?.timezone ?? 'America/New_York'
+            const tz = facilityTz
             const when = booking.startTime.toLocaleString('en-US', {
               weekday: 'short', month: 'short', day: 'numeric',
               hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz,
@@ -375,11 +379,7 @@ export async function POST(request: NextRequest) {
       if (!isDemo && resendApiKey && fromEmail && user.email) {
         const resend = new Resend(resendApiKey)
         // Phase 12F — confirmation email shows facility-local time
-        const facRow = await db.query.facilities.findFirst({
-          where: eq(facilities.id, facilityId),
-          columns: { timezone: true },
-        })
-        const tz = facRow?.timezone ?? 'America/New_York'
+        const tz = facilityTz
         const dateStr = startTime.toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
@@ -434,7 +434,7 @@ export async function POST(request: NextRequest) {
     // POA booking confirmation — fire-and-forget
     const poaEmail = data?.resident?.poaEmail
     if (poaEmail && data?.resident?.portalToken && data?.resident?.poaNotificationsEnabled !== false) {
-      const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
+      const facility = facilityRow
       const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${data.resident.portalToken}`
       const tz = facility?.timezone ?? 'America/New_York'
       const poaDateStr = startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz })
