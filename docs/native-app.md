@@ -31,6 +31,27 @@ Full strategy, sequencing (Android first), and the Apple Guideline 4.2 plan live
 > `@capacitor/assets` and the iOS toolchain don't install in the CI/web container (native sharp +
 > CocoaPods). Run `cap:assets` and all iOS steps on a local dev/build machine.
 
+## App Complete package (W1-7 — wired 2026-07-05)
+
+- **File exports** now branch per platform: web keeps `<a download>`; the app writes to cache and
+  opens the **share sheet** (`src/lib/exports/native-file.ts::shareBlobNative`, routed through
+  `deliverBlob` in `download-export.ts`). Covers daily-log xlsx, all billing CSVs, payroll CSV.
+  **Never add a new raw `<a download>`/createObjectURL download — route through
+  `downloadExportFile`/`deliverBlob`.**
+- **Signage** shares the sign as an HTML file on native (window.open/print don't exist in webviews).
+- **Permissions**: AndroidManifest gained CAMERA/READ_MEDIA_IMAGES/READ_EXTERNAL_STORAGE(≤32);
+  Info.plist gained NSCamera/NSPhotoLibrary(+Add)/NSFaceID usage strings — the `<input capture>`
+  scan flows work in-app now.
+- **App Lock (W4)**: `src/lib/app-lock.ts` + `<AppLockGate>` (root layout) — device-local pref,
+  locks on cold start + background, Face ID/Touch ID/fingerprint unlock; toggle in /my-account.
+- **Offline banner (W5)** + **push tap-navigation (W6)** live in `<NativeBridge>`/`native-push.ts`.
+- **Booking pushes**: created (enriched w/ local time), rescheduled + cancelled
+  (`src/lib/push-booking.ts::notifyBookingChange`, fire-and-forget hooks in bookings PUT/DELETE).
+- **Nightly schedule reminder**: `GET /api/cron/schedule-reminders` (22:00 UTC) — "Tomorrow: N
+  appointments, first at {time}" per stylist; push opt-in is the preference (no column needed).
+- **Store package**: see `docs/store-listing.md` (listing copy, privacy answers, Apple review
+  notes/4.2 defense, screenshot shot-list, submission order).
+
 ## Build & submit (summary)
 
 **Android (ship first):**

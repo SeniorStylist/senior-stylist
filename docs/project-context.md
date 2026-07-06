@@ -574,6 +574,14 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Native W1-7 — App Complete package (SHIPPED 2026-07-05)
+
+App-readiness sweep: native file delivery via share sheet (all exports; deliverBlob contract),
+signage share, camera/photo/FaceID permissions (both platforms), biometric App Lock + /my-account
+toggle, offline banner, push tap-navigation, reschedule/cancel booking pushes, nightly
+schedule-reminder cron (22:00 UTC), and the full store submission package (docs/store-listing.md).
+No migrations. See CLAUDE.md W1-7 entry + docs/native-app.md.
+
 ### Native N3 — push bridge, FCM flag-gated (SHIPPED 2026-07-05)
 
 Native push for the app, dormant until `FIREBASE_SERVICE_ACCOUNT_BASE64` is set. FCM for both
