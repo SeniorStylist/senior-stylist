@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCents } from '@/lib/utils'
+import { downloadExportFile } from '@/lib/exports/download-export'
 import { Spinner } from '@/components/ui'
 
 interface MonthlyFacilityData {
@@ -99,15 +100,8 @@ export function ReportsTab() {
   const handleExport = async () => {
     setExporting(true)
     try {
-      const res = await fetch(`/api/super-admin/export/billing?month=${month}`)
-      if (!res.ok) return
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `cross-facility-billing-${month}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
+      // Branches web download vs native share sheet; surfaces API errors.
+      await downloadExportFile(`/api/super-admin/export/billing?month=${month}`, `cross-facility-billing-${month}.csv`)
     } finally {
       setExporting(false)
     }

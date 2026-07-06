@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatDollars } from '../views/billing-shared'
+import { deliverBlob } from '@/lib/exports/download-export'
 import { btnBase, transitionBase } from '@/lib/animations'
 import type { PanelType, CrossFacilityDetailRow } from './cross-facility-panel'
 
@@ -134,14 +135,8 @@ export function CrossFacilityReportClient({ type }: { type: ReportPanelType }) {
     if (!sortedRows.length) return
     const csv = toCsv(sortedRows, type)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${type}-${toISODate(new Date())}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    // deliverBlob branches: web = <a download>, native app = share sheet
+    void deliverBlob(blob, `${type}-${toISODate(new Date())}.csv`)
   }
 
   function SortHeader({

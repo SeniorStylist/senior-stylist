@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Printer } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/components/ui/toast'
+import { isNativeApp } from '@/lib/detect-device'
 
 type Category = 'General' | 'Holiday'
 
@@ -116,7 +117,16 @@ export function SignageClient({ facilityName, facilityPhone }: { facilityName: s
   const cfg: SignConfig = { facilityName, facilityPhone, showFacility, accent, title, subtitle, dateLine, body, footer }
   const html = buildSignHtml(cfg)
 
-  const print = () => {
+  const print = async () => {
+    // Native app: window.open/print don't exist in a webview — share the sign
+    // as an HTML file instead (AirPrint / save / open in browser from the sheet).
+    if (isNativeApp()) {
+      const { shareBlobNative } = await import('@/lib/exports/native-file')
+      const r = await shareBlobNative(new Blob([html], { type: 'text/html' }), 'sign.html')
+      if (r.ok) toast.info('Use the share sheet to print or save the sign')
+      else toast.error(r.error)
+      return
+    }
     const w = window.open('', '_blank', 'width=850,height=1100')
     if (!w) {
       toast.error('Allow pop-ups to print the sign.')

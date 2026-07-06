@@ -38,4 +38,11 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Camera capture for log-sheet / check scanning (file inputs with capture) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Photo/file pickers (scan uploads, resident photos, CSV imports) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Camera is optional hardware — don't exclude camera-less devices from the Play listing -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

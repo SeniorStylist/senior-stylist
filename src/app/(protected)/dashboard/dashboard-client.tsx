@@ -10,6 +10,7 @@ import { ResidentsPanel } from '@/components/panels/residents-panel'
 import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
 import { cn, formatCents, formatTime } from '@/lib/utils'
+import { downloadExportFile } from '@/lib/exports/download-export'
 import { formatDateInTz, getLocalParts } from '@/lib/time'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Resident, Stylist, Service, Facility, CoverageRequest } from '@/types'
@@ -341,16 +342,11 @@ export function DashboardClient({
   const handleExport = async () => {
     setExporting(true)
     try {
-      const res = await fetch(`/api/export/billing?month=${exportMonth}`)
-      if (!res.ok) return
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `billing-${exportMonth}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast('Export ready', 'success')
+      // downloadExportFile branches web download vs native share sheet, and
+      // surfaces real API error messages instead of failing silently.
+      const result = await downloadExportFile(`/api/export/billing?month=${exportMonth}`, `billing-${exportMonth}.csv`)
+      if (result.ok) toast('Export ready', 'success')
+      else toast(result.error, 'error')
     } finally {
       setExporting(false)
     }

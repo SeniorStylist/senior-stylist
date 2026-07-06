@@ -3,6 +3,33 @@
 // body just renders in a blank tab (the "Invalid Error" the bookkeepers reported).
 // fetch + blob lets the caller toast the real error message and keeps the user
 // on the page while the file downloads.
+//
+// Delivery branches per platform: web = <a download> (unchanged); native app =
+// share sheet via shareBlobNative (blob downloads silently fail in webviews).
+
+import { isNativeApp } from '@/lib/detect-device'
+
+/** Deliver an in-memory blob to the user (download on web, share sheet in the app). */
+export async function deliverBlob(
+  blob: Blob,
+  filename: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isNativeApp()) {
+    const { shareBlobNative } = await import('./native-file')
+    return shareBlobNative(blob, filename)
+  }
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Delay revocation so the browser finishes reading the blob
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
+  return { ok: true }
+}
+
 export async function downloadExportFile(
   url: string,
   fallbackName: string,
@@ -22,16 +49,7 @@ export async function downloadExportFile(
     const blob = await res.blob()
     const cd = res.headers.get('Content-Disposition') ?? ''
     const filename = cd.match(/filename="([^"]+)"/)?.[1] ?? fallbackName
-    const objectUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = objectUrl
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    // Delay revocation so the browser finishes reading the blob
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
-    return { ok: true }
+    return await deliverBlob(blob, filename)
   } catch {
     return { ok: false, error: 'Network error — please try again.' }
   }

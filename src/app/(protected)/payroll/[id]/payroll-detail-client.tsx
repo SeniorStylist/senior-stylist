@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { downloadExportFile } from '@/lib/exports/download-export'
 import { computeNetPay } from '@/lib/payroll'
 
 interface DetailStylist {
@@ -271,13 +272,19 @@ export function PayrollDetailClient({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <a
-            href={`/api/pay-periods/${period.id}/export`}
+          <button
+            type="button"
+            onClick={async () => {
+              // downloadExportFile branches web download vs native share sheet
+              // (plain <a href> attachment navigation dies in the app webview).
+              const r = await downloadExportFile(`/api/pay-periods/${period.id}/export`, `payroll-${period.id}.csv`)
+              if (!r.ok) toast.error(r.error)
+            }}
             data-tour="payroll-export-btn"
             className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-stone-100 text-stone-800 hover:bg-stone-200 transition-all duration-150"
           >
             Export CSV
-          </a>
+          </button>
           {currentStatus === 'open' && (
             <Button onClick={() => advanceStatus('processing')} loading={advancingStatus}>
               Mark Processing
