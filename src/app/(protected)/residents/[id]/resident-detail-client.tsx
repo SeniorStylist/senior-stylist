@@ -26,7 +26,9 @@ interface HistoryBooking {
   cancellationReason: string | null
   notes: string | null
   stylist: Stylist
-  service: Service
+  // Nullable since Phase 12B — historical-import bookings may have no resolved service
+  service: Service | null
+  rawServiceName?: string | null
 }
 
 interface ResidentStats {
@@ -43,6 +45,7 @@ interface ResidentDetailClientProps {
   preferredServiceName?: string | null
   facilityServices?: Service[]
   role?: string
+  facilityTimezone?: string
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -59,7 +62,7 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'No show',
 }
 
-export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin' }: ResidentDetailClientProps) {
+export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin', facilityTimezone = 'America/New_York' }: ResidentDetailClientProps) {
   const router = useRouter()
   const isAdmin = role === 'admin' || role === 'super_admin'
   const canEdit = isAdmin || role === 'facility_staff'
@@ -270,7 +273,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           { label: 'Appointments', value: stats.total },
           { label: 'Total spent', value: stats.totalSpent > 0 ? formatCents(stats.totalSpent) : '—' },
           { label: 'Favorite service', value: stats.mostCommonService ?? '—' },
-          { label: 'First visit', value: stats.firstVisit ? new Date(stats.firstVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+          { label: 'First visit', value: stats.firstVisit ? new Date(stats.firstVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: facilityTimezone }) : '—' },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -580,16 +583,16 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                 <div key={booking.id} className="flex items-center gap-4 px-5 py-3.5">
                   <div className="shrink-0 w-10 text-center">
                     <p className="text-xs font-medium text-stone-400 uppercase leading-none">
-                      {new Date(booking.startTime).toLocaleDateString('en-US', { month: 'short' })}
+                      {new Date(booking.startTime).toLocaleDateString('en-US', { month: 'short', timeZone: facilityTimezone })}
                     </p>
                     <p className="text-xl font-bold text-stone-900 leading-tight">
-                      {new Date(booking.startTime).getDate()}
+                      {new Date(booking.startTime).toLocaleDateString('en-US', { day: 'numeric', timeZone: facilityTimezone })}
                     </p>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-stone-900 truncate">{booking.service.name}</p>
+                    <p className="text-sm font-semibold text-stone-900 truncate">{booking.service?.name ?? booking.rawServiceName ?? 'Unknown service'}</p>
                     <p className="text-xs text-stone-500 truncate">
-                      {booking.stylist.name} · {formatTime(booking.startTime)}
+                      {booking.stylist.name} · {formatTime(booking.startTime, facilityTimezone)}
                     </p>
                     {booking.notes && (
                       <p className="text-xs text-stone-400 mt-0.5 italic truncate">{booking.notes}</p>
@@ -600,7 +603,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   </div>
                   <div className="shrink-0 text-right space-y-1">
                     <p className="text-sm font-semibold text-stone-700">
-                      {formatCents(booking.priceCents ?? booking.service.priceCents)}
+                      {formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}
                     </p>
                     <span
                       className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[booking.status] ?? 'bg-stone-100 text-stone-500'}`}

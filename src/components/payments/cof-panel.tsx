@@ -111,10 +111,13 @@ export function CofPanel({
     }
     setCollecting(true)
     try {
+      // One key per collect attempt — a retried/double-fired request must not
+      // double-charge the saved card (Stripe dedupes on the idempotency key).
+      const idempotencyKey = crypto.randomUUID()
       const res = await fetch('/api/payments/collect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId, amountCents, method }),
+        body: JSON.stringify({ residentId, amountCents, method, idempotencyKey }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {

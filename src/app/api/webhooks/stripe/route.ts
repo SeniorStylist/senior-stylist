@@ -1,6 +1,6 @@
 import { db } from '@/db'
-import { bookings, qbInvoices, qbPayments, residents } from '@/db/schema'
-import { and, asc, eq, gt, sql } from 'drizzle-orm'
+import { bookings, qbInvoices, qbPayments, qbUnappliedCredits, residents } from '@/db/schema'
+import { and, asc, eq, gt, like, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildBookingReceiptHtml } from '@/lib/email'
@@ -119,16 +119,29 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
     return
   }
 
+  // Ensures the stripe_payment_intent_id column + unique index exist (no-op after first call).
+  const { ensurePaymentsSchema } = await import('@/lib/payments-ddl')
+  await ensurePaymentsSchema()
+
   await db.transaction(async (tx) => {
-    await tx.insert(qbPayments).values({
-      facilityId,
-      residentId,
-      amountCents,
-      paymentMethod: 'stripe',
-      paymentDate: new Date().toISOString().slice(0, 10),
-      memo: `Online payment via portal — ${residentName}`,
-      recordedVia: 'portal_stripe',
-    })
+    // Stripe delivers checkout.session.completed at-least-once — stamp the PI on
+    // the payment row and let the unique index reject a duplicate delivery so the
+    // payment is never double-recorded / invoices never over-applied.
+    const inserted = await tx
+      .insert(qbPayments)
+      .values({
+        facilityId,
+        residentId,
+        amountCents,
+        paymentMethod: 'stripe',
+        paymentDate: new Date().toISOString().slice(0, 10),
+        memo: `Online payment via portal — ${residentName}`,
+        recordedVia: 'portal_stripe',
+        stripePaymentIntentId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: qbPayments.id })
+    if (inserted.length === 0) return // duplicate webhook delivery
 
     const openInvoices = await tx
       .select({
@@ -194,6 +207,21 @@ async function handlePortalCredit(session: StripeCheckoutSession, source: 'Prepa
     return
   }
 
+  // Idempotency: the PI id is embedded in the credit's `num` — a duplicate
+  // checkout.session.completed delivery must not bank the credit twice.
+  if (stripePaymentIntentId) {
+    const { ensureUnappliedSchema } = await import('@/lib/unapplied-ddl')
+    await ensureUnappliedSchema()
+    const dup = await db.query.qbUnappliedCredits.findFirst({
+      where: and(
+        eq(qbUnappliedCredits.facilityId, facilityId),
+        like(qbUnappliedCredits.num, `%${stripePaymentIntentId}%`),
+      ),
+      columns: { id: true },
+    })
+    if (dup) return
+  }
+
   const { createAccountCredit } = await import('@/lib/account-credits')
   const numParts = [source === 'Gift' && md.gifterName ? `Gift from ${md.gifterName}` : null, stripePaymentIntentId]
     .filter(Boolean)
@@ -217,7 +245,7 @@ async function sendBookingReceipt(bookingId: string): Promise<void> {
         resident: { columns: { name: true, poaEmail: true, poaPhone: true } },
         stylist: { columns: { name: true } },
         service: { columns: { name: true } },
-        facility: { columns: { name: true, address: true, phone: true } },
+        facility: { columns: { name: true, address: true, phone: true, timezone: true } },
       },
     })
     if (!b) return
@@ -228,10 +256,13 @@ async function sendBookingReceipt(bookingId: string): Promise<void> {
       residentName: b.resident.name,
       serviceName: b.service?.name ?? b.rawServiceName ?? 'Service',
       stylistName: b.stylist.name,
+      // Facility tz, not server tz — the lambda runs in UTC and an evening booking
+      // would otherwise print the next day's date on the receipt.
       serviceDate: new Date(b.startTime).toLocaleDateString('en-US', {
         month: 'long',
         day: 'numeric',
         year: 'numeric',
+        timeZone: b.facility.timezone ?? 'America/New_York',
       }),
       priceCents: b.priceCents ?? 0,
       tipCents: b.tipCents,

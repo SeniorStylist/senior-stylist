@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
-import { residents, bookings, services } from '@/db/schema'
+import { residents, bookings, services, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { toClientJson } from '@/lib/sanitize'
 import { eq, and } from 'drizzle-orm'
@@ -33,18 +33,24 @@ export default async function ResidentDetailPage({
   })
   if (!resident) notFound()
 
-  const residentBookings = await db.query.bookings.findMany({
-    where: and(
-      eq(bookings.residentId, id),
-      eq(bookings.facilityId, facilityUser.facilityId),
-      eq(bookings.active, true)
-    ),
-    with: {
-      stylist: true,
-      service: true,
-    },
-    orderBy: (t, { desc }) => [desc(t.startTime)],
-  })
+  const [residentBookings, facility] = await Promise.all([
+    db.query.bookings.findMany({
+      where: and(
+        eq(bookings.residentId, id),
+        eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.active, true)
+      ),
+      with: {
+        stylist: true,
+        service: true,
+      },
+      orderBy: (t, { desc }) => [desc(t.startTime)],
+    }),
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityUser.facilityId),
+      columns: { timezone: true },
+    }),
+  ])
 
   // Compute stats
   const activeBookings = residentBookings.filter((b) => b.status !== 'cancelled')
@@ -106,6 +112,7 @@ export default async function ResidentDetailPage({
       preferredServiceName={preferredServiceName}
       facilityServices={toClientJson(facilityServices)}
       role={facilityUser.role}
+      facilityTimezone={facility?.timezone ?? 'America/New_York'}
     />
   )
   } catch (err) {

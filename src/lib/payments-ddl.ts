@@ -25,6 +25,9 @@ export async function ensurePaymentsSchema(): Promise<void> {
   // qb_payments — Stripe charge linkage + in-app collector
   await db.execute(sql`ALTER TABLE qb_payments ADD COLUMN IF NOT EXISTS stripe_payment_intent_id text`)
   await db.execute(sql`ALTER TABLE qb_payments ADD COLUMN IF NOT EXISTS collected_by uuid`)
+  // Idempotency backstop: confirm POST + webhook both record card collections —
+  // a duplicate insert must hard-fail (onConflictDoNothing), never double-count.
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS qb_payments_stripe_pi_unique ON qb_payments (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL`)
 
   // bookings — auto-collect audit trail
   await db.execute(sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS autopay_attempted_at timestamptz`)

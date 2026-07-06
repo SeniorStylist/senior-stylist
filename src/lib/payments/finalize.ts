@@ -45,22 +45,32 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
   ])
   const split = calculateRevShare(amountCents, facility?.revSharePercentage ?? null, facility?.qbRevShareType ?? null)
 
+  let recorded = false
   await db.transaction(async (tx) => {
-    await tx.insert(qbPayments).values({
-      facilityId,
-      residentId,
-      qbCustomerId: resident?.qbCustomerId ?? null,
-      amountCents,
-      paymentMethod: 'card',
-      paymentDate: new Date().toISOString().slice(0, 10),
-      memo: `Card payment — ${resident?.name ?? 'resident'}`,
-      recordedVia: 'stylist_collect',
-      stripePaymentIntentId: paymentIntentId,
-      collectedBy: md.collectedBy || null,
-      revShareAmountCents: split.facilityShareCents,
-      revShareType: split.revShareType,
-      seniorStylistAmountCents: split.seniorStylistCents,
-    })
+    // Insert-first with conflict detection (unique index on stripe_payment_intent_id):
+    // the confirm POST and the webhook backstop can interleave past the SELECT guard
+    // above — only the path that wins the insert may apply invoices/bookings.
+    const inserted = await tx
+      .insert(qbPayments)
+      .values({
+        facilityId,
+        residentId,
+        qbCustomerId: resident?.qbCustomerId ?? null,
+        amountCents,
+        paymentMethod: 'card',
+        paymentDate: new Date().toISOString().slice(0, 10),
+        memo: `Card payment — ${resident?.name ?? 'resident'}`,
+        recordedVia: 'stylist_collect',
+        stripePaymentIntentId: paymentIntentId,
+        collectedBy: md.collectedBy || null,
+        revShareAmountCents: split.facilityShareCents,
+        revShareType: split.revShareType,
+        seniorStylistAmountCents: split.seniorStylistCents,
+      })
+      .onConflictDoNothing()
+      .returning({ id: qbPayments.id })
+    if (inserted.length === 0) return // another path already recorded this PI
+    recorded = true
 
     // FIFO-apply to open invoices (specific invoiceIds first, else any open).
     const where = invoiceIds.length
@@ -107,6 +117,7 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
       ), 0) WHERE f.id = ${facilityId}
     `)
   })
+  if (!recorded) return { recorded: false }
 
   // Persist the card if it was saved (setup_future_usage attached it to the customer).
   if (md.savePaymentMethod === '1' && typeof pi.payment_method === 'string' && typeof pi.customer === 'string') {

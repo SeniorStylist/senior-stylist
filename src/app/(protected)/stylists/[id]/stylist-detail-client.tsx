@@ -97,7 +97,9 @@ interface UpcomingBooking {
   status: string
   priceCents: number | null
   resident: Resident
-  service: Service
+  // Nullable since Phase 12B — historical-import bookings may have no resolved service
+  service: Service | null
+  rawServiceName?: string | null
 }
 
 interface ServiceBreakdown {
@@ -1270,15 +1272,15 @@ export function StylistDetailClient({
                         {booking.resident.name}
                       </p>
                       <p className="text-xs text-stone-500 truncate">
-                        {booking.service.name} · {formatTime(booking.startTime)}
+                        {booking.service?.name ?? booking.rawServiceName ?? 'Unknown service'} · {formatTime(booking.startTime)}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-sm font-semibold text-stone-700">
-                        {formatCents(booking.priceCents ?? booking.service.priceCents)}
+                        {formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}
                       </p>
                       <p className="text-xs text-stone-400">
-                        {booking.service.durationMinutes}min
+                        {booking.service?.durationMinutes ?? 30}min
                       </p>
                     </div>
                   </div>

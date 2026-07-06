@@ -25,7 +25,9 @@ interface WeekBooking {
   status: string
   priceCents: number | null
   resident: { name: string }
-  service: { name: string }
+  // Nullable since Phase 12B — historical-import bookings may have no resolved service
+  service: { name: string } | null
+  rawServiceName?: string | null
 }
 
 interface StylistAssignment {
@@ -1130,7 +1132,7 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
                           {b.resident.name}
                         </p>
                         <p className="text-xs text-stone-400">
-                          {b.service.name} &middot; {formatTime(b.startTime)} &ndash; {formatTime(b.endTime)}
+                          {b.service?.name ?? b.rawServiceName ?? 'Unknown service'} &middot; {formatTime(b.startTime)} &ndash; {formatTime(b.endTime)}
                         </p>
                       </div>
                       <div className="shrink-0 ml-3 flex items-center gap-2">

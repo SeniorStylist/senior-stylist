@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { getSuperAdminFacilities } from '@/lib/get-super-admin-facilities'
 
 const schema = z.object({
-  bookingIds: z.array(z.string().uuid()).min(1),
+  bookingIds: z.array(z.string().uuid()).min(1).max(500),
 })
 
 export async function POST(request: Request) {

@@ -43,6 +43,9 @@ export default async function MyAccountPage() {
   let payHistory: Array<Record<string, unknown>> = []
   let payHistoryDeductions: Array<Record<string, unknown>> = []
 
+  // try/catch so a transient DB failure degrades to an empty account view
+  // instead of a 500 (matches residents/[id] + stylists/[id] pages).
+  try {
   if (profile?.stylistId) {
     stylist = await db.query.stylists.findFirst({
       where: eq(stylists.id, profile.stylistId),
@@ -177,12 +180,20 @@ export default async function MyAccountPage() {
       }
     }
   }
+  } catch (err) {
+    console.error('[MyAccountPage] DB error:', err)
+  }
 
   // Load all facility stylists for the link-selector
-  const facilityStylists = await db.query.stylists.findMany({
-    where: and(eq(stylists.facilityId, facilityUser.facilityId), eq(stylists.active, true)),
-    orderBy: (t, { asc }) => [asc(t.name)],
-  })
+  let facilityStylists: Array<typeof stylists.$inferSelect> = []
+  try {
+    facilityStylists = await db.query.stylists.findMany({
+      where: and(eq(stylists.facilityId, facilityUser.facilityId), eq(stylists.active, true)),
+      orderBy: (t, { asc }) => [asc(t.name)],
+    })
+  } catch (err) {
+    console.error('[MyAccountPage] stylists query error:', err)
+  }
 
   return (
     <MyAccountClient

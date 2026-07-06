@@ -694,6 +694,11 @@ export const qbPayments = pgTable('qb_payments', {
 }, (t) => ({
   // billing summary: WHERE facility_id = X AND payment_date BETWEEN Y AND Z ORDER BY payment_date DESC
   facilityDateIdx: index('qb_payments_facility_date_idx').on(t.facilityId, t.paymentDate.desc()),
+  // Idempotency backstop: the confirm POST and the payment_intent.succeeded webhook
+  // both record card collections — a duplicate insert must hard-fail, not double-count.
+  stripePiUnique: uniqueIndex('qb_payments_stripe_pi_unique')
+    .on(t.stripePaymentIntentId)
+    .where(sql`stripe_payment_intent_id IS NOT NULL`),
 }))
 
 // Saved cards (Card-On-File). Stripe vaults the card; we store only the tokens +
