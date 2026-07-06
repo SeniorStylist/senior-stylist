@@ -574,6 +574,21 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Full Site Audit (SHIPPED 2026-07-06)
+
+Four-dimension audit (security/correctness/efficiency/bloat) via parallel review agents, findings
+verified then fixed in four themed commits. Full detail + deferrals: **`docs/audit-2026-07.md`**.
+Highlights: OCR-import resident/service IDOR closed; portal checkout bookingId ownership check;
+Stripe payment idempotency hardened (new `qb_payments_stripe_pi_unique` partial index —
+`drizzle/0021`, self-bootstrapped by payments-ddl — insert-first conflict guards in finalize +
+portal webhook handlers); null-service crash fixes on resident/stylist/my-account pages; both
+per-facility cron query loops (daily-digest, schedule-reminders) rewritten to 2-3 batched queries;
+facility-row fetch dedupe (dashboard 3×→1, bookings POST 4×→1); onboarding xlsx/papaparse +
+daily-log Stripe Elements made dynamic; dead modules/exports/deps removed (`@anthropic-ai/sdk`,
+`@google/generative-ai`, `unpdf`, `react-resizable-panels`); `src/lib/client-roles.ts` is the
+canonical client-side `canSeeBilling`. **Josh action**: apply `drizzle/0021_qb_payments_pi_unique.sql`
+in Supabase (safe to skip — self-bootstraps on first payments-route call).
+
 ### Native W1-7 — App Complete package (SHIPPED 2026-07-05)
 
 App-readiness sweep: native file delivery via share sheet (all exports; deliverBlob contract),

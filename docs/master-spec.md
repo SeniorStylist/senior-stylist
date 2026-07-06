@@ -2615,3 +2615,30 @@ External consumers (`<HelpTip tourId="stylist-calendar">`, `ONBOARDING_CHECKLIST
 
 All previously Coming Soon tours are now live as scripted tours (Phase 13-Tutorial-Full Conversion, 2026-05-31). Remaining placeholder:
 - Time-off approval tour → after Phase 13F
+
+---
+
+## Full Site Audit (2026-07-06)
+
+Four-dimension audit (security / correctness / efficiency / bloat) — complete findings,
+fixes, and deferrals in **`docs/audit-2026-07.md`**. Spec-relevant deltas:
+
+- **New index**: `qb_payments_stripe_pi_unique` — partial UNIQUE on
+  `qb_payments (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL`
+  (`drizzle/0021_qb_payments_pi_unique.sql`; self-bootstrapped by `payments-ddl.ts`;
+  declared in `schema.ts`). Idempotency backstop for the confirm-POST vs webhook race —
+  Stripe-recorded payments are insert-first with `.onConflictDoNothing().returning()`.
+- **New module**: `src/lib/client-roles.ts` — client-safe `canSeeBilling(role)` (canonical;
+  mirrors `canAccessBilling`). Replaced 3 inline copies.
+- **Deleted**: `src/lib/api-error.ts`, `src/lib/supabase/middleware.ts`,
+  `src/components/ui/native-select.tsx`; dead exports `listCalendarEvents`, `getDemoIds`,
+  `getActiveStep`, `getActiveState`, `findResidentByName`, `isScriptedTourActive`,
+  `fcmConfigured`; deps `@anthropic-ai/sdk`, `@google/generative-ai`, `unpdf`,
+  `react-resizable-panels`.
+- **Route contract changes**: `POST /api/log/ocr/import` 403s on cross-facility
+  resident/service ids (mirrors the stylist guard); `POST /api/portal/[token]/checkout`
+  404s on a bookingId not owned by the token's resident; `POST /api/residents/[id]/photo`
+  returns `{ photoUrl }` only (no raw path); `GET /api/bookings` caps at 5000 rows;
+  `mark-paid` caps `bookingIds` at 500.
+- **Cron shape**: `daily-digest` + `schedule-reminders` run 2-3 batched queries total
+  (union-window bookings query re-filtered per facility in JS) — never per-facility loops.
