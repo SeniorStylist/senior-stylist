@@ -4,6 +4,7 @@
 // choose the method, collect the balance now, or send the payor a pay-link.
 // Billing-role gated. Pairs with <SavedCardsCard> (which manages the cards).
 
+import { canSeeBilling } from '@/lib/client-roles'
 import { useCallback, useEffect, useState } from 'react'
 import { Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,9 +26,6 @@ const METHODS: { value: string; label: string }[] = [
   { value: 'salon_account', label: 'Salon account only' },
 ]
 
-function canSeeBilling(role: string): boolean {
-  return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
-}
 
 function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`

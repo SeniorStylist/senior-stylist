@@ -321,13 +321,3 @@ export function facilityDateAt9amPlusSlot(date: Date, tz: string, slotIndex: num
   return new Date(candidate)
 }
 
-// Resident lookup helper — fuzzy match against an in-memory list at 0.85.
-export function findResidentByName(
-  name: string,
-  pool: { id: string; name: string }[],
-): string | null {
-  const target = normalizeWords(name).join(' ')
-  if (!target) return null
-  const hit = fuzzyBestMatch(pool, name, 0.85)
-  return hit?.id ?? null
-}

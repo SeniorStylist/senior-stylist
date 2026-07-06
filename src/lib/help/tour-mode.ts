@@ -33,6 +33,3 @@ export function setScriptedTourActive(active: boolean) {
   _scriptedTourActive = active
 }
 
-export function isScriptedTourActive(): boolean {
-  return _scriptedTourActive
-}

@@ -22,7 +22,7 @@ function getClient(): ReturnType<typeof twilio> | null {
 
 export async function sendSms(to: string, body: string): Promise<void> {
   if (process.env.TWILIO_ENABLED !== 'true') {
-    console.log('[sms] disabled (TWILIO_ENABLED not "true") — would send to', to)
+    console.warn('[sms] disabled (TWILIO_ENABLED not "true") — would send to', to)
     return
   }
   const from = process.env.TWILIO_FROM_NUMBER

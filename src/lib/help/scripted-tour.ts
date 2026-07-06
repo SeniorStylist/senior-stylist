@@ -30,14 +30,6 @@ export function getActiveTour() {
   return _activeTour
 }
 
-export function getActiveStep() {
-  if (!_activeTour || !_activeState) return null
-  return _activeTour.steps[_activeState.stepIndex] ?? null
-}
-
-export function getActiveState() {
-  return _activeState
-}
 
 // Main entry point — called by tutorial cards, deep links, and the auto-launcher
 export async function startScriptedTour(tourId: string, scenarioState: Record<string, string> = {}) {

@@ -5,6 +5,7 @@
 // for billing-role gating) and the family-portal billing page (omit `role` — the
 // API authorizes via the portal session).
 
+import { canSeeBilling } from '@/lib/client-roles'
 import { useCallback, useEffect, useState } from 'react'
 import { CreditCard, Plus, Trash2 } from 'lucide-react'
 import { AddCardForm } from './add-card-form'
@@ -19,9 +20,6 @@ interface SavedCard {
   isDefault: boolean
 }
 
-function canSeeBilling(role: string): boolean {
-  return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
-}
 
 export function SavedCardsCard({ residentId, role }: { residentId: string; role?: string }) {
   const { toast } = useToast()

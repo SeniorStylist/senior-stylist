@@ -120,20 +120,3 @@ export async function deleteCalendarEvent(
   }
 }
 
-export async function listCalendarEvents(
-  calendarId: string,
-  startDate: Date,
-  endDate: Date
-) {
-  const calendar = getCalendarClient()
-
-  const response = await calendar.events.list({
-    calendarId,
-    timeMin: startDate.toISOString(),
-    timeMax: endDate.toISOString(),
-    singleEvents: true,
-    orderBy: 'startTime',
-  })
-
-  return response.data.items ?? []
-}

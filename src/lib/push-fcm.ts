@@ -27,9 +27,6 @@ async function getFcmApp(): Promise<App | null> {
   }
 }
 
-export function fcmConfigured(): boolean {
-  return !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
-}
 
 /**
  * Send one native push to an FCM device token. Returns 'ok', 'stale' (token no

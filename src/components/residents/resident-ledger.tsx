@@ -1,14 +1,10 @@
 'use client'
 
+import { canSeeBilling } from '@/lib/client-roles'
 import { useState } from 'react'
 import { formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 
-// Mirror of canAccessBilling — replicated inline to avoid importing the
-// server-only get-facility-id module into a client bundle.
-function canSeeBilling(role: string): boolean {
-  return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
-}
 
 interface LedgerEntry {
   id: string
