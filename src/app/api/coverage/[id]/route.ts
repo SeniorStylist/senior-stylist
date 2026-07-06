@@ -122,7 +122,7 @@ export async function PUT(
         })
         const requesterProfile = await db.query.profiles.findFirst({
           where: eq(profiles.stylistId, existing.stylistId),
-          columns: { email: true },
+          columns: { id: true, email: true },
         })
         const facility = await db.query.facilities.findFirst({
           where: (f, { eq: eqOp }) => eqOp(f.id, facilityUser.facilityId),
@@ -146,6 +146,24 @@ export async function PUT(
             subject: approved ? `Time off approved for ${rangeLabel}` : `Time off request for ${rangeLabel}`,
             html,
           }).catch((err) => console.error('[coverage PUT decision] send failed:', err))
+        }
+        // In-app inbox + push (Phase 15 F1)
+        if (requesterProfile?.id) {
+          const rangeLabel =
+            existing.startDate === existing.endDate
+              ? existing.startDate
+              : `${existing.startDate} – ${existing.endDate}`
+          void import('@/lib/notify')
+            .then(({ notifyUser }) =>
+              notifyUser(requesterProfile.id, {
+                type: 'coverage_decision',
+                title: approved ? 'Time off approved' : 'Time off request denied',
+                body: approved ? `Your time off for ${rangeLabel} was approved.` : `Your request for ${rangeLabel} was denied.`,
+                url: '/my-account',
+                facilityId: facilityUser.facilityId,
+              }),
+            )
+            .catch((err) => console.error('[coverage PUT decision] notify failed:', err))
         }
       } catch (emailErr) {
         console.error('[coverage PUT decision] email setup failed:', emailErr)

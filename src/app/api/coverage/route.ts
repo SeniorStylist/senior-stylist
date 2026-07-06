@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     })
 
     const admins = await db
-      .select({ email: profiles.email })
+      .select({ userId: facilityUsers.userId, email: profiles.email })
       .from(facilityUsers)
       .innerJoin(profiles, eq(profiles.id, facilityUsers.userId))
       .where(
@@ -195,6 +195,25 @@ export async function POST(request: NextRequest) {
         console.error('[coverage POST] send failed:', err)
       )
     }
+
+    // In-app inbox + push for facility admins (Phase 15 F1) — reuses the admin
+    // rows already loaded above (one batched insert inside notifyManyUsers).
+    void import('@/lib/notify')
+      .then(({ notifyManyUsers }) =>
+        notifyManyUsers(
+          admins.map((a) => ({
+            userId: a.userId,
+            payload: {
+              type: 'coverage_request' as const,
+              title: 'Time-off request',
+              body: `${stylist.name} needs ${rangeLabel}`,
+              url: '/dashboard',
+              facilityId: facilityUser.facilityId,
+            },
+          })),
+        ),
+      )
+      .catch((err) => console.error('[coverage POST] notify failed:', err))
 
     return Response.json({ data: { request: inserted } })
   } catch (err) {

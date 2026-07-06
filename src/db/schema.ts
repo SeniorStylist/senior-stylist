@@ -1076,6 +1076,24 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   userIdx: index('push_subscriptions_user_idx').on(t.userId),
 }))
 
+// Phase 15 F1 — in-app notification inbox (bell). Rows are written by
+// src/lib/notify.ts alongside pushes; read by GET /api/notifications.
+// Self-bootstrapped by src/lib/notifications-ddl.ts (drizzle/0022_notifications.sql).
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => profiles.id, { onDelete: 'cascade' }).notNull(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  url: text('url'),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userCreatedIdx: index('notifications_user_created_idx').on(t.userId, t.createdAt.desc()),
+  userUnreadIdx: index('notifications_user_unread_idx').on(t.userId).where(sql`read_at IS NULL`),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({

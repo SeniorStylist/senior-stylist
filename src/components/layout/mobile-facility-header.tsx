@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 
 interface FacilityOption {
   id: string
@@ -84,6 +85,7 @@ export function MobileFacilityHeader({
           />
         </Link>
         <div className="flex items-center gap-2">
+          <NotificationBell />
           {debugMode && (
             <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide">
               Debug

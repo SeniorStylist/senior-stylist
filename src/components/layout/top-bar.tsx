@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ChangelogWidget } from '@/components/changelog/changelog-widget'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
@@ -65,6 +66,7 @@ export function TopBar({ facilityName, facilityCode, role = 'admin', changelogLa
           <span className="max-w-[220px] truncate">{facilityName}</span>
         </span>
       )}
+      <NotificationBell />
       <ChangelogWidget changelogLastReadAt={changelogLastReadAt} />
       {role === 'admin' && (
         <Button variant="primary" size="sm" onClick={() => router.push('/dashboard?new=1')}>

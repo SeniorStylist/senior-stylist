@@ -10,7 +10,7 @@ import { bookings, facilities, profiles } from '@/db/schema'
 import { and, eq, gte, inArray, lt, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { dayRangeInTimezone, getLocalParts, formatTimeInTz } from '@/lib/time'
-import { sendPushToUser } from '@/lib/push'
+import { notifyManyUsers } from '@/lib/notify'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -89,19 +89,25 @@ export async function GET(request: NextRequest) {
       : []
     const profileByStylist = new Map(stylistProfiles.map((p) => [p.stylistId, p.id]))
 
-    await Promise.allSettled(
-      [...byFacilityStylist.values()].map(async (info) => {
-        const userId = profileByStylist.get(info.stylistId)
-        const w = windows.get(info.facilityId)
-        if (!userId || !w) return
-        await sendPushToUser(userId, {
+    // Inbox rows + pushes via notifyManyUsers — ONE batched insert (max:1 pool),
+    // then per-user pushes.
+    const notifyRows = [...byFacilityStylist.values()].flatMap((info) => {
+      const userId = profileByStylist.get(info.stylistId)
+      const w = windows.get(info.facilityId)
+      if (!userId || !w) return []
+      return [{
+        userId,
+        payload: {
+          type: 'schedule_reminder' as const,
           title: `Tomorrow: ${info.count} appointment${info.count === 1 ? '' : 's'}`,
           body: `First at ${formatTimeInTz(info.first, w.tz)} — ${w.name}`,
           url: '/dashboard',
-        })
-        stylistsNotified++
-      }),
-    )
+          facilityId: info.facilityId,
+        },
+      }]
+    })
+    await notifyManyUsers(notifyRows)
+    stylistsNotified = notifyRows.length
 
     return Response.json({ data: { facilities: activeFacilities.length, facilitiesWithBookings, stylistsNotified } })
   } catch (err) {

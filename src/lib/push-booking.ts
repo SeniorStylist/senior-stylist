@@ -1,12 +1,12 @@
-// W6: push the assigned stylist when their booking is rescheduled or cancelled.
-// Loads everything it needs itself so route handlers can fire-and-forget it with
-// just the booking id (mirrors the autoCollectOnCompletion hook pattern).
-// Never throws; sendPushToUser is already best-effort on both rails (web + FCM).
+// W6: notify the assigned stylist when their booking is rescheduled or cancelled
+// (push + inbox row via notifyUser — Phase 15 F1). Loads everything it needs
+// itself so route handlers can fire-and-forget it with just the booking id
+// (mirrors the autoCollectOnCompletion hook pattern). Never throws.
 
 import { db } from '@/db'
 import { bookings, profiles } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { sendPushToUser } from '@/lib/push'
+import { notifyUser } from '@/lib/notify'
 
 export async function notifyBookingChange(
   bookingId: string,
@@ -15,7 +15,7 @@ export async function notifyBookingChange(
   try {
     const b = await db.query.bookings.findFirst({
       where: eq(bookings.id, bookingId),
-      columns: { id: true, stylistId: true, startTime: true, isDemo: true },
+      columns: { id: true, stylistId: true, startTime: true, isDemo: true, facilityId: true },
       with: {
         resident: { columns: { name: true } },
         facility: { columns: { timezone: true } },
@@ -36,10 +36,12 @@ export async function notifyBookingChange(
     })
     const residentName = b.resident?.name ?? 'Appointment'
 
-    await sendPushToUser(profile.id, {
+    await notifyUser(profile.id, {
+      type: kind === 'cancelled' ? 'booking_cancelled' : 'booking_rescheduled',
       title: kind === 'cancelled' ? 'Appointment cancelled' : 'Appointment moved',
       body: kind === 'cancelled' ? `${residentName} — was ${when}` : `${residentName} — now ${when}`,
       url: '/dashboard',
+      facilityId: b.facilityId,
     })
   } catch (err) {
     console.error('[notifyBookingChange] failed:', err)
