@@ -2,7 +2,9 @@
 
 // Phase 17 — mobile nav v2: up to 5 pinned tabs + an always-present "More"
 // sheet holding the rest. Per-role defaults; the user can customize which
-// destinations are pinned (device-local, localStorage ss_mobile_nav:{userId}).
+// destinations are pinned. Phase 19: picks sync to the server (user_prefs via
+// /api/profile/nav-prefs) so they follow the user across devices; localStorage
+// (ss_mobile_nav:{userId}) stays the instant-apply + offline layer.
 // Tour contract: pinned tabs carry data-tour-mobile="nav-*"; unpinned
 // destinations carry the SAME slug on their More-sheet row (only one instance
 // is ever in the DOM at a time — the sheet renders only while open).
@@ -206,6 +208,24 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
 
   useEffect(() => {
     setPinned(loadPinned(userId, role, available))
+    // Phase 19 — server-synced prefs win over the device copy when present
+    // (last save from ANY device). Offline: fetch fails silently, local stays.
+    fetch('/api/profile/nav-prefs')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const server: unknown = j?.data?.mobileNav?.[role]
+        if (!Array.isArray(server)) return
+        const valid = server.filter(
+          (h): h is string => typeof h === 'string' && available.some((i) => i.href === h),
+        )
+        if (valid.length > 0) {
+          setPinned(valid.slice(0, MAX_PINNED))
+          try {
+            localStorage.setItem(storageKey(userId, role), JSON.stringify(valid.slice(0, MAX_PINNED)))
+          } catch { /* ignore */ }
+        }
+      })
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, role])
 
@@ -225,6 +245,12 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
     try {
       localStorage.setItem(storageKey(userId, role), JSON.stringify(next))
     } catch { /* private browsing */ }
+    // Phase 19 — sync across devices; fire-and-forget (offline = device-local until next save)
+    fetch('/api/profile/nav-prefs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, hrefs: next }),
+    }).catch(() => {})
   }
 
   const togglePin = (href: string) => {

@@ -1154,6 +1154,16 @@ export const notifications = pgTable('notifications', {
   userUnreadIdx: index('notifications_user_unread_idx').on(t.userId).where(sql`read_at IS NULL`),
 }))
 
+// Phase 19 — server-synced per-user preferences (mobile nav customization).
+// New TABLE by design: adding columns to hot tables breaks full-row selects
+// when code deploys before the migration (see the 0024 incident).
+export const userPrefs = pgTable('user_prefs', {
+  userId: uuid('user_id').primaryKey().references(() => profiles.id, { onDelete: 'cascade' }),
+  // { [role]: string[] } — pinned nav hrefs per role
+  mobileNav: jsonb('mobile_nav').$type<Record<string, string[]> | null>(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
