@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { saveSnapshot } from '@/lib/read-cache'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
@@ -56,6 +57,16 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
   const [addError, setAddError] = useState<string | null>(null)
   const [showMerge, setShowMerge] = useState(false)
   const [dupeCount, setDupeCount] = useState(0)
+
+  // Phase 18 — snapshot the roster so the offline hub / future offline surfaces
+  // can read it (names + rooms only; cleared on sign-out like all read-cache keys).
+  useEffect(() => {
+    saveSnapshot(
+      `${facilityId}:residents`,
+      initialResidents.map((r) => ({ id: r.id, name: r.name, roomNumber: r.roomNumber ?? null })),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Fetch duplicate count on mount (fire-and-forget)
   useEffect(() => {
