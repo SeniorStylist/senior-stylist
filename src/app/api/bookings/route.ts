@@ -24,7 +24,16 @@ import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
-  residentId: z.string().uuid(),
+  residentId: z.string().uuid().optional(),
+  // Phase 18 — offline walk-in for a brand-new resident: the client can't run
+  // the create-resident → book chain offline, so the queued booking POST
+  // carries the new resident inline and we create both atomically here.
+  newResident: z
+    .object({
+      name: z.string().min(1).max(200),
+      roomNumber: z.string().max(50).optional(),
+    })
+    .optional(),
   stylistId: z.string().uuid().optional(),
   serviceId: z.string().uuid().optional(),
   serviceIds: z.array(z.string().uuid()).min(1).optional(),
@@ -37,6 +46,8 @@ const createSchema = z.object({
   tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
 }).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
   message: 'serviceId or serviceIds is required',
+}).refine((d) => !!d.residentId !== !!d.newResident, {
+  message: 'Provide exactly one of residentId or newResident',
 })
 
 export async function GET(request: NextRequest) {
@@ -115,7 +126,8 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
     }
 
-    const { residentId, stylistId, startTime: startTimeStr, notes } = parsed.data
+    const { stylistId, startTime: startTimeStr, notes } = parsed.data
+    let residentId = parsed.data.residentId
     const isDemo = isTutorialRequest(request) // Phase 13 — tutorial-created booking
 
     // Normalize to an ordered list of primary service IDs (first = primary)
@@ -129,11 +141,44 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'serviceId or serviceIds is required' }, { status: 422 })
     }
 
-    // Verify resident belongs to this facility
-    const resident = await db.query.residents.findFirst({
-      where: and(eq(residents.id, residentId), eq(residents.facilityId, facilityId)),
-    })
-    if (!resident) return Response.json({ error: 'Resident not found' }, { status: 404 })
+    // Phase 18 — inline new-resident creation (offline walk-in replay). Guarded
+    // by the same role check as the booking itself; facility-pinned; is_demo
+    // follows the booking's tutorial tagging. Soft dedup: an existing active
+    // resident with the same normalized name+room is reused instead of
+    // duplicated (a queued write can replay after the same resident was
+    // created online).
+    let resident
+    if (parsed.data.newResident) {
+      const newName = parsed.data.newResident.name.trim()
+      const newRoom = parsed.data.newResident.roomNumber?.trim() || null
+      const roster = await db.query.residents.findMany({
+        where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+        columns: { id: true, name: true, roomNumber: true },
+      })
+      const existing = roster.find(
+        (r) =>
+          r.name.trim().toLowerCase() === newName.toLowerCase() &&
+          (r.roomNumber ?? '').trim().toLowerCase() === (newRoom ?? '').toLowerCase(),
+      )
+      if (existing) {
+        residentId = existing.id
+      } else {
+        const [created] = await db
+          .insert(residents)
+          .values({ facilityId, name: newName, roomNumber: newRoom, isDemo })
+          .returning()
+        residentId = created.id
+      }
+      resident = await db.query.residents.findFirst({
+        where: and(eq(residents.id, residentId!), eq(residents.facilityId, facilityId)),
+      })
+    } else {
+      // Verify resident belongs to this facility
+      resident = await db.query.residents.findFirst({
+        where: and(eq(residents.id, residentId!), eq(residents.facilityId, facilityId)),
+      })
+    }
+    if (!resident || !residentId) return Response.json({ error: 'Resident not found' }, { status: 404 })
 
     // Fetch all primary services in one query (single inArray, guarded .length > 0)
     const primarySvcRows = await db.query.services.findMany({

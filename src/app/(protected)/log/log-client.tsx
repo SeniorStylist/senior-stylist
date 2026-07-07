@@ -793,11 +793,18 @@ export function LogClient({
       // Phase 12F — interpret wiTime in the facility's tz so a viewer in any
       // browser tz sees their typed "9:00" land at 9 a.m. facility-local.
       const startTime = fromDateTimeLocalInTz(`${date}T${wiTime}`, facilityTimezone)
+      // Phase 18 — an offline-created resident has no server id yet: send its
+      // name/room inline so the server creates resident + booking atomically.
+      const pendingResident = wiResidentId.startsWith('offline-new-')
+        ? localNewResidents.find((r) => r.id === wiResidentId)
+        : null
       // F6: queued offline on network failure — the row appears after sync
       const res = await queueableFetch('Walk-in booking', '/api/bookings', {
         method: 'POST',
         body: {
-          residentId: wiResidentId,
+          ...(pendingResident
+            ? { newResident: { name: pendingResident.name, roomNumber: pendingResident.roomNumber ?? undefined } }
+            : { residentId: wiResidentId }),
           serviceId: wiServiceId,
           stylistId: wiStylistId,
           startTime: startTime.toISOString(),
@@ -1181,6 +1188,23 @@ export function LogClient({
                             setWiCreateOpen(false)
                             setWiCreateName('')
                             setWiCreateRoom('')
+                          } catch {
+                            // Phase 18 — offline: select a local pending resident;
+                            // the queued walk-in POST carries newResident and the
+                            // server creates both atomically on sync.
+                            const pending = {
+                              id: `offline-new-${Date.now()}`,
+                              name: wiCreateName.trim(),
+                              roomNumber: wiCreateRoom.trim() || null,
+                            } as Resident
+                            setLocalNewResidents((prev) => [...prev, pending])
+                            setWiResidentId(pending.id)
+                            setWiResidentSearch(pending.name)
+                            setWiResidentDropOpen(false)
+                            setWiCreateOpen(false)
+                            setWiCreateName('')
+                            setWiCreateRoom('')
+                            toast("Offline — the resident will be created when the walk-in syncs", 'info')
                           } finally {
                             setWiCreating(false)
                           }
