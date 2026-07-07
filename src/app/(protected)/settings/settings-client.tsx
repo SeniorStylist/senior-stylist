@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { clearReadCache } from '@/lib/read-cache'
 import { useSearchParams } from 'next/navigation'
 import {
   Building2,
@@ -372,6 +373,7 @@ export function SettingsClient({
         <button
           onClick={async () => {
             const supabase = createClient()
+            clearReadCache() // Phase 17 — cached day sheets hold resident names
             await supabase.auth.signOut()
             window.location.href = '/login'
           }}

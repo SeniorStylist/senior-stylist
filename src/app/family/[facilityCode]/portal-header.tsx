@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { clearReadCache } from '@/lib/read-cache'
 import { useTransition } from 'react'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
@@ -29,6 +30,7 @@ export function PortalHeader({ facilityCode, facilityName, lang, residents }: Pr
 
   const onSignOut = async () => {
     try {
+      clearReadCache() // Phase 17 — wipe cached data on sign-out
       await fetch('/api/portal/logout', { method: 'POST' })
     } catch {
       // best-effort

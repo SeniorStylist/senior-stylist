@@ -21,6 +21,7 @@ const TakePaymentModal = dynamic(
 )
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { queueableFetch, isQueued, subscribePending } from '@/lib/offline-queue'
+import { cachedFetch, saveSnapshot, cacheTimeLabel } from '@/lib/read-cache'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -173,6 +174,8 @@ export function LogClient({
   // facility_staff is read-only; bookkeeper can scan and edit billing fields
   const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist' || role === 'bookkeeper'
   const [date, setDate] = useState(initialDate)
+  // Phase 17 — set when a day was served from the offline read-cache
+  const [offlineAt, setOfflineAt] = useState<number | null>(null)
   const [showLogDatePicker, setShowLogDatePicker] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
@@ -474,24 +477,44 @@ export function LogClient({
   const today = new Date().toISOString().split('T')[0]
   const isToday = date === today
 
+  // Phase 17 — snapshot the SSR-seeded day so navigating back to it (or a cold
+  // client fetch) works offline. Keyed per facility+date.
+  useEffect(() => {
+    saveSnapshot(`${facilityId}:log:${initialDate}`, {
+      bookings: initialBookings,
+      logEntries: initialLogEntries,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const { refreshing: pullRefreshing, handlers: pullHandlers } = usePullToRefresh(
     () => navigateDate(date)
   )
 
-  // Navigate dates
+  // Navigate dates — network-first with an offline read-cache fallback
+  // (Phase 17): when the fetch throws (no connection) the last saved copy of
+  // that day is shown with a "saved copy" notice instead of an empty screen.
   const navigateDate = async (newDate: string) => {
     setLoading(true)
     setDate(newDate)
     try {
-      const res = await fetch(`/api/log?date=${newDate}`)
-      const json = await res.json()
-      if (res.ok) {
-        setBookings(json.data.bookings)
-        setLogEntries(json.data.logEntries)
+      const result = await cachedFetch<{ bookings: LogBooking[]; logEntries: LogEntryData[] }>(
+        `${facilityId}:log:${newDate}`,
+        `/api/log?date=${newDate}`,
+        { extract: (json) => (json as { data: { bookings: LogBooking[]; logEntries: LogEntryData[] } }).data },
+      )
+      if (result && !('httpError' in result)) {
+        setBookings(result.data.bookings)
+        setLogEntries(result.data.logEntries)
         const m: Record<string, string> = {}
-        json.data.logEntries.forEach((e: LogEntryData) => { m[e.stylistId] = e.notes ?? '' })
+        result.data.logEntries.forEach((e: LogEntryData) => { m[e.stylistId] = e.notes ?? '' })
         setNotes(m)
         setContentKey((k) => k + 1)
+        setOfflineAt(result.stale ? result.at : null)
+      } else if (result === null) {
+        // Offline and no saved copy of that day — say so instead of silence.
+        setOfflineAt(null)
+        toast("You're offline and this day hasn't been loaded before", 'error')
       }
     } finally {
       setLoading(false)
@@ -816,6 +839,14 @@ export function LogClient({
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             {pendingWrites} change{pendingWrites === 1 ? '' : 's'} waiting to sync
+          </span>
+        </div>
+      )}
+      {offlineAt !== null && (
+        <div className="mb-3 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-stone-600 bg-stone-100 border border-stone-200 rounded-full px-3 py-1">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Offline — showing saved copy from {cacheTimeLabel(offlineAt)}
           </span>
         </div>
       )}

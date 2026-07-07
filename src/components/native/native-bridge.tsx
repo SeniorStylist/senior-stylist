@@ -3,23 +3,18 @@
 // Wires the Capacitor native shell to the web app. Runs ONLY inside the native app
 // (no-op on web/PWA/SSR). Handles: hiding the splash once the web is interactive,
 // status-bar styling, keyboard resize, the Android hardware back button, session
-// refresh on app resume, push token refresh + notification-tap navigation, and an
-// offline banner. All plugin imports are dynamic so nothing lands in the web bundle.
+// refresh on app resume, and push token refresh + notification-tap navigation.
+// The offline banner moved to <OfflineBanner> (Phase 17 — web + native).
+// All plugin imports are dynamic so nothing lands in the web bundle.
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { isNativeApp, nativePlatform } from '@/lib/detect-device'
 import { resumeNativePushIfEnabled, wirePushTapNavigation } from '@/lib/native-push'
-import { replayQueue, subscribePending } from '@/lib/offline-queue'
+import { replayQueue } from '@/lib/offline-queue'
 
 export function NativeBridge() {
   const router = useRouter()
-  // W5: offline awareness — banner shown while the device has no connection.
-  const [offline, setOffline] = useState(false)
-  // F6: queued offline writes waiting to sync (shown in the banner)
-  const [pending, setPending] = useState(0)
-
-  useEffect(() => subscribePending(setPending), [])
 
   useEffect(() => {
     if (!isNativeApp()) return
@@ -69,14 +64,11 @@ export function NativeBridge() {
         cleanups.push(() => state.remove())
       } catch { /* ignore */ }
 
-      // W5: offline banner — initial status + live changes.
+      // F6: replay queued writes when native connectivity returns (the visual
+      // banner is <OfflineBanner>, driven by window online/offline events).
       try {
         const { Network } = await import('@capacitor/network')
-        const status = await Network.getStatus()
-        setOffline(!status.connected)
         const net = await Network.addListener('networkStatusChange', (s) => {
-          setOffline(!s.connected)
-          // F6: connectivity is back — replay queued writes
           if (s.connected) void replayQueue()
         })
         cleanups.push(() => net.remove())
@@ -99,16 +91,5 @@ export function NativeBridge() {
     return () => cleanups.forEach((fn) => fn())
   }, [router])
 
-  if (!offline) return null
-
-  return (
-    <div
-      className="fixed top-0 left-0 right-0 z-[260] text-center text-[12px] font-semibold text-white bg-stone-800/95 backdrop-blur-sm"
-      style={{ paddingTop: 'calc(0.3rem + env(safe-area-inset-top))', paddingBottom: '0.3rem' }}
-    >
-      {pending > 0
-        ? `Offline — ${pending} change${pending === 1 ? '' : 's'} will sync when you're back`
-        : 'No internet connection — changes may not save'}
-    </div>
-  )
+  return null
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { NativeBridge } from '@/components/native/native-bridge'
+import { OfflineBanner } from '@/components/offline/offline-banner'
 import { AppLockGate } from '@/components/native/app-lock-gate'
 
 export const metadata: Metadata = {
@@ -44,6 +45,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <NativeBridge />
+        <OfflineBanner />
         <AppLockGate />
         {children}
       </body>

@@ -32,6 +32,7 @@ import { isNativeApp } from '@/lib/detect-device'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
 import type { SignupSheetEntryWithRelations } from '@/types'
 import { openPeek } from '@/lib/peek-drawer'
+import { cachedFetch, cacheTimeLabel } from '@/lib/read-cache'
 
 const CalendarView = dynamic(() => import('@/components/calendar/calendar-view'), {
   ssr: false,
@@ -155,6 +156,8 @@ export function DashboardClient({
   checkinTodayBookings = [],
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
+  // Phase 17 — set when the visible range was served from the offline read-cache
+  const [bookingsOfflineAt, setBookingsOfflineAt] = useState<number | null>(null)
   const [loadingBookings, setLoadingBookings] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelTab>('residents')
   const [calendarView, setCalendarView] = useState<CalendarViewType>(
@@ -488,20 +491,28 @@ export function DashboardClient({
     }
   }
 
+  // Phase 17 — network-first with offline read-cache fallback: on a dead
+  // connection the last saved copy of this range renders (with a notice)
+  // instead of an empty calendar/today-list.
   const fetchBookings = useCallback(async (start: Date, end: Date) => {
     setLoadingBookings(true)
     try {
-      const res = await fetch(
-        `/api/bookings?start=${start.toISOString()}&end=${end.toISOString()}`
+      const rangeKey = `${facilityId}:bookings:${start.toISOString().slice(0, 10)}:${end.toISOString().slice(0, 10)}`
+      const result = await cachedFetch<BookingWithRelations[]>(
+        rangeKey,
+        `/api/bookings?start=${start.toISOString()}&end=${end.toISOString()}`,
+        { extract: (json) => (json as { data: BookingWithRelations[] }).data },
       )
-      const json = await res.json()
-      if (json.data) setBookings(json.data)
+      if (result && !('httpError' in result) && result.data) {
+        setBookings(result.data)
+        setBookingsOfflineAt(result.stale ? result.at : null)
+      }
     } catch (err) {
       console.error('Failed to fetch bookings:', err)
     } finally {
       setLoadingBookings(false)
     }
-  }, [])
+  }, [facilityId])
 
 
   const openCreateModal = (start: Date, end: Date) => {
@@ -696,6 +707,13 @@ export function DashboardClient({
           )}
 
           {/* Today's appointments */}
+          {bookingsOfflineAt !== null && (
+            <div className="flex justify-center mb-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-stone-600 bg-stone-100 border border-stone-200 rounded-full px-3 py-1">
+                Offline — showing saved copy from {cacheTimeLabel(bookingsOfflineAt)}
+              </span>
+            </div>
+          )}
           <div className="px-4 space-y-2" data-tour="stylist-mobile-booking-list">
             {loadingBookings && (
               <div className="flex items-center justify-center py-10">
@@ -1049,6 +1067,13 @@ export function DashboardClient({
           </div>
         </div>
 
+        {bookingsOfflineAt !== null && (
+          <div className="flex justify-center mb-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-stone-600 bg-stone-100 border border-stone-200 rounded-full px-3 py-1">
+              Offline — showing saved copy from {cacheTimeLabel(bookingsOfflineAt)}
+            </span>
+          </div>
+        )}
         {/* Phase 12T — "I'm Here" check-in banner (desktop calendar view) */}
         {userRole === 'stylist' && (
           <CheckInBanner
