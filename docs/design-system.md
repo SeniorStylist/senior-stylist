@@ -2825,3 +2825,23 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Scripted-tour authoring rule**: there is NO `'info'` step type — informational popovers are
   `type: 'highlight'` with `selector: ''`. Every new feature needs a catalog card + (if scripted)
   a `SCRIPTED_TOUR_MAP` entry, and must pass `npm run check:tours` (CI-enforced).
+### Phase 16 — Second-wave UI patterns (2026-07-07)
+
+- **Health chip (master-admin facility cards)**: score 0-100 rendered as a rounded-full chip —
+  emerald (`bg-emerald-50 text-emerald-700`) ≥75, amber 50-74, rose <50, stone "—" when null
+  (insufficient data: <5 residents and no invoice history). Never show a red chip for a
+  facility that simply has no data yet.
+- **Aging strip (/billing facility card)**: four inline buckets (0-30 / 31-60 / 61-90 / 90+ days)
+  in escalating amber scale; 90+ uses rose. Amber remains billing-only per the existing rule.
+- **Route strip (stylist mobile dashboard)**: "Rm 12 → Rm 8 → Rm 3" — `text-xs` stone chips
+  joined by arrows above the booking list; derived from time-ordered today bookings.
+- **Language toggle (family portal)**: EN/ES pill pair in the burgundy header
+  (`border-white/20`, active `bg-white/25`), next to the A/A+/A++ text-scale toggle. Writes the
+  `ss_portal_lang` cookie client-side + `router.refresh()`. Spanish copy runs ~25% longer —
+  keep portal pills/nav labels short (nav uses "Citas", "Pagos").
+- **Portal i18n rule**: every user-facing portal string goes through `t('key')` from
+  `src/lib/portal-i18n.ts`. Money stays `en-US` USD; dates use `portalLocale(lang)`.
+  No hardcoded English in `/family/*` components.
+- **Camera capture (daily log)**: photo button on completed rows opens a small sheet —
+  `<input type="file" accept="image/*" capture="environment">`, preview, caption field,
+  "Share with family" checkbox. Mirrors the check-scan upload affordance.

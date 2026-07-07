@@ -2686,3 +2686,45 @@ consent email on autopay flips, admin notifications on failures + sweep summarie
 
 **CI**: `.github/workflows/checks.yml` runs `npx tsc --noEmit` + `npm run check:tours` (selector +
 tour-id-resolution validation) on every push/PR.
+
+---
+
+## Phase 16 — Second Feature Wave (2026-07-07)
+
+Full detail in CLAUDE.md ("Phase 16" entry). Spec deltas:
+
+**New table** (self-bootstrapped via `resident-photos-ddl.ts`; SQL `drizzle/0025_resident_photos.sql`):
+- `resident_photos` — id, facility_id NOT NULL, resident_id→residents CASCADE, booking_id nullable
+  SET NULL, path (storage path, private `resident-photos` bucket), caption nullable,
+  shared_with_family boolean default false, created_by→profiles, is_demo, created_at.
+  Index `(resident_id, created_at DESC)`. RLS service_role_all. Paths NEVER returned to clients —
+  signed URLs only.
+
+**New column** (self-bootstrapped via `monthly-report-ddl.ts`; SQL `drizzle/0024_monthly_report_flag.sql`):
+- `facilities.monthly_report_enabled` boolean NOT NULL default false.
+
+**New API routes**:
+- `POST|GET /api/residents/[id]/photos` · `DELETE|PATCH /api/residents/[id]/photos/[photoId]`
+  (stylists must own the bookingId; 5MB/MIME caps; signed-URL responses)
+- `GET /api/residents/due-for-visit` (median visit-gap via lag()/percentile_cont, ≥3 visits)
+- `POST /api/bookings/copy-day` (DST-safe wall-clock clone, skip-on-conflict)
+- `GET /api/portal/session/services` (portal-session auth; price_list + fixed only)
+- `GET /api/cron/monthly-reports` (`0 13 1 * *`, cap 25, 20-day lastSentAt dedup)
+
+**Route contract changes**: billing summary returns `agingBuckets` (0-30/31-60/61-90/90+ FILTER SQL);
+master-admin `getCachedFacilityInfos` returns `healthScore` (0-100 or null); peek resident payload
+gains `stylePhotos` + `recentNoShows`; schedule-reminders cron also texts POAs
+(`buildAppointmentReminderSms`, cap 100/run, Twilio-gated).
+
+**New lib modules**: `portal-i18n.ts` + `portal-i18n-server.ts` (Spanish portal — `PORTAL_STRINGS`
+en/es dictionary, `ss_portal_lang` cookie, `<LanguageToggle>`), `monthly-report-ddl.ts`,
+`resident-photos-ddl.ts`, `exports/weekly-schedule-html.ts`,
+`components/dashboard/due-for-visit-panel.tsx`, `components/calendar/copy-day-modal.tsx`,
+`components/residents/resident-photo-gallery.tsx`, `components/portal/language-toggle.tsx`.
+
+**Rate-limit buckets added**: `residentPhotos` 30/h, `copyDay` 10/h, `portalServices` 60/min.
+
+**Crons**: + `/api/cron/monthly-reports` `0 13 1 * *` (vercel.json — now 8 crons).
+
+**Deferred**: CSV auto-import via email forwarding (needs inbound-email infra; conflicts with
+review-first import convention).

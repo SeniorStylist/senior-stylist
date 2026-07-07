@@ -7,6 +7,33 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.1',
+    date: '2026-07-07',
+    title: 'Smart Scheduling, Health Scores & Spanish Portal',
+    items: [
+      'Family portal is now fully bilingual — EN/ES toggle in the header',
+      '"Due for a visit" panel suggests residents based on their own visit rhythm',
+      'Copy an entire salon day to a new date; print a weekly schedule',
+      'Facility health score on Master Admin; invoice aging strip on Billing',
+      'Booking style photos — snap from the daily log, share to the family portal',
+      'Stylists see a room-to-room route strip and a monthly earnings forecast',
+      'Monthly statement email automation and appointment-reminder texts for families',
+      'Prepay packages on the family portal (e.g. 3 × Wash & Set)',
+    ],
+  },
+  {
+    version: '3.0',
+    date: '2026-07-07',
+    title: 'Notifications, Waitlist & Payment Safeguards',
+    items: [
+      'In-app notification inbox with a bell in the header',
+      'Cancellation waitlist — freed slots automatically alert the office',
+      'Payment safeguards: auto-charge caps, double-pay protection, refunds, autopay consent emails',
+      'Weekly owner digest email and resident birthday reminders',
+      'Offline write-queue for spotty facility Wi-Fi; Tap to Pay groundwork',
+    ],
+  },
+  {
     version: '2.9',
     date: '2026-06-22',
     title: 'Log Sheet History & Payment Types',
