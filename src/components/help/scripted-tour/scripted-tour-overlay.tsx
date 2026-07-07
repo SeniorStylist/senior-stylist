@@ -36,6 +36,36 @@ export function ScriptedTourOverlay() {
     })
   }, [])
 
+  // Phase 21 auto-heal: a leftover ss_tutorial_mode cookie with NO active tour
+  // (tab closed / hard reload mid-tour before the pagehide guard existed, or a
+  // crashed engine) strands the user in demo-only data site-wide for up to 15
+  // minutes. On mount, if the cookie is present but no tour is running and no
+  // fresh resume state exists, clear it and re-render with real data.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        if (!document.cookie.includes('ss_tutorial_mode=')) return
+        const resumeRaw = sessionStorage.getItem('scriptedTour')
+        let hasFreshResume = false
+        if (resumeRaw) {
+          try {
+            const parsed = JSON.parse(resumeRaw) as { expiresAt?: number }
+            hasFreshResume = typeof parsed.expiresAt === 'number' && parsed.expiresAt > Date.now()
+          } catch { /* corrupt — treat as stale */ }
+        }
+        if (hasFreshResume) return
+        import('@/lib/help/scripted-tour').then((m) => {
+          if (m.isScriptedTourRunning?.()) return
+          import('@/lib/help/tutorial-cookie').then(({ clearTutorialCookie }) => {
+            clearTutorialCookie()
+            window.location.reload() // re-render everything with real data
+          })
+        })
+      } catch { /* best-effort heal */ }
+    }, 1500) // give a just-launched tour time to register first
+    return () => clearTimeout(t)
+  }, [])
+
   // Detect mobile breakpoint
   useEffect(() => {
     function check() { setIsMobile(window.matchMedia('(max-width: 767px)').matches) }

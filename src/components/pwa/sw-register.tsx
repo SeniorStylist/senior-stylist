@@ -23,22 +23,45 @@ const WARM_ROUTES: Record<string, string[]> = {
 
 let warmedThisSession = false
 
+// Phase 21 — warming is SEQUENTIAL and once per browser session. The first
+// version fired 8 CONCURRENT full SSR renders and re-fired on every hard
+// reload (module flag resets), which starved the DB's single pooled
+// connection (max: 1) and 500'd the whole site. Never parallelize this.
 function warmPages(role: string) {
   if (warmedThisSession || !navigator.onLine) return
+  try {
+    if (sessionStorage.getItem('ss_warmed') === '1') return
+  } catch { /* private browsing — module flag still guards this tab */ }
+  // Never warm (and therefore cache) demo-mode renders during a tutorial.
+  if (document.cookie.includes('ss_tutorial_mode=')) return
+  // Respect data-saver connections.
+  const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+  if (conn?.saveData) return
   warmedThisSession = true
+  try { sessionStorage.setItem('ss_warmed', '1') } catch { /* ignore */ }
   const routes = WARM_ROUTES[role] ?? WARM_ROUTES.admin
-  const run = () => {
+  const run = async () => {
     for (const route of routes) {
-      // x-ss-warm routes this through the SW's page-cache branch; the response
-      // is stored for offline use and otherwise discarded.
-      fetch(route, { headers: { 'x-ss-warm': '1' } }).catch(() => {})
+      if (!navigator.onLine) return
+      if (document.cookie.includes('ss_tutorial_mode=')) return
+      try {
+        // x-ss-warm routes this through the SW's page-cache branch; the
+        // response is stored for offline use and otherwise discarded.
+        await fetch(route, { headers: { 'x-ss-warm': '1' } })
+      } catch { /* offline mid-run — stop quietly */ }
+      // Breathe between renders — one at a time, never a stampede.
+      await new Promise((r) => setTimeout(r, 400))
     }
   }
+  const start = () => { void run() }
   if ('requestIdleCallback' in window) {
-    ;(window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void })
-      .requestIdleCallback(run, { timeout: 10_000 })
+    // 5s floor + idle callback so warming never competes with initial load.
+    setTimeout(() => {
+      ;(window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void })
+        .requestIdleCallback(start, { timeout: 10_000 })
+    }, 5_000)
   } else {
-    setTimeout(run, 4_000)
+    setTimeout(start, 8_000)
   }
 }
 

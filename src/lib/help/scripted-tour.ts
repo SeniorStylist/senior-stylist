@@ -5,6 +5,7 @@
 import type { ScriptedTour, ScriptedTourState } from './scripted-tour-types'
 import { setScriptedTourActive } from './tour-mode'
 import { setTutorialCookie, clearTutorialCookie } from './tutorial-cookie'
+import { clearPageCache } from '@/lib/offline-session'
 import { getTourRouter } from './tour-router'
 import { waitForElement, resolveQuery } from './tours'
 import { SCRIPTED_TO_BASE } from './scripted-tour-map'
@@ -33,6 +34,21 @@ export function getActiveTour() {
 
 
 // Main entry point — called by tutorial cards, deep links, and the auto-launcher
+// Phase 21 — if the tab reloads/closes/navigates away mid-tour, nothing used to
+// clear the tutorial cookie, stranding the user in demo-only mode for up to 15
+// minutes site-wide. pagehide fires on all of those; the cookie write is sync.
+let _pagehideGuard: (() => void) | null = null
+function armPagehideGuard() {
+  if (_pagehideGuard || typeof window === 'undefined') return
+  _pagehideGuard = () => clearTutorialCookie()
+  window.addEventListener('pagehide', _pagehideGuard)
+}
+function disarmPagehideGuard() {
+  if (!_pagehideGuard) return
+  window.removeEventListener('pagehide', _pagehideGuard)
+  _pagehideGuard = null
+}
+
 export async function startScriptedTour(tourId: string, scenarioState: Record<string, string> = {}) {
   const { STYLIST_MOBILE_TOURS } = await import('./tours-stylist-mobile')
   const { STYLIST_DESKTOP_TOURS } = await import('./tours-stylist-desktop')
@@ -61,6 +77,8 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   // interceptor.
   setTutorialCookie()
   setScriptedTourActive(true)
+  armPagehideGuard()
+  clearPageCache() // demo renders must never serve from the offline page cache
 
   _activeTour = tour
   _activeState = { tourId, stepIndex: 0, scenarioState, startedAt: Date.now() }
@@ -168,17 +186,27 @@ export function retreatStep() {
   wireStep(_activeTour.steps[prevIndex], prevIndex)
 }
 
+/** Phase 21 — true while a tour is actively driving the UI (auto-heal guard). */
+export function isScriptedTourRunning(): boolean {
+  return _activeTour !== null && _activeState !== null
+}
+
 export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
   if (_activeState) {
     trackStep(_activeState.tourId, _activeState.stepIndex, reason)
   }
   clearActiveListener()
+  disarmPagehideGuard()
   setScriptedTourActive(false)
   clearTutorialCookie()
   clearSessionState()
+  clearPageCache() // drop any demo-rendered pages cached during the tour
   _activeTour = null
   _activeState = null
   _setUiState?.(null)
+  // Real data returns IMMEDIATELY on cancel — demo mode must never outlive the
+  // tour (Phase 21 contract). Router Cache may hold demo-flavored RSC snapshots.
+  getTourRouter()?.refresh()
 }
 
 function completeTour() {
@@ -195,7 +223,11 @@ function completeTour() {
   // Mark completed in profiles (fire-and-forget). Clear tutorial mode FIRST so
   // this write isn't tagged is_demo.
   setScriptedTourActive(false)
+  disarmPagehideGuard()
   clearTutorialCookie()
+  clearPageCache() // drop any demo-rendered pages cached during the tour
+  // Real data returns immediately behind the celebration card (Phase 21 contract).
+  getTourRouter()?.refresh()
   fetch('/api/profile/complete-tour', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -269,13 +301,28 @@ function wireStep(step: ScriptedTour['steps'][number] | undefined, index: number
     // Bubble-phase click — fires after React's onClick has run (modal opens,
     // route changes, etc.).  See wireAdvanceOnClick comment for why NOT pointerdown.
     wireAdvanceOnClick(selector, index, false)
+    // Phase 21 stall watchdog: if the click target never mounts (drifted anchor,
+    // failed seed), don't leave the tour stuck forever — skip the step. 8s gives
+    // slow SSR navigations room; a present-but-unclicked element is untouched.
+    void waitForElement(selector, 8000).then((el) => {
+      if (!el && _activeState?.stepIndex === index) {
+        console.warn('[scripted-tour] click target never appeared — skipping step', selector)
+        advanceStep()
+      }
+    })
     return
   }
 
   if (step.type === 'type' && step.typeValue != null) {
     const value = resolveTypeValue(step.typeValue)
     void waitForElement(selector, STEP_WAIT_MS).then((el) => {
-      if (!el || _activeState?.stepIndex !== index) return
+      if (_activeState?.stepIndex !== index) return
+      if (!el) {
+        // Phase 21: a missing input used to stall advanceSelector steps forever.
+        console.warn('[scripted-tour] type target never appeared — skipping step', selector)
+        advanceStep()
+        return
+      }
       autoFillInput(el, value)
     })
     // advanceSelector: typeahead option element that removes itself on mousedown.

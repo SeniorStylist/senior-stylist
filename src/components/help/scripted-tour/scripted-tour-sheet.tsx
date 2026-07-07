@@ -37,6 +37,15 @@ export function ScriptedTourSheet({
     hasEnteredRef.current = true
   }, [])
 
+  // Phase 21 — Escape closes the tour on mobile too (tablets/keyboards).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   useEffect(() => {
     const el = sheetRef.current
     if (!el) return

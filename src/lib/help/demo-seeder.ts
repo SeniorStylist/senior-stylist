@@ -201,19 +201,27 @@ export async function seedFacilityDemoData(facilityId: string, viewerStylistId?:
     const todayStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
     const range = dayRangeInTimezone(todayStr, tz)
     if (range) {
+      // Phase 21 (tour audit issue A): the check-in banner hides once the day's
+      // last booking has ENDED, so a fixed 10:00 slot made every afternoon
+      // tutorial target-less. Look for a still-live demo booking (not yet
+      // ended); if none, seed one ~45 min from now, clamped to [9:00, 22:00]
+      // local and still today — the check-in + daily-log tours always have a
+      // live target regardless of when the tutorial runs.
       const existingToday = await db.query.bookings.findMany({
         where: and(
           eq(bookings.facilityId, facilityId),
           eq(bookings.residentId, mrsSmithId),
           eq(bookings.isDemo, true),
-          gte(bookings.startTime, range.start),
+          gte(bookings.startTime, new Date(Date.now() - 45 * 60 * 1000)),
           lt(bookings.startTime, range.end),
         ),
         columns: { id: true },
       })
       if (existingToday.length === 0) {
-        // 10:00 local — range.start is local midnight expressed as a UTC instant.
-        const startTime = new Date(range.start.getTime() + 10 * 60 * 60 * 1000)
+        const nineAmMs = range.start.getTime() + 9 * 60 * 60 * 1000
+        const tenPmMs = range.start.getTime() + 22 * 60 * 60 * 1000
+        const startMs = Math.min(Math.max(Date.now() + 45 * 60 * 1000, nineAmMs), tenPmMs)
+        const startTime = new Date(startMs)
         const endTime = new Date(startTime.getTime() + 45 * 60 * 1000)
         await db.insert(bookings).values({
           facilityId,

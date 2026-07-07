@@ -9,6 +9,16 @@
 
 import { clearReadCache } from '@/lib/read-cache'
 
+/** Drop only the SW per-user page cache (used by tutorial mode so demo-rendered
+ *  HTML never lingers for offline serving; read cache + queue untouched). */
+export function clearPageCache(): void {
+  try {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_PAGES' })
+    }
+  } catch { /* best-effort */ }
+}
+
 export function clearOfflineOnLogout(): void {
   clearReadCache()
   try {
