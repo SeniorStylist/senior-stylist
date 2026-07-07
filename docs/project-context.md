@@ -574,6 +574,30 @@ Eight new features shipping together as a polish wave:
 - **Migration**: `drizzle/0014_wave2_wave3.sql` — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
 - **Infra (Josh)**: (1) Run migration. (2) Create private Supabase bucket `resident-photos`. (3) `npx web-push generate-vapid-keys` → 4 VAPID vars in Vercel. (4) Add daily digest cron entry to `vercel.json`.
 
+### Phase 15 — Feature Wave (SHIPPED 2026-07-07)
+
+Josh approved all seven suggested features plus two hardening packages, shipped in 10 commits:
+**F1 notification inbox** (`notifications` table + `src/lib/notify.ts` notifyUser/notifyManyUsers/
+notifyFacilityAdmins + bell in TopBar & mobile header; all pushes now also write inbox rows),
+**F3 resident birthdays** (DOB editable on the profile; digest 🎂 section; day-of admin alerts;
+dashboard card), **F2 weekly owner digest** (`/api/cron/weekly-digest` Mondays → master email),
+**F4 cancellation waitlist** (`waitlist_entries` + panel + booking-modal convert flow +
+cancel-hook matching → admin alerts), **F5 family app mode** (`/family` code-entry page +
+device-local family mode in the native app), **F6 offline write-queue** (localStorage queue +
+replay for daily-log/check-in writes; payments never queued), **F7 Tap to Pay** (Stripe Terminal,
+fully dormant behind entitlements + `NEXT_PUBLIC_TAP_TO_PAY_ENABLED`).
+**Payment safeguards package**: fresh-balance clamps kill double-collect races, $2k auto-charge
+cap, orphaned money banked as credits, receipts for every card-on-file charge, POA consent email
+on autopay flips + portal visibility, admin alerts on failures + sweep summaries, and an in-app
+Stripe refund path (`POST /api/payments/refund` + ledger Refund button).
+**Help-system overhaul**: scripted-tour completions now persist (were 400ing — base-id mapping via
+new `scripted-tour-map.ts`), one shared `launchTutorial()` for cards + checklist, 6 new tours for
+the feature wave, and `npm run check:tours` (selector + id-resolution validation, 320/320) wired
+into a new GitHub Actions workflow with tsc.
+**Josh actions**: apply `drizzle/0022_notifications.sql` + `drizzle/0023_waitlist.sql` in Supabase
+(optional — self-bootstrapping); `npm run cap:sync` on the Mac (new stripe-terminal pod/gradle dep);
+Tap to Pay go-live steps in docs/native-app.md (Apple entitlement application is the long pole).
+
 ### Full Site Audit (SHIPPED 2026-07-06)
 
 Four-dimension audit (security/correctness/efficiency/bloat) via parallel review agents, findings

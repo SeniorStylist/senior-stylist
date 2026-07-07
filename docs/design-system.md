@@ -2795,3 +2795,33 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Toast actions**: every destructive one-click gets an **Undo** when a true inverse API call exists (booking cancel → PUT `status:'scheduled'`); creations get **View** (navigate or `scrollIntoView` to an id anchor like `#log-booking-{id}`). Never add a fake Undo where no inverse exists (e.g. soft-deletes with no restore route) — prefer optimistic-with-rollback there.
 - **`<PortalPageSkeleton>`** (`src/components/portal/portal-skeleton.tsx`) is the family-portal loading pattern: white `rounded-2xl border-stone-100` cards with `.skeleton` bars, rendered by per-route `loading.tsx` while the layout masthead persists. Redirect flows (auth/verify) get an honest spinner + "Signing you in…" instead of content cards.
 - **Coverage queue pending rows** (13F): amber-tinted row + `Needs approval` chip + Approve (burgundy) / Deny (outline → inline optional-reason input + rose confirm). Approving swaps the row in place to the substitute picker rather than removing it.
+
+### Phase 15 — Feature-wave UI patterns (2026-07-07)
+
+- **`<NotificationBell />`** (`src/components/notifications/notification-bell.tsx`) — self-fetching
+  bell with a burgundy count badge (`min-w-[16px] h-4 bg-[#8B2E4A] text-white text-[10px] border-2
+  border-white`, "9+" cap). Desktop = click-outside dropdown (`w-[360px] max-h-[480px] rounded-2xl
+  shadow-[var(--shadow-lg)]`); mobile = shared `<BottomSheet>`. Unread rows get `bg-rose-50/50` + a
+  burgundy dot; rows follow List Row Standards sizes. **The bell icon now BELONGS to notifications**
+  — the ChangelogWidget trigger is a megaphone; never add a second bell. Anchor: `data-tour=
+  "notification-bell"` on the TopBar mount and `data-tour-mobile` on the mobile-header mount (the
+  component's `anchor` prop picks which attribute it renders).
+- **Right-panel mini-cards** (dashboard pinned-top additions): Upcoming Birthdays + Waitlist follow
+  the "Who's Working" strip pattern — `bg-white rounded-2xl border border-stone-100 shadow-sm`,
+  `text-[10px] uppercase tracking-wide` header label, compact rows. Waitlist panel always renders
+  for admins (with a one-line italic empty state + "+ Add" header action) so the add entry point is
+  discoverable; birthday chips use `bg-[#8B2E4A] text-white` for "Today" and `bg-rose-50
+  text-[#8B2E4A]` for upcoming.
+- **Offline pending pill**: amber capsule (`text-amber-700 bg-amber-50 border-amber-200
+  rounded-full` + `animate-pulse` dot) centered above the page header — "N changes waiting to
+  sync". The native offline banner swaps its copy to include the pending count. Offline-queued
+  saves show a toast in the INFO variant ("Saved offline — will sync…"), never success.
+- **Two-tap destructive micro-button** (`RefundButton` in resident-ledger): first tap flips the
+  capsule to `bg-red-600 text-white` "Confirm refund?" with a 4s auto-reset; second tap executes.
+  Use for small inline destructive actions where a modal is too heavy.
+- **Facility-code entry page** (`/family`): centered `max-w-sm` white card under the burgundy
+  masthead; code input is `text-center font-mono text-lg tracking-widest uppercase`. Reuse this
+  look for any future code/PIN entry.
+- **Scripted-tour authoring rule**: there is NO `'info'` step type — informational popovers are
+  `type: 'highlight'` with `selector: ''`. Every new feature needs a catalog card + (if scripted)
+  a `SCRIPTED_TOUR_MAP` entry, and must pass `npm run check:tours` (CI-enforced).

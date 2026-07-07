@@ -2642,3 +2642,47 @@ fixes, and deferrals in **`docs/audit-2026-07.md`**. Spec-relevant deltas:
   `mark-paid` caps `bookingIds` at 500.
 - **Cron shape**: `daily-digest` + `schedule-reminders` run 2-3 batched queries total
   (union-window bookings query re-filtered per facility in JS) — never per-facility loops.
+
+---
+
+## Phase 15 — Feature Wave (2026-07-07)
+
+Full detail in CLAUDE.md ("Phase 15" entry). Spec deltas:
+
+**New tables** (both self-bootstrapped; SQL in `drizzle/0022_notifications.sql` + `0023_waitlist.sql`):
+- `notifications` — id, user_id→profiles CASCADE, facility_id nullable→facilities CASCADE, type,
+  title, body, url nullable, read_at nullable, created_at. Indexes `(user_id, created_at DESC)` +
+  partial `(user_id) WHERE read_at IS NULL`. Written ONLY via `src/lib/notify.ts`.
+- `waitlist_entries` — facility_id NOT NULL, resident_id nullable + denorm resident_name/room_number,
+  service_id/service_name nullable, preferred_stylist_id nullable, earliest_date NOT NULL,
+  latest_date nullable, notes, created_by, status pending|booked|cancelled, booking_id, is_demo,
+  timestamps. Partial index `(facility_id, earliest_date) WHERE status='pending'`.
+
+**New API routes**:
+- `GET /api/notifications` (latest 30 + unreadCount) · `POST /api/notifications/read` ({ids?})
+- `POST|GET /api/waitlist` · `PATCH /api/waitlist/[id]` (soft-cancel) ·
+  `POST /api/waitlist/[id]/convert` (mirror of signup-sheet convert)
+- `GET /api/cron/weekly-digest` (Mon 12:00 UTC, master email)
+- `POST /api/portal/resolve-facility-code` (public, code → {facilityCode, facilityName})
+- `POST /api/payments/terminal/connection-token` (Stripe Terminal, dormant)
+- `POST /api/payments/refund` (canAccessBilling; full Stripe refund + ledger zeroing)
+
+**Route contract changes**: `/api/payments/intent` accepts `terminal: boolean` (card_present PI,
+recordedVia 'tap_to_pay'); resident PUT accepts `dateOfBirth`; portal create-checkout 409s on
+zero balance + clamps to current balance; BookingModal gains `waitlistEntryId` + `onAddToWaitlist`.
+
+**New lib modules**: `notify.ts`, `notifications-ddl.ts`, `waitlist-ddl.ts`, `waitlist-match.ts`,
+`offline-queue.ts`, `family-mode.ts`, `tap-to-pay.ts`, `help/scripted-tour-map.ts`,
+`help/tours-new-features.ts`.
+
+**Charge-engine safeguards** (collectForResident): fresh-balance clamp for balance-driven collects,
+unpaid re-check for booking-driven ones, `AUTO_CHARGE_MAX_CENTS` $2,000 cap on automatic charges,
+unapplied remainders banked as `qb_unapplied_credits`, receipt email on every card charge,
+consent email on autopay flips, admin notifications on failures + sweep summaries.
+
+**Rate-limit buckets added**: `notifications` 120/min, `waitlist` 30/h.
+
+**Crons**: + `/api/cron/weekly-digest` `0 12 * * 1` (vercel.json — now 7 crons).
+
+**CI**: `.github/workflows/checks.yml` runs `npx tsc --noEmit` + `npm run check:tours` (selector +
+tour-id-resolution validation) on every push/PR.
