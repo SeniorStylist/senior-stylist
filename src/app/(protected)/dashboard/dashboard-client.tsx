@@ -1137,6 +1137,11 @@ export function DashboardClient({
               facilityTimezone={facility.timezone}
             />
 
+            {/* Phase 20 — everything below TodayCard scrolls as ONE region so the
+                growing panel stack (waitlist, due-for-visit, coverage, birthdays)
+                can never crowd out the Stylists/Services tabs below. */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth -mr-1 pr-1">
+            <div className="min-h-full flex flex-col gap-4">
             {(workingToday.length > 0 || workingTomorrow.length > 0) && (
               <div className="shrink-0 bg-white rounded-2xl border border-stone-100 px-4 py-3 shadow-sm">
                 <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-2">
@@ -1225,13 +1230,22 @@ export function DashboardClient({
                 </ul>
               </div>
             )}
+            {/* Tabs (Stylists / Services) — guaranteed viewport even when many
+                panels are stacked above; its list keeps its own inner scroll. */}
+            <div className="flex-1 min-h-[320px]">
+              {bottomZoneContent}
+            </div>
+            </div>
+            </div>
           </>
         )}
 
-        {/* Scrollable middle — tabs + list */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {bottomZoneContent}
-        </div>
+        {/* Non-admin: no pinned panels — tabs get the full middle zone */}
+        {!isAdmin && (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {bottomZoneContent}
+          </div>
+        )}
 
         {/* Stats tiles — pinned at bottom */}
         <div className="shrink-0 rounded-2xl border border-stone-100 bg-stone-50/70 px-3 py-3 shadow-sm">

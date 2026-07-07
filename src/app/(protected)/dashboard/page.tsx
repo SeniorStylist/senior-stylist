@@ -28,7 +28,18 @@ export default async function DashboardPage() {
       user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
     if (isSuperAdmin) {
-      // Super admin with no active facility → show setup UI
+      // Master admin with no selected facility: when the org already has
+      // facilities, this is just a missing selected_facility_id cookie (e.g.
+      // after sign-out) — send them to Master Admin to pick one. The
+      // first-time setup screen (whose button CREATES a facility + demo data)
+      // is only correct on a genuinely empty database.
+      const anyFacility = await db.query.facilities.findFirst({
+        where: eq(facilities.active, true),
+        columns: { id: true },
+      })
+      if (anyFacility) redirect('/master-admin')
+
+      // Genuinely empty database → first-run setup UI
       return (
         <div className="p-8">
           <h1
