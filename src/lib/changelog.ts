@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.5',
+    date: '2026-07-07',
+    title: 'Stability & Tutorial Fixes',
+    items: [
+      'Fixed the outage: background page-warming no longer overloads the database',
+      'Tutorials now exit demo mode instantly — on finish, on cancel, even if you close the tab mid-tour',
+      "What's New opens as a proper dialog; fixed clipped toolbars on the dashboard",
+      'Tutorials work at any time of day and auto-skip a step that fails to load instead of freezing',
+    ],
+  },
+  {
     version: '3.4',
     date: '2026-07-07',
     title: 'Accessibility & Synced Tabs',

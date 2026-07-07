@@ -2870,3 +2870,11 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - Authenticated pages are offline-navigable via the per-user SW page cache. When adding a NEW
   top-level page, add it to `WARM_ROUTES` in `sw-register.tsx` (per role) so it pre-caches; when
   adding a NEW sign-out affordance, call `clearOfflineOnLogout()` from `src/lib/offline-session.ts`.
+
+### Phase 21 — overlay + toolbar rules (2026-07-07)
+
+- **Never mount fixed-position overlays inline inside blurred/transformed chrome** — `backdrop-filter`
+  (TopBar) makes the ancestor the containing block for `position:fixed`. The shared `Modal` portals
+  to `document.body`; new overlays should do the same or anchor with `absolute` like NotificationBell.
+- **Page toolbars with 3+ controls must `flex-wrap`** (usually `justify-end` for right groups) —
+  never `shrink-0` no-wrap rows inside `overflow-hidden` columns.
