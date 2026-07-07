@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getStripePromise } from './stripe-browser'
+import { tapToPayAvailable, initTerminal, connectLocalReader, collectTerminalPayment } from '@/lib/tap-to-pay'
 
 interface TakePaymentModalProps {
   open: boolean
@@ -32,6 +33,8 @@ export function TakePaymentModal(props: TakePaymentModalProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null)
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
+  // F7 — Tap to Pay (native + flag-gated; hidden everywhere else)
+  const [tapping, setTapping] = useState(false)
 
   function reset() {
     setClientSecret(null)
@@ -72,6 +75,44 @@ export function TakePaymentModal(props: TakePaymentModalProps) {
     onClose()
   }
 
+  // F7 — Tap to Pay: card_present PI → phone's built-in reader collects + confirms
+  // → the existing idempotent finalize (confirm POST; webhook backstop).
+  async function tapToPay() {
+    const amountCents = Math.round(parseFloat(amount) * 100)
+    if (!Number.isFinite(amountCents) || amountCents < 50) {
+      toast.error('Enter an amount of at least $0.50')
+      return
+    }
+    setTapping(true)
+    try {
+      const res = await fetch('/api/payments/intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId, amountCents, bookingIds, terminal: true }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(j.error || 'Could not start payment')
+        return
+      }
+      await initTerminal()
+      await connectLocalReader()
+      await collectTerminalPayment(j.data.clientSecret)
+      await fetch('/api/payments/intent/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIntentId: j.data.paymentIntentId }),
+      }).catch(() => {})
+      toast.success('Payment collected')
+      props.onPaid?.()
+      close()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Tap to Pay failed')
+    } finally {
+      setTapping(false)
+    }
+  }
+
   return (
     <Modal open={open} onClose={close} title={`Take payment — ${residentName}`}>
       <div className="p-1 space-y-4">
@@ -99,6 +140,11 @@ export function TakePaymentModal(props: TakePaymentModalProps) {
             <Button onClick={start} loading={starting} className="w-full">
               Continue to card
             </Button>
+            {tapToPayAvailable() && (
+              <Button onClick={tapToPay} loading={tapping} variant="secondary" className="w-full">
+                📳 Tap to Pay on this phone
+              </Button>
+            )}
           </>
         ) : stripePromise ? (
           <Elements

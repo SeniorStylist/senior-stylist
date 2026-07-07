@@ -52,6 +52,38 @@ Full strategy, sequencing (Android first), and the Apple Guideline 4.2 plan live
 - **Store package**: see `docs/store-listing.md` (listing copy, privacy answers, Apple review
   notes/4.2 defense, screenshot shot-list, submission order).
 
+## Tap to Pay (Phase 15 F7 — wired 2026-07-07, DORMANT until entitlements + flag)
+
+Stylists take contactless cards on the phone itself via **Stripe Terminal** (plugin
+`@capacitor-community/stripe-terminal`, Capacitor 8). Server: `POST
+/api/payments/terminal/connection-token` (auth mirrors /api/payments/intent) and
+`/api/payments/intent` accepts `terminal: true` → `card_present` PI with
+`recordedVia: 'tap_to_pay'` + the same metadata, so the existing idempotent finalize
+(confirm POST + `payment_intent.succeeded` webhook) works unchanged. Client:
+`src/lib/tap-to-pay.ts` (haptics.ts pattern — dynamic imports, no-op off-device) +
+a "Tap to Pay on this phone" button in `<TakePaymentModal>` shown only when
+`tapToPayAvailable()` (native app AND `NEXT_PUBLIC_TAP_TO_PAY_ENABLED='true'`).
+
+### Go-live gate (Josh)
+1. **Apple entitlement** (the long pole — apply early): request
+   `com.apple.developer.proximity-reader.payment.acceptance` at
+   https://developer.apple.com/contact/request/contactless-payments (requires the
+   paid developer account; approval can take weeks). When granted, add the
+   entitlement to `ios/App/App/App.entitlements` in Xcode.
+2. **Android**: add `ACCESS_FINE_LOCATION` + NFC to `AndroidManifest.xml` (the
+   Terminal SDK requires location at connect time); device needs NFC.
+3. **Stripe**: create ONE Terminal **Location** (Dashboard → Terminal → Locations,
+   use the Senior Stylist business address) → set `STRIPE_TERMINAL_LOCATION_ID`
+   (server) and optionally `NEXT_PUBLIC_STRIPE_TERMINAL_LOCATION_ID` (client) in
+   Vercel + .env.local.
+4. Flip `NEXT_PUBLIC_TAP_TO_PAY_ENABLED=true` and `npm run cap:sync` on the Mac
+   (new native pod/gradle dep).
+5. Device requirements: iPhone XS or later on iOS 16.7+; Android with NFC.
+   US-merchant Stripe account (already true).
+
+Until every step lands, the button is hidden and the plugin is never imported —
+zero impact on web or store builds.
+
 ## Build & submit (summary)
 
 **Android (ship first):**

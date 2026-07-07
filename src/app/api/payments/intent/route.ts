@@ -23,6 +23,9 @@ const schema = z.object({
   bookingIds: z.array(z.string().uuid()).max(50).optional(),
   invoiceIds: z.array(z.string().uuid()).max(50).optional(),
   savePaymentMethod: z.boolean().default(false),
+  // Phase 15 F7 — Tap to Pay: card_present PI collected by the Stripe Terminal
+  // SDK on the stylist's phone instead of the Payment Element.
+  terminal: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -91,21 +94,27 @@ export async function POST(request: NextRequest) {
         })
       : resident.stripeCustomerId ?? undefined
 
+    // F7: Terminal (Tap to Pay) PIs use card_present and skip card-saving —
+    // card_present COF is a different flow, out of scope for v1. The same
+    // metadata contract means the idempotent finalize path (confirm POST +
+    // payment_intent.succeeded webhook) works unchanged.
+    const isTerminal = body.terminal === true
     const intent = await stripe.paymentIntents.create({
       amount: body.amountCents,
       currency: 'usd',
-      payment_method_types: ['card'],
-      ...(customerId ? { customer: customerId } : {}),
-      ...(body.savePaymentMethod && customerId ? { setup_future_usage: 'off_session' as const } : {}),
+      payment_method_types: isTerminal ? ['card_present'] : ['card'],
+      ...(isTerminal ? { capture_method: 'automatic' as const } : {}),
+      ...(!isTerminal && customerId ? { customer: customerId } : {}),
+      ...(!isTerminal && body.savePaymentMethod && customerId ? { setup_future_usage: 'off_session' as const } : {}),
       metadata: {
         residentId: resident.id,
         facilityId: resident.facilityId,
         bookingIds: (body.bookingIds ?? []).join(','),
         invoiceIds: (body.invoiceIds ?? []).join(','),
         collectedBy: user.id,
-        recordedVia: 'stylist_collect',
+        recordedVia: isTerminal ? 'tap_to_pay' : 'stylist_collect',
         inApp: '1',
-        savePaymentMethod: body.savePaymentMethod ? '1' : '0',
+        savePaymentMethod: !isTerminal && body.savePaymentMethod ? '1' : '0',
       },
     })
 
