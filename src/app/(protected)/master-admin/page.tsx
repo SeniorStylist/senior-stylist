@@ -7,6 +7,14 @@ import { facilities } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { MasterAdminClient } from './master-admin-client'
 
+// Phase 22 — this page fires ~11 GROUP BY queries on a cold cache, all
+// serialized through the single pooled DB connection (max:1). On a large org
+// (100+ facilities) the cold render can exceed the default function limit and
+// get killed → "A server error occurred". 60s gives it headroom; the four
+// cached functions are instant once warm (5-min TTL).
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 interface FacilityInfo {
   id: string
   name: string
@@ -236,12 +244,13 @@ export default async function SuperAdminPage() {
   const currentFacilityId = cookieStore.get('selected_facility_id')?.value ?? ''
   const tutorialMode = cookieStore.get('ss_tutorial_mode')?.value === '1'
 
-  const [facilityInfos, pendingRequests, activeFacilitiesList, franchiseList] = await Promise.all([
-    getCachedFacilityInfos(yearMonthKey, tutorialMode),
-    getCachedPendingAccessRequests(),
-    getCachedActiveFacilitiesList(),
-    getCachedFranchiseList(),
-  ])
+  // Phase 22 — SEQUENTIAL on cold cache so the four functions' query bursts
+  // don't overlap on the max:1 connection (peak concurrency = one function's
+  // queries, not all four). Warm cache makes each an instant no-DB return.
+  const facilityInfos = await getCachedFacilityInfos(yearMonthKey, tutorialMode)
+  const pendingRequests = await getCachedPendingAccessRequests()
+  const activeFacilitiesList = await getCachedActiveFacilitiesList()
+  const franchiseList = await getCachedFranchiseList()
 
   return (
     <MasterAdminClient
