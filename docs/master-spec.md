@@ -2731,6 +2731,15 @@ review-first import convention).
 
 ---
 
+## Phase 19 — Hotfix + Synced Nav Prefs + A11y (2026-07-07)
+
+Full detail in CLAUDE.md ("Phase 19"). New table `user_prefs (user_id PK → profiles CASCADE,
+mobile_nav jsonb, updated_at)` — `drizzle/0026_user_prefs.sql`, self-bootstrapped. New route
+`GET|PUT /api/profile/nav-prefs`. New hook `src/hooks/use-dialog-focus.ts` (dialog focus trap —
+reuse for any new overlay). Layout self-heals `facilities.monthly_report_enabled` (0024).
+Deploy-order rule: new columns on hot tables must ship as new tables or get an ensure*() call
+in the protected layout.
+
 ## Phase 18 — Full Offline Mode (2026-07-07)
 
 Full detail in CLAUDE.md ("Phase 18" entry). No schema changes. Spec deltas:

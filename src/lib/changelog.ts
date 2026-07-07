@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.4',
+    date: '2026-07-07',
+    title: 'Accessibility & Synced Tabs',
+    items: [
+      'Big accessibility pass for family members: screen-reader labels, announced errors, Spanish pronunciation, higher-contrast helper text',
+      'Dialogs now keep keyboard focus inside and return it when closed',
+      'Your customized bottom tabs now follow you across devices',
+    ],
+  },
+  {
     version: '3.3',
     date: '2026-07-07',
     title: 'Full Offline Mode',
