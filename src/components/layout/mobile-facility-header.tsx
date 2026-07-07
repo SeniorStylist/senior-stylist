@@ -65,8 +65,9 @@ export function MobileFacilityHeader({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ facilityId }),
     })
-    router.refresh()
-    setSwitching(false)
+    // HARD reload — soft refresh leaves useState-seeded page content on the old
+    // facility (see sidebar.tsx handleSelectFacility). (Phase 23)
+    window.location.reload()
   }
 
   return (

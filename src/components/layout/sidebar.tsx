@@ -285,8 +285,11 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ facilityId }),
     })
-    router.refresh()
-    setSwitching(false)
+    // HARD reload — router.refresh() re-runs server components but does NOT
+    // re-run client useState(initialProps) initializers, so /log and /billing
+    // kept showing the OLD facility's data ("switching doesn't work"). Same
+    // house rule as debug impersonation. (Phase 23)
+    window.location.reload()
   }
 
   const userInitials = user.user_metadata?.full_name

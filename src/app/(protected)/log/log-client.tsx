@@ -961,6 +961,15 @@ export function LogClient({
           </svg>
         </button>
         <div className="hidden md:flex items-center gap-3">
+          {/* Phase 23 — bookkeepers work across facilities from this page: a
+              searchable in-place facility picker (mirrors the /billing combobox;
+              only renders when the user can access >1 facility). */}
+          {exportFacilities && exportFacilities.length > 1 && (
+            <LogFacilityPicker
+              facilities={exportFacilities}
+              currentFacilityId={facilityId}
+            />
+          )}
           {(role === 'bookkeeper' || role === 'admin' || role === 'super_admin') && (
             <button
               type="button"
@@ -2160,5 +2169,108 @@ function ExportIcon() {
       <line x1="8" y1="13" x2="12" y2="17"/>
       <line x1="12" y1="13" x2="8" y2="17"/>
     </svg>
+  )
+}
+// Phase 23 — in-place facility switcher for the daily log (bookkeeper/master).
+// Search by name or F-code (house rule); picking POSTs /api/facilities/select
+// then HARD-reloads so every server-seeded list re-renders under the new
+// facility (soft refresh does not re-run useState initializers).
+function LogFacilityPicker({
+  facilities,
+  currentFacilityId,
+}: {
+  facilities: { id: string; name: string; facilityCode: string | null }[]
+  currentFacilityId: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const [switching, setSwitching] = useState(false)
+  const current = facilities.find((f) => f.id === currentFacilityId)
+  const filtered = q.trim()
+    ? facilities.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q.toLowerCase()) ||
+          (f.facilityCode ?? '').toLowerCase().includes(q.toLowerCase()),
+      )
+    : facilities
+
+  const pick = async (id: string) => {
+    if (id === currentFacilityId) { setOpen(false); return }
+    setSwitching(true)
+    try {
+      await fetch('/api/facilities/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facilityId: id }),
+      })
+      window.location.reload()
+    } catch {
+      setSwitching(false)
+    }
+  }
+
+  return (
+    <div
+      className="relative"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setOpen(false)
+          setQ('')
+        }
+      }}
+    >
+      <button
+        type="button"
+        data-tour="log-facility-picker"
+        onClick={() => setOpen((v) => !v)}
+        disabled={switching}
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px] max-w-[220px] disabled:opacity-60"
+        title="Switch facility"
+      >
+        {current?.facilityCode && (
+          <span className="font-mono text-stone-400 shrink-0">{current.facilityCode}</span>
+        )}
+        <span className="truncate">{switching ? 'Switching…' : (current?.name ?? 'Facility')}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0 text-stone-400">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 right-0 w-72 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-stone-100">
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name or F-code…"
+              aria-label="Search facilities"
+              className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]/50"
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {filtered.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); void pick(f.id) }}
+                className={
+                  f.id === currentFacilityId
+                    ? 'w-full flex items-center gap-2 px-3 py-2 text-left text-sm bg-rose-50 text-[#8B2E4A] font-medium'
+                    : 'w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-stone-50 text-stone-700'
+                }
+              >
+                {f.facilityCode && (
+                  <span className="font-mono text-xs text-stone-400 shrink-0 w-11">{f.facilityCode}</span>
+                )}
+                <span className="flex-1 truncate">{f.name}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-4 text-sm text-stone-400 text-center">No facilities match</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
