@@ -97,11 +97,46 @@ export async function POST(request: NextRequest) {
 
     await ensurePaymentsSchema()
 
+    // Safeguard (2026-07-07): flipping autopay ON must never be silent — the payor
+    // gets an email so a card is never auto-charged "without knowing".
+    const before = await db.query.residents.findFirst({
+      where: eq(residents.id, body.residentId),
+      columns: { autopayEnabled: true, name: true, poaEmail: true, facilityId: true },
+    })
+
     const set: Partial<typeof residents.$inferInsert> = { updatedAt: new Date() }
     if (body.autopayEnabled !== undefined) set.autopayEnabled = body.autopayEnabled
     if (body.autopayMethod !== undefined) set.autopayMethod = body.autopayMethod
     if (Object.keys(set).length > 1) {
       await db.update(residents).set(set).where(eq(residents.id, body.residentId))
+    }
+
+    const flipped =
+      body.autopayEnabled !== undefined && before && body.autopayEnabled !== (before.autopayEnabled ?? false)
+    if (flipped && before?.poaEmail) {
+      void (async () => {
+        const [{ sendEmail, buildAutopayEnabledEmailHtml }, facility, card] = await Promise.all([
+          import('@/lib/email'),
+          db.query.facilities.findFirst({
+            where: (f, { eq: eqOp }) => eqOp(f.id, before.facilityId),
+            columns: { name: true },
+          }),
+          db.query.paymentMethods.findFirst({
+            where: and(eq(paymentMethods.residentId, body.residentId), eq(paymentMethods.active, true), eq(paymentMethods.isDefault, true)),
+            columns: { brand: true, last4: true },
+          }),
+        ])
+        await sendEmail({
+          to: before.poaEmail!,
+          subject: `Automatic payment turned ${body.autopayEnabled ? 'on' : 'off'} — ${facility?.name ?? 'Senior Stylist'}`,
+          html: buildAutopayEnabledEmailHtml({
+            residentName: before.name,
+            facilityName: facility?.name ?? 'Senior Stylist',
+            cardLabel: card?.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null,
+            enabled: body.autopayEnabled === true,
+          }),
+        })
+      })().catch((err) => console.error('[autopay POST] consent email failed:', err))
     }
 
     // Promote the chosen card to default (scoped to this resident's active cards).

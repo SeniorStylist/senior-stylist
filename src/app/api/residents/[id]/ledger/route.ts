@@ -56,7 +56,7 @@ export async function GET(
       }),
       db.query.qbPayments.findMany({
         where: and(eq(qbPayments.facilityId, facilityId), eq(qbPayments.residentId, residentId), eq(qbPayments.isDemo, false)),
-        columns: { id: true, checkNum: true, paymentDate: true, amountCents: true, memo: true, paymentMethod: true, paymentType: true },
+        columns: { id: true, checkNum: true, paymentDate: true, amountCents: true, memo: true, paymentMethod: true, paymentType: true, stripePaymentIntentId: true },
         orderBy: [desc(qbPayments.paymentDate)],
         limit: 500,
       }),
@@ -94,6 +94,8 @@ export async function GET(
       detail: string | null
       chargeCents: number
       paymentCents: number
+      // Phase 15 safeguards — in-app Stripe refund available for this payment
+      refundable?: boolean
     }
     const entries: Entry[] = [
       ...invoices.map((i): Entry => ({
@@ -113,6 +115,7 @@ export async function GET(
         detail: p.paymentMethod || p.paymentType || p.memo || null,
         chargeCents: 0,
         paymentCents: p.amountCents,
+        refundable: !!p.stripePaymentIntentId && p.amountCents > 0,
       })),
     ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.kind === 'invoice' ? -1 : 1))
 

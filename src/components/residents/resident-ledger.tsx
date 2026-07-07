@@ -15,6 +15,7 @@ interface LedgerEntry {
   chargeCents: number
   paymentCents: number
   balanceCents: number
+  refundable?: boolean
 }
 
 interface LedgerCredit {
@@ -160,6 +161,7 @@ export function ResidentLedger({ residentId, role }: { residentId: string; role:
                         <span className="min-w-0">
                           <span className="text-stone-800">{e.label}</span>
                           {e.detail && <span className="text-stone-400 text-xs ml-1.5">· {e.detail}</span>}
+                          {e.refundable && <RefundButton paymentId={e.id} onRefunded={load} />}
                         </span>
                         <span className="text-right text-stone-700 tabular-nums">{e.chargeCents ? formatCents(e.chargeCents) : '—'}</span>
                         <span className="text-right text-emerald-700 tabular-nums">{e.paymentCents ? `(${formatCents(e.paymentCents)})` : '—'}</span>
@@ -286,5 +288,48 @@ function SummaryTile({ label, value, tone }: { label: string; value: string; ton
       <p className="text-[11px] text-stone-400 uppercase tracking-wide font-semibold">{label}</p>
       <p className={`text-base font-semibold mt-0.5 tabular-nums ${toneClass}`}>{value}</p>
     </div>
+  )
+}
+
+// Phase 15 safeguards — in-app Stripe refund (full amount, two-tap confirm).
+function RefundButton({ paymentId, onRefunded }: { paymentId: string; onRefunded: () => void }) {
+  const { toast } = useToast()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const refund = async () => {
+    if (!confirming) { setConfirming(true); setTimeout(() => setConfirming(false), 4000); return }
+    setBusy(true)
+    try {
+      const res = await fetch('/api/payments/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success(`Refunded ${formatCents(j.data?.refundedCents ?? 0)} to the card`)
+        onRefunded()
+      } else {
+        toast.error(typeof j.error === 'string' ? j.error : 'Refund failed')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setBusy(false)
+      setConfirming(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={refund}
+      disabled={busy}
+      className={`ml-2 text-[10.5px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
+        confirming ? 'bg-red-600 text-white' : 'bg-stone-100 text-stone-500 hover:bg-red-50 hover:text-red-600'
+      } disabled:opacity-50`}
+    >
+      {busy ? 'Refunding…' : confirming ? 'Confirm refund?' : 'Refund'}
+    </button>
   )
 }

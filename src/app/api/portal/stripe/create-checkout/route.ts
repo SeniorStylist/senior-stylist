@@ -26,15 +26,29 @@ export async function POST(request: NextRequest) {
     const parsed = schema.safeParse(body)
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
 
-    const { residentId, amountCents, purpose } = parsed.data
+    const { residentId, purpose } = parsed.data
+    let amountCents = parsed.data.amountCents
     const residentMatch = session.residents.find((r) => r.residentId === residentId)
     if (!residentMatch) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     const resident = await db.query.residents.findFirst({
       where: eq(residents.id, residentId),
-      columns: { id: true, name: true, facilityId: true },
+      columns: { id: true, name: true, facilityId: true, qbOutstandingBalanceCents: true },
     })
     if (!resident) return Response.json({ error: 'Not found' }, { status: 404 })
+
+    // Safeguard (2026-07-07): a balance payment can't start when nothing is owed —
+    // blocks the two-tabs / pay-twice case (the second tab's stale button 409s here).
+    if (purpose === 'balance' && (resident.qbOutstandingBalanceCents ?? 0) <= 0) {
+      return Response.json(
+        { error: 'This balance has already been paid — refresh the page to see the updated amount.' },
+        { status: 409 },
+      )
+    }
+    // …and never charge MORE than what's currently owed (stale prefilled amount).
+    if (purpose === 'balance') {
+      amountCents = Math.min(amountCents, resident.qbOutstandingBalanceCents ?? amountCents)
+    }
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, resident.facilityId),

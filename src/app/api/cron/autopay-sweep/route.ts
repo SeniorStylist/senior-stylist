@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
         columns: { id: true },
       })
 
+      let facilityAttempted = 0
+      let facilityCollectedCents = 0
+      let facilityFailed = 0
       for (const r of targets) {
         if (attempted >= MAX_PER_RUN) {
           capped = true
@@ -80,9 +83,27 @@ export async function GET(request: NextRequest) {
         const out = await collectResidentBalance(r.id, dateKey)
         if (out.attempted) {
           attempted++
-          if (out.result?.ok) collected++
-          else failed++
+          facilityAttempted++
+          if (out.result?.ok) {
+            collected++
+            facilityCollectedCents += out.result.collectedCents
+          } else {
+            failed++
+            facilityFailed++
+          }
         }
+      }
+
+      // Safeguard (2026-07-07): the automated run must be visible to staff — bell
+      // + push summary of what the sweep charged at this facility.
+      if (facilityAttempted > 0) {
+        const { notifyFacilityAdmins } = await import('@/lib/notify')
+        await notifyFacilityAdmins(facility.id, {
+          type: 'autopay_summary',
+          title: 'Autopay ran overnight',
+          body: `Collected $${(facilityCollectedCents / 100).toFixed(2)} from ${facilityAttempted - facilityFailed} resident${facilityAttempted - facilityFailed === 1 ? '' : 's'}${facilityFailed > 0 ? ` · ${facilityFailed} failed (payment links sent)` : ''}`,
+          url: '/billing',
+        })
       }
 
       // Bump the facility's cursor even if no residents were due — avoids

@@ -122,6 +122,9 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
   // Ensures the stripe_payment_intent_id column + unique index exist (no-op after first call).
   const { ensurePaymentsSchema } = await import('@/lib/payments-ddl')
   await ensurePaymentsSchema()
+  // qb_unapplied_credits (overpayment banking below) — module-guarded no-op after first call.
+  const { ensureUnappliedSchema } = await import('@/lib/unapplied-ddl')
+  await ensureUnappliedSchema()
 
   await db.transaction(async (tx) => {
     // Stripe delivers checkout.session.completed at-least-once — stamp the PI on
@@ -176,6 +179,27 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
           .set({ openBalanceCents: newOpen, status: 'partial', updatedAt: now })
           .where(eq(qbInvoices.id, inv.id))
       }
+    }
+
+    // Safeguard (2026-07-07): never orphan money. If the payment exceeded the open
+    // balance (double-pay race, stale amount), bank the remainder as an account
+    // credit so it's visible and applies to future invoices instead of vanishing.
+    if (remaining > 0) {
+      const residentRow = await tx.query.residents.findFirst({
+        where: eq(residents.id, residentId),
+        columns: { qbCustomerId: true },
+      })
+      await tx.insert(qbUnappliedCredits).values({
+        facilityId,
+        residentId,
+        qbCustomerId: residentRow?.qbCustomerId ?? `RES-${residentId.slice(0, 8)}`,
+        txnType: 'Prepayment',
+        txnDate: now.toISOString().slice(0, 10),
+        num: `Portal overpayment · ${stripePaymentIntentId ?? session.id}`,
+        amountCents: remaining,
+        openBalanceCents: remaining,
+        appliedCents: 0,
+      })
     }
 
     await tx

@@ -23,6 +23,8 @@ export type NotificationType =
   | 'coverage_decision'
   | 'birthday'
   | 'waitlist_slot_opened'
+  | 'payment_failed'
+  | 'autopay_summary'
 
 export interface NotifyPayload {
   type: NotificationType

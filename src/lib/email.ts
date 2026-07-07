@@ -1060,3 +1060,73 @@ export function buildWeeklyDigestEmailHtml(params: {
 </body>
 </html>`.trim()
 }
+
+// ─── Phase 15 safeguards — auto-charge receipt + autopay-enabled notice ──────
+
+export function buildAutoChargeReceiptHtml(params: {
+  residentName: string
+  facilityName: string
+  amountCents: number
+  cardLabel: string | null // e.g. "Visa ••4242"
+  dateLabel: string
+}): string {
+  const { residentName, facilityName, amountCents, cardLabel, dateLabel } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Payment Receipt', title: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        A payment for <strong>${escHtml(residentName)}</strong>'s salon services was charged to the card on file.
+      </p>
+      <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#78716C;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Amount Charged</p>
+        <p style="margin:4px 0 0;font-size:26px;font-weight:700;color:#047857;">${fmtCents(amountCents)}</p>
+        <p style="margin:6px 0 0;font-size:12px;color:#78716C;">${escHtml(dateLabel)}${cardLabel ? ` · ${escHtml(cardLabel)}` : ''}</p>
+      </div>
+      <p style="margin:0;color:#A8A29E;font-size:12px;line-height:1.6;">
+        This card is on file for automatic payment of salon balances. Questions or want to change
+        how payments are made? Reply to this email or contact the facility's front desk.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+export function buildAutopayEnabledEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  cardLabel: string | null
+  enabled: boolean
+}): string {
+  const { residentName, facilityName, cardLabel, enabled } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Payment Settings', title: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        Automatic payment for <strong>${escHtml(residentName)}</strong>'s salon services was just
+        turned <strong>${enabled ? 'ON' : 'OFF'}</strong>.
+      </p>
+      ${enabled ? `
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        Going forward, salon balances will be charged automatically${cardLabel ? ` to <strong>${escHtml(cardLabel)}</strong>` : ' to the card on file'}.
+        You'll receive a receipt by email each time a charge is made.
+      </p>` : ''}
+      <p style="margin:0;color:#A8A29E;font-size:12px;line-height:1.6;">
+        If you did not expect this change, reply to this email or contact the facility's front desk
+        and they will turn it off right away.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}

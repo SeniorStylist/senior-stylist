@@ -23,7 +23,7 @@ export default async function BillingPage({
   const [residentRow, facilityRow, invoices] = await Promise.all([
     db.query.residents.findFirst({
       where: eq(residents.id, selected.residentId),
-      columns: { id: true, name: true, qbOutstandingBalanceCents: true },
+      columns: { id: true, name: true, qbOutstandingBalanceCents: true, autopayEnabled: true },
     }),
     db.query.facilities.findFirst({
       where: eq(facilities.id, selected.facilityId),
@@ -53,6 +53,7 @@ export default async function BillingPage({
       residentId={selected.residentId}
       residentName={selected.residentName}
       outstandingCents={outstanding}
+      autopayEnabled={residentRow?.autopayEnabled ?? false}
       stripeAvailable={stripeAvailable}
       paymentSuccess={payment === 'success'}
       giftSuccess={gift === 'success'}

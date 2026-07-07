@@ -50,7 +50,14 @@ export type CollectFailureCode =
   | 'requires_action'
   | 'insufficient'
   | 'invalid'
+  | 'over_limit'
   | 'error'
+
+// Safeguard (2026-07-07): hard ceiling on a single AUTOMATIC card charge. A
+// corrupted/mis-imported balance must never be pulled off-session in full —
+// above this, the engine refuses and the failover pay-link lets the payor pay
+// deliberately. Manual/in-app collections are not capped (operator-confirmed).
+const AUTO_CHARGE_MAX_CENTS = 200_000 // $2,000
 
 export type CollectResult =
   | {
@@ -196,6 +203,9 @@ async function markBookingsPaid(tx: Tx, bookingIds: string[], methodLabel: strin
  */
 export async function collectForResident(opts: CollectOptions): Promise<CollectResult> {
   await ensurePaymentsSchema()
+  // qb_unapplied_credits (remainder banking in Step 3) — module-guarded no-op.
+  const { ensureUnappliedSchema } = await import('@/lib/unapplied-ddl')
+  await ensureUnappliedSchema()
 
   if (!Number.isInteger(opts.amountCents) || opts.amountCents <= 0) {
     return { ok: false, code: 'invalid', reason: 'Nothing to collect', salonCents: 0 }
@@ -203,9 +213,45 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
 
   const resident = await db.query.residents.findFirst({
     where: eq(residents.id, opts.residentId),
-    columns: { id: true, name: true, facilityId: true, stripeCustomerId: true, autopayMethod: true, qbCustomerId: true },
+    columns: { id: true, name: true, facilityId: true, stripeCustomerId: true, autopayMethod: true, qbCustomerId: true, poaEmail: true },
   })
   if (!resident) return { ok: false, code: 'invalid', reason: 'Resident not found', salonCents: 0 }
+
+  // ── Safeguards (2026-07-07): never charge money that isn't due ─────────────
+  // Booking-driven collects (on-completion): re-check the bookings are STILL
+  // unpaid — a concurrent sweep/manual collect may already have settled them.
+  if (opts.bookingIds?.length) {
+    const stillUnpaid = await db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .where(and(
+        inArray(bookings.id, opts.bookingIds),
+        eq(bookings.active, true),
+        sql`${bookings.paymentStatus} IS DISTINCT FROM 'paid'`,
+      ))
+    if (stillUnpaid.length === 0) {
+      return { ok: false, code: 'invalid', reason: 'Already paid', salonCents: 0 }
+    }
+  } else {
+    // Balance-driven collects (sweep + "Collect now"): clamp to the CURRENT open
+    // invoice balance, freshly computed — the caller's amount may be stale (a
+    // concurrent collect could have settled part or all of it). Prevents the
+    // "charged twice for the same balance" race.
+    const [freshRow] = await db
+      .select({ n: sql<string>`COALESCE(SUM(${qbInvoices.openBalanceCents}), 0)` })
+      .from(qbInvoices)
+      .where(and(
+        eq(qbInvoices.residentId, resident.id),
+        eq(qbInvoices.isDemo, false),
+        gt(qbInvoices.openBalanceCents, 0),
+        ...(opts.invoiceIds?.length ? [inArray(qbInvoices.id, opts.invoiceIds)] : []),
+      ))
+    const freshOutstanding = Number(freshRow?.n ?? 0)
+    if (freshOutstanding <= 0) {
+      return { ok: false, code: 'invalid', reason: 'Nothing due — the balance is already settled', salonCents: 0 }
+    }
+    opts = { ...opts, amountCents: Math.min(opts.amountCents, freshOutstanding) }
+  }
 
   const method: CollectMethod =
     opts.method ?? (resident.autopayMethod as CollectMethod | null) ?? 'salon_then_card'
@@ -246,6 +292,17 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
   // Permit test keys always; block LIVE keys until the flag is flipped on go-live.
   if (key.startsWith('sk_live_') && !paymentsLiveEnabled()) {
     return { ok: false, code: 'not_configured', reason: 'Live card payments are disabled (PAYMENTS_LIVE_ENABLED)', salonCents }
+  }
+
+  // Safeguard: automatic (off-session, unattended) charges are capped — above the
+  // ceiling the failover pay-link asks the payor to pay deliberately instead.
+  if ((opts.recordedVia ?? 'auto_charge') === 'auto_charge' && remaining > AUTO_CHARGE_MAX_CENTS) {
+    return {
+      ok: false,
+      code: 'over_limit',
+      reason: `Balance ($${(remaining / 100).toFixed(2)}) is above the automatic-charge limit`,
+      salonCents,
+    }
   }
 
   const card = await db.query.paymentMethods.findFirst({
@@ -303,7 +360,7 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
   // ── Step 3: record the card payment, apply to invoices, mark bookings ──────
   const facility = await db.query.facilities.findFirst({
     where: eq(facilities.id, resident.facilityId),
-    columns: { revSharePercentage: true, qbRevShareType: true },
+    columns: { name: true, timezone: true, revSharePercentage: true, qbRevShareType: true },
   })
   const split = calculateRevShare(remaining, facility?.revSharePercentage ?? null, facility?.qbRevShareType ?? null)
 
@@ -329,7 +386,25 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
         })
         .returning({ id: qbPayments.id })
       paymentId = row.id
-      await applyCentsToOpenInvoices(tx, resident.id, remaining, opts.invoiceIds, paymentIntentId)
+      const applied = await applyCentsToOpenInvoices(tx, resident.id, remaining, opts.invoiceIds, paymentIntentId)
+      // Safeguard (2026-07-07): never orphan captured money. If part of the charge
+      // had no open invoice to land on (e.g. on-completion before the QB invoice
+      // exists), bank it as a salon-account credit — future collects draw it FIRST
+      // (salon_then_card), so the same dollars are never charged twice.
+      const unapplied = remaining - applied
+      if (unapplied > 0) {
+        await tx.insert(qbUnappliedCredits).values({
+          facilityId: resident.facilityId,
+          residentId: resident.id,
+          qbCustomerId: resident.qbCustomerId ?? `RES-${resident.id.slice(0, 8)}`,
+          txnType: 'Prepayment',
+          txnDate: new Date().toISOString().slice(0, 10),
+          num: `Card-on-file remainder · ${paymentIntentId}`,
+          amountCents: unapplied,
+          openBalanceCents: unapplied,
+          appliedCents: 0,
+        })
+      }
       await markBookingsPaid(tx, opts.bookingIds ?? [], 'Card')
       await recompute(tx, resident.facilityId)
     })
@@ -337,6 +412,29 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
     // Money was captured at Stripe but our DB write failed — log loudly; the
     // payment exists in Stripe and can be reconciled from the dashboard.
     console.error('[payments.collect] DB write after successful charge failed:', err, { paymentIntentId })
+  }
+
+  // Safeguard (2026-07-07): every card-on-file charge sends the payor a receipt —
+  // an automatic charge must never be silent. Fire-and-forget.
+  if (resident.poaEmail) {
+    void (async () => {
+      const { sendEmail, buildAutoChargeReceiptHtml } = await import('@/lib/email')
+      const cardLabel = card.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null
+      await sendEmail({
+        to: resident.poaEmail!,
+        subject: `Receipt — ${facility?.name ?? 'Senior Stylist'}`,
+        html: buildAutoChargeReceiptHtml({
+          residentName: resident.name,
+          facilityName: facility?.name ?? 'Senior Stylist',
+          amountCents: remaining,
+          cardLabel,
+          dateLabel: new Date().toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric',
+            timeZone: facility?.timezone ?? 'America/New_York',
+          }),
+        }),
+      })
+    })().catch((err) => console.error('[payments.collect] receipt send failed:', err))
   }
 
   bustBilling()

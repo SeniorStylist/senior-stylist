@@ -20,6 +20,7 @@ interface Props {
   residentId: string
   residentName: string
   outstandingCents: number
+  autopayEnabled?: boolean
   stripeAvailable: boolean
   paymentSuccess: boolean
   giftSuccess: boolean
@@ -42,6 +43,7 @@ export function BillingClient({
   residentId,
   residentName,
   outstandingCents,
+  autopayEnabled = false,
   stripeAvailable,
   paymentSuccess,
   giftSuccess,
@@ -187,6 +189,12 @@ export function BillingClient({
         >
           {formatDollars(outstandingCents)}
         </p>
+        {autopayEnabled && (
+          <p className="text-xs mt-2 font-medium text-stone-600">
+            🔄 Automatic payment is <strong>on</strong> — new balances are charged to the card on
+            file and you&apos;ll get an email receipt each time. Contact the facility to change this.
+          </p>
+        )}
       </section>
 
       {showPay && (
