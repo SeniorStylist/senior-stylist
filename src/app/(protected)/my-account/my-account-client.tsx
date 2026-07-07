@@ -60,6 +60,7 @@ interface MyAccountClientProps {
   stylist: Stylist | null
   weekBookings: WeekBooking[]
   monthEarningsCents: number
+  monthForecastCents?: number
   linked: boolean
   facilityStylists: Stylist[]
   googleCalendarConnected: boolean
@@ -181,7 +182,7 @@ function statusBadge(status: string) {
   )
 }
 
-export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId, stylistAssignments = [], payHistory = [], payHistoryDeductions = [] }: MyAccountClientProps) {
+export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, monthForecastCents = 0, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId, stylistAssignments = [], payHistory = [], payHistoryDeductions = [] }: MyAccountClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')
@@ -670,6 +671,11 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
           )}
         </div>
         <p className="text-xs text-stone-400 mt-1">Based on completed appointments</p>
+        {monthForecastCents > monthEarningsCents && (
+          <p className="text-xs font-medium text-emerald-700 mt-2 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5 inline-block">
+            📈 On pace for {formatCents(monthForecastCents)} this month with your scheduled appointments
+          </p>
+        )}
       </div>
 
       {/* Google Calendar card */}

@@ -597,6 +597,27 @@ export function DashboardClient({
             </div>
           )}
 
+          {/* Phase 16 G5 — today's route: room-to-room order at a glance */}
+          {myTodayBookings.filter((b) => b.status !== 'completed' && b.status !== 'cancelled').length > 1 && (
+            <div className="px-4 mb-2">
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-4 py-2.5 overflow-x-auto">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">Today&apos;s route</p>
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  {myTodayBookings
+                    .filter((b) => b.status !== 'completed' && b.status !== 'cancelled')
+                    .map((b, i, arr) => (
+                      <span key={b.id} className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 rounded-full px-2 py-0.5">
+                          {b.resident?.roomNumber ? `Rm ${b.resident.roomNumber}` : (b.resident?.name?.split(' ')[0] ?? '—')}
+                        </span>
+                        {i < arr.length - 1 && <span className="text-stone-300 text-xs">→</span>}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Today's appointments */}
           <div className="px-4 space-y-2" data-tour="stylist-mobile-booking-list">
             {loadingBookings && (
@@ -631,7 +652,10 @@ export function DashboardClient({
                     ) : (
                       <p className="text-sm font-semibold text-stone-900 truncate">{b.resident?.name ?? '—'}</p>
                     )}
-                    <p className="text-xs text-stone-400 truncate">{b.service?.name ?? '—'}</p>
+                    <p className="text-xs text-stone-400 truncate">
+                      {b.service?.name ?? '—'}
+                      {b.resident?.roomNumber ? ` · Rm ${b.resident.roomNumber}` : ''}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={cn(

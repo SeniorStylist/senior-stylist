@@ -36,6 +36,7 @@ export default async function MyAccountPage() {
   let stylist = null
   let weekBookings: any[] = []
   let monthEarningsCents = 0
+  let monthForecastCents = 0
   let complianceDocs: Array<Record<string, unknown>> = []
   let availabilityRows: Array<Record<string, unknown>> = []
   let coverageRows: Array<Record<string, unknown>> = []
@@ -69,6 +70,7 @@ export default async function MyAccountPage() {
       const [
         weekBookingsRes,
         monthBookings,
+        scheduledRestOfMonth,
         docs,
         availabilityRowsRes,
         coverageRowsRes,
@@ -93,6 +95,19 @@ export default async function MyAccountPage() {
             lte(bookings.startTime, monthEnd),
             eq(bookings.status, 'completed'),
           ),
+        }),
+        // Phase 16 G6 — remaining SCHEDULED bookings this month for the earnings forecast
+        db.query.bookings.findMany({
+          where: and(
+            eq(bookings.facilityId, facilityUser.facilityId),
+            eq(bookings.stylistId, stylist.id),
+            gte(bookings.startTime, now),
+            lte(bookings.startTime, monthEnd),
+            eq(bookings.status, 'scheduled'),
+            eq(bookings.active, true),
+            eq(bookings.isDemo, false), // is_demo filter — Phase 13
+          ),
+          columns: { priceCents: true, addonTotalCents: true },
         }),
         db.query.complianceDocuments.findMany({
           where: and(
@@ -161,6 +176,13 @@ export default async function MyAccountPage() {
         return sum + Math.round(price * (stylist!.commissionPercent / 100))
       }, 0)
 
+      // Phase 16 G6 — "on pace for": completed earnings + commission on what's
+      // still scheduled this month (price + addons — never tips; same math).
+      monthForecastCents = monthEarningsCents + scheduledRestOfMonth.reduce((sum, b) => {
+        const price = (b.priceCents ?? 0) + (b.addonTotalCents ?? 0)
+        return sum + Math.round(price * (stylist!.commissionPercent / 100))
+      }, 0)
+
       const storage = createStorageClient()
       complianceDocs = await Promise.all(
         docs.map(async (d) => {
@@ -201,6 +223,7 @@ export default async function MyAccountPage() {
       stylist={stylist ? JSON.parse(JSON.stringify(sanitizeStylist(stylist))) : null}
       weekBookings={JSON.parse(JSON.stringify(weekBookings))}
       monthEarningsCents={monthEarningsCents}
+      monthForecastCents={monthForecastCents}
       linked={!!profile?.stylistId}
       facilityStylists={JSON.parse(JSON.stringify(sanitizeStylists(facilityStylists)))}
       googleCalendarConnected={!!(stylist?.googleCalendarId)}

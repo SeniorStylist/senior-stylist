@@ -22,6 +22,8 @@ interface ResidentWithStats extends Resident {
   lastVisit: string | null
   totalSpent: number
   appointmentCount: number
+  // Phase 16 G7 — no-shows in the last 90 days (chip at ≥2)
+  noShowCount?: number
 }
 
 interface ResidentsPageClientProps {
@@ -377,6 +379,14 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                         POA
                       </span>
                     )}
+                    {(resident.noShowCount ?? 0) >= 2 && (
+                      <span
+                        title={`${resident.noShowCount} no-shows in the last 90 days`}
+                        className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200"
+                      >
+                        {resident.noShowCount} no-shows
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="col-span-2 text-[11.5px] text-stone-500 leading-snug">
@@ -404,6 +414,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                 const subtitleParts: string[] = []
                 subtitleParts.push(resident.roomNumber ? `Room ${resident.roomNumber}` : 'No room')
                 if (resident.poaName) subtitleParts.push('POA on file')
+                if ((resident.noShowCount ?? 0) >= 2) subtitleParts.push(`${resident.noShowCount} no-shows`)
                 const nodes: ReactNode[] = []
                 if (emitHeader) {
                   nodes.push(

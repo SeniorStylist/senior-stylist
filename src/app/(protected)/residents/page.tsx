@@ -33,15 +33,18 @@ export default async function ResidentsPage() {
     db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityUser.facilityId),
-        ne(bookings.status, 'cancelled')
+        ne(bookings.status, 'cancelled'),
+        eq(bookings.active, true) // rolled-back imports must not count in stats
       ),
       orderBy: (t, { desc }) => [desc(t.startTime)],
     }),
   ])
 
   // Aggregate per-resident stats
-  type Stats = { lastVisit: string | null; totalSpent: number; count: number }
+  type Stats = { lastVisit: string | null; totalSpent: number; count: number; noShowCount: number }
   const statsMap = new Map<string, Stats>()
+  // Phase 16 G7 — no-shows in the last 90 days drive the reliability chip
+  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000
 
   for (const b of bookingsList) {
     const existing = statsMap.get(b.residentId)
@@ -49,16 +52,19 @@ export default async function ResidentsPage() {
       b.startTime instanceof Date
         ? b.startTime.toISOString()
         : String(b.startTime)
+    const isRecentNoShow = b.status === 'no_show' && new Date(b.startTime).getTime() > ninetyDaysAgo
 
     if (!existing) {
       statsMap.set(b.residentId, {
         lastVisit: visitTime,
         totalSpent: b.priceCents ?? 0,
         count: 1,
+        noShowCount: isRecentNoShow ? 1 : 0,
       })
     } else {
       existing.totalSpent += b.priceCents ?? 0
       existing.count++
+      if (isRecentNoShow) existing.noShowCount++
       // bookings sorted desc — first entry is already the most recent
     }
   }
@@ -68,6 +74,7 @@ export default async function ResidentsPage() {
     lastVisit: statsMap.get(r.id)?.lastVisit ?? null,
     totalSpent: statsMap.get(r.id)?.totalSpent ?? 0,
     appointmentCount: statsMap.get(r.id)?.count ?? 0,
+    noShowCount: statsMap.get(r.id)?.noShowCount ?? 0,
   }))
 
   return (
