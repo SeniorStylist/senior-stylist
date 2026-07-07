@@ -75,3 +75,17 @@ export function buildPaymentRequestSms(data: {
     `Pay securely here: ${data.payUrl}`
   )
 }
+
+// Phase 16 G13 — day-before appointment reminder to the resident's POA.
+// Dormant until TWILIO_ENABLED + a from-number exist (sendSms no-ops).
+export function buildAppointmentReminderSms(data: {
+  residentName: string
+  serviceName: string
+  time: string
+  facilityName: string
+}): string {
+  return (
+    `Reminder: ${data.residentName} has a ${data.serviceName} appointment tomorrow at ${data.time} ` +
+    `at ${data.facilityName}. Reply to the facility with any questions. -Senior Stylist`
+  )
+}

@@ -76,6 +76,9 @@ export const facilities = pgTable('facilities', {
   portalWelcomeCouponValue: integer('portal_welcome_coupon_value'), // percent (1-100) or cents
   // 13E: per-facility opt-in for the daily 8am digest email
   dailyDigestEnabled: boolean('daily_digest_enabled').default(false).notNull(),
+  // Phase 16 G4: per-facility opt-in for the auto-emailed monthly statement
+  // (sent to contactEmail on the 1st — /api/cron/monthly-reports).
+  monthlyReportEnabled: boolean('monthly_report_enabled').default(false).notNull(),
   // Payments (COF) — facility-level auto-collect config.
   // mode: 'manual' (Collect-now button only) | 'on_completion' (charge when a booking is completed)
   autopayMode: text('autopay_mode').default('manual').notNull(),

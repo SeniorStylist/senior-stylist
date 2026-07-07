@@ -63,6 +63,8 @@ export interface Facility {
   portalWelcomeCouponType: string | null
   portalWelcomeCouponValue: number | null
   dailyDigestEnabled: boolean
+  // Phase 16 G4 — auto-emailed monthly statement opt-in
+  monthlyReportEnabled?: boolean
   revSharePercentage?: number | null
   qbRevShareType?: string | null
   // Payments (COF) — facility auto-collect config

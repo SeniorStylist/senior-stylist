@@ -7,13 +7,17 @@ interface Props {
   adminEmail: string | null
   role: string
   dailyDigestEnabled?: boolean
+  monthlyReportEnabled?: boolean
 }
 
-export function NotificationsSection({ adminEmail, role, dailyDigestEnabled: initialDigestEnabled = false }: Props) {
+export function NotificationsSection({ adminEmail, role, dailyDigestEnabled: initialDigestEnabled = false, monthlyReportEnabled: initialMonthlyEnabled = false }: Props) {
   const readOnly = role !== 'admin'
   const { toast } = useToast()
   const [digestEnabled, setDigestEnabled] = useState(initialDigestEnabled)
   const [savingDigest, setSavingDigest] = useState(false)
+  // Phase 16 G4 — auto-emailed monthly statement to the facility contact
+  const [monthlyEnabled, setMonthlyEnabled] = useState(initialMonthlyEnabled)
+  const [savingMonthly, setSavingMonthly] = useState(false)
 
   const toggleDigest = async () => {
     if (readOnly) return
@@ -36,6 +40,30 @@ export function NotificationsSection({ adminEmail, role, dailyDigestEnabled: ini
       setDigestEnabled(!next)
     } finally {
       setSavingDigest(false)
+    }
+  }
+
+  const toggleMonthly = async () => {
+    if (readOnly) return
+    const next = !monthlyEnabled
+    setMonthlyEnabled(next)
+    setSavingMonthly(true)
+    try {
+      const res = await fetch('/api/facility', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monthlyReportEnabled: next }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        toast.error(j.error ?? 'Failed to save')
+        setMonthlyEnabled(!next)
+      }
+    } catch {
+      toast.error('Network error')
+      setMonthlyEnabled(!next)
+    } finally {
+      setSavingMonthly(false)
     }
   }
 
@@ -85,6 +113,33 @@ export function NotificationsSection({ adminEmail, role, dailyDigestEnabled: ini
             <span
               className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
                 digestEnabled ? 'translate-x-4' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-stone-800 mb-1">Monthly Statement Email</p>
+            <p className="text-xs text-stone-500">
+              Automatically email this facility&rsquo;s statement of account to its contact email on the 1st of each month — the same document as the Billing page&rsquo;s &ldquo;Send Statement&rdquo; button.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={monthlyEnabled}
+            disabled={readOnly || savingMonthly}
+            onClick={toggleMonthly}
+            className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
+              monthlyEnabled ? 'bg-[#8B2E4A]' : 'bg-stone-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                monthlyEnabled ? 'translate-x-4' : 'translate-x-0.5'
               }`}
             />
           </button>

@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
         gte(bookings.startTime, globalStart),
         lt(bookings.startTime, globalEnd),
       ),
-      columns: { facilityId: true, stylistId: true, startTime: true },
+      columns: { facilityId: true, stylistId: true, startTime: true, residentId: true, serviceNames: true },
+      with: { service: { columns: { name: true } } },
     })
 
     // Group by (facility, stylist); track each stylist's earliest start per facility.
@@ -109,7 +110,60 @@ export async function GET(request: NextRequest) {
     await notifyManyUsers(notifyRows)
     stylistsNotified = notifyRows.length
 
-    return Response.json({ data: { facilities: activeFacilities.length, facilitiesWithBookings, stylistsNotified } })
+    // Phase 16 G13 — POA SMS reminders for tomorrow's appointments. ONE residents
+    // query; fire-and-forget sends; dormant no-op until TWILIO_ENABLED + a number.
+    // Idempotency note: this cron runs once nightly — a manual re-trigger would
+    // re-text; accepted (SMS sends are visible in Twilio logs).
+    let smsSent = 0
+    try {
+      const MAX_SMS_PER_RUN = 100
+      // First booking of the day per resident (per facility window)
+      const byResident = new Map<string, { facilityId: string; first: Date; serviceName: string }>()
+      for (const r of rows) {
+        const w = windows.get(r.facilityId)
+        if (!w || !r.residentId) continue
+        const start = new Date(r.startTime)
+        if (start < w.start || start >= w.end) continue
+        const cur = byResident.get(r.residentId)
+        const serviceName =
+          (r as { serviceNames?: string[] | null }).serviceNames?.[0] ??
+          (r as { service?: { name?: string | null } | null }).service?.name ??
+          'salon'
+        if (!cur || start < cur.first) {
+          byResident.set(r.residentId, { facilityId: r.facilityId, first: start, serviceName })
+        }
+      }
+      const residentIds = [...byResident.keys()]
+      if (residentIds.length > 0 && process.env.TWILIO_ENABLED === 'true') {
+        const { residents } = await import('@/db/schema')
+        const { isNotNull } = await import('drizzle-orm')
+        const { sendSms, buildAppointmentReminderSms } = await import('@/lib/sms')
+        const poaRows = await db.query.residents.findMany({
+          where: and(
+            inArray(residents.id, residentIds),
+            eq(residents.poaNotificationsEnabled, true),
+            isNotNull(residents.poaPhone),
+          ),
+          columns: { id: true, name: true, poaPhone: true },
+        })
+        for (const res of poaRows.slice(0, MAX_SMS_PER_RUN)) {
+          const info = byResident.get(res.id)
+          if (!info || !res.poaPhone) continue
+          const w = windows.get(info.facilityId)
+          void sendSms(res.poaPhone, buildAppointmentReminderSms({
+            residentName: res.name,
+            serviceName: info.serviceName,
+            time: formatTimeInTz(info.first, w?.tz ?? 'America/New_York'),
+            facilityName: w?.name ?? 'your community',
+          }))
+          smsSent++
+        }
+      }
+    } catch (smsErr) {
+      console.error('[schedule-reminders] POA SMS fan-out failed:', smsErr)
+    }
+
+    return Response.json({ data: { facilities: activeFacilities.length, facilitiesWithBookings, stylistsNotified, smsSent } })
   } catch (err) {
     console.error('GET /api/cron/schedule-reminders error:', err)
     return Response.json({ error: 'Internal — logged' }, { status: 500 })
