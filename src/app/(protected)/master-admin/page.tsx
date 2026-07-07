@@ -22,6 +22,8 @@ interface FacilityInfo {
   stylistCount: number
   bookingsThisMonth: number
   adminEmail: string | null
+  // Phase 16 G1 — composite 0-100 health score (null = not enough data)
+  healthScore: number | null
 }
 
 const getCachedFacilityInfos = unstable_cache(
@@ -36,7 +38,7 @@ const getCachedFacilityInfos = unstable_cache(
       // During a tutorial, show demo facilities alongside real ones so the just-created
       // practice facility appears in the list (cookie can't be read inside unstable_cache,
       // so tutorialMode is passed in and rides the cache key).
-      const [allFacilities, residentRows, stylistRows, bookingRows, adminRows] = await Promise.all([
+      const [allFacilities, residentRows, stylistRows, bookingRows, adminRows, cancelledRows, invoicedRows, collectedRows] = await Promise.all([
         db.query.facilities.findMany({
           where: tutorialMode
             ? eq(facilities.isDemo, true)
@@ -78,6 +80,25 @@ const getCachedFacilityInfos = unstable_cache(
           WHERE fu.role = 'admin'
           ORDER BY fu.facility_id, fu.created_at ASC
         `),
+        // Phase 16 G1 — health-score inputs (3 more batched GROUP BYs)
+        db.execute(sql`
+          SELECT facility_id::text AS fid, COUNT(*)::int AS c
+          FROM bookings
+          WHERE start_time >= ${monthStart.toISOString()} AND active = true AND status = 'cancelled'
+          GROUP BY facility_id
+        `),
+        db.execute(sql`
+          SELECT facility_id::text AS fid, COALESCE(SUM(amount_cents), 0)::bigint AS c
+          FROM qb_invoices
+          WHERE is_demo = false AND invoice_date >= CURRENT_DATE - 90
+          GROUP BY facility_id
+        `),
+        db.execute(sql`
+          SELECT facility_id::text AS fid, COALESCE(SUM(amount_cents), 0)::bigint AS c
+          FROM qb_payments
+          WHERE is_demo = false AND payment_date >= (CURRENT_DATE - 90)::text
+          GROUP BY facility_id
+        `),
       ])
 
       const numMap = (rows: unknown[]): Map<string, number> =>
@@ -99,6 +120,24 @@ const getCachedFacilityInfos = unstable_cache(
       const styMap = numMap(stylistRows as unknown[])
       const bookMap = numMap(bookingRows as unknown[])
       const adminMap = strMap(adminRows as unknown[], 'email')
+      const cancelMap = numMap(cancelledRows as unknown[])
+      const invoicedMap = numMap(invoicedRows as unknown[])
+      const collectedMap = numMap(collectedRows as unknown[])
+
+      // Phase 16 G1 — 0-100 health score: utilization 40 (bookings per resident vs a
+      // 0.6/month target), collection 40 (collected/invoiced last 90 days, clamped),
+      // cancellations 20 (1 − cancel rate this month). null when too little data.
+      const healthFor = (facilityId: string, residentCount: number, bookingsThisMonth: number): number | null => {
+        const invoiced = invoicedMap.get(facilityId) ?? 0
+        if (residentCount < 5 && invoiced === 0) return null
+        const utilization = residentCount > 0 ? Math.min(bookingsThisMonth / residentCount / 0.6, 1) : 0
+        const collected = collectedMap.get(facilityId) ?? 0
+        const collection = invoiced > 0 ? Math.min(collected / invoiced, 1) : 0.5 // neutral when nothing invoiced
+        const cancelled = cancelMap.get(facilityId) ?? 0
+        const totalThisMonth = bookingsThisMonth + cancelled
+        const cancelScore = totalThisMonth > 0 ? 1 - cancelled / totalThisMonth : 1
+        return Math.round(utilization * 40 + collection * 40 + cancelScore * 20)
+      }
 
       return allFacilities.map((f) => ({
         id: f.id,
@@ -115,6 +154,7 @@ const getCachedFacilityInfos = unstable_cache(
         stylistCount: styMap.get(f.id) ?? 0,
         bookingsThisMonth: bookMap.get(f.id) ?? 0,
         adminEmail: adminMap.get(f.id) || null,
+        healthScore: healthFor(f.id, resMap.get(f.id) ?? 0, bookMap.get(f.id) ?? 0),
       }))
     } catch (err) {
       console.error('[master-admin] getCachedFacilityInfos failed:', err)

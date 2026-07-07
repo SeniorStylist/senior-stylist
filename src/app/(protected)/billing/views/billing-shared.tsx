@@ -96,6 +96,8 @@ export interface BillingSummary {
   invoices: BillingInvoice[]
   payments: BillingPayment[]
   facilityUnappliedCents: number
+  // Phase 16 G10 — open-invoice aging over ALL open balances (cents)
+  agingBuckets?: { b0_30: number; b31_60: number; b61_90: number; b90plus: number }
 }
 
 const USD = new Intl.NumberFormat('en-US', {

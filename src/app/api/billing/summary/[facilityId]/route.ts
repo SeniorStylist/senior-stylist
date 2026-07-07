@@ -131,7 +131,31 @@ const getBillingSummaryData = unstable_cache(
       hasCheckImage: !!checkImageUrl,
     }))
 
-    return { facility: facilityClean, residents: residentList, invoices, payments: paymentsClean, facilityUnappliedCents }
+    // Phase 16 G10 — invoice aging over ALL open balances (independent of the
+    // date-range filter above). ONE query; FILTER buckets by invoice age.
+    let agingBuckets = { b0_30: 0, b31_60: 0, b61_90: 0, b90plus: 0 }
+    try {
+      const r = await db.execute(sql`
+        SELECT
+          COALESCE(SUM(open_balance_cents) FILTER (WHERE CURRENT_DATE - invoice_date <= 30), 0)::bigint AS b0_30,
+          COALESCE(SUM(open_balance_cents) FILTER (WHERE CURRENT_DATE - invoice_date BETWEEN 31 AND 60), 0)::bigint AS b31_60,
+          COALESCE(SUM(open_balance_cents) FILTER (WHERE CURRENT_DATE - invoice_date BETWEEN 61 AND 90), 0)::bigint AS b61_90,
+          COALESCE(SUM(open_balance_cents) FILTER (WHERE CURRENT_DATE - invoice_date > 90), 0)::bigint AS b90plus
+        FROM qb_invoices
+        WHERE facility_id = ${facilityId} AND status != 'paid' AND open_balance_cents > 0 AND is_demo = ${demo}
+      `)
+      const row = (r as unknown as Array<Record<string, unknown>>)[0]
+      if (row) {
+        agingBuckets = {
+          b0_30: Number(row.b0_30 ?? 0) || 0,
+          b31_60: Number(row.b31_60 ?? 0) || 0,
+          b61_90: Number(row.b61_90 ?? 0) || 0,
+          b90plus: Number(row.b90plus ?? 0) || 0,
+        }
+      }
+    } catch { /* aging is a nice-to-have — never fail the billing page */ }
+
+    return { facility: facilityClean, residents: residentList, invoices, payments: paymentsClean, facilityUnappliedCents, agingBuckets }
   },
   ['billing-summary'],
   { revalidate: 120, tags: ['billing'] }

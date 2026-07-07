@@ -24,6 +24,8 @@ interface FacilityInfo {
   stylistCount: number
   bookingsThisMonth: number
   adminEmail: string | null
+  // Phase 16 G1 — composite 0-100 health score (null = not enough data)
+  healthScore: number | null
 }
 
 interface AccessRequestInfo {
@@ -121,7 +123,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
   // Show/hide inactive toggle
   const [showInactive, setShowInactive] = useState(false)
-  const [facilitySortBy, setFacilitySortBy] = useState<'fid' | 'name'>('fid')
+  const [facilitySortBy, setFacilitySortBy] = useState<'fid' | 'name' | 'health'>('fid')
   const [facilitySearch, setFacilitySearch] = useState('')
 
   // New-feedback count for the toolbar pill — fire-and-forget
@@ -282,6 +284,10 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     return [...visibleFacilities].sort((a, b) => {
       if (facilitySortBy === 'name') {
         return (a.name ?? '').localeCompare(b.name ?? '')
+      }
+      if (facilitySortBy === 'health') {
+        // Worst health first (that's what needs attention); nulls last
+        return (a.healthScore ?? 999) - (b.healthScore ?? 999)
       }
       const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
       const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
@@ -503,6 +509,16 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                     }`}
                   >
                     Name
+                  </button>
+                  <button
+                    onClick={() => setFacilitySortBy('health')}
+                    className={`px-2.5 py-0.5 rounded-full transition-colors ${
+                      facilitySortBy === 'health'
+                        ? 'bg-stone-200 text-stone-800 font-semibold'
+                        : 'hover:bg-stone-100 text-stone-500'
+                    }`}
+                  >
+                    Health
                   </button>
                 </div>
                 {inactiveCount > 0 && (
@@ -914,6 +930,25 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                       <span className="text-lg font-bold text-stone-900">{f.bookingsThisMonth}</span>
                       <span className="text-xs text-stone-500">bookings</span>
                     </div>
+                    <div className="w-px h-4 bg-stone-200" />
+                    {/* Phase 16 G1 — composite health (utilization + collection + cancellations) */}
+                    <span
+                      data-tour="facility-health-chip"
+                      title={f.healthScore === null
+                        ? 'Not enough data yet for a health score'
+                        : 'Health: bookings per resident, collection rate, and cancellations (last 90 days)'}
+                      className={
+                        f.healthScore === null
+                          ? 'text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-400'
+                          : f.healthScore >= 75
+                          ? 'text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : f.healthScore >= 50
+                          ? 'text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200'
+                      }
+                    >
+                      {f.healthScore === null ? 'Health —' : `Health ${f.healthScore}`}
+                    </span>
                   </div>
 
                   {/* Footer */}
