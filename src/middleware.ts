@@ -151,8 +151,12 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
+     * - PWA plumbing: sw.js / manifest.json / offline.html MUST bypass auth —
+     *   the middleware 307'd them to /login for unauthenticated visitors
+     *   (family portal, logged-out staff), which broke service-worker
+     *   registration, PWA install, and the offline fallback (Phase 17 fix)
+     * - public folder images
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|offline\\.html|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
