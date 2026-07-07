@@ -745,7 +745,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
         {/* Toast */}
         {requestToast && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm font-medium px-5 py-2.5 rounded-2xl shadow-xl z-50">
+          <div className="fixed left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm font-medium px-5 py-2.5 rounded-2xl shadow-xl z-50" style={{ bottom: 'var(--app-floating-bottom)' }}>
             {requestToast}
           </div>
         )}

@@ -150,7 +150,7 @@ export function MobileFacilityHeader({
         </div>
 
         {/* Facility list */}
-        <div className="pb-safe">
+        <div>
           {filtered.map((f) => (
             <button
               key={f.id}

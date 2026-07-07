@@ -283,9 +283,10 @@ export function MergeTab() {
 
       {toast && (
         <div
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 text-sm font-medium px-5 py-2.5 rounded-2xl shadow-xl z-50 ${
+          className={`fixed left-1/2 -translate-x-1/2 text-sm font-medium px-5 py-2.5 rounded-2xl shadow-xl z-50 ${
             toast.kind === 'success' ? 'bg-stone-900 text-white' : 'bg-red-600 text-white'
           }`}
+          style={{ bottom: 'var(--app-floating-bottom)' }}
         >
           {toast.text}
         </div>

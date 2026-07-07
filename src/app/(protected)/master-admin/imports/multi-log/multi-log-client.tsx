@@ -350,8 +350,8 @@ export function MultiLogClient() {
               </div>
             )}
 
-            <div className="rounded-xl border border-stone-100 overflow-hidden mb-6 max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border border-stone-100 mb-6 max-h-80 overflow-y-auto overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead className="bg-stone-50/60 sticky top-0">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Facility</th>

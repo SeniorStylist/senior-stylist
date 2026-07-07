@@ -43,12 +43,16 @@
      --app-floating-bottom: FABs/toasts/widgets that float 1rem above the nav. */
   --app-nav-clearance: calc(var(--app-nav-height) + var(--app-safe-bottom));
   --app-floating-bottom: calc(var(--app-nav-clearance) + 1rem);
+  /* Phase 17 — extra lift for the onboarding checklist so it clears the
+     mobile QuickBookFAB (56px + gap). FAB is md:hidden, so 0 on desktop. */
+  --checklist-fab-clearance: 72px;
 }
 @media (min-width: 768px) {
   :root {
     /* Desktop: no mobile nav — chrome anchors to the viewport bottom directly. */
     --app-nav-clearance: 0px;
     --app-floating-bottom: 1.5rem;
+    --checklist-fab-clearance: 0px;
   }
 }
 

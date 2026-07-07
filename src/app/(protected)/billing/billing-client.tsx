@@ -1207,7 +1207,7 @@ export function BillingClient({
             {summary?.agingBuckets && (summary.agingBuckets.b0_30 + summary.agingBuckets.b31_60 + summary.agingBuckets.b61_90 + summary.agingBuckets.b90plus) > 0 && (
               <div data-tour="billing-aging" className="mt-4 bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] px-4 py-3">
                 <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-2">Open Balance Aging</p>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {([
                     ['0–30 days', summary.agingBuckets.b0_30, 'bg-stone-50 text-stone-700'],
                     ['31–60', summary.agingBuckets.b31_60, 'bg-amber-50/60 text-amber-700'],

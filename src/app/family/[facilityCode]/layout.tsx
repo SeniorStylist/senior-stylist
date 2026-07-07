@@ -43,9 +43,9 @@ export default async function FamilyPortalLayout({
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#FDF8F8' }}>
         <header
           style={{ backgroundColor: '#8B2E4A' }}
-          className="px-5 py-3.5 flex items-center justify-between relative overflow-hidden"
+          className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-1.5 relative overflow-hidden"
         >
-          <div className="relative z-10 flex items-center gap-3">
+          <div className="relative z-10 flex items-center gap-2.5 min-w-0">
             <Image
               src="/seniorstylistlogo.jpg"
               alt="Senior Stylist"

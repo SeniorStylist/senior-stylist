@@ -819,8 +819,9 @@ export function LogClient({
           </span>
         </div>
       )}
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      {/* Header — Phase 17: date stepper row; actions inline on md+, second row on mobile */}
+      <div className="mb-6">
+      <div className="flex items-center gap-3">
         <button
           onClick={() => navigateDate(addDays(date, -1))}
           disabled={loading}
@@ -888,56 +889,77 @@ export function LogClient({
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
+        <div className="hidden md:flex items-center gap-3">
+          {(role === 'bookkeeper' || role === 'admin' || role === 'super_admin') && (
+            <button
+              type="button"
+              onClick={() => setSheetsOpen(true)}
+              title="Log sheet history"
+              aria-label="Log sheet history"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#D4A0B0] bg-[#F9EFF2] text-[#8B2E4A] hover:bg-[#F2E0E6] hover:border-[#C4687A] transition-colors text-xs font-semibold min-h-[44px]"
+            >
+              <SheetsIcon />
+              <span>Sheets</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowEmailModal(true)}
+            data-tour="log-email-day"
+            title="Email day log"
+            aria-label="Email day log"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          >
+            <EmailIcon />
+            <span>Email</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowExportModal(true)}
+            data-tour="log-export-excel"
+            title="Export to Excel"
+            aria-label="Export to Excel"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          >
+            <ExportIcon />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+      {/* Mobile action row — own line so the date stepper never gets crushed */}
+      <div className="flex md:hidden items-center justify-center gap-2 mt-2 flex-wrap">
         {(role === 'bookkeeper' || role === 'admin' || role === 'super_admin') && (
           <button
             type="button"
             onClick={() => setSheetsOpen(true)}
-            title="Log sheet history"
             aria-label="Log sheet history"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#D4A0B0] bg-[#F9EFF2] text-[#8B2E4A] hover:bg-[#F2E0E6] hover:border-[#C4687A] transition-colors text-xs font-semibold min-h-[44px]"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#D4A0B0] bg-[#F9EFF2] text-[#8B2E4A] transition-colors text-xs font-semibold min-h-[44px]"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
+            <SheetsIcon />
             <span>Sheets</span>
           </button>
         )}
         <button
           type="button"
           onClick={() => setShowEmailModal(true)}
-          data-tour="log-email-day"
           data-tour-mobile="log-email-day"
-          title="Email day log"
           aria-label="Email day log"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 transition-colors text-xs font-semibold min-h-[44px]"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="4" width="20" height="16" rx="2"/>
-            <path d="M22 7l-10 6L2 7"/>
-          </svg>
+          <EmailIcon />
           <span>Email</span>
         </button>
         <button
           type="button"
           onClick={() => setShowExportModal(true)}
-          data-tour="log-export-excel"
           data-tour-mobile="log-export-excel"
-          title="Export to Excel"
           aria-label="Export to Excel"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold min-h-[44px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 transition-colors text-xs font-semibold min-h-[44px]"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="8" y1="13" x2="12" y2="17"/>
-            <line x1="12" y1="13" x2="8" y2="17"/>
-          </svg>
+          <ExportIcon />
           <span>Export</span>
         </button>
+      </div>
       </div>
 
       {/* Undo & edit — roll back a scan import and reopen the review pre-filled */}
@@ -2020,5 +2042,35 @@ export function LogClient({
       )}
     </div>
     </ErrorBoundary>
+  )
+}
+// Phase 17 — header action icons shared by the desktop and mobile action rows.
+function SheetsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+  )
+}
+function EmailIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <path d="M22 7l-10 6L2 7"/>
+    </svg>
+  )
+}
+function ExportIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="8" y1="13" x2="12" y2="17"/>
+      <line x1="12" y1="13" x2="8" y2="17"/>
+    </svg>
   )
 }

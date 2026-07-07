@@ -44,7 +44,14 @@ export function PortalNav({ facilityCode, lang }: Props) {
               )}
             >
               <Icon active={isActive} />
-              <span className={cn('text-[10.5px]', isActive ? 'font-semibold' : 'font-medium')}>{t.label}</span>
+              {/* Cap the large-print multiplier for nav labels — grid-cols-6 cells
+                  can't fit Spanish labels at the full A++ (1.5×) scale. */}
+              <span
+                className={cn('max-w-full truncate px-0.5', isActive ? 'font-semibold' : 'font-medium')}
+                style={{ fontSize: 'calc(10.5px * min(var(--portal-text-scale, 1), 1.25))' }}
+              >
+                {t.label}
+              </span>
             </Link>
           )
         })}

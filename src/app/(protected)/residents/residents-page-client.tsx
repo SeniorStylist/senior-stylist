@@ -197,13 +197,15 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
         </div>
       )}
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <PageHeader
-          icon={Users}
-          title="Residents"
-          subtitle={`${residents.length} resident${residents.length !== 1 ? 's' : ''}`}
-        />
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <div className="min-w-0">
+          <PageHeader
+            icon={Users}
+            title="Residents"
+            subtitle={`${residents.length} resident${residents.length !== 1 ? 's' : ''}`}
+          />
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           {canMergeDuplicates && (
             <button
               onClick={() => setShowMerge(true)}
@@ -215,7 +217,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                 <circle cx="8" cy="12" r="4" />
                 <circle cx="16" cy="12" r="4" />
               </svg>
-              Duplicates
+              <span className="hidden sm:inline">Duplicates</span>
               {dupeCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                   {dupeCount > 9 ? '9+' : dupeCount}
@@ -235,13 +237,14 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
                   <polyline points="17 8 12 3 7 8"/>
                   <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
-                Import
+                <span className="hidden sm:inline">Import</span>
               </Link>
               <button
                 onClick={() => setShowAdd((v) => !v)}
                 data-tour="residents-new-button"
-                className="w-9 h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
+                className="w-11 h-11 sm:w-9 sm:h-9 shrink-0 flex items-center justify-center bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] active:scale-95 transition-all"
                 title="Add resident"
+                aria-label="Add resident"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
