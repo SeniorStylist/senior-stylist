@@ -2731,6 +2731,24 @@ review-first import convention).
 
 ---
 
+## Phase 18 — Full Offline Mode (2026-07-07)
+
+Full detail in CLAUDE.md ("Phase 18" entry). No schema changes. Spec deltas:
+
+**Service worker**: per-user page cache `ss-pages-<userId>` (HTML navigations + `x-ss-warm`
+fetches only; network-first; never redirected/non-HTML/auth/portal paths; RSC fetches never
+intercepted). Message channel: `SET_USER` / `CLEAR_PAGES`.
+
+**New libs**: `offline-session.ts` (`clearOfflineOnLogout()` — REQUIRED in every staff
+sign-out path), `offline-photo-queue.ts` (IndexedDB blob queue for booking photos).
+
+**Route contract change**: `POST /api/bookings` accepts `newResident {name, roomNumber?}`
+(exactly one of residentId|newResident) — inline resident creation with soft name+room dedup,
+for offline walk-in replay.
+
+**Client**: `SWRegister` takes `userId`+`role` (SET_USER + idle page warming via WARM_ROUTES);
+OfflineBanner sums JSON + photo queues; sidebar sign-out now clears offline caches (was a bug).
+
 ## Phase 17 — Mobile Comfort Pass + Offline Mode (2026-07-07)
 
 Full detail in CLAUDE.md ("Phase 17" entry). No schema changes. Spec deltas:

@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.3',
+    date: '2026-07-07',
+    title: 'Full Offline Mode',
+    items: [
+      'Navigate between your pages while offline — recently visited screens keep working',
+      'Photos taken offline upload automatically when wifi returns',
+      'Walk-ins for brand-new residents now work offline too',
+      'Cached pages are private per login and wiped on sign-out (shared-device safe)',
+    ],
+  },
+  {
     version: '3.2',
     date: '2026-07-07',
     title: 'Mobile Comfort Pass & Offline Mode',

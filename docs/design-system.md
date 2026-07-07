@@ -2864,3 +2864,9 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   them their own clearance var.
 - **Header action rows on mobile**: when a page header has 3+ actions, split into a second
   centered row below `md` (see /log) or hide labels behind `hidden sm:inline` (see /residents).
+
+### Phase 18 — offline navigation note (2026-07-07)
+
+- Authenticated pages are offline-navigable via the per-user SW page cache. When adding a NEW
+  top-level page, add it to `WARM_ROUTES` in `sw-register.tsx` (per role) so it pre-caches; when
+  adding a NEW sign-out affordance, call `clearOfflineOnLogout()` from `src/lib/offline-session.ts`.
