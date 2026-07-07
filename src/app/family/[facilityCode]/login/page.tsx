@@ -1,4 +1,5 @@
 import { LoginClient } from './login-client'
+import { FamilyModeEscape } from '@/components/portal/family-mode-escape'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ export default async function FamilyLoginPage({
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{errorMessage}</div>
       )}
       <LoginClient facilityCode={decoded} />
+      <FamilyModeEscape />
     </div>
   )
 }

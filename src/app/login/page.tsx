@@ -2,11 +2,13 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { isNativeApp } from '@/lib/detect-device'
 import { haptics } from '@/lib/haptics'
+import { getFamilyMode } from '@/lib/family-mode'
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
@@ -22,12 +24,21 @@ function LoginForm() {
   const [sendingCode, setSendingCode] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const supabase = createClient()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect')
 
   useEffect(() => {
     setIsNative(isNativeApp())
-  }, [])
+    // Phase 15 F5 — family mode: a family member who entered their facility code
+    // once goes straight to their portal on every app launch (they never staff-login).
+    if (isNativeApp()) {
+      const familyCode = getFamilyMode()
+      if (familyCode) {
+        router.replace(`/family/${encodeURIComponent(familyCode)}`)
+      }
+    }
+  }, [router])
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
   const callbackUrl = redirect
@@ -180,8 +191,15 @@ function LoginForm() {
             </div>
           )}
 
-          <p className="text-xs mt-6" style={{ color: 'var(--color-text-muted)' }}>
-            For authorized facility staff only
+          {/* Phase 15 F5 — family members use the portal, not staff login */}
+          <Link
+            href="/family"
+            className="block w-full text-center text-sm font-semibold text-[#8B2E4A] mt-5 pt-4 border-t border-stone-100"
+          >
+            I&apos;m a family member →
+          </Link>
+          <p className="text-xs mt-4" style={{ color: 'var(--color-text-muted)' }}>
+            Staff sign-in — invitation only
           </p>
         </div>
       </div>
