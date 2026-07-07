@@ -1008,6 +1008,41 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
     .where(sql`status = 'pending'`),
 }))
 
+// ─── Cancellation Waitlist (Phase 15 F4) ─────────────────────────────────────
+// Residents waiting for an earlier/open slot. When a booking is cancelled,
+// matchWaitlistOnCancellation (src/lib/waitlist-match.ts) notifies facility
+// admins if any pending entry's date window covers the freed slot.
+// Self-bootstrapped by src/lib/waitlist-ddl.ts (drizzle/0023_waitlist.sql).
+
+export const waitlistEntries = pgTable('waitlist_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id),
+  // Denormalized so the entry is self-describing for display (signup-sheet pattern).
+  residentName: text('resident_name').notNull(),
+  roomNumber: text('room_number'),
+  serviceId: uuid('service_id').references(() => services.id),
+  serviceName: text('service_name'),
+  preferredStylistId: uuid('preferred_stylist_id').references(() => stylists.id),
+  // Date window the resident would take a slot in. latestDate null = open-ended.
+  earliestDate: date('earliest_date').notNull(),
+  latestDate: date('latest_date'),
+  notes: text('notes'),
+  createdBy: uuid('created_by').references(() => profiles.id).notNull(),
+  // 'pending' | 'booked' | 'cancelled'
+  status: text('status').default('pending').notNull(),
+  // Set when the entry is converted to a real booking via /convert.
+  bookingId: uuid('booking_id').references((): AnyPgColumn => bookings.id),
+  isDemo: boolean('is_demo').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => ({
+  // Cancellation matcher + panel both read only pending entries per facility.
+  facilityPendingIdx: index('waitlist_facility_pending_idx')
+    .on(t.facilityId, t.earliestDate)
+    .where(sql`status = 'pending'`),
+}))
+
 // ─── Stylist Check-Ins (Phase 12T — "I'm Here" + smart day rescheduling) ────
 
 export const stylistCheckins = pgTable('stylist_checkins', {

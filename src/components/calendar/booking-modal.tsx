@@ -44,6 +44,12 @@ interface BookingModalProps {
   prefillResidentId?: string | null
   prefillServiceId?: string | null
   signupSheetEntryId?: string | null
+  // Phase 15 F4 — when set, the create POST routes through
+  // /api/waitlist/[id]/convert so the waitlist entry flips to 'booked' atomically.
+  waitlistEntryId?: string | null
+  // Phase 15 F4 — called from the cancel-confirm state so the parent can open the
+  // add-to-waitlist form prefilled with this booking's resident/service.
+  onAddToWaitlist?: ((prefill: { residentId: string | null; serviceId: string | null }) => void) | null
 }
 
 interface PickedStylist {
@@ -77,6 +83,8 @@ export function BookingModal({
   prefillResidentId = null,
   prefillServiceId = null,
   signupSheetEntryId = null,
+  waitlistEntryId = null,
+  onAddToWaitlist = null,
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -450,7 +458,9 @@ export function BookingModal({
         : mode === 'create'
           ? (signupSheetEntryId
               ? `/api/signup-sheet/${signupSheetEntryId}/convert`
-              : '/api/bookings')
+              : waitlistEntryId
+                ? `/api/waitlist/${waitlistEntryId}/convert`
+                : '/api/bookings')
           : `/api/bookings/${booking!.id}`
       const method = mode === 'create' ? 'POST' : 'PUT'
 
@@ -630,6 +640,16 @@ export function BookingModal({
               No
             </Button>
           </div>
+          {onAddToWaitlist && booking && (
+            <button
+              type="button"
+              onClick={() => onAddToWaitlist({ residentId: booking.residentId ?? null, serviceId: booking.serviceId ?? null })}
+              className="text-xs font-medium text-[#8B2E4A] hover:underline"
+              disabled={cancelling}
+            >
+              + Add resident to the waitlist for an earlier slot
+            </button>
+          )}
         </div>
       )}
     </div>

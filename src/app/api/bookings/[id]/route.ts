@@ -472,6 +472,10 @@ export async function PUT(
       import('@/lib/push-booking').then(({ notifyBookingChange }) =>
         notifyBookingChange(id, 'cancelled'),
       ).catch(() => {})
+      // Phase 15 F4 — surface the freed slot to waitlisted residents' admins.
+      import('@/lib/waitlist-match').then(({ matchWaitlistOnCancellation }) =>
+        matchWaitlistOnCancellation({ facilityId: existing.facilityId, startTime: existing.startTime, isDemo: existing.isDemo }),
+      ).catch(() => {})
     }
 
     revalidateTag('bookings', {})
@@ -555,6 +559,10 @@ export async function DELETE(
     if (!existing.isDemo) {
       import('@/lib/push-booking').then(({ notifyBookingChange }) =>
         notifyBookingChange(id, 'cancelled'),
+      ).catch(() => {})
+      // Phase 15 F4 — surface the freed slot to waitlisted residents' admins.
+      import('@/lib/waitlist-match').then(({ matchWaitlistOnCancellation }) =>
+        matchWaitlistOnCancellation({ facilityId: existing.facilityId, startTime: existing.startTime, isDemo: existing.isDemo }),
       ).catch(() => {})
     }
 

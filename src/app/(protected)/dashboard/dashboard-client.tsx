@@ -24,6 +24,8 @@ import { FirstTourAutoLauncher } from '@/components/help/first-tour-auto-launche
 import { ClipboardList } from 'lucide-react'
 import { SignupSheetPanel } from '@/components/signup-sheet/signup-sheet-panel'
 import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending-entries'
+import { WaitlistPanel, type WaitlistEntry } from '@/components/waitlist/waitlist-panel'
+import { AddToWaitlistModal } from '@/components/waitlist/add-to-waitlist-modal'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
 import type { SignupSheetEntryWithRelations } from '@/types'
 import { openPeek } from '@/lib/peek-drawer'
@@ -167,6 +169,11 @@ export function DashboardClient({
   const [schedulingEntryId, setSchedulingEntryId] = useState<string | null>(null)
   const [prefillResidentId, setPrefillResidentId] = useState<string | null>(null)
   const [prefillServiceId, setPrefillServiceId] = useState<string | null>(null)
+  // Phase 15 F4 — cancellation waitlist state
+  const [waitlistEntryIdForBooking, setWaitlistEntryIdForBooking] = useState<string | null>(null)
+  const [waitlistReloadKey, setWaitlistReloadKey] = useState(0)
+  const [waitlistModalOpen, setWaitlistModalOpen] = useState(false)
+  const [waitlistPrefill, setWaitlistPrefill] = useState<{ residentId: string | null; serviceId: string | null }>({ residentId: null, serviceId: null })
 
   // Local data (mutable without full reload)
   const [residents, setResidents] = useState<Resident[]>(initialResidents)
@@ -346,6 +353,30 @@ export function DashboardClient({
     setModalOpen(true)
   }, [residents])
 
+  // Phase 15 F4 — "Book →" on a waitlist entry: open the booking modal prefilled;
+  // the create POST routes through /api/waitlist/[id]/convert (mirrors the
+  // signup-sheet flow above).
+  const handleBookWaitlistEntry = useCallback((entry: WaitlistEntry) => {
+    const start = new Date()
+    const minutes = start.getMinutes()
+    const add = minutes < 30 ? 30 - minutes : 60 - minutes
+    start.setMinutes(start.getMinutes() + add, 0, 0)
+    setEditBookingId(null)
+    setModalStart(start)
+    setModalEnd(null)
+    setPrefillResidentId(entry.residentId)
+    setPrefillServiceId(entry.serviceId)
+    setSchedulingEntryId(null)
+    setWaitlistEntryIdForBooking(entry.id)
+    setModalOpen(true)
+  }, [])
+
+  // Phase 15 F4 — booking-modal cancel flow: "add to waitlist" prefilled
+  const handleAddToWaitlistFromBooking = useCallback((prefill: { residentId: string | null; serviceId: string | null }) => {
+    setWaitlistPrefill(prefill)
+    setWaitlistModalOpen(true)
+  }, [])
+
   // Period stats (week + month)
   const [periodStats, setPeriodStats] = useState<{
     thisWeek: { revenueCents: number }
@@ -435,6 +466,7 @@ export function DashboardClient({
     setPrefillResidentId(null)
     setPrefillServiceId(null)
     setSchedulingEntryId(null)
+    setWaitlistEntryIdForBooking(null)
   }
 
   const handleBookingChange = (updated: BookingWithRelations) => {
@@ -450,6 +482,10 @@ export function DashboardClient({
     // If we just converted a sign-up sheet entry, drop it from the pending list
     if (schedulingEntryId) {
       setPendingSignups((prev) => prev.filter((e) => e.id !== schedulingEntryId))
+    }
+    // Phase 15 F4 — converted waitlist entry flips to 'booked' server-side; refresh the panel
+    if (waitlistEntryIdForBooking) {
+      setWaitlistReloadKey((k) => k + 1)
     }
     setCalendarFlash(true)
     setTimeout(() => setCalendarFlash(false), 750)
@@ -996,6 +1032,12 @@ export function DashboardClient({
               </div>
             )}
 
+            <WaitlistPanel
+              onBook={handleBookWaitlistEntry}
+              onAdd={() => { setWaitlistPrefill({ residentId: null, serviceId: null }); setWaitlistModalOpen(true) }}
+              reloadKey={waitlistReloadKey}
+            />
+
             {coverageQueue.length > 0 && (
               <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-stone-100">
@@ -1074,7 +1116,22 @@ export function DashboardClient({
         prefillResidentId={prefillResidentId}
         prefillServiceId={prefillServiceId}
         signupSheetEntryId={schedulingEntryId}
+        waitlistEntryId={waitlistEntryIdForBooking}
+        onAddToWaitlist={(isAdmin || userRole === 'facility_staff') ? handleAddToWaitlistFromBooking : null}
       />
+
+      {/* Phase 15 F4 — add-to-waitlist form (panel + booking-modal cancel flow) */}
+      {(isAdmin || userRole === 'facility_staff') && (
+        <AddToWaitlistModal
+          open={waitlistModalOpen}
+          onClose={() => setWaitlistModalOpen(false)}
+          residents={residents}
+          services={localServices}
+          prefillResidentId={waitlistPrefill.residentId}
+          prefillServiceId={waitlistPrefill.serviceId}
+          onAdded={() => setWaitlistReloadKey((k) => k + 1)}
+        />
+      )}
 
       {/* Sign-Up Sheet panel — admin + facility_staff */}
       {(isAdmin || userRole === 'facility_staff') && (
