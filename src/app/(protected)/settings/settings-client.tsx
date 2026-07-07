@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { clearReadCache } from '@/lib/read-cache'
+import { clearOfflineOnLogout } from '@/lib/offline-session'
 import { useSearchParams } from 'next/navigation'
 import {
   Building2,
@@ -373,7 +373,7 @@ export function SettingsClient({
         <button
           onClick={async () => {
             const supabase = createClient()
-            clearReadCache() // Phase 17 — cached day sheets hold resident names
+            clearOfflineOnLogout() // Phase 18 — wipes read cache + SW page cache
             await supabase.auth.signOut()
             window.location.href = '/login'
           }}

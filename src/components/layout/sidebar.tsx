@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { clearOfflineOnLogout } from '@/lib/offline-session'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useMemo, useEffect, useRef } from 'react'
@@ -270,6 +271,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
   }, [switcherOpen])
 
   const handleSignOut = async () => {
+    clearOfflineOnLogout() // Phase 18 — cached pages/data must not survive sign-out
     await supabase.auth.signOut()
     router.push('/login')
   }

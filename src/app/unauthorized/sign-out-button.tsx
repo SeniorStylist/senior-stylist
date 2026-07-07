@@ -1,12 +1,14 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
+import { clearOfflineOnLogout } from '@/lib/offline-session'
 import { useRouter } from 'next/navigation'
 
 export function SignOutButton() {
   const router = useRouter()
 
   const handleSignOut = async () => {
+    clearOfflineOnLogout() // Phase 18 — cached pages/data must not survive sign-out
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')

@@ -203,7 +203,7 @@ export default async function ProtectedLayout({
       <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
       <InstallBanner />
       <DebugBadge />
-      <SWRegister />
+      <SWRegister userId={user.id} role={activeRole} />
     </div>
   )
 }
