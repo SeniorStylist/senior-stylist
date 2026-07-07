@@ -23,6 +23,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { queueableFetch, isQueued, subscribePending } from '@/lib/offline-queue'
 import { cachedFetch, saveSnapshot, cacheTimeLabel } from '@/lib/read-cache'
 import { enqueuePhoto } from '@/lib/offline-photo-queue'
+import type { BookingUpdateInput } from '@/lib/validation/booking-update'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -269,9 +270,11 @@ export function LogClient({
       const tipCents = editTipCents.trim() && !isNaN(tipFloat) ? Math.round(tipFloat * 100) : null
 
       const { paymentStatus, paymentMethod } = parsePaymentCombo(editPaymentCombo)
-      const body: Record<string, unknown> = {
+      // Typed against the route's schema — payload/schema drift fails tsc in CI
+      // instead of showing bookkeepers a runtime "Invalid input" (Phase 23).
+      const body: BookingUpdateInput = {
         priceCents,
-        notes: editNotes || null,
+        notes: editNotes.trim() === '' ? null : editNotes.trim(),
         tipCents,
         paymentStatus,
         paymentMethod,

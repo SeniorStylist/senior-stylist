@@ -14,29 +14,12 @@ import { updateStylistCalendarEvent, deleteStylistCalendarEvent } from '@/lib/go
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { toClientJson } from '@/lib/sanitize'
+import { bookingUpdateSchema } from '@/lib/validation/booking-update'
 
-const updateSchema = z.object({
-  residentId: z.string().uuid().optional(),
-  stylistId: z.string().uuid().optional(),
-  serviceId: z.string().uuid().optional(),
-  serviceIds: z.array(z.string().uuid()).min(1).optional(),
-  addonServiceIds: z.array(z.string().uuid()).optional(),
-  startTime: z.string().datetime().optional(),
-  priceCents: z.number().int().min(0).optional(),
-  notes: z.string().max(2000).optional(),
-  status: z.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
-  paymentStatus: z.enum(['unpaid', 'paid', 'waived']).optional(),
-  cancellationReason: z.string().max(500).optional(),
-  cancelFuture: z.boolean().optional(),
-  selectedQuantity: z.number().int().min(1).max(1000).optional(),
-  selectedOption: z.string().max(200).optional(),
-  addonChecked: z.boolean().optional(),
-  tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
-  paymentMethod: z.string().max(100).nullable().optional(),
-  // Room # is a RESIDENT field, not a booking column — applied to the booking's
-  // resident record (residents change rooms; the log sheet is the source of truth).
-  roomNumber: z.string().max(50).nullable().optional(),
-})
+// Phase 23 — schema lives in src/lib/validation/booking-update.ts so client
+// payload builders can type against z.input of the SAME schema (drift = tsc
+// error, not a runtime "Invalid input" for bookkeepers).
+const updateSchema = bookingUpdateSchema
 
 export async function GET(
   _request: NextRequest,
