@@ -76,13 +76,14 @@ export function WaitlistPanel({
   if (!loaded) return null
 
   return (
-    <div className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+    <div data-tour="waitlist-panel" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
       <div className="px-4 py-2.5 border-b border-stone-100 flex items-center justify-between">
         <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">
           Waitlist{entries.length > 0 ? ` · ${entries.length}` : ''}
         </p>
         <button
           onClick={onAdd}
+          data-tour="waitlist-add"
           className="text-[11px] font-semibold text-[#8B2E4A] hover:underline"
         >
           + Add

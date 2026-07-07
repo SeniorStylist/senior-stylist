@@ -168,6 +168,7 @@ const SCRIPTED_FILES = [
   path.join(REPO_ROOT, 'src/lib/help/tours-facility-staff.ts'),
   path.join(REPO_ROOT, 'src/lib/help/tours-admin.ts'),
   path.join(REPO_ROOT, 'src/lib/help/tours-bookkeeper.ts'),
+  path.join(REPO_ROOT, 'src/lib/help/tours-new-features.ts'),
 ]
 type ScriptedRef = { file: string; value: string }
 const scriptedRefs: ScriptedRef[] = []
@@ -192,8 +193,51 @@ for (const ref of scriptedRefs) {
   }
 }
 
+// 5c. Help audit 2026-07-07 — id-resolution validation. Catches the B1 class of
+//     bug (catalog/checklist/map ids that resolve to nothing) that selector
+//     checks can't see.
+const mapSrc = fs.readFileSync(path.join(REPO_ROOT, 'src/lib/help/scripted-tour-map.ts'), 'utf8')
+
+// All legacy TOUR_DEFINITIONS keys ('id': { id: 'x', ... } entries)
+const legacyIds = new Set([...toursSrc.matchAll(/^  '([a-z0-9-]+)':\s*\{/gm)].map((m) => m[1]))
+// All scripted tour ids across the scripted files
+const scriptedIds = new Set<string>()
+for (const file of SCRIPTED_FILES) {
+  if (!fs.existsSync(file)) continue
+  const src = fs.readFileSync(file, 'utf8')
+  for (const m of src.matchAll(/id:\s*'(scripted-[a-z0-9-]+)'/g)) scriptedIds.add(m[1])
+}
+// SCRIPTED_TOUR_MAP: keys + targets
+const mapEntries = [...mapSrc.matchAll(/'([a-z0-9-]+)':\s*\{\s*mobile:\s*'([a-z0-9-]+)',\s*desktop:\s*'([a-z0-9-]+)'/g)]
+const mapKeys = new Set(mapEntries.map((m) => m[1]))
+const idErrors: string[] = []
+for (const [, key, mob, desk] of mapEntries) {
+  if (!scriptedIds.has(mob)) idErrors.push(`SCRIPTED_TOUR_MAP['${key}'].mobile → '${mob}' not defined in any tours-*.ts`)
+  if (!scriptedIds.has(desk)) idErrors.push(`SCRIPTED_TOUR_MAP['${key}'].desktop → '${desk}' not defined in any tours-*.ts`)
+}
+// Catalog tourIds must resolve to SOME engine (legacy definition or scripted map key)
+for (const m of toursSrc.matchAll(/tourId:\s*'([a-z0-9-]+)'/g)) {
+  const id = m[1]
+  if (!legacyIds.has(id) && !mapKeys.has(id)) {
+    idErrors.push(`TUTORIAL_CATALOG tourId '${id}' resolves to NO engine (not in TOUR_DEFINITIONS or SCRIPTED_TOUR_MAP)`)
+  }
+}
+// ONBOARDING_CHECKLIST tourIds must resolve too (aliases count as catalog ids)
+const checklistBlock = toursSrc.slice(toursSrc.indexOf('ONBOARDING_CHECKLIST'))
+for (const m of checklistBlock.slice(0, checklistBlock.indexOf('\n}\n')).matchAll(/tourId:\s*'([a-z0-9-]+)'/g)) {
+  const id = m[1]
+  if (!legacyIds.has(id) && !mapKeys.has(id)) {
+    idErrors.push(`ONBOARDING_CHECKLIST tourId '${id}' resolves to NO engine`)
+  }
+}
+if (idErrors.length > 0) {
+  console.log()
+  console.log(`Id-resolution errors (${idErrors.length}):`)
+  for (const e of idErrors) console.log(`  ❌ ${e}`)
+}
+
 console.log()
-console.log(`Tour health check — checked ${checked} selectors, ${okCount} found, ${missing.length + scriptedMissing.length} missing.`)
+console.log(`Tour health check — checked ${checked} selectors, ${okCount} found, ${missing.length + scriptedMissing.length} missing, ${idErrors.length} id errors.`)
 
 if (scriptedMissing.length > 0) {
   console.log()
@@ -214,5 +258,5 @@ if (missing.length > 0) {
   console.log('Missing anchors:')
   for (const r of missing) console.log(`  - ${r.tourId}[${r.stepIndex}]  data-tour="${r.value}"`)
 }
-if (missing.length > 0 || scriptedMissing.length > 0) process.exit(1)
+if (missing.length > 0 || scriptedMissing.length > 0 || idErrors.length > 0) process.exit(1)
 process.exit(0)

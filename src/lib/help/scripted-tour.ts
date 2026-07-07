@@ -7,6 +7,7 @@ import { setScriptedTourActive } from './tour-mode'
 import { setTutorialCookie, clearTutorialCookie } from './tutorial-cookie'
 import { getTourRouter } from './tour-router'
 import { waitForElement, resolveQuery } from './tours'
+import { SCRIPTED_TO_BASE } from './scripted-tour-map'
 
 const SESSION_KEY = 'scriptedTour'
 const SESSION_TTL = 10 * 60 * 1000 // 10 minutes
@@ -39,6 +40,7 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   const { FACILITY_STAFF_TOURS } = await import('./tours-facility-staff')
   const { ADMIN_TOURS } = await import('./tours-admin')
   const { BOOKKEEPER_TOURS } = await import('./tours-bookkeeper')
+  const { NEW_FEATURE_TOURS } = await import('./tours-new-features')
   const allTours = [
     ...STYLIST_MOBILE_TOURS,
     ...STYLIST_DESKTOP_TOURS,
@@ -46,6 +48,7 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
     ...FACILITY_STAFF_TOURS,
     ...ADMIN_TOURS,
     ...BOOKKEEPER_TOURS,
+    ...NEW_FEATURE_TOURS,
   ]
   const tour = allTours.find((t) => t.id === tourId)
   if (!tour) {
@@ -183,8 +186,12 @@ function completeTour() {
   const tourId = _activeTour.id
   trackStep(tourId, _activeState.stepIndex, 'completed')
   clearActiveListener()
+  // Help audit 2026-07-07 (B1): persist + broadcast the BASE catalog tourId, not
+  // the scripted variant id — /api/profile/complete-tour validates catalog ids and
+  // the ✓ Done badge / onboarding checklist match on them.
+  const baseTourId = SCRIPTED_TO_BASE[tourId] ?? tourId
   // Dispatch completion event (same pattern as legacy engine)
-  window.dispatchEvent(new CustomEvent('tour-completed', { detail: { tourId } }))
+  window.dispatchEvent(new CustomEvent('tour-completed', { detail: { tourId: baseTourId } }))
   // Mark completed in profiles (fire-and-forget). Clear tutorial mode FIRST so
   // this write isn't tagged is_demo.
   setScriptedTourActive(false)
@@ -192,7 +199,7 @@ function completeTour() {
   fetch('/api/profile/complete-tour', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tourId }),
+    body: JSON.stringify({ tourId: baseTourId }),
   }).catch(() => {})
   clearSessionState()
   _activeState = null

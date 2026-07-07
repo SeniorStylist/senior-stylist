@@ -1,0 +1,21 @@
+# Help audit 2026-07-07 (M1/M3): typecheck + tour health on every push/PR.
+# check:tours validates every tour selector against data-tour anchors in src/ AND
+# that every catalog/checklist/map tour id resolves to a real tour definition —
+# the gate that keeps tutorials in sync as features are added.
+name: checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run check:tours

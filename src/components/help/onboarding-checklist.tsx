@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react'
-import { ONBOARDING_CHECKLIST, startTour, isTourCompleted } from '@/lib/help/tours'
+import { ONBOARDING_CHECKLIST, isTourCompleted } from '@/lib/help/tours'
+import { launchTutorial } from '@/lib/help/scripted-tour-map'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useRouter } from 'next/navigation'
 
 interface OnboardingChecklistProps {
   role: string
@@ -14,6 +17,8 @@ interface OnboardingChecklistProps {
 const COLLAPSED_KEY = 'onboardingChecklistCollapsed'
 
 export function OnboardingChecklist({ role, completedTours, isMaster, userId }: OnboardingChecklistProps) {
+  const isMobile = useIsMobile()
+  const router = useRouter()
   const normalizedRole = role === 'super_admin' ? 'admin' : role
   const items = ONBOARDING_CHECKLIST[normalizedRole] ?? []
   const DISMISSED_KEY = `onboardingChecklistDismissed:${userId}`
@@ -139,7 +144,7 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
                 {!done && (
                   <button
                     type="button"
-                    onClick={() => void startTour(item.tourId)}
+                    onClick={() => void launchTutorial(item.tourId, isMobile, () => router.refresh())}
                     className="text-xs font-medium text-[#8B2E4A] hover:underline shrink-0"
                   >
                     Start →

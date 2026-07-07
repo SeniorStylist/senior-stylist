@@ -31,7 +31,7 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export function NotificationBell() {
+export function NotificationBell({ anchor = 'desktop' }: { anchor?: 'desktop' | 'mobile' }) {
   const router = useRouter()
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
@@ -150,6 +150,7 @@ export function NotificationBell() {
       className="relative flex items-center justify-center w-8 h-8 rounded-full hover:bg-stone-100 transition-colors"
       aria-label="Notifications"
       title="Notifications"
+      {...(anchor === 'mobile' ? { 'data-tour-mobile': 'notification-bell' } : { 'data-tour': 'notification-bell' })}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />

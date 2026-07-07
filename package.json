@@ -10,7 +10,8 @@
     "cap:assets": "node scripts/generate-native-assets.mjs && npx @capacitor/assets generate",
     "cap:sync": "npx cap sync",
     "cap:android": "npx cap sync android && npx cap open android",
-    "cap:ios": "npx cap sync ios && npx cap open ios"
+    "cap:ios": "npx cap sync ios && npx cap open ios",
+    "check:tours": "tsx scripts/check-tours.ts"
   },
   "dependencies": {
     "@capacitor-community/stripe-terminal": "^8.1.1",
@@ -76,6 +77,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.0",
     "typescript": "^5"
   }
 }

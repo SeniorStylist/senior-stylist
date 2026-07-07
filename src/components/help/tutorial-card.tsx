@@ -9,83 +9,10 @@ import {
   Clock, Search, PanelRight,
 } from 'lucide-react'
 import type { Tutorial, TutorialIcon } from '@/lib/help/tours'
-import { startTour } from '@/lib/help/tours'
+import { launchTutorial } from '@/lib/help/scripted-tour-map'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useRouter } from 'next/navigation'
 
-// Tours that have an interactive scripted version (Phase 13). Clicking
-// "Guided Tour" launches the scripted engine (real demo writes) instead of the
-// legacy Driver.js walkthrough, picking the platform variant by viewport.
-const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string }> = {
-  'stylist-getting-started': { mobile: 'scripted-stylist-getting-started-mobile', desktop: 'scripted-stylist-getting-started-desktop' },
-  'stylist-calendar': { mobile: 'scripted-stylist-calendar-mobile', desktop: 'scripted-stylist-calendar-desktop' },
-  'stylist-daily-log': { mobile: 'scripted-stylist-daily-log-mobile', desktop: 'scripted-stylist-daily-log-desktop' },
-  'stylist-checkin': { mobile: 'scripted-stylist-checkin-mobile', desktop: 'scripted-stylist-checkin-desktop' },
-  'stylist-finalize-day': { mobile: 'scripted-stylist-finalize-day-mobile', desktop: 'scripted-stylist-finalize-day-desktop' },
-  // Master admin tours (desktop-only — no mobile variant; same id for both)
-  'master-add-facility': { mobile: 'scripted-master-add-facility', desktop: 'scripted-master-add-facility' },
-  'master-stylist-directory': { mobile: 'scripted-master-add-stylist', desktop: 'scripted-master-add-stylist' },
-  // Facility-staff + admin residents (same UI on both platforms; resolveQuery maps anchors)
-  'facility-staff-residents': { mobile: 'scripted-facility-staff-residents', desktop: 'scripted-facility-staff-residents' },
-  'admin-residents': { mobile: 'scripted-admin-residents', desktop: 'scripted-admin-residents' },
-  // Facility-staff scheduling (FAB on mobile, calendar grid on desktop)
-  'facility-staff-scheduling': { mobile: 'scripted-facility-staff-scheduling-mobile', desktop: 'scripted-facility-staff-scheduling-desktop' },
-  // Facility-staff sign-up sheet (same panel on both platforms)
-  'facility-staff-signup-sheet': { mobile: 'scripted-facility-staff-signup-sheet', desktop: 'scripted-facility-staff-signup-sheet' },
-  // Bookkeeper manual walk-in entry (same UI on both platforms)
-  'bookkeeper-manual-entry': { mobile: 'scripted-bookkeeper-manual-entry', desktop: 'scripted-bookkeeper-manual-entry' },
-  // Stylist remaining tours (same UI on both platforms)
-  'stylist-my-account': { mobile: 'scripted-stylist-my-account', desktop: 'scripted-stylist-my-account' },
-  'stylist-signup-sheet': { mobile: 'scripted-stylist-signup-sheet', desktop: 'scripted-stylist-signup-sheet' },
-  'stylist-residents': { mobile: 'scripted-stylist-residents', desktop: 'scripted-stylist-residents' },
-  // Facility staff remaining tours
-  'staff-getting-started': { mobile: 'scripted-staff-getting-started', desktop: 'scripted-staff-getting-started' },
-  'staff-daily-log': { mobile: 'scripted-staff-daily-log', desktop: 'scripted-staff-daily-log' },
-  'staff-daily-log-readonly': { mobile: 'scripted-staff-daily-log-readonly', desktop: 'scripted-staff-daily-log-readonly' },
-  // Admin remaining tours (desktop, same id for both)
-  'admin-getting-started': { mobile: 'scripted-admin-getting-started', desktop: 'scripted-admin-getting-started' },
-  'admin-facility-setup': { mobile: 'scripted-admin-facility-setup', desktop: 'scripted-admin-facility-setup' },
-  'admin-inviting-staff': { mobile: 'scripted-admin-inviting-staff', desktop: 'scripted-admin-inviting-staff' },
-  'admin-reports': { mobile: 'scripted-admin-reports', desktop: 'scripted-admin-reports' },
-  'admin-family-portal': { mobile: 'scripted-admin-family-portal', desktop: 'scripted-admin-family-portal' },
-  'admin-compliance': { mobile: 'scripted-admin-compliance', desktop: 'scripted-admin-compliance' },
-  'admin-command-palette': { mobile: 'scripted-admin-command-palette', desktop: 'scripted-admin-command-palette' },
-  'admin-peek-drawer': { mobile: 'scripted-admin-peek-drawer', desktop: 'scripted-admin-peek-drawer' },
-  // Bookkeeper remaining + new tours
-  'bookkeeper-getting-started': { mobile: 'scripted-bookkeeper-getting-started-mobile', desktop: 'scripted-bookkeeper-getting-started' },
-  'bookkeeper-scan-logs': { mobile: 'scripted-bookkeeper-scan-logs', desktop: 'scripted-bookkeeper-scan-logs' },
-  'bookkeeper-duplicates': { mobile: 'scripted-bookkeeper-duplicates', desktop: 'scripted-bookkeeper-duplicates' },
-  'bookkeeper-billing-dashboard': { mobile: 'scripted-bookkeeper-billing-dashboard', desktop: 'scripted-bookkeeper-billing-dashboard' },
-  'bookkeeper-payroll': { mobile: 'scripted-bookkeeper-payroll', desktop: 'scripted-bookkeeper-payroll' },
-  'bookkeeper-export-logs': { mobile: 'scripted-bookkeeper-export-logs', desktop: 'scripted-bookkeeper-export-logs' },
-  'bookkeeper-quickbooks': { mobile: 'scripted-bookkeeper-quickbooks', desktop: 'scripted-bookkeeper-quickbooks' },
-  'bookkeeper-financial-reports': { mobile: 'scripted-bookkeeper-financial-reports', desktop: 'scripted-bookkeeper-financial-reports' },
-  // Master remaining + new tours (desktop-only)
-  'master-getting-started': { mobile: 'scripted-master-getting-started', desktop: 'scripted-master-getting-started' },
-  'master-applicant-pipeline': { mobile: 'scripted-master-applicant-pipeline', desktop: 'scripted-master-applicant-pipeline' },
-  'master-quickbooks-setup': { mobile: 'scripted-master-quickbooks-setup', desktop: 'scripted-master-quickbooks-setup' },
-  'master-analytics': { mobile: 'scripted-master-analytics', desktop: 'scripted-master-analytics' },
-  'master-franchise': { mobile: 'scripted-master-franchise', desktop: 'scripted-master-franchise' },
-  'master-cross-facility-analytics': { mobile: 'scripted-master-cross-facility-analytics', desktop: 'scripted-master-cross-facility-analytics' },
-  'master-merge-duplicates': { mobile: 'scripted-master-merge-duplicates', desktop: 'scripted-master-merge-duplicates' },
-  'master-team-roster': { mobile: 'scripted-master-team-roster', desktop: 'scripted-master-team-roster' },
-  // Master admin mobile tours (mobile-only cards — the bottom nav surfaces these screens)
-  'master-getting-started-mobile': { mobile: 'scripted-master-getting-started-mobile', desktop: 'scripted-master-getting-started-mobile' },
-  'master-calendar-mobile': { mobile: 'scripted-master-calendar-mobile', desktop: 'scripted-master-calendar-mobile' },
-  'master-daily-log-mobile': { mobile: 'scripted-master-daily-log-mobile', desktop: 'scripted-master-daily-log-mobile' },
-  'master-residents-mobile': { mobile: 'scripted-master-residents-mobile', desktop: 'scripted-master-residents-mobile' },
-  'master-analytics-mobile': { mobile: 'scripted-master-analytics-mobile', desktop: 'scripted-master-analytics-mobile' },
-  'master-payroll-mobile': { mobile: 'scripted-master-payroll-mobile', desktop: 'scripted-master-payroll-mobile' },
-  'master-settings-mobile': { mobile: 'scripted-master-settings-mobile', desktop: 'scripted-master-settings-mobile' },
-}
-
-// Tours that create their own demo records through the UI flow — no pre-seeding needed.
-const UNSEEDED_SCRIPTED_TOURS = new Set([
-  'scripted-master-add-facility',
-  'scripted-master-add-stylist',
-  'scripted-facility-staff-residents',
-  'scripted-admin-residents',
-])
 
 const ICON_MAP: Record<TutorialIcon, typeof KeyRound> = {
   KeyRound, Calendar, FileText, Users, UserPlus, CheckCircle2, UserCog,
@@ -111,24 +38,10 @@ export function TutorialCard({ tutorial, completed }: TutorialCardProps) {
       setTimeout(() => setComingSoonOpen(null), 2000)
       return
     }
-    const scripted = SCRIPTED_TOUR_MAP[tutorial.tourId]
-    if (scripted) {
-      const id = isMobile ? scripted.mobile : scripted.desktop
-      void import('@/lib/help/scripted-tour').then((m) => {
-        // router.refresh() after the tour navigates so the destination page's
-        // server components re-render WITH the tutorial cookie set — otherwise the
-        // stale (pre-tour) Router Cache snapshot is served and demo records
-        // (Mrs. Smith, the today booking) never appear in SSR-fed lists like the
-        // walk-in resident search or the daily-log rows. Mirrors the auto-launcher.
-        if (UNSEEDED_SCRIPTED_TOURS.has(id)) {
-          // Tour creates its own demo records through the UI — no pre-seeding needed
-          return m.startScriptedTour(id).then(() => router.refresh())
-        }
-        return m.seedAndStart(id).then(() => router.refresh())
-      })
-    } else {
-      void startTour(tutorial.tourId)
-    }
+    // Shared launcher (scripted-tour-map.ts) — same engine from every entry point.
+    // router.refresh() after a scripted tour navigates so SSR re-renders WITH the
+    // tutorial cookie (demo records appear in SSR-fed lists). Mirrors the auto-launcher.
+    void launchTutorial(tutorial.tourId, isMobile, () => router.refresh())
   }
 
   const handleVideo = () => {

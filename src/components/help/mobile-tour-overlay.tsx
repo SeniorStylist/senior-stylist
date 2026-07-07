@@ -264,9 +264,12 @@ export function MobileTourOverlay() {
 
       {/* Bottom sheet */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-[202] bg-stone-50 rounded-t-3xl px-6 pt-5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] pointer-events-auto"
+        className="fixed left-0 right-0 z-[202] bg-stone-50 rounded-t-3xl px-6 pt-5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] pointer-events-auto"
         style={{
-          paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
+          // Float above the bottom nav (help audit R2 — matches the scripted sheet);
+          // --app-nav-clearance already includes the safe-area inset.
+          bottom: 'var(--app-nav-clearance, 0px)',
+          paddingBottom: '1.25rem',
           transform: sheetMounted ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
           maxHeight: '60vh',

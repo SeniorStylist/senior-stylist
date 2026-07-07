@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { sql } from 'drizzle-orm'
-import { TOUR_DEFINITIONS } from '@/lib/help/tours'
+import { TOUR_DEFINITIONS, TUTORIAL_CATALOG } from '@/lib/help/tours'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
 
@@ -22,7 +22,11 @@ export async function POST(req: Request) {
     if (!body.success) return Response.json({ error: 'Invalid request' }, { status: 400 })
     const { tourId } = body.data
 
-    if (!TOUR_DEFINITIONS[tourId]) {
+    // Help audit 2026-07-07 (B1): valid ids are legacy TOUR_DEFINITIONS keys OR
+    // catalog tourIds (scripted-only tours live in the catalog, not TOUR_DEFINITIONS —
+    // the old legacy-only check 400'd every scripted completion).
+    const isValid = !!TOUR_DEFINITIONS[tourId] || TUTORIAL_CATALOG.some((t) => t.tourId === tourId)
+    if (!isValid) {
       return Response.json({ error: 'Unknown tour' }, { status: 400 })
     }
 
