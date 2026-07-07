@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { ensureMonthlyReportSchema } from '@/lib/monthly-report-ddl'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, facilityUsers, franchises } from '@/db/schema'
@@ -37,6 +38,12 @@ interface LayoutData {
 }
 
 async function fetchLayoutData(userId: string): Promise<LayoutData> {
+  // Phase 18 hotfix — self-heal the facilities.monthly_report_enabled column
+  // (drizzle/0024). Full-row facilities selects (this relation include, the
+  // dashboard, the daily log) throw "column does not exist" when the code
+  // deploys before the migration is applied; this makes deploys order-proof.
+  // Module-guarded in monthly-report-ddl.ts — one round-trip per instance.
+  await ensureMonthlyReportSchema().catch(() => {})
   const userFacilities = await db.query.facilityUsers.findMany({
     where: eq(facilityUsers.userId, userId),
     with: { facility: true },
