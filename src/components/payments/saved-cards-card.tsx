@@ -6,6 +6,7 @@
 // API authorizes via the portal session).
 
 import { canSeeBilling } from '@/lib/client-roles'
+import { makePortalT, type PortalLang } from '@/lib/portal-i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { CreditCard, Plus, Trash2 } from 'lucide-react'
 import { AddCardForm } from './add-card-form'
@@ -21,8 +22,9 @@ interface SavedCard {
 }
 
 
-export function SavedCardsCard({ residentId, role }: { residentId: string; role?: string }) {
+export function SavedCardsCard({ residentId, role, lang = 'en' }: { residentId: string; role?: string; lang?: PortalLang }) {
   const { toast } = useToast()
+  const t = makePortalT(lang)
   const [cards, setCards] = useState<SavedCard[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -51,11 +53,11 @@ export function SavedCardsCard({ residentId, role }: { residentId: string; role?
       body: JSON.stringify({ residentId, paymentMethodId: id }),
     })
     if (res.ok) {
-      toast.success('Card removed')
+      toast.success(t('cards.removed'))
       void load()
     } else {
       const j = await res.json().catch(() => ({}))
-      toast.error(j.error || 'Could not remove card')
+      toast.error(j.error || t('cards.removeFailed'))
     }
   }
 
@@ -64,14 +66,14 @@ export function SavedCardsCard({ residentId, role }: { residentId: string; role?
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <CreditCard size={16} className="text-[#8B2E4A]" />
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Cards on file</p>
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{t('cards.title')}</p>
         </div>
         {!adding && (
           <button
             onClick={() => setAdding(true)}
             className="inline-flex items-center gap-1 text-sm font-semibold text-[#8B2E4A]"
           >
-            <Plus size={14} /> Add card
+            <Plus size={14} /> {t('cards.add')}
           </button>
         )}
       </div>
@@ -79,6 +81,7 @@ export function SavedCardsCard({ residentId, role }: { residentId: string; role?
       {adding ? (
         <AddCardForm
           residentId={residentId}
+          lang={lang}
           onSaved={() => {
             setAdding(false)
             void load()
@@ -88,7 +91,7 @@ export function SavedCardsCard({ residentId, role }: { residentId: string; role?
       ) : loading ? (
         <div className="skeleton rounded-xl h-12 w-full" />
       ) : cards.length === 0 ? (
-        <p className="text-sm text-stone-500">No card on file yet.</p>
+        <p className="text-sm text-stone-500">{t('cards.none')}</p>
       ) : (
         <ul className="space-y-2">
           {cards.map((c) => (
@@ -98,19 +101,19 @@ export function SavedCardsCard({ residentId, role }: { residentId: string; role?
                 <span className="text-stone-500">•••• {c.last4 || '????'}</span>
                 {c.expMonth && c.expYear && (
                   <span className="text-[11px] text-stone-400">
-                    exp {String(c.expMonth).padStart(2, '0')}/{String(c.expYear).slice(-2)}
+                    {t('cards.exp')} {String(c.expMonth).padStart(2, '0')}/{String(c.expYear).slice(-2)}
                   </span>
                 )}
                 {c.isDefault && (
                   <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                    Default
+                    {t('cards.default')}
                   </span>
                 )}
               </div>
               <button
                 onClick={() => remove(c.id)}
                 className="text-stone-400 hover:text-rose-600 transition-colors"
-                aria-label="Remove card"
+                aria-label={t('cards.removeAria')}
               >
                 <Trash2 size={15} />
               </button>

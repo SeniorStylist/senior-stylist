@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { formatPricingLabel } from '@/lib/pricing'
 import type { PricingTier, PricingOption } from '@/types'
 import { cn } from '@/lib/utils'
+import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
 interface ClientService {
   id: string
@@ -19,12 +20,14 @@ interface ClientService {
 
 interface Props {
   facilityCode: string
+  lang: PortalLang
   residentId: string
   groups: { category: string; services: ClientService[] }[]
 }
 
-export function RequestClient({ facilityCode, residentId, groups }: Props) {
+export function RequestClient({ facilityCode, lang, residentId, groups }: Props) {
   const router = useRouter()
+  const t = usePortalT(lang)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [dateMode, setDateMode] = useState<'anytime' | 'range'>('anytime')
   const [from, setFrom] = useState('')
@@ -45,11 +48,11 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
 
   const onSubmit = async () => {
     if (selected.size === 0) {
-      setError('Pick at least one service.')
+      setError(t('request.pickOne'))
       return
     }
     if (dateMode === 'range' && (!from || !to)) {
-      setError('Pick both a start and end date, or choose Anytime.')
+      setError(t('request.pickDates'))
       return
     }
     setSubmitting(true)
@@ -68,12 +71,12 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(j.error ?? 'Could not submit request. Please try again.')
+        setError(j.error ?? t('request.submitFailed'))
         return
       }
       setSuccess(true)
     } catch {
-      setError('Network error. Please try again.')
+      setError(t('common.networkError'))
     } finally {
       setSubmitting(false)
     }
@@ -87,14 +90,14 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p className="text-base font-semibold text-stone-800">Request submitted</p>
-        <p className="text-sm text-stone-500 mt-1">We&apos;ll be in touch to confirm your appointment.</p>
+        <p className="text-base font-semibold text-stone-800">{t('request.submitted')}</p>
+        <p className="text-sm text-stone-500 mt-1">{t('request.submittedHint')}</p>
         <div className="flex gap-2 mt-5">
           <Link
             href={`/family/${encodeURIComponent(facilityCode)}`}
             className="flex-1 text-sm font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-xl px-4 py-2.5 transition-colors"
           >
-            Back to home
+            {t('request.backHome')}
           </Link>
           <button
             type="button"
@@ -109,7 +112,7 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
             }}
             className="flex-1 text-sm font-semibold bg-[#8B2E4A] text-white rounded-xl px-4 py-2.5 hover:bg-[#72253C] shadow-[0_2px_6px_rgba(139,46,74,0.22)]"
           >
-            Make another
+            {t('request.makeAnother')}
           </button>
         </div>
       </div>
@@ -119,8 +122,8 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
   if (groups.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center">
-        <p className="text-sm font-semibold text-stone-700">No services available</p>
-        <p className="text-xs text-stone-400 mt-1">Please contact the office.</p>
+        <p className="text-sm font-semibold text-stone-700">{t('request.noServices')}</p>
+        <p className="text-xs text-stone-400 mt-1">{t('request.contactOffice')}</p>
       </div>
     )
   }
@@ -129,8 +132,8 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
     <div className="flex flex-col gap-4">
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-stone-900">1. Pick services</h2>
-          <span className="text-xs text-stone-400">{selected.size}/6 selected</span>
+          <h2 className="text-sm font-semibold text-stone-900">{t('request.pickServices')}</h2>
+          <span className="text-xs text-stone-400">{t('request.selectedCount', { count: selected.size })}</span>
         </div>
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
@@ -180,7 +183,7 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
       </section>
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-        <h2 className="text-sm font-semibold text-stone-900 mb-3">2. Preferred date</h2>
+        <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('request.preferredDate')}</h2>
         <div className="flex gap-2">
           {(['anytime', 'range'] as const).map((m) => (
             <button
@@ -194,14 +197,14 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
                   : 'bg-stone-50 text-stone-700 border border-stone-200 hover:bg-stone-100',
               )}
             >
-              {m === 'anytime' ? 'Anytime' : 'Date range'}
+              {m === 'anytime' ? t('request.anytime') : t('request.dateRange')}
             </button>
           ))}
         </div>
         {dateMode === 'range' && (
           <div className="grid grid-cols-2 gap-2 mt-3">
             <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
-              From
+              {t('request.from')}
               <input
                 type="date"
                 value={from}
@@ -210,7 +213,7 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
               />
             </label>
             <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
-              To
+              {t('request.to')}
               <input
                 type="date"
                 value={to}
@@ -223,13 +226,13 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
       </section>
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-        <h2 className="text-sm font-semibold text-stone-900 mb-3">3. Notes (optional)</h2>
+        <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('request.notes')}</h2>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           maxLength={2000}
           rows={4}
-          placeholder="Anything we should know? (preferences, mobility, etc.)"
+          placeholder={t('request.notesPlaceholder')}
           className="w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20 resize-none"
         />
         <p className="text-[11px] text-stone-400 text-right mt-1">{notes.length}/2000</p>
@@ -245,7 +248,7 @@ export function RequestClient({ facilityCode, residentId, groups }: Props) {
         disabled={submitting || selected.size === 0}
         className="bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {submitting ? 'Submitting…' : 'Submit request'}
+        {submitting ? t('request.submitting') : t('request.submit')}
       </button>
     </div>
   )

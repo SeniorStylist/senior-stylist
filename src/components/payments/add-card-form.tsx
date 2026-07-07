@@ -14,15 +14,18 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getStripePromise } from './stripe-browser'
+import { makePortalT, type PortalLang } from '@/lib/portal-i18n'
 
 interface AddCardFormProps {
   residentId: string
+  lang?: PortalLang
   onSaved?: () => void
   onCancel?: () => void
 }
 
-export function AddCardForm({ residentId, onSaved, onCancel }: AddCardFormProps) {
+export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddCardFormProps) {
   const { toast } = useToast()
+  const t = makePortalT(lang)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,12 +41,12 @@ export function AddCardForm({ residentId, onSaved, onCancel }: AddCardFormProps)
           body: JSON.stringify({ residentId }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error || 'Could not start card setup')
+        if (!res.ok) throw new Error(json.error || t('cards.setupFailed'))
         if (cancelled) return
         setClientSecret(json.data.clientSecret)
         setStripePromise(getStripePromise(json.data.publishableKey))
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not start card setup')
+        if (!cancelled) setError(e instanceof Error ? e.message : t('cards.setupFailed'))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -59,10 +62,10 @@ export function AddCardForm({ residentId, onSaved, onCancel }: AddCardFormProps)
   if (error || !clientSecret || !stripePromise) {
     return (
       <div className="rounded-2xl border border-stone-100 bg-white p-5 text-sm text-stone-600">
-        {error || 'Card payments are not configured for this facility.'}
+        {error || t('cards.notConfigured')}
         {onCancel && (
           <button onClick={onCancel} className="mt-3 block text-[#8B2E4A] font-semibold">
-            Close
+            {t('common.close')}
           </button>
         )}
       </div>
@@ -72,12 +75,13 @@ export function AddCardForm({ residentId, onSaved, onCancel }: AddCardFormProps)
   return (
     <Elements
       stripe={stripePromise}
-      options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#8B2E4A' } } }}
+      options={{ clientSecret, locale: lang, appearance: { theme: 'stripe', variables: { colorPrimary: '#8B2E4A' } } }}
     >
       <CardFields
         residentId={residentId}
+        lang={lang}
         onSaved={() => {
-          toast.success('Card saved')
+          toast.success(t('cards.saved'))
           onSaved?.()
         }}
         onCancel={onCancel}
@@ -86,10 +90,11 @@ export function AddCardForm({ residentId, onSaved, onCancel }: AddCardFormProps)
   )
 }
 
-function CardFields({ residentId, onSaved, onCancel }: AddCardFormProps) {
+function CardFields({ residentId, lang = 'en', onSaved, onCancel }: AddCardFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const { toast } = useToast()
+  const t = makePortalT(lang)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -102,11 +107,11 @@ function CardFields({ residentId, onSaved, onCancel }: AddCardFormProps) {
         redirect: 'if_required',
       })
       if (error) {
-        toast.error(error.message || 'Could not save card')
+        toast.error(error.message || t('cards.saveFailed'))
         return
       }
       if (setupIntent?.status !== 'succeeded') {
-        toast.error('Card setup did not complete')
+        toast.error(t('cards.setupIncomplete'))
         return
       }
       // Persist immediately (webhook is a backstop).
@@ -117,12 +122,12 @@ function CardFields({ residentId, onSaved, onCancel }: AddCardFormProps) {
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        toast.error(json.error || 'Card authorized but could not be saved')
+        toast.error(json.error || t('cards.authorizedNotSaved'))
         return
       }
       onSaved?.()
     } catch {
-      toast.error('Could not save card')
+      toast.error(t('cards.saveFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -131,17 +136,14 @@ function CardFields({ residentId, onSaved, onCancel }: AddCardFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <PaymentElement options={{ layout: 'tabs' }} />
-      <p className="text-[11px] text-stone-400 leading-snug">
-        Your card is stored securely by Stripe. Senior Stylist never sees or stores your full card
-        number. You authorize Senior Stylist to charge this card for services rendered.
-      </p>
+      <p className="text-[11px] text-stone-400 leading-snug">{t('cards.disclaimer')}</p>
       <div className="flex items-center gap-2">
         <Button type="submit" loading={submitting} disabled={!stripe}>
-          Save card
+          {t('cards.saveCard')}
         </Button>
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
-            Cancel
+            {t('common.cancel')}
           </Button>
         )}
       </div>

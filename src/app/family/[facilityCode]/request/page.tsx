@@ -8,6 +8,7 @@ import {
   sortServicesWithinCategory,
 } from '@/lib/service-sort'
 import { RequestClient } from './request-client'
+import { getPortalT } from '@/lib/portal-i18n-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,7 @@ export default async function RequestServicePage({
   const { residentId: searchResidentId } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
   const { residentsAtFacility } = await requirePortalAuth(decoded)
+  const { lang, t } = await getPortalT()
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
@@ -65,13 +67,14 @@ export default async function RequestServicePage({
     <div className="page-enter flex flex-col gap-4">
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Request a service
+          {t('request.title')}
         </h1>
-        <p className="text-sm text-stone-500 mt-1">For {selected.residentName} — we&apos;ll confirm by email or phone.</p>
+        <p className="text-sm text-stone-500 mt-1">{t('request.subtitle', { name: selected.residentName })}</p>
       </header>
 
       <RequestClient
         facilityCode={decoded}
+        lang={lang}
         residentId={selected.residentId}
         groups={groups.map(([cat, items]) => ({
           category: cat,

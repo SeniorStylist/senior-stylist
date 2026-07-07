@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
+import { usePortalT, portalLocale, type PortalLang } from '@/lib/portal-i18n'
 
 interface Invoice {
   id: string
@@ -17,6 +18,7 @@ interface Invoice {
 
 interface Props {
   facilityCode: string
+  lang: PortalLang
   residentId: string
   residentName: string
   outstandingCents: number
@@ -33,13 +35,14 @@ function formatDollars(cents: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents ?? 0) / 100)
 }
 
-function formatDate(d: string) {
+function formatDate(d: string, locale: string) {
   const dt = new Date(d + 'T00:00:00')
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(dt)
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric' }).format(dt)
 }
 
 export function BillingClient({
   facilityCode,
+  lang,
   residentId,
   residentName,
   outstandingCents,
@@ -53,6 +56,8 @@ export function BillingClient({
 }: Props) {
   const router = useRouter()
   const { toast } = useToast()
+  const t = usePortalT(lang)
+  const locale = portalLocale(lang)
   const [amountInput, setAmountInput] = useState((outstandingCents / 100).toFixed(2))
   const [submitting, setSubmitting] = useState(false)
   const [prepayInput, setPrepayInput] = useState('')
@@ -79,12 +84,12 @@ export function BillingClient({
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(j.error ?? 'Could not start checkout.')
+        toast.error(j.error ?? t('billing.checkoutFailed'))
         return
       }
       window.location.href = j.data.checkoutUrl
     } catch {
-      toast.error('Network error. Please try again.')
+      toast.error(t('common.networkError'))
     } finally {
       setPrepaySubmitting(false)
     }
@@ -100,7 +105,7 @@ export function BillingClient({
   useEffect(() => {
     if ((paymentSuccess || giftSuccess) && !shownToastRef.current) {
       shownToastRef.current = true
-      toast.success(giftSuccess ? 'Gift sent — thank you!' : 'Payment received — thank you!')
+      toast.success(giftSuccess ? t('billing.giftSent') : t('billing.paymentReceived'))
       router.replace(`/family/${encodeURIComponent(facilityCode)}/billing?residentId=${residentId}`)
     }
   }, [paymentSuccess, giftSuccess, toast, router, facilityCode, residentId])
@@ -108,7 +113,7 @@ export function BillingClient({
   const onPay = async () => {
     const amountCents = Math.round(parseFloat(amountInput) * 100)
     if (!Number.isFinite(amountCents) || amountCents < 50) {
-      toast.error('Enter an amount of at least $0.50.')
+      toast.error(t('billing.minAmount'))
       return
     }
     setSubmitting(true)
@@ -120,12 +125,12 @@ export function BillingClient({
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(j.error ?? 'Could not start checkout.')
+        toast.error(j.error ?? t('billing.checkoutFailed'))
         return
       }
       window.location.href = j.data.checkoutUrl
     } catch {
-      toast.error('Network error. Please try again.')
+      toast.error(t('common.networkError'))
     } finally {
       setSubmitting(false)
     }
@@ -134,7 +139,7 @@ export function BillingClient({
   const onAddFunds = async () => {
     const amountCents = Math.round(parseFloat(prepayInput) * 100)
     if (!Number.isFinite(amountCents) || amountCents < 50) {
-      toast.error('Enter an amount of at least $0.50.')
+      toast.error(t('billing.minAmount'))
       return
     }
     setPrepaySubmitting(true)
@@ -146,12 +151,12 @@ export function BillingClient({
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(j.error ?? 'Could not start checkout.')
+        toast.error(j.error ?? t('billing.checkoutFailed'))
         return
       }
       window.location.href = j.data.checkoutUrl
     } catch {
-      toast.error('Network error. Please try again.')
+      toast.error(t('common.networkError'))
     } finally {
       setPrepaySubmitting(false)
     }
@@ -160,11 +165,11 @@ export function BillingClient({
   const onSendGift = async () => {
     const amountCents = Math.round(parseFloat(giftAmount) * 100)
     if (!giftName.trim()) {
-      toast.error('Enter the resident’s name.')
+      toast.error(t('billing.enterResidentName'))
       return
     }
     if (!Number.isFinite(amountCents) || amountCents < 50) {
-      toast.error('Enter an amount of at least $0.50.')
+      toast.error(t('billing.minAmount'))
       return
     }
     setGiftSubmitting(true)
@@ -182,12 +187,12 @@ export function BillingClient({
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(j.error ?? 'Could not start checkout.')
+        toast.error(j.error ?? t('billing.checkoutFailed'))
         return
       }
       window.location.href = j.data.checkoutUrl
     } catch {
-      toast.error('Network error. Please try again.')
+      toast.error(t('common.networkError'))
     } finally {
       setGiftSubmitting(false)
     }
@@ -199,9 +204,9 @@ export function BillingClient({
     <div className="page-enter flex flex-col gap-4">
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Billing
+          {t('billing.title')}
         </h1>
-        <p className="text-sm text-stone-500 mt-1">For {residentName}</p>
+        <p className="text-sm text-stone-500 mt-1">{t('appts.for', { name: residentName })}</p>
       </header>
 
       <section
@@ -211,7 +216,7 @@ export function BillingClient({
         )}
       >
         <p className="text-xs uppercase tracking-wide font-semibold opacity-80">
-          {outstandingCents > 0 ? 'Outstanding balance' : 'Account balance'}
+          {outstandingCents > 0 ? t('billing.outstandingBalance') : t('billing.accountBalance')}
         </p>
         <p
           className={cn(
@@ -223,15 +228,14 @@ export function BillingClient({
         </p>
         {autopayEnabled && (
           <p className="text-xs mt-2 font-medium text-stone-600">
-            🔄 Automatic payment is <strong>on</strong> — new balances are charged to the card on
-            file and you&apos;ll get an email receipt each time. Contact the facility to change this.
+            {t('billing.autopayOn')}
           </p>
         )}
       </section>
 
       {showPay && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-          <h2 className="text-sm font-semibold text-stone-900 mb-3">Pay online</h2>
+          <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('billing.payOnline')}</h2>
           <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
             Amount
             <div className="relative">
@@ -252,16 +256,16 @@ export function BillingClient({
             disabled={submitting}
             className="w-full mt-3 bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60"
           >
-            {submitting ? 'Loading…' : 'Pay with card'}
+            {submitting ? t('common.loading') : t('billing.payWithCard')}
           </button>
-          <p className="text-[11px] text-stone-400 text-center mt-2">Secure payment via Stripe.</p>
+          <p className="text-[11px] text-stone-400 text-center mt-2">{t('billing.secureStripe')}</p>
         </section>
       )}
 
       {stripeAvailable && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-          <h2 className="text-sm font-semibold text-stone-900 mb-1">Add funds to account</h2>
-          <p className="text-xs text-stone-500 mb-3">Prepay credit toward future services. The facility applies it to your invoices.</p>
+          <h2 className="text-sm font-semibold text-stone-900 mb-1">{t('billing.addFundsTitle')}</h2>
+          <p className="text-xs text-stone-500 mb-3">{t('billing.addFundsHint')}</p>
           {packageServices.length > 0 && (() => {
             const svc = packageServices[0]
             return (
@@ -275,7 +279,7 @@ export function BillingClient({
                     className="rounded-xl border border-stone-200 hover:border-[#8B2E4A]/50 hover:bg-[#F9EFF2] px-3 py-3 text-left transition-colors disabled:opacity-60"
                   >
                     <p className="text-sm font-semibold text-stone-900">{count} × {svc.name}</p>
-                    <p className="text-xs text-stone-500 mt-0.5">${((svc.priceCents * count) / 100).toFixed(2)} credit</p>
+                    <p className="text-xs text-stone-500 mt-0.5">{t('billing.packageCredit', { amount: `$${((svc.priceCents * count) / 100).toFixed(2)}` })}</p>
                   </button>
                 ))}
               </div>
@@ -302,21 +306,21 @@ export function BillingClient({
             disabled={prepaySubmitting}
             className="w-full mt-3 bg-white text-[#8B2E4A] border border-[#8B2E4A] text-sm font-semibold rounded-xl px-5 py-3 hover:bg-[#F9EFF2] disabled:opacity-60"
           >
-            {prepaySubmitting ? 'Loading…' : 'Add funds with card'}
+            {prepaySubmitting ? t('common.loading') : t('billing.addFundsWithCard')}
           </button>
-          <p className="text-[11px] text-stone-400 text-center mt-2">Secure payment via Stripe.</p>
+          <p className="text-[11px] text-stone-400 text-center mt-2">{t('billing.secureStripe')}</p>
         </section>
       )}
 
       {/* Card on file — save a card for automatic payment of services (COF). */}
-      <SavedCardsCard residentId={residentId} />
+      <SavedCardsCard residentId={residentId} lang={lang} />
 
       {stripeAvailable && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
           <button type="button" onClick={() => setShowGift((s) => !s)} className="w-full flex items-center justify-between text-left">
             <div>
-              <h2 className="text-sm font-semibold text-stone-900">Send a gift</h2>
-              <p className="text-xs text-stone-500 mt-0.5">Gift account credit to another resident at this facility.</p>
+              <h2 className="text-sm font-semibold text-stone-900">{t('billing.sendGift')}</h2>
+              <p className="text-xs text-stone-500 mt-0.5">{t('billing.sendGiftHint')}</p>
             </div>
             <span className="text-[#8B2E4A] text-lg leading-none">{showGift ? '−' : '+'}</span>
           </button>
@@ -324,11 +328,11 @@ export function BillingClient({
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5 col-span-2">
-                  Resident’s name
+                  {t('billing.residentName')}
                   <input value={giftName} onChange={(e) => setGiftName(e.target.value)} placeholder="Jane Doe" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
                 </label>
                 <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
-                  Room # <span className="font-normal text-stone-400">(recommended)</span>
+                  {t('billing.roomNumber')} <span className="font-normal text-stone-400">{t('billing.recommended')}</span>
                   <input value={giftRoom} onChange={(e) => setGiftRoom(e.target.value)} placeholder="12" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
                 </label>
                 <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5">
@@ -339,21 +343,21 @@ export function BillingClient({
                   </div>
                 </label>
                 <label className="text-xs font-semibold text-stone-600 flex flex-col gap-1.5 col-span-2">
-                  Your name <span className="font-normal text-stone-400">(optional)</span>
-                  <input value={giftFrom} onChange={(e) => setGiftFrom(e.target.value)} placeholder="From…" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
+                  {t('billing.yourName')} <span className="font-normal text-stone-400">{t('signup.optional')}</span>
+                  <input value={giftFrom} onChange={(e) => setGiftFrom(e.target.value)} placeholder={t('billing.fromPlaceholder')} className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20" />
                 </label>
               </div>
               <button type="button" onClick={onSendGift} disabled={giftSubmitting} className="w-full bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60">
-                {giftSubmitting ? 'Loading…' : 'Send gift with card'}
+                {giftSubmitting ? t('common.loading') : t('billing.sendGiftWithCard')}
               </button>
-              <p className="text-[11px] text-stone-400 text-center">The credit is added to the resident’s account for the facility to apply.</p>
+              <p className="text-[11px] text-stone-400 text-center">{t('billing.giftFootnote')}</p>
             </div>
           )}
         </section>
       )}
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-        <h2 className="text-sm font-semibold text-stone-900 mb-2">Pay by check</h2>
+        <h2 className="text-sm font-semibold text-stone-900 mb-2">{t('billing.payByCheck')}</h2>
         <p className="text-sm text-stone-600">Senior Stylist</p>
         <p className="text-sm text-stone-600">2833 Smith Ave Ste 152</p>
         <p className="text-sm text-stone-600">Baltimore, MD 21209</p>
@@ -362,25 +366,25 @@ export function BillingClient({
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-stone-900">Invoices</h2>
+          <h2 className="text-sm font-semibold text-stone-900">{t('billing.invoices')}</h2>
           <a
             href={`/api/portal/statement/${residentId}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-semibold text-[#8B2E4A] hover:underline"
           >
-            Download statement
+            {t('billing.downloadStatement')}
           </a>
         </div>
         {invoices.length === 0 ? (
-          <p className="text-sm text-stone-400">No invoices yet.</p>
+          <p className="text-sm text-stone-400">{t('billing.noInvoices')}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-stone-100">
             {invoices.map((inv) => (
               <li key={inv.id} className="py-3 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13.5px] font-semibold text-stone-900">{formatDate(inv.invoiceDate)}</p>
-                  <p className="text-[12px] text-stone-500 mt-0.5">Invoice #{inv.invoiceNum} · {formatDollars(inv.amountCents)}</p>
+                  <p className="text-[13.5px] font-semibold text-stone-900">{formatDate(inv.invoiceDate, locale)}</p>
+                  <p className="text-[12px] text-stone-500 mt-0.5">{t('billing.invoiceLine', { num: inv.invoiceNum, amount: formatDollars(inv.amountCents) })}</p>
                 </div>
                 <span
                   className={cn(
@@ -393,10 +397,10 @@ export function BillingClient({
                   )}
                 >
                   {inv.status === 'paid'
-                    ? 'Paid'
+                    ? t('billing.paid')
                     : inv.openBalanceCents > 0 && inv.openBalanceCents < inv.amountCents
-                    ? `${formatDollars(inv.openBalanceCents)} open`
-                    : 'Open'}
+                    ? t('billing.openAmount', { amount: formatDollars(inv.openBalanceCents) })
+                    : t('billing.open')}
                 </span>
               </li>
             ))}
@@ -406,8 +410,8 @@ export function BillingClient({
 
       {(facilityPhone || facilityEmail) && (
         <p className="text-xs text-stone-400 text-center">
-          Questions about your bill? Contact the facility office
-          {facilityPhone && <> at {facilityPhone}</>}
+          {t('billing.questions')}
+          {facilityPhone && <> · {facilityPhone}</>}
           {facilityEmail && <> · {facilityEmail}</>}.
         </p>
       )}

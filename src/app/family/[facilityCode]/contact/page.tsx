@@ -2,6 +2,7 @@ import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
+import { getPortalT } from '@/lib/portal-i18n-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,7 @@ export default async function ContactPage({
   const { facilityCode } = await params
   const decoded = decodeURIComponent(facilityCode)
   const { residentsAtFacility } = await requirePortalAuth(decoded)
+  const { t } = await getPortalT()
   const first = residentsAtFacility[0]
 
   const facility = await db.query.facilities.findFirst({
@@ -24,9 +26,9 @@ export default async function ContactPage({
     <div className="page-enter flex flex-col gap-4">
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Contact
+          {t('contact.title')}
         </h1>
-        <p className="text-sm text-stone-500 mt-1">Get in touch with us or your facility.</p>
+        <p className="text-sm text-stone-500 mt-1">{t('contact.subtitle')}</p>
       </header>
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
@@ -41,7 +43,7 @@ export default async function ContactPage({
             hello@seniorstylist.com
           </a>
           <a href="mailto:pmt@seniorstylist.com" className="text-sm text-stone-500 hover:underline">
-            pmt@seniorstylist.com (billing)
+            pmt@seniorstylist.com {t('contact.billingLabel')}
           </a>
         </div>
       </section>
@@ -62,7 +64,7 @@ export default async function ContactPage({
               </a>
             )}
             {!facility.phone && !facility.contactEmail && (
-              <p className="text-sm text-stone-400">Contact info not on file. Please call Senior Stylist.</p>
+              <p className="text-sm text-stone-400">{t('contact.noInfo')}</p>
             )}
           </div>
         </section>

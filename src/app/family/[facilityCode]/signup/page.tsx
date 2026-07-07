@@ -3,6 +3,7 @@ import { facilities } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { SignupClient } from './signup-client'
+import { getPortalT } from '@/lib/portal-i18n-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,16 +21,17 @@ export default async function SignupPage({
   })
 
   if (!facility) notFound()
+  const { lang, t } = await getPortalT()
   if (!facility.portalSelfSignupEnabled) {
     return (
       <div className="page-enter flex flex-col gap-4 mt-6">
         <header>
           <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-            Family Portal
+            {t('login.title')}
           </h1>
         </header>
         <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-sm">
-          Self-signup is not available for this facility. Please contact the facility for portal access.
+          {t('signup.disabled')}
         </div>
       </div>
     )
@@ -39,13 +41,11 @@ export default async function SignupPage({
     <div className="page-enter flex flex-col gap-4 mt-6">
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Create Account
+          {t('signup.title')}
         </h1>
-        <p className="text-sm text-stone-500 mt-1">
-          Sign up to view appointments, request service, and manage your loved one&apos;s care at {facility.name}.
-        </p>
+        <p className="text-sm text-stone-500 mt-1">{t('signup.subtitle', { facility: facility.name })}</p>
       </header>
-      <SignupClient facilityCode={decoded} facilityName={facility.name} />
+      <SignupClient facilityCode={decoded} facilityName={facility.name} lang={lang} />
     </div>
   )
 }

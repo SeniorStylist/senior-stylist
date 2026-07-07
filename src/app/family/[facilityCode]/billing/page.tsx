@@ -2,6 +2,7 @@ import { db } from '@/db'
 import { facilities, qbInvoices, residents } from '@/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
+import { getPortalLang } from '@/lib/portal-i18n-server'
 import { BillingClient } from './billing-client'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,7 @@ export default async function BillingPage({
   const { residentId: searchResidentId, payment, gift } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
   const { residentsAtFacility } = await requirePortalAuth(decoded)
+  const lang = await getPortalLang()
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
@@ -50,6 +52,7 @@ export default async function BillingPage({
   return (
     <BillingClient
       facilityCode={decoded}
+      lang={lang}
       residentId={selected.residentId}
       residentName={selected.residentName}
       outstandingCents={outstanding}

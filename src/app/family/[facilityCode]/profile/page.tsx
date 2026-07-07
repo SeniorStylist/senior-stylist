@@ -4,6 +4,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { getPortalCoupons } from '@/lib/portal-coupons'
 import { ProfileClient } from './profile-client'
+import { getPortalLang } from '@/lib/portal-i18n-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export default async function ProfilePage({
   const decoded = decodeURIComponent(facilityCode)
   const { session, residentsAtFacility } = await requirePortalAuth(decoded)
 
+  const lang = await getPortalLang()
   const facilityId = residentsAtFacility[0]?.facilityId ?? null
 
   const ids = residentsAtFacility.map((r) => r.residentId)
@@ -48,5 +50,5 @@ export default async function ProfilePage({
     .map((id) => rows.find((r) => r.id === id))
     .filter((r): r is NonNullable<typeof r> => r != null)
 
-  return <ProfileClient residents={ordered} facilityCode={decoded} coupons={coupons} />
+  return <ProfileClient residents={ordered} facilityCode={decoded} coupons={coupons} lang={lang} />
 }

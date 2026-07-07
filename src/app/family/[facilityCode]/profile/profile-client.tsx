@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
+import { usePortalT, portalLocale, type PortalLang, type PortalT } from '@/lib/portal-i18n'
 
 interface ResidentRow {
   id: string
@@ -31,40 +32,43 @@ interface CouponInfo {
   bookingId: string | null
 }
 
-function formatCouponDiscount(discountType: string, discountValue: number): string {
-  if (discountType === 'fixed') return `$${(discountValue / 100).toFixed(2)} off`
-  return `${discountValue}% off`
+function formatCouponDiscount(discountType: string, discountValue: number, t: PortalT): string {
+  if (discountType === 'fixed') return t('profile.amountOff', { amount: `$${(discountValue / 100).toFixed(2)}` })
+  return t('profile.percentOff', { value: discountValue })
 }
 
 interface Props {
   residents: ResidentRow[]
   facilityCode: string
   coupons: CouponInfo[]
+  lang: PortalLang
 }
 
-export function ProfileClient({ residents, coupons }: Props) {
+export function ProfileClient({ residents, coupons, lang }: Props) {
+  const t = usePortalT(lang)
+  const locale = portalLocale(lang)
   return (
     <div className="py-6 pb-32">
       <h1
         className="text-2xl font-normal text-stone-900 mb-1"
         style={{ fontFamily: "'DM Serif Display', serif" }}
       >
-        Profile
+        {t('profile.title')}
       </h1>
-      <p className="text-sm text-stone-500 mb-6">Your contact info, tip preferences, and account rewards.</p>
+      <p className="text-sm text-stone-500 mb-6">{t('profile.subtitle')}</p>
 
       {coupons.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Your Discounts</h2>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">{t('profile.discounts')}</h2>
           <div className="space-y-2">
             {coupons.map((c) => (
               <div key={c.redemptionId} className="rounded-2xl border border-[#F9EFF2] bg-[#FEF8FA] px-4 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-[#8B2E4A]">{formatCouponDiscount(c.discountType, c.discountValue)}</p>
+                  <p className="text-sm font-semibold text-[#8B2E4A]">{formatCouponDiscount(c.discountType, c.discountValue, t)}</p>
                   {c.description && <p className="text-xs text-stone-500 mt-0.5">{c.description}</p>}
                   {c.expiresAt && (
                     <p className="text-xs text-stone-400 mt-0.5">
-                      Expires {new Date(c.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {t('profile.expires', { date: new Date(c.expiresAt).toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' }) })}
                     </p>
                   )}
                 </div>
@@ -78,26 +82,26 @@ export function ProfileClient({ residents, coupons }: Props) {
       )}
 
       <section className="mb-6">
-        <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Contact Information</h2>
+        <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">{t('profile.contactInfo')}</h2>
         {residents.length === 0 ? (
-          <p className="text-sm text-stone-500">No residents linked to this account.</p>
+          <p className="text-sm text-stone-500">{t('profile.noResidents')}</p>
         ) : (
           <div className="space-y-4">
             {residents.map((r) => (
-              <ContactCard key={r.id} resident={r} />
+              <ContactCard key={r.id} resident={r} t={t} />
             ))}
           </div>
         )}
       </section>
 
       <section>
-        <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Tip Preferences</h2>
+        <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">{t('profile.tipPreferences')}</h2>
         {residents.length === 0 ? (
-          <p className="text-sm text-stone-500">No residents linked to this account.</p>
+          <p className="text-sm text-stone-500">{t('profile.noResidents')}</p>
         ) : (
           <div className="space-y-4">
             {residents.map((r) => (
-              <ResidentCard key={r.id} resident={r} />
+              <ResidentCard key={r.id} resident={r} t={t} />
             ))}
           </div>
         )}
@@ -136,7 +140,7 @@ function Field({
   )
 }
 
-function ContactCard({ resident }: { resident: ResidentRow }) {
+function ContactCard({ resident, t }: { resident: ResidentRow; t: PortalT }) {
   const { toast } = useToast()
   const [form, setForm] = useState({
     phone: resident.phone ?? '',
@@ -161,13 +165,13 @@ function ContactCard({ resident }: { resident: ResidentRow }) {
       })
       const j = await res.json().catch(() => ({}))
       if (res.ok) {
-        toast.success('Contact info saved')
+        toast.success(t('profile.contactSaved'))
         setSaved(form)
       } else {
-        toast.error(typeof j.error === 'string' ? j.error : 'Failed to save')
+        toast.error(typeof j.error === 'string' ? j.error : t('profile.saveFailed'))
       }
     } catch {
-      toast.error('Network error')
+      toast.error(t('common.networkError'))
     } finally {
       setSaving(false)
     }
@@ -177,21 +181,21 @@ function ContactCard({ resident }: { resident: ResidentRow }) {
     <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
       <div className="mb-4">
         <p className="text-base font-semibold text-stone-900">{resident.name}</p>
-        {resident.roomNumber && <p className="text-xs text-stone-500">Room {resident.roomNumber}</p>}
+        {resident.roomNumber && <p className="text-xs text-stone-500">{t('profile.room', { n: resident.roomNumber })}</p>}
       </div>
 
       <div className="space-y-3">
-        <Field label="Resident phone" value={form.phone} onChange={set('phone')} type="tel" placeholder="(555) 555-5555" disabled={saving} />
+        <Field label={t('profile.residentPhone')} value={form.phone} onChange={set('phone')} type="tel" placeholder="(555) 555-5555" disabled={saving} />
 
         <div className="pt-2 border-t border-stone-100">
-          <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide mb-2 mt-1">Power of Attorney / Contact</p>
+          <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide mb-2 mt-1">{t('profile.poaSection')}</p>
           <div className="space-y-3">
-            <Field label="Name" value={form.poaName} onChange={set('poaName')} placeholder="Full name" disabled={saving} />
-            <Field label="Phone" value={form.poaPhone} onChange={set('poaPhone')} type="tel" placeholder="(555) 555-5555" disabled={saving} />
-            <Field label="Address" value={form.poaAddress} onChange={set('poaAddress')} placeholder="Street address" disabled={saving} />
-            <Field label="City" value={form.poaCity} onChange={set('poaCity')} placeholder="City" disabled={saving} />
+            <Field label={t('profile.name')} value={form.poaName} onChange={set('poaName')} placeholder={t('profile.fullNamePlaceholder')} disabled={saving} />
+            <Field label={t('profile.phone')} value={form.poaPhone} onChange={set('poaPhone')} type="tel" placeholder="(555) 555-5555" disabled={saving} />
+            <Field label={t('profile.address')} value={form.poaAddress} onChange={set('poaAddress')} placeholder={t('profile.streetPlaceholder')} disabled={saving} />
+            <Field label={t('profile.city')} value={form.poaCity} onChange={set('poaCity')} placeholder={t('profile.city')} disabled={saving} />
             <div>
-              <label className="text-xs font-medium text-stone-600 block mb-1">Email</label>
+              <label className="text-xs font-medium text-stone-600 block mb-1">{t('profile.email')}</label>
               <input
                 type="email"
                 value={resident.poaEmail ?? ''}
@@ -199,7 +203,7 @@ function ContactCard({ resident }: { resident: ResidentRow }) {
                 readOnly
                 className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-stone-50 text-stone-400"
               />
-              <p className="text-[11px] text-stone-400 mt-1">Your email is your login — contact the facility to change it.</p>
+              <p className="text-[11px] text-stone-400 mt-1">{t('profile.emailLocked')}</p>
             </div>
           </div>
         </div>
@@ -207,14 +211,14 @@ function ContactCard({ resident }: { resident: ResidentRow }) {
 
       <div className="mt-4 flex justify-end">
         <Button onClick={handleSave} disabled={!dirty || saving} variant="primary">
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </Button>
       </div>
     </div>
   )
 }
 
-function ResidentCard({ resident }: { resident: ResidentRow }) {
+function ResidentCard({ resident, t }: { resident: ResidentRow; t: PortalT }) {
   const { toast } = useToast()
   const [tip, setTip] = useState<DefaultTipValue>({
     type: (resident.defaultTipType as 'percentage' | 'fixed' | null) ?? null,
@@ -238,14 +242,14 @@ function ResidentCard({ resident }: { resident: ResidentRow }) {
       })
       const j = await res.json().catch(() => ({}))
       if (res.ok) {
-        toast.success('Saved')
+        toast.success(t('profile.saved'))
         resident.defaultTipType = tip.type
         resident.defaultTipValue = tip.value
       } else {
-        toast.error(j.error ?? 'Failed to save')
+        toast.error(j.error ?? t('profile.saveFailed'))
       }
     } catch {
-      toast.error('Network error')
+      toast.error(t('common.networkError'))
     } finally {
       setSaving(false)
     }
@@ -255,14 +259,14 @@ function ResidentCard({ resident }: { resident: ResidentRow }) {
     <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
       <div className="mb-4">
         <p className="text-base font-semibold text-stone-900">{resident.name}</p>
-        {resident.roomNumber && <p className="text-xs text-stone-500">Room {resident.roomNumber}</p>}
+        {resident.roomNumber && <p className="text-xs text-stone-500">{t('profile.room', { n: resident.roomNumber })}</p>}
       </div>
 
       <DefaultTipPicker value={tip} onChange={setTip} disabled={saving} />
 
       <div className="mt-4 flex justify-end">
         <Button onClick={handleSave} disabled={!dirty || saving} variant="primary">
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </Button>
       </div>
     </div>

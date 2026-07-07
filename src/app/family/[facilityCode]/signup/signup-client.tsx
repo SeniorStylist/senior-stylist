@@ -2,18 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
 interface Props {
   facilityCode: string
   facilityName: string
+  lang: PortalLang
 }
 
 type Step = 'form' | 'auto_approved' | 'pending'
 
-export function SignupClient({ facilityCode, facilityName }: Props) {
+export function SignupClient({ facilityCode, facilityName, lang }: Props) {
+  const t = usePortalT(lang)
   const [step, setStep] = useState<Step>('form')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [alreadyHasAccess, setAlreadyHasAccess] = useState(false)
 
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
@@ -26,6 +30,7 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
+    setAlreadyHasAccess(false)
     try {
       const res = await fetch('/api/portal/signup', {
         method: 'POST',
@@ -41,15 +46,16 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (res.status === 409) {
-          setError('You already have portal access. Sign in instead.')
+          setAlreadyHasAccess(true)
+          setError(t('signup.alreadyAccess'))
           return
         }
-        setError(j.error ?? 'Something went wrong. Please try again.')
+        setError(j.error ?? t('common.error'))
         return
       }
       setStep(j.status === 'auto_approved' ? 'auto_approved' : 'pending')
     } catch {
-      setError('Network error. Please try again.')
+      setError(t('common.networkError'))
     } finally {
       setSubmitting(false)
     }
@@ -63,16 +69,14 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p className="text-base font-semibold text-stone-800">Welcome to {facilityName}!</p>
-        <p className="text-sm text-stone-500 mt-2">
-          We found your account. A sign-in link is on its way to <span className="font-medium text-stone-700">{email}</span>.
-        </p>
-        <p className="text-xs text-stone-400 mt-2">Link expires in 72 hours. Check your spam folder if you don&apos;t see it.</p>
+        <p className="text-base font-semibold text-stone-800">{t('signup.welcome', { facility: facilityName })}</p>
+        <p className="text-sm text-stone-500 mt-2">{t('signup.foundAccount', { email })}</p>
+        <p className="text-xs text-stone-400 mt-2">{t('signup.linkExpirySpam')}</p>
         <Link
           href={loginUrl}
           className="mt-5 inline-block text-sm font-semibold text-[#8B2E4A] hover:underline"
         >
-          Go to sign-in page
+          {t('signup.goToSignIn')}
         </Link>
       </div>
     )
@@ -88,11 +92,9 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </div>
-        <p className="text-base font-semibold text-stone-800">Request received</p>
-        <p className="text-sm text-stone-500 mt-2">
-          We couldn&apos;t automatically match your name to a resident. The facility team will review your request and send you an email when access is granted.
-        </p>
-        <p className="text-xs text-stone-400 mt-3">This usually takes 1–2 business days.</p>
+        <p className="text-base font-semibold text-stone-800">{t('signup.pendingTitle')}</p>
+        <p className="text-sm text-stone-500 mt-2">{t('signup.pendingBody')}</p>
+        <p className="text-xs text-stone-400 mt-3">{t('signup.pendingEta')}</p>
       </div>
     )
   }
@@ -102,7 +104,7 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
       <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-stone-600" htmlFor="fullName">
-            Your full name <span className="text-red-500">*</span>
+            {t('signup.fullName')} <span className="text-red-500">*</span>
           </label>
           <input
             id="fullName"
@@ -116,12 +118,12 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
             maxLength={200}
             className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
           />
-          <p className="text-xs text-stone-400">Enter the name the facility has on file for you (POA/guardian).</p>
+          <p className="text-xs text-stone-400">{t('signup.fullNameHint')}</p>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-stone-600" htmlFor="email">
-            Email address <span className="text-red-500">*</span>
+            {t('login.email')} <span className="text-red-500">*</span>
           </label>
           <input
             id="email"
@@ -138,7 +140,7 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-stone-600" htmlFor="phone">
-            Phone number <span className="text-stone-400 font-normal">(optional)</span>
+            {t('signup.phone')} <span className="text-stone-400 font-normal">{t('signup.optional')}</span>
           </label>
           <input
             id="phone"
@@ -154,7 +156,7 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-stone-600" htmlFor="dateOfBirth">
-            Date of birth <span className="text-stone-400 font-normal">(optional)</span>
+            {t('signup.dob')} <span className="text-stone-400 font-normal">{t('signup.optional')}</span>
           </label>
           <input
             id="dateOfBirth"
@@ -168,8 +170,8 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
-            {error.includes('already have portal access') && (
-              <span> <Link href={loginUrl} className="font-semibold underline">Sign in →</Link></span>
+            {alreadyHasAccess && (
+              <span> <Link href={loginUrl} className="font-semibold underline">{t('signup.signIn')}</Link></span>
             )}
           </div>
         )}
@@ -179,13 +181,13 @@ export function SignupClient({ facilityCode, facilityName }: Props) {
           disabled={submitting || !email.trim() || !fullName.trim()}
           className="bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed mt-1"
         >
-          {submitting ? 'Creating account…' : 'Create account'}
+          {submitting ? t('signup.creating') : t('signup.create')}
         </button>
 
         <p className="text-center text-xs text-stone-400">
-          Already have an account?{' '}
+          {t('signup.haveAccount')}{' '}
           <Link href={loginUrl} className="font-semibold text-[#8B2E4A] hover:underline">
-            Sign in
+            {t('login.signIn')}
           </Link>
         </p>
       </form>
