@@ -2878,3 +2878,12 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   to `document.body`; new overlays should do the same or anchor with `absolute` like NotificationBell.
 - **Page toolbars with 3+ controls must `flex-wrap`** (usually `justify-end` for right groups) —
   never `shrink-0` no-wrap rows inside `overflow-hidden` columns.
+
+### Phase 23 — durable-contract rules (2026-07-07)
+
+- **Client payload builders are typed against the route schema's `z.input` type** (schemas in
+  `src/lib/validation/`). Never build `Record<string, unknown>` bodies for validated routes.
+- **Facility switch = hard reload.** `router.refresh()` does not re-run `useState(initialProps)`;
+  content silently stays on the old facility.
+- **Facility pickers**: reuse the F-code + name searchable pattern (`LogFacilityPicker`,
+  billing `FacilityCombobox`, header switchers) — never a bare `<select>` for 100+ facilities.

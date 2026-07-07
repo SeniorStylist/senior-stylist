@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.6',
+    date: '2026-07-07',
+    title: 'Bookkeeper Fixes & Self-Healing Updates',
+    items: [
+      'Fixed "Invalid input" blocking every daily-log edit (date, stylist, service, room, amount, tips)',
+      'Switching facilities now actually switches the whole page, not just the label',
+      'New facility picker right in the Daily Log header — search by name or F-code',
+      'After an app update, open tabs refresh themselves instead of showing a chunk error',
+    ],
+  },
+  {
     version: '3.5',
     date: '2026-07-07',
     title: 'Stability & Tutorial Fixes',
