@@ -10,11 +10,16 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isNativeApp, nativePlatform } from '@/lib/detect-device'
 import { resumeNativePushIfEnabled, wirePushTapNavigation } from '@/lib/native-push'
+import { replayQueue, subscribePending } from '@/lib/offline-queue'
 
 export function NativeBridge() {
   const router = useRouter()
   // W5: offline awareness — banner shown while the device has no connection.
   const [offline, setOffline] = useState(false)
+  // F6: queued offline writes waiting to sync (shown in the banner)
+  const [pending, setPending] = useState(0)
+
+  useEffect(() => subscribePending(setPending), [])
 
   useEffect(() => {
     if (!isNativeApp()) return
@@ -54,8 +59,12 @@ export function NativeBridge() {
 
         // Refresh server components when the app returns to the foreground so data
         // (calendar, daily log, balances) isn't stale after a long background.
+        // F6: also replay any offline-queued writes before the refresh lands.
         const state = await App.addListener('appStateChange', ({ isActive }) => {
-          if (isActive) router.refresh()
+          if (isActive) {
+            void replayQueue()
+            router.refresh()
+          }
         })
         cleanups.push(() => state.remove())
       } catch { /* ignore */ }
@@ -67,6 +76,8 @@ export function NativeBridge() {
         setOffline(!status.connected)
         const net = await Network.addListener('networkStatusChange', (s) => {
           setOffline(!s.connected)
+          // F6: connectivity is back — replay queued writes
+          if (s.connected) void replayQueue()
         })
         cleanups.push(() => net.remove())
       } catch { /* ignore */ }
@@ -95,7 +106,9 @@ export function NativeBridge() {
       className="fixed top-0 left-0 right-0 z-[260] text-center text-[12px] font-semibold text-white bg-stone-800/95 backdrop-blur-sm"
       style={{ paddingTop: 'calc(0.3rem + env(safe-area-inset-top))', paddingBottom: '0.3rem' }}
     >
-      No internet connection — changes won&apos;t save
+      {pending > 0
+        ? `Offline — ${pending} change${pending === 1 ? '' : 's'} will sync when you're back`
+        : 'No internet connection — changes may not save'}
     </div>
   )
 }

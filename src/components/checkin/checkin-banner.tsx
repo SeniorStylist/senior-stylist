@@ -5,6 +5,7 @@ import { useToast } from '@/components/ui/toast'
 import { haptics } from '@/lib/haptics'
 import { formatTimeInTz } from '@/lib/time'
 import { RescheduleSheet, type RescheduleBooking } from './reschedule-sheet'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 
 interface CheckInBannerProps {
   role: string
@@ -51,11 +52,17 @@ export function CheckInBanner({
     if (submitting) return
     setSubmitting(true)
     try {
-      const res = await fetch('/api/checkin', {
+      // F6: queued offline on network failure — check-in is per-(stylist,date)
+      // idempotent server-side, so a replayed duplicate is harmless.
+      const res = await queueableFetch('Check-in', '/api/checkin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facilityId, date: todayDate }),
+        body: { facilityId, date: todayDate },
       })
+      if (isQueued(res)) {
+        toast.success("You're checked in — will sync when back online")
+        startFadeOut()
+        return
+      }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error?.toString() || 'Check-in failed')

@@ -20,6 +20,7 @@ const TakePaymentModal = dynamic(
   { ssr: false },
 )
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
+import { queueableFetch, isQueued, subscribePending } from '@/lib/offline-queue'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -409,6 +410,10 @@ export function LogClient({
   const [undoingBatch, setUndoingBatch] = useState(false)
 
   const { toast } = useToast()
+
+  // F6: offline write-queue pending count (pill in the header while syncing)
+  const [pendingWrites, setPendingWrites] = useState(0)
+  useEffect(() => subscribePending(setPendingWrites), [])
   const today = new Date().toISOString().split('T')[0]
   const isToday = date === today
 
@@ -504,11 +509,16 @@ export function LogClient({
         : 'unpaid'
     setUpdatingId(bookingId)
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
+      // F6: queued offline on network failure — apply optimistically
+      const res = await queueableFetch('Payment status', `/api/bookings/${bookingId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentStatus: next }),
+        body: { paymentStatus: next },
       })
+      if (isQueued(res)) {
+        setBookings(bookings.map((b) => (b.id === bookingId ? { ...b, paymentStatus: next } : b)))
+        toast('Saved offline — will sync when back online', 'info')
+        return
+      }
       const json = await res.json()
       if (res.ok) {
         setBookings(bookings.map((b) =>
@@ -524,11 +534,16 @@ export function LogClient({
   const updateStatus = async (bookingId: string, status: string) => {
     setUpdatingId(bookingId)
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
+      // F6: queued offline on network failure — apply optimistically
+      const res = await queueableFetch('Booking status', `/api/bookings/${bookingId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: { status },
       })
+      if (isQueued(res)) {
+        setBookings(bookings.map((b) => (b.id === bookingId ? { ...b, status } : b)))
+        toast('Saved offline — will sync when back online', 'info')
+        return
+      }
       const json = await res.json()
       if (res.ok) {
         setBookings(bookings.map((b) => (b.id === bookingId ? { ...b, status: json.data.status } : b)))
@@ -557,16 +572,18 @@ export function LogClient({
     }
     try {
       const url = existing ? `/api/log/${existing.id}` : '/api/log'
-      const method = existing ? 'PUT' : 'POST'
+      const method = existing ? ('PUT' as const) : ('POST' as const)
       const body = existing
         ? { finalized: true, notes: notes[stylistId] ?? existing.notes ?? '' }
         : { stylistId, date, finalized: true, notes: notes[stylistId] ?? '' }
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      // F6: queued offline on network failure — keep the optimistic state
+      const res = await queueableFetch('Finalize day', url, { method, body })
+      if (isQueued(res)) {
+        setConfirmFinalizeId(null)
+        toast('Saved offline — will sync when back online', 'info')
+        return
+      }
       const json = await res.json().catch(() => ({}))
       if (res.ok) {
         setLogEntries((prev) => {
@@ -666,18 +683,27 @@ export function LogClient({
       // Phase 12F — interpret wiTime in the facility's tz so a viewer in any
       // browser tz sees their typed "9:00" land at 9 a.m. facility-local.
       const startTime = fromDateTimeLocalInTz(`${date}T${wiTime}`, facilityTimezone)
-      const res = await fetch('/api/bookings', {
+      // F6: queued offline on network failure — the row appears after sync
+      const res = await queueableFetch('Walk-in booking', '/api/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           residentId: wiResidentId,
           serviceId: wiServiceId,
           stylistId: wiStylistId,
           startTime: startTime.toISOString(),
           notes: 'Walk-in',
           ...(wiAddonServiceIds.length > 0 ? { addonServiceIds: wiAddonServiceIds } : {}),
-        }),
+        },
       })
+      if (isQueued(res)) {
+        setShowWalkIn(false)
+        setWiResidentSearch('')
+        setWiResidentId('')
+        setWiServiceId('')
+        setWiAddonServiceIds([])
+        toast('Saved offline — the walk-in will appear once you\'re back online', 'info')
+        return
+      }
       const json = await res.json()
       if (res.ok) {
         setBookings((prev) => [...prev, json.data].sort(
@@ -727,6 +753,15 @@ export function LogClient({
       className="page-enter p-4 md:p-6 max-w-3xl mx-auto pb-40 md:pb-0"
       {...pullHandlers}
     >
+      {/* F6: pending offline writes */}
+      {pendingWrites > 0 && (
+        <div className="mb-3 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            {pendingWrites} change{pendingWrites === 1 ? '' : 's'} waiting to sync
+          </span>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
