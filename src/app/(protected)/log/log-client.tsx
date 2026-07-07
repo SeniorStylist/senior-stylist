@@ -326,11 +326,24 @@ export function LogClient({
         body.roomNumber = editRoomNumber.trim() || null
       }
 
-      const res = await fetch(`/api/bookings/${editingBookingId}`, {
+      const res = await queueableFetch('Booking edit', `/api/bookings/${editingBookingId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       })
+      if (isQueued(res)) {
+        // Offline — keep the edit optimistically; the queued PUT reconciles later.
+        setBookings((prev) => prev.map((b) => {
+          if (b.id !== editingBookingId) return b
+          const merged = { ...b, ...body } as typeof b
+          if ('roomNumber' in body) {
+            merged.resident = { ...merged.resident, roomNumber: body.roomNumber as string | null }
+          }
+          return merged
+        }))
+        setEditingBookingId(null)
+        toast('Saved offline — will sync when you\'re back online', 'success')
+        return
+      }
       if (res.ok) {
         const json = await res.json()
         if (body.startTime) {
@@ -713,7 +726,8 @@ export function LogClient({
     }
   }
 
-  // Save notes
+  // Save notes — offline-queueable (Phase 17): a dead connection keeps the
+  // typed notes locally and syncs the write when back online.
   const saveNotes = async (stylistId: string) => {
     setSavingNotesId(stylistId)
     const existing = getLogEntry(stylistId)
@@ -723,11 +737,11 @@ export function LogClient({
       const body = existing
         ? { notes: notes[stylistId] ?? '' }
         : { stylistId, date, notes: notes[stylistId] ?? '' }
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      const res = await queueableFetch('Day notes', url, { method, body })
+      if (isQueued(res)) {
+        toast('Saved offline — will sync when you\'re back online', 'success')
+        return
+      }
       const json = await res.json()
       if (res.ok) {
         setLogEntries((prev) => {

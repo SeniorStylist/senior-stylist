@@ -2,26 +2,106 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Offline — Senior Stylist</title>
   <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F5F4; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
-    .card { background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 40px 36px; max-width: 380px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
-    svg { color: #8B2E4A; margin-bottom: 16px; }
-    h1 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #1C1917; }
-    p { margin: 0 0 24px; font-size: 14px; color: #78716C; line-height: 1.5; }
-    button { background: #8B2E4A; color: #fff; border: none; border-radius: 10px; padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F5F4; min-height: 100vh; padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+    .wrap { max-width: 480px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 28px 24px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    .card svg { color: #8B2E4A; margin-bottom: 12px; }
+    h1 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: #1C1917; }
+    .sub { margin: 0 0 20px; font-size: 14px; color: #78716C; line-height: 1.5; }
+    button { background: #8B2E4A; color: #fff; border: none; border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
     button:hover { background: #72253C; }
+    .pending { display: none; margin: 0 auto 16px; max-width: fit-content; font-size: 12px; font-weight: 600; color: #B45309; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 999px; padding: 5px 14px; }
+    #schedule { display: none; margin-top: 16px; background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 20px; text-align: left; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    #schedule h2 { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: #1C1917; }
+    .saved-at { margin: 0 0 12px; font-size: 11.5px; color: #A8A29E; }
+    .row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid #F5F5F4; font-size: 13.5px; }
+    .row:last-child { border-bottom: none; }
+    .time { color: #8B2E4A; font-weight: 700; white-space: nowrap; min-width: 68px; }
+    .who { color: #1C1917; font-weight: 600; }
+    .what { color: #78716C; font-size: 12px; margin-top: 1px; }
+    .room { color: #78716C; font-weight: 400; font-size: 12px; }
+    .none { color: #A8A29E; font-size: 13px; padding: 8px 0; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-      <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-    </svg>
-    <h1>You're offline</h1>
-    <p>Senior Stylist needs an internet connection to load. Please check your network and try again.</p>
-    <button onclick="location.reload()">Try again</button>
+  <div class="wrap">
+    <div class="card">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+      </svg>
+      <h1>You're offline</h1>
+      <p class="sub">No connection right now. Anything you saved offline will sync automatically when you're back.</p>
+      <p class="pending" id="pending"></p>
+      <button onclick="location.reload()">Try again</button>
+    </div>
+    <div id="schedule">
+      <h2>Today's saved schedule</h2>
+      <p class="saved-at" id="savedAt"></p>
+      <div id="rows"></div>
+    </div>
   </div>
+  <script>
+    // Offline hub (Phase 17): render the last-saved copy of today's schedule
+    // from the app's read cache (ss_readcache:*), plus the pending write count
+    // (ss_offline_queue). Read-only; everything is HTML-escaped.
+    (function () {
+      function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      }
+      try {
+        var q = JSON.parse(localStorage.getItem('ss_offline_queue') || '[]')
+        if (Array.isArray(q) && q.length > 0) {
+          var p = document.getElementById('pending')
+          p.textContent = q.length + ' change' + (q.length === 1 ? '' : 's') + ' waiting to sync'
+          p.style.display = 'block'
+        }
+      } catch (e) { /* ignore */ }
+
+      try {
+        var today = new Date()
+        var pad = function (n) { return String(n).padStart(2, '0') }
+        var todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate())
+        var best = null
+        // Find any cached day-log for today (key shape: ss_readcache:{facilityId}:log:{date})
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i)
+          if (!k || k.indexOf('ss_readcache:') !== 0 || k.indexOf(':log:' + todayKey) === -1) continue
+          var entry = JSON.parse(localStorage.getItem(k) || 'null')
+          if (entry && entry.data && Array.isArray(entry.data.bookings)) {
+            if (!best || entry.at > best.at) best = entry
+          }
+        }
+        if (!best) return
+        var bookings = best.data.bookings
+          .filter(function (b) { return b && b.status !== 'cancelled' })
+          .sort(function (a, b) { return new Date(a.startTime) - new Date(b.startTime) })
+        var rows = document.getElementById('rows')
+        if (bookings.length === 0) {
+          rows.innerHTML = '<p class="none">No appointments in the saved copy.</p>'
+        } else {
+          rows.innerHTML = bookings.map(function (b) {
+            var t = ''
+            try {
+              t = new Date(b.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            } catch (e) { /* ignore */ }
+            var name = b.resident && b.resident.name ? b.resident.name : 'Resident'
+            var room = b.resident && b.resident.roomNumber ? ' <span class="room">Rm ' + esc(b.resident.roomNumber) + '</span>' : ''
+            var svc = (b.serviceNames && b.serviceNames.join(', ')) || (b.service && b.service.name) || b.rawServiceName || ''
+            return '<div class="row"><span class="time">' + esc(t) + '</span><span><span class="who">' + esc(name) + '</span>' + room +
+              (svc ? '<div class="what">' + esc(svc) + '</div>' : '') + '</span></div>'
+          }).join('')
+        }
+        try {
+          document.getElementById('savedAt').textContent =
+            'Saved ' + new Date(best.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + ' — read-only while offline'
+        } catch (e) { /* ignore */ }
+        document.getElementById('schedule').style.display = 'block'
+      } catch (e) { /* cache unreadable — plain offline card stays */ }
+    })()
+  </script>
 </body>
 </html>

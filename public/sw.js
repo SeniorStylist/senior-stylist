@@ -1,7 +1,7 @@
 // Senior Stylist Service Worker — offline shell + push notifications
 // Rules: network-first for navigations, cache-first for hashed statics, NEVER cache /api/*
 
-const SHELL_CACHE = 'ss-shell-v1'
+const SHELL_CACHE = 'ss-shell-v2'
 const STATIC_CACHE = 'ss-static-v1'
 const OFFLINE_URL = '/offline.html'
 
