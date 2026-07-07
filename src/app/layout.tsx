@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { NativeBridge } from '@/components/native/native-bridge'
 import { OfflineBanner } from '@/components/offline/offline-banner'
+import { ChunkErrorRecovery } from '@/components/pwa/chunk-error-recovery'
 import { AppLockGate } from '@/components/native/app-lock-gate'
 
 export const metadata: Metadata = {
@@ -46,6 +47,7 @@ export default function RootLayout({
       <body className="antialiased">
         <NativeBridge />
         <OfflineBanner />
+        <ChunkErrorRecovery />
         <AppLockGate />
         {children}
       </body>

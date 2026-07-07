@@ -7,8 +7,9 @@
 // render that gets killed never reaches React; maxDuration on the page is what
 // covers that. Both are needed.
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { isChunkError, reloadOnceForChunkError } from '@/lib/chunk-error'
 
 export default function ProtectedError({
   error,
@@ -17,8 +18,21 @@ export default function ProtectedError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const chunkError = isChunkError(error)
+  const [autoReloading, setAutoReloading] = useState(false)
+
   useEffect(() => {
     console.error('[protected error boundary]', error)
+    // Phase 23 — a chunk error means this tab runs a stale build; reset() can
+    // never fix it. Reload once automatically to pick up the new deploy (the
+    // sessionStorage guard prevents loops; if blocked, the card stays visible
+    // and its button does a manual reload).
+    if (isChunkError(error)) {
+      setAutoReloading(true)
+      const reloaded = reloadOnceForChunkError()
+      if (!reloaded) setAutoReloading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error])
 
   return (
@@ -38,12 +52,16 @@ export default function ProtectedError({
           Something went wrong
         </h1>
         <p className="text-sm text-stone-500 mb-6">
-          This page didn&apos;t load. It&apos;s usually temporary — try again in a moment.
+          {autoReloading
+            ? 'Updating to the latest version…'
+            : chunkError
+              ? 'The app was updated — reload to get the latest version.'
+              : "This page didn't load. It's usually temporary — try again in a moment."}
         </p>
         <div className="flex flex-col sm:flex-row gap-2 justify-center">
           <button
             type="button"
-            onClick={() => reset()}
+            onClick={() => (chunkError ? window.location.reload() : reset())}
             className="inline-flex items-center justify-center bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-2.5 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] transition-colors"
           >
             Try again
