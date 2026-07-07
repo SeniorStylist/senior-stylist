@@ -100,10 +100,13 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         placement: 'bottom',
       },
       {
-        type: 'click',
-        selector: '[data-tour="nav-settings"]',
+        // Phase 17: on mobile, Settings defaults into the nav More sheet, so a
+        // tab-click step can't resolve on both platforms — navigate directly.
+        type: 'highlight',
+        selector: '',
+        route: '/settings',
         title: 'Open Settings',
-        description: 'Facility info, hours, team invites, and QuickBooks. Click Settings.',
+        description: 'Facility info, hours, team invites, and QuickBooks all live in Settings (under More on your phone).',
         placement: 'right',
       },
       {

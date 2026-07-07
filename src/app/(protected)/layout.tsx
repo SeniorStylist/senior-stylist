@@ -199,7 +199,7 @@ export default async function ProtectedLayout({
           </ToastProvider>
         </div>
       </main>
-      <MobileNav role={activeRole} debugMode={debugMode} />
+      <MobileNav role={activeRole} debugMode={debugMode} userId={user.id} />
       <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
       <InstallBanner />
       <DebugBadge />

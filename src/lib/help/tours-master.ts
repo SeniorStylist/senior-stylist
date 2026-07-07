@@ -695,11 +695,13 @@ export const MASTER_TOURS: ScriptedTour[] = [
     role: 'super_admin',
     steps: [
       {
+        // Settings lives in the nav "More" sheet by default (Phase 17) — no
+        // stable tab to highlight, so this is an info step on the page itself.
         type: 'highlight',
-        selector: '[data-tour="nav-settings"]',
+        selector: '',
         route: '/settings',
         title: 'Settings',
-        description: 'Facility details, hours, team, and integrations.',
+        description: 'Facility details, hours, team, and integrations — find it under More in the bottom bar.',
         placement: 'top',
       },
       {

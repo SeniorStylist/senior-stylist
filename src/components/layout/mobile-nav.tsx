@@ -1,18 +1,35 @@
 'use client'
 
+// Phase 17 — mobile nav v2: up to 5 pinned tabs + an always-present "More"
+// sheet holding the rest. Per-role defaults; the user can customize which
+// destinations are pinned (device-local, localStorage ss_mobile_nav:{userId}).
+// Tour contract: pinned tabs carry data-tour-mobile="nav-*"; unpinned
+// destinations carry the SAME slug on their More-sheet row (only one instance
+// is ever in the DOM at a time — the sheet renders only while open).
+
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { haptics } from '@/lib/haptics'
 import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
-const navItems: { href: string; label: string; icon: React.ReactNode; roles: NavRole[] }[] = [
+interface NavItem {
+  href: string
+  label: string
+  slug: string
+  icon: React.ReactNode
+  roles: NavRole[]
+}
+
+const navItems: NavItem[] = [
   {
     href: '/dashboard',
     label: 'Calendar',
+    slug: 'nav-calendar',
     roles: ['admin', 'facility_staff', 'stylist'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -26,6 +43,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/log',
     label: 'Log',
+    slug: 'nav-daily-log',
     roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -40,6 +58,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/my-account',
     label: 'Account',
+    slug: 'nav-my-account',
     roles: ['stylist'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -51,6 +70,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/signup-sheet',
     label: 'Sign-Ups',
+    slug: 'nav-signup-sheet',
     roles: ['admin', 'facility_staff'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -66,6 +86,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/residents',
     label: 'Residents',
+    slug: 'nav-residents',
     roles: ['admin', 'facility_staff'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,6 +100,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/analytics',
     label: 'Analytics',
+    slug: 'nav-analytics',
     roles: ['admin', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -91,6 +113,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/payroll',
     label: 'Payroll',
+    slug: 'nav-payroll',
     roles: ['admin', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -103,6 +126,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/help',
     label: 'Help',
+    slug: 'nav-help',
     roles: ['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist', 'viewer'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -115,6 +139,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   {
     href: '/settings',
     label: 'Settings',
+    slug: 'nav-settings',
     roles: ['admin', 'facility_staff', 'bookkeeper'],
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -125,68 +150,257 @@ const navItems: { href: string; label: string; icon: React.ReactNode; roles: Nav
   },
 ]
 
+const MAX_PINNED = 5
+
+// Per-role default pinned tabs (hrefs, in display order).
+const DEFAULT_PINNED: Record<string, string[]> = {
+  admin: ['/dashboard', '/log', '/residents', '/analytics', '/payroll'],
+  super_admin: ['/dashboard', '/log', '/residents', '/analytics', '/payroll'],
+  facility_staff: ['/dashboard', '/log', '/signup-sheet', '/residents', '/settings'],
+  stylist: ['/dashboard', '/log', '/my-account', '/help'],
+  bookkeeper: ['/log', '/analytics', '/payroll', '/settings', '/help'],
+  viewer: ['/help'],
+}
+
+function storageKey(userId: string | undefined, role: string) {
+  return `ss_mobile_nav:${userId ?? 'anon'}:${role}`
+}
+
+function loadPinned(userId: string | undefined, role: string, available: NavItem[]): string[] {
+  const fallback = (DEFAULT_PINNED[role] ?? DEFAULT_PINNED.admin).filter((href) =>
+    available.some((i) => i.href === href),
+  )
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(storageKey(userId, role))
+    if (!raw) return fallback
+    const saved: unknown = JSON.parse(raw)
+    if (!Array.isArray(saved)) return fallback
+    const valid = saved.filter(
+      (h): h is string => typeof h === 'string' && available.some((i) => i.href === h),
+    )
+    return valid.length > 0 ? valid.slice(0, MAX_PINNED) : fallback
+  } catch {
+    return fallback
+  }
+}
+
 interface MobileNavProps {
   role?: string
   debugMode?: boolean
+  userId?: string
 }
 
-export function MobileNav({ role = 'admin' }: MobileNavProps) {
+export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [customizing, setCustomizing] = useState(false)
+  const available = navItems.filter((item) => item.roles.includes(role as NavRole))
+  // SSR renders the role default; the saved customization applies after mount
+  // (lazy read would mismatch hydration since the server can't see localStorage).
+  const [pinned, setPinned] = useState<string[]>(() =>
+    (DEFAULT_PINNED[role] ?? DEFAULT_PINNED.admin).filter((href) => available.some((i) => i.href === href)),
+  )
+
+  useEffect(() => {
+    setPinned(loadPinned(userId, role, available))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, role])
 
   useEffect(() => {
     setPendingHref(null)
+    setMoreOpen(false)
   }, [pathname])
 
-  const filtered = navItems.filter((item) => item.roles.includes(role as NavRole))
+  const pinnedItems = pinned
+    .map((href) => available.find((i) => i.href === href))
+    .filter((i): i is NavItem => !!i)
+    .slice(0, MAX_PINNED)
+  const overflowItems = available.filter((i) => !pinnedItems.some((p) => p.href === i.href))
+
+  const savePinned = (next: string[]) => {
+    setPinned(next)
+    try {
+      localStorage.setItem(storageKey(userId, role), JSON.stringify(next))
+    } catch { /* private browsing */ }
+  }
+
+  const togglePin = (href: string) => {
+    haptics.selection()
+    if (pinned.includes(href)) {
+      if (pinned.length <= 1) return // never allow zero tabs
+      savePinned(pinned.filter((h) => h !== href))
+    } else {
+      if (pinned.length >= MAX_PINNED) return
+      // Insert respecting canonical navItems order so tabs stay predictable
+      const next = navItems
+        .filter((i) => pinned.includes(i.href) || i.href === href)
+        .map((i) => i.href)
+      savePinned(next)
+    }
+  }
+
+  const isActive = (href: string) =>
+    pendingHref
+      ? pendingHref === href
+      : pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+  const moreActive = !pendingHref && overflowItems.some((i) => isActive(i.href))
 
   return (
-    <nav
-      className="mobile-nav fixed bottom-0 left-0 right-0 z-[60] flex border-t border-stone-200 bg-white md:hidden"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-    >
-      {filtered.map((item) => {
-        const isActive = pendingHref
-          ? pendingHref === item.href
-          : pathname === item.href ||
-            (item.href !== '/dashboard' && pathname.startsWith(item.href))
-        const tourSlug =
-          item.href === '/dashboard' ? 'nav-calendar' :
-          item.href === '/log' ? 'nav-daily-log' :
-          item.href === '/residents' ? 'nav-residents' :
-          item.href === '/billing' ? 'nav-billing' :
-          item.href === '/analytics' ? 'nav-analytics' :
-          item.href === '/payroll' ? 'nav-payroll' :
-          item.href === '/help' ? 'nav-help' :
-          item.href === '/settings' ? 'nav-settings' :
-          item.href === '/my-account' ? 'nav-my-account' :
-          item.href === '/signup-sheet' ? 'nav-signup-sheet' :
-          undefined
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={true}
-            onClick={() => { haptics.selection(); setPendingHref(item.href) }}
-            data-tour-mobile={tourSlug}
-            className={cn(
-              'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70',
-              isActive ? 'text-[#8B2E4A]' : 'text-stone-400'
-            )}
-          >
-            <span className="relative">
-              {item.icon}
-              {item.href === '/dashboard' && (
-                <span className="absolute -top-1 -right-2">
-                  <PendingSignupBadge role={role} />
-                </span>
+    <>
+      <nav
+        className="mobile-nav fixed bottom-0 left-0 right-0 z-[60] flex border-t border-stone-200 bg-white md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {pinnedItems.map((item) => {
+          const active = isActive(item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={true}
+              onClick={() => { haptics.selection(); setPendingHref(item.href) }}
+              data-tour-mobile={item.slug}
+              className={cn(
+                'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70 min-w-0',
+                active ? 'text-[#8B2E4A]' : 'text-stone-400'
               )}
-            </span>
-            {item.label}
-            {isActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5 animate-in zoom-in-50 fade-in duration-200" />}
-          </Link>
-        )
-      })}
-    </nav>
+            >
+              <span className="relative">
+                {item.icon}
+                {item.href === '/dashboard' && (
+                  <span className="absolute -top-1 -right-2">
+                    <PendingSignupBadge role={role} />
+                  </span>
+                )}
+              </span>
+              <span className="max-w-full truncate">{item.label}</span>
+              {active && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5 animate-in zoom-in-50 fade-in duration-200" />}
+            </Link>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => { haptics.selection(); setMoreOpen(true) }}
+          data-tour-mobile="nav-more"
+          aria-label="More"
+          className={cn(
+            'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70 min-w-0',
+            moreActive ? 'text-[#8B2E4A]' : 'text-stone-400'
+          )}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+            <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          </svg>
+          <span className="max-w-full truncate">More</span>
+          {moreActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5 animate-in zoom-in-50 fade-in duration-200" />}
+        </button>
+      </nav>
+
+      <BottomSheet isOpen={moreOpen} onClose={() => { setMoreOpen(false); setCustomizing(false) }} title={customizing ? 'Customize tabs' : 'More'}>
+        <div className="px-5 pb-5">
+          {!customizing ? (
+            <>
+              {overflowItems.length === 0 && (
+                <p className="text-sm text-stone-400 py-2">Everything is pinned to your bar.</p>
+              )}
+              <div className="flex flex-col">
+                {overflowItems.map((item) => (
+                  <button
+                    key={item.href}
+                    type="button"
+                    data-tour-mobile={item.slug}
+                    onClick={() => {
+                      haptics.selection()
+                      setMoreOpen(false)
+                      setPendingHref(item.href)
+                      router.push(item.href)
+                    }}
+                    className={cn(
+                      'flex items-center gap-3 py-3.5 px-1 text-left border-b border-stone-50 last:border-b-0',
+                      isActive(item.href) ? 'text-[#8B2E4A]' : 'text-stone-700'
+                    )}
+                  >
+                    <span className={isActive(item.href) ? 'text-[#8B2E4A]' : 'text-stone-400'}>{item.icon}</span>
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomizing(true)}
+                className="mt-3 w-full flex items-center justify-center gap-2 text-sm font-semibold text-[#8B2E4A] bg-[#F9EFF2] rounded-xl py-3"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+                Customize tabs
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-stone-500 mb-3">
+                Pick up to {MAX_PINNED} tabs for your bottom bar. Everything else stays here under More.
+              </p>
+              <div className="flex flex-col">
+                {available.map((item) => {
+                  const isPinned = pinned.includes(item.href)
+                  const disabled = !isPinned && pinned.length >= MAX_PINNED
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      onClick={() => togglePin(item.href)}
+                      disabled={disabled}
+                      className={cn(
+                        'flex items-center gap-3 py-3 px-1 text-left border-b border-stone-50 last:border-b-0',
+                        disabled && 'opacity-40'
+                      )}
+                    >
+                      <span className={isPinned ? 'text-[#8B2E4A]' : 'text-stone-400'}>{item.icon}</span>
+                      <span className="flex-1 text-sm font-medium text-stone-700">{item.label}</span>
+                      <span
+                        className={cn(
+                          'w-5 h-5 rounded-md border flex items-center justify-center',
+                          isPinned ? 'bg-[#8B2E4A] border-[#8B2E4A]' : 'border-stone-300 bg-white'
+                        )}
+                      >
+                        {isPinned && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    savePinned((DEFAULT_PINNED[role] ?? DEFAULT_PINNED.admin).filter((href) => available.some((i) => i.href === href)))
+                  }}
+                  className="flex-1 text-sm font-semibold text-stone-600 bg-stone-100 rounded-xl py-3"
+                >
+                  Reset to default
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomizing(false)}
+                  className="flex-1 text-sm font-semibold text-white bg-[#8B2E4A] rounded-xl py-3"
+                >
+                  Done
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </BottomSheet>
+    </>
   )
 }
