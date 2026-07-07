@@ -3,6 +3,8 @@ import { db } from '@/db'
 import { bookings, residents, stylists } from '@/db/schema'
 import { and, asc, eq, gte, inArray } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
+import { getPortalT } from '@/lib/portal-i18n-server'
+import { portalLocale } from '@/lib/portal-i18n'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,8 +12,8 @@ function formatDollars(cents: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents ?? 0) / 100)
 }
 
-function formatDateTime(d: Date) {
-  return new Intl.DateTimeFormat('en-US', {
+function formatDateTime(d: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -31,6 +33,8 @@ export default async function FamilyHomePage({
   const { residentId: searchResidentId } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
   const { session, residentsAtFacility } = await requirePortalAuth(decoded)
+  const { lang, t } = await getPortalT()
+  const locale = portalLocale(lang)
 
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
@@ -75,12 +79,12 @@ export default async function FamilyHomePage({
   return (
     <div className="page-enter flex flex-col gap-4">
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-        <p className="text-xs uppercase tracking-wide text-stone-400 font-semibold">Welcome back</p>
+        <p className="text-xs uppercase tracking-wide text-stone-400 font-semibold">{t('home.welcomeBack')}</p>
         <h1 className="text-2xl text-stone-900 mt-1" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Hi, {greeting}
+          {t('home.hi', { name: greeting })}
         </h1>
         <p className="text-sm text-stone-500 mt-1">
-          Here&apos;s {selected.residentName} at {selected.facilityName}.
+          {t('home.residentAt', { resident: selected.residentName, facility: selected.facilityName })}
         </p>
       </section>
 
@@ -94,56 +98,56 @@ export default async function FamilyHomePage({
         {outstanding > 0 ? (
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-wide text-amber-700 font-semibold">Balance attention</p>
+              <p className="text-xs uppercase tracking-wide text-amber-700 font-semibold">{t('home.balanceAttention')}</p>
               <p className="text-2xl text-amber-900 font-semibold mt-1">{formatDollars(outstanding)}</p>
-              <p className="text-xs text-amber-800 mt-1">Outstanding balance — pay online or by check.</p>
+              <p className="text-xs text-amber-800 mt-1">{t('home.outstandingHint')}</p>
             </div>
             <Link
               href={`/family/${encodeURIComponent(decoded)}/billing?residentId=${selected.residentId}`}
               className="inline-flex items-center justify-center bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-4 py-2.5 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C]"
             >
-              View billing
+              {t('home.viewBilling')}
             </Link>
           </div>
         ) : (
           <div>
-            <p className="text-xs uppercase tracking-wide text-emerald-700 font-semibold">All paid up</p>
-            <p className="text-sm text-emerald-900 mt-1">No outstanding balance — thank you.</p>
+            <p className="text-xs uppercase tracking-wide text-emerald-700 font-semibold">{t('home.allPaidUp')}</p>
+            <p className="text-sm text-emerald-900 mt-1">{t('home.noBalance')}</p>
           </div>
         )}
       </section>
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-stone-900">Upcoming appointments</h2>
+          <h2 className="text-sm font-semibold text-stone-900">{t('home.upcomingAppointments')}</h2>
           <Link
             href={`/family/${encodeURIComponent(decoded)}/appointments?residentId=${selected.residentId}`}
             className="text-xs font-semibold text-[#8B2E4A] hover:underline"
           >
-            View all →
+            {t('home.viewAll')}
           </Link>
         </div>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-stone-400">No upcoming appointments scheduled.</p>
+          <p className="text-sm text-stone-400">{t('home.noUpcoming')}</p>
         ) : (
           <ul className="flex flex-col gap-2.5">
             {upcoming.map((b) => {
-              const services = b.serviceNames?.join(', ') ?? 'Service'
+              const services = b.serviceNames?.join(', ') ?? t('common.service')
               const stylistName = stylistMap.get(b.stylistId) ?? '—'
               const statusLabel =
                 b.status === 'requested' ? (
                   <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-amber-100 text-amber-800">
-                    Pending approval
+                    {t('common.pendingApproval')}
                   </span>
                 ) : (
                   <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-blue-100 text-blue-800">
-                    Scheduled
+                    {t('common.scheduled')}
                   </span>
                 )
               return (
                 <li key={b.id} className="flex items-start justify-between gap-3 py-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime))}</p>
+                    <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale)}</p>
                     <p className="text-[12px] text-stone-500 mt-0.5 truncate">
                       {services} · {stylistName}
                     </p>
@@ -164,7 +168,7 @@ export default async function FamilyHomePage({
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-        Request a service
+        {t('home.requestService')}
       </Link>
     </div>
   )

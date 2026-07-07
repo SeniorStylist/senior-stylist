@@ -3,22 +3,25 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
 interface Props {
   facilityCode: string
+  lang: PortalLang
 }
 
-export function PortalNav({ facilityCode }: Props) {
+export function PortalNav({ facilityCode, lang }: Props) {
   const pathname = usePathname()
+  const t = usePortalT(lang)
   const base = `/family/${encodeURIComponent(facilityCode)}`
 
   const tabs = [
-    { href: base, label: 'Home', icon: HomeIcon, exact: true },
-    { href: `${base}/appointments`, label: 'Appts', icon: CalendarIcon },
-    { href: `${base}/request`, label: 'Request', icon: PlusIcon },
-    { href: `${base}/billing`, label: 'Billing', icon: ReceiptIcon },
-    { href: `${base}/profile`, label: 'Profile', icon: UserIcon },
-    { href: `${base}/contact`, label: 'Contact', icon: PhoneIcon },
+    { href: base, label: t('nav.home'), icon: HomeIcon, exact: true },
+    { href: `${base}/appointments`, label: t('nav.appointments'), icon: CalendarIcon },
+    { href: `${base}/request`, label: t('nav.request'), icon: PlusIcon },
+    { href: `${base}/billing`, label: t('nav.billing'), icon: ReceiptIcon },
+    { href: `${base}/profile`, label: t('nav.profile'), icon: UserIcon },
+    { href: `${base}/contact`, label: t('nav.contact'), icon: PhoneIcon },
   ]
 
   return (

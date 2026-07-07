@@ -4,11 +4,13 @@ import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { createStorageClient, RESIDENT_PHOTOS_BUCKET } from '@/lib/supabase/storage'
 import { ensureResidentPhotosSchema } from '@/lib/resident-photos-ddl'
+import { getPortalT } from '@/lib/portal-i18n-server'
+import { portalLocale } from '@/lib/portal-i18n'
 
 export const dynamic = 'force-dynamic'
 
-function formatDateTime(d: Date) {
-  return new Intl.DateTimeFormat('en-US', {
+function formatDateTime(d: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -28,6 +30,8 @@ export default async function AppointmentsPage({
   const { residentId: searchResidentId } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
   const { residentsAtFacility } = await requirePortalAuth(decoded)
+  const { lang, t } = await getPortalT()
+  const locale = portalLocale(lang)
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
@@ -125,26 +129,26 @@ export default async function AppointmentsPage({
     <div className="page-enter flex flex-col gap-5">
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-          Appointments
+          {t('appts.title')}
         </h1>
-        <p className="text-sm text-stone-500 mt-1">For {selected.residentName}</p>
+        <p className="text-sm text-stone-500 mt-1">{t('appts.for', { name: selected.residentName })}</p>
       </header>
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-        <h2 className="text-sm font-semibold text-stone-900 mb-3">Upcoming</h2>
+        <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('appts.upcoming')}</h2>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-stone-400">No upcoming appointments.</p>
+          <p className="text-sm text-stone-400">{t('appts.noUpcoming')}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-stone-100">
             {upcoming.map((b) => {
-              const services = b.serviceNames?.join(', ') ?? 'Service'
+              const services = b.serviceNames?.join(', ') ?? t('common.service')
               const stylistName = stylistMap.get(b.stylistId) ?? '—'
               const isRequested = b.status === 'requested'
               return (
                 <li key={b.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime))}</p>
+                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale)}</p>
                       <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
                       {b.portalNotes && (
                         <p className="text-[11.5px] text-stone-400 mt-1 italic">&ldquo;{b.portalNotes}&rdquo;</p>
@@ -157,7 +161,7 @@ export default async function AppointmentsPage({
                           : 'text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-blue-100 text-blue-800 shrink-0'
                       }
                     >
-                      {isRequested ? 'Pending approval' : 'Scheduled'}
+                      {isRequested ? t('common.pendingApproval') : t('common.scheduled')}
                     </span>
                   </div>
                 </li>
@@ -168,24 +172,24 @@ export default async function AppointmentsPage({
       </section>
 
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
-        <h2 className="text-sm font-semibold text-stone-900 mb-3">Past 6 months</h2>
+        <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('appts.past6Months')}</h2>
         {past.length === 0 ? (
-          <p className="text-sm text-stone-400">No completed appointments in the past 6 months.</p>
+          <p className="text-sm text-stone-400">{t('appts.noPast')}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-stone-100">
             {past.map((b) => {
-              const services = b.serviceNames?.join(', ') ?? 'Service'
+              const services = b.serviceNames?.join(', ') ?? t('common.service')
               const stylistName = stylistMap.get(b.stylistId) ?? '—'
               const photos = photosByBooking.get(b.id) ?? []
               return (
                 <li key={b.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime))}</p>
+                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale)}</p>
                       <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
                     </div>
                     <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-emerald-50 text-emerald-700 shrink-0">
-                      Completed
+                      {t('common.completed')}
                     </span>
                   </div>
                   {photos.length > 0 && (
@@ -195,7 +199,7 @@ export default async function AppointmentsPage({
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={p.url}
-                            alt={p.caption ?? 'Style photo'}
+                            alt={p.caption ?? t('appts.stylePhoto')}
                             title={p.caption ?? undefined}
                             className="h-20 w-20 object-cover rounded-xl border border-stone-100"
                           />

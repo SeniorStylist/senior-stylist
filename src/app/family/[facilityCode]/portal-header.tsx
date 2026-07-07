@@ -2,17 +2,20 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useTransition } from 'react'
+import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
 interface Props {
   facilityCode: string
   facilityName: string
+  lang: PortalLang
   residents: { residentId: string; residentName: string }[]
 }
 
-export function PortalHeader({ facilityCode, facilityName, residents }: Props) {
+export function PortalHeader({ facilityCode, facilityName, lang, residents }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const search = useSearchParams()
+  const t = usePortalT(lang)
   const [isPending, startTransition] = useTransition()
   const currentResidentId = search.get('residentId') ?? residents[0]?.residentId ?? ''
 
@@ -42,7 +45,7 @@ export function PortalHeader({ facilityCode, facilityName, residents }: Props) {
           disabled={isPending}
           className="text-xs font-semibold bg-white/15 hover:bg-white/25 text-white rounded-full px-3 py-1.5 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
           style={{ colorScheme: 'dark' }}
-          aria-label="Switch resident"
+          aria-label={t('header.switchResident')}
         >
           {residents.map((r) => (
             <option key={r.residentId} value={r.residentId} className="text-stone-800">
@@ -60,7 +63,7 @@ export function PortalHeader({ facilityCode, facilityName, residents }: Props) {
         onClick={onSignOut}
         className="text-xs font-semibold text-white/85 hover:text-white px-2 py-1.5"
       >
-        Sign out
+        {t('header.signOut')}
       </button>
     </div>
   )

@@ -9,6 +9,8 @@ import { ToastProvider } from '@/components/ui/toast'
 import { PortalNav } from './portal-nav'
 import { PortalHeader } from './portal-header'
 import { TextScaleToggle } from '@/components/portal/text-scale-toggle'
+import { LanguageToggle } from '@/components/portal/language-toggle'
+import { getPortalLang } from '@/lib/portal-i18n-server'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist — Family Portal',
@@ -34,6 +36,7 @@ export default async function FamilyPortalLayout({
   const session = await getPortalSession()
   const residentsAtFacility = session?.residents.filter((r) => r.facilityCode === decoded) ?? []
   const isAuthed = !!session && residentsAtFacility.length > 0
+  const lang = await getPortalLang()
 
   return (
     <ToastProvider>
@@ -51,11 +54,13 @@ export default async function FamilyPortalLayout({
               style={{ filter: 'brightness(0) invert(1)' }}
             />
             <TextScaleToggle />
+            <LanguageToggle lang={lang} />
           </div>
           {isAuthed && (
             <PortalHeader
               facilityCode={decoded}
               facilityName={facility?.name ?? ''}
+              lang={lang}
               residents={residentsAtFacility.map((r) => ({
                 residentId: r.residentId,
                 residentName: r.residentName,
@@ -83,7 +88,7 @@ export default async function FamilyPortalLayout({
         >
           {children}
         </main>
-        {isAuthed && <PortalNav facilityCode={decoded} />}
+        {isAuthed && <PortalNav facilityCode={decoded} lang={lang} />}
       </div>
     </ToastProvider>
   )
