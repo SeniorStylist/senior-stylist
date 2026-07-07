@@ -262,4 +262,40 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
       'The gallery remembers each resident\'s look',
     ],
   },
+
+  {
+    id: 'scripted-admin-scheduling-tools',
+    title: 'Scheduling Power Tools',
+    scenarioSummary: 'Copy salon days, print the week, fill overdue visits',
+    platform: 'desktop',
+    role: 'admin',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="copy-day-button"]',
+        route: '/dashboard',
+        title: 'Copy a salon day',
+        description: 'Re-book everyone from a past day onto a new date at the same times. Conflicts are skipped, never double-booked.',
+        placement: 'bottom',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="print-week-button"]',
+        title: 'Print the week',
+        description: 'A clean printout of the week\'s appointments — time, resident, room, service, stylist — grouped by day.',
+        placement: 'bottom',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Due for a visit',
+        description: 'The dashboard suggests residents who are overdue based on their own visit rhythm. Book → prefills their usual service.',
+      },
+    ],
+    learnings: [
+      'Copy day re-books a whole salon day',
+      'Print week for the front desk or floor staff',
+      'Due-for-a-visit fills quiet days with overdue residents',
+    ],
+  },
 ]

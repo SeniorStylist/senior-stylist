@@ -27,6 +27,8 @@ import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending
 import { WaitlistPanel, type WaitlistEntry } from '@/components/waitlist/waitlist-panel'
 import { AddToWaitlistModal } from '@/components/waitlist/add-to-waitlist-modal'
 import { DueForVisitPanel, type DueResident } from '@/components/dashboard/due-for-visit-panel'
+import { CopyDayModal } from '@/components/calendar/copy-day-modal'
+import { isNativeApp } from '@/lib/detect-device'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
 import type { SignupSheetEntryWithRelations } from '@/types'
 import { openPeek } from '@/lib/peek-drawer'
@@ -377,6 +379,64 @@ export function DashboardClient({
     setWaitlistPrefill(prefill)
     setWaitlistModalOpen(true)
   }, [])
+
+  // Phase 16 G8/G9 — copy-day modal + printable weekly schedule
+  const [copyDayOpen, setCopyDayOpen] = useState(false)
+  const [printingWeek, setPrintingWeek] = useState(false)
+
+  const printWeek = useCallback(async () => {
+    setPrintingWeek(true)
+    try {
+      // Visible week: Sunday → Saturday around "today" in the facility tz
+      const p = getLocalParts(new Date(), facility.timezone)
+      const anchorDate = new Date(`${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}T00:00:00`)
+      const weekStart = new Date(anchorDate)
+      weekStart.setDate(anchorDate.getDate() - anchorDate.getDay())
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 7)
+      const res = await fetch(`/api/bookings?start=${weekStart.toISOString()}&end=${weekEnd.toISOString()}`)
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error('Could not load the week')
+        return
+      }
+      const { buildWeeklyScheduleHtml } = await import('@/lib/exports/weekly-schedule-html')
+      const weekLabel = `${weekStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} – ${new Date(weekEnd.getTime() - 86400000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+      const html = buildWeeklyScheduleHtml({
+        facilityName: facility.name,
+        weekLabel,
+        tz: facility.timezone,
+        bookings: (j.data ?? []).map((b: BookingWithRelations) => ({
+          startTime: b.startTime,
+          endTime: b.endTime,
+          status: b.status,
+          residentName: b.resident?.name ?? 'Resident',
+          roomNumber: b.resident?.roomNumber ?? null,
+          serviceName: b.serviceNames?.join(', ') ?? b.service?.name ?? 'Service',
+          stylistName: b.stylist?.name ?? '—',
+        })),
+      })
+      // Signage print pattern: native = share sheet HTML; web = popup + print
+      if (isNativeApp()) {
+        const { shareBlobNative } = await import('@/lib/exports/native-file')
+        const r = await shareBlobNative(new Blob([html], { type: 'text/html' }), 'weekly-schedule.html')
+        if (r.ok) toast.info('Use the share sheet to print or save the schedule')
+        else toast.error(r.error)
+        return
+      }
+      const w = window.open('', '_blank', 'width=850,height=1100')
+      if (!w) {
+        toast.error('Allow pop-ups to print the schedule.')
+        return
+      }
+      w.document.write(html)
+      w.document.close()
+      w.focus()
+      setTimeout(() => w.print(), 450)
+    } finally {
+      setPrintingWeek(false)
+    }
+  }, [facility.name, facility.timezone, toast])
 
   // Phase 16 G2 — "Book →" on a due-for-visit resident: prefilled booking modal
   const handleBookDueResident = useCallback((r: DueResident) => {
@@ -928,6 +988,39 @@ export function DashboardClient({
                   />
                 </div>
               )}
+              {/* Phase 16 G8/G9 — scheduling power tools (admin + facility_staff) */}
+              {(isAdmin || userRole === 'facility_staff') && (
+                <>
+                  <button
+                    type="button"
+                    data-tour="copy-day-button"
+                    onClick={() => setCopyDayOpen(true)}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors"
+                    title="Copy a salon day to another date"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span className="hidden lg:inline">Copy day</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-tour="print-week-button"
+                    onClick={() => void printWeek()}
+                    disabled={printingWeek}
+                    className="hidden md:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-stone-200 bg-white text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors disabled:opacity-50"
+                    title="Print this week's schedule"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 6 2 18 2 18 9" />
+                      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                      <rect x="6" y="14" width="12" height="8" />
+                    </svg>
+                    <span className="hidden lg:inline">{printingWeek ? 'Preparing…' : 'Print week'}</span>
+                  </button>
+                </>
+              )}
               {/* Export billing — admin only, desktop only */}
               {isAdmin && (
                 <div className="hidden md:flex items-center gap-1 bg-white rounded-xl border border-stone-200 p-1">
@@ -1173,6 +1266,16 @@ export function DashboardClient({
           prefillResidentId={waitlistPrefill.residentId}
           prefillServiceId={waitlistPrefill.serviceId}
           onAdded={() => setWaitlistReloadKey((k) => k + 1)}
+        />
+      )}
+
+      {/* Phase 16 G8 — copy a salon day */}
+      {(isAdmin || userRole === 'facility_staff') && (
+        <CopyDayModal
+          open={copyDayOpen}
+          onClose={() => setCopyDayOpen(false)}
+          defaultSourceDate={todayDateStr}
+          onCopied={() => setCalendarFlash(true)}
         />
       )}
 
