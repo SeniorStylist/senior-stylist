@@ -123,7 +123,7 @@ export function RequestClient({ facilityCode, lang, residentId, groups }: Props)
     return (
       <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center">
         <p className="text-sm font-semibold text-stone-700">{t('request.noServices')}</p>
-        <p className="text-xs text-stone-400 mt-1">{t('request.contactOffice')}</p>
+        <p className="text-xs text-stone-500 mt-1">{t('request.contactOffice')}</p>
       </div>
     )
   }
@@ -133,7 +133,7 @@ export function RequestClient({ facilityCode, lang, residentId, groups }: Props)
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-stone-900">{t('request.pickServices')}</h2>
-          <span className="text-xs text-stone-400">{t('request.selectedCount', { count: selected.size })}</span>
+          <span className="text-xs text-stone-500">{t('request.selectedCount', { count: selected.size })}</span>
         </div>
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
@@ -239,7 +239,7 @@ export function RequestClient({ facilityCode, lang, residentId, groups }: Props)
       </section>
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <button

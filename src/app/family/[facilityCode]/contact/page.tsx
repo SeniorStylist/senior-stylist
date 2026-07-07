@@ -64,7 +64,7 @@ export default async function ContactPage({
               </a>
             )}
             {!facility.phone && !facility.contactEmail && (
-              <p className="text-sm text-stone-400">{t('contact.noInfo')}</p>
+              <p className="text-sm text-stone-500">{t('contact.noInfo')}</p>
             )}
           </div>
         </section>

@@ -277,6 +277,7 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
   return (
     <>
       <nav
+        aria-label="Main"
         className="mobile-nav fixed bottom-0 left-0 right-0 z-[60] flex border-t border-stone-200 bg-white md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -286,6 +287,7 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
               prefetch={true}
               onClick={() => { haptics.selection(); setPendingHref(item.href) }}
               data-tour-mobile={item.slug}

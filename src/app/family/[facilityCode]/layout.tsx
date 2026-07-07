@@ -40,7 +40,8 @@ export default async function FamilyPortalLayout({
 
   return (
     <ToastProvider>
-      <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#FDF8F8' }}>
+      {/* lang so screen readers pronounce Spanish copy correctly (a11y) */}
+      <div lang={lang} className="min-h-screen flex flex-col" style={{ backgroundColor: '#FDF8F8' }}>
         <header
           style={{ backgroundColor: '#8B2E4A' }}
           className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-1.5 relative overflow-hidden"

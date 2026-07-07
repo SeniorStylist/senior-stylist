@@ -1120,7 +1120,7 @@ export function LogClient({
                 if (dropdown && related && dropdown.contains(related)) return
                 setTimeout(() => setWiResidentDropOpen(false), 150)
               }}
-              placeholder="Search resident..."
+              aria-label="Search resident" placeholder="Search resident..."
               data-tour="walkin-resident-search"
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
             />
@@ -1137,14 +1137,14 @@ export function LogClient({
                       tabIndex={0}
                       value={wiCreateName}
                       onChange={(e) => setWiCreateName(e.target.value)}
-                      placeholder="Full name *"
+                      aria-label="Full name (required)" placeholder="Full name *"
                       className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     />
                     <input
                       tabIndex={0}
                       value={wiCreateRoom}
                       onChange={(e) => setWiCreateRoom(e.target.value)}
-                      placeholder="Room number (optional)"
+                      aria-label="Room number (optional)" placeholder="Room number (optional)"
                       className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     />
                     <div className="flex gap-2 pt-1">
@@ -2091,7 +2091,7 @@ export function LogClient({
               value={photoCaption}
               onChange={(e) => setPhotoCaption(e.target.value)}
               maxLength={300}
-              placeholder="Caption — e.g. 'the cut she likes' (optional)"
+              aria-label="Photo caption (optional)" placeholder="Caption — e.g. 'the cut she likes' (optional)"
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
             />
             <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">

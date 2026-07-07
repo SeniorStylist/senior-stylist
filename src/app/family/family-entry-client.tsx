@@ -67,12 +67,13 @@ export function FamilyEntryClient() {
           </p>
           <form onSubmit={submit} className="space-y-3">
             {error && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">{error}</div>
+              <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">{error}</div>
             )}
             <input
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              aria-label="Facility code"
               placeholder="Facility code"
               autoCapitalize="characters"
               autoComplete="off"
@@ -86,7 +87,7 @@ export function FamilyEntryClient() {
               {checking ? 'Looking up…' : 'Continue'}
             </button>
           </form>
-          <p className="text-xs text-stone-400 mt-5 text-center">
+          <p className="text-xs text-stone-500 mt-5 text-center">
             Don&apos;t know your code? Ask the front desk at your loved one&apos;s community.
           </p>
         </div>

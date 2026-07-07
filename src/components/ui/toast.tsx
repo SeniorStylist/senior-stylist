@@ -199,6 +199,8 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
 
   return (
     <div
+      // Errors interrupt (assertive); success/info stay polite via the container
+      role={toast.type === 'error' ? 'alert' : undefined}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}

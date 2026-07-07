@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, ReactNode } from 'react'
+import { useDialogFocus } from '@/hooks/use-dialog-focus'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -18,6 +19,8 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
   const [dragY, setDragY] = useState(0)
   const [dragging, setDragging] = useState(false)
   const startYRef = useRef(0)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(sheetRef, isOpen && rendered)
 
   useEffect(() => {
     if (isOpen) {
@@ -97,8 +100,14 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
 
       {/* Sheet */}
       <div
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         className="bottom-sheet"
         style={{
+          outline: 'none',
           position: 'relative',
           background: 'white',
           borderRadius: '20px 20px 0 0',

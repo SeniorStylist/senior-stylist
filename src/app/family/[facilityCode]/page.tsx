@@ -128,7 +128,7 @@ export default async function FamilyHomePage({
           </Link>
         </div>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-stone-400">{t('home.noUpcoming')}</p>
+          <p className="text-sm text-stone-500">{t('home.noUpcoming')}</p>
         ) : (
           <ul className="flex flex-col gap-2.5">
             {upcoming.map((b) => {

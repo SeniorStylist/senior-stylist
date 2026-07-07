@@ -110,6 +110,8 @@ export function ProfileClient({ residents, coupons, lang }: Props) {
   )
 }
 
+let fieldSeq = 0
+
 function Field({
   label,
   value,
@@ -125,10 +127,13 @@ function Field({
   placeholder?: string
   disabled?: boolean
 }) {
+  // Stable per-instance id so the label is programmatically associated (a11y)
+  const [fieldId] = useState(() => `pf-field-${++fieldSeq}`)
   return (
     <div>
-      <label className="text-xs font-medium text-stone-600 block mb-1">{label}</label>
+      <label htmlFor={fieldId} className="text-xs font-medium text-stone-600 block mb-1">{label}</label>
       <input
+        id={fieldId}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}

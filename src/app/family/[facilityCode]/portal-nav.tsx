@@ -26,6 +26,7 @@ export function PortalNav({ facilityCode, lang }: Props) {
 
   return (
     <nav
+      aria-label="Portal"
       className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-stone-200"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
@@ -37,6 +38,7 @@ export function PortalNav({ facilityCode, lang }: Props) {
             <Link
               key={t.label}
               href={t.href}
+              aria-current={isActive ? 'page' : undefined}
               prefetch
               className={cn(
                 'flex flex-col items-center justify-center gap-1 py-2.5 transition-colors duration-150',

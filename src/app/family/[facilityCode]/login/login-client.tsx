@@ -79,7 +79,7 @@ export function LoginClient({ facilityCode, lang }: Props) {
         </div>
         <p className="text-base font-semibold text-stone-800">{t('login.checkEmail')}</p>
         <p className="text-sm text-stone-500 mt-1">{t('login.linkSent', { email })}</p>
-        <p className="text-xs text-stone-400 mt-3">{t('login.linkExpiry')}</p>
+        <p className="text-xs text-stone-500 mt-3">{t('login.linkExpiry')}</p>
         <button
           type="button"
           onClick={() => {
@@ -118,8 +118,9 @@ export function LoginClient({ facilityCode, lang }: Props) {
       <div className="p-5">
         {tab === 'link' ? (
           <form onSubmit={onRequestLink} className="flex flex-col gap-3">
-            <label className="text-xs font-semibold text-stone-600">{t('login.email')}</label>
+            <label htmlFor="login-link-email" className="text-xs font-semibold text-stone-600">{t('login.email')}</label>
             <input
+              id="login-link-email"
               type="email"
               required
               autoFocus
@@ -128,8 +129,8 @@ export function LoginClient({ facilityCode, lang }: Props) {
               placeholder="you@example.com"
               className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
             />
-            <p className="text-xs text-stone-400 -mt-1">{t('login.linkHint')}</p>
-            {error && <div className="text-xs text-red-600">{error}</div>}
+            <p className="text-xs text-stone-500 -mt-1">{t('login.linkHint')}</p>
+            {error && <div role="alert" className="text-xs text-red-600">{error}</div>}
             <button
               type="submit"
               disabled={submitting || !email.trim()}
@@ -140,8 +141,9 @@ export function LoginClient({ facilityCode, lang }: Props) {
           </form>
         ) : (
           <form onSubmit={onPasswordLogin} className="flex flex-col gap-3">
-            <label className="text-xs font-semibold text-stone-600">{t('login.email')}</label>
+            <label htmlFor="login-pw-email" className="text-xs font-semibold text-stone-600">{t('login.email')}</label>
             <input
+              id="login-pw-email"
               type="email"
               required
               autoFocus
@@ -150,8 +152,9 @@ export function LoginClient({ facilityCode, lang }: Props) {
               placeholder="you@example.com"
               className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
             />
-            <label className="text-xs font-semibold text-stone-600 mt-1">{t('login.password')}</label>
+            <label htmlFor="login-password" className="text-xs font-semibold text-stone-600 mt-1">{t('login.password')}</label>
             <input
+              id="login-password"
               type="password"
               required
               minLength={8}
@@ -160,7 +163,7 @@ export function LoginClient({ facilityCode, lang }: Props) {
               placeholder="••••••••"
               className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
             />
-            {error && <div className="text-xs text-red-600">{error}</div>}
+            {error && <div role="alert" className="text-xs text-red-600">{error}</div>}
             <button
               type="submit"
               disabled={submitting || !email.trim() || password.length < 8}
@@ -168,12 +171,12 @@ export function LoginClient({ facilityCode, lang }: Props) {
             >
               {submitting ? t('login.signingIn') : t('login.signIn')}
             </button>
-            <p className="text-xs text-stone-400 text-center mt-1">{t('login.forgot')}</p>
+            <p className="text-xs text-stone-500 text-center mt-1">{t('login.forgot')}</p>
           </form>
         )}
       </div>
       <div className="border-t border-stone-100 px-5 py-3 text-center">
-        <p className="text-xs text-stone-400">
+        <p className="text-xs text-stone-500">
           {t('login.newHere')}{' '}
           <Link
             href={`/family/${encodeURIComponent(facilityCode)}/signup`}

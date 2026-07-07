@@ -71,7 +71,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
         </div>
         <p className="text-base font-semibold text-stone-800">{t('signup.welcome', { facility: facilityName })}</p>
         <p className="text-sm text-stone-500 mt-2">{t('signup.foundAccount', { email })}</p>
-        <p className="text-xs text-stone-400 mt-2">{t('signup.linkExpirySpam')}</p>
+        <p className="text-xs text-stone-500 mt-2">{t('signup.linkExpirySpam')}</p>
         <Link
           href={loginUrl}
           className="mt-5 inline-block text-sm font-semibold text-[#8B2E4A] hover:underline"
@@ -94,7 +94,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
         </div>
         <p className="text-base font-semibold text-stone-800">{t('signup.pendingTitle')}</p>
         <p className="text-sm text-stone-500 mt-2">{t('signup.pendingBody')}</p>
-        <p className="text-xs text-stone-400 mt-3">{t('signup.pendingEta')}</p>
+        <p className="text-xs text-stone-500 mt-3">{t('signup.pendingEta')}</p>
       </div>
     )
   }
@@ -118,7 +118,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
             maxLength={200}
             className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
           />
-          <p className="text-xs text-stone-400">{t('signup.fullNameHint')}</p>
+          <p className="text-xs text-stone-500">{t('signup.fullNameHint')}</p>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -168,7 +168,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
             {alreadyHasAccess && (
               <span> <Link href={loginUrl} className="font-semibold underline">{t('signup.signIn')}</Link></span>
@@ -184,7 +184,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
           {submitting ? t('signup.creating') : t('signup.create')}
         </button>
 
-        <p className="text-center text-xs text-stone-400">
+        <p className="text-center text-xs text-stone-500">
           {t('signup.haveAccount')}{' '}
           <Link href={loginUrl} className="font-semibold text-[#8B2E4A] hover:underline">
             {t('login.signIn')}

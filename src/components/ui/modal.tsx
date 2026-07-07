@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, ReactNode } from 'react'
+import { useEffect, useRef, ReactNode } from 'react'
+import { useDialogFocus } from '@/hooks/use-dialog-focus'
 import { cn } from '@/lib/utils'
 
 interface ModalProps {
@@ -17,6 +18,8 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
   const dataProps = Object.fromEntries(
     Object.entries(rest).filter(([k]) => k.startsWith('data-')),
   )
+  const cardRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(cardRef, open)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -43,8 +46,13 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={cardRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         className={cn(
-          'bg-white shadow-2xl border border-stone-100 w-full md:max-w-md',
+          'bg-white shadow-2xl border border-stone-100 w-full md:max-w-md outline-none',
           'rounded-t-3xl rounded-b-none md:rounded-2xl mb-0 md:mb-8',
           'max-h-[88dvh] md:max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain',
           'pb-[env(safe-area-inset-bottom)] md:pb-0',
