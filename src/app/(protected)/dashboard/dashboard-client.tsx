@@ -26,6 +26,7 @@ import { SignupSheetPanel } from '@/components/signup-sheet/signup-sheet-panel'
 import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending-entries'
 import { WaitlistPanel, type WaitlistEntry } from '@/components/waitlist/waitlist-panel'
 import { AddToWaitlistModal } from '@/components/waitlist/add-to-waitlist-modal'
+import { DueForVisitPanel, type DueResident } from '@/components/dashboard/due-for-visit-panel'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
 import type { SignupSheetEntryWithRelations } from '@/types'
 import { openPeek } from '@/lib/peek-drawer'
@@ -375,6 +376,22 @@ export function DashboardClient({
   const handleAddToWaitlistFromBooking = useCallback((prefill: { residentId: string | null; serviceId: string | null }) => {
     setWaitlistPrefill(prefill)
     setWaitlistModalOpen(true)
+  }, [])
+
+  // Phase 16 G2 — "Book →" on a due-for-visit resident: prefilled booking modal
+  const handleBookDueResident = useCallback((r: DueResident) => {
+    const start = new Date()
+    const minutes = start.getMinutes()
+    const add = minutes < 30 ? 30 - minutes : 60 - minutes
+    start.setMinutes(start.getMinutes() + add, 0, 0)
+    setEditBookingId(null)
+    setModalStart(start)
+    setModalEnd(null)
+    setPrefillResidentId(r.residentId)
+    setPrefillServiceId(r.suggestedServiceId)
+    setSchedulingEntryId(null)
+    setWaitlistEntryIdForBooking(null)
+    setModalOpen(true)
   }, [])
 
   // Period stats (week + month)
@@ -1061,6 +1078,8 @@ export function DashboardClient({
               onAdd={() => { setWaitlistPrefill({ residentId: null, serviceId: null }); setWaitlistModalOpen(true) }}
               reloadKey={waitlistReloadKey}
             />
+
+            <DueForVisitPanel onBook={handleBookDueResident} reloadKey={waitlistReloadKey} />
 
             {coverageQueue.length > 0 && (
               <div id="coverage-queue" className="shrink-0 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
