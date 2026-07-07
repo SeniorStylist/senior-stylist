@@ -212,24 +212,17 @@ export const MASTER_TOURS: ScriptedTour[] = [
 
   {
     id: 'scripted-master-analytics',
-    title: 'Cross-Facility Analytics',
-    scenarioSummary: 'View revenue and performance across all facilities',
+    title: 'Facility Analytics',
+    scenarioSummary: "Drill into one facility's revenue, appointments, and stylists",
     platform: 'desktop',
     role: 'super_admin',
     steps: [
       {
         type: 'highlight',
-        selector: '[data-tour="master-tab-reports"]',
-        route: '/master-admin',
-        title: 'Master reports',
-        description: "The Reports tab shows a monthly revenue bar chart across all facilities. Click it to load the chart.",
-      },
-      {
-        type: 'highlight',
         selector: '[data-tour="analytics-revenue-summary"]',
         route: '/analytics',
         title: 'Facility analytics',
-        description: "Drill into any facility's detailed analytics — revenue trends, appointment counts, and stylist breakdowns.",
+        description: "The currently selected facility's numbers — revenue trends, appointment counts, and stylist breakdowns for any date range.",
       },
       {
         type: 'highlight',
@@ -245,7 +238,6 @@ export const MASTER_TOURS: ScriptedTour[] = [
       },
     ],
     learnings: [
-      'Cross-facility revenue overview',
       'Facility-level analytics',
       'Per-stylist breakdown',
       'Excel export',

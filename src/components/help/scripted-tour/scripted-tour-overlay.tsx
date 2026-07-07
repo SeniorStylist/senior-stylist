@@ -84,14 +84,19 @@ export function ScriptedTourOverlay() {
     const highlightSelector =
       step?.type === 'type' && step.advanceSelector ? step.advanceSelector : step?.selector
 
+    // Phase 21 — force ONE scrollIntoView per step (scrollIntoView walks every
+    // scrollable ancestor, so targets inside inner scroll regions — e.g. the
+    // dashboard right panel — come into view even when their rect is within
+    // viewport bounds but clipped by the container).
+    let scrolledForStep = false
     function updateRect() {
       if (!highlightSelector) { setTargetRect(null); return }
       const el = firstVisibleMatch(resolveQuery(highlightSelector))
       if (el) {
         const rect = el.getBoundingClientRect()
         setTargetRect(rect)
-        // Auto-scroll if offscreen
-        if (rect.top < 0 || rect.bottom > window.innerHeight) {
+        if (!scrolledForStep || rect.top < 0 || rect.bottom > window.innerHeight) {
+          scrolledForStep = true
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       } else {

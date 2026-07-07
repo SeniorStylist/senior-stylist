@@ -298,4 +298,65 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
       'Due-for-a-visit fills quiet days with overdue residents',
     ],
   },
+  // Phase 21 — mobile variants: the desktop tours highlight elements that are
+  // hidden md: on phones (waitlist panel, print week). Info-style steps keep
+  // the feature discoverable on mobile and point to the full site.
+  {
+    id: 'scripted-admin-waitlist-mobile',
+    title: 'Cancellation Waitlist',
+    scenarioSummary: 'How the waitlist fills freed slots',
+    platform: 'mobile',
+    role: 'admin',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '',
+        route: '/dashboard',
+        title: 'The waitlist',
+        description: 'Residents who want an earlier slot go on the waitlist. When a booking is cancelled, the office is alerted if someone fits the freed time.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Adding someone',
+        description: 'When you cancel a booking, tap "Add to waitlist" — or use the Waitlist panel on the desktop dashboard.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Manage on the full site',
+        description: 'The Waitlist panel with one-tap booking lives on the desktop dashboard\u2019s right panel.',
+      },
+    ],
+    learnings: ['What the waitlist does', 'Adding from a cancellation', 'Where to manage it'],
+  },
+  {
+    id: 'scripted-admin-scheduling-tools-mobile',
+    title: 'Scheduling Power Tools',
+    scenarioSummary: 'Due-for-a-visit, copy day, and printable week',
+    platform: 'mobile',
+    role: 'admin',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '',
+        route: '/dashboard',
+        title: 'Due for a visit',
+        description: 'The dashboard suggests residents who are overdue based on their own visit rhythm — one tap books them.',
+      },
+      {
+        type: 'highlight',
+        selector: '[data-tour="copy-day-button"]',
+        title: 'Copy a salon day',
+        description: 'Re-book everyone from one day onto a new date at the same times — conflicts are skipped, never double-booked.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Print week (desktop)',
+        description: 'A printable weekly schedule for the front desk lives on the desktop dashboard.',
+      },
+    ],
+    learnings: ['Due-for-a-visit suggestions', 'Copy day', 'Printable week on desktop'],
+  },
 ]

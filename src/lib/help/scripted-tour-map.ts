@@ -79,13 +79,13 @@ export const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string
   'master-settings-mobile': { mobile: 'scripted-master-settings-mobile', desktop: 'scripted-master-settings-mobile' },
   // Phase 15 new-feature tours (2026-07-07)
   'admin-notifications': { mobile: 'scripted-admin-notifications', desktop: 'scripted-admin-notifications' },
-  'admin-waitlist': { mobile: 'scripted-admin-waitlist', desktop: 'scripted-admin-waitlist' },
+  'admin-waitlist': { mobile: 'scripted-admin-waitlist-mobile', desktop: 'scripted-admin-waitlist' },
   'admin-birthdays': { mobile: 'scripted-admin-birthdays', desktop: 'scripted-admin-birthdays' },
   'admin-payments-cof': { mobile: 'scripted-admin-payments-cof', desktop: 'scripted-admin-payments-cof' },
   'admin-signage': { mobile: 'scripted-admin-signage', desktop: 'scripted-admin-signage' },
   'admin-coverage-approval': { mobile: 'scripted-admin-coverage-approval', desktop: 'scripted-admin-coverage-approval' },
   'admin-photos': { mobile: 'scripted-admin-photos', desktop: 'scripted-admin-photos' },
-  'admin-scheduling-tools': { mobile: 'scripted-admin-scheduling-tools', desktop: 'scripted-admin-scheduling-tools' },
+  'admin-scheduling-tools': { mobile: 'scripted-admin-scheduling-tools-mobile', desktop: 'scripted-admin-scheduling-tools' },
 }
 
 // Tours that create their own demo records through the UI flow — no pre-seeding needed.
@@ -97,12 +97,14 @@ export const UNSEEDED_SCRIPTED_TOURS = new Set([
   // Phase 15 info tours — nothing to seed
   'scripted-admin-notifications',
   'scripted-admin-waitlist',
+  'scripted-admin-waitlist-mobile',
   'scripted-admin-birthdays',
   'scripted-admin-payments-cof',
   'scripted-admin-signage',
   'scripted-admin-coverage-approval',
   'scripted-admin-photos',
   'scripted-admin-scheduling-tools',
+  'scripted-admin-scheduling-tools-mobile',
 ])
 
 // Reverse map: scripted variant id → base catalog tourId (first key wins; the
