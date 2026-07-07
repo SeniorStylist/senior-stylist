@@ -626,7 +626,7 @@ export function DirectoryClient({
           value={search}
           onChange={(e) => { setSearch(e.target.value); setSelected(new Set()) }}
           placeholder="Search by name or ST code"
-          className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
+          className="flex-1 min-w-0 sm:min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
         />
         <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white">
           {(['all', 'assigned', 'unassigned'] as Filter[]).map((k) => (
@@ -1008,7 +1008,7 @@ export function DirectoryClient({
               value={appSearch}
               onChange={(e) => setAppSearch(e.target.value)}
               placeholder="Search by name, email, location, or ZIP"
-              className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
+              className="flex-1 min-w-0 sm:min-w-[240px] px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:shadow-[0_0_0_3px_rgba(139,46,74,0.08)] transition-all"
             />
             {/^\d{5}$/.test(appSearch.trim()) && (
               <select

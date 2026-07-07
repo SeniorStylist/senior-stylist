@@ -969,8 +969,8 @@ export function DashboardClient({
                 )}
               </div>
             </div>
-            {/* Right: view switcher + export */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Right: view switcher + export — wraps instead of clipping (Phase 21) */}
+            <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
               <div className="inline-flex h-9 rounded-xl border border-stone-200 bg-white p-0.5 shadow-[var(--shadow-sm)]">
                 {(['timeGridDay', 'timeGridWeek', 'dayGridMonth'] as const).map((view) => (
                   <button

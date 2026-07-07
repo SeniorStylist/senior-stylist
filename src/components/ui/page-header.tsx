@@ -25,12 +25,12 @@ export function PageHeader({ icon: Icon, title, subtitle, className, ...rest }: 
       </div>
       <div className="min-w-0">
         <h1
-          className="text-2xl font-normal text-stone-900 leading-tight"
+          className="text-2xl font-normal text-stone-900 leading-tight truncate"
           style={{ fontFamily: "'DM Serif Display', serif" }}
         >
           {title}
         </h1>
-        {subtitle != null && <div className="text-sm text-stone-500 mt-0.5">{subtitle}</div>}
+        {subtitle != null && <div className="text-sm text-stone-500 mt-0.5 truncate">{subtitle}</div>}
       </div>
     </div>
   )

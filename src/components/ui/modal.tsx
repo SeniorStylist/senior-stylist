@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useDialogFocus } from '@/hooks/use-dialog-focus'
 import { cn } from '@/lib/utils'
 
@@ -36,7 +37,11 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
 
   if (!open) return null
 
-  return (
+  // Phase 21 — portaled to <body>: an ancestor with backdrop-filter/transform
+  // (e.g. the TopBar's backdrop-blur) becomes the containing block for
+  // position:fixed, trapping the modal + backdrop inside a 48px header and
+  // letting the page paint through it. The portal escapes any such ancestor.
+  return createPortal(
     // Phase 17 — below md the shared Modal presents as a bottom sheet (slide-up,
     // rounded top, safe-area padding); md+ keeps the centered top-anchored card.
     // One change upgrades every Modal-only dialog on phones.
@@ -77,6 +82,7 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

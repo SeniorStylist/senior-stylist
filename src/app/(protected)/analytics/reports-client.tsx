@@ -212,7 +212,7 @@ export function ReportsClient({
     <ErrorBoundary>
     <div className="page-enter p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <PageHeader icon={BarChart3} title="Reports" subtitle="Monthly revenue & activity" />
         <div className="flex items-center gap-2">
           <input

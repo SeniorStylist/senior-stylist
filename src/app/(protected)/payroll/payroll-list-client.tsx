@@ -154,7 +154,7 @@ export function PayrollListClient({
 
   return (
     <div className="page-enter p-4 md:p-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between gap-3 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <PageHeader
           icon={Wallet}
           title="Payroll"
