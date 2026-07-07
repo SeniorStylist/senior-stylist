@@ -148,18 +148,19 @@ export function ResidentPhotoGallery({ residentId, canManage }: { residentId: st
                     Family
                   </span>
                 )}
+                {/* Controls always visible on touch (no hover on phones); hover-reveal on desktop */}
                 {canManage && (
-                  <div className="absolute bottom-1 left-1 right-1 flex justify-between gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute bottom-1 left-1 right-1 flex justify-between gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => void toggleShare(p)}
-                      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/90 text-stone-600 border border-stone-200"
+                      className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-white/95 text-stone-600 border border-stone-200 shadow-sm"
                     >
                       {p.sharedWithFamily ? 'Unshare' : 'Share'}
                     </button>
                     <button
                       onClick={() => void remove(p)}
                       aria-label="Delete photo"
-                      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/90 text-red-600 border border-red-200"
+                      className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-white/95 text-red-600 border border-red-200 shadow-sm"
                     >
                       ✕
                     </button>

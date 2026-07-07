@@ -110,14 +110,14 @@ export function WaitlistPanel({
             </div>
             <button
               onClick={() => onBook(e)}
-              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-2.5 py-1 rounded-full transition-colors"
+              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-3 py-2 rounded-full transition-colors"
             >
               Book →
             </button>
             <button
               onClick={() => remove(e)}
               aria-label={`Remove ${e.residentName} from waitlist`}
-              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-stone-300 hover:text-stone-500 hover:bg-stone-100 transition-colors"
+              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-stone-300 hover:text-stone-500 hover:bg-stone-100 transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />

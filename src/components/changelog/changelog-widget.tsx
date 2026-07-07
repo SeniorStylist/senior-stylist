@@ -55,7 +55,7 @@ export function ChangelogWidget({ changelogLastReadAt }: Props) {
     <button
       type="button"
       onClick={handleOpen}
-      className="relative flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-colors"
+      className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors"
       aria-label="What's new"
       title="What's new"
     >

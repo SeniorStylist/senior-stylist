@@ -147,7 +147,7 @@ export function NotificationBell({ anchor = 'desktop' }: { anchor?: 'desktop' | 
     <button
       type="button"
       onClick={() => (open ? setOpen(false) : void handleOpen())}
-      className="relative flex items-center justify-center w-8 h-8 rounded-full hover:bg-stone-100 transition-colors"
+      className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-stone-100 transition-colors"
       aria-label="Notifications"
       title="Notifications"
       {...(anchor === 'mobile' ? { 'data-tour-mobile': 'notification-bell' } : { 'data-tour': 'notification-bell' })}

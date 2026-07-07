@@ -478,7 +478,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
         </span>
         <button
           onClick={() => setSelectedIds(new Set())}
-          className="text-xs font-medium text-white/80 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+          className="text-xs font-medium text-white/80 hover:text-white px-3 py-2 rounded-lg hover:bg-white/10 transition-colors"
         >
           Done
         </button>

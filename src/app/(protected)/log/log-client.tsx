@@ -1635,13 +1635,13 @@ export function LogClient({
                               <button
                                 onClick={saveEditBooking}
                                 disabled={savingEdit}
-                                className="text-xs font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                                className="text-xs font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] px-4 py-2.5 rounded-lg transition-colors disabled:opacity-40"
                               >
                                 {savingEdit ? 'Saving...' : 'Save'}
                               </button>
                               <button
                                 onClick={cancelEditBooking}
-                                className="text-xs font-medium text-stone-500 hover:text-stone-700 px-2 py-1.5"
+                                className="text-xs font-medium text-stone-500 hover:text-stone-700 px-3 py-2.5"
                               >
                                 Cancel
                               </button>
@@ -1659,7 +1659,7 @@ export function LogClient({
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteId(null)}
-                                      className="text-xs font-medium text-stone-500 hover:text-stone-700 px-2 py-1.5"
+                                      className="text-xs font-medium text-stone-500 hover:text-stone-700 px-3 py-2.5"
                                     >
                                       No
                                     </button>
@@ -1711,7 +1711,7 @@ export function LogClient({
                         {canEdit && !isEditing && !isCancelled && booking.paymentStatus !== 'paid' && (
                           <button
                             onClick={() => setPayBooking(booking)}
-                            className="text-stone-400 hover:text-[#8B2E4A] p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                            className="text-stone-400 hover:text-[#8B2E4A] p-2.5 rounded-lg hover:bg-stone-100 transition-colors"
                             title="Take card payment"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1724,7 +1724,7 @@ export function LogClient({
                         {canEdit && !isEditing && (
                           <button
                             onClick={() => startEditBooking(booking)}
-                            className="text-stone-400 hover:text-[#8B2E4A] p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                            className="text-stone-400 hover:text-[#8B2E4A] p-2.5 rounded-lg hover:bg-stone-100 transition-colors"
                             title="Edit price & notes"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

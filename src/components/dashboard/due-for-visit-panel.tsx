@@ -66,7 +66,7 @@ export function DueForVisitPanel({
             </div>
             <button
               onClick={() => onBook(r)}
-              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-2.5 py-1 rounded-full transition-colors"
+              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-3 py-2 rounded-full transition-colors"
             >
               Book →
             </button>
