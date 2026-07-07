@@ -13,29 +13,33 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getPendingCount, replayQueue, subscribePending } from '@/lib/offline-queue'
+import { getPhotoPendingCount, replayPhotoQueue, subscribePhotoPending } from '@/lib/offline-photo-queue'
 
 type Phase = 'hidden' | 'offline' | 'syncing' | 'synced'
 
 export function OfflineBanner() {
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>('hidden')
-  const [pending, setPending] = useState(0)
+  const [pendingJson, setPendingJson] = useState(0)
+  const [pendingPhotos, setPendingPhotos] = useState(0)
+  const pending = pendingJson + pendingPhotos
   const phaseRef = useRef<Phase>('hidden')
   phaseRef.current = phase
 
-  useEffect(() => subscribePending(setPending), [])
+  useEffect(() => subscribePending(setPendingJson), [])
+  useEffect(() => subscribePhotoPending(setPendingPhotos), [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
     const goOffline = () => setPhase('offline')
     const goOnline = () => {
-      if (getPendingCount() > 0) {
+      if (getPendingCount() + getPhotoPendingCount() > 0) {
         setPhase('syncing')
-        void replayQueue().then(() => {
+        void Promise.all([replayQueue(), replayPhotoQueue()]).then(() => {
           // Whatever synced, refresh server components so the UI reconciles.
           router.refresh()
-          if (getPendingCount() === 0) {
+          if (getPendingCount() + getPhotoPendingCount() === 0) {
             setPhase('synced')
             setTimeout(() => {
               if (phaseRef.current === 'synced') setPhase('hidden')

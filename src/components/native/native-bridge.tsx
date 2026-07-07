@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import { isNativeApp, nativePlatform } from '@/lib/detect-device'
 import { resumeNativePushIfEnabled, wirePushTapNavigation } from '@/lib/native-push'
 import { replayQueue } from '@/lib/offline-queue'
+import { replayPhotoQueue } from '@/lib/offline-photo-queue'
 
 export function NativeBridge() {
   const router = useRouter()
@@ -58,6 +59,7 @@ export function NativeBridge() {
         const state = await App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) {
             void replayQueue()
+            void replayPhotoQueue()
             router.refresh()
           }
         })
@@ -69,7 +71,10 @@ export function NativeBridge() {
       try {
         const { Network } = await import('@capacitor/network')
         const net = await Network.addListener('networkStatusChange', (s) => {
-          if (s.connected) void replayQueue()
+          if (s.connected) {
+            void replayQueue()
+            void replayPhotoQueue()
+          }
         })
         cleanups.push(() => net.remove())
       } catch { /* ignore */ }

@@ -22,6 +22,7 @@ const TakePaymentModal = dynamic(
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { queueableFetch, isQueued, subscribePending } from '@/lib/offline-queue'
 import { cachedFetch, saveSnapshot, cacheTimeLabel } from '@/lib/read-cache'
+import { enqueuePhoto } from '@/lib/offline-photo-queue'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -474,7 +475,22 @@ export function LogClient({
         toast(typeof j.error === 'string' ? j.error : 'Upload failed', 'error')
       }
     } catch {
-      toast('Network error — photo not uploaded', 'error')
+      // Phase 18 — offline: park the photo in the IndexedDB queue; it uploads
+      // automatically when connectivity returns.
+      const queued = await enqueuePhoto({
+        residentId: photoBooking.residentId,
+        bookingId: photoBooking.id,
+        caption: photoCaption.trim(),
+        sharedWithFamily: photoShare,
+        blob: photoFile,
+        fileName: photoFile.name || 'photo.jpg',
+      })
+      if (queued) {
+        toast("Photo saved offline — it'll upload when you're back online", 'success')
+        closePhotoCapture()
+      } else {
+        toast('Network error — photo not uploaded', 'error')
+      }
     } finally {
       setPhotoUploading(false)
     }
