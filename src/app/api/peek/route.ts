@@ -119,6 +119,51 @@ export async function GET(request: NextRequest) {
           }
         : null
 
+      // Phase 16 G11 — latest 3 style-gallery photos (signed URLs only) so a
+      // stylist can check "the cut she likes" from the peek drawer. Best-effort.
+      let stylePhotos: { url: string; caption: string | null }[] = []
+      try {
+        const { ensureResidentPhotosSchema } = await import('@/lib/resident-photos-ddl')
+        await ensureResidentPhotosSchema()
+        const { residentPhotos } = await import('@/db/schema')
+        const rows = await db.query.residentPhotos.findMany({
+          where: eq(residentPhotos.residentId, id),
+          orderBy: [desc(residentPhotos.createdAt)],
+          limit: 3,
+          columns: { path: true, caption: true },
+        })
+        if (rows.length > 0) {
+          const { createStorageClient, RESIDENT_PHOTOS_BUCKET } = await import('@/lib/supabase/storage')
+          const storage = createStorageClient()
+          stylePhotos = (
+            await Promise.all(
+              rows.map(async (p) => {
+                const { data: signed } = await storage.storage.from(RESIDENT_PHOTOS_BUCKET).createSignedUrl(p.path, 3600)
+                return signed?.signedUrl ? { url: signed.signedUrl, caption: p.caption } : null
+              }),
+            )
+          ).filter((p): p is { url: string; caption: string | null } => p !== null)
+        }
+      } catch {
+        // photos are a nice-to-have — never fail the peek
+      }
+
+      // Phase 16 G7 — recent no-shows (last 90 days) for the reliability chip
+      let recentNoShows = 0
+      try {
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+        const noShowRows = await db
+          .select({ id: bookings.id })
+          .from(bookings)
+          .where(and(
+            eq(bookings.residentId, id),
+            eq(bookings.status, 'no_show'),
+            eq(bookings.active, true),
+            gt(bookings.startTime, ninetyDaysAgo),
+          ))
+        recentNoShows = noShowRows.length
+      } catch { /* best-effort */ }
+
       return Response.json({
         data: {
           type: 'resident' as const,
@@ -133,6 +178,8 @@ export async function GET(request: NextRequest) {
             poaEmail: resident.poaEmail,
             lastVisits,
             nextVisit,
+            stylePhotos,
+            recentNoShows,
           },
         },
       })

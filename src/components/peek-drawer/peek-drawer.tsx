@@ -24,6 +24,9 @@ interface ResidentPeekData {
     poaEmail: string | null
     lastVisits: Array<{ startTime: string; serviceName: string; stylistName: string }>
     nextVisit: { startTime: string; serviceName: string; stylistName: string } | null
+    // Phase 16 G11/G7
+    stylePhotos?: Array<{ url: string; caption: string | null }>
+    recentNoShows?: number
   }
 }
 
@@ -202,8 +205,31 @@ function renderContent({
             <p className="text-sm text-stone-500 truncate">
               {r.roomNumber ? `Room ${r.roomNumber} · ` : ''}{r.facilityName}
             </p>
+            {(r.recentNoShows ?? 0) >= 2 && (
+              <span className="inline-block mt-1 text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                {r.recentNoShows} no-shows in 90 days
+              </span>
+            )}
           </div>
         </div>
+
+        {(r.stylePhotos?.length ?? 0) > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Style Photos</p>
+            <div className="flex gap-2 overflow-x-auto">
+              {r.stylePhotos!.map((p, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={p.url}
+                  alt={p.caption ?? 'Style photo'}
+                  title={p.caption ?? undefined}
+                  className="h-20 w-20 object-cover rounded-xl border border-stone-100 shrink-0"
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {r.poaName && (
           <div className="rounded-xl bg-stone-50 px-4 py-3">

@@ -1,7 +1,9 @@
 import { db } from '@/db'
-import { bookings, stylists } from '@/db/schema'
+import { bookings, residentPhotos, stylists } from '@/db/schema'
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
+import { createStorageClient, RESIDENT_PHOTOS_BUCKET } from '@/lib/supabase/storage'
+import { ensureResidentPhotosSchema } from '@/lib/resident-photos-ddl'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +86,41 @@ export default async function AppointmentsPage({
     rows.forEach((r) => stylistMap.set(r.id, r.name))
   }
 
+  // Phase 16 G11 — style photos the salon chose to share, per past booking.
+  // ONE inArray query scoped to THIS resident + shared_with_family only; signed
+  // URLs generated server-side (raw storage paths never reach the client).
+  const photosByBooking = new Map<string, { url: string; caption: string | null }[]>()
+  if (past.length > 0) {
+    try {
+      await ensureResidentPhotosSchema()
+      const photoRows = await db.query.residentPhotos.findMany({
+        where: and(
+          eq(residentPhotos.residentId, selected.residentId),
+          eq(residentPhotos.sharedWithFamily, true),
+          inArray(residentPhotos.bookingId, past.map((b) => b.id)),
+        ),
+        orderBy: [desc(residentPhotos.createdAt)],
+        limit: 60,
+        columns: { bookingId: true, path: true, caption: true },
+      })
+      if (photoRows.length > 0) {
+        const storage = createStorageClient()
+        await Promise.all(
+          photoRows.map(async (p) => {
+            if (!p.bookingId) return
+            const { data } = await storage.storage.from(RESIDENT_PHOTOS_BUCKET).createSignedUrl(p.path, 3600)
+            if (!data?.signedUrl) return
+            const list = photosByBooking.get(p.bookingId) ?? []
+            list.push({ url: data.signedUrl, caption: p.caption })
+            photosByBooking.set(p.bookingId, list)
+          }),
+        )
+      }
+    } catch (err) {
+      console.error('[portal appointments] photos load failed (non-fatal):', err)
+    }
+  }
+
   return (
     <div className="page-enter flex flex-col gap-5">
       <header>
@@ -139,15 +176,33 @@ export default async function AppointmentsPage({
             {past.map((b) => {
               const services = b.serviceNames?.join(', ') ?? 'Service'
               const stylistName = stylistMap.get(b.stylistId) ?? '—'
+              const photos = photosByBooking.get(b.id) ?? []
               return (
-                <li key={b.id} className="py-3 flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime))}</p>
-                    <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
+                <li key={b.id} className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime))}</p>
+                      <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
+                    </div>
+                    <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-emerald-50 text-emerald-700 shrink-0">
+                      Completed
+                    </span>
                   </div>
-                  <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-emerald-50 text-emerald-700 shrink-0">
-                    Completed
-                  </span>
+                  {photos.length > 0 && (
+                    <div className="flex gap-2 mt-2 overflow-x-auto">
+                      {photos.map((p, i) => (
+                        <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.url}
+                            alt={p.caption ?? 'Style photo'}
+                            title={p.caption ?? undefined}
+                            className="h-20 w-20 object-cover rounded-xl border border-stone-100"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </li>
               )
             })}

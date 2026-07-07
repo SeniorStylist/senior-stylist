@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
 import { ResidentLedger } from '@/components/residents/resident-ledger'
+import { ResidentPhotoGallery } from '@/components/residents/resident-photo-gallery'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
 import { CofPanel } from '@/components/payments/cof-panel'
 
@@ -656,6 +657,14 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       </div>
 
       <ResidentLedger residentId={resident.id} role={role} />
+
+      {/* Phase 16 G11 — style gallery */}
+      <div className="mt-4">
+        <ResidentPhotoGallery
+          residentId={resident.id}
+          canManage={role === 'admin' || role === 'super_admin' || role === 'facility_staff'}
+        />
+      </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <SavedCardsCard residentId={resident.id} role={role} />

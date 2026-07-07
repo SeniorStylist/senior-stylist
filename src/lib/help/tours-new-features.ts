@@ -229,4 +229,37 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
       'The stylist sees every status change',
     ],
   },
+  {
+    id: 'scripted-admin-photos',
+    title: 'Booking Photos & Style Gallery',
+    scenarioSummary: 'Capture finished styles and share them with families',
+    platform: 'desktop',
+    role: 'admin',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '',
+        route: '/log',
+        title: 'Snap it on the daily log',
+        description: 'After marking an appointment Done, the camera button saves a photo of the finished style — with an optional caption.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Share with the family',
+        description: 'Tick "Share with the family" and the photo appears on that appointment in their portal — a little delight after every visit.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'The style gallery',
+        description: 'Every photo lands in the resident\'s Style Gallery on their profile ("the cut she likes"). Stylists see the latest three in the peek drawer.',
+      },
+    ],
+    learnings: [
+      'Camera button on completed daily-log rows',
+      'Shared photos show in the family portal',
+      'The gallery remembers each resident\'s look',
+    ],
+  },
 ]
