@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.2',
+    date: '2026-07-07',
+    title: 'Mobile Comfort Pass & Offline Mode',
+    items: [
+      'Customize your bottom tabs — pick your 5 most-used, everything else lives under More',
+      'Works offline: your schedule and daily log show the last saved copy, and edits sync when wifi returns',
+      'Offline banner shows pending changes and confirms when everything synced',
+      'Bigger, easier tap targets across the app; dialogs open as bottom sheets on phones',
+      'Fixed overlapping buttons and cramped headers on small screens',
+    ],
+  },
+  {
     version: '3.1',
     date: '2026-07-07',
     title: 'Smart Scheduling, Health Scores & Spanish Portal',

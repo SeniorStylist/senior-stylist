@@ -2845,3 +2845,22 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Camera capture (daily log)**: photo button on completed rows opens a small sheet —
   `<input type="file" accept="image/*" capture="environment">`, preview, caption field,
   "Share with family" checkbox. Mirrors the check-scan upload affordance.
+### Phase 17 — Mobile comfort + offline patterns (2026-07-07)
+
+- **Bottom nav**: max 5 pinned tabs + a fixed "More" tab (⋯) opening a BottomSheet with the
+  remaining destinations and "Customize tabs". Never render more than 6 slots. New destinations
+  should default into More unless they're a daily-use surface for that role.
+- **Shared `Modal` is responsive**: below `md` it presents as a bottom sheet automatically —
+  new simple dialogs should just use `<Modal>`; only reach for a bespoke sheet when you need
+  drag-to-dismiss or custom chrome.
+- **Touch targets**: interactive elements on mobile-reachable surfaces need a ≥40px hit area
+  (44px preferred). Expand with padding, not visual size. NEVER gate mobile-reachable controls
+  behind hover-only reveal — use `opacity-100 md:opacity-0 md:group-hover:opacity-100`.
+- **Offline notice pill**: `text-[11px] font-semibold text-stone-600 bg-stone-100 border
+  border-stone-200 rounded-full px-3 py-1` — "Offline — showing saved copy from {time}". Use it
+  wherever a read is served from the read-cache.
+- **Floating chrome**: the onboarding checklist adds `--checklist-fab-clearance` on top of
+  `--app-floating-bottom`; keep new floating widgets out of the bottom-right FAB column or give
+  them their own clearance var.
+- **Header action rows on mobile**: when a page header has 3+ actions, split into a second
+  centered row below `md` (see /log) or hide labels behind `hidden sm:inline` (see /residents).

@@ -2728,3 +2728,27 @@ en/es dictionary, `ss_portal_lang` cookie, `<LanguageToggle>`), `monthly-report-
 
 **Deferred**: CSV auto-import via email forwarding (needs inbound-email infra; conflicts with
 review-first import convention).
+
+---
+
+## Phase 17 — Mobile Comfort Pass + Offline Mode (2026-07-07)
+
+Full detail in CLAUDE.md ("Phase 17" entry). No schema changes. Spec deltas:
+
+**Middleware**: matcher excludes `sw.js|manifest.json|offline.html|robots.txt` (PWA plumbing
+must bypass auth — was 307ing to /login for unauthenticated visitors).
+
+**New lib/components**: `src/lib/read-cache.ts` (localStorage network-first read cache —
+`cachedFetch`/`saveSnapshot`/`loadSnapshot`/`clearReadCache`; cleared on sign-out/portal logout),
+`src/components/offline/offline-banner.tsx` (root layout, web+native; replaces NativeBridge's
+native-only banner).
+
+**Mobile nav**: 5 pinned tabs + More sheet, per-user customization in localStorage
+`ss_mobile_nav:{userId}:{role}`; new `nav-more` tour anchor; MobileNav takes `userId`.
+
+**Offline behavior**: /log + dashboard reads fall back to cached copies with a "saved copy"
+notice; day-notes + booking-edit writes queue via queueableFetch; offline.html renders the
+cached day read-only. SW shell cache `ss-shell-v2`. Payments never queued/cached.
+
+**UI**: shared Modal presents as a bottom sheet below md; 44px touch-target pass; /log +
+/residents + portal-nav/header responsive fixes; new `--checklist-fab-clearance` CSS var.
