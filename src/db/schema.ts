@@ -1011,6 +1011,28 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
     .where(sql`status = 'pending'`),
 }))
 
+// ─── Resident Photos (Phase 16 G11 — style gallery + booking photos) ─────────
+// Multiple photos per resident (the single residents.photo_path headshot stays
+// separate). booking_id links a photo to the visit it was taken at; only
+// shared_with_family photos ever surface in the family portal. Storage paths are
+// NEVER returned to clients — signed URLs only (resident-photos bucket).
+// Self-bootstrapped by src/lib/resident-photos-ddl.ts (drizzle/0025).
+
+export const residentPhotos = pgTable('resident_photos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'cascade' }).notNull(),
+  bookingId: uuid('booking_id').references((): AnyPgColumn => bookings.id, { onDelete: 'set null' }),
+  path: text('path').notNull(),
+  caption: text('caption'),
+  sharedWithFamily: boolean('shared_with_family').default(false).notNull(),
+  createdBy: uuid('created_by'),
+  isDemo: boolean('is_demo').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  residentCreatedIdx: index('resident_photos_resident_created_idx').on(t.residentId, t.createdAt.desc()),
+}))
+
 // ─── Cancellation Waitlist (Phase 15 F4) ─────────────────────────────────────
 // Residents waiting for an earlier/open slot. When a booking is cancelled,
 // matchWaitlistOnCancellation (src/lib/waitlist-match.ts) notifies facility

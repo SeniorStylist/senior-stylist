@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
@@ -414,6 +414,63 @@ export function LogClient({
   // F6: offline write-queue pending count (pill in the header while syncing)
   const [pendingWrites, setPendingWrites] = useState(0)
   useEffect(() => subscribePending(setPendingWrites), [])
+
+  // Phase 16 G11 — booking photo capture ("here's the finished style")
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const [photoBooking, setPhotoBooking] = useState<{ id: string; residentId: string; residentName: string } | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoCaption, setPhotoCaption] = useState('')
+  const [photoShare, setPhotoShare] = useState(true)
+  const [photoUploading, setPhotoUploading] = useState(false)
+
+  const openPhotoCapture = (booking: { id: string; resident?: { id?: string; name?: string } | null }) => {
+    if (!booking.resident?.id) return
+    setPhotoBooking({ id: booking.id, residentId: booking.resident.id, residentName: booking.resident.name ?? 'Resident' })
+    setPhotoFile(null)
+    setPhotoCaption('')
+    setPhotoShare(true)
+    // Let state settle, then open the camera/picker
+    setTimeout(() => photoInputRef.current?.click(), 30)
+  }
+
+  const handlePhotoPicked = (file: File | null) => {
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  const uploadBookingPhoto = async () => {
+    if (!photoBooking || !photoFile) return
+    setPhotoUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', photoFile)
+      form.append('bookingId', photoBooking.id)
+      form.append('caption', photoCaption.trim())
+      form.append('sharedWithFamily', photoShare ? 'true' : 'false')
+      const res = await fetch(`/api/residents/${photoBooking.residentId}/photos`, { method: 'POST', body: form })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast(photoShare ? 'Photo saved — the family can see it in their portal' : 'Photo saved to the style gallery', 'success')
+        closePhotoCapture()
+      } else {
+        toast(typeof j.error === 'string' ? j.error : 'Upload failed', 'error')
+      }
+    } catch {
+      toast('Network error — photo not uploaded', 'error')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
+
+  const closePhotoCapture = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoBooking(null)
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    if (photoInputRef.current) photoInputRef.current.value = ''
+  }
   const today = new Date().toISOString().split('T')[0]
   const isToday = date === today
 
@@ -1678,6 +1735,19 @@ export function LogClient({
                               : '$'}
                           </button>
                         )}
+                        {/* Phase 16 G11 — booking photo (completed rows, own-section writers) */}
+                        {isCompleted && !isEditing && canEdit && booking.resident?.id && (
+                          <button
+                            onClick={() => openPhotoCapture(booking)}
+                            title="Add a photo of the finished style"
+                            className="text-stone-400 hover:text-[#8B2E4A] px-2 min-h-[44px] rounded-xl hover:bg-rose-50 transition-colors flex items-center justify-center"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                              <circle cx="12" cy="13" r="3" />
+                            </svg>
+                          </button>
+                        )}
                         {!isFinalized && !isCancelled && !isEditing && (
                           <>
                             {isCompleted || isNoShow ? (
@@ -1889,6 +1959,45 @@ export function LogClient({
         role={role}
         isMasterAdmin={false}
       />
+
+      {/* Phase 16 G11 — booking photo capture */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handlePhotoPicked(e.target.files?.[0] ?? null)}
+      />
+      {photoBooking && photoFile && photoPreview && (
+        <div className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={closePhotoCapture}>
+          <div
+            className="bg-white w-full md:max-w-sm rounded-t-3xl md:rounded-2xl p-5 space-y-3"
+            style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold text-stone-800">Photo for {photoBooking.residentName}</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoPreview} alt="Style photo preview" className="w-full max-h-64 object-contain rounded-xl bg-stone-50" />
+            <input
+              type="text"
+              value={photoCaption}
+              onChange={(e) => setPhotoCaption(e.target.value)}
+              maxLength={300}
+              placeholder="Caption — e.g. 'the cut she likes' (optional)"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20 transition-all"
+            />
+            <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+              <input type="checkbox" checked={photoShare} onChange={(e) => setPhotoShare(e.target.checked)} className="accent-[#8B2E4A] w-4 h-4" />
+              Share with the family in their portal
+            </label>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={closePhotoCapture} disabled={photoUploading}>Cancel</Button>
+              <Button size="sm" className="flex-1" loading={photoUploading} onClick={uploadBookingPhoto}>Save photo</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {payBooking && (
         <TakePaymentModal

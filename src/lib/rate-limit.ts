@@ -45,6 +45,9 @@ type Bucket =
   | 'paymentCollect'
   | 'notifications'
   | 'waitlist'
+  | 'residentPhotos'
+  | 'copyDay'
+  | 'portalServices'
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}` }> = {
   signup: { tokens: 5, window: '1 h' },
@@ -92,6 +95,9 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   paymentCollect: { tokens: 60, window: '1 h' },
   notifications: { tokens: 120, window: '1 m' },
   waitlist: { tokens: 30, window: '1 h' },
+  residentPhotos: { tokens: 30, window: '1 h' },
+  copyDay: { tokens: 10, window: '1 h' },
+  portalServices: { tokens: 60, window: '1 m' },
 }
 
 let redis: Redis | null = null
