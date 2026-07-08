@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.7',
+    date: '2026-07-07',
+    title: 'Speed',
+    items: [
+      'Much faster app and site: background page-priming trimmed way down so it never competes with your taps',
+      'Bottom tabs always switch — if a page is slow to respond, the app forces it through within seconds',
+    ],
+  },
+  {
     version: '3.6',
     date: '2026-07-07',
     title: 'Bookkeeper Fixes & Self-Healing Updates',

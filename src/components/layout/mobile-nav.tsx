@@ -11,7 +11,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { haptics } from '@/lib/haptics'
 import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
@@ -198,6 +198,18 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
   const router = useRouter()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  // Phase 24 escape hatch: a tapped tab optimistically highlights, but if the
+  // soft navigation's RSC fetch hangs (slow server, flaky network) the page
+  // never moves and the highlight lies. If the pathname hasn't changed 4s
+  // after a tap, force a HARD navigation — it goes through the SW page cache,
+  // so it even works offline for cached pages. Tabs must ALWAYS switch.
+  const escapeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const armEscapeHatch = (href: string) => {
+    if (escapeTimerRef.current) clearTimeout(escapeTimerRef.current)
+    escapeTimerRef.current = setTimeout(() => {
+      if (window.location.pathname !== href) window.location.assign(href)
+    }, 4_000)
+  }
   const [customizing, setCustomizing] = useState(false)
   const available = navItems.filter((item) => item.roles.includes(role as NavRole))
   // SSR renders the role default; the saved customization applies after mount
@@ -232,7 +244,15 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
   useEffect(() => {
     setPendingHref(null)
     setMoreOpen(false)
+    if (escapeTimerRef.current) {
+      clearTimeout(escapeTimerRef.current)
+      escapeTimerRef.current = null
+    }
   }, [pathname])
+
+  useEffect(() => () => {
+    if (escapeTimerRef.current) clearTimeout(escapeTimerRef.current)
+  }, [])
 
   const pinnedItems = pinned
     .map((href) => available.find((i) => i.href === href))
@@ -289,7 +309,7 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
               href={item.href}
               aria-current={active ? 'page' : undefined}
               prefetch={true}
-              onClick={() => { haptics.selection(); setPendingHref(item.href) }}
+              onClick={() => { haptics.selection(); setPendingHref(item.href); armEscapeHatch(item.href) }}
               data-tour-mobile={item.slug}
               className={cn(
                 'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-all duration-75 active:scale-95 active:opacity-70 min-w-0',
@@ -346,6 +366,7 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
                       haptics.selection()
                       setMoreOpen(false)
                       setPendingHref(item.href)
+                      armEscapeHatch(item.href)
                       router.push(item.href)
                     }}
                     className={cn(

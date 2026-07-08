@@ -9,16 +9,20 @@
 
 import { useEffect } from 'react'
 
-// Per-role destinations to pre-warm. Mirrors the mobile-nav destination set;
-// keep in sync when adding a top-level page. Cheap: one HTML render each, once
-// per session, at idle.
+// Per-role routes to pre-warm for offline use. HARD BUDGET: ≤3 routes.
+// Every warm request is a FULL SSR render serialized through the max:1 DB
+// connection — background warming directly steals from the user's own taps
+// (Phase 24: an 8-route list made tab navigation hang for the first ~30s of
+// every session). Only the offline-critical day-flow routes are warmed; every
+// other page falls back to the offline hub when offline, and pages the user
+// actually visits cache naturally through real navigations.
 const WARM_ROUTES: Record<string, string[]> = {
-  admin: ['/dashboard', '/log', '/residents', '/signup-sheet', '/analytics', '/payroll', '/settings', '/help'],
-  super_admin: ['/dashboard', '/log', '/residents', '/signup-sheet', '/analytics', '/payroll', '/settings', '/help'],
-  facility_staff: ['/dashboard', '/log', '/signup-sheet', '/residents', '/settings', '/help'],
-  stylist: ['/dashboard', '/log', '/my-account', '/help'],
-  bookkeeper: ['/log', '/analytics', '/payroll', '/settings', '/help'],
-  viewer: ['/help'],
+  admin: ['/log', '/dashboard'],
+  super_admin: ['/log', '/dashboard'],
+  facility_staff: ['/log', '/dashboard'],
+  stylist: ['/log', '/dashboard', '/my-account'],
+  bookkeeper: ['/log'],
+  viewer: [],
 }
 
 let warmedThisSession = false
@@ -40,28 +44,33 @@ function warmPages(role: string) {
   warmedThisSession = true
   try { sessionStorage.setItem('ss_warmed', '1') } catch { /* ignore */ }
   const routes = WARM_ROUTES[role] ?? WARM_ROUTES.admin
+  if (routes.length === 0) return
   const run = async () => {
     for (const route of routes) {
       if (!navigator.onLine) return
       if (document.cookie.includes('ss_tutorial_mode=')) return
+      // Never warm while the tab is backgrounded — the user may be actively
+      // using another tab/app against the same server.
+      if (document.visibilityState === 'hidden') return
       try {
         // x-ss-warm routes this through the SW's page-cache branch; the
         // response is stored for offline use and otherwise discarded.
         await fetch(route, { headers: { 'x-ss-warm': '1' } })
       } catch { /* offline mid-run — stop quietly */ }
-      // Breathe between renders — one at a time, never a stampede.
-      await new Promise((r) => setTimeout(r, 400))
+      // Long breather — warming must never compete with the user's own taps.
+      await new Promise((r) => setTimeout(r, 3_000))
     }
   }
   const start = () => { void run() }
   if ('requestIdleCallback' in window) {
-    // 5s floor + idle callback so warming never competes with initial load.
+    // 15s floor + idle callback: the first half-minute of a session belongs to
+    // the user, not to background warming.
     setTimeout(() => {
       ;(window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void })
         .requestIdleCallback(start, { timeout: 10_000 })
-    }, 5_000)
+    }, 15_000)
   } else {
-    setTimeout(start, 8_000)
+    setTimeout(start, 20_000)
   }
 }
 
