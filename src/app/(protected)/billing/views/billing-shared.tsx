@@ -100,16 +100,9 @@ export interface BillingSummary {
   agingBuckets?: { b0_30: number; b31_60: number; b61_90: number; b90plus: number }
 }
 
-const USD = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
-export function formatDollars(cents: number): string {
-  return USD.format((cents ?? 0) / 100)
-}
+// Phase 25 — canonical formatDollars lives in src/lib/format.ts; re-exported
+// here for the existing billing-view importers.
+export { formatDollars } from '@/lib/format'
 
 export function revShareLabel(type: string | null | undefined): string {
   if (type === 'facility_deducts') return 'Facility deducts revenue share before paying'

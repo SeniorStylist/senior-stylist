@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { downloadExportFile } from '@/lib/exports/download-export'
 import { computeNetPay } from '@/lib/payroll'
+import { formatDollars } from '@/lib/format'
 
 interface DetailStylist {
   id: string
@@ -74,10 +75,6 @@ const DEDUCTION_LABEL: Record<string, string> = {
   supplies: 'Supplies',
   advance: 'Advance',
   other: 'Other',
-}
-
-function formatDollars(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
 }
 
 function formatRange(start: string, end: string): string {

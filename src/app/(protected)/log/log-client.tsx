@@ -23,7 +23,11 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { queueableFetch, isQueued, subscribePending } from '@/lib/offline-queue'
 import { cachedFetch, saveSnapshot, cacheTimeLabel } from '@/lib/read-cache'
 import { enqueuePhoto } from '@/lib/offline-photo-queue'
+import { filterFacilitiesForSwitcher, switchFacility } from '@/lib/facility-switch'
 import type { BookingUpdateInput } from '@/lib/validation/booking-update'
+import type { BookingCreateInput } from '@/lib/validation/booking-create'
+import type { LogEntryInput } from '@/lib/validation/log-entry'
+import type { ResidentCreateInput } from '@/lib/validation/resident-create'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
@@ -695,7 +699,7 @@ export function LogClient({
       const method = existing ? ('PUT' as const) : ('POST' as const)
       const body = existing
         ? { finalized: true, notes: notes[stylistId] ?? existing.notes ?? '' }
-        : { stylistId, date, finalized: true, notes: notes[stylistId] ?? '' }
+        : ({ stylistId, date, finalized: true, notes: notes[stylistId] ?? '' } satisfies LogEntryInput)
 
       // F6: queued offline on network failure — keep the optimistic state
       const res = await queueableFetch('Finalize day', url, { method, body })
@@ -763,7 +767,7 @@ export function LogClient({
       const method = existing ? 'PUT' : 'POST'
       const body = existing
         ? { notes: notes[stylistId] ?? '' }
-        : { stylistId, date, notes: notes[stylistId] ?? '' }
+        : ({ stylistId, date, notes: notes[stylistId] ?? '' } satisfies LogEntryInput)
       const res = await queueableFetch('Day notes', url, { method, body })
       if (isQueued(res)) {
         toast('Saved offline — will sync when you\'re back online', 'success')
@@ -821,7 +825,7 @@ export function LogClient({
           startTime: startTime.toISOString(),
           notes: 'Walk-in',
           ...(wiAddonServiceIds.length > 0 ? { addonServiceIds: wiAddonServiceIds } : {}),
-        },
+        } satisfies BookingCreateInput,
       })
       if (isQueued(res)) {
         setShowWalkIn(false)
@@ -1189,7 +1193,7 @@ export function LogClient({
                               body: JSON.stringify({
                                 name: wiCreateName.trim(),
                                 roomNumber: wiCreateRoom.trim() || undefined,
-                              }),
+                              } satisfies ResidentCreateInput),
                             })
                             const json = await res.json()
                             if (!res.ok) {
@@ -1598,25 +1602,29 @@ export function LogClient({
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                               />
                             </div>
-                            {/* Resident */}
+                            {/* Resident — real <select> (Phase 25). The old invisible
+                                <datalist> silently dropped typed names that didn't exactly
+                                match; edit only ever re-points to an existing resident. */}
                             <div>
                               <label className="text-[10px] text-stone-400 uppercase tracking-wide">Resident</label>
-                              <input
-                                type="text"
-                                list={`edit-residents-${booking.id}`}
-                                value={editResidentName}
+                              <select
+                                value={editResidentId ?? ''}
                                 onChange={(e) => {
-                                  const val = e.target.value
-                                  const matched = residents.find(r => r.name.toLowerCase() === val.toLowerCase())
-                                  setEditResidentName(val)
-                                  setEditResidentId(matched?.id ?? null)
+                                  const picked = residents.find(r => r.id === e.target.value)
+                                  setEditResidentId(picked?.id ?? null)
+                                  setEditResidentName(picked?.name ?? '')
                                 }}
-                                placeholder="Resident name…"
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
-                              />
-                              <datalist id={`edit-residents-${booking.id}`}>
-                                {residents.map(r => <option key={r.id} value={r.name} />)}
-                              </datalist>
+                              >
+                                {/* Current resident may be missing from the active list (inactive/demo) */}
+                                {editResidentId && !residents.some(r => r.id === editResidentId) && (
+                                  <option value={editResidentId}>{editResidentName}</option>
+                                )}
+                                {!editResidentId && <option value="">Select resident…</option>}
+                                {residents.map(r => (
+                                  <option key={r.id} value={r.id}>{r.name}{r.roomNumber ? ` · Rm ${r.roomNumber}` : ''}</option>
+                                ))}
+                              </select>
                             </div>
                             {/* Room # — writes to the resident record (residents change rooms) */}
                             <div>
@@ -2196,24 +2204,13 @@ function LogFacilityPicker({
   const [q, setQ] = useState('')
   const [switching, setSwitching] = useState(false)
   const current = facilities.find((f) => f.id === currentFacilityId)
-  const filtered = q.trim()
-    ? facilities.filter(
-        (f) =>
-          f.name.toLowerCase().includes(q.toLowerCase()) ||
-          (f.facilityCode ?? '').toLowerCase().includes(q.toLowerCase()),
-      )
-    : facilities
+  const filtered = filterFacilitiesForSwitcher(facilities, q)
 
   const pick = async (id: string) => {
     if (id === currentFacilityId) { setOpen(false); return }
     setSwitching(true)
     try {
-      await fetch('/api/facilities/select', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facilityId: id }),
-      })
-      window.location.reload()
+      await switchFacility(id) // shared select + HARD reload (Phase 25)
     } catch {
       setSwitching(false)
     }

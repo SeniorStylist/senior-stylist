@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { TUTORIAL_CATALOG, startTour, type Tutorial } from '@/lib/help/tours'
+import { TUTORIAL_CATALOG, type Tutorial } from '@/lib/help/tours'
+import { launchTutorial } from '@/lib/help/scripted-tour-map'
 import { TutorialCard } from '@/components/help/tutorial-card'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { Search, BookOpen, ArrowRight } from 'lucide-react'
@@ -155,9 +156,12 @@ function HelpInner({ role, isMaster, completedTours, helpProgress }: HelpClientP
   const tourParam = searchParams.get('tour')
   useEffect(() => {
     if (!tourParam) return
-    void startTour(tourParam)
+    // Phase 25 — route through launchTutorial (the single tour entry point) so
+    // ?tour= links run the scripted variant + demo seeding like TutorialCard,
+    // instead of silently falling back to the legacy engine.
+    void launchTutorial(tourParam, isMobile, () => router.refresh())
     router.replace('/help', { scroll: false })
-  }, [tourParam, router])
+  }, [tourParam, router, isMobile])
 
   const allTutorials = useMemo(
     () => visibleFor(role, isMaster, browseAll, isMobile),

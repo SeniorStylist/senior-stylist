@@ -18,6 +18,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { useLongPress } from '@/hooks/use-long-press'
 import { MergeDuplicatesModal } from './merge-duplicates-modal'
+import type { ResidentCreateInput } from '@/lib/validation/resident-create'
 
 interface ResidentWithStats extends Resident {
   lastVisit: string | null
@@ -153,7 +154,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
           name: formSnapshot.name.trim(),
           roomNumber: formSnapshot.roomNumber.trim() || undefined,
           phone: formSnapshot.phone.trim() || undefined,
-        }),
+        } satisfies ResidentCreateInput),
       })
       const json = await res.json()
       if (res.ok) {

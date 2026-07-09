@@ -2,12 +2,9 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
+import { formatDollars } from '@/lib/format'
 
 // ── Stat formatting ──────────────────────────────────────────────────────────
-
-function formatDollars(cents: number): string {
-  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 type StatDef = { key: string; label: string; isDollars?: boolean; highlight?: boolean }
 

@@ -4,7 +4,7 @@ import { forwardRef, useState } from 'react'
 import { Calendar, ChevronDown, ClipboardList, GripVertical } from 'lucide-react'
 import type { SignupSheetEntryWithRelations } from '@/types'
 import { cn } from '@/lib/utils'
-import { formatDateInTz } from '@/lib/time'
+import { formatDateChip } from '@/lib/format'
 
 interface StylistPendingEntriesProps {
   entries: SignupSheetEntryWithRelations[]
@@ -128,9 +128,3 @@ function formatHm(hhmm: string): string {
   return `${h12}:${String(m).padStart(2, '0')}${period}`
 }
 
-function formatDateChip(yyyymmdd: string, tz: string): string {
-  const [y, m, d] = yyyymmdd.split('-').map(Number)
-  if (!y || !m || !d) return yyyymmdd
-  const anchor = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
-  return formatDateInTz(anchor, tz)
-}

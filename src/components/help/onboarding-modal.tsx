@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
-import { startTour } from '@/lib/help/tours'
+import { useRouter } from 'next/navigation'
+import { isMobile } from '@/lib/help/tours'
+import { launchTutorial } from '@/lib/help/scripted-tour-map'
 
 interface OnboardingModalProps {
   /** User role (already normalized — super_admin → admin) */
@@ -18,6 +20,7 @@ const ROLE_TOUR_ID: Record<string, string> = {
 }
 
 export function OnboardingModal({ role }: OnboardingModalProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(true)
   const [busy, setBusy] = useState(false)
 
@@ -35,7 +38,9 @@ export function OnboardingModal({ role }: OnboardingModalProps) {
   const handleStart = async () => {
     await markSeen()
     setOpen(false)
-    void startTour(ROLE_TOUR_ID[role] ?? 'stylist-calendar')
+    // Phase 25 — launchTutorial is the single tour entry point (scripted
+    // variant + demo seeding when mapped, legacy fallback otherwise).
+    void launchTutorial(ROLE_TOUR_ID[role] ?? 'stylist-calendar', isMobile(), () => router.refresh())
   }
 
   const handleSkip = async () => {

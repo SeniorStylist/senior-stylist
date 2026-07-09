@@ -10,7 +10,6 @@ import {
 } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { eq, and, gte, lte, lt, gt, or, inArray } from 'drizzle-orm'
-import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
@@ -22,33 +21,11 @@ import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { bookingCreateSchema } from '@/lib/validation/booking-create'
 
-const createSchema = z.object({
-  residentId: z.string().uuid().optional(),
-  // Phase 18 — offline walk-in for a brand-new resident: the client can't run
-  // the create-resident → book chain offline, so the queued booking POST
-  // carries the new resident inline and we create both atomically here.
-  newResident: z
-    .object({
-      name: z.string().min(1).max(200),
-      roomNumber: z.string().max(50).optional(),
-    })
-    .optional(),
-  stylistId: z.string().uuid().optional(),
-  serviceId: z.string().uuid().optional(),
-  serviceIds: z.array(z.string().uuid()).min(1).optional(),
-  startTime: z.string().datetime(),
-  notes: z.string().max(2000).optional(),
-  selectedQuantity: z.number().int().min(1).max(1000).optional(),
-  selectedOption: z.string().max(200).optional(),
-  addonChecked: z.boolean().optional(),
-  addonServiceIds: z.array(z.string().uuid()).optional().default([]),
-  tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
-}).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
-  message: 'serviceId or serviceIds is required',
-}).refine((d) => !!d.residentId !== !!d.newResident, {
-  message: 'Provide exactly one of residentId or newResident',
-})
+// Phase 25 — schema lives in src/lib/validation/booking-create.ts so client
+// payload builders can type against BookingCreateInput (drift = tsc error).
+const createSchema = bookingCreateSchema
 
 export async function GET(request: NextRequest) {
   try {

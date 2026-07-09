@@ -3,16 +3,14 @@ import { db } from '@/db'
 import { residents } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
-import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { residentCreateSchema } from '@/lib/validation/resident-create'
 
-const createSchema = z.object({
-  name: z.string().min(1).max(200),
-  roomNumber: z.string().max(50).optional(),
-  phone: z.string().max(50).optional(),
-})
+// Phase 25 — schema lives in src/lib/validation/resident-create.ts so client
+// payload builders can type against ResidentCreateInput (drift = tsc error).
+const createSchema = residentCreateSchema
 
 export async function GET(request: NextRequest) {
   try {

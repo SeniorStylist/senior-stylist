@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar } from 'lucide-react'
 import type { Resident, Service, SignupSheetEntryWithRelations, Stylist } from '@/types'
 import { useToast } from '@/components/ui/toast'
-import { formatDateInTz } from '@/lib/time'
+import { formatDateChip } from '@/lib/format'
 
 interface SignupSheetPanelProps {
   open: boolean
@@ -644,13 +644,6 @@ function formatHm(hhmm: string): string {
 }
 
 // "YYYY-MM-DD" → "Mon Jun 3" in the facility tz
-function formatDateChip(yyyymmdd: string, tz: string): string {
-  const [y, m, d] = yyyymmdd.split('-').map(Number)
-  if (!y || !m || !d) return yyyymmdd
-  // Anchor at noon UTC of that date so tz conversion doesn't shift the weekday
-  const anchor = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
-  return formatDateInTz(anchor, tz)
-}
 
 /**
  * Phase 12S — admin/facility_staff cross-stylist view.

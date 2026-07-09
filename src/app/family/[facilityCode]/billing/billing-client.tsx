@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
 import { usePortalT, portalLocale, type PortalLang } from '@/lib/portal-i18n'
+import { formatDollars } from '@/lib/format'
 
 interface Invoice {
   id: string
@@ -29,10 +30,6 @@ interface Props {
   facilityPhone: string | null
   facilityEmail: string | null
   invoices: Invoice[]
-}
-
-function formatDollars(cents: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents ?? 0) / 100)
 }
 
 function formatDate(d: string, locale: string) {

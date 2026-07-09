@@ -1124,31 +1124,40 @@ export function OcrImportModal({
 
                               {/* Fields grid: 2-col on all sizes */}
                               <div className="grid grid-cols-2 gap-2">
-                                {/* Resident combo input */}
+                                {/* Resident — visible dropdown of existing residents + "New
+                                    resident" option revealing a text input (Phase 25 — the last
+                                    <input list> + <datalist> in this modal; it rendered as an
+                                    invisible free-text field on most browsers). */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Resident</label>
-                                  <input
-                                    type="text"
-                                    list={`residents-${activeTab}-${ei}`}
-                                    value={entry.residentName}
+                                  <select
+                                    value={entry.residentId ?? '__create__'}
                                     onChange={(e) => {
                                       const val = e.target.value
-                                      const matched = residents.find(
-                                        r => r.name.toLowerCase() === val.toLowerCase()
-                                      )
-                                      updateEntry(activeTab, ei, {
-                                        residentName: val,
-                                        residentId: matched?.id ?? null,
-                                      })
+                                      if (val === '__create__') {
+                                        // Keep residentName so an OCR-read name stays in the text input
+                                        updateEntry(activeTab, ei, { residentId: null })
+                                      } else {
+                                        const picked = residents.find(r => r.id === val)
+                                        updateEntry(activeTab, ei, { residentId: val, residentName: picked?.name ?? '' })
+                                      }
                                     }}
-                                    placeholder="Type or pick…"
                                     className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]"
-                                  />
-                                  <datalist id={`residents-${activeTab}-${ei}`}>
+                                  >
                                     {residents.map(r => (
-                                      <option key={r.id} value={r.name} />
+                                      <option key={r.id} value={r.id}>{r.name}{r.roomNumber ? ` · Rm ${r.roomNumber}` : ''}</option>
                                     ))}
-                                  </datalist>
+                                    <option value="__create__">➕ New resident (type name below)…</option>
+                                  </select>
+                                  {!entry.residentId && (
+                                    <input
+                                      type="text"
+                                      value={entry.residentName}
+                                      onChange={(e) => updateEntry(activeTab, ei, { residentName: e.target.value })}
+                                      placeholder="New resident name…"
+                                      className="w-full min-h-[44px] text-xs border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A] mt-1.5"
+                                    />
+                                  )}
                                   {!entry.residentId && entry.residentName && (
                                     <p className="text-[10px] text-stone-400 mt-0.5">Will create new resident</p>
                                   )}

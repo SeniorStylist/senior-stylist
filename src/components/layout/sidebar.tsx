@@ -8,6 +8,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
+import { loadFacilitySortOrder, saveFacilitySortOrder, sortFacilitiesForSwitcher, filterFacilitiesForSwitcher, switchFacility, type FacilitySortOrder } from '@/lib/facility-switch'
 import { NeedsReviewBadge } from '@/components/layout/needs-review-badge'
 import { FeedbackBadge } from '@/components/layout/feedback-badge'
 import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-badge'
@@ -232,28 +233,18 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [facilitySearch, setFacilitySearch] = useState('')
-  const [facilitySortOrder, setFacilitySortOrder] = useState<'fid' | 'name'>(() => {
-    if (typeof window === 'undefined') return 'fid'
-    return (localStorage.getItem('facilitySortOrder') as 'fid' | 'name') ?? 'fid'
-  })
-  const sortedFacilities = useMemo(() => {
-    return [...allFacilities].sort((a, b) => {
-      if (facilitySortOrder === 'name') return (a.name ?? '').localeCompare(b.name ?? '')
-      const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-      const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-      return numA - numB
-    })
-  }, [allFacilities, facilitySortOrder])
-  const filteredSwitcherFacilities = useMemo(() => {
-    const q = facilitySearch.trim().toLowerCase()
-    if (!q) return sortedFacilities
-    return sortedFacilities.filter(
-      (f) => f.name?.toLowerCase().includes(q) || f.facilityCode?.toLowerCase().includes(q)
-    )
-  }, [sortedFacilities, facilitySearch])
-  const handleSortChange = (order: 'fid' | 'name') => {
+  const [facilitySortOrder, setFacilitySortOrder] = useState<FacilitySortOrder>(loadFacilitySortOrder)
+  const sortedFacilities = useMemo(
+    () => sortFacilitiesForSwitcher(allFacilities, facilitySortOrder),
+    [allFacilities, facilitySortOrder]
+  )
+  const filteredSwitcherFacilities = useMemo(
+    () => filterFacilitiesForSwitcher(sortedFacilities, facilitySearch),
+    [sortedFacilities, facilitySearch]
+  )
+  const handleSortChange = (order: FacilitySortOrder) => {
     setFacilitySortOrder(order)
-    localStorage.setItem('facilitySortOrder', order)
+    saveFacilitySortOrder(order)
   }
 
   // When the switcher opens, center the currently-selected facility in the list
@@ -280,16 +271,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
     setSwitching(true)
     setSwitcherOpen(false)
     setFacilitySearch('')
-    await fetch('/api/facilities/select', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ facilityId }),
-    })
-    // HARD reload — router.refresh() re-runs server components but does NOT
-    // re-run client useState(initialProps) initializers, so /log and /billing
-    // kept showing the OLD facility's data ("switching doesn't work"). Same
-    // house rule as debug impersonation. (Phase 23)
-    window.location.reload()
+    await switchFacility(facilityId) // shared select + HARD reload (Phase 25)
   }
 
   const userInitials = user.user_metadata?.full_name

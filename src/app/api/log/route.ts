@@ -3,17 +3,14 @@ import { db } from '@/db'
 import { bookings, logEntries, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, gte, lt } from 'drizzle-orm'
-import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { toClientJson } from '@/lib/sanitize'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { logEntryCreateSchema } from '@/lib/validation/log-entry'
 
-const createSchema = z.object({
-  stylistId: z.string().uuid(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  notes: z.string().max(2000).optional(),
-  finalized: z.boolean().optional(),
-})
+// Phase 25 — schema lives in src/lib/validation/log-entry.ts so client
+// payload builders can type against LogEntryInput (drift = tsc error).
+const createSchema = logEntryCreateSchema
 
 export async function GET(request: NextRequest) {
   try {

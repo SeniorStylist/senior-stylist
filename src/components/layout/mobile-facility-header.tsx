@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
+import { loadFacilitySortOrder, saveFacilitySortOrder, sortFacilitiesForSwitcher, filterFacilitiesForSwitcher, switchFacility, type FacilitySortOrder } from '@/lib/facility-switch'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 
 interface FacilityOption {
@@ -33,41 +34,24 @@ export function MobileFacilityHeader({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [switching, setSwitching] = useState(false)
-  const [facilitySortOrder, setFacilitySortOrder] = useState<'fid' | 'name'>(() => {
-    if (typeof window === 'undefined') return 'fid'
-    return (localStorage.getItem('facilitySortOrder') as 'fid' | 'name') ?? 'fid'
-  })
+  const [facilitySortOrder, setFacilitySortOrder] = useState<FacilitySortOrder>(loadFacilitySortOrder)
 
   const showSwitcher = allFacilities.length > 1 && (role === 'admin' || role === 'bookkeeper')
 
-  const sortedFacilities = useMemo(() => {
-    return [...allFacilities].sort((a, b) => {
-      if (facilitySortOrder === 'name') return (a.name ?? '').localeCompare(b.name ?? '')
-      const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-      const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-      return numA - numB
-    })
-  }, [allFacilities, facilitySortOrder])
+  const sortedFacilities = useMemo(
+    () => sortFacilitiesForSwitcher(allFacilities, facilitySortOrder),
+    [allFacilities, facilitySortOrder]
+  )
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return sortedFacilities
-    const q = search.toLowerCase()
-    return sortedFacilities.filter(
-      (f) => f.name?.toLowerCase().includes(q) || f.facilityCode?.toLowerCase().includes(q)
-    )
-  }, [sortedFacilities, search])
+  const filtered = useMemo(
+    () => filterFacilitiesForSwitcher(sortedFacilities, search),
+    [sortedFacilities, search]
+  )
 
   const handleSelect = async (facilityId: string) => {
     setSwitching(true)
     setOpen(false)
-    await fetch('/api/facilities/select', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ facilityId }),
-    })
-    // HARD reload — soft refresh leaves useState-seeded page content on the old
-    // facility (see sidebar.tsx handleSelectFacility). (Phase 23)
-    window.location.reload()
+    await switchFacility(facilityId) // shared select + HARD reload (Phase 25)
   }
 
   return (
@@ -124,7 +108,7 @@ export function MobileFacilityHeader({
               key={opt}
               onClick={() => {
                 setFacilitySortOrder(opt)
-                localStorage.setItem('facilitySortOrder', opt)
+                saveFacilitySortOrder(opt)
               }}
               className="px-2.5 py-0.5 rounded-full text-xs transition-colors"
               style={{

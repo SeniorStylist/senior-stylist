@@ -20,6 +20,7 @@ import type { Resident, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
 import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
+import type { ResidentCreateInput } from '@/lib/validation/resident-create'
 
 interface BookingModalProps {
   open: boolean
@@ -745,7 +746,7 @@ export function BookingModal({
                             body: JSON.stringify({
                               name: createResidentName.trim(),
                               roomNumber: createResidentRoom.trim() || undefined,
-                            }),
+                            } satisfies ResidentCreateInput),
                           })
                           const json = await res.json()
                           if (!res.ok) {

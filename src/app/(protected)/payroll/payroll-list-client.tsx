@@ -10,6 +10,7 @@ import { Wallet } from 'lucide-react'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { formatDollars } from '@/lib/format'
 
 export interface PayPeriodSummary {
   id: string
@@ -32,10 +33,6 @@ const PERIOD_LABEL: Record<string, string> = {
   weekly: 'Weekly',
   biweekly: 'Bi-weekly',
   monthly: 'Monthly',
-}
-
-function formatDollars(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
 }
 
 function formatRange(start: string, end: string): string {

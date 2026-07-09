@@ -5,12 +5,9 @@ import { and, asc, eq, gte, inArray } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { getPortalT } from '@/lib/portal-i18n-server'
 import { portalLocale } from '@/lib/portal-i18n'
+import { formatDollars } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
-
-function formatDollars(cents: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents ?? 0) / 100)
-}
 
 function formatDateTime(d: Date, locale: string) {
   return new Intl.DateTimeFormat(locale, {
