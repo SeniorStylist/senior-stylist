@@ -406,6 +406,9 @@ export const bookings = pgTable('bookings', {
   importBatchIdx: index('bookings_import_batch_idx').on(t.importBatchId).where(sql`import_batch_id IS NOT NULL`),
   // log + reports filter on (facility_id, status) WHERE active = true
   facilityStatusIdx: index('bookings_facility_status_idx').on(t.facilityId, t.status).where(sql`active = true`),
+  // Phase 25: per-resident aggregates (residents page GROUP BY, due-for-visit
+  // window PARTITION BY resident_id ORDER BY start_time)
+  facilityResidentStartIdx: index('bookings_facility_resident_start_idx').on(t.facilityId, t.residentId, t.startTime.desc()),
 }))
 
 export const invites = pgTable('invites', {

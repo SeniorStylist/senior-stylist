@@ -1,10 +1,10 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { residents, bookings } from '@/db/schema'
+import { residents } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
-import { eq, and, ne } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { ResidentsPageClient } from './residents-page-client'
 
 export default async function ResidentsPage() {
@@ -18,7 +18,12 @@ export default async function ResidentsPage() {
   const tutorialMode = await isTutorialModeActive()
 
   try {
-  const [residentsList, bookingsList] = await Promise.all([
+  // Phase 25 — per-resident stats are aggregated in Postgres. The old version
+  // streamed EVERY non-cancelled booking in the facility (unbounded — years of
+  // history) over the max:1 pooled connection just to reduce it in JS.
+  // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
+  const ninetyDaysAgoIso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  const [residentsList, statsRows] = await Promise.all([
     db.query.residents.findMany({
       where: and(
         eq(residents.facilityId, facilityUser.facilityId),
@@ -27,43 +32,44 @@ export default async function ResidentsPage() {
       ),
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
-    db.query.bookings.findMany({
-      where: and(
-        eq(bookings.facilityId, facilityUser.facilityId),
-        ne(bookings.status, 'cancelled'),
-        eq(bookings.active, true) // rolled-back imports must not count in stats
-      ),
-      orderBy: (t, { desc }) => [desc(t.startTime)],
-    }),
+    db.execute(sql`
+      SELECT
+        resident_id,
+        MAX(start_time) AS last_visit,
+        COALESCE(SUM(COALESCE(price_cents, 0)), 0) AS total_spent,
+        COUNT(*) AS booking_count,
+        COUNT(*) FILTER (
+          WHERE status = 'no_show' AND start_time > ${ninetyDaysAgoIso}::timestamptz
+        ) AS no_show_count
+      FROM bookings
+      WHERE facility_id = ${facilityUser.facilityId}
+        AND status != 'cancelled'
+        AND active = true
+      GROUP BY resident_id
+    `),
   ])
 
-  // Aggregate per-resident stats
+  // Aggregate per-resident stats (postgres driver: iterable rows, bigints as strings)
   type Stats = { lastVisit: string | null; totalSpent: number; count: number; noShowCount: number }
   const statsMap = new Map<string, Stats>()
-  // Phase 16 G7 — no-shows in the last 90 days drive the reliability chip
-  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000
-
-  for (const b of bookingsList) {
-    const existing = statsMap.get(b.residentId)
-    const visitTime =
-      b.startTime instanceof Date
-        ? b.startTime.toISOString()
-        : String(b.startTime)
-    const isRecentNoShow = b.status === 'no_show' && new Date(b.startTime).getTime() > ninetyDaysAgo
-
-    if (!existing) {
-      statsMap.set(b.residentId, {
-        lastVisit: visitTime,
-        totalSpent: b.priceCents ?? 0,
-        count: 1,
-        noShowCount: isRecentNoShow ? 1 : 0,
-      })
-    } else {
-      existing.totalSpent += b.priceCents ?? 0
-      existing.count++
-      if (isRecentNoShow) existing.noShowCount++
-      // bookings sorted desc — first entry is already the most recent
-    }
+  for (const row of statsRows as unknown as Array<{
+    resident_id: string
+    last_visit: Date | string | null
+    total_spent: number | string
+    booking_count: number | string
+    no_show_count: number | string
+  }>) {
+    if (!row.resident_id) continue
+    statsMap.set(row.resident_id, {
+      lastVisit: row.last_visit
+        ? row.last_visit instanceof Date
+          ? row.last_visit.toISOString()
+          : new Date(row.last_visit).toISOString()
+        : null,
+      totalSpent: Number(row.total_spent),
+      count: Number(row.booking_count),
+      noShowCount: Number(row.no_show_count),
+    })
   }
 
   const residentsWithStats = residentsList.map((r) => ({
