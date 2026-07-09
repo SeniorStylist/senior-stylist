@@ -2887,3 +2887,22 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   content silently stays on the old facility.
 - **Facility pickers**: reuse the F-code + name searchable pattern (`LogFacilityPicker`,
   billing `FacilityCombobox`, header switchers) — never a bare `<select>` for 100+ facilities.
+
+
+## Phase 25 patterns (2026-07-09)
+
+- **Payment status chips read beyond color**: unpaid = amber capsule `bg-amber-50 text-amber-700`
+  with text "$ due"; paid = green capsule with "✓ paid"; waived = stone "Waived". Never render the
+  same glyph for two states distinguished only by color (the old daily-log toggle showed a bare
+  "$" for both paid and unpaid). Applied on the daily-log toggle and the stylist mobile card.
+- **Facility pickers**: behavior (sort by F-code/name, name/F-code filter, select + HARD reload)
+  comes from `src/lib/facility-switch.ts`; only the trigger UI is bespoke per surface. New picker
+  surfaces must import these helpers, not re-implement.
+- **No `<input list>` + `<datalist>` pickers, ever** — they render as invisible free-text fields
+  on most browsers. Use a `<select>` (+ "➕ New …" sentinel revealing a text input when creation
+  is a real flow). The last two were converted in Phase 25.
+- **Charts**: recharts is imported statically ONLY in
+  `src/components/charts/revenue-by-service-chart.tsx`; pages load charts via a single
+  `next/dynamic` wrapper with a `.skeleton` loading block sized to the chart (220px).
+- **Fonts**: self-hosted `@font-face` in globals.css under the original 'DM Sans' /
+  'DM Serif Display' names. Never re-add an external font `<link>`; never rename the families.

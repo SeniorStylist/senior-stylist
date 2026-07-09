@@ -842,7 +842,8 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/log/ocr/batch/[id]/undo` | canScanLogs / master | Rolls back an OCR scan batch (soft-delete bookings) and returns its saved review sheets for "Undo & edit" |
 | `POST /api/coverage` | Stylist | 13F: now creates `status='pending'` (admin approval required); overlap dedup covers pending+open |
 | `PUT /api/coverage/[id]` | Admin (or requester cancel) | 13F: gains `action:'approve'\|'deny'` + `deniedReason` on pending requests (stamps approved_by/at, emails the stylist); stylist self-cancel allowed for pending\|open |
-| `GET /api/stats` | Authenticated | Today / week / month totals |
+| `GET /api/stats` | Authenticated | Today / week / month totals — ONE SQL aggregate (FILTER buckets), active=true + is_demo filtered (Phase 25) |
+| `GET /api/dashboard/panels` | Authenticated | Phase 25 — consolidated dashboard mount fetch: `{stats, waitlist, dueForVisit}` in one auth'd request; query logic shared with the standalone routes via `src/lib/dashboard-panels.ts` |
 | `GET/POST /api/log` | Authenticated | Day log + log entries |
 | `PUT /api/log/[id]` | Authenticated | Update log entry notes / finalized |
 | `POST /api/log/email` | Authenticated (all facility roles except viewer); rate-limited `logEmail` 10/h/user | Body: `{ date: YYYY-MM-DD, to: email ≤320, message?: ≤500 }`. Emails a formatted HTML day log (`buildDailyLogEmailHtml` in `src/lib/email.ts` — burgundy header, summary tiles Appointments/Total/Tips, per-stylist sections, status + payment badges, notes). Covers the FULL facility day for all roles; non-cancelled `active=true is_demo=false` bookings for the UTC day. Times rendered in facility tz via `formatTimeInTz`. **Send is AWAITED** (deliberate exception to fire-and-forget: it's the last work in the handler and the user expects delivery confirmation — `sendEmail()` returns boolean; failure → 502 + error toast). UI: Email button next to Export on `/log` header (`data-tour="log-email-day"`), opens `EmailDayLogModal` (`src/components/exports/email-day-log-modal.tsx`, desktop Modal / mobile BottomSheet). |
@@ -2779,3 +2780,61 @@ cached day read-only. SW shell cache `ss-shell-v2`. Payments never queued/cached
 
 **UI**: shared Modal presents as a bottom sheet below md; 44px touch-target pass; /log +
 /residents + portal-nav/header responsive fixes; new `--checklist-fab-clearance` CSS var.
+
+
+## Phase 25 — Full Efficiency + Organization Audit (2026-07-09)
+
+Three parallel audits (backend hot-path, frontend bundle/render, UX/organization) → 7 commits.
+
+**Auth hot path (do NOT regress):**
+- `src/middleware.ts` uses `supabase.auth.getClaims()` — cryptographic JWT verification (local
+  via JWKS on asymmetric-key projects; automatic Auth-server fallback on HS256 = no regression).
+  Refresh preserved (getClaims runs getSession() internally). Errors fall back to `getUser()`.
+  Unverified claims are never trusted.
+- `ss_mw_ok` cookie (httpOnly, 5-min TTL, value = user id) caches a successful `facility_users`
+  membership check so repeat requests skip the PostgREST lookup. It ONLY skips the
+  belongs-anywhere redirect — authentication and per-route authorization are unchanged.
+- Middleware matcher also excludes `*.woff2`.
+- `getAuthUser()` (`src/lib/supabase/server.ts`) — `React.cache()`-wrapped getUser for SERVER
+  COMPONENTS; layout + page share one auth round-trip. All 36 protected pages use it. Route
+  handlers keep `createClient().auth.getUser()`. `getUserFacility()` is `React.cache()`-wrapped
+  too (cookies read inside → per-request). `(protected)/layout.tsx` derives `franchiseAdmin`
+  from `fetchLayoutData`'s rows (no duplicate isFranchiseAdmin query).
+
+**Query shape rules:**
+- `/api/stats` = ONE aggregate SQL (COUNT/SUM FILTER buckets over the week∪month range; week can
+  straddle the month boundary). Now filters `active = true` AND `is_demo = isTutorialRequest()`
+  (both were missing — rolled-back imports + tutorial seeds inflated dashboard revenue tiles).
+- `/residents` page stats = ONE `GROUP BY resident_id` aggregate (max last visit, sum spent,
+  count, 90-day no-show count) — never stream unbounded booking history to reduce in JS.
+- `bookings_facility_resident_start_idx (facility_id, resident_id, start_time DESC)` — declared
+  in schema.ts + `drizzle/0027_bookings_resident_idx.sql` (idempotent, additive, apply-anytime).
+- `GET /api/dashboard/panels` — one authenticated handler returns `{stats, waitlist, dueForVisit}`
+  with per-section role gates (stats: any member; waitlist: non-viewer; dueForVisit: admin/staff).
+  Query logic lives in `src/lib/dashboard-panels.ts`, shared with `/api/stats`, `/api/waitlist`
+  GET, `/api/residents/due-for-visit` (kept for post-mutation refetches — never fork).
+  Client: `src/lib/dashboard-panels-client.ts::fetchDashboardPanels(fresh?)` module-level
+  in-flight cache (3 dashboard consumers share one request; 500ms coalescing on fresh).
+  Stats fetch skipped for non-admins.
+
+**Frontend bundle rules:**
+- Fonts SELF-HOSTED: `@font-face` in globals.css + `/public/fonts/*.woff2` under the ORIGINAL
+  family names; latin subsets preloaded in root layout; SW caches `/fonts/` cache-first. Never
+  re-add a fonts.googleapis.com link; never rename the families (inline fontFamily styles).
+- recharts: ONE static importer — `src/components/charts/revenue-by-service-chart.tsx`; report
+  pages load it via a single next/dynamic wrapper. Code-split on-demand modals: OcrImportModal +
+  LogSheetsModal (log), BookingModal (dashboard), TakePaymentModal (cof-panel), AddCardForm
+  (saved-cards-card).
+- `prefetch={true}` removed from sidebar/top-bar/mobile-nav/portal-nav (default prefetch only).
+- `seniorstylistlogo-white.png` recompressed 151KB → 44KB (same URL — emails reference it).
+
+**UX / organization:**
+- Stylist mobile dashboard card: unpaid→paid→waived cycle (queueableFetch, optimistic+rollback) +
+  "Open Daily Log →" CTA. Payment chips: amber "$ due" / green "✓ paid" (log + dashboard).
+- `src/lib/facility-switch.ts` — THE facility-switcher logic home (sort/filter/switchFacility =
+  select + HARD reload); used by sidebar, mobile header, log picker.
+- `src/lib/format.ts` — canonical `formatDollars` (billing-shared re-exports) + `formatDateChip`.
+- `src/lib/validation/` gains `booking-create.ts`, `log-entry.ts`, `resident-create.ts`; client
+  payload builders `satisfies` the schema input types.
+- `launchTutorial()` is the only tour entry point (onboarding modal + /help?tour= migrated).
+- Last two `<datalist>` pickers converted (OCR resident select+create; log edit-resident select).

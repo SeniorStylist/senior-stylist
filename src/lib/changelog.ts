@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.8',
+    date: '2026-07-09',
+    title: 'Faster Everywhere',
+    items: [
+      'Every page checks your login locally instead of calling out to the auth server — navigation is noticeably snappier',
+      'Dashboard loads with one combined data request instead of seven separate ones',
+      'Fonts now load from our own servers — no more waiting on Google Fonts',
+      'Big screens (reports, booking form, scan review) download only when you open them',
+      'Stylists can mark a visit done AND paid right on the home screen, with a one-tap jump to the Daily Log',
+    ],
+  },
+  {
     version: '3.7',
     date: '2026-07-07',
     title: 'Speed',
