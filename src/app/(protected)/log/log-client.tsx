@@ -1851,15 +1851,17 @@ export function LogClient({
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                 : booking.paymentStatus === 'waived'
                                 ? 'bg-stone-100 text-stone-500 hover:bg-stone-200'
-                                : 'bg-stone-50 text-stone-400 hover:bg-stone-100',
+                                : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
                               isFinalized && 'opacity-70'
                             )}
                           >
+                            {/* Phase 25 — paid vs unpaid must read beyond color alone
+                                (both used to render a bare "$") */}
                             {booking.paymentStatus === 'paid'
-                              ? '$'
+                              ? '\u2713 paid'
                               : booking.paymentStatus === 'waived'
                               ? 'Waived'
-                              : '$'}
+                              : '$ due'}
                           </button>
                         )}
                         {/* Phase 16 G11 — booking photo (completed rows, own-section writers) */}

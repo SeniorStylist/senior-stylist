@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import dynamic from 'next/dynamic'
 // Phase 25 — BookingModal (1300+ LOC) is deferred past first paint; the chunk
 // starts downloading at idle and is one small fetch at worst on first open.
@@ -33,6 +34,7 @@ import { WaitlistPanel, type WaitlistEntry } from '@/components/waitlist/waitlis
 import { AddToWaitlistModal } from '@/components/waitlist/add-to-waitlist-modal'
 import { DueForVisitPanel, type DueResident } from '@/components/dashboard/due-for-visit-panel'
 import { fetchDashboardPanels } from '@/lib/dashboard-panels-client'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { CopyDayModal } from '@/components/calendar/copy-day-modal'
 import { isNativeApp } from '@/lib/detect-device'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
@@ -609,6 +611,29 @@ export function DashboardClient({
     }
   }
 
+  // Phase 25 — stylists finish "done + paid" on ONE screen: the mobile card
+  // carries the same unpaid -> paid -> waived cycle as the daily log
+  // (optimistic + snapshot rollback, offline-queueable).
+  const handleCyclePayment = async (bookingId: string, current: string) => {
+    const next = current === 'unpaid' ? 'paid' : current === 'paid' ? 'waived' : 'unpaid'
+    const snapshot = bookings
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: next } : b)))
+    try {
+      const res = await queueableFetch('Payment status', `/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        body: { paymentStatus: next },
+      })
+      if (isQueued(res)) {
+        toast('Saved offline — will sync when back online', 'info')
+        return
+      }
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      setBookings(snapshot)
+      toast('Failed to update payment', 'error')
+    }
+  }
+
   const switchView = (view: CalendarViewType) => {
     setCalendarView(view)
     changeViewRef.current?.(view)
@@ -761,22 +786,41 @@ export function DashboardClient({
                       {b.resident?.roomNumber ? ` · Rm ${b.resident.roomNumber}` : ''}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={cn(
-                      'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                      isDone ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-600'
-                    )}>
-                      {isDone ? 'Done' : 'Scheduled'}
-                    </span>
-                    {!isDone && (
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                        isDone ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-600'
+                      )}>
+                        {isDone ? 'Done' : 'Scheduled'}
+                      </span>
+                      {!isDone && (
+                        <button
+                          onClick={() => handleMarkDone(b.id)}
+                          className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center active:bg-green-500 active:text-white active:scale-95 transition-all duration-75"
+                          title="Mark done"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {/* Phase 25 — payment on the same card as mark-done */}
+                    {b.status !== 'cancelled' && (
                       <button
-                        onClick={() => handleMarkDone(b.id)}
-                        className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center active:bg-green-500 active:text-white active:scale-95 transition-all duration-75"
-                        title="Mark done"
+                        onClick={() => handleCyclePayment(b.id, b.paymentStatus ?? 'unpaid')}
+                        title="Toggle payment status"
+                        className={cn(
+                          'text-[10.5px] font-semibold px-2.5 py-1 rounded-full transition-colors',
+                          b.paymentStatus === 'paid'
+                            ? 'bg-green-100 text-green-700 active:bg-green-200'
+                            : b.paymentStatus === 'waived'
+                            ? 'bg-stone-100 text-stone-500 active:bg-stone-200'
+                            : 'bg-amber-50 text-amber-700 active:bg-amber-100'
+                        )}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
+                        {b.paymentStatus === 'paid' ? '✓ paid' : b.paymentStatus === 'waived' ? 'Waived' : '$ due'}
                       </button>
                     )}
                   </div>
@@ -785,8 +829,15 @@ export function DashboardClient({
             })}
           </div>
 
-          {/* View full calendar */}
-          <div className="px-4 mt-4">
+          {/* View full calendar + daily log (Phase 25 — finalize lives in the
+              log; make the day-close flow discoverable from the landing list) */}
+          <div className="px-4 mt-4 space-y-2">
+            <Link
+              href="/log"
+              className="block w-full py-3 text-center text-sm font-semibold text-white bg-[#8B2E4A] rounded-2xl shadow-[0_2px_6px_rgba(139,46,74,0.22)] active:scale-[0.98] active:opacity-90 transition-all duration-75"
+            >
+              Open Daily Log →
+            </Link>
             <button
               onClick={() => setStylistListMode(false)}
               className="w-full py-3 text-sm font-medium text-[#8B2E4A] bg-white rounded-2xl border border-stone-200 active:scale-[0.98] active:opacity-70 transition-all duration-75"
