@@ -9,7 +9,14 @@ import { canSeeBilling } from '@/lib/client-roles'
 import { makePortalT, type PortalLang } from '@/lib/portal-i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { CreditCard, Plus, Trash2 } from 'lucide-react'
-import { AddCardForm } from './add-card-form'
+import dynamic from 'next/dynamic'
+
+// Phase 25 — AddCardForm pulls @stripe/react-stripe-js; load it when the
+// add-card flow opens, not when the card list renders.
+const AddCardForm = dynamic(
+  () => import('./add-card-form').then((m) => m.AddCardForm),
+  { ssr: false },
+)
 import { useToast } from '@/components/ui/toast'
 
 interface SavedCard {

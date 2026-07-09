@@ -10,7 +10,14 @@ import { Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
-import { TakePaymentModal } from './take-payment-modal'
+import dynamic from 'next/dynamic'
+
+// Phase 25 — Stripe Elements stays out of the resident-detail bundle until a
+// card payment is actually taken (mirrors the daily-log pattern).
+const TakePaymentModal = dynamic(
+  () => import('./take-payment-modal').then((m) => m.TakePaymentModal),
+  { ssr: false },
+)
 
 interface AutopayState {
   autopayEnabled: boolean

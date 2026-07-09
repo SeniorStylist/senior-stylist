@@ -39,7 +39,6 @@ export function PortalNav({ facilityCode, lang }: Props) {
               key={t.label}
               href={t.href}
               aria-current={isActive ? 'page' : undefined}
-              prefetch
               className={cn(
                 'flex flex-col items-center justify-center gap-1 py-2.5 transition-colors duration-150',
                 isActive ? 'text-[#8B2E4A]' : 'text-stone-500 hover:text-stone-800',

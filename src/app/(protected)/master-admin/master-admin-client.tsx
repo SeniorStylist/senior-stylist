@@ -5,7 +5,12 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ReportsTab } from './reports-tab'
+import dynamic from 'next/dynamic'
+
+// Phase 25 — reports-tab statically imported recharts (~400KB) into the
+// master-admin bundle even though the tab is render-gated. Single dynamic
+// wrapper (never per-recharts-export — barrel resolution breaks, commit 6d2c300).
+const ReportsTab = dynamic(() => import('./reports-tab').then((m) => m.ReportsTab), { ssr: false })
 import { MergeTab } from './merge-tab'
 import { DebugTab } from './debug-tab'
 

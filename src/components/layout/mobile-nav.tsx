@@ -308,7 +308,6 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              prefetch={true}
               onClick={() => { haptics.selection(); setPendingHref(item.href); armEscapeHatch(item.href) }}
               data-tour-mobile={item.slug}
               className={cn(

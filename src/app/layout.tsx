@@ -39,10 +39,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300..700&family=DM+Serif+Display&display=swap"
-          rel="stylesheet"
-        />
+        {/* Phase 25 — fonts are self-hosted (@font-face in globals.css, files
+            in /public/fonts) instead of a render-blocking Google Fonts <link>.
+            Preload the two latin-subset files used on every page. */}
+        <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/dm-serif-display-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       </head>
       <body className="antialiased">
         <NativeBridge />

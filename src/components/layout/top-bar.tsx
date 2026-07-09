@@ -41,7 +41,6 @@ export function TopBar({ facilityName, facilityCode, role = 'admin', changelogLa
             <Link
               key={tab.href}
               href={tab.href}
-              prefetch={true}
               className={cn(
                 'relative inline-flex items-center h-full px-3 text-sm font-medium transition-colors',
                 active ? 'text-stone-900' : 'text-stone-500 hover:text-stone-800'

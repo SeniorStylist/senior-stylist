@@ -23,9 +23,11 @@ const PAGE_CACHE_MAX_ENTRIES = 40
 
 let activeUserId = null
 
-// Hashed static assets (Next.js output — match /_next/static/)
+// Hashed static assets (Next.js output — match /_next/static/) plus the
+// self-hosted font files (Phase 25 — immutable, versioned by filename) so
+// offline pages keep their typography.
 function isHashedStatic(url) {
-  return url.pathname.startsWith('/_next/static/')
+  return url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/fonts/')
 }
 
 // Navigation requests (HTML pages)

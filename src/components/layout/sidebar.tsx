@@ -490,7 +490,6 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     <Link
                       key={item.href}
                       href={item.href}
-                      prefetch={true}
                       data-tour={tourSlug}
                       className={cn(
                         'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
@@ -518,7 +517,6 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         <div className="border-t border-white/10 mx-1 mb-2" />
         <Link
           href="/help"
-          prefetch={true}
           data-tour="nav-help"
           className={cn(
             'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
@@ -539,7 +537,6 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         {SETTINGS_ROLES.includes(role as NavRole) && (
           <Link
             href="/settings"
-            prefetch={true}
             data-tour="nav-settings"
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
@@ -557,7 +554,6 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
           {isFranchiseAdmin && (
             <Link
               href="/franchise"
-              prefetch={true}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
                 pathname === '/franchise'
@@ -576,7 +572,6 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
           {process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && !debugMode && (
             <Link
               href="/master-admin"
-              prefetch={true}
               data-tour="nav-master-admin"
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',

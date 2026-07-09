@@ -27,8 +27,16 @@ import type { BookingUpdateInput } from '@/lib/validation/booking-update'
 import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
-import { OcrImportModal } from './ocr-import-modal'
-import { LogSheetsModal } from '@/components/log/log-sheets-modal'
+// Phase 25 — the OCR review modal (1500+ LOC) and sheets-history modal only
+// open on demand; keep them out of the daily log's initial bundle.
+const OcrImportModal = dynamic(
+  () => import('./ocr-import-modal').then((m) => m.OcrImportModal),
+  { ssr: false },
+)
+const LogSheetsModal = dynamic(
+  () => import('@/components/log/log-sheets-modal').then((m) => m.LogSheetsModal),
+  { ssr: false },
+)
 import { HelpTip } from '@/components/ui/help-tip'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'

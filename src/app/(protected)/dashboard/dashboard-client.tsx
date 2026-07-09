@@ -3,7 +3,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { BookingModal } from '@/components/calendar/booking-modal'
+// Phase 25 — BookingModal (1300+ LOC) is deferred past first paint; the chunk
+// starts downloading at idle and is one small fetch at worst on first open.
+const BookingModal = dynamic(
+  () => import('@/components/calendar/booking-modal').then((m) => m.BookingModal),
+  { ssr: false },
+)
 import { QuickBookFAB } from '@/components/calendar/quick-book-fab'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { ResidentsPanel } from '@/components/panels/residents-panel'

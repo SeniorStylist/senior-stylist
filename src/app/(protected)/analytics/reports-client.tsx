@@ -1,7 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import dynamic from 'next/dynamic'
+
+// Phase 25 — recharts loads only when a chart renders (shared single-wrapper
+// component; keeps the ~400KB lib out of the page bundle).
+const RevenueByServiceChart = dynamic(
+  () => import('@/components/charts/revenue-by-service-chart'),
+  { ssr: false, loading: () => <div style={{ width: '100%', height: 220 }} className="skeleton rounded-xl" /> }
+)
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -79,7 +86,6 @@ interface InvoiceData {
 type SortKey = 'date' | 'price'
 type SortDir = 'asc' | 'desc'
 
-const BAR_COLORS = ['#8B2E4A', '#C4687A', '#0a8f94', '#18b5a4', '#067073', '#1fc4b0']
 
 const STATUS_STYLES: Record<string, string> = {
   completed: 'bg-teal-50 text-teal-700',
@@ -345,43 +351,7 @@ export function ReportsClient({
           {data.byService.length > 0 && (
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
               <p className="text-sm font-semibold text-stone-700 mb-4">Revenue by Service</p>
-              <div style={{ width: '100%', height: 220 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={chartData}
-                    margin={{ top: 4, right: 4, left: 0, bottom: 4 }}
-                  >
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: '#78716C' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#78716C' }}
-                      tickFormatter={(v: number) => `$${v}`}
-                      axisLine={false}
-                      tickLine={false}
-                      width={52}
-                    />
-                    <Tooltip
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Revenue']}
-                      contentStyle={{
-                        fontSize: 12,
-                        borderRadius: 8,
-                        border: '1px solid #E7E5E4',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                      }}
-                    />
-                    <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-                      {chartData!.map((_, i) => (
-                        <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <RevenueByServiceChart data={chartData ?? []} />
             </div>
           )}
 
