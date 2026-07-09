@@ -27,6 +27,7 @@ import { StylistPendingEntries } from '@/components/signup-sheet/stylist-pending
 import { WaitlistPanel, type WaitlistEntry } from '@/components/waitlist/waitlist-panel'
 import { AddToWaitlistModal } from '@/components/waitlist/add-to-waitlist-modal'
 import { DueForVisitPanel, type DueResident } from '@/components/dashboard/due-for-visit-panel'
+import { fetchDashboardPanels } from '@/lib/dashboard-panels-client'
 import { CopyDayModal } from '@/components/calendar/copy-day-modal'
 import { isNativeApp } from '@/lib/detect-device'
 import { CheckInBanner } from '@/components/checkin/checkin-banner'
@@ -463,12 +464,15 @@ export function DashboardClient({
     thisMonth: { revenueCents: number }
   } | null>(null)
 
+  // Phase 25 — shares the single /api/dashboard/panels request with
+  // WaitlistPanel/DueForVisitPanel, and skips it entirely for non-admins
+  // (periodStats only renders in the admin stats tiles).
   useEffect(() => {
-    fetch('/api/stats')
-      .then((r) => r.json())
-      .then((json) => { if (json.data) setPeriodStats(json.data) })
+    if (!isAdmin) return
+    fetchDashboardPanels()
+      .then((data) => { if (data?.stats) setPeriodStats(data.stats) })
       .catch(console.error)
-  }, [])
+  }, [isAdmin])
 
   // Export
   const [exportMonth, setExportMonth] = useState(() => {

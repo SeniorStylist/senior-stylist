@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server'
 import { ensureWaitlistSchema } from '@/lib/waitlist-ddl'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { getPendingWaitlist } from '@/lib/dashboard-panels'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -113,17 +114,8 @@ export async function GET(request: NextRequest) {
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     if (facilityUser.role === 'viewer') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
-    await ensureWaitlistSchema()
-
-    const data = await db.query.waitlistEntries.findMany({
-      where: and(
-        eq(waitlistEntries.facilityId, facilityUser.facilityId),
-        eq(waitlistEntries.status, 'pending'),
-        eq(waitlistEntries.isDemo, isTutorialRequest(request)), // is_demo filter — Phase 13
-      ),
-      orderBy: (t, { asc }) => [asc(t.earliestDate), asc(t.createdAt)],
-      limit: 100,
-    })
+    // Phase 25 — shared with GET /api/dashboard/panels (lib/dashboard-panels.ts)
+    const data = await getPendingWaitlist(facilityUser.facilityId, isTutorialRequest(request))
 
     return Response.json({ data })
   } catch (err) {

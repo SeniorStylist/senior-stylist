@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '@/components/ui/toast'
+import { fetchDashboardPanels } from '@/lib/dashboard-panels-client'
 
 export interface WaitlistEntry {
   id: string
@@ -37,12 +38,13 @@ export function WaitlistPanel({
   const [entries, setEntries] = useState<WaitlistEntry[]>([])
   const [loaded, setLoaded] = useState(false)
 
-  const load = useCallback(async () => {
+  // Phase 25 — mount data comes from the shared /api/dashboard/panels fetch
+  // (one authenticated request for stats + waitlist + due-for-visit).
+  // reloadKey bumps force a fresh copy after mutations.
+  const load = useCallback(async (fresh: boolean) => {
     try {
-      const res = await fetch('/api/waitlist')
-      if (!res.ok) return
-      const j = await res.json()
-      setEntries(j.data ?? [])
+      const data = await fetchDashboardPanels(fresh)
+      if (data) setEntries(data.waitlist ?? [])
     } catch {
       // best-effort — panel just stays hidden
     } finally {
@@ -51,7 +53,7 @@ export function WaitlistPanel({
   }, [])
 
   useEffect(() => {
-    void load()
+    void load(reloadKey > 0)
   }, [load, reloadKey])
 
   const remove = useCallback(async (entry: WaitlistEntry) => {

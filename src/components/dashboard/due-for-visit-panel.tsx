@@ -5,6 +5,7 @@
 // (self-fetching, reloadKey). "Book →" opens the booking modal prefilled.
 
 import { useCallback, useEffect, useState } from 'react'
+import { fetchDashboardPanels } from '@/lib/dashboard-panels-client'
 
 export interface DueResident {
   residentId: string
@@ -26,12 +27,12 @@ export function DueForVisitPanel({
   const [rows, setRows] = useState<DueResident[]>([])
   const [loaded, setLoaded] = useState(false)
 
-  const load = useCallback(async () => {
+  // Phase 25 — mount data comes from the shared /api/dashboard/panels fetch
+  // (one authenticated request for stats + waitlist + due-for-visit).
+  const load = useCallback(async (fresh: boolean) => {
     try {
-      const res = await fetch('/api/residents/due-for-visit')
-      if (!res.ok) return
-      const j = await res.json()
-      setRows(j.data ?? [])
+      const data = await fetchDashboardPanels(fresh)
+      if (data) setRows(data.dueForVisit ?? [])
     } catch {
       // best-effort — the panel just stays hidden
     } finally {
@@ -40,7 +41,7 @@ export function DueForVisitPanel({
   }, [])
 
   useEffect(() => {
-    void load()
+    void load(reloadKey > 0)
   }, [load, reloadKey])
 
   if (!loaded || rows.length === 0) return null
