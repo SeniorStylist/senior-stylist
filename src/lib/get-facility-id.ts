@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/db'
 import { facilities, facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
@@ -66,8 +67,14 @@ export function canScanLogs(role: string): boolean {
  * `selected_facility_id` cookie for multi-facility accounts.
  * Falls back to the first facility if no cookie is set or if the
  * cookie references a facility the user doesn't belong to.
+ *
+ * Phase 25 — wrapped in React.cache(): within one server-component render
+ * (layout + page + nested helpers) repeated calls share a single DB query.
+ * Outside a render (route handlers) cache() degrades to a plain call — same
+ * behavior as before. Cookies are read inside, so the result stays
+ * per-request; there is no cross-request or cross-user sharing.
  */
-export async function getUserFacility(userId: string) {
+export const getUserFacility = cache(async function getUserFacility(userId: string) {
   try {
     const cookieStore = await cookies()
 
@@ -122,7 +129,7 @@ export async function getUserFacility(userId: string) {
     console.error('[getUserFacility] DB error:', err)
     return null
   }
-}
+})
 
 /**
  * True when the current user is a FRANCHISE admin (raw `super_admin` role) — used

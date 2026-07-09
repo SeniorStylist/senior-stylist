@@ -3,7 +3,7 @@
 // as /billing). Facility options mirror billing/page.tsx.
 
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
@@ -13,10 +13,7 @@ import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { MonthlyClient } from './monthly-client'
 
 export default async function MonthlyStatementPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   const isMaster =

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { db } from '@/db'
@@ -11,10 +11,7 @@ import { eq, and, gte, lt, asc } from 'drizzle-orm'
 import { LogClient } from './log-client'
 
 export default async function LogPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)

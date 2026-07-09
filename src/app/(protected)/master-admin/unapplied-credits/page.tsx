@@ -4,7 +4,7 @@
 // updates website balances only; mirror each application inside QuickBooks or the
 // next Step 2 import will revert it.
 
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { qbUnappliedCredits, facilities, residents } from '@/db/schema'
@@ -18,8 +18,7 @@ export default async function UnappliedCreditsPage({
 }: {
   searchParams: Promise<{ facility?: string }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   if (!superAdminEmail || user.email !== superAdminEmail) redirect('/dashboard')

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, facilityUsers } from '@/db/schema'
@@ -7,10 +7,7 @@ import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { ReportsClient } from './reports-client'
 
 export default async function AnalyticsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)

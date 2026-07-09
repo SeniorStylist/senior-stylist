@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { residents, bookings } from '@/db/schema'
@@ -8,10 +8,7 @@ import { eq, and, ne } from 'drizzle-orm'
 import { ResidentsPageClient } from './residents-page-client'
 
 export default async function ResidentsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)

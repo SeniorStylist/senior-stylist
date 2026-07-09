@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { importBatches, bookings } from '@/db/schema'
@@ -90,8 +90,7 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
 ]
 
 export default async function ImportsHubPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL

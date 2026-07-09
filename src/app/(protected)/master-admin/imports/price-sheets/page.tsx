@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
@@ -6,8 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import { PriceSheetsClient } from './price-sheets-client'
 
 export default async function BulkPriceSheetsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   if (!superAdminEmail || user.email !== superAdminEmail) redirect('/dashboard')

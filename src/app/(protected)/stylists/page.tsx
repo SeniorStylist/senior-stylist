@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { stylists, complianceDocuments, stylistFacilityAssignments } from '@/db/schema'
@@ -15,10 +15,7 @@ const STATUS_COLOR: Record<'green' | 'amber' | 'red', string> = {
 }
 
 export default async function StylistsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)

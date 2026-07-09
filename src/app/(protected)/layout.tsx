@@ -1,11 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { ensureMonthlyReportSchema } from '@/lib/monthly-report-ddl'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, facilityUsers, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
-import { isFranchiseAdmin } from '@/lib/get-facility-id'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TopBar } from '@/components/layout/top-bar'
 import { MobileNav } from '@/components/layout/mobile-nav'
@@ -35,6 +34,7 @@ interface LayoutData {
   activeRole: string
   activeFacilityId: string
   changelogLastReadAt: string | null
+  franchiseAdmin: boolean
 }
 
 async function fetchLayoutData(userId: string): Promise<LayoutData> {
@@ -95,6 +95,16 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
   const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
   const rawRole = active?.role ?? 'admin'
 
+  // Phase 25 — franchise-admin signal derived from the rows already in hand
+  // (was a second identical facility_users query via isFranchiseAdmin()).
+  // Mirrors isFranchiseAdmin's semantics: RAW role of the selected facility's
+  // row, falling back to the first row. The debug-cookie override is handled
+  // by the caller (master-only branch below).
+  const selectedRaw = selectedId
+    ? userFacilities.find((fu) => fu.facilityId === selectedId)
+    : undefined
+  const franchiseAdmin = (selectedRaw ?? userFacilities[0])?.role === 'super_admin'
+
   const profileRow = await db.query.profiles.findFirst({
     where: (p, { eq }) => eq(p.id, userId),
     columns: { changelogLastReadAt: true },
@@ -107,6 +117,7 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
     activeFacilityId: active?.id ?? '',
     activeRole: rawRole === 'super_admin' ? 'admin' : rawRole,
     changelogLastReadAt: profileRow?.changelogLastReadAt?.toISOString() ?? null,
+    franchiseAdmin,
   }
 }
 
@@ -115,10 +126,9 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Phase 25 — getAuthUser() is React.cache()-deduped: the page this layout
+  // wraps shares the same auth round-trip instead of paying a second one.
+  const user = await getAuthUser()
 
   if (!user) redirect('/login')
 
@@ -172,8 +182,10 @@ export default async function ProtectedLayout({
     }
   }
   // Real franchise owners (raw super_admin role) also get the Franchise nav.
+  // Derived inside fetchLayoutData from rows already fetched (Phase 25 — was a
+  // duplicate facility_users query via isFranchiseAdmin()).
   if (!debugMode) {
-    franchiseAdmin = await isFranchiseAdmin(user.id)
+    franchiseAdmin = facilityData?.franchiseAdmin ?? false
   }
 
   return (
