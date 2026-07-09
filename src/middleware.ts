@@ -46,10 +46,31 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Phase 25 — auth fast path. getClaims() cryptographically VERIFIES the JWT:
+  // locally against the project's JWKS when the project uses asymmetric signing
+  // keys (zero network calls on the warm path), or via the Auth server for
+  // legacy HS256 projects (identical cost + semantics to getUser — no
+  // regression). It calls getSession() first, so expired-token refresh is
+  // preserved. Unverified claims are NEVER trusted — a bad signature returns an
+  // error and we fall back to a full getUser() server check. Access tokens are
+  // short-lived, and every page/API route still runs its own
+  // getUser()+getUserFacility() authorization, so middleware remains a redirect
+  // convenience layer, not the security boundary.
+  let user: { id: string; email: string | undefined } | null = null
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+  if (claimsData?.claims?.sub) {
+    user = {
+      id: claimsData.claims.sub,
+      email: typeof claimsData.claims.email === 'string' ? claimsData.claims.email : undefined,
+    }
+  } else if (claimsError) {
+    // Transient verification failure (e.g. JWKS fetch hiccup) — don't bounce a
+    // valid session to /login; do the full server check instead.
+    const {
+      data: { user: fullUser },
+    } = await supabase.auth.getUser()
+    if (fullUser) user = { id: fullUser.id, email: fullUser.email ?? undefined }
+  }
 
   // Public routes — no auth required (subset of skipSupabase that still needs
   // session refresh, e.g. /login redirects authenticated users to /dashboard)
@@ -83,7 +104,16 @@ export async function middleware(request: NextRequest) {
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isSuperAdmin = superAdminEmail && user.email === superAdminEmail
 
-    if (!isSuperAdmin) {
+    // Phase 25 — membership cookie: a successful facility_users check is cached
+    // for 5 minutes (ss_mw_ok, httpOnly, keyed to the user id) so repeat
+    // requests skip the PostgREST round-trip. SECURITY: this cookie only skips
+    // the "does this account belong anywhere?" REDIRECT below — it can never
+    // bypass authentication (checked above) or authorization (every page/API
+    // re-checks via getUserFacility). Worst case, a just-removed member gets a
+    // route-level 403 instead of a middleware redirect for ≤5 minutes.
+    const membershipCached = request.cookies.get('ss_mw_ok')?.value === user.id
+
+    if (!isSuperAdmin && !membershipCached) {
       // Check if user has a facilityUser record
       const { data: facilityUser } = await supabase
         .from('facility_users')
@@ -91,6 +121,16 @@ export async function middleware(request: NextRequest) {
         .eq('user_id', user.id)
         .limit(1)
         .single()
+
+      if (facilityUser) {
+        supabaseResponse.cookies.set('ss_mw_ok', user.id, {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          path: '/',
+          maxAge: 300,
+        })
+      }
 
       if (!facilityUser) {
         // Check if user has a pending valid invite
