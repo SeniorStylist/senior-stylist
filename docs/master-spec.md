@@ -2838,3 +2838,17 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   payload builders `satisfies` the schema input types.
 - `launchTutorial()` is the only tour entry point (onboarding modal + /help?tour= migrated).
 - Last two `<datalist>` pickers converted (OCR resident select+create; log edit-resident select).
+
+## P26 — Master-admin warm-cache fix + behavioral UX pass (2026-07-12)
+
+- **unstable_cache contract (load-bearing)**: values are JSON round-tripped — on a warm hit Date
+  fields are STRINGS. Serialize inside the cached callback; never call Date methods on cached
+  results. The /master-admin pending-requests map violated this and crashed the page whenever an
+  access request was pending (fixed; franchise mapping also null-guards `ff.facility`).
+- **Middleware getClaims() is try/catch-wrapped** — auth-js re-throws non-AuthErrors; the catch
+  falls back to the full getUser() check. `/help`'s profile read is best-effort.
+- **UX pass**: booking-modal most-used-service preselect + tip preset chips; walk-in service
+  default; onboarding-checklist endowed progress; dirty-dismiss confirms (booking modal,
+  signup-sheet panel); family-portal mobile thumb-zone bars (billing Pay, request Submit — EN/ES);
+  waitlist modal resident filter + optgroup services; signup value strip
+  (`signup.valueStrip`, `billing.payBarCta` added to PORTAL_STRINGS).

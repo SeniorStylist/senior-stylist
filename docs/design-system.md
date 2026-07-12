@@ -2906,3 +2906,23 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   `next/dynamic` wrapper with a `.skeleton` loading block sized to the chart (220px).
 - **Fonts**: self-hosted `@font-face` in globals.css under the original 'DM Sans' /
   'DM Serif Display' names. Never re-add an external font `<link>`; never rename the families.
+
+## P26 behavioral-UX patterns (2026-07-12)
+
+- **Smart defaults**: pickers pre-fill the most likely choice — booking modal + walk-in pre-select
+  the resident's `mostUsedServiceId` (create mode, only while empty, addons excluded, always
+  changeable). Tip entry offers one-tap preset chips (15% / 18% / 20% / No tip) next to the free
+  input. New forms should default every field that has an obvious most-common value.
+- **Endowed progress**: progress indicators never start at 0% — the onboarding checklist counts
+  "Create your account" as a pre-checked first step. Frame step 1 as already done.
+- **Dirty-dismiss guard**: modals/panels holding typed USER input show a compact amber
+  "Discard …? [Keep editing] [Discard]" bar instead of silently discarding on backdrop/Escape.
+  Prefilled or auto-filled values never count as dirty. Discard actually clears the form.
+- **Portal thumb-zone CTA**: on mobile, the page's single primary action (Pay, Submit request)
+  is a fixed full-width burgundy bar at `bottom: calc(env(safe-area-inset-bottom) + 60px)`
+  (above the portal nav), `z-40`, with an end-of-page spacer (~64px) so content clears it.
+  Text respects `--portal-text-scale` capped at 1.25×. EN/ES via PORTAL_STRINGS.
+- **Long selects**: >8 options get a filter box (waitlist resident picker) and service selects
+  are ALWAYS category-grouped via optgroup.
+- **Correction**: the earlier claim that the booking modal preselects the most-used service was
+  documentation-ahead-of-code; as of P26 the code matches the doc.

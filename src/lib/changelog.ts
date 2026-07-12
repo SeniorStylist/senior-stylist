@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.9',
+    date: '2026-07-12',
+    title: 'Smoother & Smarter',
+    items: [
+      'Fixed the Master Admin page error — the access-request approval queue works again',
+      'Booking and walk-in forms pre-select each resident\'s usual service; one-tap tip presets',
+      'Closing a half-filled booking or sign-up form now asks before discarding your typing',
+      'Family portal: a big "Pay" button stays at your thumb when a balance is due, and the request form\'s submit button is always in reach',
+      'Getting-started checklist gives you credit for signing up — you never start at 0%',
+    ],
+  },
+  {
     version: '3.8',
     date: '2026-07-09',
     title: 'Faster Everywhere',
