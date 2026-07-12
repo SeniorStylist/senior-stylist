@@ -2852,3 +2852,18 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   signup-sheet panel); family-portal mobile thumb-zone bars (billing Pay, request Submit — EN/ES);
   waitlist modal resident filter + optgroup services; signup value strip
   (`signup.valueStrip`, `billing.payBarCta` added to PORTAL_STRINGS).
+
+## P27 — Master-admin grid + cache-failure rules (2026-07-12)
+
+- Master-admin facility grid tutorial gating is ADDITIVE (`or(and(active, !demo), demo)`)—a
+  tutorial cookie mixes the practice facility in, never hides real ones. `tutorialMode` prop
+  drives an amber "Practice mode" banner with an Exit button (clears cookie + reload).
+- **Never catch-and-return a fallback inside an unstable_cache callback** — the fallback is
+  cached for the whole revalidate window. Callbacks throw; call sites catch (see
+  master-admin/page.tsx `logFail`).
+- Scripted-tour overlay auto-heal is two-stage: 1.5s (respects fresh resume blob) + 6s definitive
+  (ignores blob; clears cookie + blob + reloads when no tour is running).
+- `super-admin/facility/[id]` PUT/DELETE + `super-admin/franchises` POST + `[id]` PUT/DELETE all
+  `revalidateTag('facilities', {})` on success.
+- Facilities empty state: `localFacilities.length===0 && activeFacilities.length>0` (separate
+  cache) → "Couldn't load facility details — Refresh"; genuine zero keeps the create CTA.

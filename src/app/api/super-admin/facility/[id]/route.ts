@@ -4,6 +4,7 @@ import { facilities, facilityUsers, bookings } from '@/db/schema'
 import { count, eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -63,6 +64,9 @@ export async function PUT(
       return Response.json({ error: 'Facility not found' }, { status: 404 })
     }
 
+    // P27 — bust the master-admin facility caches; without this, an
+    // edit/deactivate re-rendered from the stale 300s cache ("did nothing")
+    revalidateTag('facilities', {})
     return Response.json({ data: updated })
   } catch (err) {
     console.error('PUT /api/super-admin/facility/[id] error:', err)
@@ -94,6 +98,7 @@ export async function DELETE(
       await tx.delete(facilities).where(eq(facilities.id, id))
     })
 
+    revalidateTag('facilities', {})
     return Response.json({ data: { deleted: true } })
   } catch (err) {
     if (err instanceof Error && err.message === 'HAS_BOOKINGS') {

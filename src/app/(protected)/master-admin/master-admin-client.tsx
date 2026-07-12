@@ -57,6 +57,8 @@ interface SuperAdminClientProps {
   activeFacilities: { id: string; name: string; facilityCode: string | null }[]
   franchises: FranchiseInfo[]
   currentFacilityId: string
+  /** P27 — true when the ss_tutorial_mode cookie is set (practice data mixed in) */
+  tutorialMode?: boolean
 }
 
 const TIMEZONES = [
@@ -76,7 +78,7 @@ const PAYMENT_TYPES = [
   { value: 'hybrid', label: 'Hybrid' },
 ]
 
-export function MasterAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises, currentFacilityId }: SuperAdminClientProps) {
+export function MasterAdminClient({ facilities, pendingRequests, activeFacilities, franchises: initialFranchises, currentFacilityId, tutorialMode = false }: SuperAdminClientProps) {
   const router = useRouter()
 
   // Active tab
@@ -118,7 +120,14 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
             : 'Request denied'
         )
         setTimeout(() => setRequestToast(null), 3000)
+      } else {
+        const j = await res.json().catch(() => ({}))
+        setRequestToast(typeof j.error === 'string' ? j.error : 'Request failed — try again')
+        setTimeout(() => setRequestToast(null), 4000)
       }
+    } catch {
+      setRequestToast('Network error — try again')
+      setTimeout(() => setRequestToast(null), 4000)
     } finally {
       setActioningRequestId(null)
     }
@@ -266,11 +275,16 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     setDeletingFranchiseId(id)
     try {
       const res = await fetch(`/api/super-admin/franchises/${id}`, { method: 'DELETE' })
-      if (!res.ok) return
+      if (!res.ok) {
+        setRequestToast('Could not delete the franchise — try again')
+        setTimeout(() => setRequestToast(null), 4000)
+        return
+      }
       setLocalFranchises((prev) => prev.filter((f) => f.id !== id))
       setDeleteFranchiseConfirmId(null)
     } catch {
-      // silently fail
+      setRequestToast('Network error — try again')
+      setTimeout(() => setRequestToast(null), 4000)
     } finally {
       setDeletingFranchiseId(null)
     }
@@ -294,8 +308,11 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
         // Worst health first (that's what needs attention); nulls last
         return (a.healthScore ?? 999) - (b.healthScore ?? 999)
       }
-      const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-      const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      const rawA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      const rawB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
+      // codes with no digits parse to NaN → unstable sort; pin them to the end
+      const numA = Number.isNaN(rawA) ? 9999 : rawA
+      const numB = Number.isNaN(rawB) ? 9999 : rawB
       return numA - numB
     })
   }, [visibleFacilities, facilitySortBy])
@@ -389,14 +406,20 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     setTogglingId(f.id)
     setDeactivatingId(null)
     try {
-      await fetch(`/api/super-admin/facility/${f.id}`, {
+      const res = await fetch(`/api/super-admin/facility/${f.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: newActive }),
       })
+      if (!res.ok) {
+        setRequestToast('Could not update the facility — try again')
+        setTimeout(() => setRequestToast(null), 4000)
+        return
+      }
       router.refresh()
     } catch {
-      // silently fail
+      setRequestToast('Network error — try again')
+      setTimeout(() => setRequestToast(null), 4000)
     } finally {
       setTogglingId(null)
     }
@@ -429,6 +452,28 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   return (
     <div className="page-enter">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        {/* P27 — practice-mode banner: a set ss_tutorial_mode cookie mixes demo
+            facilities into the grid. Say so, and offer a one-tap exit (clears
+            the cookie + hard reload for real-only data). */}
+        {tutorialMode && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <p className="text-sm text-amber-800">
+              <span className="font-semibold">Practice mode</span> — tutorial data is mixed into this list.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void import('@/lib/help/tutorial-cookie').then(({ clearTutorialCookie }) => {
+                  clearTutorialCookie()
+                  window.location.reload()
+                })
+              }}
+              className="shrink-0 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100 transition-colors"
+            >
+              Exit practice mode
+            </button>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-6">
           {/* Title row */}
@@ -1056,13 +1101,32 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
         {filteredFacilities.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-stone-400 text-sm">
-              {facilitySearch.trim()
-                ? 'No facilities match your search.'
-                : localFacilities.length === 0
-                  ? 'No facilities yet. Create one to get started.'
-                  : 'No active facilities.'}
-            </p>
+            {/* P27 — distinguish "load failed" from "genuinely none": the
+                activeFacilities list comes from a SEPARATE cache, so if it has
+                rows while the grid is empty, the detail load failed — never
+                tell a 100-facility org to "create one to get started". */}
+            {!facilitySearch.trim() && localFacilities.length === 0 && activeFacilities.length > 0 ? (
+              <>
+                <p className="text-stone-500 text-sm mb-3">
+                  Couldn&apos;t load facility details — this is usually temporary.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="text-sm font-semibold text-white bg-[#8B2E4A] rounded-xl px-4 py-2 hover:bg-[#72253C] transition-colors"
+                >
+                  Refresh
+                </button>
+              </>
+            ) : (
+              <p className="text-stone-400 text-sm">
+                {facilitySearch.trim()
+                  ? 'No facilities match your search.'
+                  : localFacilities.length === 0
+                    ? 'No facilities yet. Create one to get started.'
+                    : 'No active facilities.'}
+              </p>
+            )}
           </div>
         )}
         </>

@@ -12,6 +12,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Smoother & Smarter',
     items: [
       'Fixed the Master Admin page error — the access-request approval queue works again',
+      'Master Admin facilities list can no longer be blanked by tutorial practice mode (and shows a clear banner + exit button when practice data is mixed in)',
       'Booking and walk-in forms pre-select each resident\'s usual service; one-tap tip presets',
       'Closing a half-filled booking or sign-up form now asks before discarding your typing',
       'Family portal: a big "Pay" button stays at your thumb when a balance is due, and the request form\'s submit button is always in reach',

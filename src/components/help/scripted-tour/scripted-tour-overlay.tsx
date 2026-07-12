@@ -42,28 +42,39 @@ export function ScriptedTourOverlay() {
   // minutes. On mount, if the cookie is present but no tour is running and no
   // fresh resume state exists, clear it and re-render with real data.
   useEffect(() => {
-    const t = setTimeout(() => {
+    // Shared heal step. `ignoreResume` (P27 second stage): a "fresh" resume
+    // blob used to block healing entirely — but a tour that died on a crashed
+    // page leaves exactly that blob behind, stranding the user in demo-mixed
+    // data for up to the 15-min cookie TTL. A legit resume re-activates within
+    // a second of mount, so if NO tour is running by the second check, the
+    // resume blob is dead weight: clear it along with the cookie.
+    const heal = (ignoreResume: boolean) => {
       try {
         if (!document.cookie.includes('ss_tutorial_mode=')) return
-        const resumeRaw = sessionStorage.getItem('scriptedTour')
-        let hasFreshResume = false
-        if (resumeRaw) {
-          try {
-            const parsed = JSON.parse(resumeRaw) as { expiresAt?: number }
-            hasFreshResume = typeof parsed.expiresAt === 'number' && parsed.expiresAt > Date.now()
-          } catch { /* corrupt — treat as stale */ }
+        if (!ignoreResume) {
+          const resumeRaw = sessionStorage.getItem('scriptedTour')
+          let hasFreshResume = false
+          if (resumeRaw) {
+            try {
+              const parsed = JSON.parse(resumeRaw) as { expiresAt?: number }
+              hasFreshResume = typeof parsed.expiresAt === 'number' && parsed.expiresAt > Date.now()
+            } catch { /* corrupt — treat as stale */ }
+          }
+          if (hasFreshResume) return
         }
-        if (hasFreshResume) return
         import('@/lib/help/scripted-tour').then((m) => {
           if (m.isScriptedTourRunning?.()) return
+          try { sessionStorage.removeItem('scriptedTour') } catch { /* ignore */ }
           import('@/lib/help/tutorial-cookie').then(({ clearTutorialCookie }) => {
             clearTutorialCookie()
             window.location.reload() // re-render everything with real data
           })
         })
       } catch { /* best-effort heal */ }
-    }, 1500) // give a just-launched tour time to register first
-    return () => clearTimeout(t)
+    }
+    const t1 = setTimeout(() => heal(false), 1500) // give a just-launched tour time to register first
+    const t2 = setTimeout(() => heal(true), 6000) // definitive: no running tour by now = dead state
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
   // Detect mobile breakpoint

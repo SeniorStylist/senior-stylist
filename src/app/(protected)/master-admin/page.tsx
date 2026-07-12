@@ -4,7 +4,7 @@ import { unstable_cache } from 'next/cache'
 import { cookies } from 'next/headers'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { MasterAdminClient } from './master-admin-client'
 
 // Phase 22 — this page fires ~11 GROUP BY queries on a cold cache, all
@@ -35,8 +35,11 @@ interface FacilityInfo {
 }
 
 const getCachedFacilityInfos = unstable_cache(
+  // P27 — NO try/catch inside cached callbacks: unstable_cache would persist a
+  // caught-and-returned [] for the whole revalidate window (one DB blip = 5 min
+  // of "no facilities"). Errors propagate; the page-level catch renders empty
+  // ONCE and the next request retries fresh.
   async (yearMonthKey: string, tutorialMode: boolean): Promise<FacilityInfo[]> => {
-    try {
       const [year, month] = yearMonthKey.split('-').map((s) => Number(s))
       const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0)
 
@@ -48,8 +51,11 @@ const getCachedFacilityInfos = unstable_cache(
       // so tutorialMode is passed in and rides the cache key).
       const [allFacilities, residentRows, stylistRows, bookingRows, adminRows, cancelledRows, invoicedRows, collectedRows] = await Promise.all([
         db.query.facilities.findMany({
+          // Tutorial mode is ADDITIVE: real active facilities PLUS demo/practice
+          // ones (P27 — the old demo-ONLY branch let a leftover ss_tutorial_mode
+          // cookie blank the entire grid for a 100+-facility org).
           where: tutorialMode
-            ? eq(facilities.isDemo, true)
+            ? or(and(eq(facilities.active, true), eq(facilities.isDemo, false)), eq(facilities.isDemo, true))
             : and(eq(facilities.active, true), eq(facilities.isDemo, false)),
           orderBy: (t, { desc }) => [desc(t.createdAt)],
           columns: {
@@ -164,10 +170,6 @@ const getCachedFacilityInfos = unstable_cache(
         adminEmail: adminMap.get(f.id) || null,
         healthScore: healthFor(f.id, resMap.get(f.id) ?? 0, bookMap.get(f.id) ?? 0),
       }))
-    } catch (err) {
-      console.error('[master-admin] getCachedFacilityInfos failed:', err)
-      return []
-    }
   },
   ['master-admin-facility-infos'],
   { revalidate: 300, tags: ['facilities'] },
@@ -175,7 +177,6 @@ const getCachedFacilityInfos = unstable_cache(
 
 const getCachedPendingAccessRequests = unstable_cache(
   async () => {
-    try {
       const rows = await db.query.accessRequests.findMany({
         where: (t) => eq(t.status, 'pending'),
         orderBy: (t, { desc }) => [desc(t.createdAt)],
@@ -193,10 +194,6 @@ const getCachedPendingAccessRequests = unstable_cache(
         userId: r.userId,
         createdAt: r.createdAt?.toISOString() ?? null,
       }))
-    } catch (err) {
-      console.error('[master-admin] getCachedPendingAccessRequests failed:', err)
-      return []
-    }
   },
   ['master-admin-pending-access-requests'],
   { revalidate: 60, tags: ['access-requests'] },
@@ -204,16 +201,11 @@ const getCachedPendingAccessRequests = unstable_cache(
 
 const getCachedActiveFacilitiesList = unstable_cache(
   async () => {
-    try {
       return await db.query.facilities.findMany({
         where: (t) => and(eq(t.active, true), eq(t.isDemo, false)),
         orderBy: (t, { asc }) => [asc(t.name)],
         columns: { id: true, name: true, facilityCode: true },
       })
-    } catch (err) {
-      console.error('[master-admin] getCachedActiveFacilitiesList failed:', err)
-      return []
-    }
   },
   ['master-admin-active-facilities-list'],
   { revalidate: 300, tags: ['facilities'] },
@@ -221,7 +213,6 @@ const getCachedActiveFacilitiesList = unstable_cache(
 
 const getCachedFranchiseList = unstable_cache(
   async () => {
-    try {
       return await db.query.franchises.findMany({
         with: {
           owner: { columns: { email: true, fullName: true } },
@@ -231,10 +222,6 @@ const getCachedFranchiseList = unstable_cache(
         },
         orderBy: (t, { asc }) => [asc(t.name)],
       })
-    } catch (err) {
-      console.error('[master-admin] getCachedFranchiseList failed:', err)
-      return []
-    }
   },
   ['master-admin-franchise-list'],
   { revalidate: 300, tags: ['facilities'] },
@@ -259,15 +246,22 @@ export default async function SuperAdminPage() {
   // Phase 22 — SEQUENTIAL on cold cache so the four functions' query bursts
   // don't overlap on the max:1 connection (peak concurrency = one function's
   // queries, not all four). Warm cache makes each an instant no-DB return.
-  const facilityInfos = await getCachedFacilityInfos(yearMonthKey, tutorialMode)
-  const pendingRequests = await getCachedPendingAccessRequests()
-  const activeFacilitiesList = await getCachedActiveFacilitiesList()
-  const franchiseList = await getCachedFranchiseList()
+  // P27 — failures are caught HERE (outside the cache) so an error is never
+  // persisted as an empty list; the next request retries fresh.
+  const logFail = (name: string) => (err: unknown) => {
+    console.error(`[master-admin] ${name} failed:`, err)
+    return []
+  }
+  const facilityInfos = await getCachedFacilityInfos(yearMonthKey, tutorialMode).catch(logFail('getCachedFacilityInfos'))
+  const pendingRequests = await getCachedPendingAccessRequests().catch(logFail('getCachedPendingAccessRequests'))
+  const activeFacilitiesList = await getCachedActiveFacilitiesList().catch(logFail('getCachedActiveFacilitiesList'))
+  const franchiseList = await getCachedFranchiseList().catch(logFail('getCachedFranchiseList'))
 
   return (
     <MasterAdminClient
       currentFacilityId={currentFacilityId}
       facilities={facilityInfos}
+      tutorialMode={tutorialMode}
       pendingRequests={pendingRequests}
       activeFacilities={activeFacilitiesList}
       franchises={franchiseList.map((f) => ({

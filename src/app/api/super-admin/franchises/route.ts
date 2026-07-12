@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { franchises, franchiseFacilities, facilityUsers, profiles } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
+import { revalidateTag } from 'next/cache'
 
 async function getSuperAdmin() {
   const supabase = await createClient()
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 
+    revalidateTag('facilities', {}) // P27 — franchise list cache is tagged 'facilities'
     return Response.json({ data }, { status: 201 })
   } catch (err) {
     console.error('POST /api/super-admin/franchises error:', err)
