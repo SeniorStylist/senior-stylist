@@ -37,6 +37,11 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
 
   const completedCount = items.filter((item) => isTourCompleted(item.tourId, localCompleted)).length
   const totalCount = items.length
+  // P26 goal-gradient (endowed progress): creating the account IS step one, so
+  // the bar never starts at 0% — displayed counts include it; the auto-dismiss
+  // logic below still keys on the real tour counts.
+  const displayCompleted = completedCount + 1
+  const displayTotal = totalCount + 1
 
   // Entrance delay — slide up 1s after mount
   useEffect(() => {
@@ -102,7 +107,7 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
           {allDoneMsg ? '🎉 You\'re all set!' : '🚀 Getting Started'}
         </span>
         <span className="text-xs text-stone-500 tabular-nums shrink-0">
-          {completedCount} / {totalCount}
+          {displayCompleted} / {displayTotal}
         </span>
         <button
           type="button"
@@ -126,13 +131,18 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
       <div className="h-1 bg-stone-100">
         <div
           className="h-full bg-[#8B2E4A] rounded-full transition-all duration-500"
-          style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
+          style={{ width: `${displayTotal > 0 ? (displayCompleted / displayTotal) * 100 : 0}%` }}
         />
       </div>
 
       {/* Checklist items */}
       {!collapsed && (
         <ul className="px-4 py-3 space-y-3">
+          {/* Pre-completed first step — momentum beats a blank slate */}
+          <li className="flex items-center gap-3">
+            <CheckCircle2 size={18} className="text-[#8B2E4A] shrink-0" />
+            <span className="flex-1 text-sm line-through text-stone-400">Create your account</span>
+          </li>
           {items.map((item) => {
             const done = isTourCompleted(item.tourId, localCompleted)
             return (

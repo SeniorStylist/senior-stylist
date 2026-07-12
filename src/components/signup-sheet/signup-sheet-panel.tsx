@@ -58,6 +58,7 @@ export function SignupSheetPanel({
   const [notes, setNotes] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   // Queue
   const [entries, setEntries] = useState<SignupSheetEntryWithRelations[]>([])
@@ -267,13 +268,30 @@ export function SignupSheetPanel({
     return Array.from(map.entries())
   }, [entries, stylists])
 
+  // P26 loss-aversion guard — a backdrop tap used to silently discard the whole
+  // typed entry. With user input present, ask first.
+  const formDirty =
+    residentSearch.trim() !== '' ||
+    serviceSearch.trim() !== '' ||
+    notes.trim() !== '' ||
+    requestedTime !== '' ||
+    preferredDate !== '' ||
+    createResidentName.trim() !== ''
+  const requestClose = () => {
+    if (formDirty) {
+      setConfirmDiscard(true)
+      return
+    }
+    onClose()
+  }
+
   if (!open) return null
 
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col justify-end md:items-stretch md:justify-end md:py-6 md:pr-6"
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-      onClick={onClose}
+      onClick={requestClose}
     >
       <div
         ref={containerRef}
@@ -292,7 +310,7 @@ export function SignupSheetPanel({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-stone-600"
           >
@@ -302,6 +320,37 @@ export function SignupSheetPanel({
             </svg>
           </button>
         </div>
+
+        {/* P26 — discard confirm (shown when closing with typed input) */}
+        {confirmDiscard && (
+          <div className="mx-5 mt-3 flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 shrink-0">
+            <span className="text-xs font-medium text-amber-800">Discard this request?</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(false)}
+                className="text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 hover:bg-stone-50 transition-colors"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Actually discard — clear the form so it doesn't reappear on reopen
+                  setResidentSearch(''); setSelectedResidentId(''); setRoomOverride('')
+                  setServiceSearch(''); setSelectedServiceId('')
+                  setRequestedTime(''); setPreferredDate(''); setAssignedStylistId(''); setNotes('')
+                  setCreateResidentOpen(false); setCreateResidentName(''); setCreateResidentRoom('')
+                  setConfirmDiscard(false)
+                  onClose()
+                }}
+                className="text-xs font-semibold text-white bg-amber-600 rounded-lg px-2.5 py-1.5 hover:bg-amber-700 transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Scroll body: form + queue */}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">

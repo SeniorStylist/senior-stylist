@@ -168,6 +168,43 @@ export function BookingModal({
       (r.roomNumber && r.roomNumber.toLowerCase().includes(residentSearch.toLowerCase()))
   )
 
+  // P26 loss-aversion guard — dismissing the modal (backdrop / Escape / Close)
+  // with typed-in work shows a small discard confirm instead of silently
+  // throwing it away. Only USER work counts as dirty: prefills and the
+  // auto-filled resident tip default never trigger the prompt.
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const isDirty = (() => {
+    if (!open || submitting) return false
+    if (mode === 'edit' && booking) {
+      const origIds =
+        booking.serviceIds && booking.serviceIds.length > 0
+          ? booking.serviceIds
+          : booking.serviceId
+            ? [booking.serviceId]
+            : []
+      const curIds = selectedServiceIds.filter(Boolean)
+      const idsChanged = curIds.join(',') !== origIds.join(',')
+      const addonsChanged = selectedAddonServiceIds.join(',') !== (booking.addonServiceIds ?? []).join(',')
+      const notesChanged = notes !== (booking.notes ?? '')
+      const timeChanged = startTime !== formatDateTimeLocal(booking.startTime, facilityTimezone)
+      const origTip = booking.tipCents != null && booking.tipCents > 0 ? booking.tipCents : ''
+      const tipChanged = tipType === 'fixed' ? tipValue !== origTip : tipValue !== '' && origTip === ''
+      return idsChanged || addonsChanged || notesChanged || timeChanged || tipChanged
+    }
+    const residentTouched = !!selectedResidentId && selectedResidentId !== (prefillResidentId ?? '')
+    const serviceTouched =
+      selectedServiceIds.filter(Boolean).length > ((prefillServiceId ? 1 : 0) + (residentTouched ? 1 : 0))
+    // the most-used auto-preselect from a touched resident doesn't count as extra work
+    return residentTouched || serviceTouched || notes.trim() !== '' || selectedAddonServiceIds.length > 0
+  })()
+  const requestClose = () => {
+    if (isDirty) {
+      setConfirmDiscard(true)
+      return
+    }
+    onClose()
+  }
+
   // Pre-fill form when modal opens
   useEffect(() => {
     if (!open) return
@@ -220,6 +257,7 @@ export function BookingModal({
     setAvailableCount(null)
     setLoadingStylists(false)
     setError(null)
+    setConfirmDiscard(false)
     setConfirmCancel(false)
     setCancelReason('')
     setCancelReasonOther('')
@@ -1350,11 +1388,37 @@ export function BookingModal({
     }
   }
 
+  // P26 — compact discard confirm shown in place of silent dismissal
+  const discardBar = confirmDiscard ? (
+    <div className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
+      <span className="text-xs font-medium text-amber-800">
+        Discard this {mode === 'create' ? 'booking' : 'change'}?
+      </span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={() => setConfirmDiscard(false)}
+          className="text-xs font-semibold text-stone-600 bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 hover:bg-stone-50 transition-colors"
+        >
+          Keep editing
+        </button>
+        <button
+          type="button"
+          onClick={() => { setConfirmDiscard(false); onClose() }}
+          className="text-xs font-semibold text-white bg-amber-600 rounded-lg px-2.5 py-1.5 hover:bg-amber-700 transition-colors"
+        >
+          Discard
+        </button>
+      </div>
+    </div>
+  ) : null
+
   const formFooter = (
     <div
       className="bg-white px-6 pt-4 border-t border-stone-100"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
     >
+      {discardBar}
       {breakdown}
       <div className="flex items-center justify-end gap-2 flex-wrap">
         {mode === 'edit' && isAdmin && (
@@ -1369,7 +1433,7 @@ export function BookingModal({
         )}
         <Button
           variant="secondary"
-          onClick={onClose}
+          onClick={requestClose}
           disabled={submitting || cancelling}
         >
           Close
@@ -1389,7 +1453,7 @@ export function BookingModal({
   if (isMobile) {
     return (
       <>
-        <BottomSheet isOpen={open} onClose={onClose} title={formTitle} footer={formFooter}>
+        <BottomSheet isOpen={open} onClose={requestClose} title={formTitle} footer={formFooter}>
           {formFields}
         </BottomSheet>
         {sendConfirmDialog}
@@ -1399,12 +1463,13 @@ export function BookingModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={formTitle} className="max-w-lg" data-tour="calendar-booking-modal">
+      <Modal open={open} onClose={requestClose} title={formTitle} className="max-w-lg" data-tour="calendar-booking-modal">
         {formFields}
         <div className="sticky bottom-0 bg-white px-6 pb-6 border-t border-stone-100 pt-4">
+          {discardBar}
           {breakdown}
           <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={onClose} disabled={submitting || cancelling}>Close</Button>
+            <Button variant="secondary" onClick={requestClose} disabled={submitting || cancelling}>Close</Button>
             <Button data-tour="booking-modal-submit" onClick={handleSubmit} loading={submitting} disabled={submitDisabled}>
               {mode === 'create' ? 'Book appointment' : 'Save changes'}
             </Button>
