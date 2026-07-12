@@ -101,6 +101,10 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
 
   return (
     <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] overflow-hidden">
+      {/* P26 — say what the portal gives them BEFORE asking for their details */}
+      <div className="bg-[#F9EFF2] px-5 py-3 border-b border-rose-100">
+        <p className="text-sm text-[#8B2E4A]">{t('signup.valueStrip')}</p>
+      </div>
       <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-stone-600" htmlFor="fullName">

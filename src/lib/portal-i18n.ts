@@ -295,6 +295,10 @@ export const PORTAL_STRINGS = {
     en: 'Enter the name the facility has on file for you (POA/guardian).',
     es: 'Ingrese el nombre que el centro tiene registrado para usted (apoderado/tutor).',
   },
+  'signup.valueStrip': {
+    en: 'See upcoming appointments, pay the balance, and view style photos — all in one place.',
+    es: 'Vea las próximas citas, pague el saldo y vea fotos de peinados — todo en un solo lugar.',
+  },
   'signup.phone': { en: 'Phone number', es: 'Número de teléfono' },
   'signup.dob': { en: 'Date of birth', es: 'Fecha de nacimiento' },
   'signup.optional': { en: '(optional)', es: '(opcional)' },

@@ -1254,6 +1254,11 @@ export function LogClient({
                           setWiResidentId(r.id)
                           setWiResidentSearch(r.name)
                           setWiResidentDropOpen(false)
+                          // P26 smart default — pre-select the resident's usual
+                          // service when none is chosen yet (freely changeable)
+                          if (!wiServiceId && r.mostUsedServiceId && services.some((s) => s.id === r.mostUsedServiceId && s.pricingType !== 'addon')) {
+                            setWiServiceId(r.mostUsedServiceId)
+                          }
                         }}
                         className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
                       >

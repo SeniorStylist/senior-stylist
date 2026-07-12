@@ -269,6 +269,23 @@ export function BookingModal({
     }
   }, [selectedServiceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // P26 smart default — picking a resident pre-selects their most-used service
+  // (create mode, only while the service row is still empty; the user can
+  // change it freely). The per-resident mostUsedServiceId is computed
+  // server-side (lib/resident-service-usage.ts) and rides the resident object.
+  useEffect(() => {
+    if (mode === 'edit') return
+    if (!selectedResidentId) return
+    // Don't clobber anything the user (or a prefill) already chose
+    if (selectedServiceIds.some((id) => !!id)) return
+    const r = allResidents.find((x) => x.id === selectedResidentId)
+    const usual = r?.mostUsedServiceId
+    if (!usual) return
+    const svc = services.find((s) => s.id === usual)
+    if (!svc || svc.pricingType === 'addon') return
+    setSelectedServiceIds([usual])
+  }, [selectedResidentId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Phase 12E — auto-fill tip from resident's saved default when a resident is picked
   // (create mode only; only when user hasn't manually cleared the tip)
   useEffect(() => {
@@ -1246,6 +1263,33 @@ export function BookingModal({
         <span className="shrink-0 text-stone-600 text-xs">
           {tipCentsPreview > 0 ? formatCents(tipCentsPreview) : '—'}
         </span>
+      </div>
+      {/* P26 — one-tap tip presets (smart defaults / Hick's law): most tips are a
+          standard percentage; typing one shouldn't be required. */}
+      <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+        {[15, 18, 20].map((pct) => (
+          <button
+            key={pct}
+            type="button"
+            onClick={() => { setTipType('percentage'); setTipValue(pct); setTipCleared(false) }}
+            className={`rounded-full px-2.5 py-1 text-[10.5px] font-semibold transition-colors ${
+              tipType === 'percentage' && tipNumeric === pct
+                ? 'bg-[#8B2E4A] text-white'
+                : 'bg-rose-50 text-[#8B2E4A] hover:bg-rose-100'
+            }`}
+          >
+            {pct}%
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => { setTipValue(''); setTipCleared(true) }}
+          className={`rounded-full px-2.5 py-1 text-[10.5px] font-semibold transition-colors ${
+            tipValue === '' ? 'bg-stone-200 text-stone-700' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+          }`}
+        >
+          No tip
+        </button>
       </div>
       <div className="flex justify-between font-semibold text-stone-900 border-t border-stone-200 pt-1.5 mt-1.5">
         <span>Total</span>
