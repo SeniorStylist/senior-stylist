@@ -176,10 +176,23 @@ const getCachedFacilityInfos = unstable_cache(
 const getCachedPendingAccessRequests = unstable_cache(
   async () => {
     try {
-      return await db.query.accessRequests.findMany({
+      const rows = await db.query.accessRequests.findMany({
         where: (t) => eq(t.status, 'pending'),
         orderBy: (t, { desc }) => [desc(t.createdAt)],
       })
+      // Serialize INSIDE the cached callback — unstable_cache JSON round-trips
+      // its results, so on a warm hit Date fields come back as STRINGS. Calling
+      // .toISOString() on the cached value outside this function crashed the
+      // whole page whenever an access request was pending (2026-07-12 outage).
+      return rows.map((r) => ({
+        id: r.id,
+        email: r.email,
+        fullName: r.fullName,
+        role: r.role,
+        status: r.status,
+        userId: r.userId,
+        createdAt: r.createdAt?.toISOString() ?? null,
+      }))
     } catch (err) {
       console.error('[master-admin] getCachedPendingAccessRequests failed:', err)
       return []
@@ -255,25 +268,21 @@ export default async function SuperAdminPage() {
     <MasterAdminClient
       currentFacilityId={currentFacilityId}
       facilities={facilityInfos}
-      pendingRequests={pendingRequests.map((r) => ({
-        id: r.id,
-        email: r.email,
-        fullName: r.fullName,
-        role: r.role,
-        status: r.status,
-        userId: r.userId,
-        createdAt: r.createdAt?.toISOString() ?? null,
-      }))}
+      pendingRequests={pendingRequests}
       activeFacilities={activeFacilitiesList}
       franchises={franchiseList.map((f) => ({
         id: f.id,
         name: f.name,
         ownerEmail: f.owner?.email ?? null,
         ownerName: f.owner?.fullName ?? null,
-        facilities: f.franchiseFacilities.map((ff) => ({
-          id: ff.facility.id,
-          name: ff.facility.name,
-        })),
+        // Drizzle types the facility relation non-null, but an orphaned join
+        // row would make it null at runtime — filter instead of throwing.
+        facilities: f.franchiseFacilities
+          .filter((ff) => ff.facility != null)
+          .map((ff) => ({
+            id: ff.facility.id,
+            name: ff.facility.name,
+          })),
       }))}
     />
   )

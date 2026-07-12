@@ -38,10 +38,22 @@ export default async function HelpPage() {
 
   const effectiveRole = debugRole ?? facilityUser.role
 
-  const profile = await db.query.profiles.findFirst({
-    where: eq(profiles.id, user.id),
-    columns: { completedTours: true, helpProgress: true },
-  })
+  // Best-effort — the help catalog must render even if this read fails
+  // (completed badges / resume banner just don't show).
+  let profile:
+    | {
+        completedTours: string[] | null
+        helpProgress: { tourId: string; stepIndex: number; scenarioState: Record<string, string> } | null
+      }
+    | undefined
+  try {
+    profile = await db.query.profiles.findFirst({
+      where: eq(profiles.id, user.id),
+      columns: { completedTours: true, helpProgress: true },
+    })
+  } catch (err) {
+    console.error('[help] profile read failed:', err)
+  }
 
   return (
     <HelpClient

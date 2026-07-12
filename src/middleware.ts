@@ -57,13 +57,26 @@ export async function middleware(request: NextRequest) {
   // getUser()+getUserFacility() authorization, so middleware remains a redirect
   // convenience layer, not the security boundary.
   let user: { id: string; email: string | undefined } | null = null
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
-  if (claimsData?.claims?.sub) {
-    user = {
-      id: claimsData.claims.sub,
-      email: typeof claimsData.claims.email === 'string' ? claimsData.claims.email : undefined,
+  let claimsFailed = false
+  try {
+    // getClaims only converts AuthErrors into { error } — a non-AuthError (e.g.
+    // a DOMException from crypto.subtle on a malformed JWK) is RE-THROWN, and an
+    // uncaught throw here would take down EVERY matched route. Catch and fall
+    // back to the full server check instead.
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+    if (claimsData?.claims?.sub) {
+      user = {
+        id: claimsData.claims.sub,
+        email: typeof claimsData.claims.email === 'string' ? claimsData.claims.email : undefined,
+      }
+    } else if (claimsError) {
+      claimsFailed = true
     }
-  } else if (claimsError) {
+  } catch (err) {
+    console.error('[middleware] getClaims threw:', err)
+    claimsFailed = true
+  }
+  if (!user && claimsFailed) {
     // Transient verification failure (e.g. JWKS fetch hiccup) — don't bounce a
     // valid session to /login; do the full server check instead.
     const {
