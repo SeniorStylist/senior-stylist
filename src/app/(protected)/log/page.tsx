@@ -123,6 +123,7 @@ export default async function LogPage() {
       facilityName={facility?.name ?? ''}
       role={facilityUser.role}
       exportFacilities={exportFacilities}
+      isMaster={isMaster}
     />
   )
   } catch (err) {

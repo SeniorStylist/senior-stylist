@@ -100,6 +100,9 @@ interface LogClientProps {
   facilityName: string
   role?: string
   exportFacilities?: ExportFacilityOption[]
+  // Master admin (env-email match) — role alone can't signal it (their
+  // facility_users row is a plain 'admin'). Drives the Sheets modal Move gate.
+  isMaster?: boolean
 }
 
 // Round a date to nearest 30 min IN THE FACILITY'S TIMEZONE.
@@ -183,6 +186,7 @@ export function LogClient({
   facilityName,
   role = 'admin',
   exportFacilities,
+  isMaster = false,
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
   // facility_staff is read-only; bookkeeper can scan and edit billing fields
@@ -2094,7 +2098,8 @@ export function LogClient({
         open={sheetsOpen}
         onClose={() => setSheetsOpen(false)}
         role={role}
-        isMasterAdmin={false}
+        isMasterAdmin={isMaster}
+        facilities={exportFacilities}
       />
 
       {/* Phase 16 G11 — booking photo capture */}

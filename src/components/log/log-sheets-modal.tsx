@@ -28,6 +28,12 @@ interface LogSheetsModalProps {
   onClose: () => void
   role?: string
   isMasterAdmin?: boolean
+  // Cross-facility target list for the Move action. REQUIRED for bookkeeper/master:
+  // they have no facility_users rows beyond their anchor facility, so the
+  // GET /api/facilities fallback returns only that one row and the Move picker
+  // can never offer a destination (bookkeeper report 2026-07-12). The /log page
+  // already computes the full active-facility list (exportFacilities) — pass it in.
+  facilities?: FacilityOption[]
 }
 
 function formatDate(iso: string) {
@@ -46,7 +52,7 @@ type ActiveAction =
   | { batchId: string; type: 'rename' }
   | null
 
-export function LogSheetsModal({ open, onClose, role, isMasterAdmin }: LogSheetsModalProps) {
+export function LogSheetsModal({ open, onClose, role, isMasterAdmin, facilities: facilitiesProp }: LogSheetsModalProps) {
   const { toast } = useToast()
   const [batches, setBatches] = useState<SheetBatch[]>([])
   const [loading, setLoading] = useState(false)
@@ -58,8 +64,9 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin }: LogSheets
   // Rename state
   const [renameValue, setRenameValue] = useState('')
 
-  // Move state
-  const [facilities, setFacilities] = useState<FacilityOption[]>([])
+  // Move state — seeded from the prop when provided (bookkeeper/master get the full
+  // cross-facility list from the /log page); the fetch below is a fallback only.
+  const [facilities, setFacilities] = useState<FacilityOption[]>(facilitiesProp ?? [])
   const [facilitySearch, setFacilitySearch] = useState('')
   const [targetFacilityId, setTargetFacilityId] = useState('')
 
@@ -79,6 +86,10 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin }: LogSheets
 
   const fetchFacilities = useCallback(async () => {
     if (facilities.length > 0) return
+    // Fallback when no prop was passed. NOTE: /api/facilities returns only the
+    // caller's membership facilities — fine for admins (own facility), wrong for
+    // bookkeepers (single anchor row). Bookkeeper/master callers must pass the
+    // `facilities` prop instead.
     const res = await fetch('/api/facilities')
     const json = await res.json()
     if (res.ok) setFacilities(json.data ?? [])
