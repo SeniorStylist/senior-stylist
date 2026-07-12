@@ -259,6 +259,31 @@ export function BillingClient({
         </section>
       )}
 
+      {/* P26 Fitts's-law thumb-zone CTA (mobile): the single most important
+          action for a family member with a balance due lives above the bottom
+          nav, always one thumb-tap away. Charges the same amount as the pay
+          card's input (defaults to the full balance). */}
+      {showPay && (
+        <>
+          <div
+            className="md:hidden fixed left-0 right-0 z-40 px-4 pb-2"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
+          >
+            <button
+              type="button"
+              onClick={onPay}
+              disabled={submitting}
+              className="w-full bg-[#8B2E4A] text-white font-semibold rounded-2xl px-5 py-3.5 shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] active:scale-[0.98] transition-all disabled:opacity-60"
+              style={{ fontSize: 'calc(15px * min(var(--portal-text-scale, 1), 1.25))' }}
+            >
+              {submitting
+                ? t('common.loading')
+                : t('billing.payBarCta', { amount: `$${(Number.parseFloat(amountInput) || outstandingCents / 100).toFixed(2)}` })}
+            </button>
+          </div>
+        </>
+      )}
+
       {stripeAvailable && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
           <h2 className="text-sm font-semibold text-stone-900 mb-1">{t('billing.addFundsTitle')}</h2>
@@ -412,6 +437,9 @@ export function BillingClient({
           {facilityEmail && <> · {facilityEmail}</>}.
         </p>
       )}
+
+      {/* keep the last card clear of the fixed Pay bar (mobile) */}
+      {showPay && <div className="md:hidden" style={{ height: 64 }} aria-hidden="true" />}
     </div>
   )
 }

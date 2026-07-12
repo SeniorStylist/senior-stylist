@@ -12,7 +12,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useToast } from '@/components/ui/toast'
 
 interface ResidentOption { id: string; name: string; roomNumber?: string | null }
-interface ServiceOption { id: string; name: string }
+interface ServiceOption { id: string; name: string; category?: string | null }
 
 interface AddToWaitlistModalProps {
   open: boolean
@@ -41,6 +41,7 @@ export function AddToWaitlistModal({
   const isMobile = useIsMobile()
   const { toast } = useToast()
   const [residentId, setResidentId] = useState('')
+  const [residentQuery, setResidentQuery] = useState('')
   const [serviceId, setServiceId] = useState('')
   const [earliestDate, setEarliestDate] = useState(todayStr())
   const [latestDate, setLatestDate] = useState('')
@@ -51,6 +52,7 @@ export function AddToWaitlistModal({
   useEffect(() => {
     if (open) {
       setResidentId(prefillResidentId ?? '')
+      setResidentQuery('')
       setServiceId(prefillServiceId ?? '')
       setEarliestDate(todayStr())
       setLatestDate('')
@@ -63,6 +65,27 @@ export function AddToWaitlistModal({
     () => residents.find((r) => r.id === residentId) ?? null,
     [residents, residentId],
   )
+
+  // P26 Hick's law — the resident list can run 100+ entries; a filter box
+  // narrows the select instead of forcing a scroll through everyone.
+  const filteredResidents = useMemo(() => {
+    const q = residentQuery.trim().toLowerCase()
+    if (!q) return residents
+    return residents.filter(
+      (r) => r.name.toLowerCase().includes(q) || (r.roomNumber ?? '').toLowerCase().includes(q),
+    )
+  }, [residents, residentQuery])
+
+  // Services grouped by category (matches every other service picker)
+  const groupedServices = useMemo(() => {
+    const map = new Map<string, ServiceOption[]>()
+    for (const s of services) {
+      const cat = s.category?.trim() || 'Other'
+      if (!map.has(cat)) map.set(cat, [])
+      map.get(cat)!.push(s)
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [services])
 
   const submit = async () => {
     if (!selectedResident) { setError('Pick a resident'); return }
@@ -107,9 +130,25 @@ export function AddToWaitlistModal({
       )}
       <div>
         <label className={labelCls}>Resident *</label>
+        {residents.length > 8 && (
+          <input
+            type="text"
+            value={residentQuery}
+            onChange={(e) => setResidentQuery(e.target.value)}
+            placeholder="Search name or room…"
+            aria-label="Filter residents"
+            className={`${inputCls} mb-1.5`}
+          />
+        )}
         <select value={residentId} onChange={(e) => setResidentId(e.target.value)} className={inputCls}>
           <option value="">Select a resident…</option>
-          {residents.map((r) => (
+          {/* keep the picked resident visible even when the filter excludes them */}
+          {selectedResident && !filteredResidents.some((r) => r.id === selectedResident.id) && (
+            <option value={selectedResident.id}>
+              {selectedResident.name}{selectedResident.roomNumber ? ` · Rm ${selectedResident.roomNumber}` : ''}
+            </option>
+          )}
+          {filteredResidents.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}{r.roomNumber ? ` · Rm ${r.roomNumber}` : ''}
             </option>
@@ -120,8 +159,12 @@ export function AddToWaitlistModal({
         <label className={labelCls}>Service (optional)</label>
         <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={inputCls}>
           <option value="">Any service</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+          {groupedServices.map(([cat, list]) => (
+            <optgroup key={cat} label={cat}>
+              {list.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>

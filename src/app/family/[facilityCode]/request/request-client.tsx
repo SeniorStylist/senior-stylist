@@ -242,14 +242,38 @@ export function RequestClient({ facilityCode, lang, residentId, groups }: Props)
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
+      {/* Desktop: inline submit at the end of the form */}
       <button
         type="button"
         onClick={onSubmit}
         disabled={submitting || selected.size === 0}
-        className="bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
+        className="hidden md:block bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {submitting ? t('request.submitting') : t('request.submit')}
       </button>
+
+      {/* P26 Fitts's-law thumb-zone CTA (mobile): submit is always one tap away
+          above the bottom nav, with a live selected-count chip — no scrolling
+          back down a long service list to find the button. */}
+      <div
+        className="md:hidden fixed left-0 right-0 z-40 px-4 pb-2"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
+      >
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={submitting || selected.size === 0}
+          className="w-full flex items-center justify-center gap-2 bg-[#8B2E4A] text-white font-semibold rounded-2xl px-5 py-3.5 shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ fontSize: 'calc(15px * min(var(--portal-text-scale, 1), 1.25))' }}
+        >
+          {submitting ? t('request.submitting') : t('request.submit')}
+          {!submitting && selected.size > 0 && (
+            <span className="bg-white/25 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums">{selected.size}</span>
+          )}
+        </button>
+      </div>
+      {/* keep the notes card clear of the fixed bar (mobile) */}
+      <div className="md:hidden" style={{ height: 64 }} aria-hidden="true" />
     </div>
   )
 }

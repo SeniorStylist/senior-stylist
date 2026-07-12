@@ -86,6 +86,7 @@ export const PORTAL_STRINGS = {
   'billing.payOnline': { en: 'Pay online', es: 'Pagar en línea' },
   'billing.amount': { en: 'Amount', es: 'Monto' },
   'billing.payWithCard': { en: 'Pay with card', es: 'Pagar con tarjeta' },
+  'billing.payBarCta': { en: 'Pay {amount}', es: 'Pagar {amount}' },
   'billing.secureStripe': { en: 'Secure payment via Stripe.', es: 'Pago seguro a través de Stripe.' },
   'billing.addFundsTitle': { en: 'Add funds to account', es: 'Agregar fondos a la cuenta' },
   'billing.addFundsHint': {
