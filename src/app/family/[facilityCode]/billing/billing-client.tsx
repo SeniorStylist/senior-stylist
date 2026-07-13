@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
 import { usePortalT, portalLocale, type PortalLang } from '@/lib/portal-i18n'
+import { PortalOfflineSnapshot } from '@/components/portal/portal-offline-snapshot'
 import { formatDollars } from '@/lib/format'
 
 interface Invoice {
@@ -199,6 +200,7 @@ export function BillingClient({
 
   return (
     <div className="page-enter flex flex-col gap-4">
+      <PortalOfflineSnapshot facilityPhone={facilityPhone} balanceCents={outstandingCents} lang={lang} />
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
           {t('billing.title')}

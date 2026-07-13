@@ -30,7 +30,8 @@ export function PortalHeader({ facilityCode, facilityName, lang, residents }: Pr
 
   const onSignOut = async () => {
     try {
-      clearReadCache() // Phase 17 — wipe cached data on sign-out
+      clearReadCache()
+      try { localStorage.removeItem('ss_portal_offline') } catch { /* ignore */ } // Phase 17 — wipe cached data on sign-out
       await fetch('/api/portal/logout', { method: 'POST' })
     } catch {
       // best-effort

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { queueableFetch, isQueued } from '@/lib/offline-queue'
+import { saveSnapshot } from '@/lib/read-cache'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import { isInstallable, detectDevice, isNativeApp } from '@/lib/detect-device'
@@ -184,6 +185,24 @@ function statusBadge(status: string) {
 }
 
 export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCents, monthForecastCents = 0, linked, facilityStylists, googleCalendarConnected, complianceDocuments, availability, coverageRequests, stylistId, stylistAssignments = [], payHistory = [], payHistoryDeductions = [] }: MyAccountClientProps) {
+  // P28 — snapshot the week + availability so the offline hub can show a
+  // stylist their schedule even where no service worker runs (iOS app).
+  useEffect(() => {
+    try {
+      saveSnapshot('me:my-account', {
+        name: user.fullName ?? user.email,
+        weekBookings: weekBookings.map((b) => ({
+          startTime: b.startTime,
+          status: b.status,
+          resident: { name: b.resident.name },
+          serviceName: b.service?.name ?? b.rawServiceName ?? null,
+        })),
+        availability,
+      })
+    } catch { /* best-effort */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedStylistId, setSelectedStylistId] = useState('')

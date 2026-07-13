@@ -6,6 +6,7 @@ import { requirePortalAuth } from '@/lib/portal-auth'
 import { getPortalT } from '@/lib/portal-i18n-server'
 import { portalLocale } from '@/lib/portal-i18n'
 import { formatDollars } from '@/lib/format'
+import { PortalOfflineSnapshot } from '@/components/portal/portal-offline-snapshot'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,13 @@ export default async function FamilyHomePage({
 
   return (
     <div className="page-enter flex flex-col gap-4">
+      <PortalOfflineSnapshot
+        facilityName={selected.facilityName}
+        residentName={selected.residentName}
+        nextAppointment={upcoming[0]?.startTime ? new Date(upcoming[0].startTime).toISOString() : null}
+        balanceCents={outstanding}
+        lang={lang}
+      />
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
         <p className="text-xs uppercase tracking-wide text-stone-400 font-semibold">{t('home.welcomeBack')}</p>
         <h1 className="text-2xl text-stone-900 mt-1" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>

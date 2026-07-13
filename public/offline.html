@@ -15,8 +15,8 @@
     button { background: #8B2E4A; color: #fff; border: none; border-radius: 10px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
     button:hover { background: #72253C; }
     .pending { display: none; margin: 0 auto 16px; max-width: fit-content; font-size: 12px; font-weight: 600; color: #B45309; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 999px; padding: 5px 14px; }
-    #schedule { display: none; margin-top: 16px; background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 20px; text-align: left; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
-    #schedule h2 { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: #1C1917; }
+    .panel { display: none; margin-top: 16px; background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 20px; text-align: left; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    .panel h2 { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: #1C1917; }
     .saved-at { margin: 0 0 12px; font-size: 11.5px; color: #A8A29E; }
     .row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid #F5F5F4; font-size: 13.5px; }
     .row:last-child { border-bottom: none; }
@@ -25,82 +25,296 @@
     .what { color: #78716C; font-size: 12px; margin-top: 1px; }
     .room { color: #78716C; font-weight: 400; font-size: 12px; }
     .none { color: #A8A29E; font-size: 13px; padding: 8px 0; }
+    .day { font-size: 11px; font-weight: 700; color: #A8A29E; text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 2px; }
+    #rosterFilter { width: 100%; border: 1px solid #E7E5E4; border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-bottom: 6px; }
+    #rosterFilter:focus { outline: none; border-color: #8B2E4A; }
+    /* family card — large type for elderly readers */
+    #family { display: none; }
+    #family .fcard { background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 30px 24px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    #family h1 { font-size: 24px; }
+    #family .fline { font-size: 17px; color: #1C1917; margin: 14px 0 0; line-height: 1.5; }
+    #family .flabel { font-size: 13px; color: #78716C; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; margin: 18px 0 2px; }
+    #family .fphone { font-size: 20px; font-weight: 700; color: #8B2E4A; text-decoration: none; }
+    #family button { margin-top: 22px; font-size: 16px; padding: 14px 28px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-      </svg>
-      <h1>You're offline</h1>
-      <p class="sub">No connection right now. Anything you saved offline will sync automatically when you're back.</p>
-      <p class="pending" id="pending"></p>
-      <button onclick="location.reload()">Try again</button>
+    <!-- Family-portal offline card (shown instead of the staff hub when a
+         portal session left an ss_portal_offline blob) -->
+    <div id="family">
+      <div class="fcard">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8B2E4A" stroke-width="1.6">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+        </svg>
+        <h1 id="fTitle">You're offline</h1>
+        <p class="sub" id="fSub">No internet connection right now.</p>
+        <div id="fNext" style="display:none">
+          <p class="flabel" id="fNextLabel">Next appointment</p>
+          <p class="fline" id="fNextValue"></p>
+        </div>
+        <div id="fPhone" style="display:none">
+          <p class="flabel" id="fPhoneLabel">Questions? Call the facility</p>
+          <p class="fline"><a class="fphone" id="fPhoneValue" href="#"></a></p>
+        </div>
+        <button onclick="location.reload()" id="fRetry">Try again</button>
+      </div>
     </div>
-    <div id="schedule">
-      <h2>Today's saved schedule</h2>
-      <p class="saved-at" id="savedAt"></p>
-      <div id="rows"></div>
+
+    <div id="staff">
+      <div class="card">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+        </svg>
+        <h1>You're offline</h1>
+        <p class="sub">No connection right now. Anything you saved offline will sync automatically when you're back.</p>
+        <p class="pending" id="pending"></p>
+        <button onclick="location.reload()">Try again</button>
+      </div>
+      <div id="schedule" class="panel">
+        <h2>Today's saved schedule</h2>
+        <p class="saved-at" id="savedAt"></p>
+        <div id="rows"></div>
+      </div>
+      <div id="myweek" class="panel">
+        <h2>My saved week</h2>
+        <p class="saved-at" id="myweekAt"></p>
+        <div id="myweekRows"></div>
+      </div>
+      <div id="roster" class="panel">
+        <h2>Saved resident roster</h2>
+        <p class="saved-at" id="rosterAt"></p>
+        <input id="rosterFilter" type="text" placeholder="Search name or room…" aria-label="Search residents" />
+        <div id="rosterRows"></div>
+      </div>
     </div>
   </div>
   <script>
-    // Offline hub (Phase 17): render the last-saved copy of today's schedule
-    // from the app's read cache (ss_readcache:*), plus the pending write count
-    // (ss_offline_queue). Read-only; everything is HTML-escaped.
+    // Offline hub v3 (P28): renders last-saved copies from the app's read
+    // cache — now IndexedDB ('ss-readcache' / 'snapshots', kept in sync with
+    // src/lib/read-cache.ts) with a legacy localStorage fallback — plus the
+    // pending write count (JSON queue + IndexedDB photo queue). Family-portal
+    // devices get a large-type EN/ES card from the ss_portal_offline blob.
+    // Read-only; EVERYTHING user-derived is HTML-escaped.
     (function () {
       function esc(s) {
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
       }
+      function timeLabel(iso) {
+        try { return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) } catch (e) { return '' }
+      }
+
+      // ---- Family mode -----------------------------------------------------
+      try {
+        var fam = JSON.parse(localStorage.getItem('ss_portal_offline') || 'null')
+        if (fam && fam.at && (Date.now() - fam.at) < 7 * 24 * 60 * 60 * 1000) {
+          var es = fam.lang === 'es'
+          document.getElementById('staff').style.display = 'none'
+          document.getElementById('family').style.display = 'block'
+          document.getElementById('fTitle').textContent = es ? 'Sin conexión' : "You're offline"
+          document.getElementById('fSub').textContent = es
+            ? 'No hay conexión a internet en este momento. Vuelva a intentarlo en un momento.'
+            : 'No internet connection right now. Please try again in a moment.'
+          document.getElementById('fRetry').textContent = es ? 'Reintentar' : 'Try again'
+          if (fam.nextAppointment) {
+            document.getElementById('fNextLabel').textContent = es ? 'Próxima cita' : 'Next appointment'
+            var d = new Date(fam.nextAppointment)
+            document.getElementById('fNextValue').textContent = d.toLocaleDateString(es ? 'es-US' : 'en-US', {
+              weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            })
+            document.getElementById('fNext').style.display = 'block'
+          }
+          if (fam.facilityPhone) {
+            document.getElementById('fPhoneLabel').textContent = es ? '¿Preguntas? Llame al centro' : 'Questions? Call the facility'
+            var a = document.getElementById('fPhoneValue')
+            a.textContent = fam.facilityPhone
+            a.setAttribute('href', 'tel:' + String(fam.facilityPhone).replace(/[^+\d]/g, ''))
+            document.getElementById('fPhone').style.display = 'block'
+          }
+          return // family card replaces the staff hub entirely
+        }
+      } catch (e) { /* fall through to staff hub */ }
+
+      // ---- Pending sync count (JSON queue + photo queue) --------------------
+      var pendingJson = 0
       try {
         var q = JSON.parse(localStorage.getItem('ss_offline_queue') || '[]')
-        if (Array.isArray(q) && q.length > 0) {
-          var p = document.getElementById('pending')
-          p.textContent = q.length + ' change' + (q.length === 1 ? '' : 's') + ' waiting to sync'
-          p.style.display = 'block'
+        if (Array.isArray(q)) pendingJson = q.length
+      } catch (e) { /* ignore */ }
+      function showPending(total) {
+        if (total <= 0) return
+        var p = document.getElementById('pending')
+        p.textContent = total + ' change' + (total === 1 ? '' : 's') + ' waiting to sync'
+        p.style.display = 'block'
+      }
+      showPending(pendingJson)
+      try {
+        // Only OPEN the photo-queue DB if it already exists — a naked open()
+        // would create an empty v1 database and the app's own versioned open
+        // would then never fire upgradeneeded, breaking photo queueing.
+        if (indexedDB.databases) {
+          indexedDB.databases().then(function (dbs) {
+            if (!dbs.some(function (d) { return d.name === 'ss-offline-photos' })) return
+            var preq = indexedDB.open('ss-offline-photos')
+            preq.onsuccess = function () {
+              try {
+                var pdb = preq.result
+                if (!pdb.objectStoreNames.contains('photos')) return
+                var creq = pdb.transaction('photos', 'readonly').objectStore('photos').count()
+                creq.onsuccess = function () { showPending(pendingJson + (creq.result || 0)) }
+              } catch (e) { /* ignore */ }
+            }
+          }).catch(function () { /* ignore */ })
         }
       } catch (e) { /* ignore */ }
 
-      try {
-        var today = new Date()
-        var pad = function (n) { return String(n).padStart(2, '0') }
-        var todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate())
-        var best = null
-        // Find any cached day-log for today (key shape: ss_readcache:{facilityId}:log:{date})
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i)
-          if (!k || k.indexOf('ss_readcache:') !== 0 || k.indexOf(':log:' + todayKey) === -1) continue
-          var entry = JSON.parse(localStorage.getItem(k) || 'null')
-          if (entry && entry.data && Array.isArray(entry.data.bookings)) {
-            if (!best || entry.at > best.at) best = entry
-          }
-        }
-        if (!best) return
-        var bookings = best.data.bookings
-          .filter(function (b) { return b && b.status !== 'cancelled' })
-          .sort(function (a, b) { return new Date(a.startTime) - new Date(b.startTime) })
-        var rows = document.getElementById('rows')
-        if (bookings.length === 0) {
-          rows.innerHTML = '<p class="none">No appointments in the saved copy.</p>'
-        } else {
-          rows.innerHTML = bookings.map(function (b) {
-            var t = ''
-            try {
-              t = new Date(b.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-            } catch (e) { /* ignore */ }
-            var name = b.resident && b.resident.name ? b.resident.name : 'Resident'
-            var room = b.resident && b.resident.roomNumber ? ' <span class="room">Rm ' + esc(b.resident.roomNumber) + '</span>' : ''
-            var svc = (b.serviceNames && b.serviceNames.join(', ')) || (b.service && b.service.name) || b.rawServiceName || ''
-            return '<div class="row"><span class="time">' + esc(t) + '</span><span><span class="who">' + esc(name) + '</span>' + room +
-              (svc ? '<div class="what">' + esc(svc) + '</div>' : '') + '</span></div>'
-          }).join('')
-        }
+      // ---- Read-cache access (IDB first, legacy localStorage fallback) ------
+      function readAllSnapshots(cb) {
+        var out = []
+        // legacy localStorage entries (pre-migration or no-IDB devices)
         try {
-          document.getElementById('savedAt').textContent =
-            'Saved ' + new Date(best.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + ' — read-only while offline'
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i)
+            if (!k || k.indexOf('ss_readcache:') !== 0) continue
+            try {
+              var entry = JSON.parse(localStorage.getItem(k) || 'null')
+              if (entry && typeof entry.at === 'number') out.push({ key: k.slice('ss_readcache:'.length), data: entry.data, at: entry.at })
+            } catch (e) { /* ignore one */ }
+          }
         } catch (e) { /* ignore */ }
-        document.getElementById('schedule').style.display = 'block'
-      } catch (e) { /* cache unreadable — plain offline card stays */ }
+        try {
+          var req = indexedDB.open('ss-readcache', 1)
+          req.onupgradeneeded = function () {
+            // first open on a fresh device — create the store so the app's
+            // module (same schema version) finds it later
+            try {
+              if (!req.result.objectStoreNames.contains('snapshots')) {
+                req.result.createObjectStore('snapshots', { keyPath: 'key' }).createIndex('at', 'at')
+              }
+            } catch (e) { /* ignore */ }
+          }
+          req.onsuccess = function () {
+            try {
+              var db = req.result
+              if (!db.objectStoreNames.contains('snapshots')) return cb(out)
+              var greq = db.transaction('snapshots', 'readonly').objectStore('snapshots').getAll()
+              greq.onsuccess = function () {
+                var rows = greq.result || []
+                for (var j = 0; j < rows.length; j++) {
+                  if (rows[j] && typeof rows[j].at === 'number') out.push(rows[j])
+                }
+                cb(out)
+              }
+              greq.onerror = function () { cb(out) }
+            } catch (e) { cb(out) }
+          }
+          req.onerror = function () { cb(out) }
+        } catch (e) { cb(out) }
+      }
+
+      function newestMatching(snaps, matcher) {
+        var best = null
+        for (var i = 0; i < snaps.length; i++) {
+          if (!matcher(snaps[i].key)) continue
+          if (!best || snaps[i].at > best.at) best = snaps[i]
+        }
+        return best
+      }
+
+      readAllSnapshots(function (snaps) {
+        var MAX_AGE = 7 * 24 * 60 * 60 * 1000
+        snaps = snaps.filter(function (s) { return Date.now() - s.at <= MAX_AGE })
+
+        // ---- Today's schedule ----
+        try {
+          var pad = function (n) { return String(n).padStart(2, '0') }
+          var t = new Date()
+          var todayKey = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate())
+          var best = newestMatching(snaps, function (k) { return k.indexOf(':log:' + todayKey) !== -1 })
+          if (best && best.data && Array.isArray(best.data.bookings)) {
+            var bookings = best.data.bookings
+              .filter(function (b) { return b && b.status !== 'cancelled' })
+              .sort(function (a, b) { return new Date(a.startTime) - new Date(b.startTime) })
+            var rows = document.getElementById('rows')
+            if (bookings.length === 0) {
+              rows.innerHTML = '<p class="none">No appointments in the saved copy.</p>'
+            } else {
+              rows.innerHTML = bookings.map(function (b) {
+                var name = b.resident && b.resident.name ? b.resident.name : 'Resident'
+                var room = b.resident && b.resident.roomNumber ? ' <span class="room">Rm ' + esc(b.resident.roomNumber) + '</span>' : ''
+                var svc = (b.serviceNames && b.serviceNames.join(', ')) || (b.service && b.service.name) || b.rawServiceName || ''
+                return '<div class="row"><span class="time">' + esc(timeLabel(b.startTime)) + '</span><span><span class="who">' + esc(name) + '</span>' + room +
+                  (svc ? '<div class="what">' + esc(svc) + '</div>' : '') + '</span></div>'
+              }).join('')
+            }
+            document.getElementById('savedAt').textContent =
+              'Saved ' + timeLabel(best.at) + ' — read-only while offline'
+            document.getElementById('schedule').style.display = 'block'
+          }
+        } catch (e) { /* section stays hidden */ }
+
+        // ---- My saved week (stylists — from /my-account) ----
+        try {
+          var mw = newestMatching(snaps, function (k) { return k === 'me:my-account' })
+          if (mw && mw.data && Array.isArray(mw.data.weekBookings) && mw.data.weekBookings.length > 0) {
+            var byDay = {}
+            mw.data.weekBookings
+              .filter(function (b) { return b && b.status !== 'cancelled' })
+              .forEach(function (b) {
+                var day = ''
+                try { day = new Date(b.startTime).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) } catch (e) { day = '' }
+                if (!byDay[day]) byDay[day] = []
+                byDay[day].push(b)
+              })
+            var html = ''
+            Object.keys(byDay).forEach(function (day) {
+              html += '<p class="day">' + esc(day) + '</p>'
+              html += byDay[day]
+                .sort(function (a, b) { return new Date(a.startTime) - new Date(b.startTime) })
+                .map(function (b) {
+                  var svc = b.serviceName || ''
+                  return '<div class="row"><span class="time">' + esc(timeLabel(b.startTime)) + '</span><span><span class="who">' +
+                    esc(b.resident && b.resident.name ? b.resident.name : 'Resident') + '</span>' +
+                    (svc ? '<div class="what">' + esc(svc) + '</div>' : '') + '</span></div>'
+                }).join('')
+            })
+            if (html) {
+              document.getElementById('myweekRows').innerHTML = html
+              document.getElementById('myweekAt').textContent = 'Saved ' + timeLabel(mw.at)
+              document.getElementById('myweek').style.display = 'block'
+            }
+          }
+        } catch (e) { /* hidden */ }
+
+        // ---- Resident roster with filter ----
+        try {
+          var ro = newestMatching(snaps, function (k) {
+            return k.length > ':residents'.length && k.indexOf(':residents') === k.length - ':residents'.length
+          })
+          if (ro && Array.isArray(ro.data) && ro.data.length > 0) {
+            var all = ro.data
+            var render = function (filter) {
+              var f = (filter || '').toLowerCase()
+              var list = f
+                ? all.filter(function (r) {
+                    return (r.name || '').toLowerCase().indexOf(f) !== -1 ||
+                      String(r.roomNumber || '').toLowerCase().indexOf(f) !== -1
+                  })
+                : all
+              document.getElementById('rosterRows').innerHTML = list.length === 0
+                ? '<p class="none">No residents match.</p>'
+                : list.slice(0, 100).map(function (r) {
+                    return '<div class="row"><span><span class="who">' + esc(r.name || '') + '</span>' +
+                      (r.roomNumber ? ' <span class="room">Rm ' + esc(r.roomNumber) + '</span>' : '') + '</span></div>'
+                  }).join('')
+            }
+            render('')
+            document.getElementById('rosterFilter').addEventListener('input', function (e) { render(e.target.value) })
+            document.getElementById('rosterAt').textContent = 'Saved ' + timeLabel(ro.at)
+            document.getElementById('roster').style.display = 'block'
+          }
+        } catch (e) { /* hidden */ }
+      })
     })()
   </script>
 </body>
