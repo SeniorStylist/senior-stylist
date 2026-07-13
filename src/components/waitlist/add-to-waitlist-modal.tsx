@@ -10,6 +10,7 @@ import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useToast } from '@/components/ui/toast'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 
 interface ResidentOption { id: string; name: string; roomNumber?: string | null }
 interface ServiceOption { id: string; name: string; category?: string | null }
@@ -92,10 +93,10 @@ export function AddToWaitlistModal({
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/waitlist', {
+      // P28 — queued offline on network failure (F6 pattern)
+      const res = await queueableFetch('Waitlist entry', '/api/waitlist', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           residentId: selectedResident.id,
           residentName: selectedResident.name,
           roomNumber: selectedResident.roomNumber ?? null,
@@ -103,8 +104,14 @@ export function AddToWaitlistModal({
           earliestDate,
           latestDate: latestDate || null,
           notes: notes.trim() || null,
-        }),
+        },
       })
+      if (isQueued(res)) {
+        toast.success(`Saved offline — ${selectedResident.name} will join the waitlist when you're back online`)
+        onAdded?.()
+        onClose()
+        return
+      }
       const j = await res.json().catch(() => ({}))
       if (res.ok) {
         toast.success(`${selectedResident.name} added to the waitlist`)

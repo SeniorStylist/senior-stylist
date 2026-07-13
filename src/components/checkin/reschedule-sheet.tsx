@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useToast } from '@/components/ui/toast'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { formatTimeInTz } from '@/lib/time'
 
 export interface RescheduleBooking {
@@ -51,14 +52,19 @@ export function RescheduleSheet({
     if (submitting || futureBookings.length === 0) return
     setSubmitting(true)
     try {
-      const res = await fetch('/api/bookings/bulk-reschedule', {
+      // P28 — queued offline on network failure (F6 pattern)
+      const res = await queueableFetch('Day reschedule', '/api/bookings/bulk-reschedule', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           bookingIds: futureBookings.map((b) => b.id),
           shiftMinutes: delayMinutes,
-        }),
+        },
       })
+      if (isQueued(res)) {
+        toast.success("Saved offline — your day will shift when you're back online")
+        onConfirm()
+        return
+      }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error?.toString() || 'Failed to reschedule')

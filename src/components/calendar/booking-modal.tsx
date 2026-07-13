@@ -19,6 +19,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Resident, Service } from '@/types'
 import type { BookingWithRelations } from '@/app/(protected)/dashboard/dashboard-client'
 import { useToast } from '@/components/ui/toast'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import type { ResidentCreateInput } from '@/lib/validation/resident-create'
 
@@ -520,11 +521,26 @@ export function BookingModal({
           : `/api/bookings/${booking!.id}`
       const method = mode === 'create' ? 'POST' : 'PUT'
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      // P28 — plain create POST and edit PUT queue offline (F6 pattern). The
+      // convert + recurring paths need the server's response (conflict checks,
+      // entry flips), so they stay online-only and surface the network error.
+      const offlineQueueable = url === '/api/bookings' || (mode === 'edit' && url.startsWith('/api/bookings/'))
+      let res: Response
+      if (offlineQueueable) {
+        const qres = await queueableFetch(mode === 'create' ? 'Booking' : 'Booking edit', url, { method, body: payload })
+        if (isQueued(qres)) {
+          toast("Saved offline — it will appear once you're back online", 'success')
+          onClose()
+          return
+        }
+        res = qres
+      } else {
+        res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
 
       const json = await res.json()
 

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { fetchDashboardPanels } from '@/lib/dashboard-panels-client'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 
 export interface WaitlistEntry {
   id: string
@@ -60,11 +61,15 @@ export function WaitlistPanel({
     const snapshot = entries
     setEntries((prev) => prev.filter((e) => e.id !== entry.id))
     try {
-      const res = await fetch(`/api/waitlist/${entry.id}`, {
+      // P28 — queued offline on network failure (optimistic removal kept)
+      const res = await queueableFetch('Remove waitlist entry', `/api/waitlist/${entry.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: { status: 'cancelled' },
       })
+      if (isQueued(res)) {
+        toast.info("Saved offline — will sync when you're back online")
+        return
+      }
       if (!res.ok) {
         setEntries(snapshot)
         toast.error('Could not remove from waitlist')

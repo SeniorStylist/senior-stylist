@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCents, formatTime } from '@/lib/utils'
 import { isInstallable, detectDevice, isNativeApp } from '@/lib/detect-device'
@@ -413,15 +414,24 @@ export function MyAccountClient({ user, stylist, weekBookings, monthEarningsCent
     setCoverageSubmitting(true)
     setCoverageError(null)
     try {
-      const res = await fetch('/api/coverage', {
+      // P28 — queued offline on network failure (F6 pattern)
+      const res = await queueableFetch('Time-off request', '/api/coverage', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           startDate: coverageStartDate,
           endDate: coverageEndDate,
           reason: coverageReason.trim() || undefined,
-        }),
+        },
       })
+      if (isQueued(res)) {
+        setCoverageOpen(false)
+        setCoverageStartDate('')
+        setCoverageEndDate('')
+        setCoverageReason('')
+        setCoverageSavedMsg("Saved offline — will submit when you're back online")
+        setTimeout(() => setCoverageSavedMsg(null), 4000)
+        return
+      }
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
         setCoverageError(typeof json.error === 'string' ? json.error : 'Failed to submit')

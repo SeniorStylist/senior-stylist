@@ -6,6 +6,7 @@ import { ClipboardList, Calendar } from 'lucide-react'
 import type { Resident, Service, SignupSheetEntryWithRelations, Stylist } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/components/ui/toast'
+import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { formatDateInTz } from '@/lib/time'
 
 interface Props {
@@ -45,12 +46,23 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
   useEffect(() => { fetchEntries() }, [])
 
   const handleCancel = async (id: string) => {
+    // Offline-created entries have no server id yet — their queued POST still
+    // creates them on sync; cancel after they appear.
+    if (id.startsWith('offline-')) {
+      toast.info("This request syncs when you're back online — cancel it after it appears")
+      return
+    }
     try {
-      const res = await fetch(`/api/signup-sheet/${id}`, {
+      // P28 — cancellation queues offline too (optimistic removal kept)
+      const res = await queueableFetch('Cancel sign-up request', `/api/signup-sheet/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: { status: 'cancelled' },
       })
+      if (isQueued(res)) {
+        setEntries((prev) => prev.filter((e) => e.id !== id))
+        toast.success("Saved offline — will sync when you're back online")
+        return
+      }
       if (!res.ok) {
         const j = await res.json()
         toast.error(typeof j.error === 'string' ? j.error : 'Failed to cancel')
@@ -147,7 +159,20 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
       setCreateResidentName('')
       setCreateResidentRoom('')
     } catch {
-      setCreateResidentError('Network error')
+      // P28 offline — local pending resident; the queued POST sends the name
+      const pending = {
+        id: `offline-new-${Date.now()}`,
+        name: createResidentName.trim(),
+        roomNumber: createResidentRoom.trim() || null,
+      } as unknown as Resident
+      setLocalNewResidents((prev) => [...prev, pending])
+      setSelectedResidentId(pending.id)
+      setResidentSearch(pending.name)
+      setCreateResidentOpen(false)
+      setResidentDropdownOpen(false)
+      setCreateResidentName('')
+      setCreateResidentRoom('')
+      toast.info("Offline — resident will be created when you're back online")
     } finally {
       setCreatingResident(false)
     }
@@ -173,22 +198,44 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
     if (!selectedResidentId && !residentSearch.trim()) return
     setSubmitting(true)
     try {
-      const res = await fetch('/api/signup-sheet', {
+      const body = {
+        facilityId,
+        // Schema takes nullable (NOT optional) ids — `undefined` gets dropped
+        // by JSON.stringify and 422'd; send explicit nulls (P28 fix).
+        residentId: selectedResidentId && !selectedResidentId.startsWith('offline-new-') ? selectedResidentId : null,
+        residentName: selectedResident?.name ?? residentSearch.trim(),
+        roomNumber: selectedResident?.roomNumber ?? null,
+        serviceId: selectedServiceId || null,
+        serviceName: (selectedService?.name ?? serviceSearch.trim()) || '',
+        preferredDate: preferredDate || null,
+        assignedToStylistId: assignedStylistId || null,
+        notes: notes.trim() || null,
+        requestedDate: new Date().toISOString().slice(0, 10),
+      }
+      // P28 — queued offline on network failure (F6 pattern)
+      const res = await queueableFetch('Sign-up request', '/api/signup-sheet', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          facilityId,
-          residentId: selectedResidentId || undefined,
-          residentName: selectedResident?.name ?? residentSearch.trim(),
-          roomNumber: selectedResident?.roomNumber ?? undefined,
-          serviceId: selectedServiceId || undefined,
-          serviceName: (selectedService?.name ?? serviceSearch.trim()) || '',
-          preferredDate: preferredDate || undefined,
-          assignedToStylistId: assignedStylistId || undefined,
-          notes: notes.trim() || undefined,
-          requestedDate: new Date().toISOString().slice(0, 10),
-        }),
+        body,
       })
+      if (isQueued(res)) {
+        setEntries((prev) => [{
+          id: `offline-${Date.now()}`,
+          residentId: body.residentId,
+          residentName: body.residentName,
+          roomNumber: body.roomNumber,
+          serviceId: body.serviceId,
+          serviceName: body.serviceName,
+          requestedTime: null,
+          requestedDate: body.requestedDate,
+          preferredDate: body.preferredDate,
+          notes: body.notes,
+          assignedToStylistId: body.assignedToStylistId,
+          status: 'pending',
+        } as (typeof entries)[number], ...prev])
+        toast.success("Saved offline — will sync when you're back online")
+        resetForm()
+        return
+      }
       const j = await res.json()
       if (!res.ok) {
         toast.error(typeof j.error === 'string' ? j.error : 'Failed to add request')
