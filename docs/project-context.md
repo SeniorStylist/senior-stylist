@@ -850,24 +850,20 @@ Built from the boss's "Payment Considerations" note. Real saved cards + auto-col
 
 ## 7. IMMEDIATE NEXT FIX
 
-Since Wave 2+3 (2026-06-22): shipped the Capacitor native shell, branded stylist invites, admin stylist-link, W-9/contractor removal, and 5 bookkeeper OCR/export fixes (2026-06-23 → 06-26). Next priorities:
+**The Josh-side setup list now lives in `docs/josh-checklist.md`** (P29, 2026-07-12) with the
+verification tooling `scripts/db-verify.sql` (read-only report) + `scripts/db-catchup.sql`
+(idempotent apply-anything-missing). Stale items removed: all 8 crons are already registered in
+vercel.json (they only need CRON_SECRET), and migrations through 0026 were applied during the
+P19 incident (db-verify confirms).
 
-0. **Apply migration `drizzle/0027_bookings_resident_idx.sql`** — additive index, safe anytime: `psql "$DIRECT_URL" -f drizzle/0027_bookings_resident_idx.sql` (speeds up residents page + due-for-visit).
-0. **Apply migration `drizzle/0015_booking_mail_subject.sql`** — `npx dotenv -e .env.local -- npx drizzle-kit push` (or `psql "$DIRECT_URL" -f drizzle/0015_booking_mail_subject.sql`). **Required before the daily-log export deploys** — the export query selects `bookings.mail_subject`.
-0. **Apply Wave 2+3 migration** — `psql "$DIRECT_URL" -f drizzle/0014_wave2_wave3.sql`
-0. **Create private Supabase bucket `resident-photos`** — in Supabase dashboard, create bucket, set to private, add `service_role_all` policy.
-0. **Generate VAPID keys and add to Vercel** — `npx web-push generate-vapid-keys` → set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (e.g. `mailto:lisag@seniorstylist.com`), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (same as public key) in Vercel env.
-0. **Add daily digest cron to `vercel.json`** — `{ "path": "/api/cron/daily-digest", "schedule": "0 8 * * *" }`. Then enable the digest per facility in Settings → Notifications.
-1. **Phase 12ZZ — Toast action buttons** — next feature up. `toast.success('Booking saved', { action: { label: 'View', onClick: () => router.push(...) } })`. Toast component gains a right-side action zone. "Undo" actions fire a DELETE and optimistically revert UI.
-2. **QuickBooks manual config** — still required before end-to-end Bill sync works:
-   - `QB_TOKEN_SECRET`: `openssl rand -hex 32` → `.env.local` + Vercel
-   - Create Intuit developer app, set `QUICKBOOKS_CLIENT_ID` + `QUICKBOOKS_CLIENT_SECRET` in Vercel
-   - First-time admin: Settings → Integrations → Connect QuickBooks → pick Expense account
-3. **`CRON_SECRET`** in Vercel (`openssl rand -hex 32`) — daily compliance cron unauthenticated without it.
-4. **(optional)** Upstash Redis for rate limiting — no-op without it.
-5. **Onboard Symphony Manor + Sunrise Bethesda** — create facilities, invite real stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly availability, connect QuickBooks per facility.
-
----
+Top of the list by impact:
+1. Run `scripts/db-verify.sql` in the Supabase SQL Editor; catch up with `scripts/db-catchup.sql` if needed.
+2. Create the private `resident-photos` storage bucket.
+3. Vercel env: `CRON_SECRET` (all 8 crons dead without it), VAPID ×4 (web push), `QB_TOKEN_SECRET`.
+4. Supabase Auth: same-email identity linking ON; Magic Link template includes `{{ .Token }}`; optional asymmetric JWT keys (P25 fast path).
+5. When ready: Stripe live keys + webhook + `PAYMENTS_LIVE_ENABLED`; Twilio + `TWILIO_ENABLED`; Intuit app creds + (post-approval) `QB_INVOICE_SYNC_ENABLED`.
+6. Mac day: `cap:sync` + rebuild + resubmit stores (P28 native offline fallback needs it); Firebase push setup; apply for Apple Tap to Pay entitlement early.
+7. Optional: Upstash Redis; onboard Symphony Manor + Sunrise Bethesda.
 
 ## 8. CRITICAL RULES
 
