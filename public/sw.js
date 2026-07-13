@@ -15,11 +15,11 @@
 //   state tree, so a cached payload can corrupt the router. When one fails
 //   offline, Next hard-navigates and the navigation branch serves cached HTML.
 
-const SHELL_CACHE = 'ss-shell-v2'
+const SHELL_CACHE = 'ss-shell-v3' // P28 — bump ships the new offline.html hub immediately
 const STATIC_CACHE = 'ss-static-v1'
 const PAGE_CACHE_PREFIX = 'ss-pages-'
 const OFFLINE_URL = '/offline.html'
-const PAGE_CACHE_MAX_ENTRIES = 40
+const PAGE_CACHE_MAX_ENTRIES = 80 // P28 — Cache API quota is generous; a real workday's navigation history survives offline
 
 let activeUserId = null
 
@@ -50,6 +50,10 @@ function isPageCacheable(url) {
     p.startsWith('/login') ||
     p.startsWith('/auth') ||
     p.startsWith('/invite') ||
+    // /family + /portal stay EXCLUDED: portal sessions are cookie-based and
+    // NOT keyed by the staff SET_USER isolation, so caching their HTML could
+    // leak between portal users on a shared device. Family offline is served
+    // by the offline.html family card (ss_portal_offline blob) instead.
     p.startsWith('/family') ||
     p.startsWith('/portal') ||
     p.startsWith('/unauthorized') ||

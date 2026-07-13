@@ -2867,3 +2867,22 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   `revalidateTag('facilities', {})` on success.
 - Facilities empty state: `localFacilities.length===0 && activeFacilities.length>0` (separate
   cache) → "Couldn't load facility details — Refresh"; genuine zero keeps the create CTA.
+
+## P28 — Offline Max (2026-07-12)
+
+- **read-cache v2**: IndexedDB `ss-readcache`/`snapshots` (25MB, 7-day), localStorage fallback,
+  one-time migration. Same API; `loadSnapshot` async. offline.html reads the same DB inline.
+- **Write queue coverage** (all via queueableFetch, optimistic + toast): signup-sheet
+  create/cancel (both surfaces), waitlist add/remove, BookingModal plain create/edit
+  (convert/recurring online-only), bulk-reschedule, coverage request. Payments never queued.
+  `offline-*`-id entries block cancel until synced.
+- **offline.html v3**: IDB reader; schedule + roster (filterable) + my-week + photo-inclusive
+  pending count; family EN/ES card from `ss_portal_offline` (written by
+  `<PortalOfflineSnapshot>` on portal home/billing, cleared on portal logout). Photo-queue DB
+  only opened behind an `indexedDB.databases()` existence guard.
+- **SW**: page LRU 80; shell `ss-shell-v3`; /family + /portal stay out of the page cache
+  (portal session isolation).
+- **Native**: Android = full SW parity (nothing to do). iOS = NO service worker; App-Bound
+  Domains REJECTED (Stripe 3-DS + QB OAuth breakage; 10-domain cap). Cold-start fallback via
+  `server.errorPath: 'native-offline.html'` in capacitor.config.ts (bundled; Retry → live site;
+  needs cap:sync + rebuild). Middleware matcher excludes native-offline.html.

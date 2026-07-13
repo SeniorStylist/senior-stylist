@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Offline — Senior Stylist</title>
+  <!-- P28 — native cold-start offline fallback. Loaded by the Capacitor shell
+       (server.errorPath) from the LOCAL app bundle when the remote site fails
+       to load (e.g. the app is opened with no connection). It runs on the
+       capacitor-local origin, so it deliberately reads NO caches (those live
+       on the remote origin) — it just replaces WebKit's raw error page with a
+       branded card and a Retry that navigates back to the live site. -->
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F5F4; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+    .card { background: #fff; border-radius: 16px; border: 1px solid #E7E5E4; padding: 32px 26px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.06); max-width: 380px; }
+    .card svg { color: #8B2E4A; margin-bottom: 14px; }
+    h1 { margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #1C1917; }
+    p { margin: 0 0 22px; font-size: 15px; color: #78716C; line-height: 1.5; }
+    button { background: #8B2E4A; color: #fff; border: none; border-radius: 12px; padding: 14px 30px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    button:active { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+    </svg>
+    <h1>No connection</h1>
+    <p>Senior Stylist needs an internet connection to start. Check your wifi or cellular signal and try again.</p>
+    <button id="retry">Try again</button>
+  </div>
+  <script>
+    (function () {
+      var SERVER = 'https://portal.seniorstylist.com'
+      document.getElementById('retry').addEventListener('click', function () {
+        // Navigate back to the live site (reload() would reload this local page)
+        window.location.href = SERVER
+      })
+      // Auto-retry when connectivity returns
+      window.addEventListener('online', function () {
+        window.location.href = SERVER
+      })
+    })()
+  </script>
+</body>
+</html>

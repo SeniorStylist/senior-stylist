@@ -2926,3 +2926,14 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   are ALWAYS category-grouped via optgroup.
 - **Correction**: the earlier claim that the booking modal preselects the most-used service was
   documentation-ahead-of-code; as of P26 the code matches the doc.
+
+## P28 offline patterns (2026-07-12)
+
+- Every queueable write shows the standard "Saved offline — will sync when you're back online"
+  toast and keeps the optimistic state (no rollback on queue). New mutations on day-flow
+  surfaces MUST route through queueableFetch unless they are payment-adjacent or need the
+  server's response to proceed.
+- Offline placeholders use the `offline-` id prefix; UI must guard actions that need a server
+  id (cancel, edit) with a "syncs first" notice.
+- The offline hub's family card is large-type (17-24px) EN/ES; staff panels reuse the hub row
+  pattern (time / who / what). All hub strings HTML-escaped — verified by Playwright drill.

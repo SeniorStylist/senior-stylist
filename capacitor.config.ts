@@ -16,6 +16,14 @@ const config: CapacitorConfig = {
     // (Secure; SameSite=Lax) are honored exactly as they are in the browser.
     androidScheme: 'https',
     iosScheme: 'https',
+    // P28 — cold-start offline: when the remote site fails to load (no
+    // connection at launch), the shell shows the bundled fallback card instead
+    // of WebKit's raw error page. Served from the LOCAL bundle (webDir), so it
+    // works with zero connectivity on both platforms; its Retry navigates back
+    // to the live site. iOS has no service worker (App-Bound Domains would
+    // break Stripe 3-DS + QuickBooks OAuth — deliberately NOT enabled), so
+    // this is the iOS answer to offline navigation dead-ends.
+    errorPath: 'native-offline.html',
   },
   backgroundColor: '#F7F6F2', // brand cream — matches manifest background_color
   plugins: {

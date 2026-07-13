@@ -183,3 +183,22 @@ is set (.env.local + Vercel).
 - Native push (FCM/APNs) bridge + `push_subscriptions.platform` column.
 - Biometric unlock, native camera for OCR/check-scan, deep-link/auth-return handling.
 - **Validate Supabase cookie auth inside the WebView on a real device before further investment.**
+
+## Offline behavior in the native shells (P28, 2026-07-12)
+
+- **Android**: the System WebView runs the site's service worker — the store app has full
+  PWA-parity offline (page navigation, per-user HTML cache, static/font caches). No action.
+- **iOS**: WKWebView does NOT run service workers for remote content. Enabling them would
+  require App-Bound Domains (`WKAppBoundDomains`, `limitsNavigationsToAppBoundDomains`), which
+  blocks top-level navigation to non-listed domains — that breaks Stripe Checkout (3-D Secure
+  bounces through bank domains that cannot be enumerated within the 10-domain cap) and the
+  QuickBooks OAuth redirect. **Deliberately NOT enabled — do not re-attempt.**
+- iOS offline instead relies on the SW-free layers, which are durable in WKWebView
+  (localStorage/IndexedDB persist; Safari's 7-day storage cap does not apply to WKWebView):
+  read-cache snapshots, the JSON + photo write queues, and the offline banner all work.
+- **Cold-start offline**: `capacitor.config.ts` sets `server.errorPath: 'native-offline.html'`
+  — when the remote site fails to load, the shell shows the bundled branded card
+  (public/native-offline.html, Retry navigates back to the live site; auto-retries on
+  reconnect) instead of WebKit's raw error page. **Requires `npm run cap:sync` + a Mac rebuild
+  and store resubmission to take effect in the store apps.** Web + Android pick up everything
+  else on the normal deploy.

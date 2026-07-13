@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.0',
+    date: '2026-07-12',
+    title: 'Works Offline Everywhere',
+    items: [
+      'Nearly everything you do during a workday now saves offline and syncs later — sign-up sheets, waitlist, bookings from the calendar, day reschedules, and time-off requests join the existing walk-ins, edits, and photos',
+      'The offline screen is now a real hub: today\'s schedule, your saved week, and a searchable resident roster',
+      'Family members get their own offline card — next appointment and the facility phone number, in English or Spanish',
+      'Offline storage grew from 1.5MB to 25MB and keeps a full week of saved copies',
+      'The iPhone/iPad app opens to a branded retry screen instead of a browser error when launched with no signal',
+    ],
+  },
+  {
     version: '3.9',
     date: '2026-07-12',
     title: 'Smoother & Smarter',

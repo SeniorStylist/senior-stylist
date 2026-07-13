@@ -210,6 +210,6 @@ export const config = {
      *   registration, PWA install, and the offline fallback (Phase 17 fix)
      * - public folder images
      */
-    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|offline\\.html|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|offline\\.html|native-offline\\.html|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2)$).*)',
   ],
 }
