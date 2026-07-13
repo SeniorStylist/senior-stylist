@@ -237,6 +237,9 @@ export function LogClient({
   const [editServiceName, setEditServiceName] = useState('')
   const [editServiceCreate, setEditServiceCreate] = useState(false) // typing a brand-new service
   const [editStylistId, setEditStylistId] = useState<string | null>(null)
+  // Current stylist's display name — the fallback <option> when the booking's
+  // stylist isn't in the page roster (cross-facility/duplicate stylist rows).
+  const [editStylistName, setEditStylistName] = useState('')
   const [editRoomNumber, setEditRoomNumber] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -256,6 +259,7 @@ export function LogClient({
     setEditServiceName(booking.service?.name ?? booking.serviceNames?.[0] ?? booking.rawServiceName ?? '')
     setEditServiceCreate(false)
     setEditStylistId(booking.stylist.id)
+    setEditStylistName(booking.stylist.name)
     setEditRoomNumber(booking.resident.roomNumber ?? '')
   }
 
@@ -272,6 +276,7 @@ export function LogClient({
     setEditServiceName('')
     setEditServiceCreate(false)
     setEditStylistId(null)
+    setEditStylistName('')
     setEditRoomNumber('')
   }
 
@@ -281,7 +286,12 @@ export function LogClient({
     setSavingEdit(true)
     try {
       const priceCents = Math.round(parseFloat(editPrice) * 100)
-      if (isNaN(priceCents) || priceCents < 0) return
+      if (isNaN(priceCents) || priceCents < 0) {
+        // Never fail silently — a blank/invalid Amount used to make Save a no-op
+        // with no feedback, which read as "unable to edit" (bookkeeper report).
+        toast('Enter a valid amount (use 0 for free services)', 'error')
+        return
+      }
       const tipFloat = parseFloat(editTipCents)
       const tipCents = editTipCents.trim() && !isNaN(tipFloat) ? Math.round(tipFloat * 100) : null
 
@@ -337,6 +347,14 @@ export function LogClient({
         resolvedServiceId = cj.data?.id ?? null
       }
       if (resolvedServiceId && resolvedServiceId !== booking?.service?.id) {
+        // Tiered / multi-option services need a quantity/option the log edit form
+        // doesn't collect — the server would 422 with a confusing message. Guard
+        // with a clear one instead (edit those from the calendar's booking modal).
+        const pickedService = services.find((s) => s.id === resolvedServiceId)
+        if (pickedService && (pickedService.pricingType === 'tiered' || pickedService.pricingType === 'multi_option')) {
+          toast(`"${pickedService.name}" needs a quantity or option — edit this booking from the Calendar instead`, 'error')
+          return
+        }
         body.serviceId = resolvedServiceId
       }
 
@@ -352,16 +370,39 @@ export function LogClient({
       })
       if (isQueued(res)) {
         // Offline — keep the edit optimistically; the queued PUT reconciles later.
-        setBookings((prev) => prev.map((b) => {
-          if (b.id !== editingBookingId) return b
-          const merged = { ...b, ...body } as typeof b
-          if ('roomNumber' in body) {
-            merged.resident = { ...merged.resident, roomNumber: body.roomNumber as string | null }
-          }
-          return merged
-        }))
+        // The row renders NESTED objects (booking.stylist/service/resident), so a
+        // bare `...body` spread (raw FKs) left Stylist/Service/Date edits looking
+        // unchanged — resolve them against the page rosters, and mirror the online
+        // branch's date-move row removal.
+        if (body.startTime) {
+          setBookings((prev) => prev.filter((b) => b.id !== editingBookingId))
+        } else {
+          setBookings((prev) => prev.map((b) => {
+            if (b.id !== editingBookingId) return b
+            const merged = { ...b, ...body } as typeof b
+            if (body.stylistId) {
+              const st = stylists.find((s) => s.id === body.stylistId)
+              if (st) merged.stylist = { ...merged.stylist, id: st.id, name: st.name }
+            }
+            if (body.serviceId) {
+              const sv = services.find((s) => s.id === body.serviceId)
+              if (sv) {
+                merged.service = { ...(merged.service ?? {}), id: sv.id, name: sv.name } as typeof b.service
+                merged.serviceNames = [sv.name]
+              }
+            }
+            if (body.residentId) {
+              const rr = residents.find((r) => r.id === body.residentId)
+              if (rr) merged.resident = { ...merged.resident, id: rr.id, name: rr.name, roomNumber: rr.roomNumber ?? null }
+            }
+            if ('roomNumber' in body) {
+              merged.resident = { ...merged.resident, roomNumber: body.roomNumber as string | null }
+            }
+            return merged
+          }))
+        }
         setEditingBookingId(null)
-        toast('Saved offline — will sync when you\'re back online', 'success')
+        toast('Saved on this device — will sync when the connection returns', 'info')
         return
       }
       if (res.ok) {
@@ -1688,6 +1729,12 @@ export function LogClient({
                                 onChange={(e) => setEditStylistId(e.target.value || null)}
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                               >
+                                {/* Current stylist may be missing from the roster (cross-facility /
+                                    duplicate stylist rows) — without this fallback the select rendered
+                                    BLANK and looked uneditable (bookkeeper report 2026-07-13). */}
+                                {editStylistId && !stylists.some(s => s.id === editStylistId) && (
+                                  <option value={editStylistId}>{editStylistName}</option>
+                                )}
                                 {stylists.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                               </select>
                             </div>

@@ -2,12 +2,12 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { db } from '@/db'
-import { bookings, logEntries, residents, stylists, services, profiles, facilities } from '@/db/schema'
+import { bookings, logEntries, residents, stylists, services, profiles, facilities, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
-import { eq, and, gte, lt, asc } from 'drizzle-orm'
+import { eq, and, gte, lt, asc, or, inArray } from 'drizzle-orm'
 import { LogClient } from './log-client'
 
 export default async function LogPage() {
@@ -72,10 +72,34 @@ export default async function LogPage() {
       where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, tutorialMode)), // is_demo filter — Phase 13 (demo-only during a tour)
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
-    db.query.stylists.findMany({
-      where: and(eq(stylists.facilityId, facilityId), eq(stylists.active, true), eq(stylists.isDemo, tutorialMode)), // is_demo filter — Phase 13 (demo-only during a tour)
-      orderBy: (t, { asc }) => [asc(t.name)],
-    }),
+    // Stylists working THIS facility = home rows (stylists.facility_id) PLUS
+    // assignment-linked rows (stylist_facility_assignments). Facilities served by
+    // franchise-pool / cross-facility stylists have ZERO home rows, which left the
+    // daily-log stylist dropdowns EMPTY — the "can't edit the Stylist" bookkeeper
+    // report (2026-07-13, F228). Never query stylists by facility_id alone on a
+    // roster surface.
+    (async () => {
+      const assigned = await db
+        .select({ stylistId: stylistFacilityAssignments.stylistId })
+        .from(stylistFacilityAssignments)
+        .where(
+          and(
+            eq(stylistFacilityAssignments.facilityId, facilityId),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+        )
+      const assignedIds = assigned.map((a) => a.stylistId)
+      return db.query.stylists.findMany({
+        where: and(
+          eq(stylists.active, true),
+          eq(stylists.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
+          assignedIds.length > 0
+            ? or(eq(stylists.facilityId, facilityId), inArray(stylists.id, assignedIds))
+            : eq(stylists.facilityId, facilityId),
+        ),
+        orderBy: (t, { asc }) => [asc(t.name)],
+      })
+    })(),
     db.query.services.findMany({
       where: and(eq(services.facilityId, facilityId), eq(services.active, true), eq(services.isDemo, tutorialMode)), // is_demo filter — Phase 13 (demo-only during a tour)
       orderBy: (t, { asc }) => [asc(t.name)],

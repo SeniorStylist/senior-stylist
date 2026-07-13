@@ -55,6 +55,13 @@ export function OfflineBanner() {
     }
 
     if (!navigator.onLine) setPhase('offline')
+    // Wedge-proof replay on load: a write queued by a TRANSIENT fetch failure
+    // (server hiccup / flaky wifi) never gets an offline→online transition, so
+    // the 'online'-event-only replay left it stuck forever — edits silently
+    // vanished on reload (bookkeeper report 2026-07-13). Drain on every mount.
+    if (navigator.onLine && getPendingCount() + getPhotoPendingCount() > 0) {
+      goOnline()
+    }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
     return () => {

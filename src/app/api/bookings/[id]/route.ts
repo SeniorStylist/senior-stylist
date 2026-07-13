@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, facilities, residents, stylists, services, profiles } from '@/db/schema'
+import { bookings, facilities, residents, stylists, services, profiles, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { eq, and, lt, gt, or, ne, gte, count, desc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
@@ -162,7 +162,11 @@ export async function PUT(
       if (!resident) return Response.json({ error: 'Resident not found' }, { status: 404 })
     }
 
-    // If stylistId is changing, verify it belongs to facility
+    // If stylistId is changing, verify it works at this facility — either a home
+    // row (stylists.facility_id) OR an active stylist_facility_assignments row.
+    // Facilities served by franchise-pool / cross-facility stylists have zero
+    // home rows, so a home-only check 404'd every legitimate stylist correction
+    // (bookkeeper report 2026-07-13).
     if (updates.stylistId && updates.stylistId !== existing.stylistId) {
       const stylist = await db.query.stylists.findFirst({
         where: and(
@@ -170,7 +174,16 @@ export async function PUT(
           eq(stylists.facilityId, facilityId)
         ),
       })
-      if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+      if (!stylist) {
+        const assignment = await db.query.stylistFacilityAssignments.findFirst({
+          where: and(
+            eq(stylistFacilityAssignments.stylistId, updates.stylistId),
+            eq(stylistFacilityAssignments.facilityId, facilityId),
+            eq(stylistFacilityAssignments.active, true)
+          ),
+        })
+        if (!assignment) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+      }
     }
 
     // If service(s) change, fetch new service(s) for price/duration snapshots.

@@ -25,6 +25,7 @@ export const PAYMENT_TYPE_OPTIONS = [
   'RFMS',
   'COF',
   'RA',
+  'None',
   'Waived',
 ] as const
 
@@ -44,6 +45,12 @@ export function parsePaymentCombo(label: string): {
   if (v === 'waived') return { paymentStatus: 'waived', paymentMethod: null }
   if (COLLECTED_METHODS.has(v)) {
     return { paymentStatus: 'paid', paymentMethod: raw }
+  }
+  // "None" = no payment type recorded on the sheet (bookkeeper request
+  // 2026-07-13; Josh: open invoice — same billing semantics as RFMS/COF/RA,
+  // stays in outstanding balance). Normalize casing so the export reads "None".
+  if (v === 'none' || v === 'no payment type' || v === 'no payment') {
+    return { paymentStatus: 'unpaid', paymentMethod: 'None' }
   }
   // RFMS / COF / RA / anything custom → open invoice carrying a display label.
   return { paymentStatus: 'unpaid', paymentMethod: raw }
