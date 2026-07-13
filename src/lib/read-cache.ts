@@ -1,8 +1,15 @@
-// Phase 17 — offline read cache (localStorage, app-layer).
+// Phase 17 — offline read cache (app-layer). P28 v2: IndexedDB-backed.
 //
 // The service worker deliberately NEVER caches /api/* (stale API responses
 // silently serve wrong resident data), so offline reads live here instead:
-// a small network-first cache that pages consult only when the network throws.
+// a network-first cache that pages consult only when the network throws.
+//
+// v2 (P28): storage moved from localStorage (1.5MB, contended with the write
+// queue / nav prefs) to IndexedDB (`ss-readcache` DB, 25MB budget, 7-day age)
+// with a localStorage fallback when IDB is unavailable (private browsing /
+// ancient WebViews). Existing `ss_readcache:*` localStorage entries are
+// migrated once and removed. public/offline.html reads the same DB via its
+// own inline helper — keep DB_NAME/STORE in sync with it.
 //
 // Rules:
 // - NEVER cache anything under /api/payments/* or any money-mutating response.
@@ -12,13 +19,17 @@
 // - Values are { data, at } and callers surface "saved copy from {time}" UI
 //   whenever `stale` is true. Entries older than MAX_AGE_MS are not served.
 
-const PREFIX = 'ss_readcache:'
-const MAX_AGE_MS = 72 * 60 * 60 * 1000 // 3 days — beyond that a stale day sheet is more confusing than helpful
-const MAX_TOTAL_BYTES = 1_500_000 // stay well under the ~5MB localStorage budget
+const LEGACY_PREFIX = 'ss_readcache:'
+const DB_NAME = 'ss-readcache'
+const STORE = 'snapshots'
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days — survives a weekend gap
+const MAX_TOTAL_BYTES = 25_000_000 // IDB is generous; still bounded
 
 interface CacheEntry<T> {
+  key: string
   data: T
   at: number // epoch ms when stored
+  bytes: number
 }
 
 export interface CachedResult<T> {
@@ -28,77 +39,242 @@ export interface CachedResult<T> {
   stale: boolean
 }
 
-function safeGet(key: string): string | null {
+// ---------------------------------------------------------------------------
+// IndexedDB plumbing (mirrors the offline-photo-queue pattern)
+// ---------------------------------------------------------------------------
+
+let dbPromise: Promise<IDBDatabase | null> | null = null
+
+function openDb(): Promise<IDBDatabase | null> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve(null)
+  if (dbPromise) return dbPromise
+  dbPromise = new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(DB_NAME, 1)
+      req.onupgradeneeded = () => {
+        const db = req.result
+        if (!db.objectStoreNames.contains(STORE)) {
+          const store = db.createObjectStore(STORE, { keyPath: 'key' })
+          store.createIndex('at', 'at')
+        }
+      }
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => resolve(null)
+      req.onblocked = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  })
+  return dbPromise
+}
+
+function idbPut(entry: CacheEntry<unknown>): Promise<boolean> {
+  return openDb().then(
+    (db) =>
+      new Promise<boolean>((resolve) => {
+        if (!db) return resolve(false)
+        try {
+          const tx = db.transaction(STORE, 'readwrite')
+          tx.objectStore(STORE).put(entry)
+          tx.oncomplete = () => resolve(true)
+          tx.onerror = () => resolve(false)
+          tx.onabort = () => resolve(false)
+        } catch {
+          resolve(false)
+        }
+      }),
+  )
+}
+
+function idbGet(key: string): Promise<CacheEntry<unknown> | null> {
+  return openDb().then(
+    (db) =>
+      new Promise<CacheEntry<unknown> | null>((resolve) => {
+        if (!db) return resolve(null)
+        try {
+          const tx = db.transaction(STORE, 'readonly')
+          const req = tx.objectStore(STORE).get(key)
+          req.onsuccess = () => resolve((req.result as CacheEntry<unknown>) ?? null)
+          req.onerror = () => resolve(null)
+        } catch {
+          resolve(null)
+        }
+      }),
+  )
+}
+
+function idbAll(): Promise<CacheEntry<unknown>[]> {
+  return openDb().then(
+    (db) =>
+      new Promise<CacheEntry<unknown>[]>((resolve) => {
+        if (!db) return resolve([])
+        try {
+          const tx = db.transaction(STORE, 'readonly')
+          const req = tx.objectStore(STORE).getAll()
+          req.onsuccess = () => resolve((req.result as CacheEntry<unknown>[]) ?? [])
+          req.onerror = () => resolve([])
+        } catch {
+          resolve([])
+        }
+      }),
+  )
+}
+
+function idbDelete(keys: string[]): Promise<void> {
+  return openDb().then(
+    (db) =>
+      new Promise<void>((resolve) => {
+        if (!db || keys.length === 0) return resolve()
+        try {
+          const tx = db.transaction(STORE, 'readwrite')
+          const store = tx.objectStore(STORE)
+          for (const k of keys) store.delete(k)
+          tx.oncomplete = () => resolve()
+          tx.onerror = () => resolve()
+          tx.onabort = () => resolve()
+        } catch {
+          resolve()
+        }
+      }),
+  )
+}
+
+function idbClear(): Promise<void> {
+  return openDb().then(
+    (db) =>
+      new Promise<void>((resolve) => {
+        if (!db) return resolve()
+        try {
+          const tx = db.transaction(STORE, 'readwrite')
+          tx.objectStore(STORE).clear()
+          tx.oncomplete = () => resolve()
+          tx.onerror = () => resolve()
+          tx.onabort = () => resolve()
+        } catch {
+          resolve()
+        }
+      }),
+  )
+}
+
+/** Evict oldest entries until the cache fits the byte budget (best-effort). */
+async function evictIfNeeded(): Promise<void> {
   try {
-    return localStorage.getItem(key)
+    const all = await idbAll()
+    let total = all.reduce((sum, e) => sum + (e.bytes || 0), 0)
+    if (total <= MAX_TOTAL_BYTES) return
+    const sorted = [...all].sort((a, b) => a.at - b.at)
+    const doomed: string[] = []
+    for (const e of sorted) {
+      if (total <= MAX_TOTAL_BYTES) break
+      doomed.push(e.key)
+      total -= e.bytes || 0
+    }
+    await idbDelete(doomed)
+  } catch { /* best-effort */ }
+}
+
+// ---------------------------------------------------------------------------
+// localStorage fallback (private browsing / no-IDB environments)
+// ---------------------------------------------------------------------------
+
+function lsGet(key: string): { data: unknown; at: number } | null {
+  try {
+    const raw = localStorage.getItem(LEGACY_PREFIX + key)
+    if (!raw) return null
+    const entry = JSON.parse(raw) as { data: unknown; at: number }
+    if (!entry || typeof entry.at !== 'number') return null
+    return entry
   } catch {
     return null
   }
 }
 
-function allCacheKeys(): string[] {
-  const keys: string[] = []
+function lsSet(key: string, data: unknown, at: number): void {
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
-      if (k && k.startsWith(PREFIX)) keys.push(k)
-    }
-  } catch { /* private browsing */ }
-  return keys
+    localStorage.setItem(LEGACY_PREFIX + key, JSON.stringify({ data, at }))
+  } catch { /* quota — best-effort */ }
 }
 
-/** Evict oldest entries until the cache fits the byte budget. */
-function evictIfNeeded() {
+function lsClearAll(): void {
   try {
-    const entries = allCacheKeys()
-      .map((k) => {
-        const raw = safeGet(k)
-        let at = 0
-        try {
-          at = raw ? (JSON.parse(raw) as CacheEntry<unknown>).at ?? 0 : 0
-        } catch { /* corrupt — treat as oldest */ }
-        return { k, at, bytes: (raw?.length ?? 0) * 2 }
-      })
-      .sort((a, b) => a.at - b.at)
-    let total = entries.reduce((sum, e) => sum + e.bytes, 0)
-    for (const e of entries) {
-      if (total <= MAX_TOTAL_BYTES) break
-      localStorage.removeItem(e.k)
-      total -= e.bytes
+    const doomed: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(LEGACY_PREFIX)) doomed.push(k)
+    }
+    for (const k of doomed) localStorage.removeItem(k)
+  } catch { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// One-time migration of v1 localStorage entries into IDB
+// ---------------------------------------------------------------------------
+
+let migrated = false
+async function migrateLegacy(): Promise<void> {
+  if (migrated || typeof window === 'undefined') return
+  migrated = true
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(LEGACY_PREFIX)) keys.push(k)
+    }
+    if (keys.length === 0) return
+    const db = await openDb()
+    if (!db) return // no IDB — leave the localStorage copies as the live store
+    for (const fullKey of keys) {
+      const key = fullKey.slice(LEGACY_PREFIX.length)
+      const entry = lsGet(key)
+      if (entry && Date.now() - entry.at <= MAX_AGE_MS) {
+        let bytes = 0
+        try { bytes = JSON.stringify(entry.data).length * 2 } catch { bytes = 0 }
+        await idbPut({ key, data: entry.data, at: entry.at, bytes })
+      }
+      try { localStorage.removeItem(fullKey) } catch { /* ignore */ }
     }
   } catch { /* best-effort */ }
 }
 
-/** Persist a snapshot (e.g. SSR-seeded props on hydration). */
+// ---------------------------------------------------------------------------
+// Public API (same shape as v1; loads stay async via cachedFetch)
+// ---------------------------------------------------------------------------
+
+/** Persist a snapshot (e.g. SSR-seeded props on hydration). Fire-and-forget. */
 export function saveSnapshot<T>(cacheKey: string, data: T): void {
   if (typeof window === 'undefined') return
-  try {
-    const entry: CacheEntry<T> = { data, at: Date.now() }
-    localStorage.setItem(PREFIX + cacheKey, JSON.stringify(entry))
-    evictIfNeeded()
-  } catch { /* quota / private browsing — cache is best-effort */ }
+  const at = Date.now()
+  void migrateLegacy().then(async () => {
+    const db = await openDb()
+    if (db) {
+      let bytes = 0
+      try { bytes = JSON.stringify(data).length * 2 } catch { return }
+      const ok = await idbPut({ key: cacheKey, data, at, bytes })
+      if (ok) {
+        void evictIfNeeded()
+        return
+      }
+    }
+    lsSet(cacheKey, data, at)
+  })
 }
 
 /** Read a snapshot regardless of network state. Null when absent/expired. */
-export function loadSnapshot<T>(cacheKey: string): { data: T; at: number } | null {
+export async function loadSnapshot<T>(cacheKey: string): Promise<{ data: T; at: number } | null> {
   if (typeof window === 'undefined') return null
-  const raw = safeGet(PREFIX + cacheKey)
-  if (!raw) return null
-  try {
-    const entry = JSON.parse(raw) as CacheEntry<T>
-    if (!entry || typeof entry.at !== 'number') return null
-    if (Date.now() - entry.at > MAX_AGE_MS) return null
-    return { data: entry.data, at: entry.at }
-  } catch {
-    return null
-  }
+  await migrateLegacy()
+  const entry = (await idbGet(cacheKey)) ?? lsGet(cacheKey)
+  if (!entry || typeof entry.at !== 'number') return null
+  if (Date.now() - entry.at > MAX_AGE_MS) return null
+  return { data: entry.data as T, at: entry.at }
 }
 
 /**
  * Network-first cached GET. Fresh responses are stored and returned with
  * stale:false; a network THROW (offline) falls back to the last stored copy
- * with stale:true. HTTP error statuses are surfaced by returning null after
- * `onHttpError` — they are real server answers, never masked by cache.
+ * with stale:true. HTTP error statuses are surfaced by returning
+ * `{ httpError }` — they are real server answers, never masked by cache.
  */
 export async function cachedFetch<T>(
   cacheKey: string,
@@ -113,7 +289,7 @@ export async function cachedFetch<T>(
     saveSnapshot(cacheKey, data)
     return { data, at: Date.now(), stale: false }
   } catch {
-    const cached = loadSnapshot<T>(cacheKey)
+    const cached = await loadSnapshot<T>(cacheKey)
     if (cached) return { ...cached, stale: true }
     return null
   }
@@ -122,9 +298,8 @@ export async function cachedFetch<T>(
 /** Wipe every cached snapshot — call on sign-out / portal logout. */
 export function clearReadCache(): void {
   if (typeof window === 'undefined') return
-  try {
-    for (const k of allCacheKeys()) localStorage.removeItem(k)
-  } catch { /* ignore */ }
+  lsClearAll()
+  void idbClear()
 }
 
 /** "3:42 PM" style label for offline notices. */
