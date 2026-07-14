@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { facilities, facilityUsers, services, residents, stylists, profiles } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { revalidateTag } from 'next/cache'
 
 export async function POST() {
   try {
@@ -68,6 +69,8 @@ export async function POST() {
       facilityId: facility.id,
       role: 'admin',
     })
+    // P31 — bust the cached layout membership list
+    revalidateTag('facilities', {})
 
     await db.insert(services).values([
       {

@@ -49,6 +49,7 @@ export default async function LogPage() {
     servicesList,
     facility,
     exportFacilitiesRaw,
+    mostUsedMap,
   ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
@@ -124,9 +125,11 @@ export default async function LogPage() {
           orderBy: [asc(facilities.name)],
         })
       : Promise.resolve(null),
+    // P31 — cached (5 min, 'bookings' tag) and folded into the batch instead
+    // of a sequential round-trip after it.
+    getMostUsedServiceIds(facilityId),
   ])
 
-  const mostUsedMap = await getMostUsedServiceIds(facilityId)
   const residentsWithUsage = residentsList.map((r) => ({
     ...r,
     mostUsedServiceId: mostUsedMap.get(r.id) ?? null,

@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { facilities, facilityUsers, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
+import { unstable_cache } from 'next/cache'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TopBar } from '@/components/layout/top-bar'
 import { MobileNav } from '@/components/layout/mobile-nav'
@@ -37,13 +38,20 @@ interface LayoutData {
   franchiseAdmin: boolean
 }
 
-async function fetchLayoutData(userId: string): Promise<LayoutData> {
-  // Phase 18 hotfix — self-heal the facilities.monthly_report_enabled column
-  // (drizzle/0024). Full-row facilities selects (this relation include, the
-  // dashboard, the daily log) throw "column does not exist" when the code
-  // deploys before the migration is applied; this makes deploys order-proof.
-  // Module-guarded in monthly-report-ddl.ts — one round-trip per instance.
-  await ensureMonthlyReportSchema().catch(() => {})
+// P31 — the membership/facility-list queries run on EVERY layout render (every
+// navigation AND every nav-link prefetch) but their data changes rarely. They
+// are cached per user for 5 minutes under the 'facilities' tag, which every
+// facility CRUD + membership mutation busts (invite redeem, access-request
+// approve, member removal, admin setup, login self-heal). P26 rule: the cached
+// value is JSON-plain (no Dates/Maps — warm hits are JSON round-tripped).
+// P27 rule: no try/catch inside — a failure must propagate, not get cached;
+// the call site falls back to the uncached fetch.
+interface MembershipData {
+  memberships: { facilityId: string; role: string }[]
+  allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[]
+}
+
+async function fetchMembershipData(userId: string): Promise<MembershipData> {
   const userFacilities = await db.query.facilityUsers.findMany({
     where: eq(facilityUsers.userId, userId),
     with: { facility: true },
@@ -90,6 +98,38 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
     }
   }
 
+  return {
+    memberships: userFacilities.map((fu) => ({ facilityId: fu.facilityId, role: fu.role })),
+    allFacilities,
+  }
+}
+
+const getCachedMembershipData = unstable_cache(fetchMembershipData, ['layout-membership-v1'], {
+  revalidate: 300,
+  tags: ['facilities'],
+})
+
+async function fetchLayoutData(userId: string): Promise<LayoutData> {
+  // Phase 18 hotfix — self-heal the facilities.monthly_report_enabled column
+  // (drizzle/0024). Full-row facilities selects (this relation include, the
+  // dashboard, the daily log) throw "column does not exist" when the code
+  // deploys before the migration is applied; this makes deploys order-proof.
+  // Module-guarded in monthly-report-ddl.ts — one round-trip per instance.
+  await ensureMonthlyReportSchema().catch(() => {})
+
+  let membership: MembershipData
+  try {
+    membership = await getCachedMembershipData(userId)
+    // Never trust a cached EMPTY result — a just-redeemed invite must see its
+    // new facility immediately even if a stale entry predates the tag bust.
+    if (membership.memberships.length === 0) {
+      membership = await fetchMembershipData(userId)
+    }
+  } catch {
+    membership = await fetchMembershipData(userId)
+  }
+  const { memberships, allFacilities } = membership
+
   const cookieStore = await cookies()
   const selectedId = cookieStore.get('selected_facility_id')?.value
   const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
@@ -101,9 +141,9 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
   // row, falling back to the first row. The debug-cookie override is handled
   // by the caller (master-only branch below).
   const selectedRaw = selectedId
-    ? userFacilities.find((fu) => fu.facilityId === selectedId)
+    ? memberships.find((fu) => fu.facilityId === selectedId)
     : undefined
-  const franchiseAdmin = (selectedRaw ?? userFacilities[0])?.role === 'super_admin'
+  const franchiseAdmin = (selectedRaw ?? memberships[0])?.role === 'super_admin'
 
   const profileRow = await db.query.profiles.findFirst({
     where: (p, { eq }) => eq(p.id, userId),

@@ -4,6 +4,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { facilityUsers, profiles, invites } from '@/db/schema'
 import { and, eq, count } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
 
 export async function DELETE(
   _req: Request,
@@ -73,6 +74,9 @@ export async function DELETE(
           )
       }
     })
+
+    // P31 — bust the cached layout membership list for the removed user
+    revalidateTag('facilities', {})
 
     // Invalidate the removed user's Supabase sessions so they can't continue navigating
     try {

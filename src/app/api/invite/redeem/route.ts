@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { invites, facilityUsers, profiles } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
+import { revalidateTag } from 'next/cache'
 import { linkStylistByEmailOrName } from '@/lib/onboarding'
 
 export async function GET(request: NextRequest) {
@@ -60,6 +61,9 @@ export async function GET(request: NextRequest) {
       role: invite.inviteRole || 'stylist',
     })
     .onConflictDoNothing()
+  // P31 — bust the cached layout membership list so the new facility appears
+  // in the sidebar/switcher immediately.
+  revalidateTag('facilities', {})
 
   // Mark invite as used + record acceptance (and viewing, if the open-time
   // stamp was missed because the user was already authenticated)

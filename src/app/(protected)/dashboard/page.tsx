@@ -106,7 +106,7 @@ export default async function DashboardPage() {
     // tutorial's seeded resident/service/booking appear in the booking modal etc.
     const tutorialMode = await isTutorialModeActive()
 
-    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings] = await Promise.all([
+    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings, mostUsedMap] = await Promise.all([
       db.query.residents.findMany({
         where: and(
           eq(residents.facilityId, facilityUser.facilityId),
@@ -248,11 +248,13 @@ export default async function DashboardPage() {
             orderBy: [asc(bookings.startTime)],
           })
         : Promise.resolve([]),
+      // P31 — cached (5 min, 'bookings' tag) and folded into the batch instead
+      // of a sequential round-trip after it.
+      getMostUsedServiceIds(facilityUser.facilityId),
     ])
 
     if (!facility) redirect('/login')
 
-    const mostUsedMap = await getMostUsedServiceIds(facilityUser.facilityId)
     const residentsWithUsage = residentsList.map((r) => ({
       ...r,
       mostUsedServiceId: mostUsedMap.get(r.id) ?? null,

@@ -8,6 +8,7 @@
 // re-provisions the membership for the current uid from any invite for their email.
 
 import { db } from '@/db'
+import { revalidateTag } from 'next/cache'
 import { invites, facilityUsers, profiles, stylists } from '@/db/schema'
 import { and, desc, eq, ilike } from 'drizzle-orm'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
@@ -104,6 +105,9 @@ export async function healMembershipOnLogin(user: AuthUserLike): Promise<string 
     .insert(facilityUsers)
     .values({ userId: user.id, facilityId: invite.facilityId, role })
     .onConflictDoNothing()
+  // P31 — bust the cached layout membership list (best-effort: this helper is
+  // called from the auth-callback route handler where revalidateTag is valid).
+  try { revalidateTag('facilities', {}) } catch { /* non-request context */ }
 
   // Re-check the row persisted — surface a transient insert failure rather than
   // silently leaving the user on /unauthorized.

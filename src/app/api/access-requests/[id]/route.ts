@@ -106,6 +106,8 @@ export async function PUT(
           role: assignRole,
         })
         .onConflictDoNothing()
+      // P31 — bust the cached layout membership list for the approved user
+      revalidateTag('facilities', {})
     }
 
     // For stylist role: upsert stylist record with commissionPercent
