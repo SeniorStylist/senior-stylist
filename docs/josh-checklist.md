@@ -7,6 +7,21 @@ accounts/approvals. Check items off as you go.
 Note: all 8 cron jobs are ALREADY registered in vercel.json and deploy automatically — the old
 "add cron to vercel.json" to-dos are done. What they're missing is the secret (item C1).
 
+## Status (updated 2026-07-12 walkthrough)
+
+| Section | Status |
+|---|---|
+| A. Database (verify + catch-up) | ✅ **DONE** — 29/29 checks OK after applying the 0020 column + 0027 index |
+| B. Storage bucket (`resident-photos`) | ✅ **DONE** — private bucket created |
+| C. Vercel env vars | ✅ **DONE** — CRON_SECRET, QB_TOKEN_SECRET, Upstash already set; VAPID ×4 completed + redeployed |
+| — Web push | ✅ **LIVE & TESTED** (confirmed on the iOS add-to-home-screen PWA) |
+| D. Supabase Auth | ⚠️ Confirm same-email linking is ON + Magic Link template has `{{ .Token }}` (needed for native login) |
+| E. Stripe live payments | ⏸ **PARKED** — test keys work today; live-mode blocked on boss's live account (steps below) |
+| F. SMS (Twilio) | ⏸ **PARKED** — needs `TWILIO_FROM_NUMBER` + 10DLC reg (~$10–35/mo). Set `TWILIO_ENABLED=false` meanwhile |
+| G. QuickBooks | Creds set; `QB_INVOICE_SYNC_ENABLED` flips true after Intuit prod approval |
+| H. Native apps | 🔄 **IN PROGRESS** — first-ever submission; org accounts + D-U-N-S underway |
+| I. Optional | Upstash ✅ done; facility onboarding pending |
+
 ---
 
 ## A. Database — Supabase SQL Editor (~10 min, do first)
@@ -69,6 +84,13 @@ The whole card-on-file/autopay/Tap-to-Pay stack is built and works in TEST mode 
 3. [ ] LAST, when you want real charges: set **`PAYMENTS_LIVE_ENABLED`** = `true`. Until then
        the engine refuses live keys by design.
 
+**STATUS (2026-07-12):** all 4 keys are set in **TEST** mode and the card-on-file flow works
+today (test card `4242 4242 4242 4242`). Live mode is blocked on the boss creating the
+company's **live Stripe account**. Live-mode hand-off when that exists: swap all 4 keys to the
+live values → create a **live-mode** webhook with those two events and put its **live** signing
+secret in `STRIPE_WEBHOOK_SECRET` (test/live secrets differ — a mismatch fails silently) →
+set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to confirm.
+
 ## F. Twilio — SMS (when ready)
 
 1. [ ] Twilio account + a phone number →
@@ -84,7 +106,27 @@ The whole card-on-file/autopay/Tap-to-Pay stack is built and works in TEST mode 
 2. [ ] After Intuit grants PRODUCTION approval for the app: set
        **`QB_INVOICE_SYNC_ENABLED`** = `true` to unlock live invoice pulls ("Sync from QB").
 
-## H. Native app — one Mac sitting
+## H. Native app — FIRST-EVER submission (org accounts, you build on your Mac)
+
+**STATUS (2026-07-12):** decided on **Organization** developer accounts (company name on the
+apps). This is a multi-day, multi-step process; go phase by phase.
+
+**Phase 0 — prerequisites (start NOW; these gate everything):**
+- [ ] **Supabase Magic Link template** must contain the code token, e.g. `Your code is {{ .Token }}`
+      (Auth → Email Templates → Magic Link). Native login is a typed 6-digit code — broken without it.
+- [ ] **Company D-U-N-S number** — Apple + Google org enrollment both require it. Check if the
+      company already has one (D&B free lookup); if not, request free from Dun & Bradstreet
+      (can take ~1–2 weeks). **Critical path — loop in the boss** (legal company name/address +
+      authority to bind the company; likely boss-owned accounts).
+- [ ] **Apple Developer Program (Organization)** — $99/yr, developer.apple.com/programs/enroll
+      (~1–2 wks with org verification).
+- [ ] **Google Play Console (Organization)** — $25 one-time; also needs org/D-U-N-S verification.
+
+**Phase 1 — Mac toolchain (do in PARALLEL now, no waiting on accounts):**
+- [ ] Install **Xcode** (Mac App Store, ~7 GB — start early), **Node LTS**, **CocoaPods**,
+      **Android Studio**. Then `git clone` + `npm install`. (Claude will give exact commands.)
+
+**Phase 2 — build + submit (once accounts clear; Android first per docs/native-app.md):**
 
 1. [ ] On the Mac: `git pull && npm install && npm run cap:sync` → open Xcode / Android Studio
        → build. This picks up EVERYTHING since the first build: camera/photo permissions, the
