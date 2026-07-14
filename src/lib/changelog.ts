@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.1',
+    date: '2026-07-14',
+    title: 'Stylist Privacy & Day-Log Fixes',
+    items: [
+      'Stylists now see only their own appointments and daily log — walk-ins are locked to the signed-in stylist everywhere, including on the server',
+      'Fixed the mobile daily log: Done / No-show always respond (and tell you why if something fails), and the cramped service/price row is redesigned',
+      'Delete an appointment by swiping its row or from the Edit form — with a confirm step',
+      'Settings → Team: the Assign-stylist list now scrolls properly, and "Disconnect stylist" lets you unlink a login when someone switches emails',
+      'Master admin can preview as a specific real stylist from the Debug tab — the preview now behaves exactly like that stylist\'s account',
+    ],
+  },
+  {
     version: '4.0',
     date: '2026-07-12',
     title: 'Works Offline Everywhere',

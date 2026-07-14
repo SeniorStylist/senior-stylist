@@ -2937,3 +2937,31 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   id (cancel, edit) with a "syncs first" notice.
 - The offline hub's family card is large-type (17-24px) EN/ES; staff panels reuse the hub row
   pattern (time / who / what). All hub strings HTML-escaped — verified by Playwright drill.
+
+## P30 day-log + lockdown patterns (2026-07-14)
+
+- **Mobile list-row with actions**: never share one flex row between variable-length text and
+  a cluster of action buttons. The daily-log booking row is `flex flex-col md:flex-row` —
+  text block (name / services / price) full-width on phones, actions in a wrapped second line
+  (`flex-wrap justify-end mt-2 pl-12`) with ≥44px touch targets. Price is bold
+  `font-semibold whitespace-nowrap` so it never wraps into invisibility.
+- **Swipe-to-delete rows**: horizontal touch tracking on the row container (trigger at
+  `|dx| > 56 && |dx| > |dy| * 1.5` — preserves vertical scroll), revealing an absolute
+  `inset-y-0 right-0 z-10` confirm overlay ("Delete this appointment? [Keep] [Delete]").
+  Only one row's overlay open at a time; the destructive action always requires the second
+  tap. The edit form carries the same action as a rose "Delete appointment" button so
+  desktop/no-touch users aren't locked out.
+- **Popovers inside `overflow-hidden` containers must be viewport-FIXED**: the team-section
+  Assign-stylist dropdown was `absolute` inside the member list's rounded `overflow-hidden`
+  wrapper and got clipped (unscrollable, bottom rows unreachable). Pattern: on open, compute
+  `getBoundingClientRect()` of the trigger, render the panel `position: fixed` with flip-up
+  when `rect.bottom + panelMaxHeight > window.innerHeight`, clamp left to the viewport. Safe
+  because no ancestor carries a transform (12Y layout rule). List body: `max-h-64
+  overflow-y-auto overscroll-contain`.
+- **Mutation handlers must surface errors**: every fetch-mutation needs an explicit `!res.ok`
+  branch that toasts `firstErrorMessage(json)` and rolls back optimistic state, plus a catch
+  toast for network throws. The "can't click Done/No-show" bug was a silent 403 — the button
+  worked, the failure was invisible.
+- **Destructive/role 403s are human sentences** ("You can only update your own daily log.",
+  "Your account isn't linked to a stylist profile yet — ask your admin to link you in
+  Settings → Team") — the client shows them verbatim.

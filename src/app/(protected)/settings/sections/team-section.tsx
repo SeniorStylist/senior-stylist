@@ -102,6 +102,29 @@ export function TeamSection({
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null)
   const [savingStylistFor, setSavingStylistFor] = useState<string | null>(null)
   const [stylistPickerSearch, setStylistPickerSearch] = useState('')
+  // Viewport-FIXED popover position (escapes the member list's overflow-hidden,
+  // which used to clip the dropdown so long stylist lists couldn't be scrolled
+  // and "Disconnect stylist" was unreachable). Flips upward near the bottom.
+  const [pickerPos, setPickerPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null)
+  const openStylistPicker = (userId: string, trigger: HTMLElement) => {
+    setStylistPickerSearch('')
+    if (assigningUserId === userId) {
+      setAssigningUserId(null)
+      setPickerPos(null)
+      return
+    }
+    const rect = trigger.getBoundingClientRect()
+    const PANEL_W = 240 // w-60
+    const PANEL_MAX_H = 340 // search + max-h-64 list + disconnect row
+    const left = Math.max(8, Math.min(rect.right - PANEL_W, window.innerWidth - PANEL_W - 8))
+    const openUp = rect.bottom + PANEL_MAX_H > window.innerHeight
+    setPickerPos(
+      openUp
+        ? { bottom: window.innerHeight - rect.top + 4, left }
+        : { top: rect.bottom + 4, left }
+    )
+    setAssigningUserId(userId)
+  }
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('')
@@ -226,8 +249,9 @@ export function TeamSection({
               : u,
           ),
         )
-        setTeamToast(stylistId ? 'Stylist linked' : 'Stylist link removed')
+        setTeamToast(stylistId ? 'Stylist linked' : 'Stylist disconnected')
         setAssigningUserId(null)
+        setPickerPos(null)
         setStylistPickerSearch('')
       }
     } finally {
@@ -453,10 +477,7 @@ export function TeamSection({
                     <div className="relative shrink-0 hidden sm:block">
                       <button
                         type="button"
-                        onClick={() => {
-                          setStylistPickerSearch('')
-                          setAssigningUserId(isOpen ? null : cu.userId)
-                        }}
+                        onClick={(e) => openStylistPicker(cu.userId, e.currentTarget)}
                         disabled={isSaving}
                         title={cu.stylistName ? `Linked to ${cu.stylistName} — click to change` : 'Link to a stylist record'}
                         className={cn(
@@ -474,9 +495,12 @@ export function TeamSection({
                             type="button"
                             aria-label="Close"
                             className="fixed inset-0 z-40 cursor-default"
-                            onClick={() => setAssigningUserId(null)}
+                            onClick={() => { setAssigningUserId(null); setPickerPos(null) }}
                           />
-                          <div className="absolute right-0 top-full mt-1 z-50 w-60 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden">
+                          <div
+                            className="fixed z-50 w-60 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden"
+                            style={pickerPos ?? undefined}
+                          >
                             {facilityStylists.length > 6 && (
                               <input
                                 type="search"
@@ -487,7 +511,7 @@ export function TeamSection({
                                 className="w-full px-3 py-2 text-sm border-b border-stone-100 focus:outline-none"
                               />
                             )}
-                            <div className="max-h-56 overflow-y-auto py-1">
+                            <div className="max-h-64 overflow-y-auto overscroll-contain py-1">
                               {options.length === 0 ? (
                                 <p className="px-3 py-2 text-xs text-stone-400">
                                   {facilityStylists.length === 0 ? 'No stylists in the directory yet.' : 'No matches.'}
@@ -525,7 +549,10 @@ export function TeamSection({
                                 onClick={() => handleAssignStylist(cu.userId, null)}
                                 className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 border-t border-stone-100 disabled:opacity-50"
                               >
-                                Remove link
+                                Disconnect stylist
+                                <span className="block text-[10px] text-red-400 font-normal mt-0.5">
+                                  Unlinks this login from {cu.stylistName ?? 'the stylist record'} — use when switching emails
+                                </span>
                               </button>
                             )}
                           </div>

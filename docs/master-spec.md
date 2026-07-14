@@ -101,13 +101,15 @@ Phase 11J.1 fix added server-side guards to all protected pages. All `redirect()
 | `/master-admin` | master email only → redirect `/dashboard` | `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` gate |
 | `/super-admin` | → redirect `/master-admin` | Bookmark compatibility only |
 
-### Stylist role behavior
+### Stylist role behavior (P30 FULL LOCKDOWN — 2026-07-14, supersedes 2026-06-11 view-whole-day)
 
-- **Dashboard mobile**: shows today-list filtered to own bookings via `profileStylistId` (looked up from `profiles.stylistId`).
-- **Daily Log**: filtered to own stylist section only (via `stylistFilter` prop from page.tsx).
+- **A stylist sees and mutates ONLY their own work.** Identity is ALWAYS resolved via `getEffectiveStylistId(userId)` (`src/lib/effective-stylist.ts`) — honors the master-gated `__debug_role` cookie's `stylistId` (re-verified via service-role admin API), else `profiles.stylistId`. Never use a raw `profiles.stylistId` lookup in a stylist guard.
+- **Reads scoped server-side**: `GET /api/bookings` adds `eq(bookings.stylistId, own)` (unlinked → `data: []`); `GET /api/log` scopes dayBookings + logEntries (unlinked → zero-UUID sentinel); `/log` + `/dashboard` SSR queries scoped identically; `GET /api/signup-sheet` returns own + unassigned; `GET /api/peek` 403s stylist→stylist peeks and strips POA contact fields from resident peeks.
+- **Writes**: `POST /api/bookings` + `POST /api/signup-sheet/[id]/convert` force own stylistId (403 with human message on any other — no auto-assign for stylists); `PUT /api/bookings/[id]` bans changing `stylistId` (handoff ban) + ownership check; `DELETE` ownership check; `POST /api/log` + `PUT /api/log/[id]` own-entry only; `POST /api/log/email` 403 (full-facility content); checkin + bulk-reschedule + daily-log export scoped via the same helper.
+- **Unlinked stylist (effective id null)** = fail closed: reads empty, writes 403 "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team", `/log` renders read-only with an amber banner; scan + email buttons hidden for the stylist role.
 - **Inline editing**: can edit price and notes on own bookings. Edit button gated by `stylistFilter` match + not finalized + not cancelled.
-- **API ownership guard**: `PUT /api/bookings/[id]` checks `profiles.stylistId` against `existing.stylistId` — stylists can only edit their own bookings (403 otherwise).
 - **`PUT /api/bookings/[id]`** accepts `priceCents: number` directly in the update schema. A direct `priceCents` override takes precedence over service-change-derived price.
+- **Debug impersonation**: the master Debug tab's Stylist View has a "Preview as <stylist>" roster picker; the cookie carries `stylistId` so the preview passes every ownership check like the real account.
 
 ### Dashboard & settings flags
 
