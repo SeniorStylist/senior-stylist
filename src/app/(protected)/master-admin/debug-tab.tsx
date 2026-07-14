@@ -30,6 +30,10 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
   )
   const [loading, setLoading] = useState<DebugRole | null>(null)
   const [currentDebug, setCurrentDebug] = useState<{ role: string; facilityName: string } | null>(null)
+  // P30 — impersonate AS a specific stylist so the lockdown + ownership checks
+  // behave exactly like the real account (Done/No-show, walk-in lock, own-only log).
+  const [facilityStylists, setFacilityStylists] = useState<{ id: string; name: string }[]>([])
+  const [selectedStylistId, setSelectedStylistId] = useState('')
 
   useEffect(() => {
     const readCookie = () => {
@@ -47,6 +51,24 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
 
   const selected = eligible.find((f) => f.id === selectedId)
 
+  // Load the facility's stylist roster (home + assignment-linked) for the
+  // stylist picker whenever the selected facility changes.
+  useEffect(() => {
+    setFacilityStylists([])
+    setSelectedStylistId('')
+    if (!selectedId) return
+    const ctrl = new AbortController()
+    fetch(`/api/log/ocr/rosters?facilityId=${selectedId}`, { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j) => {
+        const list = (j?.data?.stylists ?? []) as { id: string; name: string }[]
+        setFacilityStylists(list)
+        if (list.length > 0) setSelectedStylistId(list[0].id)
+      })
+      .catch(() => { /* picker stays empty — impersonation falls back to unlinked */ })
+    return () => ctrl.abort()
+  }, [selectedId])
+
   const handleImpersonate = async (role: DebugRole) => {
     if (!selected) return
     setLoading(role)
@@ -54,7 +76,13 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
       const res = await fetch('/api/debug/impersonate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, facilityId: selected.id, facilityName: selected.name }),
+        body: JSON.stringify({
+          role,
+          facilityId: selected.id,
+          facilityName: selected.name,
+          // stylist impersonation carries the picked stylist identity
+          stylistId: role === 'stylist' && selectedStylistId ? selectedStylistId : null,
+        }),
       })
       if (res.ok) {
         window.location.href = '/dashboard'
@@ -164,9 +192,29 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
       <div className="space-y-3">
         {rows.map(({ role, label, desc }) => (
           <div key={role} className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm flex items-center justify-between gap-4">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-stone-900">{label}</p>
               <p className="text-xs text-stone-500 mt-0.5">{desc}</p>
+              {role === 'stylist' && selectedId && (
+                facilityStylists.length > 0 ? (
+                  <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
+                    <span className="shrink-0">Preview as</span>
+                    <select
+                      value={selectedStylistId}
+                      onChange={(e) => setSelectedStylistId(e.target.value)}
+                      className="flex-1 max-w-xs px-2 py-1.5 rounded-lg border border-stone-200 text-xs text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
+                    >
+                      {facilityStylists.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="mt-2 text-xs text-amber-600">
+                    No stylists at this facility yet — you&apos;ll preview as an unlinked stylist (read-only banner).
+                  </p>
+                )
+              )}
             </div>
             <button
               onClick={() => {

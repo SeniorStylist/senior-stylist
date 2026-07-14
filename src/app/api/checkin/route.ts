@@ -3,11 +3,11 @@ import { db } from '@/db'
 import {
   bookings,
   facilities,
-  profiles,
   stylistCheckins,
   stylistFacilityAssignments,
 } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { and, eq, gte, lt, notInArray, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -49,14 +49,13 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.id, user.id),
-      columns: { stylistId: true },
-    })
-    if (!profile?.stylistId) {
-      return Response.json({ error: 'No stylist profile' }, { status: 403 })
+    const stylistId = await getEffectiveStylistId(user.id)
+    if (!stylistId) {
+      return Response.json(
+        { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+        { status: 403 }
+      )
     }
-    const stylistId = profile.stylistId
 
     const assignment = await db.query.stylistFacilityAssignments.findFirst({
       where: and(

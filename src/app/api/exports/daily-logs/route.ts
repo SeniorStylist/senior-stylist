@@ -4,7 +4,8 @@ import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm'
 import ExcelJS from 'exceljs'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, facilities, facilityUsers, profiles } from '@/db/schema'
+import { bookings, facilities, facilityUsers } from '@/db/schema'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
@@ -162,12 +163,9 @@ export async function GET(request: NextRequest) {
       if (!facilityUser) return new Response('No facility', { status: 400 })
 
       if (facilityUser.role === 'stylist') {
-        const prof = await db.query.profiles.findFirst({
-          where: eq(profiles.id, user.id),
-          columns: { stylistId: true },
-        })
-        if (!prof?.stylistId) return new Response('Not linked to a stylist', { status: 400 })
-        stylistScopeId = prof.stylistId
+        const ownStylistId = await getEffectiveStylistId(user.id)
+        if (!ownStylistId) return new Response('Not linked to a stylist', { status: 400 })
+        stylistScopeId = ownStylistId
         allowedFacilityIds = new Set([facilityUser.facilityId])
       } else if (facilityUser.role === 'bookkeeper') {
         // Bookkeepers are cross-facility by role (they hold only one anchor

@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, or } from 'drizzle-orm'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { facilities, residents, services, stylists } from '@/db/schema'
+import { facilities, residents, services, stylists, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 
 // Roster data (residents / stylists / services) for a target facility, used by the
@@ -61,15 +61,32 @@ export async function GET(request: NextRequest) {
         columns: { id: true, name: true, roomNumber: true },
         orderBy: [asc(residents.name)],
       }),
-      db.query.stylists.findMany({
-        where: and(
-          eq(stylists.facilityId, facilityId),
-          eq(stylists.active, true),
-          eq(stylists.isDemo, false),
-        ),
-        columns: { id: true, name: true },
-        orderBy: [asc(stylists.name)],
-      }),
+      // Home rows PLUS assignment-linked rows — facilities served by
+      // franchise-pool / cross-facility stylists have ZERO home rows (F228).
+      // Never query stylists by facility_id alone on a roster surface.
+      (async () => {
+        const assigned = await db
+          .select({ stylistId: stylistFacilityAssignments.stylistId })
+          .from(stylistFacilityAssignments)
+          .where(
+            and(
+              eq(stylistFacilityAssignments.facilityId, facilityId),
+              eq(stylistFacilityAssignments.active, true),
+            ),
+          )
+        const assignedIds = assigned.map((a) => a.stylistId)
+        return db.query.stylists.findMany({
+          where: and(
+            eq(stylists.active, true),
+            eq(stylists.isDemo, false),
+            assignedIds.length > 0
+              ? or(eq(stylists.facilityId, facilityId), inArray(stylists.id, assignedIds))
+              : eq(stylists.facilityId, facilityId),
+          ),
+          columns: { id: true, name: true },
+          orderBy: [asc(stylists.name)],
+        })
+      })(),
       db.query.services.findMany({
         where: and(
           eq(services.facilityId, facilityId),

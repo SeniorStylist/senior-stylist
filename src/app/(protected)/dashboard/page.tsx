@@ -5,6 +5,7 @@ import { facilities, residents, stylists, services, invites, accessRequests, pro
 import { eq, and, gte, lt, notInArray, inArray, asc } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
@@ -70,13 +71,18 @@ export default async function DashboardPage() {
 
   if (facilityUser.role === 'bookkeeper') redirect('/log')
 
-  // Fetch profile once: stylistId (for stylist filter) + hasSeenOnboardingTour (welcome modal flag)
-  const profile = await db.query.profiles.findFirst({
-    where: eq(profiles.id, user.id),
-    columns: { stylistId: true, hasSeenOnboardingTour: true, completedTours: true, hasSeenFirstTour: true },
-  })
-  const profileStylistId =
-    facilityUser.role === 'stylist' ? profile?.stylistId ?? null : null
+  // Fetch profile once: hasSeenOnboardingTour (welcome modal flag) + tour progress.
+  // P30 — the stylist identity comes from getEffectiveStylistId (honors the
+  // master-gated debug cookie's stylistId, else profiles.stylistId) so debug
+  // impersonation behaves exactly like the real stylist.
+  const [profile, effectiveStylistId] = await Promise.all([
+    db.query.profiles.findFirst({
+      where: eq(profiles.id, user.id),
+      columns: { hasSeenOnboardingTour: true, completedTours: true, hasSeenFirstTour: true },
+    }),
+    facilityUser.role === 'stylist' ? getEffectiveStylistId(user.id) : Promise.resolve(null),
+  ])
+  const profileStylistId = facilityUser.role === 'stylist' ? effectiveStylistId : null
   const showOnboardingModal = !profile?.hasSeenOnboardingTour
   const isMaster =
     !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&

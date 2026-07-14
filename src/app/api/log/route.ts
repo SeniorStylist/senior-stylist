@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, logEntries, profiles } from '@/db/schema'
+import { bookings, logEntries } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and, gte, lt } from 'drizzle-orm'
@@ -98,12 +98,9 @@ export async function POST(request: NextRequest) {
 
     // Stylists may only finalize / write day notes on their OWN log entry
     if (facilityUser.role === 'stylist') {
-      const profile = await db.query.profiles.findFirst({
-        where: eq(profiles.id, user.id),
-        columns: { stylistId: true },
-      })
-      if (!profile?.stylistId || profile.stylistId !== stylistId) {
-        return Response.json({ error: 'Forbidden — not your log entry' }, { status: 403 })
+      const ownStylistId = await getEffectiveStylistId(user.id)
+      if (!ownStylistId || ownStylistId !== stylistId) {
+        return Response.json({ error: 'You can only update your own daily log.' }, { status: 403 })
       }
     }
 

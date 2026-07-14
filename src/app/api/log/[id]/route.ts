@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { logEntries, profiles } from '@/db/schema'
+import { logEntries } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -35,12 +36,9 @@ export async function PUT(
 
     // Stylists may only update their OWN log entry
     if (facilityUser.role === 'stylist') {
-      const profile = await db.query.profiles.findFirst({
-        where: eq(profiles.id, user.id),
-        columns: { stylistId: true },
-      })
-      if (!profile?.stylistId || profile.stylistId !== existing.stylistId) {
-        return Response.json({ error: 'Forbidden — not your log entry' }, { status: 403 })
+      const ownStylistId = await getEffectiveStylistId(user.id)
+      if (!ownStylistId || ownStylistId !== existing.stylistId) {
+        return Response.json({ error: 'You can only update your own daily log.' }, { status: 403 })
       }
     }
 

@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, facilities, profiles } from '@/db/schema'
+import { bookings, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -40,14 +41,13 @@ export async function PUT(request: NextRequest) {
     }
     const { bookingIds, shiftMinutes } = parsed.data
 
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.id, user.id),
-      columns: { stylistId: true },
-    })
-    if (!profile?.stylistId) {
-      return Response.json({ error: 'No stylist profile' }, { status: 403 })
+    const stylistId = await getEffectiveStylistId(user.id)
+    if (!stylistId) {
+      return Response.json(
+        { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+        { status: 403 }
+      )
     }
-    const stylistId = profile.stylistId
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityUser.facilityId),
