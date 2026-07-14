@@ -103,6 +103,8 @@ interface LogClientProps {
   // Master admin (env-email match) — role alone can't signal it (their
   // facility_users row is a plain 'admin'). Drives the Sheets modal Move gate.
   isMaster?: boolean
+  // P30 — stylist account with no linked stylist profile: read-only + banner
+  unlinkedStylist?: boolean
 }
 
 // Round a date to nearest 30 min IN THE FACILITY'S TIMEZONE.
@@ -187,10 +189,15 @@ export function LogClient({
   role = 'admin',
   exportFacilities,
   isMaster = false,
+  unlinkedStylist = false,
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
-  // facility_staff is read-only; bookkeeper can scan and edit billing fields
-  const canWrite = role === 'admin' || role === 'super_admin' || role === 'stylist' || role === 'bookkeeper'
+  // facility_staff is read-only; bookkeeper can scan and edit billing fields.
+  // P30 — an UNLINKED stylist account is read-only until the admin links it
+  // (otherwise every ownership check would 403 anyway; fail clearly instead).
+  const canWrite =
+    (role === 'admin' || role === 'super_admin' || role === 'stylist' || role === 'bookkeeper') &&
+    !(role === 'stylist' && unlinkedStylist)
   const [date, setDate] = useState(initialDate)
   // Phase 17 — set when a day was served from the offline read-cache
   const [offlineAt, setOfflineAt] = useState<number | null>(null)
@@ -1056,6 +1063,7 @@ export function LogClient({
               <span>Sheets</span>
             </button>
           )}
+          {role !== 'stylist' && (
           <button
             type="button"
             onClick={() => setShowEmailModal(true)}
@@ -1067,6 +1075,7 @@ export function LogClient({
             <EmailIcon />
             <span>Email</span>
           </button>
+          )}
           <button
             type="button"
             onClick={() => setShowExportModal(true)}
@@ -1093,6 +1102,7 @@ export function LogClient({
             <span>Sheets</span>
           </button>
         )}
+        {role !== 'stylist' && (
         <button
           type="button"
           onClick={() => setShowEmailModal(true)}
@@ -1103,6 +1113,7 @@ export function LogClient({
           <EmailIcon />
           <span>Email</span>
         </button>
+        )}
         <button
           type="button"
           onClick={() => setShowExportModal(true)}
@@ -1117,6 +1128,20 @@ export function LogClient({
       </div>
 
       {/* Undo & edit — roll back a scan import and reopen the review pre-filled */}
+      {/* P30 — unlinked stylist: page is read-only until the admin links them */}
+      {role === 'stylist' && unlinkedStylist && (
+        <div className="mx-4 mb-3 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B45309" strokeWidth="2" className="shrink-0 mt-0.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <p className="text-sm text-amber-800">
+            <span className="font-semibold">Your account isn&apos;t linked to a stylist profile yet.</span>{' '}
+            Ask your admin to link you (Settings → Team) — until then the day log is view-only.
+          </p>
+        </div>
+      )}
       {canWrite && todayOcrBatch && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-amber-800 min-w-0">
@@ -2112,6 +2137,7 @@ export function LogClient({
           className="md:hidden fixed left-0 right-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
           style={{ bottom: 'var(--app-nav-clearance)', paddingTop: '8px', paddingBottom: '8px' }}
         >
+          {role !== 'stylist' && (
           <button
             onClick={() => setOcrOpen(true)}
             data-tour-mobile="daily-log-scan-sheet"
@@ -2124,6 +2150,7 @@ export function LogClient({
             </svg>
             Scan log sheet
           </button>
+          )}
           <button
             onClick={() => setShowWalkIn(true)}
             data-tour-mobile="daily-log-add-walkin"
@@ -2141,6 +2168,7 @@ export function LogClient({
       {/* Desktop inline buttons */}
       {!showWalkIn && canWrite && (
         <div className="hidden md:flex gap-2 mt-4">
+          {role !== 'stylist' && (
           <button
             onClick={() => setOcrOpen(true)}
             data-tour="daily-log-scan-sheet"
@@ -2153,6 +2181,7 @@ export function LogClient({
             </svg>
             Scan log sheet
           </button>
+          )}
           <button
             onClick={() => setShowWalkIn(true)}
             data-tour="daily-log-add-walkin"

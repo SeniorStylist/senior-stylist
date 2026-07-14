@@ -1,9 +1,9 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { db } from '@/db'
 import { bookings, logEntries, residents, stylists, services, profiles, facilities, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
@@ -22,15 +22,15 @@ export default async function LogPage() {
     !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
     user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
-  // If user is a stylist, look up their linked stylist profile for filtering.
-  // Skip in debug impersonation: a master admin previewing "Stylist" has no
-  // specific stylist identity, so filtering by their OWN profile.stylistId
-  // would wrongly empty the list. Show all facility bookings instead.
-  const isDebugImpersonation = !!(await cookies()).get('__debug_role')?.value
+  // P30 full lockdown — a stylist sees ONLY their own section. Identity comes
+  // from getEffectiveStylistId (honors the master debug impersonation's picked
+  // stylist, so previewing "Stylist" behaves like the real account instead of
+  // unlocking the whole roster). Unlinked account → read-only + banner.
   let stylistFilter: string | null = null
-  if (facilityUser.role === 'stylist' && !isDebugImpersonation) {
-    const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
-    stylistFilter = profile?.stylistId ?? null
+  let unlinkedStylist = false
+  if (facilityUser.role === 'stylist') {
+    stylistFilter = await getEffectiveStylistId(user.id)
+    unlinkedStylist = !stylistFilter
   }
 
   try {
@@ -56,7 +56,11 @@ export default async function LogPage() {
         eq(bookings.active, true),
         eq(bookings.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
         gte(bookings.startTime, dayStart),
-        lt(bookings.startTime, dayEnd)
+        lt(bookings.startTime, dayEnd),
+        // P30 — stylists get only their own rows (unlinked → none)
+        ...(facilityUser.role === 'stylist'
+          ? [eq(bookings.stylistId, stylistFilter ?? '00000000-0000-0000-0000-000000000000')]
+          : [])
       ),
       with: { resident: true, stylist: true, service: true, importBatch: { columns: { id: true, fileName: true } } },
       orderBy: (t, { asc }) => [asc(t.startTime)],
@@ -65,7 +69,10 @@ export default async function LogPage() {
       where: and(
         eq(logEntries.facilityId, facilityId),
         eq(logEntries.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
-        eq(logEntries.date, today)
+        eq(logEntries.date, today),
+        ...(facilityUser.role === 'stylist'
+          ? [eq(logEntries.stylistId, stylistFilter ?? '00000000-0000-0000-0000-000000000000')]
+          : [])
       ),
     }),
     db.query.residents.findMany({
@@ -141,6 +148,7 @@ export default async function LogPage() {
       stylists={toClientJson(stylistsList)}
       services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}
+      unlinkedStylist={unlinkedStylist}
       serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
       facilityTimezone={facility?.timezone ?? 'America/New_York'}
       facilityId={facilityId}
