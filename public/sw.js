@@ -22,6 +22,10 @@ const OFFLINE_URL = '/offline.html'
 const PAGE_CACHE_MAX_ENTRIES = 80 // P28 — Cache API quota is generous; a real workday's navigation history survives offline
 
 let activeUserId = null
+// P31 — in-memory page-cache entry count so putPage doesn't enumerate the whole
+// cache (cache.keys()) on every navigation. null = unseeded (SW just started or
+// the cache was purged); seeded once per SW lifetime, maintained incrementally.
+let pageCacheCount = null
 
 // Hashed static assets (Next.js output — match /_next/static/) plus the
 // self-hosted font files (Phase 25 — immutable, versioned by filename) so
@@ -94,15 +98,22 @@ self.addEventListener('message', (event) => {
   const data = event.data
   if (!data || typeof data !== 'object') return
   if (data.type === 'SET_USER' && typeof data.userId === 'string' && data.userId) {
-    activeUserId = data.userId
     event.waitUntil(
       (async () => {
+        // Idempotent: the client posts SET_USER on every layout mount, but the
+        // purge (a full caches.keys() enumeration + deletes) only matters when
+        // the user actually CHANGED. Same-user re-posts become a no-op.
+        const current = await resolveActiveUserId()
+        activeUserId = data.userId
+        if (current === data.userId) return
+        pageCacheCount = null
         await purgePageCaches(data.userId)
         await caches.open(pageCacheName(data.userId)) // ensure it exists for restart re-derivation
       })()
     )
   } else if (data.type === 'CLEAR_PAGES') {
     activeUserId = null
+    pageCacheCount = null
     event.waitUntil(purgePageCaches(null))
   }
 })
@@ -116,13 +127,21 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    (async () => {
+      // P31 — Navigation Preload: the browser starts the network request for a
+      // navigation IN PARALLEL with SW startup instead of waiting for the SW to
+      // boot first. Biggest single win for hard-nav latency; no-op where
+      // unsupported (event.preloadResponse then resolves undefined).
+      if (self.registration.navigationPreload) {
+        try { await self.registration.navigationPreload.enable() } catch { /* best-effort */ }
+      }
+      const keys = await caches.keys()
+      await Promise.all(
         keys
           .filter((k) => k !== SHELL_CACHE && k !== STATIC_CACHE && !k.startsWith(PAGE_CACHE_PREFIX))
           .map((k) => caches.delete(k))
       )
-    )
+    })()
   )
   self.clients.claim()
 })
@@ -130,13 +149,25 @@ self.addEventListener('activate', (event) => {
 async function putPage(userId, url, response) {
   try {
     const cache = await caches.open(pageCacheName(userId))
+    // Delete-then-put keeps eviction LRU-by-last-write (a re-put moves the
+    // entry to the tail of the insertion order) and tells us whether the
+    // count grew — no cache.keys() enumeration on the common path.
+    const overwrote = await cache.delete(url)
     await cache.put(url, response)
-    // Best-effort LRU: Cache API keys are insertion-ordered in practice.
-    const keys = await cache.keys()
-    if (keys.length > PAGE_CACHE_MAX_ENTRIES) {
-      await cache.delete(keys[0])
+    if (pageCacheCount === null) {
+      pageCacheCount = (await cache.keys()).length // one enumeration per SW lifetime
+    } else if (!overwrote) {
+      pageCacheCount++
+    }
+    if (pageCacheCount > PAGE_CACHE_MAX_ENTRIES) {
+      // Best-effort LRU: Cache API keys are insertion-ordered in practice.
+      const keys = await cache.keys()
+      const excess = keys.length - PAGE_CACHE_MAX_ENTRIES
+      for (let i = 0; i < excess; i++) await cache.delete(keys[i])
+      pageCacheCount = Math.min(keys.length, PAGE_CACHE_MAX_ENTRIES)
     }
   } catch {
+    pageCacheCount = null // unknown state — reseed on next write
     /* quota — page caching is best-effort */
   }
 }
@@ -145,7 +176,13 @@ async function putPage(userId, url, response) {
 async function handlePage(event, url, isWarm) {
   const userId = await resolveActiveUserId()
   try {
-    const response = await fetch(event.request)
+    // P31 — prefer the navigation-preload response (network request already in
+    // flight since before the SW booted). Warm fetches are subresource fetches,
+    // not navigations, so they have no preload. Unsupported browsers resolve
+    // undefined → plain fetch (identical to the old path). A preload rejection
+    // (offline) propagates to the catch below exactly like a fetch failure.
+    let response = isWarm ? null : await event.preloadResponse
+    if (!response) response = await fetch(event.request)
     const contentType = response.headers.get('content-type') || ''
     if (
       userId &&
@@ -201,12 +238,21 @@ self.addEventListener('fetch', (event) => {
       return
     }
     // Non-cacheable navigations (login, portal, …) keep the offline fallback.
+    // Must ALSO consume the navigation-preload response here — once preload is
+    // enabled it fires for EVERY navigation; ignoring it would double-hit the
+    // server and log "preload was cancelled" warnings.
     if (isNavigation(event.request)) {
       event.respondWith(
-        fetch(event.request).catch(async () => {
-          const cache = await caches.open(SHELL_CACHE)
-          return (await cache.match(OFFLINE_URL)) ?? Response.error()
-        })
+        (async () => {
+          try {
+            const preloaded = await event.preloadResponse
+            if (preloaded) return preloaded
+            return await fetch(event.request)
+          } catch {
+            const cache = await caches.open(SHELL_CACHE)
+            return (await cache.match(OFFLINE_URL)) ?? Response.error()
+          }
+        })()
       )
       return
     }
