@@ -11,11 +11,12 @@ import type { WaitlistEntry } from '@/components/waitlist/waitlist-panel'
 import type { DueResident } from '@/components/dashboard/due-for-visit-panel'
 
 export interface DashboardPanelsData {
+  // null for stylist/viewer callers — facility-wide stats are office-only (P30)
   stats: {
     today: { count: number; revenueCents: number }
     thisWeek: { count: number; revenueCents: number }
     thisMonth: { count: number; revenueCents: number }
-  }
+  } | null
   waitlist: WaitlistEntry[]
   dueForVisit: DueResident[]
 }

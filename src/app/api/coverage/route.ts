@@ -7,6 +7,7 @@ import {
   stylists,
 } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { sendEmail, buildCoverageRequestEmailHtml } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, asc, eq, lte, gte, inArray } from 'drizzle-orm'
@@ -57,14 +58,11 @@ export async function GET(request: NextRequest) {
 
     let effectiveStylistId: string | null = null
     if (facilityUser.role !== 'admin') {
-      const profile = await db.query.profiles.findFirst({
-        where: eq(profiles.id, user.id),
-        columns: { stylistId: true },
-      })
-      if (!profile?.stylistId) {
+      const ownStylistId = await getEffectiveStylistId(user.id)
+      if (!ownStylistId) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
-      effectiveStylistId = profile.stylistId
+      effectiveStylistId = ownStylistId
     } else if (stylistIdParam) {
       const parsed = z.string().uuid().safeParse(stylistIdParam)
       if (!parsed.success) return Response.json({ error: 'Invalid stylistId' }, { status: 422 })
@@ -103,16 +101,13 @@ export async function POST(request: NextRequest) {
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.id, user.id),
-      columns: { stylistId: true, fullName: true },
-    })
-    if (!profile?.stylistId) {
+    const ownStylistId = await getEffectiveStylistId(user.id)
+    if (!ownStylistId) {
       return Response.json({ error: 'Only stylists can request coverage' }, { status: 403 })
     }
 
     const stylist = await db.query.stylists.findFirst({
-      where: eq(stylists.id, profile.stylistId),
+      where: eq(stylists.id, ownStylistId),
       columns: { id: true, name: true, facilityId: true },
     })
     if (!stylist || stylist.facilityId !== facilityUser.facilityId) {

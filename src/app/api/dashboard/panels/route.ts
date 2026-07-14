@@ -27,11 +27,13 @@ export async function GET(request: Request) {
     const tutorialMode = isTutorialRequest(request)
     const adminOrStaff = isAdminOrAbove(role) || isFacilityStaff(role)
 
-    // Per-section role gates mirror the standalone routes: stats for any
-    // facility member, waitlist for non-viewers, due-for-visit for admin/staff.
+    // Per-section role gates mirror the standalone routes (P30: stats +
+    // waitlist are office surfaces — stylist/viewer get empty sections,
+    // due-for-visit stays admin/staff).
+    const officeRole = role !== 'viewer' && role !== 'stylist'
     const [stats, waitlist, dueForVisit] = await Promise.all([
-      getFacilityStats(facilityId, tutorialMode),
-      role !== 'viewer' ? getPendingWaitlist(facilityId, tutorialMode) : Promise.resolve([]),
+      officeRole ? getFacilityStats(facilityId, tutorialMode) : Promise.resolve(null),
+      officeRole ? getPendingWaitlist(facilityId, tutorialMode) : Promise.resolve([]),
       adminOrStaff ? getDueForVisit(facilityId) : Promise.resolve([]),
     ])
 

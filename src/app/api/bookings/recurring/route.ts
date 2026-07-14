@@ -1,6 +1,7 @@
 import { db } from '@/db'
-import { bookings, services } from '@/db/schema'
+import { bookings, services, stylists, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { createClient } from '@/lib/supabase/server'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -52,8 +53,25 @@ export async function POST(request: NextRequest) {
     const parsed = recurringSchema.safeParse(body)
     if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
-    const { residentId, stylistId: providedStylistId, startTime, notes, recurringRule, recurringEndDate, selectedQuantity, selectedOption, addonChecked } = parsed.data
+    const { residentId, stylistId: bodyStylistId, startTime, notes, recurringRule, recurringEndDate, selectedQuantity, selectedOption, addonChecked } = parsed.data
     const facilityId = facilityUser.facilityId
+
+    // P30 lockdown — a stylist may only create recurring bookings for THEMSELF.
+    // Mirrors POST /api/bookings: no auto-assign, no cross-stylist creation.
+    let providedStylistId = bodyStylistId
+    if (facilityUser.role === 'stylist') {
+      const ownStylistId = await getEffectiveStylistId(user.id)
+      if (!ownStylistId) {
+        return Response.json(
+          { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+          { status: 403 }
+        )
+      }
+      if (bodyStylistId && bodyStylistId !== ownStylistId) {
+        return Response.json({ error: 'Stylists can only create appointments for themselves.' }, { status: 403 })
+      }
+      providedStylistId = ownStylistId
+    }
 
     async function resolveForOccurrence(start: Date, end: Date): Promise<string | null> {
       if (providedStylistId) return providedStylistId
@@ -130,6 +148,37 @@ export async function POST(request: NextRequest) {
       recurringRule,
       recurringEndDate,
       tipCents: parsed.data.tipCents ?? null,
+    }
+
+    // Verify an explicitly provided stylist is active and assigned to this
+    // facility (auto-resolved candidates are already facility-scoped) —
+    // mirrors the single-booking POST validation.
+    if (providedStylistId) {
+      const stylistRow = await db.query.stylists.findFirst({
+        where: and(
+          eq(stylists.id, providedStylistId),
+          eq(stylists.active, true),
+          eq(stylists.status, 'active'),
+        ),
+        columns: { id: true, facilityId: true },
+      })
+      if (!stylistRow) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+      if (stylistRow.facilityId !== facilityId) {
+        const [assignment] = await db
+          .select({ id: stylistFacilityAssignments.id })
+          .from(stylistFacilityAssignments)
+          .where(
+            and(
+              eq(stylistFacilityAssignments.stylistId, providedStylistId),
+              eq(stylistFacilityAssignments.facilityId, facilityId),
+              eq(stylistFacilityAssignments.active, true),
+            ),
+          )
+          .limit(1)
+        if (!assignment) {
+          return Response.json({ error: 'Stylist is not assigned to this facility' }, { status: 403 })
+        }
+      }
     }
 
     type Skipped = { date: string; reason: string }

@@ -112,7 +112,11 @@ export async function GET(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role === 'viewer') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // P30 lockdown — the waitlist is an office surface (WaitlistPanel is
+    // admin-only) and rows carry other stylists' assignments; stylists 403.
+    if (facilityUser.role === 'viewer' || facilityUser.role === 'stylist') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // Phase 25 — shared with GET /api/dashboard/panels (lib/dashboard-panels.ts)
     const data = await getPendingWaitlist(facilityUser.facilityId, isTutorialRequest(request))

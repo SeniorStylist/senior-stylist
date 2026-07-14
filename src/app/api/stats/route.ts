@@ -13,6 +13,11 @@ export async function GET(request: Request) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // P30 lockdown — facility-wide revenue/counts are not for stylists (the
+    // dashboard tiles are admin-only; this closes the direct-call path).
+    if (facilityUser.role === 'stylist' || facilityUser.role === 'viewer') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // Phase 25 — one aggregate query in lib/dashboard-panels.ts (was three
     // unbounded findMany reads with a service join, reduced in JS).

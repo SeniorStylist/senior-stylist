@@ -106,16 +106,19 @@ export async function GET(request: NextRequest) {
         }),
       ])
 
+      // P30 — stylist callers get the resident's visit context (dates +
+      // services) but not colleagues' names.
+      const hideStylistNames = role === 'stylist' && !isMaster
       const lastVisits = lastVisitsRaw.map((v) => ({
         startTime: v.startTime.toISOString(),
         serviceName: v.service?.name ?? v.rawServiceName ?? 'Unknown service',
-        stylistName: v.stylist?.name ?? '—',
+        stylistName: hideStylistNames ? '—' : v.stylist?.name ?? '—',
       }))
       const nextVisit = nextVisitRaw
         ? {
             startTime: nextVisitRaw.startTime.toISOString(),
             serviceName: nextVisitRaw.service?.name ?? nextVisitRaw.rawServiceName ?? 'Unknown service',
-            stylistName: nextVisitRaw.stylist?.name ?? '—',
+            stylistName: hideStylistNames ? '—' : nextVisitRaw.stylist?.name ?? '—',
           }
         : null
 

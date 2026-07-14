@@ -2,9 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { seedFacilityDemoData } from '@/lib/help/demo-seeder'
-import { db } from '@/db'
-import { profiles } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 
 export async function POST() {
   const supabase = await createClient()
@@ -25,12 +23,11 @@ export async function POST() {
 
   try {
     // If the viewer is a stylist, the demo booking is assigned to them so it
-    // appears in their self-filtered daily log / dashboard.
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.id, user.id),
-      columns: { stylistId: true },
-    })
-    const ids = await seedFacilityDemoData(facilityUser.facilityId, profile?.stylistId ?? null)
+    // appears in their self-filtered daily log / dashboard. Effective identity
+    // (not raw profiles.stylistId) so master-impersonated tours match the
+    // log/dashboard scope filters.
+    const viewerStylistId = await getEffectiveStylistId(user.id)
+    const ids = await seedFacilityDemoData(facilityUser.facilityId, viewerStylistId)
     return Response.json({ data: ids })
   } catch (err) {
     console.error('[seed-demo-data]', err)

@@ -6,8 +6,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { createStorageClient, RESIDENT_PHOTOS_BUCKET } from '@/lib/supabase/storage'
 import { db } from '@/db'
-import { bookings, profiles, residentPhotos, residents } from '@/db/schema'
+import { bookings, residentPhotos, residents } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { and, desc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { ensureResidentPhotosSchema } from '@/lib/resident-photos-ddl'
@@ -73,9 +74,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
       if (!booking) return Response.json({ error: 'Booking not found' }, { status: 404 })
       if (!isStaff) {
-        const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id), columns: { stylistId: true } })
-        if (!profile?.stylistId || profile.stylistId !== booking.stylistId) {
-          return Response.json({ error: 'Forbidden' }, { status: 403 })
+        const ownStylistId = await getEffectiveStylistId(user.id)
+        if (!ownStylistId || ownStylistId !== booking.stylistId) {
+          return Response.json({ error: 'You can only attach photos to your own bookings.' }, { status: 403 })
         }
       }
     } else if (!isStaff) {
