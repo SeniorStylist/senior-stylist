@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.2',
+    date: '2026-07-14',
+    title: 'Snappier Everywhere',
+    items: [
+      'Pages start loading the moment you tap — the offline system no longer sits in front of the network on every navigation',
+      'Offline saving now happens quietly in the background and skips work when nothing changed — no more stutter while flipping calendar days or log dates',
+      'The server does about half the work per page: your facility list and each resident\'s usual service are now remembered between pages',
+      'Tutorial code no longer loads on every page — only when you actually run a tutorial',
+      'Nothing about offline mode changed — same saved pages, same syncing, same privacy',
+    ],
+  },
+  {
     version: '4.1',
     date: '2026-07-14',
     title: 'Stylist Privacy & Day-Log Fixes',

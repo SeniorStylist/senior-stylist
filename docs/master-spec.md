@@ -2888,3 +2888,30 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   Domains REJECTED (Stripe 3-DS + QB OAuth breakage; 10-domain cap). Cold-start fallback via
   `server.errorPath: 'native-offline.html'` in capacitor.config.ts (bundled; Retry → live site;
   needs cap:sync + rebuild). Middleware matcher excludes native-offline.html.
+
+## P31 — Performance contracts (2026-07-14)
+
+- **Service worker (`public/sw.js`)**: Navigation Preload enabled in `activate`; BOTH
+  navigation `respondWith` branches consume `event.preloadResponse` before `fetch` (warm
+  `x-ss-warm` fetches skip preload — subresources). Page-cache LRU is an in-memory counter
+  (`pageCacheCount`, seeded once per SW lifetime; enumeration only when over the 80 cap;
+  reset on purge). `SET_USER` is idempotent (same-user re-post = no purge; user CHANGE
+  still purges — shared-device safety).
+- **`src/lib/read-cache.ts` write path**: one `JSON.stringify` per save; FNV-1a
+  fingerprint map skips unchanged puts; running `totalBytes`; full-store scan only when
+  over the 25MB budget, via `requestIdleCallback`. Storage format unchanged
+  (`{key, data, at, bytes}` in `ss-readcache`/`snapshots`) — offline.html reader intact.
+- **Layout membership cache**: `getCachedMembershipData(userId)` in
+  `(protected)/layout.tsx` — `unstable_cache`, 300s, tag `'facilities'`. Membership
+  mutations that MUST bust it: invite redeem, access-request approve, member removal
+  (`/api/facility/users/[userId]` DELETE), admin setup, `healMembershipOnLogin`. Empty
+  cached results are re-fetched uncached; errors fall back uncached.
+- **`getMostUsedServiceIds`** (`src/lib/resident-service-usage.ts`): cached 300s, tag
+  `'bookings'`, JSON-plain pairs internally; called inside the `Promise.all` on
+  dashboard + log pages.
+- **`src/lib/notifications-client.ts`**: the single client fetch path for
+  `GET /api/notifications` (in-flight cache + subscribers; two mounted bells share one
+  request).
+- **`src/lib/help/tour-dom.ts`**: leaf module with the tour DOM helpers + step types;
+  tours.ts re-exports. Layout-mounted components import from tour-dom only; tour-resumer
+  dynamic-imports the catalog gated on the sessionStorage resume blob.

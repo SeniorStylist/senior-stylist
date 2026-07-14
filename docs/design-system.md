@@ -2965,3 +2965,19 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Destructive/role 403s are human sentences** ("You can only update your own daily log.",
   "Your account isn't linked to a stylist profile yet — ask your admin to link you in
   Settings → Team") — the client shows them verbatim.
+
+## P31 performance patterns (2026-07-14)
+
+- **SW navigation preload**: every navigation `respondWith` branch must consume
+  `event.preloadResponse` (`(await event.preloadResponse) ?? fetch(request)`) — an
+  ignoring branch double-fetches. Warm/synthetic fetches have no preload; skip explicitly.
+- **Client persistence writes are idle + change-gated**: fingerprint the serialized payload
+  (one stringify, FNV hash) and skip identical writes; keep byte budgets as running totals
+  and defer any full-store scan to `requestIdleCallback`. Never run a store-wide `getAll()`
+  on a fetch/navigation hot path.
+- **Doubly-mounted self-fetching components** (bell in TopBar + mobile header) must share a
+  module-level in-flight fetch cache + subscriber set (`notifications-client.ts`,
+  `dashboard-panels-client.ts` are the references) — never two identical mount GETs.
+- **Layout-mounted client components must not statically import large catalogs** — split the
+  tiny runtime helpers into a leaf module (`tour-dom.ts` pattern), re-export from the catalog
+  for back-compat, and dynamic-import the catalog behind its actual trigger.
