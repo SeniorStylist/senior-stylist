@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useToast } from '@/components/ui/toast'
-import { resumePendingTour } from '@/lib/help/tours'
+import { SESSION_KEY } from '@/lib/help/tour-dom'
 import { installTourFetchInterceptor } from '@/lib/help/tour-fetch-interceptor'
 
 /**
@@ -36,9 +36,16 @@ export function TourResumer() {
     // restoration flow. setTourModeActive(true) is handled inside startTour /
     // startMobileTour, so we don't duplicate it here.
     installTourFetchInterceptor()
-    // Run after first paint so the page is mounted before the tour highlights anything
+    // Run after first paint so the page is mounted before the tour highlights
+    // anything. P31 — the tour engine (tours.ts, ~1100 lines of catalog) is
+    // dynamic-imported ONLY when a resume blob actually exists, so the shared
+    // layout bundle no longer carries it. resumePendingTour() would no-op
+    // without the blob anyway.
     const t = setTimeout(() => {
-      void resumePendingTour()
+      let hasResumeState = false
+      try { hasResumeState = !!sessionStorage.getItem(SESSION_KEY) } catch { /* private mode */ }
+      if (!hasResumeState) return
+      void import('@/lib/help/tours').then(({ resumePendingTour }) => resumePendingTour())
     }, 100)
     return () => clearTimeout(t)
     // Empty deps: resume only on the initial mount of the protected layout

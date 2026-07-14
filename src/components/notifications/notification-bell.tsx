@@ -8,16 +8,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { useIsMobile } from '@/hooks/use-is-mobile'
-
-interface NotificationRow {
-  id: string
-  type: string
-  title: string
-  body: string
-  url: string | null
-  readAt: string | null
-  createdAt: string
-}
+import {
+  fetchNotifications,
+  subscribeNotifications,
+  type NotificationRow,
+} from '@/lib/notifications-client'
 
 function timeAgo(iso: string): string {
   const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
@@ -40,20 +35,24 @@ export function NotificationBell({ anchor = 'desktop' }: { anchor?: 'desktop' | 
   const [loading, setLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/notifications')
-      if (!res.ok) return
-      const j = await res.json()
-      setRows(j.data.notifications ?? [])
-      setUnreadCount(j.data.unreadCount ?? 0)
-    } catch {
-      // best-effort — the bell just stays dotless
+  // P31 — both mounted bells (TopBar + mobile header) share ONE request via
+  // the module-level cache, and the subscription keeps them in sync after
+  // mark-read actions in either instance.
+  const load = useCallback(async (fresh = false) => {
+    const data = await fetchNotifications(fresh)
+    if (data) {
+      setRows(data.notifications)
+      setUnreadCount(data.unreadCount)
     }
   }, [])
 
   useEffect(() => {
+    const unsubscribe = subscribeNotifications((data) => {
+      setRows(data.notifications)
+      setUnreadCount(data.unreadCount)
+    })
     void load()
+    return unsubscribe
   }, [load])
 
   // Desktop: close on click outside
@@ -69,7 +68,7 @@ export function NotificationBell({ anchor = 'desktop' }: { anchor?: 'desktop' | 
   const handleOpen = useCallback(async () => {
     setOpen(true)
     setLoading(true)
-    await load()
+    await load(true)
     setLoading(false)
   }, [load])
 
@@ -80,7 +79,9 @@ export function NotificationBell({ anchor = 'desktop' }: { anchor?: 'desktop' | 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
-    }).catch(() => {})
+    })
+      .then(() => fetchNotifications(true)) // sync the other mounted bell
+      .catch(() => {})
   }, [])
 
   const handleItemClick = useCallback(
@@ -92,7 +93,9 @@ export function NotificationBell({ anchor = 'desktop' }: { anchor?: 'desktop' | 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [row.id] }),
-        }).catch(() => {})
+        })
+          .then(() => fetchNotifications(true)) // sync the other mounted bell
+          .catch(() => {})
       }
       setOpen(false)
       if (row.url) router.push(row.url)

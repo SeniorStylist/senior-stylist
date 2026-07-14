@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import type { ScriptedTour } from '@/lib/help/scripted-tour-types'
-import { resolveQuery, firstVisibleMatch } from '@/lib/help/tours'
+// P31 — import from tour-dom (NOT tours.ts) so this always-mounted overlay
+// doesn't drag the full tour catalog into the shared layout bundle.
+import { resolveQuery, firstVisibleMatch } from '@/lib/help/tour-dom'
 
 const SpotlightMask = dynamic(() => import('./spotlight-mask').then((m) => ({ default: m.SpotlightMask })), { ssr: false })
 const SpotlightRing = dynamic(() => import('./spotlight-ring').then((m) => ({ default: m.SpotlightRing })), { ssr: false })

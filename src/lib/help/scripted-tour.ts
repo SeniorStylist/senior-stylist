@@ -7,7 +7,7 @@ import { setScriptedTourActive } from './tour-mode'
 import { setTutorialCookie, clearTutorialCookie } from './tutorial-cookie'
 import { clearPageCache } from '@/lib/offline-session'
 import { getTourRouter } from './tour-router'
-import { waitForElement, resolveQuery } from './tours'
+import { waitForElement, resolveQuery } from './tour-dom'
 import { SCRIPTED_TO_BASE } from './scripted-tour-map'
 
 const SESSION_KEY = 'scriptedTour'

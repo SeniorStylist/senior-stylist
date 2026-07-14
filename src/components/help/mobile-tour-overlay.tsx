@@ -11,7 +11,9 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { resolveQuery, type TourStep } from '@/lib/help/tours'
+// P31 — import from tour-dom (NOT tours.ts) so this always-mounted overlay
+// doesn't drag the full tour catalog into the shared layout bundle.
+import { resolveQuery, type TourStep } from '@/lib/help/tour-dom'
 
 const SPOTLIGHT_PADDING = 8
 
