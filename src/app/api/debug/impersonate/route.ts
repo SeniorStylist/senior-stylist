@@ -7,6 +7,9 @@ const schema = z.object({
   role: z.enum(['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist']),
   facilityId: z.string().uuid(),
   facilityName: z.string().max(200),
+  // P30 — impersonate AS a specific stylist so ownership checks + the stylist
+  // lockdown behave exactly like the real account (Done/No-show etc. work).
+  stylistId: z.string().uuid().nullable().optional(),
 })
 
 export async function POST(request: NextRequest) {

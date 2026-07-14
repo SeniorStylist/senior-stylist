@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { signupSheetEntries, residents, services, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
+import { or, isNull } from 'drizzle-orm'
 import { eq, and, asc, count } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -166,8 +168,17 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(signupSheetEntries.requestedDate, date))
     }
 
-    // Stylists see all pending facility entries — they convert them into bookings.
-    // The assignedToStylistId is for staffing guidance, not a visibility gate.
+    // P30 full lockdown — stylists see only entries assigned to THEM or
+    // unassigned (restores the documented own+unassigned behavior; the
+    // see-everything version was a regression).
+    if (role === 'stylist') {
+      const ownId = await getEffectiveStylistId(user.id)
+      conditions.push(
+        ownId
+          ? or(eq(signupSheetEntries.assignedToStylistId, ownId), isNull(signupSheetEntries.assignedToStylistId))!
+          : isNull(signupSheetEntries.assignedToStylistId),
+      )
+    }
 
     if (countOnly) {
       const [row] = await db

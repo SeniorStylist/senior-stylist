@@ -21,6 +21,7 @@ import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { bookingCreateSchema } from '@/lib/validation/booking-create'
 
 // Phase 25 — schema lives in src/lib/validation/booking-create.ts so client
@@ -46,6 +47,14 @@ export async function GET(request: NextRequest) {
     // is_demo filter — Phase 13. During a scripted tour the calendar shows ONLY
     // the demo booking (sandbox); normally it shows only real bookings.
     const conditions = [eq(bookings.facilityId, facilityId), eq(bookings.active, true), eq(bookings.isDemo, isTutorialRequest(request))]
+
+    // P30 full lockdown — stylists read ONLY their own bookings (calendar,
+    // dashboard, and any client fetch inherit this). Unlinked → empty list.
+    if (facilityUser.role === 'stylist') {
+      const ownId = await getEffectiveStylistId(user.id)
+      if (!ownId) return Response.json({ data: [] })
+      conditions.push(eq(bookings.stylistId, ownId))
+    }
 
     if (startParam) {
       conditions.push(gte(bookings.startTime, new Date(startParam)))
@@ -206,10 +215,33 @@ export async function POST(request: NextRequest) {
     const startTime = new Date(startTimeStr)
     const endTime = new Date(startTime.getTime() + totalDurationMinutes * 60000)
 
+    // P30 — stylists may ONLY create bookings for THEMSELVES. Before this,
+    // the create path accepted any stylistId from a stylist caller (edit and
+    // delete checked ownership; create didn't — the UI lock was the only
+    // barrier). Unlinked stylist accounts get a clear 403, not a silent fail.
+    let ownStylistId: string | null = null
+    if (facilityUser.role === 'stylist') {
+      ownStylistId = await getEffectiveStylistId(user.id)
+      if (!ownStylistId) {
+        return Response.json(
+          { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+          { status: 403 },
+        )
+      }
+      if (stylistId && stylistId !== ownStylistId) {
+        return Response.json(
+          { error: 'Stylists can only create appointments for themselves.' },
+          { status: 403 },
+        )
+      }
+    }
+
     // Resolve stylist: either explicit (admin-edit / legacy callers) or auto-assigned via the
     // same helpers the resident portal uses, so admin and portal flows pick consistently.
     let resolvedStylistId: string
-    if (stylistId) {
+    if (facilityUser.role === 'stylist') {
+      resolvedStylistId = ownStylistId! // forced to self — never auto-assign for stylists
+    } else if (stylistId) {
       resolvedStylistId = stylistId
     } else {
       const candidates = await resolveAvailableStylists({ facilityId, startTime, endTime, demoOnly: isDemo })

@@ -26,6 +26,11 @@ export async function POST(request: NextRequest) {
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     if (facilityUser.role === 'viewer') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // P30 full lockdown — the day-log email contains the FULL facility day;
+    // stylists (own-work-only) can no longer send it.
+    if (facilityUser.role === 'stylist') {
+      return Response.json({ error: 'Only office staff can email the day log.' }, { status: 403 })
+    }
     const { facilityId } = facilityUser
 
     const rl = await checkRateLimit('logEmail', user.id)

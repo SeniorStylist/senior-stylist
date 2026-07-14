@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services, profiles, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and, lt, gt, or, ne, gte, count, desc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -82,11 +83,20 @@ export async function PUT(
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
 
-    // Stylist can only edit their own bookings
+    // Stylist can only edit their own bookings. P30: identity resolves via
+    // getEffectiveStylistId (honors master debug impersonation) so testing-as-
+    // a-stylist behaves like the real account instead of silently 403ing.
+    let callerStylistId: string | null = null
     if (facilityUser.role === 'stylist') {
-      const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
-      if (!profile?.stylistId || existing.stylistId !== profile.stylistId) {
-        return Response.json({ error: 'You can only edit your own bookings' }, { status: 403 })
+      callerStylistId = await getEffectiveStylistId(user.id)
+      if (!callerStylistId) {
+        return Response.json(
+          { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+          { status: 403 },
+        )
+      }
+      if (existing.stylistId !== callerStylistId) {
+        return Response.json({ error: 'You can only edit your own appointments.' }, { status: 403 })
       }
     }
 
@@ -167,6 +177,10 @@ export async function PUT(
     // Facilities served by franchise-pool / cross-facility stylists have zero
     // home rows, so a home-only check 404'd every legitimate stylist correction
     // (bookkeeper report 2026-07-13).
+    // P30 — stylists cannot hand their booking to someone else
+    if (facilityUser.role === 'stylist' && updates.stylistId && updates.stylistId !== callerStylistId) {
+      return Response.json({ error: 'Stylists can only keep appointments assigned to themselves.' }, { status: 403 })
+    }
     if (updates.stylistId && updates.stylistId !== existing.stylistId) {
       const stylist = await db.query.stylists.findFirst({
         where: and(
@@ -507,11 +521,12 @@ export async function DELETE(
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
 
-    // Stylists may only cancel their OWN bookings (mirror the PUT handler guard)
+    // Stylists may only cancel their OWN bookings (P30: effective identity —
+    // honors master debug impersonation)
     if (facilityUser.role === 'stylist') {
-      const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id) })
-      if (!profile?.stylistId || existing.stylistId !== profile.stylistId) {
-        return Response.json({ error: 'You can only cancel your own bookings' }, { status: 403 })
+      const ownId = await getEffectiveStylistId(user.id)
+      if (!ownId || existing.stylistId !== ownId) {
+        return Response.json({ error: 'You can only cancel your own appointments.' }, { status: 403 })
       }
     }
 

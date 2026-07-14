@@ -10,6 +10,7 @@ import {
   stylists,
 } from '@/db/schema'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { and, eq, gt, inArray, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -64,6 +65,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const { residentId, stylistId, startTime: startTimeStr, notes } = parsed.data
+
+    // P30 — stylists may only convert sign-up entries into THEIR OWN bookings
+    if (role === 'stylist') {
+      const ownId = await getEffectiveStylistId(user.id)
+      if (!ownId) {
+        return Response.json(
+          { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+          { status: 403 },
+        )
+      }
+      if (stylistId !== ownId) {
+        return Response.json({ error: 'Stylists can only schedule appointments for themselves.' }, { status: 403 })
+      }
+    }
 
     const primaryServiceIds: string[] =
       parsed.data.serviceIds && parsed.data.serviceIds.length > 0

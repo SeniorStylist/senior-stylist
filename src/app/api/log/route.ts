@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, logEntries, profiles } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { toClientJson } from '@/lib/sanitize'
@@ -24,6 +25,10 @@ export async function GET(request: NextRequest) {
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId } = facilityUser
 
+    // P30 full lockdown — stylists read only their own section of the day
+    const ownStylistId =
+      facilityUser.role === 'stylist' ? await getEffectiveStylistId(user.id) : null
+
     const dateParam =
       request.nextUrl.searchParams.get('date') ??
       new Date().toISOString().split('T')[0]
@@ -40,6 +45,9 @@ export async function GET(request: NextRequest) {
         where: and(
           eq(bookings.facilityId, facilityId),
           eq(bookings.active, true),
+          ...(facilityUser.role === 'stylist'
+            ? [eq(bookings.stylistId, ownStylistId ?? '00000000-0000-0000-0000-000000000000')]
+            : []),
           eq(bookings.isDemo, demo),
           gte(bookings.startTime, dayStart),
           lt(bookings.startTime, dayEnd),
@@ -48,7 +56,14 @@ export async function GET(request: NextRequest) {
         orderBy: (t, { asc }) => [asc(t.startTime)],
       }),
       db.query.logEntries.findMany({
-        where: and(eq(logEntries.facilityId, facilityId), eq(logEntries.isDemo, demo), eq(logEntries.date, dateParam)),
+        where: and(
+          eq(logEntries.facilityId, facilityId),
+          eq(logEntries.isDemo, demo),
+          eq(logEntries.date, dateParam),
+          ...(facilityUser.role === 'stylist'
+            ? [eq(logEntries.stylistId, ownStylistId ?? '00000000-0000-0000-0000-000000000000')]
+            : []),
+        ),
       }),
     ])
 

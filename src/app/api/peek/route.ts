@@ -173,9 +173,10 @@ export async function GET(request: NextRequest) {
             name: resident.name,
             roomNumber: resident.roomNumber,
             facilityName: residentFacility?.name ?? '',
-            poaName: resident.poaName,
-            poaPhone: resident.poaPhone,
-            poaEmail: resident.poaEmail,
+            // P30 — POA contact details are for office roles, not stylists
+            poaName: role === 'stylist' && !isMaster ? null : resident.poaName,
+            poaPhone: role === 'stylist' && !isMaster ? null : resident.poaPhone,
+            poaEmail: role === 'stylist' && !isMaster ? null : resident.poaEmail,
             lastVisits,
             nextVisit,
             stylePhotos,
@@ -186,6 +187,10 @@ export async function GET(request: NextRequest) {
     }
 
     // type === 'stylist'
+    // P30 full lockdown — stylists can no longer peek colleagues' schedules
+    if (role === 'stylist' && !isMaster) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const stylist = await db.query.stylists.findFirst({
       where: and(eq(stylists.id, id), eq(stylists.active, true)),
     })
