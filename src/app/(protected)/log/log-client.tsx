@@ -433,12 +433,19 @@ export function LogClient({
     }
   }
 
-  const deleteImportedBooking = async (bookingId: string) => {
+  // P30 — swipe-to-delete reveal state (mobile)
+  const [swipedDeleteId, setSwipedDeleteId] = useState<string | null>(null)
+  const swipeRef = useRef<{ x: number; y: number; id: string } | null>(null)
+
+  // Cancels ANY appointment/walk-in (soft-delete: server sets status=cancelled).
+  // Was import-only; P30 generalizes it (edit-form Delete + swipe confirm).
+  const deleteBookingRow = async (bookingId: string) => {
     setDeletingId(bookingId)
     // 13B: optimistic — remove the row immediately, restore the snapshot on failure.
     const snapshot = bookings
     setBookings((prev) => prev.filter((b) => b.id !== bookingId))
     setConfirmDeleteId(null)
+    setSwipedDeleteId(null)
     setEditingBookingId(null)
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' })
@@ -693,7 +700,11 @@ export function LogClient({
         setBookings(bookings.map((b) =>
           b.id === bookingId ? { ...b, paymentStatus: json.data.paymentStatus } : b
         ))
+      } else {
+        toast(firstErrorMessage(json) || 'Could not update payment status', 'error')
       }
+    } catch {
+      toast('Network error — try again', 'error')
     } finally {
       setUpdatingId(null)
     }
@@ -716,7 +727,13 @@ export function LogClient({
       const json = await res.json()
       if (res.ok) {
         setBookings(bookings.map((b) => (b.id === bookingId ? { ...b, status: json.data.status } : b)))
+      } else {
+        // P30 — NEVER swallow a failed status change: the silent else-branch
+        // made Done/No-show look like dead buttons under 403s.
+        toast(firstErrorMessage(json) || 'Could not update the appointment', 'error')
       }
+    } catch {
+      toast('Network error — try again', 'error')
     } finally {
       setUpdatingId(null)
     }
@@ -1573,12 +1590,56 @@ export function LogClient({
                       key={booking.id}
                       id={`log-booking-${booking.id}`}
                       className={cn(
-                        'flex items-start gap-3 px-4 py-3.5 transition-colors',
+                        // P30 — actions wrap BELOW the text on phones: the old
+                        // single-row squeeze left ~70px for the service names
+                        // (one word per line, price buried). Desktop keeps the
+                        // side-by-side layout.
+                        'relative flex flex-col md:flex-row md:items-start md:gap-3 px-4 py-3.5 transition-colors',
                         isCompleted && 'bg-green-50/40',
                         isNoShow && 'bg-orange-50/40',
                         isCancelled && 'bg-stone-50/60 opacity-60'
                       )}
+                      onTouchStart={(e) => {
+                        if (!canEdit || isFinalized || isCancelled || isEditing) return
+                        const t = e.touches[0]
+                        swipeRef.current = { x: t.clientX, y: t.clientY, id: booking.id }
+                      }}
+                      onTouchMove={(e) => {
+                        const s = swipeRef.current
+                        if (!s || s.id !== booking.id) return
+                        const t = e.touches[0]
+                        const dx = t.clientX - s.x
+                        const dy = t.clientY - s.y
+                        // horizontal intent, either direction — reveal delete
+                        if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                          setSwipedDeleteId(booking.id)
+                          swipeRef.current = null
+                        }
+                      }}
+                      onTouchEnd={() => { swipeRef.current = null }}
                     >
+                      {/* P30 — swipe-revealed delete confirm */}
+                      {swipedDeleteId === booking.id && (
+                        <div className="absolute inset-y-0 right-0 z-10 flex items-center gap-1.5 pl-8 pr-3 bg-gradient-to-l from-white via-white to-transparent">
+                          <span className="text-xs font-semibold text-red-600">Delete this appointment?</span>
+                          <button
+                            type="button"
+                            onClick={() => deleteBookingRow(booking.id)}
+                            disabled={!!deletingId}
+                            className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-40"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSwipedDeleteId(null)}
+                            className="text-xs font-medium text-stone-600 bg-white border border-stone-200 px-3 py-2 rounded-lg"
+                          >
+                            Keep
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex items-start gap-3 flex-1 min-w-0 w-full">
                       {/* Avatar */}
                       <div className="shrink-0">
                         <Avatar name={booking.resident.name} size="md" />
@@ -1814,13 +1875,13 @@ export function LogClient({
                               >
                                 Cancel
                               </button>
-                              {/* Delete for imported bookings */}
-                              {booking.source === 'historical_import' && (
+                              {/* P30 — delete any appointment from the edit form */}
+                              {(
                                 confirmDeleteId === booking.id ? (
                                   <div className="flex items-center gap-1.5 ml-auto">
-                                    <span className="text-xs text-red-600">Remove this booking?</span>
+                                    <span className="text-xs text-red-600">Delete this appointment?</span>
                                     <button
-                                      onClick={() => deleteImportedBooking(booking.id)}
+                                      onClick={() => deleteBookingRow(booking.id)}
                                       disabled={!!deletingId}
                                       className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40"
                                     >
@@ -1838,7 +1899,7 @@ export function LogClient({
                                     onClick={() => setConfirmDeleteId(booking.id)}
                                     className="ml-auto text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1.5"
                                   >
-                                    Remove
+                                    Delete appointment
                                   </button>
                                 )
                               )}
@@ -1846,9 +1907,9 @@ export function LogClient({
                           </div>
                         ) : (
                           <>
-                            <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">
+                            <p className="text-[12px] text-stone-500 leading-snug mt-0.5">
                               {formatTime(booking.startTime, facilityTimezone)} · {serviceDisplayName(booking, services)} ·{' '}
-                              {formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}
+                              <span className="font-semibold text-stone-800 whitespace-nowrap">{formatCents(booking.priceCents ?? booking.service?.priceCents ?? 0)}</span>
                               {booking.tipCents != null && booking.tipCents > 0 && (
                                 <span className="text-stone-400"> · Tip {formatCents(booking.tipCents)}</span>
                               )}
@@ -1873,9 +1934,13 @@ export function LogClient({
                           </>
                         )}
                       </div>
+                      </div>
 
-                      {/* Actions */}
-                      <div className="shrink-0 flex items-center gap-1.5">
+                      {/* Actions — full-width row under the text on phones */}
+                      <div className={cn(
+                        'shrink-0 flex items-center gap-1.5 flex-wrap justify-end mt-2 pl-12 md:mt-0 md:pl-0 md:justify-start',
+                        isEditing && 'hidden'
+                      )}>
                         {/* Take card payment — unpaid, editable bookings only */}
                         {canEdit && !isEditing && !isCancelled && booking.paymentStatus !== 'paid' && (
                           <button
