@@ -157,21 +157,75 @@ function idbClear(): Promise<void> {
   )
 }
 
-/** Evict oldest entries until the cache fits the byte budget (best-effort). */
-async function evictIfNeeded(): Promise<void> {
+// ---------------------------------------------------------------------------
+// P31 write-path diet — the old path ran a full-store getAll() (deserializing
+// up to 25MB on the main thread) after EVERY write, and serialized each
+// payload twice. Now: one stringify per save (size + change-hash from the same
+// string), unchanged payloads skip the IDB put entirely, the byte budget is a
+// module-level running total, and the full-store scan runs only when the
+// budget is actually exceeded — deferred to idle time. Storage format is
+// UNCHANGED ({key, data, at, bytes}) — offline.html's inline reader and every
+// call site keep working as-is.
+// ---------------------------------------------------------------------------
+
+function fnv1a(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+function onIdle(fn: () => void): void {
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => fn(), { timeout: 2000 })
+  else setTimeout(fn, 250)
+}
+
+/** Last-written fingerprint per key (this page session) — skips no-op puts. */
+const written = new Map<string, { len: number; fnv: number; bytes: number }>()
+/** Running store size in bytes; null until seeded by the one-time idle scan. */
+let totalBytes: number | null = null
+let totalInitStarted = false
+let evictScheduled = false
+
+/** Full-store scan: seeds/resyncs the running total and evicts when over budget. */
+async function scanAndEvict(): Promise<void> {
   try {
     const all = await idbAll()
     let total = all.reduce((sum, e) => sum + (e.bytes || 0), 0)
-    if (total <= MAX_TOTAL_BYTES) return
-    const sorted = [...all].sort((a, b) => a.at - b.at)
-    const doomed: string[] = []
-    for (const e of sorted) {
-      if (total <= MAX_TOTAL_BYTES) break
-      doomed.push(e.key)
-      total -= e.bytes || 0
+    if (total > MAX_TOTAL_BYTES) {
+      const sorted = [...all].sort((a, b) => a.at - b.at)
+      const doomed: string[] = []
+      for (const e of sorted) {
+        if (total <= MAX_TOTAL_BYTES) break
+        doomed.push(e.key)
+        total -= e.bytes || 0
+      }
+      await idbDelete(doomed)
+      for (const k of doomed) written.delete(k)
     }
-    await idbDelete(doomed)
+    totalBytes = total
   } catch { /* best-effort */ }
+}
+
+/** Post-write bookkeeping: maintain the running total; scan only when needed. */
+function afterWrite(key: string, prevBytes: number, bytes: number): void {
+  if (totalBytes === null) {
+    if (!totalInitStarted) {
+      totalInitStarted = true
+      onIdle(() => void scanAndEvict()) // one-time seed per session, off the hot path
+    }
+    return
+  }
+  totalBytes += bytes - prevBytes
+  if (totalBytes > MAX_TOTAL_BYTES && !evictScheduled) {
+    evictScheduled = true
+    onIdle(() => {
+      evictScheduled = false
+      void scanAndEvict()
+    })
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -248,11 +302,19 @@ export function saveSnapshot<T>(cacheKey: string, data: T): void {
   void migrateLegacy().then(async () => {
     const db = await openDb()
     if (db) {
-      let bytes = 0
-      try { bytes = JSON.stringify(data).length * 2 } catch { return }
-      const ok = await idbPut({ key: cacheKey, data, at, bytes })
+      // ONE stringify per save: size estimate + change fingerprint from the
+      // same string. Identical payloads (calendar prev/next revisits, repeat
+      // mounts) skip the put entirely — the first save per key per session
+      // always writes, so `at` stays fresh across visits.
+      let str: string
+      try { str = JSON.stringify(data) } catch { return }
+      const fp = { len: str.length, fnv: fnv1a(str), bytes: str.length * 2 }
+      const prev = written.get(cacheKey)
+      if (prev && prev.len === fp.len && prev.fnv === fp.fnv) return
+      const ok = await idbPut({ key: cacheKey, data, at, bytes: fp.bytes })
       if (ok) {
-        void evictIfNeeded()
+        written.set(cacheKey, fp)
+        afterWrite(cacheKey, prev?.bytes ?? 0, fp.bytes)
         return
       }
     }
@@ -299,6 +361,8 @@ export async function cachedFetch<T>(
 export function clearReadCache(): void {
   if (typeof window === 'undefined') return
   lsClearAll()
+  written.clear()
+  totalBytes = 0
   void idbClear()
 }
 

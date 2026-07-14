@@ -45,8 +45,13 @@ export function subscribePhotoPending(cb: PendingListener): () => void {
   return () => listeners.delete(cb)
 }
 
+// P31 — memoized connection (mirrors read-cache's dbPromise): the old code
+// opened + closed a fresh connection per operation.
+let dbPromise: Promise<IDBDatabase> | null = null
+
 function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise
+  dbPromise = new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB unavailable'))
       return
@@ -57,9 +62,14 @@ function openDb(): Promise<IDBDatabase> {
         req.result.createObjectStore(STORE, { keyPath: 'id' })
       }
     }
-    req.onsuccess = () => resolve(req.result)
+    req.onsuccess = () => {
+      req.result.onclose = () => { dbPromise = null } // browser force-close → reopen next op
+      resolve(req.result)
+    }
     req.onerror = () => reject(req.error ?? new Error('IndexedDB open failed'))
   })
+  dbPromise.catch(() => { dbPromise = null }) // failed open shouldn't stick
+  return dbPromise
 }
 
 function txDone(tx: IDBTransaction): Promise<void> {
@@ -72,24 +82,31 @@ function txDone(tx: IDBTransaction): Promise<void> {
 
 async function readAll(): Promise<QueuedPhoto[]> {
   const db = await openDb()
-  try {
-    const tx = db.transaction(STORE, 'readonly')
-    const store = tx.objectStore(STORE)
-    const rows = await new Promise<QueuedPhoto[]>((resolve, reject) => {
-      const req = store.getAll()
-      req.onsuccess = () => resolve((req.result as QueuedPhoto[]) ?? [])
-      req.onerror = () => reject(req.error)
-    })
-    return rows.sort((a, b) => a.at - b.at)
-  } finally {
-    db.close()
-  }
+  const tx = db.transaction(STORE, 'readonly')
+  const store = tx.objectStore(STORE)
+  const rows = await new Promise<QueuedPhoto[]>((resolve, reject) => {
+    const req = store.getAll()
+    req.onsuccess = () => resolve((req.result as QueuedPhoto[]) ?? [])
+    req.onerror = () => reject(req.error)
+  })
+  return rows.sort((a, b) => a.at - b.at)
+}
+
+// P31 — count via store.count(): never deserializes the multi-MB blobs just
+// to know how many there are.
+async function idbCount(): Promise<number> {
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readonly')
+  return new Promise<number>((resolve, reject) => {
+    const req = tx.objectStore(STORE).count()
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
 }
 
 async function refreshCount(): Promise<void> {
   try {
-    const rows = await readAll()
-    notify(rows.length)
+    notify(await idbCount())
   } catch { /* IDB unavailable — count stays 0 */ }
 }
 
@@ -103,21 +120,16 @@ export async function enqueuePhoto(entry: {
   fileName: string
 }): Promise<boolean> {
   try {
-    const rows = await readAll()
-    if (rows.length >= MAX_ENTRIES) return false
+    if ((await idbCount()) >= MAX_ENTRIES) return false
     const db = await openDb()
-    try {
-      const tx = db.transaction(STORE, 'readwrite')
-      tx.objectStore(STORE).put({
-        ...entry,
-        id: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        at: Date.now(),
-        attempts: 0,
-      } satisfies QueuedPhoto)
-      await txDone(tx)
-    } finally {
-      db.close()
-    }
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).put({
+      ...entry,
+      id: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      at: Date.now(),
+      attempts: 0,
+    } satisfies QueuedPhoto)
+    await txDone(tx)
     await refreshCount()
     return true
   } catch {
@@ -127,24 +139,16 @@ export async function enqueuePhoto(entry: {
 
 async function removePhoto(id: string): Promise<void> {
   const db = await openDb()
-  try {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).delete(id)
-    await txDone(tx)
-  } finally {
-    db.close()
-  }
+  const tx = db.transaction(STORE, 'readwrite')
+  tx.objectStore(STORE).delete(id)
+  await txDone(tx)
 }
 
 async function bumpAttempts(entry: QueuedPhoto): Promise<void> {
   const db = await openDb()
-  try {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).put({ ...entry, attempts: entry.attempts + 1 })
-    await txDone(tx)
-  } finally {
-    db.close()
-  }
+  const tx = db.transaction(STORE, 'readwrite')
+  tx.objectStore(STORE).put({ ...entry, attempts: entry.attempts + 1 })
+  await txDone(tx)
 }
 
 let replaying = false
@@ -187,13 +191,15 @@ export async function replayPhotoQueue(): Promise<{ uploaded: number; remaining:
     replaying = false
     await refreshCount()
   }
-  const rows = await readAll().catch(() => [] as QueuedPhoto[])
-  return { uploaded, remaining: rows.length }
+  const remaining = await idbCount().catch(() => 0)
+  return { uploaded, remaining }
 }
 
 // Auto-replay when connectivity returns (mirrors offline-queue.ts); also prime
 // the pending count on module load so banners show queued photos after reload.
+// P31 — the priming count runs at idle, off the page-load critical path.
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { void replayPhotoQueue() })
-  void refreshCount()
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => void refreshCount(), { timeout: 3000 })
+  else setTimeout(() => void refreshCount(), 500)
 }
