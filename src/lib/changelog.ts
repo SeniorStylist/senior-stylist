@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.3',
+    date: '2026-07-15',
+    title: 'Accurate Earnings',
+    items: [
+      'Revenue now counts only COMPLETED visits — scheduled or cancelled appointments no longer inflate Analytics, dashboard tiles, totals, or exports',
+      'Days now roll over on your facility\'s clock: an 8pm appointment shows on the right day in the daily log and analytics, and the log no longer flips to tomorrow at 8pm Eastern',
+      'Cancelling an appointment now removes it from Google Calendar and warns you when it was already marked paid',
+      'Cancels and deletes made on spotty wifi sync automatically when you\'re back online',
+    ],
+  },
+  {
     version: '4.2',
     date: '2026-07-14',
     title: 'Snappier Everywhere',

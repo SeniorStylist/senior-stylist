@@ -2981,3 +2981,18 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Layout-mounted client components must not statically import large catalogs** — split the
   tiny runtime helpers into a leaf module (`tour-dom.ts` pattern), re-export from the catalog
   for back-compat, and dynamic-import the catalog behind its actual trigger.
+
+## P32 money-display rules (2026-07-15)
+
+- **Revenue earned = completed only.** Any tile, chart, total, export, or email that shows
+  dollars earned filters `status = 'completed'` (+ `active = true` + `is_demo = false`) and
+  carries the `// revenue earned = completed only` guard comment. Listings (appointment
+  tables, day-log email rows) may include scheduled/no-show rows — but always WITH a status
+  badge, and their money summary still sums completed only. Counts may represent booked
+  workload (non-cancelled) — label them as appointments, never as dollars.
+- **Day/month bucketing is the facility's calendar** — `dayRangeInTimezone`/`getLocalParts`,
+  never UTC string-splitting. A chip like "Busiest day: Jul 13" must agree with the dates a
+  neighboring table displays.
+- **Destructive confirms disclose money side-effects**: cancelling/deleting a paid
+  appointment shows the amber "payment record stays — handle refunds in Billing" line in the
+  same confirm step, never after.

@@ -2915,3 +2915,23 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
 - **`src/lib/help/tour-dom.ts`**: leaf module with the tour DOM helpers + step types;
   tours.ts re-exports. Layout-mounted components import from tour-dom only; tour-resumer
   dynamic-imports the catalog gated on the sessionStorage resume blob.
+
+## P32 — Revenue semantics + tz bucketing (2026-07-15)
+
+- **`/api/reports/monthly`**: the inclusive (non-cancelled/non-no_show) row set feeds ONLY
+  the All Appointments listing; totalRevenue/totalAppointments, byService, byStylist,
+  commissions, and busiestDays come from the `status='completed'` subset. Month window +
+  busiest-day bucketing use the facility timezone.
+- **`getFacilityStats`** (`src/lib/dashboard-panels.ts`): COUNT filters = booked workload
+  (non-cancelled/non-no_show); revenue SUM FILTERs add `status='completed'`. Today/week/
+  month windows in facility tz (Mon-start week).
+- **Completed-only + active + is_demo now enforced at**: resident Total Spent, stylist
+  all-time Total Revenue, `/api/export/billing`, day-log email Total,
+  `/api/reports/invoice` (+active), super-admin monthly (+active), master-admin
+  bookingsThisMonth (excludes cancelled + demo; fixes health-score cancel-rate
+  double-count).
+- **Cancel paths**: PUT status→cancelled deletes the shared + stylist GCal events (parity
+  with DELETE); recurring cancelFuture parent branch revalidates 'bookings' before its
+  early return; booking-modal cancel + daily-log delete are offline-queueable
+  (`queueableFetch` supports DELETE, body optional); paid-then-cancel warns in all three
+  confirm UIs. Bookkeeper: DELETE allowed (OCR cleanup), PUT-cancel stripped — intentional.
