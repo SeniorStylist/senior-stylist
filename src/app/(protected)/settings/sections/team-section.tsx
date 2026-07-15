@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 
@@ -489,7 +490,11 @@ export function TeamSection({
                       >
                         {isSaving ? '…' : cu.stylistName ? `↔ ${cu.stylistName}` : '+ Assign stylist'}
                       </button>
-                      {isOpen && (
+                      {/* P33 — portaled to document.body: position:fixed inside the
+                          page container broke whenever an ancestor carried a transform
+                          (the page-enter entrance), throwing the picker to the bottom
+                          of the screen. The portal keeps it anchored at the button. */}
+                      {isOpen && typeof document !== 'undefined' && createPortal(
                         <>
                           <button
                             type="button"
@@ -556,7 +561,8 @@ export function TeamSection({
                               </button>
                             )}
                           </div>
-                        </>
+                        </>,
+                        document.body
                       )}
                     </div>
                   )

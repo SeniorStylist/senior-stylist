@@ -2,8 +2,8 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents } from '@/db/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents, stylistFacilityAssignments } from '@/db/schema'
+import { eq, and, inArray, or } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { SettingsClient } from './settings-client'
@@ -103,10 +103,33 @@ export default async function SettingsPage() {
 
   // Active stylist directory records at this facility — admins pick from these
   // to link a team member's login to a stylist record (Team & Roles).
+  // P33 — home rows PLUS assignment-linked rows: franchise-pool/cross-facility
+  // stylists (e.g. an invited stylist whose record lives elsewhere) have no
+  // home row here, which left them missing from the Assign-stylist picker.
+  // Never query stylists by facility_id alone on a roster surface. is_demo
+  // excluded so tutorial seeds (Demo Sarah) don't show as linkable stylists.
+  const assignedRows = await db
+    .select({ stylistId: stylistFacilityAssignments.stylistId })
+    .from(stylistFacilityAssignments)
+    .where(
+      and(
+        eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+        eq(stylistFacilityAssignments.active, true),
+      ),
+    )
+  const assignedIds = assignedRows.map((a) => a.stylistId)
   const facilityStylists = await db
     .select({ id: stylists.id, name: stylists.name })
     .from(stylists)
-    .where(and(eq(stylists.facilityId, facilityUser.facilityId), eq(stylists.active, true)))
+    .where(
+      and(
+        eq(stylists.active, true),
+        eq(stylists.isDemo, false), // is_demo filter — Phase 13
+        assignedIds.length > 0
+          ? or(eq(stylists.facilityId, facilityUser.facilityId), inArray(stylists.id, assignedIds))
+          : eq(stylists.facilityId, facilityUser.facilityId),
+      ),
+    )
     .orderBy(stylists.name)
 
   const isMaster = !!(process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)

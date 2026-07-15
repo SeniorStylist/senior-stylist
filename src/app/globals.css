@@ -374,10 +374,16 @@ button:active, [role="button"]:active {
   border-radius: 6px;
 }
 
-/* Page-level mount animation */
+/* Page-level mount animation.
+   P33 — the end keyframe MUST be `transform: none`, not translateY(0): with
+   fill-mode forwards a retained translateY(0) is still a live transform, which
+   makes every .page-enter page a permanent CSS containing block for its
+   position:fixed descendants (the Team assign-stylist picker rendered at the
+   container bottom instead of the viewport; bulk-action bars had the same
+   latent bug). `none` releases the containing block once the entrance ends. */
 @keyframes pageEnter {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .page-enter {
   animation: pageEnter var(--duration-slow) var(--ease-out) forwards;
