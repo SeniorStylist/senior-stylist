@@ -95,12 +95,29 @@ export async function POST(request: NextRequest) {
     // Use the master admin's custom feedbackEmail if set, otherwise fall back to env.
     const masterEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     let notifyTo: string | undefined = masterEmail
+    let masterUserId: string | null = null
     if (masterEmail) {
       const masterProfile = await db.query.profiles.findFirst({
         where: eq(profiles.email, masterEmail),
-        columns: { feedbackEmail: true },
+        columns: { id: true, feedbackEmail: true },
       }).catch(() => null)
       if (masterProfile?.feedbackEmail) notifyTo = masterProfile.feedbackEmail
+      masterUserId = masterProfile?.id ?? null
+    }
+
+    // In-app bell + push for the master admin (P34c) — every bug/idea/praise
+    // submission surfaces immediately, not just via email. Fire-and-forget.
+    if (masterUserId) {
+      const senderName = profile?.fullName ?? user.email ?? 'Someone'
+      import('@/lib/notify').then(({ notifyUser }) =>
+        notifyUser(masterUserId!, {
+          type: 'feedback_received',
+          title: `New ${category} feedback`,
+          body: `${senderName}${facility?.name ? ` (${facility.name})` : ''}: ${message.slice(0, 120)}${message.length > 120 ? '…' : ''}`,
+          url: '/master-admin/feedback',
+          facilityId: facilityUser?.facilityId ?? null,
+        }),
+      ).catch(() => {})
     }
     if (notifyTo) {
       sendEmail({

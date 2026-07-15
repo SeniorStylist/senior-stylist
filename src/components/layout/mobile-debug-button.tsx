@@ -32,6 +32,11 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
   const [selectedRole, setSelectedRole] = useState<DebugRole>('admin')
   const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId)
   const [loading, setLoading] = useState(false)
+  // P34c — impersonate AS a specific stylist (parity with the desktop Debug
+  // tab): roster fetched per facility, stylistId rides the impersonate POST so
+  // the preview behaves exactly like the real stylist account.
+  const [facilityStylists, setFacilityStylists] = useState<{ id: string; name: string }[]>([])
+  const [selectedStylistId, setSelectedStylistId] = useState('')
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)__debug_role=([^;]*)/)
@@ -42,6 +47,23 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
     }
   }, [])
 
+  useEffect(() => {
+    if (!isMaster) return
+    setFacilityStylists([])
+    setSelectedStylistId('')
+    if (!open || !selectedFacilityId || selectedRole !== 'stylist') return
+    const ctrl = new AbortController()
+    fetch(`/api/log/ocr/rosters?facilityId=${selectedFacilityId}`, { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j) => {
+        const list = (j?.data?.stylists ?? []) as { id: string; name: string }[]
+        setFacilityStylists(list)
+        if (list.length > 0) setSelectedStylistId(list[0].id)
+      })
+      .catch(() => { /* picker stays empty — impersonation falls back to unlinked */ })
+    return () => ctrl.abort()
+  }, [isMaster, open, selectedFacilityId, selectedRole])
+
   if (!isMaster) return null
 
   const handleImpersonate = async () => {
@@ -51,7 +73,12 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
     await fetch('/api/debug/impersonate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: selectedRole, facilityId: selectedFacilityId, facilityName: facility.name }),
+      body: JSON.stringify({
+        role: selectedRole,
+        facilityId: selectedFacilityId,
+        facilityName: facility.name,
+        stylistId: selectedRole === 'stylist' && selectedStylistId ? selectedStylistId : null,
+      }),
     })
     window.location.href = '/dashboard'
   }
@@ -171,6 +198,28 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
               ))}
             </select>
           </div>
+
+          {/* Stylist picker — only for Stylist role (P34c, desktop parity) */}
+          {selectedRole === 'stylist' && selectedFacilityId && (
+            <div>
+              <p className="text-xs font-semibold text-stone-500 mb-2">Preview as</p>
+              {facilityStylists.length > 0 ? (
+                <select
+                  value={selectedStylistId}
+                  onChange={(e) => setSelectedStylistId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none bg-white"
+                >
+                  {facilityStylists.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-amber-600">
+                  No stylists at this facility yet — you&apos;ll preview as an unlinked stylist (read-only banner).
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </BottomSheet>
     </>

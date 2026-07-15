@@ -25,6 +25,7 @@ export type NotificationType =
   | 'waitlist_slot_opened'
   | 'payment_failed'
   | 'autopay_summary'
+  | 'feedback_received'
 
 export interface NotifyPayload {
   type: NotificationType
