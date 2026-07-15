@@ -5,10 +5,11 @@
 // exact sync. Server-only: imports the db.
 
 import { db } from '@/db'
-import { waitlistEntries } from '@/db/schema'
+import { facilities, waitlistEntries } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ensureWaitlistSchema } from '@/lib/waitlist-ddl'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
+import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 
 export interface FacilityStats {
   today: { count: number; revenueCents: number }
@@ -25,16 +26,34 @@ export interface FacilityStats {
 export async function getFacilityStats(facilityId: string, tutorialMode: boolean): Promise<FacilityStats> {
   const now = new Date()
 
-  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+  // P32 — today/week/month windows are the FACILITY's calendar (was UTC,
+  // which flipped "today" at 8pm ET and mis-bucketed evening bookings).
+  const tzRow = await db.query.facilities.findFirst({
+    where: eq(facilities.id, facilityId),
+    columns: { timezone: true },
+  })
+  const tz = tzRow?.timezone ?? 'America/New_York'
+  const p = getLocalParts(now, tz)
+  const localDateStr = (y: number, m: number, d: number) => {
+    // normalize via Date.UTC so month/day overflow rolls over correctly
+    const dt = new Date(Date.UTC(y, m - 1, d))
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+  }
+  const todayStr = localDateStr(p.year, p.month, p.day)
 
-  const dayOfWeek = now.getUTCDay() // 0 = Sun
-  const daysFromMon = (dayOfWeek + 6) % 7
-  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysFromMon))
-  const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const todayRange = dayRangeInTimezone(todayStr, tz)
+  const todayStart = todayRange?.start ?? new Date(Date.UTC(p.year, p.month - 1, p.day))
+  const todayEnd = todayRange?.end ?? new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
 
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const daysFromMon = ((dowMap[p.weekday] ?? 0) + 6) % 7
+  const weekStartStr = localDateStr(p.year, p.month, p.day - daysFromMon)
+  const weekEndStr = localDateStr(p.year, p.month, p.day - daysFromMon + 7)
+  const weekStart = dayRangeInTimezone(weekStartStr, tz)?.start ?? todayStart
+  const weekEnd = dayRangeInTimezone(weekEndStr, tz)?.start ?? todayEnd
+
+  const monthStart = dayRangeInTimezone(localDateStr(p.year, p.month, 1), tz)?.start ?? todayStart
+  const monthEnd = dayRangeInTimezone(localDateStr(p.year, p.month + 1, 1), tz)?.start ?? todayEnd
 
   const rangeStart = weekStart < monthStart ? weekStart : monthStart
   const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd

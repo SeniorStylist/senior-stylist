@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, stylists } from '@/db/schema'
+import { bookings, stylists, facilities } from '@/db/schema'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
+import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { and, eq, gte, lt, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -23,18 +24,31 @@ export async function GET(request: NextRequest) {
     let year: number
     let month: number // 0-based
 
+    // P32 — the month window and day bucketing are the FACILITY's calendar,
+    // not UTC's (an 8pm-ET Jul-31 booking belongs to July, not August).
+    const tzRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { timezone: true },
+    })
+    const facilityTz = tzRow?.timezone ?? 'America/New_York'
+
     if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       const [y, m] = monthParam.split('-').map(Number)
       year = y
       month = m - 1
     } else {
-      const now = new Date()
-      year = now.getUTCFullYear()
-      month = now.getUTCMonth()
+      const nowParts = getLocalParts(new Date(), facilityTz)
+      year = nowParts.year
+      month = nowParts.month - 1
     }
 
-    const start = new Date(Date.UTC(year, month, 1))
-    const end = new Date(Date.UTC(year, month + 1, 1))
+    const mm = String(month + 1).padStart(2, '0')
+    const nextYear = month === 11 ? year + 1 : year
+    const nextMm = String(month === 11 ? 1 : month + 2).padStart(2, '0')
+    const start =
+      dayRangeInTimezone(`${year}-${mm}-01`, facilityTz)?.start ?? new Date(Date.UTC(year, month, 1))
+    const end =
+      dayRangeInTimezone(`${nextYear}-${nextMm}-01`, facilityTz)?.start ?? new Date(Date.UTC(year, month + 1, 1))
 
     // is_demo filter — Phase 13: demo-only during a tour, real-only otherwise.
     // (Without this, the seeded demo booking would leak into real analytics.)
@@ -119,10 +133,12 @@ export async function GET(request: NextRequest) {
       commissionCents: Math.round(s.revenueCents * s.commissionPercent / 100),
     }))
 
-    // Busiest days (top 5, earned only)
+    // Busiest days (top 5, earned only) — bucketed on the FACILITY's calendar
+    // day so the chip matches the dates shown in the appointments table.
     const dayMap = new Map<string, number>()
     for (const b of earnedRows) {
-      const dateStr = new Date(b.startTime).toISOString().split('T')[0]
+      const p = getLocalParts(new Date(b.startTime), facilityTz)
+      const dateStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
       dayMap.set(dateStr, (dayMap.get(dateStr) ?? 0) + 1)
     }
     const busiestDays = Array.from(dayMap.entries())

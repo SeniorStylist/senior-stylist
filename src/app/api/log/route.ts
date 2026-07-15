@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { bookings, logEntries } from '@/db/schema'
+import { bookings, logEntries, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
+import { dayRangeInTimezone } from '@/lib/time'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { toClientJson } from '@/lib/sanitize'
@@ -33,9 +34,15 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get('date') ??
       new Date().toISOString().split('T')[0]
 
-    // Query the full UTC day — good enough for single-timezone facilities
-    const dayStart = new Date(dateParam + 'T00:00:00.000Z')
-    const dayEnd = new Date(dateParam + 'T23:59:59.999Z')
+    // P32 — the day window is the FACILITY's calendar day (was UTC, which put
+    // an 8pm-ET booking on tomorrow's log for US facilities).
+    const tzRow = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { timezone: true },
+    })
+    const dayRange = dayRangeInTimezone(dateParam, tzRow?.timezone ?? 'America/New_York')
+    const dayStart = dayRange?.start ?? new Date(dateParam + 'T00:00:00.000Z')
+    const dayEnd = dayRange?.end ?? new Date(dateParam + 'T23:59:59.999Z')
 
     // is_demo filter — Phase 13. During a scripted tour show ONLY demo records
     // (sandbox); normally show only real records.

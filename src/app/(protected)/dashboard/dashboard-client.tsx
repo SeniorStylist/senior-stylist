@@ -639,16 +639,14 @@ export function DashboardClient({
     changeViewRef.current?.(view)
   }
 
-  // Today's stats
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const todayEnd = new Date()
-  todayEnd.setHours(23, 59, 59, 999)
+  // Today's stats — "today" is the FACILITY's calendar day (P32; was the
+  // viewer's browser-local day, which disagreed with the server tiles).
+  const todayLocal = getLocalParts(new Date(), facility.timezone)
+  const todayKey = `${todayLocal.year}-${todayLocal.month}-${todayLocal.day}`
   const todayBookings = bookings.filter((b) => {
-    const start = new Date(b.startTime)
+    const p = getLocalParts(new Date(b.startTime), facility.timezone)
     return (
-      start >= todayStart &&
-      start <= todayEnd &&
+      `${p.year}-${p.month}-${p.day}` === todayKey &&
       b.status !== 'cancelled' &&
       b.status !== 'no_show'
     )

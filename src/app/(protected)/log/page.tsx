@@ -7,6 +7,7 @@ import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
+import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { eq, and, gte, lt, asc, or, inArray } from 'drizzle-orm'
 import { LogClient } from './log-client'
 
@@ -34,9 +35,20 @@ export default async function LogPage() {
   }
 
   try {
-  const today = new Date().toISOString().split('T')[0]
-  const dayStart = new Date(today + 'T00:00:00.000Z')
-  const dayEnd = new Date(today + 'T23:59:59.999Z')
+  // P32 — "today" and the day window are the FACILITY's calendar day, not
+  // UTC's. Under UTC an 8pm-ET booking landed on tomorrow's log, and after
+  // 8pm ET the log opened to tomorrow's date. The facility row is fetched
+  // first (tiny, timezone-only) because the window depends on it.
+  const tzRow = await db.query.facilities.findFirst({
+    where: eq(facilities.id, facilityId),
+    columns: { timezone: true },
+  })
+  const facilityTz = tzRow?.timezone ?? 'America/New_York'
+  const todayParts = getLocalParts(new Date(), facilityTz)
+  const today = `${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`
+  const dayRange = dayRangeInTimezone(today, facilityTz)
+  const dayStart = dayRange?.start ?? new Date(today + 'T00:00:00.000Z')
+  const dayEnd = dayRange?.end ?? new Date(today + 'T23:59:59.999Z')
 
   // Phase 13 — surface demo records during an active scripted tour.
   const tutorialMode = await isTutorialModeActive()
