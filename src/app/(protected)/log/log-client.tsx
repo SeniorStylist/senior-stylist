@@ -455,17 +455,23 @@ export function LogClient({
     setSwipedDeleteId(null)
     setEditingBookingId(null)
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, { method: 'DELETE' })
-      if (res.ok) {
+      // P32 — queueable: a delete on dropped wifi keeps the optimistic removal
+      // and replays when connectivity returns (was a plain fetch that rolled
+      // back with a network error).
+      const qres = await queueableFetch('Appointment delete', `/api/bookings/${bookingId}`, {
+        method: 'DELETE',
+      })
+      if (isQueued(qres)) {
+        toast("Removed on this device — will sync when you're back online", 'info')
+        return
+      }
+      if (qres.ok) {
         toast('Booking removed', 'success')
       } else {
-        const json = await res.json().catch(() => ({}))
+        const json = await qres.json().catch(() => ({}))
         setBookings(snapshot)
         toast(typeof json.error === 'string' ? json.error : 'Delete failed', 'error')
       }
-    } catch {
-      setBookings(snapshot)
-      toast('Network error — delete failed', 'error')
     } finally {
       setDeletingId(null)
     }
@@ -1646,7 +1652,11 @@ export function LogClient({
                       {/* P30 — swipe-revealed delete confirm */}
                       {swipedDeleteId === booking.id && (
                         <div className="absolute inset-y-0 right-0 z-10 flex items-center gap-1.5 pl-8 pr-3 bg-gradient-to-l from-white via-white to-transparent">
-                          <span className="text-xs font-semibold text-red-600">Delete this appointment?</span>
+                          <span className="text-xs font-semibold text-red-600">
+                            {booking.paymentStatus === 'paid'
+                              ? 'Already paid — delete? Handle refunds in Billing.'
+                              : 'Delete this appointment?'}
+                          </span>
                           <button
                             type="button"
                             onClick={() => deleteBookingRow(booking.id)}
@@ -1904,7 +1914,11 @@ export function LogClient({
                               {(
                                 confirmDeleteId === booking.id ? (
                                   <div className="flex items-center gap-1.5 ml-auto">
-                                    <span className="text-xs text-red-600">Delete this appointment?</span>
+                                    <span className="text-xs text-red-600">
+                                      {booking.paymentStatus === 'paid'
+                                        ? 'Already paid — delete? Handle refunds in Billing.'
+                                        : 'Delete this appointment?'}
+                                    </span>
                                     <button
                                       onClick={() => deleteBookingRow(booking.id)}
                                       disabled={!!deletingId}

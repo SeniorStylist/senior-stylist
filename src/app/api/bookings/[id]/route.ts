@@ -152,6 +152,11 @@ export async function PUT(
         .update(bookings)
         .set({ status: 'cancelled', updatedAt: new Date() })
         .where(and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)))
+      // P32 — this early return skipped revalidateTag, leaving cached server
+      // components stale after cancelling a series. Push/waitlist fan-out is
+      // intentionally skipped for bulk series cancels (one notification per
+      // freed slot would spam).
+      revalidateTag('bookings', {})
       return Response.json({ data: { ...existing, status: 'cancelled' } })
     }
 
@@ -377,6 +382,11 @@ export async function PUT(
       }
     }
 
+    // P32 — a booking cancelled via PUT must DELETE its calendar event exactly
+    // like the DELETE route does; updating it left a ghost appointment on the
+    // shared + stylist calendars.
+    const becameCancelled = updates.status === 'cancelled' && existing.status !== 'cancelled'
+
     // Attempt GCal sync
     try {
       if (isCalendarConfigured() && updated.googleEventId) {
@@ -385,25 +395,33 @@ export async function PUT(
         })
 
         if (facility?.calendarId) {
-          const bookingWithRelations = await db.query.bookings.findFirst({
-            where: eq(bookings.id, id),
-            with: { resident: true, stylist: true, service: true },
-          })
-
-          if (bookingWithRelations && bookingWithRelations.service) {
-            await updateCalendarEvent(
-              facility.calendarId,
-              updated.googleEventId,
-              bookingWithRelations,
-              bookingWithRelations.resident,
-              bookingWithRelations.stylist,
-              bookingWithRelations.service
-            )
-
+          if (becameCancelled) {
+            await deleteCalendarEvent(facility.calendarId, updated.googleEventId)
             await db
               .update(bookings)
               .set({ syncError: null, updatedAt: new Date() })
               .where(eq(bookings.id, id))
+          } else {
+            const bookingWithRelations = await db.query.bookings.findFirst({
+              where: eq(bookings.id, id),
+              with: { resident: true, stylist: true, service: true },
+            })
+
+            if (bookingWithRelations && bookingWithRelations.service) {
+              await updateCalendarEvent(
+                facility.calendarId,
+                updated.googleEventId,
+                bookingWithRelations,
+                bookingWithRelations.resident,
+                bookingWithRelations.stylist,
+                bookingWithRelations.service
+              )
+
+              await db
+                .update(bookings)
+                .set({ syncError: null, updatedAt: new Date() })
+                .where(eq(bookings.id, id))
+            }
           }
         }
       }
@@ -416,7 +434,15 @@ export async function PUT(
     }
 
     // Per-stylist calendar sync — fire-and-forget
-    if (updated.googleEventId) {
+    if (updated.googleEventId && becameCancelled) {
+      db.query.stylists.findFirst({ where: eq(stylists.id, updated.stylistId) })
+        .then(stl => {
+          if (stl?.googleRefreshToken && stl?.googleCalendarId) {
+            return deleteStylistCalendarEvent(stl.googleRefreshToken!, stl.googleCalendarId!, updated.googleEventId!)
+          }
+        })
+        .catch(err => console.error('Stylist calendar sync failed:', err))
+    } else if (updated.googleEventId) {
       db.query.stylists.findFirst({ where: eq(stylists.id, updated.stylistId) })
         .then(stl => {
           if (stl?.googleRefreshToken && stl?.googleCalendarId) {

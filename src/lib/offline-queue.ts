@@ -16,7 +16,7 @@ export type QueueableResult = Response | { queued: true }
 interface QueuedWrite {
   id: string
   url: string
-  method: 'POST' | 'PUT' | 'PATCH'
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body: unknown
   label: string
   ts: number
@@ -72,7 +72,9 @@ export function isQueued(result: QueueableResult): result is { queued: true } {
 export async function queueableFetch(
   label: string,
   url: string,
-  init: { method: 'POST' | 'PUT' | 'PATCH'; body: unknown },
+  // P32 — DELETE added for cancel/delete-appointment offline parity; body is
+  // optional (JSON.stringify(undefined) → no body sent, same on replay).
+  init: { method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown },
 ): Promise<QueueableResult> {
   try {
     return await fetch(url, {

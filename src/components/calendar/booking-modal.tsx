@@ -596,14 +596,22 @@ export function BookingModal({
 
     setCancelling(true)
     try {
-      const res = await fetch(`/api/bookings/${booking!.id}`, {
+      // P32 — queueable: a cancel made on facility wifi that drops mid-request
+      // now syncs later instead of silently not happening.
+      const qres = await queueableFetch('Booking cancel', `/api/bookings/${booking!.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           status: 'cancelled',
           cancellationReason: effectiveReason,
-        }),
+        },
       })
+      if (isQueued(qres)) {
+        onBookingDeleted(booking!.id)
+        toast("Cancelled on this device — will sync when you're back online", 'info')
+        onClose()
+        return
+      }
+      const res = qres
       if (res.ok) {
         const cancelledId = booking!.id
         onBookingDeleted(cancelledId)
@@ -692,6 +700,11 @@ export function BookingModal({
       ) : (
         <div className="space-y-2">
           <p className="text-xs font-medium text-red-600">Cancel this appointment?</p>
+          {booking?.paymentStatus === 'paid' && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+              This appointment was already marked paid — the payment record stays; handle any refund from Billing.
+            </p>
+          )}
           {cancelReasonSelect}
           <div className="flex gap-2">
             <Button
