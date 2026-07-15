@@ -4,7 +4,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { facilityUsers, profiles, stylists } from '@/db/schema'
+import { facilityUsers, profiles, stylists, stylistFacilityAssignments } from '@/db/schema'
 
 // Admin-assigns (or unlinks) the stylist directory record for a team member's
 // login. Mirrors PUT /api/profile (self-link) but targets an arbitrary userId
@@ -46,14 +46,28 @@ export async function PUT(
     let stylistName: string | null = null
 
     if (stylistId !== null) {
-      // Stylist must belong to this facility. (Franchise-pool stylists assigned
-      // only via stylist_facility_assignments are out of scope here — same
-      // limitation as the self-link route PUT /api/profile.)
+      // P34 — the stylist must WORK at this facility: home row OR an active
+      // stylist_facility_assignments row. The old home-only check rejected
+      // assignment-linked stylists (e.g. Senait at F177) that the P33 picker
+      // correctly lists — same F228 roster bug class, validation layer.
       const stylist = await db.query.stylists.findFirst({
-        where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityId), eq(stylists.active, true)),
-        columns: { id: true, name: true },
+        where: and(eq(stylists.id, stylistId), eq(stylists.active, true)),
+        columns: { id: true, name: true, facilityId: true },
       })
-      if (!stylist) return Response.json({ error: 'Stylist not found at this facility' }, { status: 404 })
+      if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+      if (stylist.facilityId !== facilityId) {
+        const assignment = await db.query.stylistFacilityAssignments.findFirst({
+          where: and(
+            eq(stylistFacilityAssignments.stylistId, stylistId),
+            eq(stylistFacilityAssignments.facilityId, facilityId),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+          columns: { id: true },
+        })
+        if (!assignment) {
+          return Response.json({ error: 'Stylist not found at this facility' }, { status: 404 })
+        }
+      }
 
       // Takeover guard — a stylist record can be linked to only one login.
       const existingLink = await db.query.profiles.findFirst({

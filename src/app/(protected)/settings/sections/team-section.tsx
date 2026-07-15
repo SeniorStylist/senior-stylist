@@ -97,7 +97,7 @@ export function TeamSection({
   const [localUsers, setLocalUsers] = useState<ConnectedUser[]>(connectedUsers)
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
-  const [teamToast, setTeamToast] = useState<string | null>(null)
+  const [teamToast, setTeamToast] = useState<{ text: string; kind: 'success' | 'error' } | null>(null)
 
   // Stylist link picker (admin assigns a member's login to a directory record)
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null)
@@ -217,10 +217,10 @@ export function TeamSection({
       const res = await fetch(`/api/facility/users/${userId}`, { method: 'DELETE' })
       const j = await res.json()
       if (!res.ok) {
-        setTeamToast(j.error ?? 'Failed to remove user')
+        setTeamToast({ text: typeof j.error === 'string' ? j.error : 'Failed to remove user', kind: 'error' })
       } else {
         setLocalUsers((prev) => prev.filter((u) => u.userId !== userId))
-        setTeamToast('Access removed')
+        setTeamToast({ text: 'Access removed', kind: 'success' })
       }
     } finally {
       setRemovingUserId(null)
@@ -241,7 +241,7 @@ export function TeamSection({
       })
       const j = await res.json()
       if (!res.ok) {
-        setTeamToast(j.error ?? 'Failed to update stylist link')
+        setTeamToast({ text: typeof j.error === 'string' ? j.error : 'Failed to update stylist link', kind: 'error' })
       } else {
         setLocalUsers((prev) =>
           prev.map((u) =>
@@ -250,7 +250,7 @@ export function TeamSection({
               : u,
           ),
         )
-        setTeamToast(stylistId ? 'Stylist linked' : 'Stylist disconnected')
+        setTeamToast({ text: stylistId ? 'Stylist linked' : 'Stylist disconnected', kind: 'success' })
         setAssigningUserId(null)
         setPickerPos(null)
         setStylistPickerSearch('')
@@ -428,8 +428,15 @@ export function TeamSection({
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
         <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Active Members</p>
         {teamToast && (
-          <div className="mb-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-medium text-emerald-800">
-            {teamToast}
+          <div
+            className={cn(
+              'mb-3 px-4 py-2.5 rounded-xl text-sm font-medium',
+              teamToast.kind === 'error'
+                ? 'bg-red-50 border border-red-200 text-red-700'
+                : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+            )}
+          >
+            {teamToast.text}
           </div>
         )}
         <div className="rounded-2xl border border-stone-100 overflow-hidden">

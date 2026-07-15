@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { profiles, stylists } from '@/db/schema'
+import { profiles, stylists, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { eq, and, ne } from 'drizzle-orm'
 import { z } from 'zod'
@@ -21,11 +21,23 @@ export async function PUT(request: NextRequest) {
     if (!parsed.success) return Response.json({ error: 'stylistId required' }, { status: 400 })
     const { stylistId } = parsed.data
 
-    // Verify the stylist belongs to the facility
+    // Verify the stylist WORKS at the facility: home row OR an active
+    // assignment row (P34 — home-only rejected assignment-linked stylists).
     const stylist = await db.query.stylists.findFirst({
-      where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityUser.facilityId)),
+      where: eq(stylists.id, stylistId),
     })
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+    if (stylist.facilityId !== facilityUser.facilityId) {
+      const assignment = await db.query.stylistFacilityAssignments.findFirst({
+        where: and(
+          eq(stylistFacilityAssignments.stylistId, stylistId),
+          eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+        columns: { id: true },
+      })
+      if (!assignment) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+    }
 
     // Reject if the stylist is already linked to a different user (prevents takeover)
     const existingLink = await db.query.profiles.findFirst({
