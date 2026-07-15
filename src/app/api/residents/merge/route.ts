@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { residents, bookings } from '@/db/schema'
 import { eq, and, count } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
 import { z } from 'zod'
 
 const mergeSchema = z.object({
@@ -47,10 +48,36 @@ export async function POST(request: Request) {
       return Response.json({ error: 'keepId and mergeId must be different' }, { status: 422 })
     }
 
+    // P34 — verify both residents BEFORE the transaction so a stale pair
+    // (a resident already merged away in a previous step / another tab)
+    // returns a clean machine-readable 409 instead of a generic 500. The
+    // client uses code 'stale_pair' to drop the card and resync the list.
+    const [keepCheck, mergeCheck] = await Promise.all([
+      db
+        .select({ id: residents.id })
+        .from(residents)
+        .where(and(eq(residents.id, keepId), eq(residents.facilityId, facilityId), eq(residents.active, true))),
+      db
+        .select({ id: residents.id })
+        .from(residents)
+        .where(and(eq(residents.id, mergeId), eq(residents.facilityId, facilityId), eq(residents.active, true))),
+    ])
+    if (!keepCheck.length || !mergeCheck.length) {
+      return Response.json(
+        {
+          error: 'This pair is out of date — one of these residents was already merged.',
+          code: 'stale_pair',
+        },
+        { status: 409 },
+      )
+    }
+
     let bookingsMoved = 0
 
     await db.transaction(async (tx) => {
-      // Security: verify both residents belong to this facility
+      // Re-verify inside the transaction (guards a race between the pre-check
+      // and the tx — throwing here rolls back and surfaces as 500, which is
+      // acceptable for the true concurrent-write edge).
       const [keepRes, mergeRes] = await Promise.all([
         tx
           .select({ id: residents.id })
@@ -92,6 +119,9 @@ export async function POST(request: Request) {
         .set({ name: finalName, roomNumber: finalRoom })
         .where(and(eq(residents.id, keepId), eq(residents.facilityId, facilityId)))
     })
+
+    // The merge moves bookings between residents — bust cached booking reports.
+    revalidateTag('bookings', {})
 
     return Response.json({ data: { bookingsMoved } })
   } catch (err) {

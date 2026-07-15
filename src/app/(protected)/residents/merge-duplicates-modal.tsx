@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
+import { fuzzyScore } from '@/lib/fuzzy'
 
 type ResidentForMerge = {
   id: string
@@ -65,9 +66,7 @@ export function MergeDuplicatesModal({
     }
   }, [storageKey])
 
-  // Fetch pairs when modal opens
-  useEffect(() => {
-    if (!open) return
+  const fetchPairs = useCallback(() => {
     setLoading(true)
     fetch('/api/residents/duplicates')
       .then(r => r.json())
@@ -78,7 +77,13 @@ export function MergeDuplicatesModal({
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [open, onCountChange])
+  }, [onCountChange])
+
+  // Fetch pairs when modal opens
+  useEffect(() => {
+    if (!open) return
+    fetchPairs()
+  }, [open, fetchPairs])
 
   const visiblePairs = pairs.filter(p => !dismissed.has(pairKey(p.a, p.b)))
 
@@ -124,13 +129,58 @@ export function MergeDuplicatesModal({
       })
       const json = await res.json()
       if (!res.ok) {
-        toast(json.error ?? 'Merge failed', 'error')
+        // P34 — a pair referencing a resident merged in another tab / by
+        // another user comes back as a clean 409; drop it and resync.
+        if (json.code === 'stale_pair') {
+          setPairs(prev => prev.filter(p => pairKey(p.a, p.b) !== key))
+          toast('That pair was already merged elsewhere — refreshing the list', 'info')
+          fetchPairs()
+          return
+        }
+        toast(typeof json.error === 'string' ? json.error : 'Merge failed', 'error')
         return
       }
       const { bookingsMoved } = json.data
-      // Remove merged pair from list
-      setPairs(prev => prev.filter(p => pairKey(p.a, p.b) !== key))
-      onCountChange?.(visiblePairs.length - 1)
+
+      // P34 — re-chain the remaining pairs to the SURVIVOR in one in-memory
+      // pass (no O(n²) refetch). With many variants of one name ("Carole
+      // Rose" ⇄ "Carole Jaqueline Rose" ⇄ "Carol Rose"), other pending pairs
+      // still referenced the resident that was just merged away — merging
+      // them then failed. Every side that pointed at the merged-away id (or
+      // at the survivor, to pick up its new name/room/visit totals) is
+      // re-pointed to the survivor; self-pairs collapse; rewritten pairs that
+      // now collide dedupe; match % is recomputed against the final name.
+      const survivor: ResidentForMerge = {
+        id: keepRes.id,
+        name: finalName,
+        roomNumber: editRoom[key]?.trim() || null,
+        appointmentCount: keepRes.appointmentCount + mergeRes.appointmentCount,
+        lastVisit:
+          [keepRes.lastVisit, mergeRes.lastVisit]
+            .filter((v): v is string => !!v)
+            .sort()
+            .pop() ?? null,
+      }
+      const touchedIds = new Set([keepRes.id, mergeRes.id])
+      const seen = new Set<string>()
+      const next: DupePair[] = []
+      for (const p of pairs) {
+        const k = pairKey(p.a, p.b)
+        if (k === key) continue // the pair we just merged
+        const a = touchedIds.has(p.a.id) ? survivor : p.a
+        const b = touchedIds.has(p.b.id) ? survivor : p.b
+        if (a.id === b.id) continue // collapsed into the survivor itself
+        const nk = pairKey(a, b)
+        if (seen.has(nk)) continue // two old pairs rewrote to the same pair
+        seen.add(nk)
+        if (a === p.a && b === p.b) {
+          next.push(p)
+        } else {
+          next.push({ ...p, a, b, score: fuzzyScore(a.name, b.name) })
+        }
+      }
+      setPairs(next)
+      onCountChange?.(next.filter(p => !dismissed.has(pairKey(p.a, p.b))).length)
       toast(
         `Merged — ${bookingsMoved} booking${bookingsMoved !== 1 ? 's' : ''} moved`,
         'success'
