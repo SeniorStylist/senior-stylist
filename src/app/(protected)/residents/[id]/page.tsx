@@ -35,7 +35,8 @@ export default async function ResidentDetailPage({
       where: and(
         eq(bookings.residentId, id),
         eq(bookings.facilityId, facilityUser.facilityId),
-        eq(bookings.active, true)
+        eq(bookings.active, true),
+        eq(bookings.isDemo, false) // is_demo filter — Phase 13
       ),
       with: {
         stylist: true,
@@ -51,7 +52,11 @@ export default async function ResidentDetailPage({
 
   // Compute stats
   const activeBookings = residentBookings.filter((b) => b.status !== 'cancelled')
-  const totalSpent = activeBookings.reduce((sum, b) => sum + (b.priceCents ?? 0), 0)
+  // revenue earned = completed only — scheduled/requested/no_show are not money spent
+  const totalSpent = residentBookings.reduce(
+    (sum, b) => sum + (b.status === 'completed' ? (b.priceCents ?? 0) : 0),
+    0
+  )
   const firstVisitEntry = activeBookings.length > 0
     ? activeBookings[activeBookings.length - 1]
     : null

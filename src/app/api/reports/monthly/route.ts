@@ -58,16 +58,21 @@ export async function GET(request: NextRequest) {
       orderBy: (t, { asc }) => [asc(t.startTime)],
     })
 
+    // revenue earned = completed only — scheduled/requested are booked, not
+    // earned. The inclusive `rows` set feeds ONLY the All Appointments listing
+    // (with status badges); every money figure comes from this subset.
+    const earnedRows = rows.filter((b) => b.status === 'completed')
+
     // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
-    const totalRevenueCents = rows.reduce(
+    const totalRevenueCents = earnedRows.reduce(
       (sum, b) => sum + (b.priceCents ?? b.service?.priceCents ?? 0),
       0
     )
-    const totalAppointments = rows.length
+    const totalAppointments = earnedRows.length
 
-    // Revenue by service
+    // Revenue by service (earned only)
     const serviceMap = new Map<string, { name: string; count: number; revenueCents: number }>()
-    for (const b of rows) {
+    for (const b of earnedRows) {
       const key = b.service?.id ?? b.id
       const existing = serviceMap.get(key)
       const price = b.priceCents ?? b.service?.priceCents ?? 0
@@ -88,8 +93,10 @@ export async function GET(request: NextRequest) {
     })
     const stylistCommissionMap = new Map(allStylists.map((s) => [s.id, s.commissionPercent]))
 
+    // Revenue by stylist (earned only — the Commissions block's "Based on
+    // completed appointments" label is now actually true)
     const stylistMap = new Map<string, { name: string; count: number; revenueCents: number; commissionPercent: number }>()
-    for (const b of rows) {
+    for (const b of earnedRows) {
       const existing = stylistMap.get(b.stylist.id)
       const price = b.priceCents ?? b.service?.priceCents ?? 0
       const cp = stylistCommissionMap.get(b.stylist.id) ?? 0
@@ -112,9 +119,9 @@ export async function GET(request: NextRequest) {
       commissionCents: Math.round(s.revenueCents * s.commissionPercent / 100),
     }))
 
-    // Busiest days (top 5)
+    // Busiest days (top 5, earned only)
     const dayMap = new Map<string, number>()
-    for (const b of rows) {
+    for (const b of earnedRows) {
       const dateStr = new Date(b.startTime).toISOString().split('T')[0]
       dayMap.set(dateStr, (dayMap.get(dateStr) ?? 0) + 1)
     }

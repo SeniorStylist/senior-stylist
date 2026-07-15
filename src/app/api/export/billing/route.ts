@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings } from '@/db/schema'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
-import { and, eq, gte, lt, ne } from 'drizzle-orm'
+import { and, eq, gte, lt } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
 function escapeCsv(value: string | number | null | undefined): string {
@@ -54,11 +54,14 @@ export async function GET(request: NextRequest) {
       timeZone: 'UTC',
     })
 
+    // revenue earned = completed only — scheduled/requested are booked, not
+    // earned; billing exports are money documents (P32).
     const rows = await db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityId),
-        ne(bookings.status, 'cancelled'),
-        ne(bookings.status, 'no_show'),
+        eq(bookings.status, 'completed'),
+        eq(bookings.active, true),
+        eq(bookings.isDemo, false), // is_demo filter — Phase 13
         gte(bookings.startTime, start),
         lt(bookings.startTime, end)
       ),

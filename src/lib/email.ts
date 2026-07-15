@@ -719,9 +719,12 @@ export function buildDailyLogEmailHtml(params: {
 
   const allRows = groups.flatMap((g) => g.rows)
   const totalCount = allRows.length
+  // revenue earned = completed only — the listing still shows every row with
+  // its status badge, but the Total tile is money actually earned.
   // price_cents only — never add tip_cents
-  const totalCents = allRows.reduce((s, r) => s + r.priceCents, 0)
-  const tipsCents = allRows.reduce((s, r) => s + (r.tipCents ?? 0), 0)
+  const completedRows = allRows.filter((r) => r.status === 'completed')
+  const totalCents = completedRows.reduce((s, r) => s + r.priceCents, 0)
+  const tipsCents = completedRows.reduce((s, r) => s + (r.tipCents ?? 0), 0)
 
   const statusBadge = (status: string): string => {
     if (status === 'completed')

@@ -80,10 +80,14 @@ const getCachedFacilityInfos = unstable_cache(
           FROM stylists WHERE active = true AND facility_id IS NOT NULL
           GROUP BY facility_id
         `),
+        // P32 — exclude cancelled (a cancelled booking isn't monthly activity;
+        // it also double-counted in the health score's cancel-rate denominator)
+        // and demo seeds (they live on real facilities during tutorials).
         db.execute(sql`
           SELECT facility_id::text AS fid, COUNT(*)::int AS c
           FROM bookings
           WHERE start_time >= ${monthStart.toISOString()} AND active = true
+            AND status != 'cancelled' AND is_demo = false
           GROUP BY facility_id
         `),
         db.execute(sql`
@@ -98,7 +102,8 @@ const getCachedFacilityInfos = unstable_cache(
         db.execute(sql`
           SELECT facility_id::text AS fid, COUNT(*)::int AS c
           FROM bookings
-          WHERE start_time >= ${monthStart.toISOString()} AND active = true AND status = 'cancelled'
+          WHERE start_time >= ${monthStart.toISOString()} AND active = true
+            AND status = 'cancelled' AND is_demo = false
           GROUP BY facility_id
         `),
         db.execute(sql`

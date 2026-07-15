@@ -39,14 +39,18 @@ export async function getFacilityStats(facilityId: string, tutorialMode: boolean
   const rangeStart = weekStart < monthStart ? weekStart : monthStart
   const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd
 
+  // Counts = booked workload (non-cancelled/non-no_show, as before).
+  // Revenue SUMs = revenue earned = completed only — scheduled/requested are
+  // booked, not earned (P32 — a scheduled/cancelled booking must never show
+  // as money in the dashboard tiles).
   const rows = await db.execute(sql`
     SELECT
       COUNT(*) FILTER (WHERE b.start_time >= ${todayStart.toISOString()}::timestamptz AND b.start_time < ${todayEnd.toISOString()}::timestamptz) AS today_count,
-      COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)) FILTER (WHERE b.start_time >= ${todayStart.toISOString()}::timestamptz AND b.start_time < ${todayEnd.toISOString()}::timestamptz), 0) AS today_cents,
+      COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)) FILTER (WHERE b.status = 'completed' AND b.start_time >= ${todayStart.toISOString()}::timestamptz AND b.start_time < ${todayEnd.toISOString()}::timestamptz), 0) AS today_cents,
       COUNT(*) FILTER (WHERE b.start_time >= ${weekStart.toISOString()}::timestamptz AND b.start_time < ${weekEnd.toISOString()}::timestamptz) AS week_count,
-      COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)) FILTER (WHERE b.start_time >= ${weekStart.toISOString()}::timestamptz AND b.start_time < ${weekEnd.toISOString()}::timestamptz), 0) AS week_cents,
+      COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)) FILTER (WHERE b.status = 'completed' AND b.start_time >= ${weekStart.toISOString()}::timestamptz AND b.start_time < ${weekEnd.toISOString()}::timestamptz), 0) AS week_cents,
       COUNT(*) FILTER (WHERE b.start_time >= ${monthStart.toISOString()}::timestamptz AND b.start_time < ${monthEnd.toISOString()}::timestamptz) AS month_count,
-      COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)) FILTER (WHERE b.start_time >= ${monthStart.toISOString()}::timestamptz AND b.start_time < ${monthEnd.toISOString()}::timestamptz), 0) AS month_cents
+      COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)) FILTER (WHERE b.status = 'completed' AND b.start_time >= ${monthStart.toISOString()}::timestamptz AND b.start_time < ${monthEnd.toISOString()}::timestamptz), 0) AS month_cents
     FROM bookings b
     LEFT JOIN services s ON s.id = b.service_id
     WHERE b.facility_id = ${facilityId}

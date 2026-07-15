@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         eq(bookings.facilityId, facilityUser.facilityId),
         eq(bookings.isDemo, tutorialMode),
         eq(bookings.status, 'completed'),
+        eq(bookings.active, true),
         gte(bookings.startTime, start),
         lt(bookings.startTime, end)
       )
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
         eq(bookings.facilityId, facilityUser.facilityId),
         eq(bookings.isDemo, tutorialMode),
         eq(bookings.status, 'completed'),
+        eq(bookings.active, true),
         gte(bookings.startTime, start),
         lt(bookings.startTime, end)
       )

@@ -653,7 +653,11 @@ export function DashboardClient({
       b.status !== 'no_show'
     )
   })
-  const todayRevenue = todayBookings.reduce((sum, b) => sum + (b.priceCents ?? 0), 0)
+  // revenue earned = completed only — scheduled/requested are booked, not earned
+  const todayRevenue = todayBookings.reduce(
+    (sum, b) => sum + (b.status === 'completed' ? (b.priceCents ?? 0) : 0),
+    0
+  )
 
   const editBooking = editBookingId
     ? (bookings.find((b) => b.id === editBookingId) ?? null)

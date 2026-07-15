@@ -90,7 +90,9 @@ export default async function StylistDetailPage({
       where: and(
         eq(bookings.facilityId, facilityUser.facilityId),
         eq(bookings.stylistId, id),
-        ne(bookings.status, 'cancelled')
+        ne(bookings.status, 'cancelled'),
+        eq(bookings.active, true),
+        eq(bookings.isDemo, false) // is_demo filter — Phase 13
       ),
     }),
     // This month's bookings with service names for the commission breakdown
@@ -193,7 +195,11 @@ export default async function StylistDetailPage({
   const stats = {
     thisWeek: weekBookings.length,
     thisMonth: monthBookings.length,
-    totalRevenue: allTimeBookings.reduce((sum, b) => sum + (b.priceCents ?? 0), 0),
+    // revenue earned = completed only — scheduled/requested are booked, not earned
+    totalRevenue: allTimeBookings.reduce(
+      (sum, b) => sum + (b.status === 'completed' ? (b.priceCents ?? 0) : 0),
+      0
+    ),
     totalBookings: allTimeBookings.length,
     monthRevenue,
     serviceBreakdown,
