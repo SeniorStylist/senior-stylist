@@ -9,6 +9,11 @@ const RevenueByServiceChart = dynamic(
   () => import('@/components/charts/revenue-by-service-chart'),
   { ssr: false, loading: () => <div style={{ width: '100%', height: 220 }} className="skeleton rounded-xl" /> }
 )
+// P35 — Ask AI panel, code-split like the chart
+const AiAnalystPanel = dynamic(
+  () => import('@/components/ai/ai-analyst-panel').then((m) => m.AiAnalystPanel),
+  { ssr: false, loading: () => <div className="skeleton rounded-2xl h-16" /> }
+)
 import { cn, formatCents } from '@/lib/utils'
 import { Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -246,6 +251,11 @@ export function ReportsClient({
             </button>
           )}
         </div>
+      </div>
+
+      {/* P35 — Ask AI business analyst (lazy — stays out of the initial chunk) */}
+      <div className="mb-6">
+        <AiAnalystPanel scope="facility" />
       </div>
 
       {/* Tabs */}

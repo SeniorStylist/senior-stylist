@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.4',
+    date: '2026-07-15',
+    title: 'Ask AI About Your Business',
+    items: [
+      'New "Ask AI" panel on Analytics (and Master Admin → Reports): ask plain-English questions like "Which facility owes us the most?" or "What was our best service last month?" and get answers computed from your real numbers',
+      'Answers only ever come from your own data — revenue counts completed visits, and every figure says what period it covers',
+      'Admins and bookkeepers see their facility; the master admin sees the whole network',
+    ],
+  },
+  {
     version: '4.3',
     date: '2026-07-15',
     title: 'Accurate Earnings',

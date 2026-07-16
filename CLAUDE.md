@@ -545,6 +545,9 @@ At `startTour(tourId)` call time, if `tourId` is a base id with an alias, it res
 - `bottomZoneContent` uses `h-full flex flex-col` internally — works correctly inside `flex-1 min-h-0 overflow-hidden`.
 - `overscrollBehavior: 'contain'` + `scroll-smooth` on `bottomZoneContent`'s outer div prevent scroll bubbling.
 
+### AI Analyst (P35)
+- **`POST /api/ai/analyst` is READ-ONLY and the model NEVER writes SQL** — `src/lib/ai-analyst.ts` runs a FIXED set of aggregates (active=true, is_demo=false, revenue = completed only, facility-tz windows) and Gemini answers only from that JSON pack. Scope comes from the CALLER's role server-side (plain master → network pack; debug-impersonating master / admin / bookkeeper → facility pack); never from the question. Stylist/facility_staff/viewer 403 (money data, /api/stats gate class). Bucket `aiAnalyst` 30/h/user. 503 when GEMINI_API_KEY unset. Resident names appear ONLY in the facility pack's top-open-balances (data those roles already see on /billing). When extending the pack, keep it JSON-plain, cents-integer, and under ~15k tokens; never add per-resident PII beyond what /billing shows.
+
 ### OCR / Gemini
 - Call Gemini REST API **directly via `fetch`** to `v1beta` endpoint — do NOT use the `@google/generative-ai` SDK
 - Model: `gemini-2.5-flash` — the current stable production model

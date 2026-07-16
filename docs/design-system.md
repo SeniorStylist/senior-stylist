@@ -2996,3 +2996,12 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
 - **Destructive confirms disclose money side-effects**: cancelling/deleting a paid
   appointment shows the amber "payment record stays — handle refunds in Billing" line in the
   same confirm step, never after.
+
+## P35 — AI chat card pattern (2026-07-15)
+
+- Collapsible card: burgundy icon chip + title/subtitle header toggling the body;
+  user bubbles right (`bg-[#8B2E4A] text-white rounded-2xl rounded-br-md`), answers
+  left (`bg-stone-50 border rounded-bl-md whitespace-pre-wrap`); suggested-question
+  chips (stone pills, blush hover) shown only when the log is empty; input + Ask
+  button in a form (Enter submits); scroll log `max-h-80 overscroll-contain` with
+  smooth scroll-to-bottom on new answers; a one-line stone-400 disclaimer footer.

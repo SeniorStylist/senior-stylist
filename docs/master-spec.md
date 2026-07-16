@@ -2935,3 +2935,25 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   early return; booking-modal cancel + daily-log delete are offline-queueable
   (`queueableFetch` supports DELETE, body optional); paid-then-cancel warns in all three
   confirm UIs. Bookkeeper: DELETE allowed (OCR cleanup), PUT-cancel stripped — intentional.
+
+## P35 — "Ask AI" business analyst (2026-07-15)
+
+- **`POST /api/ai/analyst`** — auth + role gate (admin/bookkeeper/master; stylist/
+  facility_staff/viewer 403). Body `{ question: 3-500 chars, history?: [{q,a}] ≤3 }`.
+  Bucket `aiAnalyst` 30/h/user. `maxDuration=60`. 503 when `GEMINI_API_KEY` unset;
+  502 human message on Gemini failure.
+- **Safety contract** (`src/lib/ai-analyst.ts`): the model NEVER writes SQL / touches
+  the DB. The server assembles a fixed role-scoped data pack (active=true,
+  is_demo=false, revenue = completed only, facility-tz month windows) and Gemini
+  answers ONLY from that JSON (canonical direct-fetch pattern: v1beta,
+  gemini-2.5-flash, no SDK, no systemInstruction). Scope from the CALLER's role,
+  never the question: plain master (no facility_users row) → network pack;
+  debug-impersonating master + admins/bookkeepers → their facility pack.
+- Packs: facility = periods revenue (this/last month, 90d), by-service/by-stylist
+  top-15, aging buckets + open total, collected 30d, top-10 resident open balances,
+  activity counts. Master = per-facility MTD revenue/visits + open balance +
+  collected 30d + network totals (~5k tokens at 110 facilities).
+- **UI**: `<AiAnalystPanel scope>` (`src/components/ai/ai-analyst-panel.tsx`) —
+  collapsible chat card, suggested chips, 3-turn follow-up history, `data-tour=
+  "ai-analyst"` anchor (reserved). Mounted lazily (next/dynamic) on /analytics
+  (facility) and master-admin Reports tab (network).
