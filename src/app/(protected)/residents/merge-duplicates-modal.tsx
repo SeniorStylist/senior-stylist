@@ -11,6 +11,12 @@ type ResidentForMerge = {
   roomNumber: string | null
   appointmentCount: number
   lastVisit: string | null
+  // P36 — merge-awareness indicators (may be absent from older cached payloads)
+  hasPoa?: boolean
+  autopayOn?: boolean
+  hasStripeCustomer?: boolean
+  hasPortalAccount?: boolean
+  hasSavedCards?: boolean
 }
 
 type DupePair = {
@@ -160,6 +166,13 @@ export function MergeDuplicatesModal({
             .filter((v): v is string => !!v)
             .sort()
             .pop() ?? null,
+        // P36 — the survivor inherits POA/portal links; cards move only when
+        // the survivor had no Stripe customer (mirrors the server rule).
+        hasPoa: keepRes.hasPoa || mergeRes.hasPoa,
+        hasPortalAccount: keepRes.hasPortalAccount || mergeRes.hasPortalAccount,
+        hasStripeCustomer: keepRes.hasStripeCustomer || mergeRes.hasStripeCustomer,
+        hasSavedCards: keepRes.hasSavedCards || (mergeRes.hasSavedCards && !keepRes.hasStripeCustomer),
+        autopayOn: keepRes.autopayOn || (mergeRes.autopayOn && !keepRes.hasStripeCustomer),
       }
       const touchedIds = new Set([keepRes.id, mergeRes.id])
       const seen = new Set<string>()
@@ -298,10 +311,51 @@ export function MergeDuplicatesModal({
                           <p className="text-xs text-stone-400">
                             Last: {formatVisit(r.lastVisit)}
                           </p>
+                          {/* P36 — POA / portal / cards / autopay indicators */}
+                          {(r.hasPoa || r.hasPortalAccount || r.hasSavedCards || r.autopayOn) && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {r.hasPoa && (
+                                <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">POA</span>
+                              )}
+                              {r.hasPortalAccount && (
+                                <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Portal</span>
+                              )}
+                              {r.hasSavedCards && (
+                                <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Card</span>
+                              )}
+                              {r.autopayOn && (
+                                <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Autopay</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
                   </div>
+
+                  {/* P36 — data-consequence warnings for the chosen direction */}
+                  {side && (() => {
+                    const loser = side === 'a' ? pair.b : pair.a
+                    const winner = side === 'a' ? pair.a : pair.b
+                    const notes: string[] = []
+                    if (loser.hasPortalAccount) {
+                      notes.push(`${loser.name}'s family portal account will move to the kept resident.`)
+                    }
+                    if (loser.hasPoa && !winner.hasPoa) {
+                      notes.push(`POA contact info will be inherited from ${loser.name}.`)
+                    }
+                    if (loser.hasSavedCards && winner.hasStripeCustomer) {
+                      notes.push(`${loser.name}'s saved card can't move automatically — re-add it on the kept resident after merging.`)
+                    } else if (loser.hasSavedCards) {
+                      notes.push(`${loser.name}'s saved card and autopay settings will move to the kept resident.`)
+                    }
+                    if (notes.length === 0) return null
+                    return (
+                      <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 space-y-0.5">
+                        {notes.map((n, i) => <p key={i}>{n}</p>)}
+                      </div>
+                    )
+                  })()}
 
                   {/* Action buttons */}
                   <div className="flex gap-2 flex-wrap">

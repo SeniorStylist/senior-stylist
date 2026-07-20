@@ -827,6 +827,23 @@ export const facilityMergeLog = pgTable('facility_merge_log', {
   notes: text('notes'),
 })
 
+// P36 — audit row per resident duplicate-merge (mirrors facilityMergeLog).
+// Self-bootstrapped by src/lib/resident-merge-ddl.ts; keep in sync with
+// drizzle/0028_resident_merge_log.sql.
+export const residentMergeLog = pgTable('resident_merge_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  performedBy: uuid('performed_by').references(() => profiles.id, { onDelete: 'set null' }),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'set null' }),
+  keepResidentId: uuid('keep_resident_id'),
+  mergedResidentId: uuid('merged_resident_id'),
+  mergedResidentName: text('merged_resident_name').notNull(),
+  moved: jsonb('moved').$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+  fieldsInherited: text('fields_inherited').array().notNull().default(sql`'{}'::text[]`),
+  cardsLeftBehind: integer('cards_left_behind').notNull().default(0),
+  notes: text('notes'),
+})
+
 // ─── Family Portal (Phase 11E) ───────────────────────────────────────────────
 
 export const portalAccounts = pgTable('portal_accounts', {

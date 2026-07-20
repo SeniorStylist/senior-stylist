@@ -3,7 +3,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { db } from '@/db'
 import { residents, bookings } from '@/db/schema'
-import { eq, and, ne } from 'drizzle-orm'
+import { eq, and, ne, sql } from 'drizzle-orm'
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
 
@@ -96,7 +96,14 @@ export async function GET() {
 
     const [residentsList, bookingsList] = await Promise.all([
       db
-        .select({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
+        .select({
+          id: residents.id,
+          name: residents.name,
+          roomNumber: residents.roomNumber,
+          poaEmail: residents.poaEmail,
+          autopayEnabled: residents.autopayEnabled,
+          stripeCustomerId: residents.stripeCustomerId,
+        })
         .from(residents)
         .where(and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, tutorialMode))),
       db
@@ -128,6 +135,12 @@ export async function GET() {
       roomNumber: string | null
       appointmentCount: number
       lastVisit: string | null
+      // P36 — merge-awareness indicators (POA / portal / cards / autopay)
+      hasPoa: boolean
+      autopayOn: boolean
+      hasStripeCustomer: boolean
+      hasPortalAccount: boolean
+      hasSavedCards: boolean
     }
 
     const enriched: ResidentForMerge[] = residentsList.map(r => ({
@@ -136,6 +149,11 @@ export async function GET() {
       roomNumber: r.roomNumber,
       appointmentCount: statsMap.get(r.id)?.count ?? 0,
       lastVisit: statsMap.get(r.id)?.lastVisit ?? null,
+      hasPoa: !!r.poaEmail,
+      autopayOn: !!r.autopayEnabled,
+      hasStripeCustomer: !!r.stripeCustomerId,
+      hasPortalAccount: false, // filled below for pair members only
+      hasSavedCards: false,
     }))
 
     // Compute all pairs — flag if fuzzyScore >= 0.4 OR truncation OR misspelling heuristics match
@@ -169,6 +187,32 @@ export async function GET() {
       if (a.sameRoom !== b.sameRoom) return a.sameRoom ? -1 : 1
       return b.score - a.score
     })
+
+    // P36 — portal/cards indicators for PAIR MEMBERS only: exactly two grouped
+    // queries regardless of pair count (never per-pair lookups; max:1 pool).
+    if (pairs.length > 0) {
+      try {
+      const memberIds = [...new Set(pairs.flatMap(p => [p.a.id, p.b.id]))]
+      const [portalRows, cardRows] = await Promise.all([
+        db.execute(sql`
+          SELECT DISTINCT resident_id::text AS rid FROM portal_account_residents
+          WHERE resident_id = ANY(${memberIds}::uuid[])
+        `),
+        db.execute(sql`
+          SELECT DISTINCT resident_id::text AS rid FROM payment_methods
+          WHERE active = true AND resident_id = ANY(${memberIds}::uuid[])
+        `),
+      ])
+      const portalSet = new Set((portalRows as unknown as Array<{ rid: string }>).map(r => r.rid))
+      const cardSet = new Set((cardRows as unknown as Array<{ rid: string }>).map(r => r.rid))
+      for (const p of pairs) {
+        for (const side of [p.a, p.b]) {
+          side.hasPortalAccount = portalSet.has(side.id)
+          side.hasSavedCards = cardSet.has(side.id)
+        }
+      }
+      } catch { /* pre-migration envs: indicators stay false — never break the list */ }
+    }
 
     return Response.json({ data: { pairs } })
   } catch (err) {
