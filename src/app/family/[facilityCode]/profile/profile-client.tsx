@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
@@ -106,6 +106,170 @@ export function ProfileClient({ residents, coupons, lang }: Props) {
           </div>
         )}
       </section>
+
+      {/* P36 — family-editable care preferences (stylist-visible) */}
+      {residents.length > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">{t('prefs.title')}</h2>
+          <div className="space-y-4">
+            {residents.map((r) => (
+              <CarePreferencesCard key={r.id} residentId={r.id} residentName={r.name} t={t} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
+// ─── P36: Care preferences card ──────────────────────────────────────────────
+
+function CarePreferencesCard({ residentId, residentName, t }: { residentId: string; residentName: string; t: PortalT }) {
+  const [loaded, setLoaded] = useState(false)
+  const [styleNotes, setStyleNotes] = useState('')
+  const [allergyNotes, setAllergyNotes] = useState('')
+  const [preferredStylistId, setPreferredStylistId] = useState('')
+  const [visitFrequency, setVisitFrequency] = useState('')
+  const [emailReminders, setEmailReminders] = useState(true)
+  const [smsReminders, setSmsReminders] = useState(true)
+  const [stylistOptions, setStylistOptions] = useState<Array<{ id: string; name: string }>>([])
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/portal/residents/${residentId}/preferences`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j) => {
+        if (cancelled || !j) return
+        const p = j.data?.preferences
+        if (p) {
+          setStyleNotes(p.styleNotes ?? '')
+          setAllergyNotes(p.allergyNotes ?? '')
+          setPreferredStylistId(p.preferredStylistId ?? '')
+          setVisitFrequency(p.visitFrequency ?? '')
+          setEmailReminders(p.emailReminders ?? true)
+          setSmsReminders(p.smsReminders ?? true)
+        }
+        setStylistOptions(j.data?.stylists ?? [])
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true) })
+    return () => { cancelled = true }
+  }, [residentId])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setStatus('idle')
+    try {
+      const res = await fetch(`/api/portal/residents/${residentId}/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          styleNotes: styleNotes.trim() || null,
+          allergyNotes: allergyNotes.trim() || null,
+          preferredStylistId: preferredStylistId || null,
+          visitFrequency: visitFrequency || null,
+          emailReminders,
+          smsReminders,
+        }),
+      })
+      setStatus(res.ok ? 'saved' : 'error')
+      if (res.ok) setTimeout(() => setStatus('idle'), 3000)
+    } catch {
+      setStatus('error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!loaded) return <div className="bg-white rounded-2xl p-5 shadow-sm"><div className="skeleton h-16 rounded-xl" /></div>
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-stone-800">{residentName}</p>
+        <p className="text-xs text-stone-500">{t('prefs.subtitle')}</p>
+      </div>
+      <div>
+        <label className="text-xs font-medium text-stone-600 block mb-1" htmlFor={`style-${residentId}`}>{t('prefs.styleNotes')}</label>
+        <textarea
+          id={`style-${residentId}`}
+          value={styleNotes}
+          onChange={(e) => setStyleNotes(e.target.value)}
+          maxLength={2000}
+          rows={2}
+          placeholder={t('prefs.styleNotesHint')}
+          className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-stone-600 block mb-1" htmlFor={`allergy-${residentId}`}>{t('prefs.allergies')}</label>
+        <textarea
+          id={`allergy-${residentId}`}
+          value={allergyNotes}
+          onChange={(e) => setAllergyNotes(e.target.value)}
+          maxLength={1000}
+          rows={2}
+          placeholder={t('prefs.allergiesHint')}
+          className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-medium text-stone-600 block mb-1" htmlFor={`stylist-${residentId}`}>{t('prefs.preferredStylist')}</label>
+          <select
+            id={`stylist-${residentId}`}
+            value={preferredStylistId}
+            onChange={(e) => setPreferredStylistId(e.target.value)}
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+          >
+            <option value="">{t('prefs.noPreference')}</option>
+            {stylistOptions.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-stone-600 block mb-1" htmlFor={`freq-${residentId}`}>{t('prefs.visitRhythm')}</label>
+          <select
+            id={`freq-${residentId}`}
+            value={visitFrequency}
+            onChange={(e) => setVisitFrequency(e.target.value)}
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+          >
+            <option value="">{t('prefs.noPreference')}</option>
+            <option value="weekly">{t('prefs.weekly')}</option>
+            <option value="biweekly">{t('prefs.biweekly')}</option>
+            <option value="monthly">{t('prefs.monthly')}</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-medium text-stone-600 mb-1.5">{t('prefs.reminders')}</p>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 text-sm text-stone-700">
+            <input type="checkbox" checked={emailReminders} onChange={(e) => setEmailReminders(e.target.checked)} className="accent-[#8B2E4A] w-4 h-4" />
+            {t('prefs.emailReminders')}
+          </label>
+          <label className="flex items-center gap-2 text-sm text-stone-700">
+            <input type="checkbox" checked={smsReminders} onChange={(e) => setSmsReminders(e.target.checked)} className="accent-[#8B2E4A] w-4 h-4" />
+            {t('prefs.smsReminders')}
+          </label>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-4 py-2.5 hover:bg-[#72253C] transition-colors disabled:opacity-50 min-h-[44px]"
+        >
+          {saving ? '…' : t('prefs.save')}
+        </button>
+        {status === 'saved' && <span className="text-xs font-medium text-emerald-600" role="status">{t('prefs.saved')}</span>}
+        {status === 'error' && <span className="text-xs font-medium text-red-600" role="alert">{t('prefs.error')}</span>}
+      </div>
     </div>
   )
 }

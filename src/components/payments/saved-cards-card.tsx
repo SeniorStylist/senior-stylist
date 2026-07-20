@@ -68,6 +68,21 @@ export function SavedCardsCard({ residentId, role, lang = 'en' }: { residentId: 
     }
   }
 
+  const makeDefault = async (id: string) => {
+    const res = await fetch('/api/payments/methods', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ residentId, paymentMethodId: id }),
+    })
+    if (res.ok) {
+      toast.success(t('cards.defaultSet'))
+      void load()
+    } else {
+      const j = await res.json().catch(() => ({}))
+      toast.error(j.error || t('cards.removeFailed'))
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
       <div className="flex items-center justify-between mb-3">
@@ -117,13 +132,24 @@ export function SavedCardsCard({ residentId, role, lang = 'en' }: { residentId: 
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => remove(c.id)}
-                className="text-stone-400 hover:text-rose-600 transition-colors"
-                aria-label={t('cards.removeAria')}
-              >
-                <Trash2 size={15} />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* P36 — one-tap "make this the main card" */}
+                {!c.isDefault && (
+                  <button
+                    onClick={() => makeDefault(c.id)}
+                    className="text-[11px] font-semibold text-[#8B2E4A] hover:underline"
+                  >
+                    {t('cards.makeDefault')}
+                  </button>
+                )}
+                <button
+                  onClick={() => remove(c.id)}
+                  className="text-stone-400 hover:text-rose-600 transition-colors"
+                  aria-label={t('cards.removeAria')}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </li>
           ))}
         </ul>

@@ -135,7 +135,7 @@ export function TakePaymentModal(props: TakePaymentModalProps) {
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} className="accent-[#8B2E4A] w-4 h-4" />
-              <span className="text-stone-700">Save this card for automatic future payments</span>
+              <span className="text-stone-700">Save this card to the resident's account for future visits</span>
             </label>
             <Button onClick={start} loading={starting} className="w-full">
               Continue to card

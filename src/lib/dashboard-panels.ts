@@ -123,6 +123,9 @@ export interface DueResidentRow {
  * Top 6 by overdue-ness.
  */
 export async function getDueForVisit(facilityId: string): Promise<DueResidentRow[]> {
+  // P36 — the query LEFT JOINs resident_preferences; self-bootstrap first.
+  const { ensureResidentPrefsSchema } = await import('@/lib/resident-prefs-ddl')
+  await ensureResidentPrefsSchema()
   const rows = (await db.execute(sql`
     WITH visits AS (
       SELECT
@@ -151,11 +154,27 @@ export async function getDueForVisit(facilityId: string): Promise<DueResidentRow
       r.name,
       r.room_number,
       c.last_visit,
-      EXTRACT(EPOCH FROM c.median_gap)::bigint AS median_gap_seconds,
+      -- P36: the family's chosen visit rhythm overrides the learned median
+      EXTRACT(EPOCH FROM COALESCE(
+        CASE rp.visit_frequency
+          WHEN 'weekly' THEN interval '7 days'
+          WHEN 'biweekly' THEN interval '14 days'
+          WHEN 'monthly' THEN interval '30 days'
+        END,
+        c.median_gap
+      ))::bigint AS median_gap_seconds,
       EXTRACT(EPOCH FROM (now() - c.last_visit))::bigint AS since_last_seconds
     FROM cadence c
     JOIN residents r ON r.id = c.resident_id AND r.active = true AND r.is_demo = false
-    WHERE now() - c.last_visit >= c.median_gap
+    LEFT JOIN resident_preferences rp ON rp.resident_id = c.resident_id
+    WHERE now() - c.last_visit >= COALESCE(
+        CASE rp.visit_frequency
+          WHEN 'weekly' THEN interval '7 days'
+          WHEN 'biweekly' THEN interval '14 days'
+          WHEN 'monthly' THEN interval '30 days'
+        END,
+        c.median_gap
+      )
       -- No point suggesting someone who already has a future booking
       AND NOT EXISTS (
         SELECT 1 FROM bookings nb

@@ -80,7 +80,43 @@ const deleteSchema = z.object({
   paymentMethodId: z.string().uuid(),
 })
 
+// P36 — "Make main card": sets is_default on one active card (clears the rest).
+// Same dual portal/staff authorization as the other handlers; autopay + the
+// collect engine charge the default card.
+export async function PATCH(request: NextRequest) {
+  try {
+    const parsed = deleteSchema.safeParse(await request.json())
+    if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
+
+    const auth = await authorizeResidentPayment(parsed.data.residentId)
+    if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+
+    await ensurePaymentsSchema()
+    const card = await db.query.paymentMethods.findFirst({
+      where: and(
+        eq(paymentMethods.id, parsed.data.paymentMethodId),
+        eq(paymentMethods.residentId, auth.actor.residentId),
+        eq(paymentMethods.active, true),
+      ),
+      columns: { id: true },
+    })
+    if (!card) return Response.json({ error: 'Not found' }, { status: 404 })
+
+    await db
+      .update(paymentMethods)
+      .set({ isDefault: false })
+      .where(eq(paymentMethods.residentId, auth.actor.residentId))
+    await db.update(paymentMethods).set({ isDefault: true }).where(eq(paymentMethods.id, card.id))
+
+    return Response.json({ data: { defaultSet: true } })
+  } catch (err) {
+    console.error('PATCH /api/payments/methods error:', err)
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: NextRequest) {
+
   try {
     const parsed = deleteSchema.safeParse(await request.json())
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })

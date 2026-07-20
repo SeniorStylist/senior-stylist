@@ -251,7 +251,23 @@ export async function POST(request: NextRequest) {
           { status: 409 },
         )
       }
-      const picked = await pickStylistWithLeastLoad(candidates, { facilityId, date: startTime })
+      // P36 — soft preference: when the family picked a preferred stylist and
+      // they're among the available candidates, choose them (never exclusive —
+      // unavailable preference falls through to least-loaded).
+      let preferredPick: typeof candidates[number] | null = null
+      if (residentId) {
+        try {
+          const { residentPreferences } = await import('@/db/schema')
+          const pref = await db.query.residentPreferences.findFirst({
+            where: eq(residentPreferences.residentId, residentId),
+            columns: { preferredStylistId: true },
+          })
+          if (pref?.preferredStylistId) {
+            preferredPick = candidates.find((c) => c.id === pref.preferredStylistId) ?? null
+          }
+        } catch { /* prefs table pre-migration — ignore */ }
+      }
+      const picked = preferredPick ?? await pickStylistWithLeastLoad(candidates, { facilityId, date: startTime })
       if (!picked) {
         return Response.json(
           { error: 'No stylist available for this date and time' },

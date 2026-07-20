@@ -844,6 +844,22 @@ export const residentMergeLog = pgTable('resident_merge_log', {
   notes: text('notes'),
 })
 
+// P36 — family-editable care preferences (portal + staff). NEW table (not
+// columns on the hot residents table — P19 rule); self-bootstrapped by
+// src/lib/resident-prefs-ddl.ts; keep in sync with drizzle/0029.
+export const residentPreferences = pgTable('resident_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  residentId: uuid('resident_id').notNull().unique().references(() => residents.id, { onDelete: 'cascade' }),
+  styleNotes: text('style_notes'),
+  allergyNotes: text('allergy_notes'),
+  preferredStylistId: uuid('preferred_stylist_id').references(() => stylists.id, { onDelete: 'set null' }),
+  visitFrequency: text('visit_frequency'), // 'weekly' | 'biweekly' | 'monthly' | null
+  emailReminders: boolean('email_reminders').notNull().default(true),
+  smsReminders: boolean('sms_reminders').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // ─── Family Portal (Phase 11E) ───────────────────────────────────────────────
 
 export const portalAccounts = pgTable('portal_accounts', {

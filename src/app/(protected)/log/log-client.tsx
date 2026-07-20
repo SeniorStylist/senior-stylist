@@ -105,6 +105,7 @@ interface LogClientProps {
   isMaster?: boolean
   // P30 — stylist account with no linked stylist profile: read-only + banner
   unlinkedStylist?: boolean
+  carePrefs?: Record<string, { styleNotes: string | null; allergyNotes: string | null }>
 }
 
 // Round a date to nearest 30 min IN THE FACILITY'S TIMEZONE.
@@ -190,6 +191,7 @@ export function LogClient({
   exportFacilities,
   isMaster = false,
   unlinkedStylist = false,
+  carePrefs = {},
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
   // facility_staff is read-only; bookkeeper can scan and edit billing fields.
@@ -1966,6 +1968,18 @@ export function LogClient({
                             )}
                             {booking.notes && booking.notes !== 'Walk-in' && (
                               <p className="text-xs text-stone-400 mt-0.5 italic">{booking.notes}</p>
+                            )}
+                            {/* P36 — family-entered care notes, VERBATIM (never
+                                paraphrased — allergy text is safety-critical) */}
+                            {booking.resident?.id && carePrefs[booking.resident.id]?.allergyNotes && (
+                              <p className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5 mt-1 inline-block">
+                                ⚠ {carePrefs[booking.resident.id].allergyNotes}
+                              </p>
+                            )}
+                            {booking.resident?.id && carePrefs[booking.resident.id]?.styleNotes && (
+                              <p className="text-xs text-stone-500 mt-0.5">
+                                ✦ {carePrefs[booking.resident.id].styleNotes}
+                              </p>
                             )}
                             {isCancelled && booking.cancellationReason && (
                               <p className="text-xs text-stone-400 mt-0.5 italic">Reason: {booking.cancellationReason}</p>

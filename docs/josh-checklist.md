@@ -91,6 +91,12 @@ live values → create a **live-mode** webhook with those two events and put its
 secret in `STRIPE_WEBHOOK_SECRET` (test/live secrets differ — a mismatch fails silently) →
 set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to confirm.
 
+### E2. Apple Pay on the web (P36 — 2 minutes, do with the Stripe account)
+1. [ ] Stripe dashboard → Settings → Payment methods → Apple Pay → **Add domain**
+       `portal.seniorstylist.com` (works in test mode too). Google Pay needs no setup.
+       Until this is done the at-chair payment screen shows card-entry only (with
+       the phone camera scan); after it, Apple Pay appears automatically.
+
 ## F. Twilio — SMS (when ready)
 
 1. [ ] Twilio account + a phone number →

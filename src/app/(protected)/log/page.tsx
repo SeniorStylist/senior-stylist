@@ -1,12 +1,13 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { bookings, logEntries, residents, stylists, services, profiles, facilities, stylistFacilityAssignments } from '@/db/schema'
+import { bookings, logEntries, residents, stylists, services, profiles, facilities, stylistFacilityAssignments, residentPreferences } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
+import { ensureResidentPrefsSchema } from '@/lib/resident-prefs-ddl'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { eq, and, gte, lt, asc, or, inArray } from 'drizzle-orm'
 import { LogClient } from './log-client'
@@ -62,6 +63,7 @@ export default async function LogPage() {
     facility,
     exportFacilitiesRaw,
     mostUsedMap,
+    carePrefRows,
   ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
@@ -140,7 +142,30 @@ export default async function LogPage() {
     // P31 — cached (5 min, 'bookings' tag) and folded into the batch instead
     // of a sequential round-trip after it.
     getMostUsedServiceIds(facilityId),
+    // P36 — family-entered care preferences (style notes + allergies) for the
+    // stylist's daily-log rows. Best-effort: pre-migration envs return [].
+    (async () => {
+      try {
+        await ensureResidentPrefsSchema()
+        return await db
+          .select({
+            residentId: residentPreferences.residentId,
+            styleNotes: residentPreferences.styleNotes,
+            allergyNotes: residentPreferences.allergyNotes,
+          })
+          .from(residentPreferences)
+          .innerJoin(residents, eq(residents.id, residentPreferences.residentId))
+          .where(eq(residents.facilityId, facilityId))
+      } catch {
+        return [] as Array<{ residentId: string; styleNotes: string | null; allergyNotes: string | null }>
+      }
+    })(),
   ])
+
+  const carePrefs: Record<string, { styleNotes: string | null; allergyNotes: string | null }> = {}
+  for (const cp of carePrefRows) {
+    if (cp.styleNotes || cp.allergyNotes) carePrefs[cp.residentId] = { styleNotes: cp.styleNotes, allergyNotes: cp.allergyNotes }
+  }
 
   const residentsWithUsage = residentsList.map((r) => ({
     ...r,
@@ -159,6 +184,7 @@ export default async function LogPage() {
       initialDate={today}
       initialBookings={toClientJson(todayBookings)}
       initialLogEntries={toClientJson(todayLogEntries)}
+      carePrefs={carePrefs}
       residents={toClientJson(residentsWithUsage)}
       stylists={toClientJson(stylistsList)}
       services={toClientJson(servicesList)}

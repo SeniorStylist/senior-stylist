@@ -7,6 +7,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.5',
+    date: '2026-07-15',
+    title: 'Family Portal, Upgraded',
+    items: [
+      'Print a QR sign-up poster for your facility — families scan it and land on YOUR facility\'s sign-up, no choosing, no confusion',
+      'New Portal Status panel: see who\'s connected, who can be invited, and invite every family with one tap',
+      'Families can now add care preferences: style notes, allergies (shown to the stylist on the daily log), a preferred stylist, visit rhythm, and reminder choices',
+      'Merging duplicate residents now carries EVERYTHING to the kept resident — portal access, saved cards, billing history, photos — and the merge screen shows POA/Portal/Card badges with clear warnings first',
+      'Apple Pay and Google Pay at the chair (after a one-time Stripe setting), plus "Make main card" on saved cards',
+      'Link any family email to a resident directly from their page — existing accounts connect instantly',
+    ],
+  },
+  {
     version: '4.4',
     date: '2026-07-15',
     title: 'Ask AI About Your Business',

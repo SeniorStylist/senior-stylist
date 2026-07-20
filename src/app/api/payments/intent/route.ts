@@ -102,7 +102,14 @@ export async function POST(request: NextRequest) {
     const intent = await stripe.paymentIntents.create({
       amount: body.amountCents,
       currency: 'usd',
-      payment_method_types: isTerminal ? ['card_present'] : ['card'],
+      // P36 — automatic payment methods enable Apple Pay / Google Pay in the
+      // Payment Element (card stays available; the mobile browser's camera
+      // card-scan comes with the card field). Terminal PIs stay card_present.
+      // Apple Pay on web additionally needs the domain registered in the
+      // Stripe dashboard (Josh checklist item).
+      ...(isTerminal
+        ? { payment_method_types: ['card_present'] as string[] }
+        : { automatic_payment_methods: { enabled: true, allow_redirects: 'never' as const } }),
       ...(isTerminal ? { capture_method: 'automatic' as const } : {}),
       ...(!isTerminal && customerId ? { customer: customerId } : {}),
       ...(!isTerminal && body.savePaymentMethod && customerId ? { setup_future_usage: 'off_session' as const } : {}),

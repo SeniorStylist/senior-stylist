@@ -115,6 +115,28 @@ export async function buildFacilityDataPack(facilityId: string): Promise<Record<
     ORDER BY qb_outstanding_balance_cents DESC LIMIT 10
   `)) as unknown as Row[]
 
+  // P36 — family care preferences (style/allergy notes shown to the model
+  // verbatim-truncated so "what does Mrs. Smith like?" answers correctly;
+  // grounded data only, never generative). Best-effort pre-migration.
+  let carePreferences: Array<Record<string, unknown>> = []
+  try {
+    carePreferences = ((await db.execute(sql`
+      SELECT r.name, rp.style_notes, rp.allergy_notes, rp.visit_frequency, st.name AS preferred_stylist
+      FROM resident_preferences rp
+      JOIN residents r ON r.id = rp.resident_id AND r.active = true AND r.is_demo = false
+      LEFT JOIN stylists st ON st.id = rp.preferred_stylist_id
+      WHERE r.facility_id = ${facilityId}
+        AND (rp.style_notes IS NOT NULL OR rp.allergy_notes IS NOT NULL OR rp.visit_frequency IS NOT NULL OR rp.preferred_stylist_id IS NOT NULL)
+      ORDER BY r.name LIMIT 50
+    `)) as unknown as Row[]).map((r) => ({
+      resident: s(r.name),
+      styleNotes: s(r.style_notes)?.slice(0, 120) ?? null,
+      allergyNotes: s(r.allergy_notes)?.slice(0, 120) ?? null,
+      visitFrequency: s(r.visit_frequency),
+      preferredStylist: s(r.preferred_stylist),
+    }))
+  } catch { /* pre-migration */ }
+
   const countsRows = await db.execute(sql`
     SELECT COUNT(*) FILTER (WHERE active = true AND is_demo = false) AS residents
     FROM residents WHERE facility_id = ${facilityId}
@@ -140,6 +162,7 @@ export async function buildFacilityDataPack(facilityId: string): Promise<Record<
     },
     byServiceLast90Days: byService.map((r) => ({ service: s(r.service), visits: n(r.visits), revenueCents: n(r.revenue_cents) })),
     byStylistLast90Days: byStylist.map((r) => ({ stylist: s(r.stylist), commissionPercent: n(r.commission_percent), visits: n(r.visits), revenueCents: n(r.revenue_cents) })),
+    familyCarePreferences: carePreferences,
     billing: {
       openInvoicesTotalCents: n(aging.open_total),
       agingCents: { days0to30: n(aging.b0_30), days31to60: n(aging.b31_60), days61to90: n(aging.b61_90), over90: n(aging.b90plus) },
