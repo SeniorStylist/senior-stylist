@@ -64,7 +64,7 @@ async function upsertAccountByEmail(email: string): Promise<string> {
   return created.id
 }
 
-async function linkResidentsForEmail(portalAccountId: string, email: string): Promise<void> {
+export async function linkResidentsForEmail(portalAccountId: string, email: string): Promise<void> {
   const matching = await db.query.residents.findMany({
     where: and(eq(residents.poaEmail, email.toLowerCase()), eq(residents.active, true)),
     columns: { id: true, facilityId: true },

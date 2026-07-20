@@ -1,5 +1,6 @@
 import {
   accountHasResidentAtFacilityCode,
+  linkResidentsForEmail,
   createPortalSession,
   findAccountByEmail,
   setPortalSessionCookie,
@@ -37,6 +38,9 @@ export async function POST(request: NextRequest) {
     if (!ok) {
       return Response.json({ error: 'Invalid email or password' }, { status: 401 })
     }
+    // P36 — auto-discovery parity with magic-link verify: link any residents
+    // whose poaEmail matches this account before checking facility access.
+    await linkResidentsForEmail(account.id, account.email).catch(() => {})
     const hasAccess = await accountHasResidentAtFacilityCode(account.id, facilityCode)
     if (!hasAccess) {
       return Response.json({ error: 'Invalid email or password' }, { status: 401 })

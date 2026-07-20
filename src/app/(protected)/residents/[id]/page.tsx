@@ -46,7 +46,7 @@ export default async function ResidentDetailPage({
     }),
     db.query.facilities.findFirst({
       where: eq(facilities.id, facilityUser.facilityId),
-      columns: { timezone: true },
+      columns: { timezone: true, facilityCode: true },
     }),
   ])
 
@@ -115,6 +115,7 @@ export default async function ResidentDetailPage({
       facilityServices={toClientJson(facilityServices)}
       role={facilityUser.role}
       facilityTimezone={facility?.timezone ?? 'America/New_York'}
+      facilityCode={facility?.facilityCode ?? null}
     />
   )
   } catch (err) {

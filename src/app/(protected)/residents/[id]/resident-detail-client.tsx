@@ -47,6 +47,7 @@ interface ResidentDetailClientProps {
   facilityServices?: Service[]
   role?: string
   facilityTimezone?: string
+  facilityCode?: string | null
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -63,7 +64,7 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'No show',
 }
 
-export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin', facilityTimezone = 'America/New_York' }: ResidentDetailClientProps) {
+export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin', facilityTimezone = 'America/New_York', facilityCode = null }: ResidentDetailClientProps) {
   const router = useRouter()
   const isAdmin = role === 'admin' || role === 'super_admin'
   const canEdit = isAdmin || role === 'facility_staff'
@@ -112,6 +113,10 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   }, [resident.id, toast])
 
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // P36 — sign-up QR + link-a-different-email (Family Portal card)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [linkEmail, setLinkEmail] = useState('')
+  const [linkingEmail, setLinkingEmail] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [sendingFamilyInvite, setSendingFamilyInvite] = useState(false)
   const [copyingLink, setCopyingLink] = useState(false)
@@ -550,6 +555,70 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                   >
                     {copyingLink ? 'Copying…' : linkCopied ? '✓ Copied!' : 'Copy Link'}
                   </button>
+                </div>
+                {/* P36 — QR of the facility signup page + link-a-different-email */}
+                <div className="mt-3 pt-3 border-t border-stone-100 space-y-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (qrDataUrl) { setQrDataUrl(null); return }
+                      if (!facilityCode) return
+                      try {
+                        const QRCode = (await import('qrcode')).default
+                        const url = `${window.location.origin}/family/${encodeURIComponent(facilityCode)}/signup`
+                        setQrDataUrl(await QRCode.toDataURL(url, { width: 320, margin: 1, color: { dark: '#1C0A12' } }))
+                      } catch { /* ignore */ }
+                    }}
+                    disabled={!facilityCode}
+                    title={facilityCode ? 'QR for the facility sign-up page' : 'Facility needs a code first'}
+                    className="text-[11px] font-medium text-[#8B2E4A] hover:underline disabled:opacity-40"
+                  >
+                    {qrDataUrl ? 'Hide QR' : 'Show sign-up QR'}
+                  </button>
+                  {qrDataUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={qrDataUrl} alt="Family portal sign-up QR" className="w-40 h-40 rounded-xl border border-stone-100" />
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={linkEmail}
+                      onChange={(e) => setLinkEmail(e.target.value)}
+                      placeholder="Link a different family email…"
+                      className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:bg-white focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+                    />
+                    <button
+                      type="button"
+                      disabled={linkingEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(linkEmail.trim())}
+                      onClick={async () => {
+                        setLinkingEmail(true)
+                        try {
+                          const res = await fetch('/api/portal/link-account', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ residentId: resident.id, email: linkEmail.trim() }),
+                          })
+                          const j = await res.json()
+                          if (!res.ok) {
+                            toast(typeof j.error === 'string' ? j.error : 'Could not link', 'error')
+                          } else {
+                            toast(j.data.linked ? 'Existing account linked to this resident' : 'Invite sent to that email', 'success')
+                            setLinkEmail('')
+                          }
+                        } catch {
+                          toast('Network error', 'error')
+                        } finally {
+                          setLinkingEmail(false)
+                        }
+                      }}
+                      className="shrink-0 px-3 py-2 rounded-xl text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors disabled:opacity-40"
+                    >
+                      {linkingEmail ? '…' : 'Link'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-stone-400">
+                    Links an existing family account (or invites a new one) without changing the POA email.
+                  </p>
                 </div>
               </div>
             )
