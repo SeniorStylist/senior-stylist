@@ -23,6 +23,7 @@ import { CommandPalette } from '@/components/command-palette/command-palette'
 import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
 import { ScriptedTourOverlay } from '@/components/help/scripted-tour/scripted-tour-overlay'
 import { FeedbackWidget } from '@/components/feedback/feedback-widget'
+import { AssistantWidget } from '@/components/assistant/assistant-widget'
 import { KeyboardShortcuts } from '@/components/shortcuts/keyboard-shortcuts'
 import { SWRegister } from '@/components/pwa/sw-register'
 
@@ -253,6 +254,8 @@ export default async function ProtectedLayout({
             <PeekDrawer role={activeRole} isMaster={isMaster} />
             <ScriptedTourOverlay />
             <FeedbackWidget />
+            {/* P38 — AI personal assistant (all roles; capability enforced server-side) */}
+            <AssistantWidget role={activeRole} isMaster={isMaster} />
             <KeyboardShortcuts />
             {children}
           </ToastProvider>

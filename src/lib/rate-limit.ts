@@ -41,6 +41,7 @@ type Bucket =
   | 'memoMatch'
   | 'memoMatchBatch'
   | 'aiAnalyst'
+  | 'aiAssistant'
   | 'portalBulkInvite'
   | 'portalSignup'
   | 'paymentSetup'
@@ -93,6 +94,7 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   memoMatch: { tokens: 30, window: '1 h' },
   memoMatchBatch: { tokens: 5, window: '1 h' },
   aiAnalyst: { tokens: 30, window: '1 h' },
+  aiAssistant: { tokens: 60, window: '1 h' },
   portalBulkInvite: { tokens: 5, window: '1 h' },
   portalSignup: { tokens: 5, window: '1 h' },
   paymentSetup: { tokens: 20, window: '1 h' },
