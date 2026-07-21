@@ -53,7 +53,7 @@ export function CheckImageButton({ paymentId }: { paymentId: string }) {
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+            className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
             onClick={() => setImageUrl(null)}
             role="dialog"
             aria-label="Check image"

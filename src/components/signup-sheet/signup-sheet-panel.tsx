@@ -342,7 +342,7 @@ export function SignupSheetPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end md:items-stretch md:justify-end md:py-6 md:pr-6"
+      className="fixed inset-0 z-[70] flex flex-col justify-end md:items-stretch md:justify-end md:py-6 md:pr-6"
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       onClick={requestClose}
     >

@@ -210,7 +210,7 @@ export function MergeDuplicatesModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center"
+      className="fixed inset-0 z-[70] flex flex-col justify-end md:items-center md:justify-center"
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >

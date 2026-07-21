@@ -46,7 +46,10 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
     // rounded top, safe-area padding); md+ keeps the centered top-anchored card.
     // One change upgrades every Modal-only dialog on phones.
     <div
-      className="fixed inset-0 z-50 flex items-end md:items-start justify-center p-0 md:p-4 md:pt-16"
+      // P38 — z-[70]: MUST stay above MobileNav's z-[60] (matches BottomSheet).
+      // At z-50 the opaque bottom nav painted over the sheet's last ~64px on
+      // phones (the Log Sheet History cutoff bug). Never lower below 70.
+      className="fixed inset-0 z-[70] flex items-end md:items-start justify-center p-0 md:p-4 md:pt-16"
       style={{ backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >

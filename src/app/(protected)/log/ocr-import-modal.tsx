@@ -655,7 +655,7 @@ export function OcrImportModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center"
+      className="fixed inset-0 z-[70] flex flex-col justify-end md:items-center md:justify-center"
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
     >
@@ -1558,7 +1558,7 @@ export function OcrImportModal({
       {/* Fullscreen lightbox */}
       {lightboxSrc && (
         <div
-          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4"
           style={{
             paddingTop: 'env(safe-area-inset-top)',
             paddingBottom: 'env(safe-area-inset-bottom)',

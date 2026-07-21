@@ -943,7 +943,7 @@ export function ScanCheckModal({
 
     {lightboxOpen && result?.imageUrl && (
       <div
-        className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+        className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
         onClick={() => setLightboxOpen(false)}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
