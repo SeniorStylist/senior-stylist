@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.6',
+    date: '2026-07-21',
+    title: 'Stylists Unblocked & Feedback Replies',
+    items: [
+      'Stylists can now photograph and scan their own log sheet from the Daily Log — every imported visit lands under their own name automatically',
+      'Walk-ins fixed for stylists: adding a brand-new resident works again, and a new "➕ New service" option lets you add a missing service with its price right in the form',
+      'Feedback is now a two-way street: the team can reply to your notes, you get a notification (and email), and replies live on the new My Feedback page',
+    ],
+  },
+  {
     version: '4.5',
     date: '2026-07-15',
     title: 'Family Portal, Upgraded',
