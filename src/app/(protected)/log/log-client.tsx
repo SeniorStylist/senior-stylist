@@ -497,6 +497,11 @@ export function LogClient({
   const [wiCreating, setWiCreating] = useState(false)
   const [wiCreateError, setWiCreateError] = useState<string | null>(null)
   const [localNewResidents, setLocalNewResidents] = useState<Resident[]>([])
+  // P37 — "➕ New service…" inline create in the walk-in form (name + price;
+  // server decides source by role: stylist/bookkeeper → ad-hoc ocr_import).
+  const [wiServiceCreate, setWiServiceCreate] = useState(false)
+  const [wiNewServiceName, setWiNewServiceName] = useState('')
+  const [wiNewServicePrice, setWiNewServicePrice] = useState('')
 
   // OCR import modal
   const [ocrOpen, setOcrOpen] = useState(false)
@@ -875,13 +880,38 @@ export function LogClient({
 
   const handleAddWalkIn = async () => {
     if (!wiResidentId) { setWiError('Select a resident'); return }
-    if (!wiServiceId) { setWiError('Select a service'); return }
+    if (wiServiceCreate) {
+      if (!wiNewServiceName.trim()) { setWiError('Enter the new service name'); return }
+      const dollars = parseFloat(wiNewServicePrice)
+      if (!Number.isFinite(dollars) || dollars < 0) { setWiError('Enter a valid price for the new service'); return }
+    } else if (!wiServiceId) { setWiError('Select a service'); return }
     if (!wiStylistId) { setWiError('Select a stylist'); return }
     if (!wiTime) { setWiError('Enter a time'); return }
 
     setWiAdding(true)
     setWiError(null)
     try {
+      // P37 — create the typed-in service first (mirrors the edit form's
+      // "➕ New service" pattern). Online-only: a network failure surfaces as
+      // an error rather than queueing a booking with no service id.
+      let serviceIdToUse = wiServiceId
+      if (wiServiceCreate) {
+        const svcRes = await fetch('/api/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: wiNewServiceName.trim(),
+            priceCents: Math.round(parseFloat(wiNewServicePrice) * 100),
+            durationMinutes: 30,
+          }),
+        })
+        const svcJson = await svcRes.json().catch(() => ({}))
+        if (!svcRes.ok) {
+          setWiError(typeof svcJson.error === 'string' ? svcJson.error : 'Could not create the service')
+          return
+        }
+        serviceIdToUse = svcJson.data.id
+      }
       // Phase 12F — interpret wiTime in the facility's tz so a viewer in any
       // browser tz sees their typed "9:00" land at 9 a.m. facility-local.
       const startTime = fromDateTimeLocalInTz(`${date}T${wiTime}`, facilityTimezone)
@@ -897,7 +927,7 @@ export function LogClient({
           ...(pendingResident
             ? { newResident: { name: pendingResident.name, roomNumber: pendingResident.roomNumber ?? undefined } }
             : { residentId: wiResidentId }),
-          serviceId: wiServiceId,
+          serviceId: serviceIdToUse,
           stylistId: wiStylistId,
           startTime: startTime.toISOString(),
           notes: 'Walk-in',
@@ -910,6 +940,9 @@ export function LogClient({
         setWiResidentId('')
         setWiServiceId('')
         setWiAddonServiceIds([])
+        setWiServiceCreate(false)
+        setWiNewServiceName('')
+        setWiNewServicePrice('')
         toast('Saved offline — the walk-in will appear once you\'re back online', 'info')
         return
       }
@@ -923,6 +956,9 @@ export function LogClient({
         setWiResidentId('')
         setWiServiceId('')
         setWiAddonServiceIds([])
+        setWiServiceCreate(false)
+        setWiNewServiceName('')
+        setWiNewServicePrice('')
         setWiTime(roundToNearest30(new Date(), facilityTimezone))
         setLocalNewResidents([])
         setWiCreateOpen(false)
@@ -1279,6 +1315,27 @@ export function LogClient({
                         disabled={!wiCreateName.trim() || wiCreating}
                         onMouseDown={async () => {
                           if (!wiCreateName.trim()) return
+                          // P37 — stylists can't call POST /api/residents (403 —
+                          // Senait's "not letting me" bug). Their new resident rides
+                          // the booking POST's newResident branch instead (created
+                          // atomically with the walk-in, server-deduped) — the same
+                          // path the offline fallback below already uses.
+                          if (role === 'stylist') {
+                            const pending = {
+                              id: `offline-new-${Date.now()}`,
+                              name: wiCreateName.trim(),
+                              roomNumber: wiCreateRoom.trim() || null,
+                            } as Resident
+                            setLocalNewResidents((prev) => [...prev, pending])
+                            setWiResidentId(pending.id)
+                            setWiResidentSearch(pending.name)
+                            setWiResidentDropOpen(false)
+                            setWiCreateOpen(false)
+                            setWiCreateName('')
+                            setWiCreateRoom('')
+                            toast('New resident will be added with the walk-in', 'info')
+                            return
+                          }
                           setWiCreating(true)
                           setWiCreateError(null)
                           try {
@@ -1404,8 +1461,16 @@ export function LogClient({
 
           <div className="grid grid-cols-2 gap-2">
             <select
-              value={wiServiceId}
-              onChange={(e) => setWiServiceId(e.target.value)}
+              value={wiServiceCreate ? '__create__' : wiServiceId}
+              onChange={(e) => {
+                if (e.target.value === '__create__') {
+                  setWiServiceCreate(true)
+                  setWiServiceId('')
+                } else {
+                  setWiServiceCreate(false)
+                  setWiServiceId(e.target.value)
+                }
+              }}
               data-tour="walkin-service-select"
               className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
             >
@@ -1438,6 +1503,8 @@ export function LogClient({
                   </optgroup>
                 ))
               })()}
+              {/* P37 — walk-in service not in the catalog yet (e.g. "S/B Dry $45") */}
+              <option value="__create__">➕ New service…</option>
             </select>
             <select
               value={wiStylistId}
@@ -1450,6 +1517,31 @@ export function LogClient({
               ))}
             </select>
           </div>
+
+          {wiServiceCreate && (
+            <div className="grid grid-cols-[1fr_110px] gap-2">
+              <input
+                type="text"
+                value={wiNewServiceName}
+                onChange={(e) => setWiNewServiceName(e.target.value)}
+                aria-label="New service name" placeholder="New service name (e.g. S/B Dry)"
+                className="bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">$</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={wiNewServicePrice}
+                  onChange={(e) => setWiNewServicePrice(e.target.value)}
+                  aria-label="New service price in dollars" placeholder="0.00"
+                  className="w-full bg-white border border-stone-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide shrink-0">Time</label>
@@ -1482,7 +1574,7 @@ export function LogClient({
           )}
 
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null); setLocalNewResidents([]); setWiCreateOpen(false); setWiCreateName(''); setWiCreateRoom(''); setWiCreateError(null) }} disabled={wiAdding}>
+            <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null); setLocalNewResidents([]); setWiCreateOpen(false); setWiCreateName(''); setWiCreateRoom(''); setWiCreateError(null); setWiServiceCreate(false); setWiNewServiceName(''); setWiNewServicePrice('') }} disabled={wiAdding}>
               Cancel
             </Button>
             <Button size="sm" loading={wiAdding} onClick={handleAddWalkIn} data-tour="walkin-submit">
@@ -2165,7 +2257,7 @@ export function LogClient({
           className="md:hidden fixed left-0 right-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
           style={{ bottom: 'var(--app-nav-clearance)', paddingTop: '8px', paddingBottom: '8px' }}
         >
-          {role !== 'stylist' && (
+          {/* P37 — stylists can scan their OWN sheet (import forces their stylist id) */}
           <button
             onClick={() => setOcrOpen(true)}
             data-tour-mobile="daily-log-scan-sheet"
@@ -2178,7 +2270,6 @@ export function LogClient({
             </svg>
             Scan log sheet
           </button>
-          )}
           <button
             onClick={() => setShowWalkIn(true)}
             data-tour-mobile="daily-log-add-walkin"
@@ -2196,7 +2287,7 @@ export function LogClient({
       {/* Desktop inline buttons */}
       {!showWalkIn && canWrite && (
         <div className="hidden md:flex gap-2 mt-4">
-          {role !== 'stylist' && (
+          {/* P37 — stylists can scan their OWN sheet (import forces their stylist id) */}
           <button
             onClick={() => setOcrOpen(true)}
             data-tour="daily-log-scan-sheet"
@@ -2209,7 +2300,6 @@ export function LogClient({
             </svg>
             Scan log sheet
           </button>
-          )}
           <button
             onClick={() => setShowWalkIn(true)}
             data-tour="daily-log-add-walkin"
@@ -2237,6 +2327,9 @@ export function LogClient({
         role={role}
         initialSheets={ocrSeedSheets}
         initialFacilityId={ocrSeedFacilityId}
+        selfStylist={role === 'stylist' && stylistFilter
+          ? { id: stylistFilter, name: stylists.find((s) => s.id === stylistFilter)?.name ?? 'You' }
+          : null}
       />
 
       {/* Bookkeepers / master admin get the multi-facility modal so they can

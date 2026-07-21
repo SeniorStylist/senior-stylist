@@ -110,6 +110,10 @@ interface OcrImportModalProps {
   // Facility the rolled-back import belonged to — seeds the facility selector so the
   // user sees where it WAS imported and can pick the right one.
   initialFacilityId?: string | null
+  // P37 — stylist scanning their OWN sheet: the stylist field pins to this record
+  // (no picker, no new-stylist create) and the facility picker is hidden. The
+  // import route independently forces this server-side.
+  selfStylist?: { id: string; name: string } | null
 }
 
 // Rebuild review state from a saved import payload (for "Undo & edit").
@@ -304,12 +308,14 @@ export function OcrImportModal({
   currentFacilityId,
   initialSheets,
   initialFacilityId,
+  selfStylist,
 }: OcrImportModalProps) {
   const { toast } = useToast()
 
   const facilityOptions = facilities ?? []
   // The facility list is only >1 for bookkeeper/master (per log/page.tsx).
-  const canPickFacility = facilityOptions.length > 1
+  // P37 — stylists never pick a facility (their import is pinned server-side).
+  const canPickFacility = !selfStylist && facilityOptions.length > 1
   const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId ?? '')
 
   // Rosters for the SELECTED facility. Props cover the pinned facility; when the
@@ -426,7 +432,9 @@ export function OcrImportModal({
     if (!open) { seededRef.current = null; return }
     if (Array.isArray(initialSheets) && initialSheets.length > 0 && initialSheets !== seededRef.current) {
       seededRef.current = initialSheets
-      setSheets((initialSheets as SavedSheet[]).map((s, i) => buildSheetFromSaved(s, i)))
+      setSheets((initialSheets as SavedSheet[])
+        .map((s, i) => buildSheetFromSaved(s, i))
+        .map(s => (selfStylist ? { ...s, stylistId: selfStylist.id, stylistName: selfStylist.name } : s)))
       setActiveTab(0)
       setStep('review')
       // Show the facility the batch was originally imported to (ids in the saved
@@ -515,6 +523,7 @@ export function OcrImportModal({
       const built = allRawSheets
         .filter(s => !s.error)
         .map(s => buildSheetState(s, residents, stylists, services, date))
+        .map(s => (selfStylist ? { ...s, stylistId: selfStylist.id, stylistName: selfStylist.name } : s))
 
       setSheetErrors(errorSheets.map(s => ({ index: s.imageIndex, error: s.error! })))
 
@@ -599,8 +608,10 @@ export function OcrImportModal({
         facilityId: selectedFacilityId || undefined,
         sheets: validSheets.map(s => ({
           date: s.date,
-          stylistId: s.stylistId,
-          stylistName: s.stylistName.trim(),
+          // P37 — stylist scans always import under the stylist's own record
+          // (the server forces this independently).
+          stylistId: selfStylist ? selfStylist.id : s.stylistId,
+          stylistName: selfStylist ? '' : s.stylistName.trim(),
           mailSubject: s.mailSubject.trim(),
           entries: s.entries.map(e => ({
             include: e.include,
@@ -1003,6 +1014,14 @@ export function OcrImportModal({
                       </div>
                       <div className="flex-1 min-w-[180px]">
                         <label className="text-xs font-medium text-stone-600 block mb-1">Stylist *</label>
+                        {/* P37 — stylist scanning their own sheet: pinned, no picker */}
+                        {selfStylist ? (
+                          <div className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-sm text-stone-700 flex items-center">
+                            {selfStylist.name}
+                            <span className="ml-2 text-[10px] text-stone-400">(you)</span>
+                          </div>
+                        ) : (
+                        <>
                         {/* Visible dropdown: existing stylists + "New stylist" option */}
                         {stylists.length > 0 && (
                           <select
@@ -1050,6 +1069,8 @@ export function OcrImportModal({
                           <p className="text-[10px] text-stone-400 mt-0.5">Will create new stylist</p>
                         ) : (
                           <p className="text-xs text-red-500 mt-0.5">Required — select a stylist or type a new name</p>
+                        )}
+                        </>
                         )}
                       </div>
                       {/* Per-sheet Mail Subject → column B of the Excel export */}

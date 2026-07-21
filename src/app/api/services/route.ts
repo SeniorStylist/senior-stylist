@@ -82,12 +82,14 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    // Bookkeepers may create services too, but ONLY as ad-hoc logging services
-    // (source='ocr_import', plain fixed pricing) — the same trusted first-class create
-    // the OCR importer already does for them. Admin/facility_staff create real catalog
-    // (price_list) services with full pricing options.
-    const isBookkeeper = facilityUser.role === 'bookkeeper'
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && !isBookkeeper) {
+    // Bookkeepers AND stylists (P37) may create services too, but ONLY as ad-hoc
+    // logging services (source='ocr_import', plain fixed pricing) — the same trusted
+    // first-class create the OCR importer already does. Stylists need it for walk-ins
+    // with services missing from the catalog ("S/B Dry $45") and the daily-log edit
+    // form's "➕ New service". Admin/facility_staff create real catalog (price_list)
+    // services with full pricing options.
+    const isAdhocRole = facilityUser.role === 'bookkeeper' || facilityUser.role === 'stylist'
+    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && !isAdhocRole) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { facilityId } = facilityUser
@@ -109,16 +111,16 @@ export async function POST(request: NextRequest) {
       .values({
         facilityId,
         name,
-        // bookkeeper ad-hoc services are always plain fixed-price logging entries
+        // ad-hoc (bookkeeper/stylist) services are always plain fixed-price logging entries
         priceCents,
         durationMinutes,
-        description: isBookkeeper ? null : description ?? null,
-        color: isBookkeeper ? null : color ?? null,
-        pricingType: isBookkeeper ? 'fixed' : pricingType,
-        addonAmountCents: isBookkeeper ? null : addonAmountCents ?? null,
-        pricingTiers: isBookkeeper ? null : pricingTiers ?? null,
-        pricingOptions: isBookkeeper ? null : pricingOptions ?? null,
-        source: isBookkeeper ? 'ocr_import' : 'price_list',
+        description: isAdhocRole ? null : description ?? null,
+        color: isAdhocRole ? null : color ?? null,
+        pricingType: isAdhocRole ? 'fixed' : pricingType,
+        addonAmountCents: isAdhocRole ? null : addonAmountCents ?? null,
+        pricingTiers: isAdhocRole ? null : pricingTiers ?? null,
+        pricingOptions: isAdhocRole ? null : pricingOptions ?? null,
+        source: isAdhocRole ? 'ocr_import' : 'price_list',
         isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created service
       })
       .returning()

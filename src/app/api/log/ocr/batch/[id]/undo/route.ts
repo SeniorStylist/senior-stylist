@@ -27,20 +27,27 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
     const isMaster =
       !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-    if (!isMaster && !canScanLogs(facilityUser.role)) {
+    // P37 — stylists may undo batches THEY uploaded (own-sheet scans), mirroring
+    // the bookkeeper own-uploads rule in import-batches/[batchId].
+    const isStylist = facilityUser.role === 'stylist'
+    if (!isMaster && !canScanLogs(facilityUser.role) && !isStylist) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const batch = await db.query.importBatches.findFirst({
       where: eq(importBatches.id, id),
-      columns: { id: true, facilityId: true, sourceType: true, deletedAt: true, reviewPayload: true },
+      columns: { id: true, facilityId: true, sourceType: true, deletedAt: true, reviewPayload: true, uploadedBy: true },
     })
     if (!batch || batch.sourceType !== 'ocr_scan') return Response.json({ error: 'Not found' }, { status: 404 })
 
     // Scope: bookkeeper + master cross-facility; others own facility only.
+    // Stylists additionally must be the batch's uploader.
     const canCrossFacility = isMaster || facilityUser.role === 'bookkeeper'
     if (!canCrossFacility && batch.facilityId !== facilityUser.facilityId) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    if (isStylist && !isMaster && batch.uploadedBy !== user.id) {
+      return Response.json({ error: 'You can only undo scans you uploaded yourself.' }, { status: 403 })
     }
 
     if (!batch.deletedAt) {

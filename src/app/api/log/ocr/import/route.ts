@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { db } from '@/db'
 import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches, facilities } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -91,8 +92,22 @@ export async function POST(request: Request) {
 
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isMasterAdmin = superAdminEmail && user.email === superAdminEmail
+    // P37 — a stylist may import their OWN sheet: pinned to their facility and
+    // every booking forced to their own stylist id (resolved server-side via
+    // getEffectiveStylistId; the client's chosen stylist/name is ignored, so a
+    // stylist can never create stylist records or book under someone else).
+    let selfStylistId: string | null = null
     if (!isMasterAdmin && !canScanLogs(facilityUser.role)) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+      if (facilityUser.role !== 'stylist') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      selfStylistId = await getEffectiveStylistId(user.id)
+      if (!selfStylistId) {
+        return Response.json(
+          { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+          { status: 403 },
+        )
+      }
     }
 
     const body = await request.json()
@@ -165,6 +180,15 @@ export async function POST(request: Request) {
       ...existingStylists.map((s) => s.id),
       ...assignmentRows.map((r) => r.id),
     ])
+    // P37 — stylist caller: every sheet is forced to their own stylist id and
+    // stylistName is cleared (never create stylists). The IDOR check below then
+    // also verifies their stylist record actually works at this facility.
+    if (selfStylistId) {
+      for (const sheet of parsed.data.sheets) {
+        sheet.stylistId = selfStylistId
+        sheet.stylistName = ''
+      }
+    }
     for (const sheet of parsed.data.sheets) {
       if (sheet.stylistId && !validStylistIds.has(sheet.stylistId)) {
         return Response.json({ error: 'A sheet references a stylist outside your facility.' }, { status: 403 })

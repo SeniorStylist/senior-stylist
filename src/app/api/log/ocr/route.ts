@@ -147,7 +147,11 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canScanLogs(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // P37 — stylists may scan their OWN sheets (parse-only here; the import
+    // route pins their facility and forces every booking to their stylist id).
+    if (!canScanLogs(facilityUser.role) && facilityUser.role !== 'stylist') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const rl = await checkRateLimit('ocr', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
