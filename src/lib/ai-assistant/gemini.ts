@@ -9,7 +9,9 @@
 // - Echo candidates[0].content back VERBATIM between rounds — functionCall
 //   parts can carry an opaque `thoughtSignature` that must survive; never
 //   rebuild the model content by hand.
-// - thinkingBudget: 0 keeps 6 calls comfortably inside maxDuration=60.
+// - Dynamic thinking is ON (default for 2.5 models — no thinkingConfig sent).
+//   thinkingBudget:0 was tried first and made tool selection unusably dumb
+//   (P38b). Model swappable via ASSISTANT_GEMINI_MODEL.
 
 import type { AssistantCtx, AssistantTool, PendingAction } from './tools'
 import { toDateTimeLocalInTz } from '@/lib/time'
@@ -39,9 +41,15 @@ export type GeminiTransport = (body: Record<string, unknown>) => Promise<GeminiR
 
 const MAX_TOOL_ROUNDS = 5
 
+// P38b — model quality knob. Default is 2.5-flash WITH dynamic thinking (the
+// original thinkingBudget:0 fast mode picked tools comically badly — treated
+// "F177" as a resident name). Set ASSISTANT_GEMINI_MODEL=gemini-2.5-pro in
+// Vercel for the heavyweight model — no code change needed.
+const ASSISTANT_MODEL = process.env.ASSISTANT_GEMINI_MODEL || 'gemini-2.5-flash'
+
 function defaultTransport(apiKey: string): GeminiTransport {
   return async (body) => {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${ASSISTANT_MODEL}:generateContent?key=${apiKey}`
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -64,8 +72,11 @@ const ROLE_LABEL: Record<AssistantCtx['role'], string> = {
 function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: AssistantTurn[], message: string): string {
   const nowLocal = toDateTimeLocalInTz(new Date(), ctx.timezone)
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: ctx.timezone }).format(new Date())
+  const facLabel = ctx.facilityName
+    ? `${ctx.facilityName}${ctx.facilityCode ? ` (${ctx.facilityCode})` : ''}`
+    : 'their facility'
   const scopeLine = ctx.facilityId
-    ? `You are helping ${ROLE_LABEL[ctx.role]} at ${ctx.facilityName ?? 'their facility'}.`
+    ? `You are helping ${ROLE_LABEL[ctx.role]} at ${facLabel} — their currently selected facility.`
     : `You are helping ${ROLE_LABEL[ctx.role]} across the whole facility network (no single facility selected).`
   const historyBlock = history.length
     ? `\n\nConversation so far:\n${history
@@ -73,13 +84,19 @@ function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: Assis
         .join('\n')}`
     : ''
   const writeTools = tools.some((t) => t.kind === 'write')
+  const toolNames = new Set(tools.map((t) => t.name))
+  const moneyHint = toolNames.has('get_business_numbers')
+    ? `\n- Money questions (owed, revenue, balances, collections, "numbers") → get_business_numbers${ctx.facilityId ? ` (covers ${facLabel})` : ''}${toolNames.has('get_facility_numbers') ? ', or get_facility_numbers for a specific named facility' : ''}. Who-is-coming/schedule questions → get_schedule. A person's details → find_resident.`
+    : ''
 
   return `You are the built-in personal assistant for Senior Stylist, a salon-services platform for senior living facilities. ${scopeLine}${ctx.role === 'stylist' && ctx.stylistName ? ` The user is ${ctx.stylistName}.` : ''}
+
+Domain vocabulary: codes like F177 are FACILITY codes (buildings/salons), never people — ${ctx.facilityCode ? `${ctx.facilityCode} is ${ctx.facilityName}. ` : ''}"residents" are the seniors who live at a facility; "stylists" are the hairdressers. Users type quickly and casually — interpret intent generously from partial context, and only ask a clarifying question when a wrong guess would matter.
 
 Right now at the facility it is ${weekday} ${nowLocal} (${ctx.timezone}). Resolve every relative date/time ("tomorrow at 10", "next Tuesday") against this, in the facility timezone. Times without am/pm default to business hours (7:00–18:59). If a time or name is genuinely ambiguous, ask instead of guessing.
 
 Rules:
-- Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability.
+- Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability. If a tool returns an error, adapt (try another tool or ask) — don't just repeat the error.${moneyHint}
 - All *Cents values are integer US cents — present money as dollars ($123.45).
 ${writeTools ? '- Booking/cancelling/moving an appointment only PROPOSES the change — the user must tap Confirm on screen. Never claim an action is done; say it is ready to confirm.\n' : ''}- You cannot do anything the user could not do themselves in the app. If asked for something outside your tools, say which page of the app has it (Calendar, Daily Log, Residents, Billing, Analytics, Payroll, Settings).
 - Be concise and warm: direct answer first, then at most 2–3 supporting lines. Plain text only — no markdown headers or tables; short "-" lists are fine.
@@ -126,7 +143,7 @@ export async function runAssistant(
           toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
         }
       : {}),
-    generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+
   })
 
   let pendingAction: PendingAction | null = null
@@ -192,7 +209,7 @@ export async function runAssistant(
       ...(declarations.length > 0
         ? { tools: [{ functionDeclarations: declarations }], toolConfig: { functionCallingConfig: { mode: 'NONE' } } }
         : {}),
-      generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+  
     })
     const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim()
     return text ? { answer: text, pendingAction } : null

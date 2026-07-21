@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       // Regular roles — and a master DEBUG-impersonating one (faithful preview).
       const fac = await db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
-        columns: { id: true, name: true, timezone: true },
+        columns: { id: true, name: true, facilityCode: true, timezone: true },
       })
       if (!fac) return Response.json({ error: 'No facility' }, { status: 400 })
       const role = facilityUser.role as AssistantCtx['role']
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
         role,
         facilityId: fac.id,
         facilityName: fac.name,
+        facilityCode: fac.facilityCode ?? null,
         timezone: fac.timezone ?? 'America/New_York',
         stylistId,
         stylistName,
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
       const fac = selected
         ? await db.query.facilities.findFirst({
             where: and(eq(facilities.id, selected), eq(facilities.active, true)),
-            columns: { id: true, name: true, timezone: true },
+            columns: { id: true, name: true, facilityCode: true, timezone: true },
           })
         : null
       ctx = {
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
         role: 'master',
         facilityId: fac?.id ?? null,
         facilityName: fac?.name ?? null,
+        facilityCode: fac?.facilityCode ?? null,
         timezone: fac?.timezone ?? 'America/New_York',
         stylistId: null,
         stylistName: null,

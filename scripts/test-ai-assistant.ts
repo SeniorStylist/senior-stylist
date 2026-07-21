@@ -20,6 +20,7 @@ const baseCtx: AssistantCtx = {
   role: 'admin',
   facilityId: 'f1',
   facilityName: 'Sunrise of Bethesda',
+  facilityCode: 'F177',
   timezone: 'America/New_York',
   stylistId: null,
   stylistName: null,

@@ -37,6 +37,8 @@ export interface AssistantCtx {
   /** Null only for a plain master with no facility selected (network scope). */
   facilityId: string | null
   facilityName: string | null
+  /** F-code like "F177" — fed to the prompt so codes are never read as names. */
+  facilityCode: string | null
   timezone: string
   /** Effective stylist id (stylist role only — null = unlinked account). */
   stylistId: string | null
@@ -229,7 +231,7 @@ const getSchedule: AssistantTool = {
 const findResident: AssistantTool = {
   name: 'find_resident',
   description:
-    'Look up residents at this facility by (partial) name. Returns the closest matches with room number and, depending on your access, contact and balance info.',
+    'Look up a PERSON living at this facility by (partial) name. Returns the closest matches with room number and, depending on your access, contact and balance info. Never call this with a facility code like F177 — those are facilities, not residents.',
   parameters: {
     type: 'OBJECT',
     properties: { name: { type: 'STRING', description: "Resident's name as the user said it." } },
@@ -320,7 +322,7 @@ function trimPack(pack: Record<string, unknown>): Record<string, unknown> {
 const getBusinessNumbers: AssistantTool = {
   name: 'get_business_numbers',
   description:
-    'Revenue, visit counts, open balances (including which residents owe the most), aging, and per-service/per-stylist breakdowns. Facility-scoped; for the master admin with no facility selected it covers the whole network.',
+    'THE money tool: revenue, visit counts, what is owed (open balances — including which residents owe the most), aging, collections, and per-service/per-stylist breakdowns for the currently selected facility. Use for any "how much / owed / revenue / numbers" question. For the master admin with no facility selected it covers the whole network.',
   parameters: { type: 'OBJECT', properties: {} },
   kind: 'read',
   roles: ['admin', 'bookkeeper', 'master'],
