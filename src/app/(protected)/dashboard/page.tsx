@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability, stylistCheckins, bookings } from '@/db/schema'
-import { eq, and, gte, lt, notInArray, inArray, asc } from 'drizzle-orm'
+import { eq, and, gte, lt, notInArray, inArray, asc, or } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
@@ -115,14 +115,32 @@ export default async function DashboardPage() {
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
-      db.query.stylists.findMany({
-        where: and(
-          eq(stylists.facilityId, facilityUser.facilityId),
-          eq(stylists.active, true),
-          eq(stylists.isDemo, tutorialMode) // is_demo filter — Phase 13 (demo-only during a tour)
-        ),
-        orderBy: (t, { asc }) => [asc(t.name)],
-      }),
+      // P38 — canonical roster: home rows PLUS active assignment-linked rows
+      // (never query stylists by facility_id alone on a roster surface — the
+      // F228 rule). Feeds the Stylists panel AND the booking modal's manual
+      // stylist picker.
+      (async () => {
+        const assigned = await db
+          .select({ stylistId: stylistFacilityAssignments.stylistId })
+          .from(stylistFacilityAssignments)
+          .where(
+            and(
+              eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+              eq(stylistFacilityAssignments.active, true),
+            ),
+          )
+        const assignedIds = assigned.map((a) => a.stylistId)
+        return db.query.stylists.findMany({
+          where: and(
+            eq(stylists.active, true),
+            eq(stylists.isDemo, tutorialMode), // is_demo filter — Phase 13 (demo-only during a tour)
+            assignedIds.length > 0
+              ? or(eq(stylists.facilityId, facilityUser.facilityId), inArray(stylists.id, assignedIds))
+              : eq(stylists.facilityId, facilityUser.facilityId),
+          ),
+          orderBy: (t, { asc }) => [asc(t.name)],
+        })
+      })(),
       db.query.services.findMany({
         where: and(
           eq(services.facilityId, facilityUser.facilityId),

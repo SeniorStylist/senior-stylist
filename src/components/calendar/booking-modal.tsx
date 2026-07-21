@@ -52,6 +52,10 @@ interface BookingModalProps {
   // Phase 15 F4 — called from the cancel-confirm state so the parent can open the
   // add-to-waitlist form prefilled with this booking's resident/service.
   onAddToWaitlist?: ((prefill: { residentId: string | null; serviceId: string | null }) => void) | null
+  // P38 — full facility roster (home + assignment-linked) for the manual stylist
+  // picker. When provided, admins/staff can override auto-assign and pick anyone —
+  // including a stylist who isn't on schedule. Omit for stylist-role viewers.
+  stylists?: { id: string; name: string; color?: string | null }[]
 }
 
 interface PickedStylist {
@@ -87,6 +91,7 @@ export function BookingModal({
   signupSheetEntryId = null,
   waitlistEntryId = null,
   onAddToWaitlist = null,
+  stylists = undefined,
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -96,6 +101,8 @@ export function BookingModal({
   const [pickedStylist, setPickedStylist] = useState<PickedStylist | null>(null)
   const [availableCount, setAvailableCount] = useState<number | null>(null)
   const [loadingStylists, setLoadingStylists] = useState(false)
+  // P38 — manual stylist override ('' = auto-assign, the recommended default)
+  const [manualStylistId, setManualStylistId] = useState('')
   const [startTime, setStartTime] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -257,6 +264,7 @@ export function BookingModal({
     setPickedStylist(null)
     setAvailableCount(null)
     setLoadingStylists(false)
+    setManualStylistId('')
     setError(null)
     setConfirmDiscard(false)
     setConfirmCancel(false)
@@ -464,8 +472,11 @@ export function BookingModal({
       setError('Please fill in all required fields.')
       return
     }
-    if (mode === 'create' && !pickedStylist) {
-      setError('No stylist available for this date and time.')
+    // P38 — a manually picked stylist bypasses the availability hard-block:
+    // admins can book someone who isn't on schedule (the server still runs
+    // its own facility + conflict checks).
+    if (mode === 'create' && !manualStylistId && !pickedStylist) {
+      setError('No stylist available for this date and time — pick a stylist to book anyway.')
       return
     }
     // Synchronous guard — setSubmitting(true) is async state and won't re-render before the
@@ -500,9 +511,14 @@ export function BookingModal({
         notes: notes || undefined,
         // Phase 12E — null clears any existing tip on edit; > 0 sets it
         tipCents: tipCentsPreview > 0 ? tipCentsPreview : null,
-        // Sign-up sheet convert path requires stylistId in the body — pass the auto-picked
-        // stylist when available (no-op for the regular /api/bookings path which auto-resolves).
-        ...(pickedStylist?.id ? { stylistId: pickedStylist.id } : {}),
+        // P38 — a manual pick wins over the auto-assigned preview. The sign-up
+        // sheet convert path requires stylistId in the body — pass whichever we
+        // have (no-op for the regular /api/bookings path which auto-resolves).
+        ...(manualStylistId
+          ? { stylistId: manualStylistId }
+          : pickedStylist?.id
+            ? { stylistId: pickedStylist.id }
+            : {}),
         ...pricingFields,
       }
 
@@ -1111,7 +1127,8 @@ export function BookingModal({
           </div>
         )}
 
-        {/* Stylist (read-only — date-driven auto-assign) */}
+        {/* Stylist — date-driven auto-assign by default; P38: admins/staff can
+            manually pick anyone from the roster (even off-schedule) */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
             Stylist
@@ -1125,28 +1142,53 @@ export function BookingModal({
               />
               <span>{booking.stylist.name}</span>
             </div>
-          ) : !startTime || selectedServiceIds.filter((id) => !!id).length === 0 ? (
-            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
-              Pick a date and service(s) to see who&apos;s scheduled.
-            </div>
-          ) : loadingStylists ? (
-            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
-              Checking availability…
-            </div>
-          ) : pickedStylist ? (
-            <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-700 flex items-center gap-2 min-h-[44px]">
-              <span
-                aria-hidden
-                className="inline-block w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: pickedStylist.color }}
-              />
-              <span className="font-medium">{pickedStylist.name}</span>
-              <span className="text-xs text-stone-400 ml-auto">Auto-assigned (least-loaded)</span>
-            </div>
           ) : (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3.5 py-2.5 text-sm min-h-[44px]">
-              No stylist available for {formatDateInTz(fromDateTimeLocalInTz(startTime, facilityTimezone), facilityTimezone, { weekday: 'long', month: undefined, day: undefined })} at {formatTimeInTz(fromDateTimeLocalInTz(startTime, facilityTimezone), facilityTimezone)}. Please choose a different date or time.
-            </div>
+            <>
+              {stylists && stylists.length > 0 && (
+                <select
+                  value={manualStylistId}
+                  onChange={(e) => setManualStylistId(e.target.value)}
+                  disabled={submitting}
+                  data-tour="booking-modal-stylist"
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all duration-150 disabled:opacity-60 min-h-[44px]"
+                >
+                  <option value="">Auto-assign (recommended)</option>
+                  {stylists.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
+              {manualStylistId ? (
+                <p className="text-[11px] text-stone-400">
+                  Booked with the picked stylist even if they&apos;re not on the schedule.
+                </p>
+              ) : !startTime || selectedServiceIds.filter((id) => !!id).length === 0 ? (
+                <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
+                  Pick a date and service(s) to see who&apos;s scheduled.
+                </div>
+              ) : loadingStylists ? (
+                <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-400 min-h-[44px] flex items-center">
+                  Checking availability…
+                </div>
+              ) : pickedStylist ? (
+                <div className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-700 flex items-center gap-2 min-h-[44px]">
+                  <span
+                    aria-hidden
+                    className="inline-block w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: pickedStylist.color }}
+                  />
+                  <span className="font-medium">{pickedStylist.name}</span>
+                  <span className="text-xs text-stone-400 ml-auto">Auto-assigned (least-loaded)</span>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3.5 py-2.5 text-sm min-h-[44px]">
+                  No stylist is on the schedule for {formatDateInTz(fromDateTimeLocalInTz(startTime, facilityTimezone), facilityTimezone, { weekday: 'long', month: undefined, day: undefined })} at {formatTimeInTz(fromDateTimeLocalInTz(startTime, facilityTimezone), facilityTimezone)}.
+                  {stylists && stylists.length > 0
+                    ? ' Pick a stylist above to book anyway, or choose a different time.'
+                    : ' Please choose a different date or time.'}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -1371,7 +1413,9 @@ export function BookingModal({
 
   const submitDisabled =
     cancelling ||
+    // P38 — a manual stylist pick bypasses the availability gate entirely.
     (mode === 'create' &&
+      !manualStylistId &&
       ((!!startTime &&
         selectedServiceIds.filter((id) => !!id).length > 0 &&
         (loadingStylists || (availableCount !== null && !pickedStylist)))))

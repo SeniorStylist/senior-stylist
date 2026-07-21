@@ -870,6 +870,7 @@ export function DashboardClient({
           prefillResidentId={prefillResidentId}
           prefillServiceId={prefillServiceId}
           signupSheetEntryId={schedulingEntryId}
+          stylists={userRole === 'stylist' ? undefined : stylists}
         />
       </ErrorBoundary>
     )
@@ -1355,6 +1356,7 @@ export function DashboardClient({
         signupSheetEntryId={schedulingEntryId}
         waitlistEntryId={waitlistEntryIdForBooking}
         onAddToWaitlist={(isAdmin || userRole === 'facility_staff') ? handleAddToWaitlistFromBooking : null}
+        stylists={userRole === 'stylist' ? undefined : stylists}
       />
 
       {/* Phase 15 F4 — add-to-waitlist form (panel + booking-modal cancel flow) */}

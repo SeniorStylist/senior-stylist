@@ -277,7 +277,10 @@ export async function POST(request: NextRequest) {
       resolvedStylistId = picked.id
     }
 
-    // Verify resolved stylist is active and assigned to this facility
+    // Verify resolved stylist is active and works this facility. P38 — accept
+    // home rows OR active assignments (the canonical roster pattern; matches
+    // /api/bookings/recurring). Assignment-only rejected home-row stylists a
+    // manual pick legitimately offers.
     const stylist = await db.query.stylists.findFirst({
       where: and(
         eq(stylists.id, resolvedStylistId),
@@ -287,22 +290,24 @@ export async function POST(request: NextRequest) {
     })
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
 
-    const [assignment] = await db
-      .select({ id: stylistFacilityAssignments.id })
-      .from(stylistFacilityAssignments)
-      .where(
-        and(
-          eq(stylistFacilityAssignments.stylistId, resolvedStylistId),
-          eq(stylistFacilityAssignments.facilityId, facilityId),
-          eq(stylistFacilityAssignments.active, true),
-        ),
-      )
-      .limit(1)
-    if (!assignment) {
-      return Response.json(
-        { error: 'Stylist is not assigned to this facility' },
-        { status: 404 },
-      )
+    if (stylist.facilityId !== facilityId) {
+      const [assignment] = await db
+        .select({ id: stylistFacilityAssignments.id })
+        .from(stylistFacilityAssignments)
+        .where(
+          and(
+            eq(stylistFacilityAssignments.stylistId, resolvedStylistId),
+            eq(stylistFacilityAssignments.facilityId, facilityId),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+        )
+        .limit(1)
+      if (!assignment) {
+        return Response.json(
+          { error: 'Stylist is not assigned to this facility' },
+          { status: 404 },
+        )
+      }
     }
 
     // Check for stylist conflict
