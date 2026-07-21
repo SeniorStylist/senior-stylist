@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.7',
+    date: '2026-07-21',
+    title: 'Your AI Assistant + Pick Any Stylist',
+    items: [
+      'New AI assistant on every page (the sparkle button, bottom-right): ask about your schedule, residents, or numbers — or tell it to book, move, or cancel an appointment. It always asks you to confirm before anything changes. Type or talk.',
+      'Booking dialog: you can now pick the stylist yourself — auto-assign stays the default, but "no stylist available" never blocks you again',
+      'Fixed dialogs getting cut off behind the bottom bar on phones (Log Sheet History, Duplicates, and friends)',
+      '"Who owes us the most?" now works for the master admin with a facility selected',
+    ],
+  },
+  {
     version: '4.6',
     date: '2026-07-21',
     title: 'Stylists Unblocked & Feedback Replies',
