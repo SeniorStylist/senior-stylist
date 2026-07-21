@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import Link from 'next/link'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -276,6 +277,14 @@ export function FeedbackWidget() {
           Send Feedback
         </Button>
       </div>
+      {/* P37 — two-way feedback: replies land on /my-feedback */}
+      <Link
+        href="/my-feedback"
+        onClick={() => setOpen(false)}
+        className="text-[11px] font-semibold text-[#8B2E4A] hover:underline self-start"
+      >
+        My feedback &amp; replies →
+      </Link>
     </div>
   )
 

@@ -26,6 +26,7 @@ export type NotificationType =
   | 'payment_failed'
   | 'autopay_summary'
   | 'feedback_received'
+  | 'feedback_reply'
 
 export interface NotifyPayload {
   type: NotificationType

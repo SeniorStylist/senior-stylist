@@ -707,6 +707,39 @@ export function buildFeedbackEmailHtml(params: {
 </html>`.trim()
 }
 
+// P37 — two-way feedback: the master admin's reply, emailed to the submitter
+// (background notification email — fire-and-forget at the call site).
+export function buildFeedbackReplyEmailHtml(params: {
+  originalMessage: string
+  reply: string
+  recipientName: string | null
+}): string {
+  const { originalMessage, reply, recipientName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Feedback Reply', title: 'You have a reply', subtitle: recipientName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 8px;font-size:12px;color:#78716C;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Your note</p>
+      <div style="background:#FAFAF9;border-radius:12px;padding:14px 18px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#57534E;line-height:1.6;white-space:pre-wrap;">${escHtml(originalMessage)}</p>
+      </div>
+      <p style="margin:0 0 8px;font-size:12px;color:#78716C;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Reply from Senior Stylist</p>
+      <div style="background:#F9EFF2;border-left:4px solid #8B2E4A;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:14px;color:#1C1917;line-height:1.6;white-space:pre-wrap;">${escHtml(reply)}</p>
+      </div>
+      <p style="margin:20px 0 0;">
+        <a href="https://portal.seniorstylist.com/my-feedback" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">View in the app</a>
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 export function buildDailyLogEmailHtml(params: {
   facilityName: string
   facilityCode: string | null

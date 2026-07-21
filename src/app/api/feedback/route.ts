@@ -193,6 +193,10 @@ export async function GET() {
         createdAt: r.createdAt,
         senderName: r.userId ? profileMap.get(r.userId) ?? '—' : '—',
         facilityName: r.facilityId ? facilityMap.get(r.facilityId) ?? '—' : null,
+        // P37 — two-way replies
+        reply: r.reply ?? null,
+        repliedAt: r.repliedAt,
+        replyReadAt: r.replyReadAt,
       })),
     })
   } catch (err) {

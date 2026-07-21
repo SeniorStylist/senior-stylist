@@ -27,6 +27,10 @@ interface FeedbackRow {
   createdAt: string
   senderName: string
   facilityName: string | null
+  // P37 — two-way replies
+  reply: string | null
+  repliedAt: string | null
+  replyReadAt: string | null
 }
 
 function metaSummary(meta: FeedbackMeta | null): string | null {
@@ -124,6 +128,10 @@ export function FeedbackClient() {
   const { toast } = useToast()
   const [rows, setRows] = useState<FeedbackRow[] | null>(null)
   const [filter, setFilter] = useState<'all' | 'new' | 'reviewed' | 'resolved'>('all')
+  // P37 — reply composer: which row is open + its draft text
+  const [replyingId, setReplyingId] = useState<string | null>(null)
+  const [replyDraft, setReplyDraft] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   useEffect(() => {
     fetch('/api/feedback')
@@ -147,6 +155,36 @@ export function FeedbackClient() {
     if (!res || !res.ok) {
       setRows(prev)
       toast.error('Failed to update status')
+    }
+  }
+
+  // P37 — send a reply; a reply to a 'new' item also flips it to 'reviewed'.
+  const sendReply = async (row: FeedbackRow) => {
+    const reply = replyDraft.trim()
+    if (!reply || sendingReply) return
+    setSendingReply(true)
+    const prev = rows
+    const statusAfter = row.status === 'new' ? 'reviewed' : row.status
+    setRows((rs) =>
+      (rs ?? []).map((r) =>
+        r.id === row.id ? { ...r, reply, repliedAt: new Date().toISOString(), status: statusAfter } : r,
+      ),
+    )
+    try {
+      const res = await fetch(`/api/feedback/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply, ...(row.status === 'new' ? { status: 'reviewed' } : {}) }),
+      })
+      if (!res.ok) throw new Error()
+      setReplyingId(null)
+      setReplyDraft('')
+      toast.success('Reply sent — they\'ll get a notification')
+    } catch {
+      setRows(prev)
+      toast.error('Failed to send reply')
+    } finally {
+      setSendingReply(false)
     }
   }
 
@@ -224,6 +262,55 @@ export function FeedbackClient() {
                   </span>
                 </div>
                 <p className="text-sm text-stone-800 whitespace-pre-wrap leading-relaxed">{r.message}</p>
+
+                {/* P37 — existing reply (with read receipt) */}
+                {r.reply && replyingId !== r.id && (
+                  <div className="mt-3 bg-[#F9EFF2] border-l-4 border-[#8B2E4A] rounded-xl px-4 py-3">
+                    <p className="text-[10.5px] font-semibold text-[#8B2E4A] uppercase tracking-wide mb-1">
+                      Your reply
+                      {r.repliedAt
+                        ? ` · ${new Date(r.repliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : ''}
+                      {r.replyReadAt ? ' · ✓ seen' : ' · not seen yet'}
+                    </p>
+                    <p className="text-sm text-stone-800 whitespace-pre-wrap leading-relaxed">{r.reply}</p>
+                  </div>
+                )}
+
+                {/* P37 — reply composer */}
+                {replyingId === r.id && (
+                  <div className="mt-3 space-y-2">
+                    <textarea
+                      autoFocus
+                      value={replyDraft}
+                      onChange={(e) => setReplyDraft(e.target.value.slice(0, 2000))}
+                      rows={3}
+                      placeholder="e.g. Fixed! Try scanning your sheet again — it should work now."
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all resize-none"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setReplyingId(null); setReplyDraft('') }}
+                        className="text-xs font-semibold text-stone-500 hover:text-stone-700 px-3 py-2"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => sendReply(r)}
+                        disabled={!replyDraft.trim() || sendingReply}
+                        className="text-xs font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] rounded-xl px-4 py-2 disabled:opacity-50 transition-colors"
+                      >
+                        {sendingReply ? 'Sending…' : 'Send reply'}
+                      </button>
+                    </div>
+                    <p className="text-[10.5px] text-stone-400">
+                      They&apos;ll get an in-app notification, a push, and an email copy.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between mt-3 gap-3">
                   <div className="min-w-0">
                     <span className="block text-[11px] text-stone-400 font-mono truncate">{r.pagePath ?? ''}</span>
@@ -231,15 +318,26 @@ export function FeedbackClient() {
                       <span className="block text-[10.5px] text-stone-400 truncate">{metaSummary(r.meta)}</span>
                     )}
                   </div>
-                  <select
-                    value={r.status}
-                    onChange={(e) => setStatus(r.id, e.target.value)}
-                    className="text-xs bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#8B2E4A] capitalize"
-                  >
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {replyingId !== r.id && (
+                      <button
+                        type="button"
+                        onClick={() => { setReplyingId(r.id); setReplyDraft('') }}
+                        className="text-xs font-semibold text-[#8B2E4A] border border-[#D4A0B0] bg-[#F9EFF2] hover:bg-[#F2E0E6] rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        {r.reply ? 'Reply again' : 'Reply…'}
+                      </button>
+                    )}
+                    <select
+                      value={r.status}
+                      onChange={(e) => setStatus(r.id, e.target.value)}
+                      className="text-xs bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#8B2E4A] capitalize"
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             )

@@ -1148,6 +1148,12 @@ export const feedbackSubmissions = pgTable('feedback_submissions', {
   // Client context snapshot — viewport, screen, dpr, timezone, language, standalone (PWA), online
   meta: jsonb('meta').$type<Record<string, string | number | boolean> | null>(),
   status: text('status').notNull().default('new'), // 'new' | 'reviewed' | 'resolved'
+  // P37 — two-way feedback: master's reply, shown to the submitter on /my-feedback
+  // (bell + push + email notify on send). replyReadAt drives the unread highlight.
+  reply: text('reply'),
+  repliedAt: timestamp('replied_at', { withTimezone: true }),
+  repliedBy: uuid('replied_by').references(() => profiles.id, { onDelete: 'set null' }),
+  replyReadAt: timestamp('reply_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusCreatedIdx: index('feedback_submissions_status_created_idx').on(t.status, t.createdAt),

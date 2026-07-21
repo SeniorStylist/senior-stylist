@@ -1,7 +1,8 @@
 // Self-bootstrapping DDL for feedback_submissions and profiles.feedback_email.
 // The dev environment has no psql credentials, so the route applies idempotent
 // DDL once per lambda instance. Keep in sync with drizzle/0005_feedback.sql,
-// drizzle/0007_profiles_feedback_email.sql and drizzle/0010_feedback_meta.sql.
+// drizzle/0007_profiles_feedback_email.sql, drizzle/0010_feedback_meta.sql and
+// drizzle/0030_feedback_reply.sql (P37 replies).
 
 import { db } from '@/db'
 import { sql } from 'drizzle-orm'
@@ -31,5 +32,10 @@ export async function ensureFeedbackSchema(): Promise<void> {
   await db.execute(sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS feedback_email text`)
   // 0010 — client context snapshot
   await db.execute(sql`ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS meta jsonb`)
+  // 0030 — P37 two-way feedback replies
+  await db.execute(sql`ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS reply text`)
+  await db.execute(sql`ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS replied_at timestamptz`)
+  await db.execute(sql`ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS replied_by uuid REFERENCES profiles(id) ON DELETE SET NULL`)
+  await db.execute(sql`ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS reply_read_at timestamptz`)
   ddlEnsured = true
 }
