@@ -8,6 +8,10 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { buildFacilityDataPack, buildMasterDataPack, askAnalyst } from '@/lib/ai-analyst'
+import { db } from '@/db'
+import { facilities } from '@/db/schema'
+import { and, eq } from 'drizzle-orm'
+import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
@@ -52,13 +56,29 @@ export async function POST(request: NextRequest) {
     }
     const { question, history } = parsed.data
 
-    // Scope from the CALLER's role — never from the question. A plain master
-    // admin has no facility_users row (getUserFacility → null) and gets the
-    // network pack; a master DEBUG-impersonating a facility role gets that
-    // facility's pack (faithful preview, P30 philosophy). Admins/bookkeepers
-    // get their currently selected facility.
+    // Scope from the CALLER's role — never from the question. Admins/bookkeepers
+    // get their currently selected facility; a master DEBUG-impersonating a
+    // facility role gets that facility's pack. P38 fix: a plain master admin has
+    // no facility_users row (getUserFacility → null before it ever reads the
+    // selected_facility_id cookie), so "Who owes us the most?" on /analytics
+    // with a facility selected wrongly got the NETWORK pack (no resident
+    // balances — Josh's screenshot). Masters may see any facility, so honor
+    // their selected-facility cookie directly.
+    let masterSelectedFacilityId: string | null = null
+    if (isMaster && !facilityUser) {
+      const selected = (await cookies()).get('selected_facility_id')?.value
+      if (selected) {
+        const fac = await db.query.facilities.findFirst({
+          where: and(eq(facilities.id, selected), eq(facilities.active, true)),
+          columns: { id: true },
+        })
+        masterSelectedFacilityId = fac?.id ?? null
+      }
+    }
     const pack = isMaster && !facilityUser
-      ? await buildMasterDataPack()
+      ? masterSelectedFacilityId
+        ? await buildFacilityDataPack(masterSelectedFacilityId)
+        : await buildMasterDataPack()
       : await buildFacilityDataPack(facilityUser!.facilityId)
 
     const answer = await askAnalyst(question, history ?? [], pack)
