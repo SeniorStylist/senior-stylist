@@ -268,7 +268,7 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
           </kbd>
         </div>
 
-        <div className="max-h-[360px] overflow-y-auto overscroll-contain">
+        <div className="max-h-[min(360px,60dvh)] overflow-y-auto overscroll-contain">
           {filteredPages.length > 0 && (
             <ResultSection
               title="Pages"

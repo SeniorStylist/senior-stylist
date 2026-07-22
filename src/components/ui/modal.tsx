@@ -3,6 +3,7 @@
 import { useEffect, useRef, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogFocus } from '@/hooks/use-dialog-focus'
+import { useVisualViewportOcclusion } from '@/hooks/use-visual-viewport'
 import { cn } from '@/lib/utils'
 
 interface ModalProps {
@@ -21,6 +22,9 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
   )
   const cardRef = useRef<HTMLDivElement>(null)
   useDialogFocus(cardRef, open)
+  // P39 — iOS keyboard/picker compensation: pin the mobile bottom sheet to the
+  // VISUAL viewport bottom so it can't be shifted off-screen mid-typing.
+  const occlusion = useVisualViewportOcclusion()
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -50,7 +54,12 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
       // At z-50 the opaque bottom nav painted over the sheet's last ~64px on
       // phones (the Log Sheet History cutoff bug). Never lower below 70.
       className="fixed inset-0 z-[70] flex items-end md:items-start justify-center p-0 md:p-4 md:pt-16"
-      style={{ backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}
+      style={{
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(2px)',
+        // P39 — lift the bottom-anchored mobile sheet above the keyboard.
+        paddingBottom: occlusion || undefined,
+      }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
@@ -67,6 +76,9 @@ export function Modal({ open, onClose, title, children, className, ...rest }: Mo
           'animate-in fade-in slide-in-from-bottom-3 duration-[160ms]',
           className
         )}
+        // P39 — with the keyboard up, shrink so the card fits the visible area
+        // (inline style beats the Tailwind max-h classes).
+        style={occlusion > 0 ? { maxHeight: `calc(88dvh - ${occlusion}px)` } : undefined}
         {...dataProps}
       >
         {title && (

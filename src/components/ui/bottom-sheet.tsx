@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useDialogFocus } from '@/hooks/use-dialog-focus'
+import { useVisualViewportOcclusion } from '@/hooks/use-visual-viewport'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -69,10 +71,18 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
     }
   }
 
-  if (!rendered) return null
+  // P39 — pin the sheet to the VISUAL viewport bottom: when the iOS keyboard/
+  // picker opens, `occlusion` = its height, and the sheet lifts above it
+  // instead of being shifted off-screen (the payroll top-clipped-dialog bug).
+  const occlusion = useVisualViewportOcclusion()
 
-  return (
-    // Full-screen overlay — flex column pushes sheet to bottom
+  if (!rendered) return null
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    // Full-screen overlay — flex column pushes sheet to bottom. PORTALED to
+    // document.body (P39): rendered inline it could be captured by a
+    // transformed ancestor (.page-enter's entrance animation) and mis-anchor.
     <div
       className="bottom-sheet-overlay"
       style={{
@@ -82,6 +92,7 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'flex-end',
+        paddingBottom: occlusion,
       }}
     >
       {/* Backdrop — opacity tracks drag progress so the dim lifts as the sheet
@@ -114,8 +125,10 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           boxShadow: '0 -4px 32px rgba(0,0,0,0.10)',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '92dvh',
-          paddingBottom: 'env(safe-area-inset-bottom)',
+          // Shrink with the keyboard so the sheet's own scroll region stays
+          // fully reachable while typing.
+          maxHeight: occlusion > 0 ? `calc(92dvh - ${occlusion}px)` : '92dvh',
+          paddingBottom: occlusion > 0 ? 0 : 'env(safe-area-inset-bottom)',
           transform: isOpen ? `translateY(${dragY}px)` : 'translateY(100%)',
           transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.32, 0.72, 0, 1)',
           willChange: 'transform',
@@ -202,6 +215,7 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
