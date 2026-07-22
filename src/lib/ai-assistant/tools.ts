@@ -18,10 +18,11 @@
 //   second Gemini fetches).
 
 import { db } from '@/db'
-import { sql, and, eq, or, inArray, lt, gt, ne } from 'drizzle-orm'
+import { sql, and, eq, or, inArray, lt, gt, lte, gte, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   bookings, residents, services, stylists, stylistFacilityAssignments, facilities, residentPreferences,
+  stylistAvailability, coverageRequests,
 } from '@/db/schema'
 import { fuzzyScore } from '@/lib/fuzzy'
 import {
@@ -189,6 +190,69 @@ async function hasConflict(facilityId: string, stylistId: string, start: Date, e
 }
 
 const expiry = () => new Date(Date.now() + 10 * 60_000).toISOString()
+
+// ── P39 — open-slot math (pure, harness-tested) ────────────────────────────
+// Windows are the stylist's weekly hours ('HH:MM' facility-local). Candidate
+// starts step every 30min inside the window; each is converted to a real UTC
+// instant via fromDateTimeLocalInTz (DST-safe) and checked against busy
+// intervals. NOTE: this deliberately does the window check in FACILITY time —
+// resolveAvailableStylists' UTC-window quirk is not replicated here.
+
+export interface SlotWindow {
+  dayOfWeek: number // 0-6, Sun=0
+  startTime: string // 'HH:MM'
+  endTime: string // 'HH:MM'
+}
+export interface BusyInterval {
+  start: number // UTC ms
+  end: number // UTC ms
+}
+
+function addDaysToDateStr(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+const hmToMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))
+
+export function computeOpenSlots(opts: {
+  windows: SlotWindow[]
+  busy: BusyInterval[]
+  offDates: Set<string> // facility-local YYYY-MM-DD fully unavailable (time off)
+  startDate: string // facility-local YYYY-MM-DD
+  days: number
+  tz: string
+  durationMinutes: number
+  now: number // UTC ms — slots in the past are dropped
+  limit?: number
+}): Array<{ dateTimeLocal: string; startUtcMs: number }> {
+  const out: Array<{ dateTimeLocal: string; startUtcMs: number }> = []
+  const limit = opts.limit ?? 8
+  const durMs = opts.durationMinutes * 60_000
+  for (let d = 0; d < opts.days && out.length < limit; d++) {
+    const dateStr = addDaysToDateStr(opts.startDate, d)
+    if (opts.offDates.has(dateStr)) continue
+    // A calendar date's weekday is tz-independent for the date LABEL.
+    const dow = new Date(`${dateStr}T12:00:00Z`).getUTCDay()
+    const win = opts.windows.find((w) => w.dayOfWeek === dow)
+    if (!win) continue
+    const startMin = hmToMin(win.startTime)
+    const endMin = hmToMin(win.endTime)
+    for (let m = startMin; m + opts.durationMinutes <= endMin && out.length < limit; m += 30) {
+      const hh = String(Math.floor(m / 60)).padStart(2, '0')
+      const mm = String(m % 60).padStart(2, '0')
+      const local = `${dateStr}T${hh}:${mm}`
+      const start = fromDateTimeLocalInTz(local, opts.tz).getTime()
+      if (Number.isNaN(start) || start <= opts.now) continue
+      const end = start + durMs
+      const clash = opts.busy.some((b) => b.start < end && b.end > start)
+      if (clash) continue
+      out.push({ dateTimeLocal: local, startUtcMs: start })
+    }
+  }
+  return out
+}
 
 // ---------------------------------------------------------------------------
 // READ TOOLS
@@ -449,6 +513,164 @@ const getMyEarnings: AssistantTool = {
   },
 }
 
+const findOpenSlots: AssistantTool = {
+  name: 'find_open_slots',
+  description:
+    "Find a stylist's next OPEN appointment slots from their real working hours, existing bookings, and time off. Use this for 'next available slot' / 'fit her in' requests, then propose the chosen slot with book_appointment (its dateTimeLocal feeds straight in).",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      date: { type: 'STRING', description: 'Start the search at this facility-local date, YYYY-MM-DD. Default: today.' },
+      days: { type: 'INTEGER', description: 'How many days to scan (1-14). Default 7.' },
+      serviceName: { type: 'STRING', description: 'Service being booked — its duration sizes the slot. Optional (default 30 min).' },
+      stylistName: { type: 'STRING', description: "Whose schedule to search. Omit for the current stylist (stylists always search their own)." },
+    },
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    // Whose schedule?
+    let stylistId: string
+    let stylistLabel: string
+    const namedStylist = typeof args.stylistName === 'string' ? args.stylistName.trim() : ''
+    if (ctx.role === 'stylist') {
+      if (!ctx.stylistId) {
+        return err("Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team.")
+      }
+      stylistId = ctx.stylistId
+      stylistLabel = 'you'
+    } else {
+      const roster = await facilityRoster(ctx.facilityId!)
+      if (namedStylist) {
+        const st = rankByName(roster, namedStylist)
+        if (st.scored.length === 0 || st.scored[0].score < 0.6) {
+          return err(`No stylist matching "${namedStylist}" here.`, { stylists: roster.map((s) => s.name) })
+        }
+        stylistId = st.scored[0].item.id
+        stylistLabel = st.scored[0].item.name
+      } else if (roster.length === 1) {
+        stylistId = roster[0].id
+        stylistLabel = roster[0].name
+      } else {
+        return err('Which stylist? Ask the user to pick one.', { stylists: roster.map((s) => s.name) })
+      }
+    }
+
+    // Slot duration from the service, when named.
+    let durationMinutes = 30
+    const serviceName = typeof args.serviceName === 'string' ? args.serviceName.trim() : ''
+    if (serviceName) {
+      const catalog = await db.query.services.findMany({
+        where: and(
+          eq(services.facilityId, ctx.facilityId!),
+          eq(services.active, true),
+          eq(services.isDemo, false),
+          eq(services.source, 'price_list'),
+        ),
+        columns: { id: true, name: true, durationMinutes: true },
+      })
+      const svc = rankByName(catalog, serviceName)
+      if (svc.scored[0] && svc.scored[0].score >= 0.55) {
+        durationMinutes = svc.scored[0].item.durationMinutes || 30
+      }
+    }
+
+    const startDate =
+      typeof args.date === 'string' && DATE_RE.test(args.date)
+        ? args.date
+        : (() => {
+            const p = getLocalParts(new Date(), ctx.timezone)
+            return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+          })()
+    const days = Math.min(Math.max(Number(args.days ?? 7) || 7, 1), 14)
+    const endDateStr = addDaysToDateStr(startDate, days - 1)
+
+    // Working hours for this facility (facility-local windows).
+    const windows = await db.query.stylistAvailability.findMany({
+      where: and(
+        eq(stylistAvailability.stylistId, stylistId),
+        eq(stylistAvailability.facilityId, ctx.facilityId!),
+        eq(stylistAvailability.active, true),
+      ),
+      columns: { dayOfWeek: true, startTime: true, endTime: true },
+    })
+    if (windows.length === 0) {
+      return err(
+        `${stylistLabel === 'you' ? 'You have' : `${stylistLabel} has`} no working hours set at ${ctx.facilityName ?? 'this facility'} — an admin can set them on the stylist's page.`,
+      )
+    }
+
+    // Busy intervals: this stylist's real bookings over the whole range.
+    const rangeStart = dayRangeInTimezone(startDate, ctx.timezone)!.start
+    const rangeEnd = dayRangeInTimezone(endDateStr, ctx.timezone)!.end
+    const busyRows = await db.query.bookings.findMany({
+      where: and(
+        eq(bookings.stylistId, stylistId),
+        eq(bookings.facilityId, ctx.facilityId!),
+        eq(bookings.active, true),
+        or(eq(bookings.status, 'scheduled'), eq(bookings.status, 'completed')),
+        gt(bookings.endTime, rangeStart),
+        lt(bookings.startTime, rangeEnd),
+      ),
+      columns: { startTime: true, endTime: true },
+      limit: 500,
+    })
+
+    // Approved time off (open/filled coverage) → whole days off.
+    const offDates = new Set<string>()
+    try {
+      const coverage = await db.query.coverageRequests.findMany({
+        where: and(
+          eq(coverageRequests.stylistId, stylistId),
+          inArray(coverageRequests.status, ['open', 'filled']),
+          lte(coverageRequests.startDate, endDateStr),
+          gte(coverageRequests.endDate, startDate),
+        ),
+        columns: { startDate: true, endDate: true },
+      })
+      for (const c of coverage) {
+        let d = c.startDate < startDate ? startDate : c.startDate
+        const last = c.endDate > endDateStr ? endDateStr : c.endDate
+        while (d <= last) {
+          offDates.add(d)
+          d = addDaysToDateStr(d, 1)
+        }
+      }
+    } catch { /* coverage table issues never block slot search */ }
+
+    const slots = computeOpenSlots({
+      windows,
+      busy: busyRows.map((b) => ({ start: b.startTime.getTime(), end: b.endTime.getTime() })),
+      offDates,
+      startDate,
+      days,
+      tz: ctx.timezone,
+      durationMinutes,
+      now: Date.now(),
+      limit: 8,
+    })
+
+    if (slots.length === 0) {
+      return err(
+        `No open ${durationMinutes}-minute slots for ${stylistLabel} between ${startDate} and ${endDateStr} — try more days or a different stylist.`,
+      )
+    }
+    return {
+      response: {
+        stylist: stylistLabel,
+        durationMinutes,
+        timezone: ctx.timezone,
+        slots: slots.map((s) => ({
+          dateTimeLocal: s.dateTimeLocal,
+          label: whenLabel(new Date(s.startUtcMs), ctx.timezone),
+        })),
+        note: 'Offer the top 1-2 conversationally; pass the chosen dateTimeLocal to book_appointment.',
+      },
+    }
+  },
+}
+
 // ---------------------------------------------------------------------------
 // WRITE TOOLS — propose only; the client executes after human confirmation.
 // ---------------------------------------------------------------------------
@@ -466,7 +688,7 @@ function stylistWriteGuard(ctx: AssistantCtx): string | null {
 const bookAppointment: AssistantTool = {
   name: 'book_appointment',
   description:
-    'Propose a NEW appointment. Nothing is booked until the user taps Confirm on screen. Resolve the resident and service names first if unsure (find_resident / list_services).',
+    'Propose a NEW appointment. Nothing is booked until the user taps Confirm on screen. Resolve the resident and service names first if unsure (find_resident / list_services); for "next available" requests get the time from find_open_slots.',
   parameters: {
     type: 'OBJECT',
     properties: {
@@ -756,6 +978,7 @@ export const ALL_TOOLS: AssistantTool[] = [
   getSchedule,
   findResident,
   listServices,
+  findOpenSlots,
   getBusinessNumbers,
   getFacilityNumbers,
   getMyEarnings,
@@ -775,7 +998,7 @@ export function toolsForCtx(ctx: AssistantCtx): AssistantTool[] {
 
 // Zod schema kept exported so the route/harness can sanity-check tool names.
 export const toolNameSchema = z.enum([
-  'get_schedule', 'find_resident', 'list_services', 'get_business_numbers',
-  'get_facility_numbers', 'get_my_earnings', 'book_appointment',
-  'cancel_appointment', 'reschedule_appointment',
+  'get_schedule', 'find_resident', 'list_services', 'find_open_slots',
+  'get_business_numbers', 'get_facility_numbers', 'get_my_earnings',
+  'book_appointment', 'cancel_appointment', 'reschedule_appointment',
 ])

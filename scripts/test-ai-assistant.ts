@@ -3,7 +3,8 @@
 // No GEMINI_API_KEY and no DB needed: registry filtering + helpers are pure,
 // and the Gemini loop runs against a scripted fake transport with fake tools.
 
-import { toolsForCtx, rankByName, parseLocalDateTime, levSimilarity, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
+import { toolsForCtx, rankByName, parseLocalDateTime, levSimilarity, computeOpenSlots, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
+import { fromDateTimeLocalInTz } from '../src/lib/time'
 import { runAssistant, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
 
 let failures = 0
@@ -83,6 +84,43 @@ console.log('\n[2] Helpers')
   const iso = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, '0')}-${String(future.getDate()).padStart(2, '0')}T10:00`
   const ok = parseLocalDateTime(iso, 'America/New_York')
   check('near-future datetime accepted', 'date' in ok)
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n[2b] computeOpenSlots (P39 slot math, facility-tz correct)')
+{
+  const tz = 'America/New_York'
+  // 2026-08-03 is a Monday. Window Mon 09:00-11:00 → candidates 09:00, 09:30,
+  // 10:00, 10:30 (duration 30 fits until 10:30).
+  const windows = [{ dayOfWeek: 1, startTime: '09:00', endTime: '11:00' }]
+  const base = {
+    windows,
+    offDates: new Set<string>(),
+    startDate: '2026-08-03',
+    days: 1,
+    tz,
+    durationMinutes: 30,
+    now: fromDateTimeLocalInTz('2026-08-01T00:00', tz).getTime(),
+  }
+  const all = computeOpenSlots({ ...base, busy: [] })
+  check('window steps at 30min and fits duration', all.length === 4 && all[0].dateTimeLocal === '2026-08-03T09:00' && all[3].dateTimeLocal === '2026-08-03T10:30')
+  check('slots are FACILITY-local (09:00 ET = 13:00 UTC in Aug)', new Date(all[0].startUtcMs).toISOString() === '2026-08-03T13:00:00.000Z')
+
+  const busyStart = fromDateTimeLocalInTz('2026-08-03T09:30', tz).getTime()
+  const withBusy = computeOpenSlots({ ...base, busy: [{ start: busyStart, end: busyStart + 30 * 60_000 }] })
+  check('busy interval knocks out the overlapping slot', withBusy.length === 3 && !withBusy.some((s) => s.dateTimeLocal.endsWith('09:30')))
+
+  const dayOff = computeOpenSlots({ ...base, busy: [], offDates: new Set(['2026-08-03']) })
+  check('time-off day yields zero slots', dayOff.length === 0)
+
+  const pastNow = computeOpenSlots({ ...base, busy: [], now: fromDateTimeLocalInTz('2026-08-03T09:45', tz).getTime() })
+  check('past slots dropped vs now', pastNow.length === 2 && pastNow[0].dateTimeLocal === '2026-08-03T10:00')
+
+  const longSvc = computeOpenSlots({ ...base, busy: [], durationMinutes: 90 })
+  check('90-min service only fits while it ends inside the window', longSvc.length === 2 && longSvc[1].dateTimeLocal === '2026-08-03T09:30')
+
+  const multiDay = computeOpenSlots({ ...base, days: 8, busy: [] })
+  check('multi-day scan finds the next week\'s Monday too', multiDay.length === 8)
 }
 
 // ---------------------------------------------------------------------------

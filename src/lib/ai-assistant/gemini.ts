@@ -85,6 +85,9 @@ function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: Assis
     : ''
   const writeTools = tools.some((t) => t.kind === 'write')
   const toolNames = new Set(tools.map((t) => t.name))
+  const slotHint = toolNames.has('find_open_slots')
+    ? `\n- "Next available slot" / "fit her in" / "when is X free" → call find_open_slots first, offer the top 1-2 slots conversationally, then once the user picks one propose it with book_appointment.`
+    : ''
   const moneyHint = toolNames.has('get_business_numbers')
     ? `\n- Money questions (owed, revenue, balances, collections, "numbers") → get_business_numbers${ctx.facilityId ? ` (covers ${facLabel})` : ''}${toolNames.has('get_facility_numbers') ? ', or get_facility_numbers for a specific named facility' : ''}. Who-is-coming/schedule questions → get_schedule. A person's details → find_resident.`
     : ''
@@ -96,7 +99,7 @@ Domain vocabulary: codes like F177 are FACILITY codes (buildings/salons), never 
 Right now at the facility it is ${weekday} ${nowLocal} (${ctx.timezone}). Resolve every relative date/time ("tomorrow at 10", "next Tuesday") against this, in the facility timezone. Times without am/pm default to business hours (7:00–18:59). If a time or name is genuinely ambiguous, ask instead of guessing.
 
 Rules:
-- Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability. If a tool returns an error, adapt (try another tool or ask) — don't just repeat the error.${moneyHint}
+- Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability. If a tool returns an error, adapt (try another tool or ask) — don't just repeat the error.${slotHint}${moneyHint}
 - All *Cents values are integer US cents — present money as dollars ($123.45).
 ${writeTools ? '- Booking/cancelling/moving an appointment only PROPOSES the change — the user must tap Confirm on screen. Never claim an action is done; say it is ready to confirm.\n- When a resident name has no exact match, offer the close matches ("Did you mean Adele Cohen in Room 204?") AND ask whether it\'s a brand-new resident. Only pass createNewResident: true after the user confirms the person is new.\n' : ''}- You cannot do anything the user could not do themselves in the app. If asked for something outside your tools, say which page of the app has it (Calendar, Daily Log, Residents, Billing, Analytics, Payroll, Settings).
 - Be concise and warm: direct answer first, then at most 2–3 supporting lines. Plain text only — no markdown headers or tables; short "-" lists are fine.
