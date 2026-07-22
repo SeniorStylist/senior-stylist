@@ -14,7 +14,7 @@
 //   (P38b). Model swappable via ASSISTANT_GEMINI_MODEL.
 
 import type { AssistantCtx, AssistantTool, PendingAction } from './tools'
-import { resolveCtxFacility } from './tools'
+import { resolveCtxFacility, stampMasterFacility } from './tools'
 import { toDateTimeLocalInTz } from '@/lib/time'
 
 export interface AssistantTurn {
@@ -234,7 +234,10 @@ export async function runAssistant(
           } else {
             const result = await tool.execute(execCtx, call.args ?? {})
             response = result.response
-            if (result.pendingAction && !pendingAction) pendingAction = result.pendingAction
+            if (result.pendingAction && !pendingAction) {
+              pendingAction = result.pendingAction
+              stampMasterFacility(pendingAction, execCtx)
+            }
           }
         } catch (e) {
           console.error(`[assistant] tool ${call.name} threw:`, e)

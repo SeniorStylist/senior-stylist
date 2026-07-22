@@ -165,6 +165,27 @@ export async function resolveCtxFacility(
   }
 }
 
+// P41 — create kinds whose endpoints honor a master-only body facilityId.
+const CREATE_KINDS_WITH_FACILITY = new Set<PendingAction['kind']>([
+  'book', 'create_resident', 'add_to_waitlist', 'add_signup_entry', 'create_service',
+])
+
+/**
+ * P41 — called by the gemini.ts dispatch after a write tool proposes: for a
+ * master, stamp the resolved facility into the proposal — the body facilityId
+ * for create kinds (their endpoints honor it for masters only) and the
+ * display-only `facility` field for the confirm card ("at Glen Meadow").
+ */
+export function stampMasterFacility(pa: PendingAction, execCtx: AssistantCtx): void {
+  if (execCtx.role !== 'master' || !execCtx.facilityId) return
+  if (CREATE_KINDS_WITH_FACILITY.has(pa.kind) && pa.request.body) {
+    pa.request.body = { ...pa.request.body, facilityId: execCtx.facilityId }
+  }
+  if (!pa.facility) {
+    pa.facility = { id: execCtx.facilityId, name: execCtx.facilityName ?? 'selected facility' }
+  }
+}
+
 /** Normalized Levenshtein similarity (1 = identical). Catches MISSPELLINGS —
  * the word-overlap fuzzyScore scores "Adeel Kohen" vs "Adele Cohen" as 0. */
 export function levSimilarity(a: string, b: string): number {
@@ -2277,6 +2298,48 @@ const sendReceipt: AssistantTool = {
   },
 }
 
+// P41 — "switch me to Glen Meadow": selects the facility app-wide for the
+// two cross-facility roles. The client hard-reloads after a confirmed switch
+// (P23 facility-switch rule), so the whole app lands on the new facility.
+const switchFacility: AssistantTool = {
+  name: 'switch_facility',
+  description:
+    'Switch the whole app to a different facility (like the facility switcher in the sidebar). Use when the user says "switch me to X" / "go to X" / "open X". The page reloads on the new facility after they confirm.',
+  parameters: {
+    type: 'OBJECT',
+    properties: { facilityName: { type: 'STRING', description: 'Facility name or F-code like F177.' } },
+    required: ['facilityName'],
+  },
+  kind: 'write',
+  roles: ['master', 'bookkeeper'],
+  needsFacility: false,
+  async execute(ctx, args) {
+    const q = typeof args.facilityName === 'string' ? args.facilityName.trim() : ''
+    if (!q) return err('Which facility? Give the name or F-code.')
+    const m = await matchFacility(q)
+    if (!m.ok) return err(m.error, m.facilities ? { facilities: m.facilities } : undefined)
+    if (m.facility.id === ctx.facilityId) {
+      return { response: { note: `Already on ${m.facility.name} — no switch needed.` } }
+    }
+    return {
+      response: { proposed: true, summary: `Switch the app to ${m.facility.name}` },
+      pendingAction: {
+        kind: 'switch_facility',
+        summary: {
+          title: `Switch to ${m.facility.name}?`,
+          lines: [
+            `${m.facility.facilityCode ? `${m.facility.facilityCode} · ` : ''}${m.facility.name}`,
+            'The page reloads on the new facility.',
+          ],
+        },
+        request: { method: 'POST', path: '/api/facilities/select', body: { facilityId: m.facility.id } },
+        expiresAt: expiry(),
+        facility: { id: m.facility.id, name: m.facility.name },
+      },
+    }
+  },
+}
+
 // ---------------------------------------------------------------------------
 
 export const ALL_TOOLS: AssistantTool[] = [
@@ -2310,6 +2373,7 @@ export const ALL_TOOLS: AssistantTool[] = [
   updateStylist,
   replyToFeedback,
   sendReceipt,
+  switchFacility,
 ]
 
 /** The tools this caller's model is allowed to see and call. */
@@ -2333,5 +2397,5 @@ export const toolNameSchema = z.enum([
   'update_appointment', 'create_resident', 'update_resident',
   'set_stylist_hours', 'add_time_off', 'decide_time_off',
   'add_to_waitlist', 'add_signup_entry', 'create_service', 'update_service',
-  'update_stylist', 'reply_to_feedback', 'send_receipt',
+  'update_stylist', 'reply_to_feedback', 'send_receipt', 'switch_facility',
 ])

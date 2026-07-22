@@ -33,6 +33,7 @@ const DONE_LABEL: Record<AssistantActionKind, string> = {
   update_stylist: 'Updated',
   reply_to_feedback: 'Reply sent',
   send_receipt: 'Receipt sent',
+  switch_facility: 'Switched',
 }
 
 export function useAssistantChat() {
@@ -113,6 +114,14 @@ export function useAssistantChat() {
         const msg = typeof json.error === 'string' ? json.error : "That didn't go through."
         setMessages((prev) => [...prev, { role: 'model', text: `That didn't work: ${msg}` }])
         setPendingAction(null)
+        return
+      }
+      // P41 — a confirmed facility switch changes the whole app's context:
+      // hard reload (the P23 facility-switch rule — router.refresh() leaves
+      // client useState(initialProps) stale).
+      if (a.kind === 'switch_facility') {
+        toast.success('Switching…')
+        window.location.reload()
         return
       }
       const doneLabel = DONE_LABEL[a.kind] ?? 'Done'

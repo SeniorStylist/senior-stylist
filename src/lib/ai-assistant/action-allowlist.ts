@@ -28,6 +28,7 @@ export type AssistantActionKind =
   | 'update_stylist'
   | 'reply_to_feedback'
   | 'send_receipt'
+  | 'switch_facility'
 
 export interface PendingAction {
   kind: AssistantActionKind
@@ -38,6 +39,10 @@ export interface PendingAction {
     body: Record<string, unknown> | null
   }
   expiresAt: string
+  /** P41 — display only: which facility a cross-facility action targets.
+   * Not validated by actionAllowed (only request.* is); the endpoint's own
+   * guards remain the authority. */
+  facility?: { id: string; name: string } | null
 }
 
 interface ActionRule {
@@ -47,10 +52,13 @@ interface ActionRule {
 }
 
 export const ACTION_RULES: Record<AssistantActionKind, ActionRule> = {
+  // P41 — the 5 create kinds carry an optional facilityId: master-only
+  // cross-facility targeting. SAFE for other roles because every endpoint
+  // IGNORES the field for non-masters (their own facility is authoritative).
   book: {
     method: 'POST',
     pathRe: new RegExp('^/api/bookings$', 'i'),
-    bodyKeys: ['residentId', 'newResident', 'serviceId', 'startTime', 'stylistId', 'notes'],
+    bodyKeys: ['residentId', 'newResident', 'serviceId', 'startTime', 'stylistId', 'notes', 'facilityId'],
   },
   cancel: {
     method: 'DELETE',
@@ -70,7 +78,7 @@ export const ACTION_RULES: Record<AssistantActionKind, ActionRule> = {
   create_resident: {
     method: 'POST',
     pathRe: new RegExp('^/api/residents$', 'i'),
-    bodyKeys: ['name', 'roomNumber', 'phone'],
+    bodyKeys: ['name', 'roomNumber', 'phone', 'facilityId'],
   },
   update_resident: {
     method: 'PUT',
@@ -95,17 +103,17 @@ export const ACTION_RULES: Record<AssistantActionKind, ActionRule> = {
   add_to_waitlist: {
     method: 'POST',
     pathRe: new RegExp('^/api/waitlist$', 'i'),
-    bodyKeys: ['residentId', 'residentName', 'roomNumber', 'serviceId', 'serviceName', 'earliestDate', 'latestDate', 'notes'],
+    bodyKeys: ['residentId', 'residentName', 'roomNumber', 'serviceId', 'serviceName', 'earliestDate', 'latestDate', 'notes', 'facilityId'],
   },
   add_signup_entry: {
     method: 'POST',
     pathRe: new RegExp('^/api/signup-sheet$', 'i'),
-    bodyKeys: ['residentId', 'residentName', 'roomNumber', 'serviceId', 'serviceName', 'requestedDate', 'preferredDate', 'notes'],
+    bodyKeys: ['residentId', 'residentName', 'roomNumber', 'serviceId', 'serviceName', 'requestedDate', 'preferredDate', 'notes', 'facilityId'],
   },
   create_service: {
     method: 'POST',
     pathRe: new RegExp('^/api/services$', 'i'),
-    bodyKeys: ['name', 'priceCents', 'durationMinutes'],
+    bodyKeys: ['name', 'priceCents', 'durationMinutes', 'facilityId'],
   },
   update_service: {
     method: 'PUT',
@@ -126,6 +134,13 @@ export const ACTION_RULES: Record<AssistantActionKind, ActionRule> = {
     method: 'POST',
     pathRe: new RegExp(`^/api/bookings/${UUID}/receipt$`, 'i'),
     bodyKeys: [],
+  },
+  // P41 — "switch me to Glen Meadow": selects the facility app-wide; the
+  // client hard-reloads after success (P23 facility-switch rule).
+  switch_facility: {
+    method: 'POST',
+    pathRe: new RegExp('^/api/facilities/select$', 'i'),
+    bodyKeys: ['facilityId'],
   },
 }
 

@@ -85,6 +85,10 @@ export function AssistantChat({
               {pendingAction.summary.lines.map((l, i) => (
                 <li key={i} className="text-sm text-stone-700">{l}</li>
               ))}
+              {/* P41 — cross-facility actions say WHERE they land */}
+              {pendingAction.facility && pendingAction.kind !== 'switch_facility' && (
+                <li className="text-xs font-semibold text-[#8B2E4A]">At {pendingAction.facility.name}</li>
+              )}
             </ul>
             <div className="flex gap-2">
               <button

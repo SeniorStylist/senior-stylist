@@ -334,7 +334,7 @@ async function main() {
 
     // Every write kind has a rule (Record<> enforces at compile time; assert at runtime too).
     const kinds = Object.keys(ACTION_RULES) as AssistantActionKind[]
-    check('all 16 action kinds have rules', kinds.length === 16)
+    check('all 17 action kinds have rules', kinds.length === 17)
 
     // A canonical well-formed proposal per kind passes the gate.
     const canonical: Record<AssistantActionKind, PendingAction> = {
@@ -354,6 +354,7 @@ async function main() {
       update_stylist: mk('update_stylist', 'PUT', `/api/stylists/${UUID}`, { commissionPercent: 50 }),
       reply_to_feedback: mk('reply_to_feedback', 'PATCH', `/api/feedback/${UUID}`, { reply: 'Fixed!', status: 'resolved' }),
       send_receipt: mk('send_receipt', 'POST', `/api/bookings/${UUID}/receipt`, null),
+      switch_facility: mk('switch_facility', 'POST', '/api/facilities/select', { facilityId: UUID }),
     }
     check('canonical proposal per kind passes actionAllowed', kinds.every((k) => actionAllowed(canonical[k])))
 
