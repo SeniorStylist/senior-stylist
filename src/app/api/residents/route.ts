@@ -65,17 +65,38 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // P41 — master admin creates residents at ANY active facility via body
+    // facilityId; other callers' facility is authoritative (field IGNORED).
+    const isMaster =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const facilityUser = isMaster ? null : await getUserFacility(user.id)
+    if (!isMaster) {
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
-    const { facilityId } = facilityUser
 
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    let facilityId: string
+    if (isMaster) {
+      const targetId = parsed.data.facilityId
+      if (!targetId) return Response.json({ error: 'facilityId is required for master admin' }, { status: 422 })
+      const { facilities } = await import('@/db/schema')
+      const target = await db.query.facilities.findFirst({
+        where: and(eq(facilities.id, targetId), eq(facilities.active, true)),
+        columns: { id: true },
+      })
+      if (!target) return Response.json({ error: 'Facility not found' }, { status: 404 })
+      facilityId = target.id
+    } else {
+      facilityId = facilityUser!.facilityId
     }
 
     const { name, roomNumber, phone } = parsed.data

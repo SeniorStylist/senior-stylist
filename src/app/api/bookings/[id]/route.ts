@@ -22,6 +22,13 @@ import { bookingUpdateSchema } from '@/lib/validation/booking-update'
 // error, not a runtime "Invalid input" for bookkeepers).
 const updateSchema = bookingUpdateSchema
 
+// P41 — a bare master admin has no facility_users row; they edit/cancel
+// bookings at ANY facility, scoped to the booking row's own facility.
+function isMasterAdmin(email: string | null | undefined) {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  return !!su && email === su
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -70,24 +77,29 @@ export async function PUT(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist' && facilityUser.role !== 'bookkeeper') {
+    // P41 — master admin edits bookings at ANY facility: the booking row's own
+    // facility becomes the scope (stylists/[id] pattern). Others unchanged.
+    const master = isMasterAdmin(user.email)
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser && !isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist' && facilityUser.role !== 'bookkeeper') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { facilityId } = facilityUser
 
-    // Load current booking
+    // Load current booking (master: by id alone; scope = the row's facility)
     const existing = await db.query.bookings.findFirst({
-      where: and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)),
+      where: master
+        ? eq(bookings.id, id)
+        : and(eq(bookings.id, id), eq(bookings.facilityId, facilityUser!.facilityId)),
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
+    const facilityId = existing.facilityId
 
     // Stylist can only edit their own bookings. P30: identity resolves via
     // getEffectiveStylistId (honors master debug impersonation) so testing-as-
     // a-stylist behaves like the real account instead of silently 403ing.
     let callerStylistId: string | null = null
-    if (facilityUser.role === 'stylist') {
+    if (facilityUser?.role === 'stylist') {
       callerStylistId = await getEffectiveStylistId(user.id)
       if (!callerStylistId) {
         return Response.json(
@@ -109,7 +121,7 @@ export async function PUT(
     const { cancelFuture, ...updates } = parsed.data
 
     // Bookkeeper: can correct billing/service data and service dates (for import corrections)
-    if (facilityUser.role === 'bookkeeper') {
+    if (facilityUser?.role === 'bookkeeper') {
       const BOOKKEEPER_ALLOWED = new Set([
         'residentId', 'serviceId', 'serviceIds', 'addonServiceIds', 'addonChecked',
         'priceCents', 'paymentStatus', 'paymentMethod', 'notes', 'tipCents',
@@ -183,7 +195,7 @@ export async function PUT(
     // home rows, so a home-only check 404'd every legitimate stylist correction
     // (bookkeeper report 2026-07-13).
     // P30 — stylists cannot hand their booking to someone else
-    if (facilityUser.role === 'stylist' && updates.stylistId && updates.stylistId !== callerStylistId) {
+    if (facilityUser?.role === 'stylist' && updates.stylistId && updates.stylistId !== callerStylistId) {
       return Response.json({ error: 'Stylists can only keep appointments assigned to themselves.' }, { status: 403 })
     }
     if (updates.stylistId && updates.stylistId !== existing.stylistId) {
@@ -345,7 +357,7 @@ export async function PUT(
     // booking. Admin/facility_staff/bookkeeper only; stylists never edit residents.
     if (
       updates.roomNumber !== undefined &&
-      (isAdminOrAbove(facilityUser.role) || isFacilityStaff(facilityUser.role) || facilityUser.role === 'bookkeeper')
+      (master || (facilityUser && (isAdminOrAbove(facilityUser.role) || isFacilityStaff(facilityUser.role) || facilityUser.role === 'bookkeeper')))
     ) {
       const targetResidentId = updates.residentId ?? existing.residentId
       await db
@@ -535,21 +547,25 @@ export async function DELETE(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist' && facilityUser.role !== 'bookkeeper') {
+    // P41 — master cancels bookings at ANY facility (row-scoped, like PUT)
+    const master = isMasterAdmin(user.email)
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser && !isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist' && facilityUser.role !== 'bookkeeper') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { facilityId } = facilityUser
 
     const existing = await db.query.bookings.findFirst({
-      where: and(eq(bookings.id, id), eq(bookings.facilityId, facilityId)),
+      where: master
+        ? eq(bookings.id, id)
+        : and(eq(bookings.id, id), eq(bookings.facilityId, facilityUser!.facilityId)),
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
+    const facilityId = existing.facilityId
 
     // Stylists may only cancel their OWN bookings (P30: effective identity —
     // honors master debug impersonation)
-    if (facilityUser.role === 'stylist') {
+    if (facilityUser?.role === 'stylist') {
       const ownId = await getEffectiveStylistId(user.id)
       if (!ownId || existing.stylistId !== ownId) {
         return Response.json({ error: 'You can only cancel your own appointments.' }, { status: 403 })

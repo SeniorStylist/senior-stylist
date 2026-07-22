@@ -16,6 +16,8 @@ import { getPendingWaitlist } from '@/lib/dashboard-panels'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const createSchema = z.object({
+  // P41 — master admin only: target ANY active facility. IGNORED otherwise.
+  facilityId: z.string().uuid().optional(),
   residentId: z.string().uuid().nullable().optional(),
   residentName: z.string().min(1).max(200),
   roomNumber: z.string().max(50).nullable().optional(),
@@ -33,11 +35,17 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    const { facilityId, role } = facilityUser
-    if (!isAdminOrAbove(role) && !isFacilityStaff(role)) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // P41 — master admin adds waitlist entries at ANY active facility via
+    // body facilityId; other callers' facility is authoritative (IGNORED).
+    const master =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master) {
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const rl = await checkRateLimit('waitlist', `u:${user.id}`)
@@ -46,6 +54,20 @@ export async function POST(request: NextRequest) {
     const parsed = createSchema.safeParse(await request.json())
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
     const d = parsed.data
+
+    let facilityId: string
+    if (master) {
+      if (!d.facilityId) return Response.json({ error: 'facilityId is required for master admin' }, { status: 422 })
+      const { facilities } = await import('@/db/schema')
+      const target = await db.query.facilities.findFirst({
+        where: and(eq(facilities.id, d.facilityId), eq(facilities.active, true)),
+        columns: { id: true },
+      })
+      if (!target) return Response.json({ error: 'Facility not found' }, { status: 404 })
+      facilityId = target.id
+    } else {
+      facilityId = facilityUser!.facilityId
+    }
 
     await ensureWaitlistSchema()
 

@@ -14,6 +14,8 @@ import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
+  // P41 — master admin only: target ANY active facility. IGNORED otherwise.
+  facilityId: z.string().uuid().optional(),
   residentId: z.string().uuid().nullable(),
   residentName: z.string().min(1).max(200),
   roomNumber: z.string().max(50).nullable().optional(),
@@ -40,13 +42,29 @@ export async function POST(request: NextRequest) {
     if (facilityUser && !isMaster && !isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const facilityId = facilityUser?.facilityId
-    if (!facilityId) return Response.json({ error: 'No facility' }, { status: 400 })
-
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    // P41 — master admin may target ANY active facility via body facilityId
+    // (previously the isMaster relaxation was dead code: the facility still
+    // came from facilityUser, which a bare master doesn't have). Non-masters:
+    // the field is IGNORED.
+    let facilityId: string
+    const bodyFacilityId = isMaster ? parsed.data.facilityId : undefined
+    if (bodyFacilityId) {
+      const target = await db.query.facilities.findFirst({
+        where: and(eq(facilities.id, bodyFacilityId), eq(facilities.active, true)),
+        columns: { id: true },
+      })
+      if (!target) return Response.json({ error: 'Facility not found' }, { status: 404 })
+      facilityId = target.id
+    } else if (facilityUser) {
+      facilityId = facilityUser.facilityId
+    } else {
+      return Response.json({ error: 'No facility selected — include facilityId' }, { status: 400 })
     }
 
     let roomNumber = parsed.data.roomNumber ?? null

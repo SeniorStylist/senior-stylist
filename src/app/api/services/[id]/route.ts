@@ -73,10 +73,15 @@ export async function PUT(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
-    const { facilityId } = facilityUser
+    // P41 — master admin edits services at ANY facility (row-scoped update)
+    const master =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master) {
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await request.json()
     const parsed = updateSchema.safeParse(body)
@@ -88,7 +93,7 @@ export async function PUT(
     const [updated] = await db
       .update(services)
       .set({ ...parsed.data, updatedAt: new Date() })
-      .where(and(eq(services.id, id), eq(services.facilityId, facilityId)))
+      .where(master ? eq(services.id, id) : and(eq(services.id, id), eq(services.facilityId, facilityUser!.facilityId)))
       .returning()
 
     if (!updated) return Response.json({ error: 'Not found' }, { status: 404 })

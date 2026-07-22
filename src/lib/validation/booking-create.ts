@@ -8,6 +8,10 @@ import { z } from 'zod'
 // a client can send null.
 
 export const bookingCreateSchema = z.object({
+  // P41 — master admin only: target ANY active facility (assistant
+  // cross-facility actions). IGNORED for every other caller — the route
+  // derives their facility from getUserFacility().
+  facilityId: z.string().uuid().optional(),
   residentId: z.string().uuid().optional(),
   // Phase 18 — offline walk-in for a brand-new resident: the client can't run
   // the create-resident → book chain offline, so the queued booking POST

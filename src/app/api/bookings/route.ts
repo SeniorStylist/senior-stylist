@@ -28,6 +28,14 @@ import { bookingCreateSchema } from '@/lib/validation/booking-create'
 // payload builders can type against BookingCreateInput (drift = tsc error).
 const createSchema = bookingCreateSchema
 
+// P41 — a bare master admin has no facility_users row; they create bookings
+// at ANY active facility via the body's facilityId (assistant cross-facility
+// actions + master walk-ins). Non-masters: the body field is IGNORED.
+function isMasterAdmin(email: string | null | undefined) {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  return !!su && email === su
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -92,11 +100,14 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const master = isMasterAdmin(user.email)
     const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (!facilityUser && !master) return Response.json({ error: 'No facility' }, { status: 400 })
     // Bookkeeper does manual log-sheet entry (the walk-in form) — same outcome as
     // the OCR import path they already use, so they may create bookings too.
     if (
+      facilityUser &&
+      !master &&
       !isAdminOrAbove(facilityUser.role) &&
       !isFacilityStaff(facilityUser.role) &&
       facilityUser.role !== 'stylist' &&
@@ -104,12 +115,29 @@ export async function POST(request: NextRequest) {
     ) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { facilityId } = facilityUser
 
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    // P41 — master may target ANY active facility via body facilityId (the
+    // assistant's cross-facility actions); non-masters: the field is IGNORED
+    // and their own facility is authoritative.
+    let facilityId: string
+    const bodyFacilityId = master ? parsed.data.facilityId : undefined
+    if (bodyFacilityId) {
+      const target = await db.query.facilities.findFirst({
+        where: and(eq(facilities.id, bodyFacilityId), eq(facilities.active, true)),
+        columns: { id: true },
+      })
+      if (!target) return Response.json({ error: 'Facility not found' }, { status: 404 })
+      facilityId = target.id
+    } else if (facilityUser) {
+      facilityId = facilityUser.facilityId
+    } else {
+      return Response.json({ error: 'No facility selected — include facilityId' }, { status: 400 })
     }
 
     const { stylistId, startTime: startTimeStr, notes } = parsed.data
@@ -220,7 +248,7 @@ export async function POST(request: NextRequest) {
     // delete checked ownership; create didn't — the UI lock was the only
     // barrier). Unlinked stylist accounts get a clear 403, not a silent fail.
     let ownStylistId: string | null = null
-    if (facilityUser.role === 'stylist') {
+    if (facilityUser?.role === 'stylist') {
       ownStylistId = await getEffectiveStylistId(user.id)
       if (!ownStylistId) {
         return Response.json(
@@ -239,7 +267,7 @@ export async function POST(request: NextRequest) {
     // Resolve stylist: either explicit (admin-edit / legacy callers) or auto-assigned via the
     // same helpers the resident portal uses, so admin and portal flows pick consistently.
     let resolvedStylistId: string
-    if (facilityUser.role === 'stylist') {
+    if (facilityUser?.role === 'stylist') {
       resolvedStylistId = ownStylistId! // forced to self — never auto-assign for stylists
     } else if (stylistId) {
       resolvedStylistId = stylistId

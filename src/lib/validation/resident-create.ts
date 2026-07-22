@@ -7,6 +7,9 @@ import { z } from 'zod'
 // REJECTS null — use .nullable() wherever a client can send null.
 
 export const residentCreateSchema = z.object({
+  // P41 — master admin only: target ANY active facility (assistant
+  // cross-facility actions). IGNORED for every other caller.
+  facilityId: z.string().uuid().optional(),
   name: z.string().min(1).max(200),
   roomNumber: z.string().max(50).optional(),
   phone: z.string().max(50).optional(),

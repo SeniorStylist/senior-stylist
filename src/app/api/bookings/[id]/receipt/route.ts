@@ -25,19 +25,24 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // P41 — master check BEFORE the facility gate: a bare master has no
+    // facility_users row and was 400ing before the existing isMaster booking
+    // bypass below could ever run.
+    const isMaster = !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const facilityUser = isMaster ? null : await getUserFacility(user.id)
+    if (!isMaster) {
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const rl = await checkRateLimit('receiptSend', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
-    const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const whereClause = isMaster
       ? eq(bookings.id, id)
-      : and(eq(bookings.id, id), eq(bookings.facilityId, facilityUser.facilityId))
+      : and(eq(bookings.id, id), eq(bookings.facilityId, facilityUser!.facilityId))
 
     const booking = await db.query.bookings.findFirst({
       where: whereClause,

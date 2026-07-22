@@ -32,11 +32,17 @@ export async function POST(request: NextRequest) {
       ),
     })
     if (!fu) {
-      // Bookkeepers are cross-facility by role — any active facility is selectable
-      const bookkeeperRow = await db.query.facilityUsers.findFirst({
-        where: and(eq(facilityUsers.userId, user.id), eq(facilityUsers.role, 'bookkeeper')),
-      })
-      const fac = bookkeeperRow
+      // Master admin (P41) and bookkeepers are cross-facility — any active
+      // facility is selectable. A bare master has NO facility_users rows, so
+      // without this branch masters could never switch facilities.
+      const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+      const master = !!su && user.email === su
+      const bookkeeperRow = master
+        ? null
+        : await db.query.facilityUsers.findFirst({
+            where: and(eq(facilityUsers.userId, user.id), eq(facilityUsers.role, 'bookkeeper')),
+          })
+      const fac = master || bookkeeperRow
         ? await db.query.facilities.findFirst({
             where: and(eq(facilities.id, parsed.data.facilityId), eq(facilities.active, true)),
             columns: { id: true },
