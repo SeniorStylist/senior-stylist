@@ -9,9 +9,9 @@ const RevenueByServiceChart = dynamic(
   () => import('@/components/charts/revenue-by-service-chart'),
   { ssr: false, loading: () => <div style={{ width: '100%', height: 220 }} className="skeleton rounded-xl" /> }
 )
-// P35 — Ask AI panel, code-split like the chart
-const AiAnalystPanel = dynamic(
-  () => import('@/components/ai/ai-analyst-panel').then((m) => m.AiAnalystPanel),
+// P40 — the full assistant inline (replaces the single-shot analyst panel)
+const AssistantCard = dynamic(
+  () => import('@/components/assistant/assistant-card').then((m) => m.AssistantCard),
   { ssr: false, loading: () => <div className="skeleton rounded-2xl h-16" /> }
 )
 import { cn, formatCents } from '@/lib/utils'
@@ -255,7 +255,7 @@ export function ReportsClient({
 
       {/* P35 — Ask AI business analyst (lazy — stays out of the initial chunk) */}
       <div className="mb-6">
-        <AiAnalystPanel scope="facility" />
+        <AssistantCard scope="facility" />
       </div>
 
       {/* Tabs */}

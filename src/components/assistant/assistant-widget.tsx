@@ -1,11 +1,10 @@
 'use client'
 
-// P38 — floating AI personal assistant (every role). Text + voice in, chat out;
-// proposed actions render as a confirm card and are executed BY THIS CLIENT
-// against the existing REST endpoints (user's own session — all server guards
-// run exactly as the normal UI). The widget validates each proposal against a
-// hard method/path/body allowlist before fetching (defense-in-depth; the
-// server builds bodies only from resolved entities).
+// P38/P40 — floating AI personal assistant (every role). The chat brain lives
+// in useAssistantChat (shared with the inline Analytics/Master-Admin card);
+// this shell owns the floating trigger, the sheet/popover chrome, and voice
+// dictation. Confirmed actions execute from the CLIENT against existing REST
+// endpoints behind the shared ACTION_RULES allowlist.
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -13,35 +12,8 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { isNativeApp } from '@/lib/detect-device'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { useToast } from '@/components/ui/toast'
-
-interface PendingAction {
-  kind: 'book' | 'cancel' | 'reschedule'
-  summary: { title: string; lines: string[] }
-  request: { method: 'POST' | 'PUT' | 'DELETE'; path: string; body: Record<string, unknown> | null }
-  expiresAt: string
-}
-
-interface ChatMsg {
-  role: 'user' | 'model'
-  text: string
-}
-
-// ---- pendingAction client allowlist (never execute anything outside it) ----
-const PATH_RE = /^\/api\/bookings(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i
-const ALLOWED_BODY_KEYS: Record<PendingAction['kind'], string[]> = {
-  // newResident — P38c: user-confirmed new resident, created atomically with
-  // the booking (same server branch + dedup as the walk-in form).
-  book: ['residentId', 'newResident', 'serviceId', 'startTime', 'stylistId', 'notes'],
-  cancel: [],
-  reschedule: ['startTime'],
-}
-function actionAllowed(a: PendingAction): boolean {
-  if (!['POST', 'PUT', 'DELETE'].includes(a.request.method)) return false
-  if (!PATH_RE.test(a.request.path)) return false
-  const keys = Object.keys(a.request.body ?? {})
-  const allowed = ALLOWED_BODY_KEYS[a.kind] ?? []
-  return keys.every((k) => allowed.includes(k))
-}
+import { useAssistantChat } from './use-assistant-chat'
+import { AssistantChat, ASSISTANT_CHIPS } from './assistant-chat'
 
 // ---- Web Speech API (same minimal typings + iOS pattern as feedback-widget) ----
 interface SpeechRecognitionLike {
@@ -72,23 +44,13 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
-const CHIPS: Record<string, string[]> = {
-  admin: ["What's on the schedule today?", 'Who owes us the most right now?', "How's revenue this month?"],
-  facility_staff: ["What's on the schedule today?", 'Book an appointment for a resident', "Who's coming tomorrow?"],
-  bookkeeper: ['Who owes us the most right now?', 'How much did we collect this month?', "What's on the schedule today?"],
-  stylist: ["What's my day look like tomorrow?", 'How much have I made this month?', 'Book an appointment'],
-  master: ['Which facility owes us the most?', "How's the network doing this month?", 'Numbers for F177'],
-}
-
 export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: boolean }) {
   const isMobile = useIsMobile()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMsg[]>([])
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  const chat = useAssistantChat()
+  const { input, setInput, textareaRef } = chat
+
   const [listening, setListening] = useState(false)
   const [micDenied, setMicDenied] = useState(false)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
@@ -97,12 +59,12 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
   // P38d — 'audio-capture' auto-retry (the priming stream sometimes hasn't
   // released the mic yet when recognition starts, esp. iOS).
   const captureRetriedRef = useRef(false)
-  const logRef = useRef<HTMLDivElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   // P38d — inside the Capacitor shell (WKWebView) webkitSpeechRecognition is
   // defined but non-functional ('audio-capture'). The iOS/Android KEYBOARD mic
   // works everywhere, so there the button routes to keyboard dictation.
   const speechSupported = !!getSpeechRecognition() || isNativeApp()
+
+  const chips = ASSISTANT_CHIPS[isMaster ? 'master' : role] ?? ASSISTANT_CHIPS.admin
 
   // Focus the composer and point the user at the keyboard's own mic key —
   // the always-works dictation path on phones.
@@ -110,7 +72,6 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
     textareaRef.current?.focus()
     toast.info('Tap the mic key on your keyboard to talk — it types right in here.')
   }
-  const chips = CHIPS[isMaster ? 'master' : role] ?? CHIPS.admin
 
   useEffect(() => {
     if (!open && recognitionRef.current) {
@@ -119,11 +80,6 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
       setListening(false)
     }
   }, [open])
-
-  useEffect(() => {
-    // keep the newest message in view
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
-  }, [messages, pendingAction, sending])
 
   const startRecognition = () => {
     const SR = getSpeechRecognition()
@@ -209,219 +165,36 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
     startRecognition()
   }
 
-  const send = async (raw?: string) => {
-    const text = (raw ?? input).trim()
-    if (!text || sending) return
-    recognitionRef.current?.stop()
-    setSending(true)
-    setPendingAction(null)
-    const nextMessages: ChatMsg[] = [...messages, { role: 'user', text }]
-    setMessages(nextMessages)
-    setInput('')
-    try {
-      const res = await fetch('/api/ai/assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: messages.slice(-8).map((m) => ({ role: m.role, text: m.text.slice(0, 1500) })),
-        }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        // keep the typed message recoverable
-        setMessages(messages)
-        setInput(text)
-        toast.error(typeof json.error === 'string' ? json.error : "The assistant couldn't respond — try again.")
-        return
-      }
-      const answer = typeof json.data?.answer === 'string' ? json.data.answer : '…'
-      setMessages([...nextMessages, { role: 'model', text: answer }])
-      const pa = json.data?.pendingAction as PendingAction | null | undefined
-      if (pa && actionAllowed(pa)) setPendingAction(pa)
-    } catch {
-      setMessages(messages)
-      setInput(text)
-      toast.error('Network error — try again.')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const runAction = async () => {
-    const a = pendingAction
-    if (!a || confirming) return
-    if (!actionAllowed(a)) {
-      setPendingAction(null)
-      return
-    }
-    if (new Date(a.expiresAt).getTime() < Date.now()) {
-      toast.error('This proposal expired — just ask again.')
-      setPendingAction(null)
-      return
-    }
-    setConfirming(true)
-    try {
-      const res = await fetch(a.request.path, {
-        method: a.request.method,
-        ...(a.request.body
-          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a.request.body) }
-          : {}),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        const msg = typeof json.error === 'string' ? json.error : 'That didn\'t go through.'
-        setMessages((prev) => [...prev, { role: 'model', text: `That didn't work: ${msg}` }])
-        setPendingAction(null)
-        return
-      }
-      const doneLabel =
-        a.kind === 'book' ? 'Booked' : a.kind === 'cancel' ? 'Cancelled' : 'Moved'
-      setMessages((prev) => [...prev, { role: 'model', text: `[done] ${doneLabel}: ${a.summary.lines[0] ?? ''}` }])
-      toast.success(`${doneLabel}!`)
-      setPendingAction(null)
-    } catch {
-      toast.error('Network error — nothing was changed.')
-    } finally {
-      setConfirming(false)
-    }
-  }
-
-  const expired = pendingAction ? new Date(pendingAction.expiresAt).getTime() < Date.now() : false
+  const micButton = speechSupported ? (
+    <button
+      type="button"
+      onClick={() => void toggleVoice()}
+      aria-label={micDenied ? 'Retry microphone' : listening ? 'Stop dictation' : 'Dictate'}
+      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+        micDenied
+          ? 'bg-amber-50 border border-amber-200 text-amber-600'
+          : listening
+            ? 'bg-red-500 text-white shadow-[0_0_0_4px_rgba(239,68,68,0.2)] animate-pulse'
+            : 'bg-white border border-stone-200 text-stone-500 hover:text-[#8B2E4A] hover:border-[#C4687A]'
+      }`}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+        <path d="M19 10v2a7 7 0 01-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="23" />
+        <line x1="8" y1="23" x2="16" y2="23" />
+      </svg>
+    </button>
+  ) : null
 
   const panel = (
-    <div className="flex flex-col" style={{ height: isMobile ? '70dvh' : '480px' }}>
-      {/* Chat log */}
-      <div ref={logRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-2.5">
-        {messages.length === 0 && (
-          <div className="pt-2">
-            <p className="text-sm text-stone-600 mb-3">
-              Ask me anything about your day, residents, or numbers — or tell me to book an appointment. You can type or tap the mic and talk.
-            </p>
-            <div className="flex flex-col items-start gap-1.5">
-              {chips.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => void send(c)}
-                  className="text-left text-xs font-medium text-[#8B2E4A] bg-[#F9EFF2] border border-[#E8CDD5] rounded-full px-3 py-1.5 hover:bg-[#F2E0E6] transition-colors"
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-            <div
-              className={
-                m.role === 'user'
-                  ? 'max-w-[85%] rounded-2xl rounded-br-md bg-[#8B2E4A] text-white px-3.5 py-2 text-sm whitespace-pre-wrap'
-                  : 'max-w-[85%] rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-800 px-3.5 py-2 text-sm whitespace-pre-wrap'
-              }
-            >
-              {m.text}
-            </div>
-          </div>
-        ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-400 px-3.5 py-2 text-sm inline-flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
-              Thinking…
-            </div>
-          </div>
-        )}
-        {/* Confirm card */}
-        {pendingAction && (
-          <div className="rounded-2xl border border-[#D4A0B0] bg-[#F9EFF2] p-3.5">
-            <p className="text-sm font-semibold text-stone-900 mb-1.5">{pendingAction.summary.title}</p>
-            <ul className="space-y-0.5 mb-3">
-              {pendingAction.summary.lines.map((l, i) => (
-                <li key={i} className="text-sm text-stone-700">{l}</li>
-              ))}
-            </ul>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void runAction()}
-                disabled={confirming || expired}
-                className="flex-1 min-h-[44px] text-sm font-semibold bg-[#8B2E4A] text-white rounded-xl hover:bg-[#72253C] disabled:opacity-50 transition-colors"
-              >
-                {confirming ? 'Working…' : expired ? 'Expired — ask again' : 'Confirm'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPendingAction(null)}
-                disabled={confirming}
-                className="flex-1 min-h-[44px] text-sm font-semibold text-stone-600 border border-stone-200 bg-white rounded-xl hover:bg-stone-50 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Composer */}
-      <div className="shrink-0 border-t border-stone-100 p-3">
-        <div className="relative">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value.slice(0, 600))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void send()
-              }
-            }}
-            rows={2}
-            placeholder={listening ? 'Listening… speak now' : 'Ask, or say what to book…'}
-            className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 pr-20 text-base md:text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all resize-none"
-          />
-          <div className="absolute right-2 top-2 flex items-center gap-1.5">
-            {speechSupported && (
-              <button
-                type="button"
-                onClick={() => void toggleVoice()}
-                aria-label={micDenied ? 'Retry microphone' : listening ? 'Stop dictation' : 'Dictate'}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                  micDenied
-                    ? 'bg-amber-50 border border-amber-200 text-amber-600'
-                    : listening
-                      ? 'bg-red-500 text-white shadow-[0_0_0_4px_rgba(239,68,68,0.2)] animate-pulse'
-                      : 'bg-white border border-stone-200 text-stone-500 hover:text-[#8B2E4A] hover:border-[#C4687A]'
-                }`}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-                  <path d="M19 10v2a7 7 0 01-14 0v-2" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </svg>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={sending || input.trim().length === 0}
-              aria-label="Send"
-              className="w-8 h-8 rounded-full bg-[#8B2E4A] text-white flex items-center justify-center disabled:opacity-40 hover:bg-[#72253C] transition-colors"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <p className="mt-1.5 text-[10.5px] text-stone-400">
-          Answers come from your real data. Actions always ask you to confirm first.
-        </p>
-      </div>
-    </div>
+    <AssistantChat
+      chat={chat}
+      chips={chips}
+      heightStyle={{ height: isMobile ? '70dvh' : '480px' }}
+      placeholder={listening ? 'Listening… speak now' : 'Ask, or say what to do…'}
+      composerAccessory={micButton}
+    />
   )
 
   if (typeof document === 'undefined') return null

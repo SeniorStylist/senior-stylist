@@ -11,9 +11,9 @@ import dynamic from 'next/dynamic'
 // master-admin bundle even though the tab is render-gated. Single dynamic
 // wrapper (never per-recharts-export — barrel resolution breaks, commit 6d2c300).
 const ReportsTab = dynamic(() => import('./reports-tab').then((m) => m.ReportsTab), { ssr: false })
-// P35 — Ask AI network analyst (code-split; master pack is chosen server-side)
-const AiAnalystPanel = dynamic(
-  () => import('@/components/ai/ai-analyst-panel').then((m) => m.AiAnalystPanel),
+// P40 — the full assistant inline (replaces the single-shot analyst panel)
+const AssistantCard = dynamic(
+  () => import('@/components/assistant/assistant-card').then((m) => m.AssistantCard),
   { ssr: false, loading: () => <div className="skeleton rounded-2xl h-16" /> }
 )
 import { MergeTab } from './merge-tab'
@@ -807,7 +807,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
         {activeTab === 'reports' && (
           <div className="space-y-4 mt-4">
-            <AiAnalystPanel scope="master" />
+            <AssistantCard scope="master" />
             <ReportsTab />
           </div>
         )}
