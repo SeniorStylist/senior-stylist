@@ -22,7 +22,8 @@ import { sql, and, eq, or, inArray, lt, gt, lte, gte, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   bookings, residents, services, stylists, stylistFacilityAssignments, facilities, residentPreferences,
-  stylistAvailability, coverageRequests,
+  stylistAvailability, coverageRequests, qbInvoices, qbPayments, qbUnappliedCredits,
+  waitlistEntries, signupSheetEntries, payPeriods, feedbackSubmissions,
 } from '@/db/schema'
 import { fuzzyScore } from '@/lib/fuzzy'
 import {
@@ -46,19 +47,10 @@ export interface AssistantCtx {
   stylistName: string | null
 }
 
-export interface PendingAction {
-  kind: 'book' | 'cancel' | 'reschedule'
-  summary: {
-    title: string
-    lines: string[]
-  }
-  request: {
-    method: 'POST' | 'PUT' | 'DELETE'
-    path: string
-    body: Record<string, unknown> | null
-  }
-  expiresAt: string
-}
+// P40 — the PendingAction shape + per-kind execution rules live in the shared
+// allowlist module (single source for server tools, client hook, harness).
+export type { PendingAction, AssistantActionKind } from './action-allowlist'
+import type { PendingAction } from './action-allowlist'
 
 export interface ToolResult {
   /** Fed back to the model as the functionResponse (always a JSON object). */
@@ -353,7 +345,38 @@ const findResident: AssistantTool = {
       prefsById = new Map(prefs.map((p) => [p.residentId, { styleNotes: p.styleNotes, allergyNotes: p.allergyNotes }]))
     } catch { /* pre-migration */ }
 
+    // P40 enrichment — last completed visit + 90-day no-shows (one grouped
+    // query) and, for billing roles, LIVE owed from open invoices (the
+    // denormalized column goes stale — see buildFacilityDataPack).
     const billingRole = ctx.role === 'admin' || ctx.role === 'bookkeeper' || ctx.role === 'master'
+    const activity = new Map<string, { lastVisit: string | null; noShows90d: number }>()
+    const owedById = new Map<string, number>()
+    try {
+      const rows = (await db.execute(sql`
+        SELECT b.resident_id::text AS rid,
+          MAX(b.start_time) FILTER (WHERE b.status = 'completed') AS last_visit,
+          COUNT(*) FILTER (WHERE b.status = 'no_show' AND b.start_time >= NOW() - interval '90 days') AS no_shows
+        FROM bookings b
+        WHERE b.resident_id = ANY(${ids}::uuid[]) AND b.active = true AND b.is_demo = false
+        GROUP BY b.resident_id
+      `)) as unknown as Array<Record<string, unknown>>
+      for (const r of rows) {
+        activity.set(String(r.rid), {
+          lastVisit: r.last_visit ? formatDateInTz(new Date(String(r.last_visit)), ctx.timezone, { month: 'short', day: 'numeric', year: 'numeric' }) : null,
+          noShows90d: Number(r.no_shows ?? 0),
+        })
+      }
+      if (billingRole) {
+        const owedRows = (await db.execute(sql`
+          SELECT resident_id::text AS rid, COALESCE(SUM(open_balance_cents), 0)::bigint AS owed
+          FROM qb_invoices
+          WHERE resident_id = ANY(${ids}::uuid[]) AND is_demo = false AND open_balance_cents > 0
+          GROUP BY resident_id
+        `)) as unknown as Array<Record<string, unknown>>
+        for (const r of owedRows) owedById.set(String(r.rid), Number(r.owed ?? 0))
+      }
+    } catch { /* enrichment is best-effort */ }
+
     const poaRole = ctx.role === 'admin' || ctx.role === 'facility_staff' || ctx.role === 'master'
     const matches = scored.map(({ item, score }) => ({
       residentId: item.id,
@@ -362,9 +385,11 @@ const findResident: AssistantTool = {
       matchScore: Math.round(score * 100) / 100,
       styleNotes: prefsById.get(item.id)?.styleNotes?.slice(0, 200) ?? null,
       allergyNotes: prefsById.get(item.id)?.allergyNotes?.slice(0, 200) ?? null,
+      lastCompletedVisit: activity.get(item.id)?.lastVisit ?? null,
+      noShowsLast90Days: activity.get(item.id)?.noShows90d ?? 0,
       // POA contact stays hidden from stylists (P30 peek rule).
       ...(poaRole ? { poaName: item.poaName ?? null, poaPhone: item.poaPhone ?? null } : {}),
-      ...(billingRole ? { owedCents: Number(item.qbOutstandingBalanceCents ?? 0) } : {}),
+      ...(billingRole ? { owed: money(owedById.get(item.id) ?? 0) } : {}),
     }))
     return { response: { matches, ambiguous } }
   },
@@ -666,6 +691,379 @@ const findOpenSlots: AssistantTool = {
           label: whenLabel(new Date(s.startUtcMs), ctx.timezone),
         })),
         note: 'Offer the top 1-2 conversationally; pass the chosen dateTimeLocal to book_appointment.',
+      },
+    }
+  },
+}
+
+const getResidentLedger: AssistantTool = {
+  name: 'get_resident_ledger',
+  description:
+    "A resident's money picture: live balance, open invoices, available credits, and recent invoice/payment activity. Use for 'how much does X owe / what has X paid'.",
+  parameters: {
+    type: 'OBJECT',
+    properties: { residentName: { type: 'STRING', description: "Resident's name." } },
+    required: ['residentName'],
+  },
+  kind: 'read',
+  roles: ['admin', 'bookkeeper', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const name = typeof args.residentName === 'string' ? args.residentName.trim() : ''
+    if (name.length < 2) return err('Which resident?')
+    const roster = await db.query.residents.findMany({
+      where: and(eq(residents.facilityId, ctx.facilityId!), eq(residents.active, true), eq(residents.isDemo, false)),
+      columns: { id: true, name: true },
+    })
+    const ranked = rankByName(roster, name)
+    if (!ranked.scored[0]) return err(`No resident matching "${name}".`)
+    if (ranked.ambiguous) {
+      return err('Multiple residents match — ask which one.', {
+        candidates: ranked.scored.map((x) => x.item.name),
+      })
+    }
+    const resident = ranked.scored[0].item
+
+    const [invoices, payments, credits] = await Promise.all([
+      db.query.qbInvoices.findMany({
+        where: and(eq(qbInvoices.residentId, resident.id), eq(qbInvoices.isDemo, false)),
+        columns: { invoiceNum: true, invoiceDate: true, amountCents: true, openBalanceCents: true, status: true },
+        orderBy: (t, { desc }) => [desc(t.invoiceDate)],
+        limit: 50,
+      }),
+      db.query.qbPayments.findMany({
+        where: and(eq(qbPayments.residentId, resident.id), eq(qbPayments.isDemo, false)),
+        columns: { paymentDate: true, amountCents: true, paymentMethod: true },
+        orderBy: (t, { desc }) => [desc(t.paymentDate)],
+        limit: 25,
+      }),
+      db.query.qbUnappliedCredits.findMany({
+        where: eq(qbUnappliedCredits.residentId, resident.id),
+        columns: { txnDate: true, amountCents: true, openBalanceCents: true, appliedCents: true },
+        limit: 20,
+      }).catch(() => []),
+    ])
+
+    const openInvoices = invoices.filter((i) => (i.openBalanceCents ?? 0) > 0)
+    const owedCents = openInvoices.reduce((s, i) => s + (i.openBalanceCents ?? 0), 0)
+    const creditCents = credits.reduce((s, c) => s + Math.max(0, (c.openBalanceCents ?? 0) - (c.appliedCents ?? 0)), 0)
+    return {
+      response: {
+        resident: resident.name,
+        owed: money(owedCents),
+        availableCredit: money(creditCents),
+        openInvoices: openInvoices.slice(0, 10).map((i) => ({
+          num: i.invoiceNum, date: String(i.invoiceDate), open: money(i.openBalanceCents ?? 0), status: i.status,
+        })),
+        recentPayments: payments.slice(0, 6).map((p) => ({
+          date: String(p.paymentDate), amount: money(p.amountCents ?? 0), method: p.paymentMethod ?? null,
+        })),
+        recentInvoices: invoices.slice(0, 6).map((i) => ({
+          num: i.invoiceNum, date: String(i.invoiceDate), amount: money(i.amountCents ?? 0), open: money(i.openBalanceCents ?? 0),
+        })),
+      },
+    }
+  },
+}
+
+const getStylistInfo: AssistantTool = {
+  name: 'get_stylist_info',
+  description:
+    "A stylist's full picture: weekly hours, upcoming time off (with request ids for decide_time_off), commission, status, compliance (license/insurance/background), and this month's completed visits + revenue. Stylists get their own info.",
+  parameters: {
+    type: 'OBJECT',
+    properties: { stylistName: { type: 'STRING', description: 'Omit for yourself (stylists always get themselves).' } },
+  },
+  kind: 'read',
+  roles: ['admin', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    let stylistId: string
+    if (ctx.role === 'stylist') {
+      if (!ctx.stylistId) return err("Your account isn't linked to a stylist profile yet.")
+      stylistId = ctx.stylistId
+    } else {
+      const named = typeof args.stylistName === 'string' ? args.stylistName.trim() : ''
+      const roster = await facilityRoster(ctx.facilityId!)
+      if (!named) {
+        if (roster.length === 1) stylistId = roster[0].id
+        else return err('Which stylist?', { stylists: roster.map((s) => s.name) })
+      } else {
+        const ranked = rankByName(roster, named)
+        if (!ranked.scored[0] || ranked.scored[0].score < 0.6) {
+          return err(`No stylist matching "${named}".`, { stylists: roster.map((s) => s.name) })
+        }
+        stylistId = ranked.scored[0].item.id
+      }
+    }
+
+    const p = getLocalParts(new Date(), ctx.timezone)
+    const monthStart = dayRangeInTimezone(`${p.year}-${String(p.month).padStart(2, '0')}-01`, ctx.timezone)!.start
+    const todayStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+
+    const [stylist, windows, timeOff, assignment, mtdRows] = await Promise.all([
+      db.query.stylists.findFirst({
+        where: eq(stylists.id, stylistId),
+        columns: {
+          name: true, commissionPercent: true, status: true,
+          licenseNumber: true, licenseExpiresAt: true, insuranceVerified: true,
+          insuranceExpiresAt: true, backgroundCheckVerified: true,
+        },
+      }),
+      db.query.stylistAvailability.findMany({
+        where: and(
+          eq(stylistAvailability.stylistId, stylistId),
+          eq(stylistAvailability.facilityId, ctx.facilityId!),
+          eq(stylistAvailability.active, true),
+        ),
+        columns: { dayOfWeek: true, startTime: true, endTime: true },
+        orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
+      }),
+      db.query.coverageRequests.findMany({
+        where: and(
+          eq(coverageRequests.stylistId, stylistId),
+          inArray(coverageRequests.status, ['pending', 'open', 'filled']),
+          gte(coverageRequests.endDate, todayStr),
+        ),
+        columns: { id: true, startDate: true, endDate: true, status: true, reason: true },
+        limit: 10,
+      }),
+      db.query.stylistFacilityAssignments.findFirst({
+        where: and(
+          eq(stylistFacilityAssignments.stylistId, stylistId),
+          eq(stylistFacilityAssignments.facilityId, ctx.facilityId!),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+        columns: { commissionPercent: true },
+      }),
+      db.execute(sql`
+        SELECT COUNT(*) AS visits,
+          COALESCE(SUM(COALESCE(b.price_cents, s.price_cents, 0)), 0)::bigint AS revenue_cents
+        FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+        WHERE b.stylist_id = ${stylistId} AND b.facility_id = ${ctx.facilityId}
+          AND b.active = true AND b.is_demo = false AND b.status = 'completed'
+          AND b.start_time >= ${monthStart.toISOString()}::timestamptz
+      `),
+    ])
+    if (!stylist) return err('Stylist not found.')
+    const mtd = (mtdRows as unknown as Array<Record<string, unknown>>)[0] ?? {}
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    return {
+      response: {
+        name: stylist.name,
+        status: stylist.status,
+        commissionPercent: resolveCommission(stylist.commissionPercent ?? 0, assignment),
+        weeklyHours: windows.map((w) => `${DAYS[w.dayOfWeek]} ${w.startTime}-${w.endTime}`),
+        upcomingTimeOff: timeOff.map((t) => ({
+          requestId: t.id,
+          dates: t.startDate === t.endDate ? t.startDate : `${t.startDate} – ${t.endDate}`,
+          status: t.status === 'open' ? 'approved' : t.status,
+          reason: t.reason ?? null,
+        })),
+        compliance: {
+          licenseOnFile: !!stylist.licenseNumber,
+          licenseExpires: stylist.licenseExpiresAt ? String(stylist.licenseExpiresAt) : null,
+          insuranceVerified: stylist.insuranceVerified,
+          insuranceExpires: stylist.insuranceExpiresAt ? String(stylist.insuranceExpiresAt) : null,
+          backgroundCheckVerified: stylist.backgroundCheckVerified,
+        },
+        thisMonth: { completedVisits: Number(mtd.visits ?? 0), revenue: money(Number(mtd.revenue_cents ?? 0)) },
+      },
+    }
+  },
+}
+
+const getTimeOffRequests: AssistantTool = {
+  name: 'get_time_off_requests',
+  description:
+    "The facility's time-off requests with request ids (needed for decide_time_off). Default: pending + upcoming approved.",
+  parameters: {
+    type: 'OBJECT',
+    properties: { status: { type: 'STRING', description: "Optional filter: 'pending', 'open' (approved), 'filled', 'denied'." } },
+  },
+  kind: 'read',
+  roles: ['admin', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const statusArg = typeof args.status === 'string' ? args.status.trim() : ''
+    const statuses = ['pending', 'open', 'filled', 'denied'].includes(statusArg) ? [statusArg] : ['pending', 'open', 'filled']
+    const rows = await db.query.coverageRequests.findMany({
+      where: and(eq(coverageRequests.facilityId, ctx.facilityId!), inArray(coverageRequests.status, statuses)),
+      with: { stylist: { columns: { name: true } }, substituteStylist: { columns: { name: true } } },
+      orderBy: (t, { asc }) => [asc(t.startDate)],
+      limit: 30,
+    })
+    return {
+      response: {
+        requests: rows.map((r) => ({
+          requestId: r.id,
+          stylist: r.stylist?.name ?? 'Unknown',
+          dates: r.startDate === r.endDate ? r.startDate : `${r.startDate} – ${r.endDate}`,
+          status: r.status === 'open' ? 'approved (needs substitute)' : r.status,
+          substitute: r.substituteStylist?.name ?? null,
+          reason: r.reason ?? null,
+        })),
+      },
+    }
+  },
+}
+
+const getWaitlist: AssistantTool = {
+  name: 'get_waitlist',
+  description: 'The pending cancellation waitlist — residents waiting for a freed slot.',
+  parameters: { type: 'OBJECT', properties: {} },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'master'],
+  needsFacility: true,
+  async execute(ctx) {
+    const rows = await db.query.waitlistEntries.findMany({
+      where: and(
+        eq(waitlistEntries.facilityId, ctx.facilityId!),
+        eq(waitlistEntries.status, 'pending'),
+        eq(waitlistEntries.isDemo, false),
+      ),
+      columns: { residentName: true, roomNumber: true, serviceName: true, earliestDate: true, latestDate: true, notes: true },
+      orderBy: (t, { asc }) => [asc(t.earliestDate)],
+      limit: 50,
+    })
+    return {
+      response: {
+        waitlist: rows.map((r) => ({
+          resident: r.residentName,
+          room: r.roomNumber ?? null,
+          service: r.serviceName ?? null,
+          window: r.latestDate ? `${r.earliestDate} – ${r.latestDate}` : `from ${r.earliestDate}`,
+          notes: r.notes ?? null,
+        })),
+      },
+    }
+  },
+}
+
+const getSignupQueue: AssistantTool = {
+  name: 'get_signup_queue',
+  description: "Pending sign-up sheet requests (residents asking for an appointment, not yet scheduled). Stylists see their own + unassigned.",
+  parameters: { type: 'OBJECT', properties: {} },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx) {
+    const rows = await db.query.signupSheetEntries.findMany({
+      where: and(
+        eq(signupSheetEntries.facilityId, ctx.facilityId!),
+        eq(signupSheetEntries.status, 'pending'),
+        eq(signupSheetEntries.isDemo, false),
+        // Route parity: stylists see own + unassigned only.
+        ...(ctx.role === 'stylist' && ctx.stylistId
+          ? [or(eq(signupSheetEntries.assignedToStylistId, ctx.stylistId), sql`${signupSheetEntries.assignedToStylistId} IS NULL`)!]
+          : []),
+      ),
+      with: { assignedStylist: { columns: { name: true } } },
+      orderBy: (t, { asc }) => [asc(t.requestedDate)],
+      limit: 50,
+    })
+    return {
+      response: {
+        pending: rows.map((r) => ({
+          resident: r.residentName,
+          room: r.roomNumber ?? null,
+          service: r.serviceName,
+          requested: r.requestedDate,
+          preferredDate: r.preferredDate ?? null,
+          assignedTo: r.assignedStylist?.name ?? null,
+          notes: r.notes ?? null,
+        })),
+      },
+    }
+  },
+}
+
+const getPayrollSummary: AssistantTool = {
+  name: 'get_payroll_summary',
+  description:
+    'Payroll pay periods with totals; pass a periodId for the per-stylist breakdown (commission, tips, net pay).',
+  parameters: {
+    type: 'OBJECT',
+    properties: { periodId: { type: 'STRING', description: 'Optional pay-period id from the period list.' } },
+  },
+  kind: 'read',
+  roles: ['admin', 'bookkeeper', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const periodId = typeof args.periodId === 'string' && UUID_RE.test(args.periodId) ? args.periodId : null
+    if (periodId) {
+      const period = await db.query.payPeriods.findFirst({
+        where: and(eq(payPeriods.id, periodId), eq(payPeriods.facilityId, ctx.facilityId!)),
+        with: { items: { with: { stylist: { columns: { name: true } } } } },
+      })
+      if (!period) return err('Pay period not found at this facility.')
+      return {
+        response: {
+          period: `${period.startDate} – ${period.endDate}`,
+          status: period.status,
+          stylists: (period.items ?? []).map((i) => ({
+            stylist: i.stylist?.name ?? 'Unknown',
+            revenue: money(i.grossRevenueCents ?? 0),
+            commissionPercent: i.commissionRate,
+            commission: money(i.commissionAmountCents ?? 0),
+            tips: money(i.tipCentsTotal ?? 0),
+            netPay: money(i.netPayCents ?? 0),
+          })),
+        },
+      }
+    }
+    const periods = await db.query.payPeriods.findMany({
+      where: eq(payPeriods.facilityId, ctx.facilityId!),
+      with: { items: { columns: { netPayCents: true } } },
+      orderBy: (t, { desc }) => [desc(t.startDate)],
+      limit: 6,
+    })
+    return {
+      response: {
+        periods: periods.map((pp) => ({
+          periodId: pp.id,
+          dates: `${pp.startDate} – ${pp.endDate}`,
+          status: pp.status,
+          stylists: (pp.items ?? []).length,
+          totalPayout: money((pp.items ?? []).reduce((s, i) => s + (i.netPayCents ?? 0), 0)),
+        })),
+        note: 'Pass a periodId for the per-stylist breakdown.',
+      },
+    }
+  },
+}
+
+const getFeedbackInbox: AssistantTool = {
+  name: 'get_feedback_inbox',
+  description: 'New (unreviewed) feedback submissions from staff, with ids for reply_to_feedback.',
+  parameters: { type: 'OBJECT', properties: {} },
+  kind: 'read',
+  roles: ['master'],
+  needsFacility: false,
+  async execute() {
+    const rows = await db.query.feedbackSubmissions.findMany({
+      where: eq(feedbackSubmissions.status, 'new'),
+      columns: { id: true, category: true, message: true, role: true, createdAt: true, userId: true },
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      limit: 20,
+    })
+    const userIds = [...new Set(rows.map((r) => r.userId).filter((v): v is string => !!v))]
+    const profileRows = userIds.length
+      ? await db.query.profiles.findMany({
+          where: (t, { inArray: ia }) => ia(t.id, userIds),
+          columns: { id: true, fullName: true, email: true },
+        })
+      : []
+    const nameById = new Map(profileRows.map((p) => [p.id, p.fullName ?? p.email ?? '—']))
+    return {
+      response: {
+        newFeedback: rows.map((r) => ({
+          feedbackId: r.id,
+          from: r.userId ? nameById.get(r.userId) ?? '—' : '—',
+          role: r.role ?? null,
+          category: r.category,
+          message: r.message.slice(0, 200),
+        })),
       },
     }
   },
@@ -982,6 +1380,13 @@ export const ALL_TOOLS: AssistantTool[] = [
   getBusinessNumbers,
   getFacilityNumbers,
   getMyEarnings,
+  getResidentLedger,
+  getStylistInfo,
+  getTimeOffRequests,
+  getWaitlist,
+  getSignupQueue,
+  getPayrollSummary,
+  getFeedbackInbox,
   bookAppointment,
   cancelAppointment,
   rescheduleAppointment,
@@ -1000,5 +1405,7 @@ export function toolsForCtx(ctx: AssistantCtx): AssistantTool[] {
 export const toolNameSchema = z.enum([
   'get_schedule', 'find_resident', 'list_services', 'find_open_slots',
   'get_business_numbers', 'get_facility_numbers', 'get_my_earnings',
+  'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
+  'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
   'book_appointment', 'cancel_appointment', 'reschedule_appointment',
 ])
