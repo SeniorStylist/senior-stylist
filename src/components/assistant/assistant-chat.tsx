@@ -12,7 +12,7 @@ export const ASSISTANT_CHIPS: Record<string, string[]> = {
   facility_staff: ["What's on the schedule today?", 'Book an appointment for a resident', 'Add someone to the waitlist'],
   bookkeeper: ['Who owes us the most right now?', 'How much did we collect this month?', "Show me this period's payroll"],
   stylist: ["What's my day look like tomorrow?", 'How much have I made this month?', 'Put a resident in my next open slot'],
-  master: ['Which facility owes us the most?', 'Any new feedback?', 'Numbers for F177'],
+  master: ['Which facility owes us the most?', 'Switch me to another facility', 'How do I scan a log sheet?', 'Any new feedback?'],
 }
 
 export function AssistantChat({

@@ -42,11 +42,15 @@ export type GeminiTransport = (body: Record<string, unknown>) => Promise<GeminiR
 
 const MAX_TOOL_ROUNDS = 6 // P40 — deeper turns: resolve → read → propose chains need headroom
 
-// P38b — model quality knob. Default is 2.5-flash WITH dynamic thinking (the
-// original thinkingBudget:0 fast mode picked tools comically badly — treated
-// "F177" as a resident name). Set ASSISTANT_GEMINI_MODEL=gemini-2.5-pro in
-// Vercel for the heavyweight model — no code change needed.
-const ASSISTANT_MODEL = process.env.ASSISTANT_GEMINI_MODEL || 'gemini-2.5-flash'
+// P38b/P41 — model quality knob. Default is now gemini-2.5-pro (Josh asked
+// twice for "a lot smarter"; flash misread context too often). Dynamic
+// thinking stays ON (thinkingBudget:0 was tried and made tool selection
+// unusably dumb — never re-add it). Pro is slower per round: with <=6 tool
+// rounds inside the route's maxDuration=60 this is tight but OK — do NOT
+// raise MAX_TOOL_ROUNDS without revisiting. Set
+// ASSISTANT_GEMINI_MODEL=gemini-2.5-flash in Vercel to restore the
+// faster/cheaper model — no code change needed.
+const ASSISTANT_MODEL = process.env.ASSISTANT_GEMINI_MODEL || 'gemini-2.5-pro'
 
 function defaultTransport(apiKey: string): GeminiTransport {
   return async (body) => {
@@ -76,9 +80,13 @@ function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: Assis
   const facLabel = ctx.facilityName
     ? `${ctx.facilityName}${ctx.facilityCode ? ` (${ctx.facilityCode})` : ''}`
     : 'their facility'
-  const scopeLine = ctx.facilityId
-    ? `You are helping ${ROLE_LABEL[ctx.role]} at ${facLabel} — their currently selected facility.`
-    : `You are helping ${ROLE_LABEL[ctx.role]} across the whole facility network (no single facility selected).`
+  // P41 — the master admin is the OWNER of the whole network: the selected
+  // facility is only a default, never a boundary.
+  const scopeLine = ctx.role === 'master'
+    ? `You are helping the OWNER of the whole Senior Stylist network — every facility is theirs. ${ctx.facilityId ? `${facLabel} is merely their currently selected facility (a default, NOT a limit).` : 'No facility is selected right now.'} Any facility-scoped tool can target ANY facility via its facilityName parameter (name or F-code) — never tell them you can only see one facility. Money questions default to the whole network (get_business_numbers); use get_facility_numbers for one facility. They can also say "switch me to X" (switch_facility) to move the whole app there.`
+    : ctx.facilityId
+      ? `You are helping ${ROLE_LABEL[ctx.role]} at ${facLabel} — their currently selected facility.`
+      : `You are helping ${ROLE_LABEL[ctx.role]} across the whole facility network (no single facility selected).`
   const historyBlock = history.length
     ? `\n\nConversation so far:\n${history
         .map((h) => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.text}`)
