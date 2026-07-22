@@ -106,14 +106,31 @@ export async function buildFacilityDataPack(facilityId: string): Promise<Record<
   `)
   const collected30d = n((paymentsRows as unknown as Row[])[0]?.collected_30d)
 
-  // Top open resident balances — same data the billing page shows these roles.
+  // Top open resident balances — P40: LIVE per-resident SUM over qb_invoices
+  // (pattern from unapplied-apply.ts::recomputeFacilityBalances). The
+  // denormalized residents.qb_outstanding_balance_cents column is only
+  // refreshed by QB sync / check save / credit apply and sat stale-zero while
+  // invoices held real balances (Josh's "no specific residents owe money"
+  // screenshot). Live SUM always agrees with the aging block above.
   const topBalances = (await db.execute(sql`
-    SELECT name, COALESCE(qb_outstanding_balance_cents, 0)::bigint AS owed_cents
-    FROM residents
-    WHERE facility_id = ${facilityId} AND active = true AND is_demo = false
-      AND COALESCE(qb_outstanding_balance_cents, 0) > 0
-    ORDER BY qb_outstanding_balance_cents DESC LIMIT 10
+    SELECT r.name, COALESCE(SUM(qi.open_balance_cents), 0)::bigint AS owed_cents
+    FROM residents r
+    JOIN qb_invoices qi ON qi.resident_id = r.id AND qi.is_demo = false AND qi.open_balance_cents > 0
+    WHERE r.facility_id = ${facilityId} AND r.active = true AND r.is_demo = false
+    GROUP BY r.id, r.name
+    ORDER BY owed_cents DESC LIMIT 10
   `)) as unknown as Row[]
+
+  // Open money not attributed to any resident (invoice.resident_id IS NULL) —
+  // surfaced so per-resident balances + this figure reconcile with the aging
+  // total instead of silently disagreeing.
+  const unattributedRows = await db.execute(sql`
+    SELECT COALESCE(SUM(open_balance_cents), 0)::bigint AS c
+    FROM qb_invoices
+    WHERE facility_id = ${facilityId} AND is_demo = false
+      AND open_balance_cents > 0 AND resident_id IS NULL
+  `)
+  const unattributedOpenCents = n((unattributedRows as unknown as Row[])[0]?.c)
 
   // P36 — family care preferences (style/allergy notes shown to the model
   // verbatim-truncated so "what does Mrs. Smith like?" answers correctly;
@@ -168,6 +185,9 @@ export async function buildFacilityDataPack(facilityId: string): Promise<Record<
       agingCents: { days0to30: n(aging.b0_30), days31to60: n(aging.b31_60), days61to90: n(aging.b61_90), over90: n(aging.b90plus) },
       collectedLast30DaysCents: collected30d,
       topOpenResidentBalances: topBalances.map((r) => ({ resident: s(r.name), owedCents: n(r.owed_cents) })),
+      // Open invoice money with no resident attached — mention it when asked
+      // "who owes us" so the per-resident list + this reconcile with the total.
+      unattributedOpenInvoicesCents: unattributedOpenCents,
     },
   }
 }
