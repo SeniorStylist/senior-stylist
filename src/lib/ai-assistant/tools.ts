@@ -25,7 +25,8 @@ import {
   stylistAvailability, coverageRequests, qbInvoices, qbPayments, qbUnappliedCredits,
   waitlistEntries, signupSheetEntries, payPeriods, feedbackSubmissions,
 } from '@/db/schema'
-import { fuzzyScore } from '@/lib/fuzzy'
+import { fuzzyScore, normalizeWords } from '@/lib/fuzzy'
+import { HELP_GUIDES, scoreGuide, type KbRole } from './help-kb'
 import {
   dayRangeInTimezone, fromDateTimeLocalInTz, toDateTimeLocalInTz, formatTimeInTz, formatDateInTz, getLocalParts,
 } from '@/lib/time'
@@ -1139,6 +1140,50 @@ const getFeedbackInbox: AssistantTool = {
           category: r.category,
           message: r.message.slice(0, 200),
         })),
+      },
+    }
+  },
+}
+
+// P41 — the how-do-I tool: returns a full hand-authored guide from the help
+// knowledge base so the model can actually TEACH workflows, not just name a
+// page. All roles except viewer; no facility needed.
+const explainFeature: AssistantTool = {
+  name: 'explain_feature',
+  description:
+    'Get the detailed built-in guide for a feature or workflow of this app. Use for ANY "how do I / where is / what does X do / explain / walk me through" question — then answer thoroughly from the guide, step by step, tailored to the user. Also use it when the user asks what the app (or you) can do.',
+  parameters: {
+    type: 'OBJECT',
+    properties: { topic: { type: 'STRING', description: 'What they want explained, e.g. "scan a log sheet", "family portal", "payroll".' } },
+    required: ['topic'],
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist', 'master'],
+  needsFacility: false,
+  async execute(ctx, args) {
+    const topic = typeof args.topic === 'string' ? args.topic.trim() : ''
+    const role = ctx.role as KbRole
+    const visible = HELP_GUIDES.filter((g) => !g.roles || g.roles.includes(role))
+    const words = normalizeWords(topic)
+    const ranked = visible
+      .map((g) => ({ g, score: scoreGuide(g, words) }))
+      .sort((a, b) => b.score - a.score)
+    const best = ranked[0] && ranked[0].score > 0 ? ranked[0].g : null
+    if (!best) {
+      return {
+        response: {
+          noMatch: `No guide matches "${topic}".`,
+          availableTopics: visible.map((g) => g.title),
+          hint: 'Offer the closest topics, or answer from what you already know about the app.',
+        },
+      }
+    }
+    const related = ranked.slice(1, 4).filter((r) => r.score > 0).map((r) => r.g.title)
+    return {
+      response: {
+        guide: { title: best.title, body: best.body },
+        ...(related.length ? { relatedTopics: related } : {}),
+        hint: 'Answer from this guide in your own words — complete and step-by-step. Keep it in mind for follow-ups like "more detail".',
       },
     }
   },
@@ -2357,6 +2402,7 @@ export const ALL_TOOLS: AssistantTool[] = [
   getSignupQueue,
   getPayrollSummary,
   getFeedbackInbox,
+  explainFeature,
   bookAppointment,
   cancelAppointment,
   rescheduleAppointment,
@@ -2393,6 +2439,7 @@ export const toolNameSchema = z.enum([
   'get_business_numbers', 'get_facility_numbers', 'get_my_earnings',
   'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
   'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
+  'explain_feature',
   'book_appointment', 'cancel_appointment', 'reschedule_appointment',
   'update_appointment', 'create_resident', 'update_resident',
   'set_stylist_hours', 'add_time_off', 'decide_time_off',
