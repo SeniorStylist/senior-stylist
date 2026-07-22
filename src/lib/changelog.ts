@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.8',
+    date: '2026-07-22',
+    title: 'Supervisor Tools + Smarter Assistant + Mobile Polish',
+    items: [
+      "Admins, franchise admins, and the master admin can now set any stylist's weekly hours and file time off for them, right on the stylist's page (time off filed by a supervisor is pre-approved)",
+      'The master admin can now do everything on stylist pages without impersonating: edit schedules, approve time off, verify compliance docs, send account invites',
+      'Assistant upgrade: say "put Mrs. Smith in my next available slot" — it reads the real schedule, offers open times, and books the one you pick (always with a confirm tap)',
+      'Big mobile fix: dialogs no longer get shoved off-screen when the keyboard opens (the cut-off New Pay Period bug), tall dialogs scroll instead of clipping, last rows never hide behind bars, and the scroll indicator finally lines up',
+      'The getting-started checklist no longer covers the assistant and feedback buttons on phones',
+    ],
+  },
+  {
     version: '4.7',
     date: '2026-07-21',
     title: 'Your AI Assistant + Pick Any Stylist',
