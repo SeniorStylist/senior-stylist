@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { isNativeApp } from '@/lib/detect-device'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
@@ -65,7 +66,13 @@ export function FeedbackWidget() {
   // rebuilding from e.results alone wipes earlier phrases.
   const finalTextRef = useRef('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const speechSupported = !!getSpeechRecognition()
+  // In the Capacitor shell the web engine can't capture — keyboard mic can.
+  const speechSupported = !!getSpeechRecognition() || isNativeApp()
+
+  const keyboardDictationFallback = () => {
+    textareaRef.current?.focus()
+    toast.info('Tap the mic key on your keyboard to talk — it types right in here.')
+  }
 
   // Stop dictation when the panel closes/unmounts.
   useEffect(() => {
@@ -79,6 +86,12 @@ export function FeedbackWidget() {
   const toggleVoice = async () => {
     if (listening) {
       recognitionRef.current?.stop()
+      return
+    }
+    // P38d — Capacitor WKWebView: web SpeechRecognition can't capture audio;
+    // the keyboard mic works natively, so route there.
+    if (isNativeApp()) {
+      keyboardDictationFallback()
       return
     }
     const SR = getSpeechRecognition()
@@ -127,7 +140,9 @@ export function FeedbackWidget() {
         setMicDenied(true)
         toast.error('Microphone access denied')
       } else if (e.error === 'audio-capture') {
-        toast.error('No microphone found')
+        // P38d — usually NOT a missing mic: the engine can't capture in this
+        // shell (or the priming stream hadn't released). Keyboard mic works.
+        keyboardDictationFallback()
       } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
         toast.error(`Voice input error: ${e.error}`)
       }

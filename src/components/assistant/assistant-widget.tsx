@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { isNativeApp } from '@/lib/detect-device'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { useToast } from '@/components/ui/toast'
 
@@ -93,8 +94,22 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const baseTextRef = useRef('')
   const finalTextRef = useRef('')
+  // P38d — 'audio-capture' auto-retry (the priming stream sometimes hasn't
+  // released the mic yet when recognition starts, esp. iOS).
+  const captureRetriedRef = useRef(false)
   const logRef = useRef<HTMLDivElement | null>(null)
-  const speechSupported = !!getSpeechRecognition()
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  // P38d — inside the Capacitor shell (WKWebView) webkitSpeechRecognition is
+  // defined but non-functional ('audio-capture'). The iOS/Android KEYBOARD mic
+  // works everywhere, so there the button routes to keyboard dictation.
+  const speechSupported = !!getSpeechRecognition() || isNativeApp()
+
+  // Focus the composer and point the user at the keyboard's own mic key —
+  // the always-works dictation path on phones.
+  const keyboardDictationFallback = () => {
+    textareaRef.current?.focus()
+    toast.info('Tap the mic key on your keyboard to talk — it types right in here.')
+  }
   const chips = CHIPS[isMaster ? 'master' : role] ?? CHIPS.admin
 
   useEffect(() => {
@@ -110,23 +125,11 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [messages, pendingAction, sending])
 
-  const toggleVoice = async () => {
-    if (listening) {
-      recognitionRef.current?.stop()
-      return
-    }
+  const startRecognition = () => {
     const SR = getSpeechRecognition()
-    if (!SR) return
-    if (navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach((t) => t.stop())
-        setMicDenied(false)
-      } catch {
-        setMicDenied(true)
-        toast.error('Microphone access denied')
-        return
-      }
+    if (!SR) {
+      keyboardDictationFallback()
+      return
     }
     const rec = new SR()
     rec.lang = 'en-US'
@@ -135,6 +138,7 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
     baseTextRef.current = input ? input.replace(/\s+$/, '') + ' ' : ''
     finalTextRef.current = ''
     rec.onresult = (e) => {
+      captureRetriedRef.current = false // audio is flowing — reset the retry
       let interim = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i]
@@ -154,7 +158,18 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
         setMicDenied(true)
         toast.error('Microphone access denied')
       } else if (e.error === 'audio-capture') {
-        toast.error('No microphone found')
+        // P38d — usually NOT a missing mic: either the permission-priming
+        // stream hasn't released it yet (retry once) or this engine can't
+        // capture in this shell at all (→ keyboard dictation).
+        if (!captureRetriedRef.current) {
+          captureRetriedRef.current = true
+          setTimeout(() => {
+            if (!recognitionRef.current) startRecognition()
+          }, 400)
+        } else {
+          captureRetriedRef.current = false
+          keyboardDictationFallback()
+        }
       } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
         toast.error(`Voice input error: ${e.error}`)
       }
@@ -164,8 +179,34 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
       recognitionRef.current = rec
       setListening(true)
     } catch {
-      toast.error('Could not start microphone')
+      keyboardDictationFallback()
     }
+  }
+
+  const toggleVoice = async () => {
+    if (listening) {
+      recognitionRef.current?.stop()
+      return
+    }
+    // Capacitor shell: WKWebView's SpeechRecognition can't capture audio —
+    // route straight to the keyboard mic (works natively on iOS + Android).
+    if (isNativeApp()) {
+      keyboardDictationFallback()
+      return
+    }
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+        setMicDenied(false)
+      } catch {
+        setMicDenied(true)
+        toast.error('Microphone access denied')
+        return
+      }
+    }
+    captureRetriedRef.current = false
+    startRecognition()
   }
 
   const send = async (raw?: string) => {
@@ -327,6 +368,7 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
       <div className="shrink-0 border-t border-stone-100 p-3">
         <div className="relative">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value.slice(0, 600))}
             onKeyDown={(e) => {
