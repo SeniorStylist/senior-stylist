@@ -116,10 +116,38 @@ async function facilityRoster(facilityId: string) {
   })
 }
 
-/** Top fuzzy matches over a name list; ambiguous when the top two are within 0.05. */
+/** Normalized Levenshtein similarity (1 = identical). Catches MISSPELLINGS —
+ * the word-overlap fuzzyScore scores "Adeel Kohen" vs "Adele Cohen" as 0. */
+export function levSimilarity(a: string, b: string): number {
+  const s = a.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()
+  const t = b.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()
+  if (!s || !t) return 0
+  if (s === t) return 1
+  const m = s.length
+  const n = t.length
+  if (Math.abs(m - n) > Math.max(m, n) * 0.6) return 0
+  let prev = Array.from({ length: n + 1 }, (_, j) => j)
+  for (let i = 1; i <= m; i++) {
+    const cur = [i]
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(
+        prev[j] + 1,
+        cur[j - 1] + 1,
+        prev[j - 1] + (s[i - 1] === t[j - 1] ? 0 : 1),
+      )
+    }
+    prev = cur
+  }
+  return 1 - prev[n] / Math.max(m, n)
+}
+
+/** Top fuzzy matches over a name list; ambiguous when the top two are within
+ * 0.05. Combines word-overlap fuzzyScore with edit-distance similarity so
+ * both word reorderings ("Smith, Edna") and misspellings ("Adeel Kohen" →
+ * "Adele Cohen") rank. */
 export function rankByName<T extends { name: string }>(items: T[], query: string) {
   const scored = items
-    .map((item) => ({ item, score: fuzzyScore(item.name, query) }))
+    .map((item) => ({ item, score: Math.max(fuzzyScore(item.name, query), levSimilarity(item.name, query)) }))
     .filter((x) => x.score >= 0.45)
     .sort((a, b) => b.score - a.score)
   const ambiguous = scored.length >= 2 && scored[0].score - scored[1].score < 0.05
@@ -450,6 +478,11 @@ const bookAppointment: AssistantTool = {
       },
       stylistName: { type: 'STRING', description: 'Only if the user named a specific stylist.' },
       notes: { type: 'STRING', description: 'Optional short note for the appointment.' },
+      createNewResident: {
+        type: 'BOOLEAN',
+        description: 'Set true ONLY after the user explicitly said this is a NEW resident (not a misspelling of an existing one). The resident is created together with the booking.',
+      },
+      roomNumber: { type: 'STRING', description: 'Room number for a NEW resident, if the user gave one.' },
     },
     required: ['residentName', 'serviceName', 'dateTimeLocal'],
   },
@@ -460,7 +493,11 @@ const bookAppointment: AssistantTool = {
     const guard = stylistWriteGuard(ctx)
     if (guard) return err(guard)
 
-    // Resident
+    // Resident — three paths (P38c, from Josh's "Adeel kohen" report):
+    // (1) strong match → use it; (2) near-miss → did-you-mean error so the
+    // model asks "did you mean X, or is this a new resident?"; (3) the user
+    // confirmed NEW → book with the atomic newResident branch (same server
+    // path as the walk-in form: created with the booking, name+room deduped).
     const residentName = typeof args.residentName === 'string' ? args.residentName.trim() : ''
     if (residentName.length < 2) return err('Which resident is this for?')
     const roster = await db.query.residents.findMany({
@@ -468,15 +505,30 @@ const bookAppointment: AssistantTool = {
       columns: { id: true, name: true, roomNumber: true },
     })
     const res = rankByName(roster, residentName)
-    if (res.scored.length === 0) {
-      return err(`No resident matching "${residentName}" here. Ask the user to check the name — new residents are added from the Daily Log's walk-in form.`)
+    const createNew = args.createNewResident === true
+    let resident: { id: string; name: string; roomNumber: string | null } | null = null
+    if (createNew) {
+      // Guard against duplicating a near-identical existing resident.
+      if (res.scored[0] && res.scored[0].score >= 0.9) {
+        return err(
+          `A resident named "${res.scored[0].item.name}" already exists here — confirm with the user whether that's the same person before creating a new record.`,
+          { existing: res.scored.slice(0, 3).map((x) => ({ name: x.item.name, room: x.item.roomNumber ?? null })) },
+        )
+      }
+    } else if (res.scored[0] && res.scored[0].score >= 0.75 && !res.ambiguous) {
+      resident = res.scored[0].item
+    } else if (res.scored.length > 0) {
+      return err(
+        res.ambiguous
+          ? 'Multiple residents are close to that name — ask the user which one they mean, or whether this is a brand-new resident.'
+          : `No exact match for "${residentName}". Ask the user: did they mean one of the close matches below, or is this a NEW resident (then call book_appointment again with createNewResident: true)?`,
+        { didYouMean: res.scored.slice(0, 3).map((x) => ({ name: x.item.name, room: x.item.roomNumber ?? null })) },
+      )
+    } else {
+      return err(
+        `No resident named "${residentName}" here. Ask the user whether this is a NEW resident — if yes, call book_appointment again with createNewResident: true (and roomNumber if they give one).`,
+      )
     }
-    if (res.ambiguous) {
-      return err('ambiguous resident — ask the user which one they mean', {
-        candidates: res.scored.map((x) => ({ name: x.item.name, room: x.item.roomNumber ?? null })),
-      })
-    }
-    const resident = res.scored[0].item
 
     // Service (price_list catalog; simple pricing only — tiered/multi_option
     // needs quantity/option inputs the chat can't collect reliably).
@@ -540,18 +592,22 @@ const bookAppointment: AssistantTool = {
     }
 
     const notes = typeof args.notes === 'string' ? args.notes.trim().slice(0, 500) : ''
+    const newRoom = typeof args.roomNumber === 'string' ? args.roomNumber.trim().slice(0, 50) : ''
+    const residentLabel = resident
+      ? `${resident.name}${resident.roomNumber ? ` (Room ${resident.roomNumber})` : ''}`
+      : `${residentName}${newRoom ? ` (Room ${newRoom})` : ''} — NEW resident, will be added`
     return {
       response: {
         proposed: true,
-        summary: `${resident.name} — ${service.name} — ${whenLabel(start, ctx.timezone)} — ${stylistLabel}`,
+        summary: `${resident ? resident.name : `${residentName} (new resident)`} — ${service.name} — ${whenLabel(start, ctx.timezone)} — ${stylistLabel}`,
         instruction: 'Tell the user to review and tap Confirm below. Do not claim it is booked.',
       },
       pendingAction: {
         kind: 'book',
         summary: {
-          title: 'Book appointment?',
+          title: resident ? 'Book appointment?' : 'Add new resident & book?',
           lines: [
-            `${resident.name}${resident.roomNumber ? ` (Room ${resident.roomNumber})` : ''}`,
+            residentLabel,
             `${service.name} · ${service.pricingType === 'fixed' ? money(service.priceCents) : 'price varies'}`,
             whenLabel(start, ctx.timezone),
             `Stylist: ${stylistLabel}`,
@@ -561,8 +617,13 @@ const bookAppointment: AssistantTool = {
         request: {
           method: 'POST',
           path: '/api/bookings',
+          // Exactly one of residentId | newResident (the POST schema's rule).
+          // newResident rides the same atomic create+dedup branch the walk-in
+          // form uses — the server soft-dedups on normalized name+room.
           body: {
-            residentId: resident.id,
+            ...(resident
+              ? { residentId: resident.id }
+              : { newResident: { name: residentName, ...(newRoom ? { roomNumber: newRoom } : {}) } }),
             serviceId: service.id,
             startTime: start.toISOString(),
             ...(stylistId ? { stylistId } : {}),

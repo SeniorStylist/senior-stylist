@@ -28,7 +28,9 @@ interface ChatMsg {
 // ---- pendingAction client allowlist (never execute anything outside it) ----
 const PATH_RE = /^\/api\/bookings(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i
 const ALLOWED_BODY_KEYS: Record<PendingAction['kind'], string[]> = {
-  book: ['residentId', 'serviceId', 'startTime', 'stylistId', 'notes'],
+  // newResident — P38c: user-confirmed new resident, created atomically with
+  // the booking (same server branch + dedup as the walk-in form).
+  book: ['residentId', 'newResident', 'serviceId', 'startTime', 'stylistId', 'notes'],
   cancel: [],
   reschedule: ['startTime'],
 }

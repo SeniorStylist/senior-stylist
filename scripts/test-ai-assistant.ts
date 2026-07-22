@@ -3,7 +3,7 @@
 // No GEMINI_API_KEY and no DB needed: registry filtering + helpers are pure,
 // and the Gemini loop runs against a scripted fake transport with fake tools.
 
-import { toolsForCtx, rankByName, parseLocalDateTime, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
+import { toolsForCtx, rankByName, parseLocalDateTime, levSimilarity, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
 import { runAssistant, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
 
 let failures = 0
@@ -68,6 +68,12 @@ console.log('\n[2] Helpers')
   check('similar names flagged ambiguous', r2.ambiguous === true)
   const r3 = rankByName(items, 'Johnson')
   check('surname-only matches uniquely', r3.scored[0]?.item.name === 'Robert Johnson' && !r3.ambiguous)
+
+  // P38c — misspellings (word-overlap fuzzy scores these 0)
+  check('levSimilarity catches "Adeel Kohen" → "Adele Cohen"', levSimilarity('Adele Cohen', 'Adeel Kohen') >= 0.7)
+  const misspelled = rankByName([{ name: 'Adele Cohen' }, { name: 'Robert Johnson' }], 'Adeel kohen')
+  check('rankByName surfaces the misspelled resident', misspelled.scored[0]?.item.name === 'Adele Cohen')
+  check('unrelated name still filtered out', rankByName([{ name: 'Robert Johnson' }], 'Adeel kohen').scored.length === 0)
 
   const bad = parseLocalDateTime('tomorrow at 10', 'America/New_York')
   check('non-ISO local datetime rejected', 'error' in bad)
