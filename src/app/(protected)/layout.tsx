@@ -230,16 +230,16 @@ export default async function ProtectedLayout({
   }
 
   return (
-    // P39 — `fixed inset-0` (NOT h-screen/100vh): 100vh is the LARGE viewport
-    // on iOS, so the scroll container extended behind the URL bar / home
-    // indicator and the custom scrollbar thumb never lined up with the visible
-    // area (Josh's "gray line doesn't match" report). fixed inset-0 anchors the
-    // shell to the visual viewport on first paint and tracks the URL bar —
-    // the historically verified iOS pattern (12Y-followups). h-[100dvh] is the
-    // documented iOS cold-load bug; never use it here. Body content height is
-    // 0 (everything lives in this fixed layer), so the document can't scroll
-    // behind, and html/body overscroll-behavior:none kills the bounce.
-    <div className="fixed inset-0 flex" style={{ backgroundColor: 'var(--color-bg)' }}>
+    // P39b — `flex h-screen` is the ONLY verified shell sizing. Do NOT change
+    // this line without on-device verification:
+    // - `fixed inset-0` (tried P39, reverted same day): the installed/native
+    //   app insets the fixed layer — bottom nav floated ~130px above the real
+    //   screen bottom with dead bands top+bottom (Josh screenshot 2026-07-22).
+    //   The old CLAUDE.md "Layout Shell" section claiming fixed inset-0 was
+    //   the verified pattern was STALE — the codebase had already moved off it.
+    // - `h-[100dvh]`: the documented iOS cold-load bug (mis-measured before
+    //   the URL-bar state settles).
+    <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">
