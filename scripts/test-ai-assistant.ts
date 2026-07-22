@@ -4,6 +4,7 @@
 // and the Gemini loop runs against a scripted fake transport with fake tools.
 
 import { toolsForCtx, rankByName, parseLocalDateTime, levSimilarity, computeOpenSlots, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
+import { ACTION_RULES, actionAllowed, type AssistantActionKind, type PendingAction } from '../src/lib/ai-assistant/action-allowlist'
 import { fromDateTimeLocalInTz } from '../src/lib/time'
 import { runAssistant, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
 
@@ -58,6 +59,41 @@ console.log('\n[1] Role filtering (toolsForCtx)')
 
   const facilityMaster = names({ ...baseCtx, role: 'master' })
   check('master with facility selected: schedule + writes too', ['get_schedule', 'find_resident', 'book_appointment', 'get_facility_numbers'].every((n) => facilityMaster.includes(n)))
+
+  // ---- P40 write-tool matrix: what each role can and CANNOT do ----
+  check('master (facility) sees every P40 write', [
+    'update_appointment', 'create_resident', 'update_resident', 'set_stylist_hours',
+    'add_time_off', 'decide_time_off', 'add_to_waitlist', 'add_signup_entry',
+    'create_service', 'update_service', 'update_stylist', 'reply_to_feedback', 'send_receipt',
+  ].every((n) => facilityMaster.includes(n)))
+
+  check('admin write set: all P40 writes except feedback reply', [
+    'update_appointment', 'create_resident', 'update_resident', 'set_stylist_hours',
+    'add_time_off', 'decide_time_off', 'add_to_waitlist', 'add_signup_entry',
+    'create_service', 'update_service', 'update_stylist', 'send_receipt',
+  ].every((n) => admin.includes(n)) && !admin.includes('reply_to_feedback') && !admin.includes('get_feedback_inbox'))
+
+  check('stylist writes: own appointments + own hours/time-off + ad-hoc service ONLY',
+    ['update_appointment', 'set_stylist_hours', 'add_time_off', 'create_service'].every((n) => stylist.includes(n))
+    && ['create_resident', 'update_resident', 'decide_time_off', 'add_to_waitlist', 'add_signup_entry',
+        'update_service', 'update_stylist', 'reply_to_feedback', 'send_receipt',
+        'get_resident_ledger', 'get_time_off_requests', 'get_waitlist', 'get_payroll_summary', 'get_feedback_inbox',
+       ].every((n) => !stylist.includes(n)))
+
+  check('facility_staff writes: scheduling + residents + services, NO stylist/roster/money writes',
+    ['update_appointment', 'create_resident', 'update_resident', 'add_to_waitlist', 'add_signup_entry',
+     'create_service', 'update_service', 'send_receipt'].every((n) => staff.includes(n))
+    && ['set_stylist_hours', 'add_time_off', 'decide_time_off', 'update_stylist', 'reply_to_feedback',
+        'get_resident_ledger', 'get_payroll_summary'].every((n) => !staff.includes(n)))
+
+  check('bookkeeper writes: appointment corrections + ad-hoc service ONLY',
+    ['update_appointment', 'create_service', 'book_appointment', 'cancel_appointment'].every((n) => bookkeeper.includes(n))
+    && ['create_resident', 'update_resident', 'set_stylist_hours', 'add_time_off', 'decide_time_off',
+        'add_to_waitlist', 'add_signup_entry', 'update_service', 'update_stylist', 'reply_to_feedback',
+        'send_receipt'].every((n) => !bookkeeper.includes(n)))
+
+  check('bookkeeper reads include ledger + payroll + waitlist',
+    ['get_resident_ledger', 'get_payroll_summary', 'get_waitlist'].every((n) => bookkeeper.includes(n)))
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +316,53 @@ async function main() {
     const second = calls[1] as { contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }
     const fr = second.contents[2].parts[0].functionResponse as { response: Record<string, unknown> }
     check('unknown tool → error fed back, answer still produced', String(fr.response.error ?? '').includes('Unknown tool') && r?.answer === 'Sorry, I cannot do that.')
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('\n[4] ACTION_RULES allowlist coverage (shared client gate)')
+  {
+    const UUID = '11111111-2222-3333-4444-555555555555'
+    const mk = (kind: AssistantActionKind, method: PendingAction['request']['method'], path: string, body: Record<string, unknown> | null): PendingAction => ({
+      kind,
+      summary: { title: 't', lines: [] },
+      request: { method, path, body },
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+
+    // Every write kind has a rule (Record<> enforces at compile time; assert at runtime too).
+    const kinds = Object.keys(ACTION_RULES) as AssistantActionKind[]
+    check('all 16 action kinds have rules', kinds.length === 16)
+
+    // A canonical well-formed proposal per kind passes the gate.
+    const canonical: Record<AssistantActionKind, PendingAction> = {
+      book: mk('book', 'POST', '/api/bookings', { residentId: UUID, serviceId: UUID, startTime: 'x', stylistId: UUID }),
+      cancel: mk('cancel', 'DELETE', `/api/bookings/${UUID}`, null),
+      reschedule: mk('reschedule', 'PUT', `/api/bookings/${UUID}`, { startTime: 'x' }),
+      update_appointment: mk('update_appointment', 'PUT', `/api/bookings/${UUID}`, { status: 'completed', paymentStatus: 'paid', tipCents: 1000, notes: 'n' }),
+      create_resident: mk('create_resident', 'POST', '/api/residents', { name: 'Joann Horn', roomNumber: '12' }),
+      update_resident: mk('update_resident', 'PUT', `/api/residents/${UUID}`, { roomNumber: '14', poaPhone: '555' }),
+      set_stylist_hours: mk('set_stylist_hours', 'PUT', '/api/availability', { stylistId: UUID, facilityId: UUID, availability: [] }),
+      add_time_off: mk('add_time_off', 'POST', '/api/coverage', { stylistId: UUID, startDate: '2026-08-01', endDate: '2026-08-02', reason: 'r' }),
+      decide_time_off: mk('decide_time_off', 'PUT', `/api/coverage/${UUID}`, { action: 'approve' }),
+      add_to_waitlist: mk('add_to_waitlist', 'POST', '/api/waitlist', { residentId: UUID, residentName: 'X', earliestDate: '2026-08-01' }),
+      add_signup_entry: mk('add_signup_entry', 'POST', '/api/signup-sheet', { residentId: UUID, residentName: 'X', serviceName: 'Cut', requestedDate: '2026-08-01' }),
+      create_service: mk('create_service', 'POST', '/api/services', { name: 'S/B Dry', priceCents: 4500 }),
+      update_service: mk('update_service', 'PUT', `/api/services/${UUID}`, { priceCents: 5000, active: true }),
+      update_stylist: mk('update_stylist', 'PUT', `/api/stylists/${UUID}`, { commissionPercent: 50 }),
+      reply_to_feedback: mk('reply_to_feedback', 'PATCH', `/api/feedback/${UUID}`, { reply: 'Fixed!', status: 'resolved' }),
+      send_receipt: mk('send_receipt', 'POST', `/api/bookings/${UUID}/receipt`, null),
+    }
+    check('canonical proposal per kind passes actionAllowed', kinds.every((k) => actionAllowed(canonical[k])))
+
+    // Violations are rejected: wrong method, foreign path, smuggled body key.
+    check('wrong method rejected', !actionAllowed({ ...canonical.cancel, request: { ...canonical.cancel.request, method: 'POST' } }))
+    check('foreign path rejected', !actionAllowed({ ...canonical.book, request: { ...canonical.book.request, path: '/api/facilities' } }))
+    check('path traversal rejected', !actionAllowed({ ...canonical.cancel, request: { ...canonical.cancel.request, path: `/api/bookings/${UUID}/../../facility` } }))
+    check('smuggled body key rejected (reschedule + priceCents)', !actionAllowed({ ...canonical.reschedule, request: { ...canonical.reschedule.request, body: { startTime: 'x', priceCents: 0 } } }))
+    check('smuggled body key rejected (update_resident + name)', !actionAllowed({ ...canonical.update_resident, request: { ...canonical.update_resident.request, body: { roomNumber: '14', name: 'Renamed' } } }))
+    check('smuggled body key rejected (update_stylist + commission path abuse)', !actionAllowed({ ...canonical.update_stylist, request: { ...canonical.update_stylist.request, body: { commissionPercent: 50, email: 'x@y.z' } } }))
+    check('non-uuid id rejected', !actionAllowed({ ...canonical.update_service, request: { ...canonical.update_service.request, path: '/api/services/bulk-update' } }))
+    check('unknown kind rejected', !actionAllowed({ ...canonical.book, kind: 'delete_everything' as AssistantActionKind }))
   }
 
   console.log(failures === 0 ? '\nAll assistant harness checks passed.' : `\n${failures} FAILURES`)

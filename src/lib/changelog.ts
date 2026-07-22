@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '4.9',
+    date: '2026-07-22',
+    title: 'Ask the AI to Do It',
+    items: [
+      'One AI everywhere: the Ask AI panel on Analytics and Master Admin is now the SAME full assistant as the sparkle button — it answers questions AND makes changes, with a confirm tap before anything is saved',
+      '"Who owes us the most?" now names real residents with live balances, and "how much does Mrs. Hall owe?" pulls her full ledger — invoices, payments, and credits',
+      'Tell it what to change: mark visits paid or no-show, add a tip, set a stylist\'s weekly hours, file or approve time off, add someone to the waitlist or sign-up sheet, create or reprice a service, update a room number or POA contact, send a receipt to the family',
+      'Every role gets exactly their own powers — stylists manage their own day, front desk handles scheduling and residents, bookkeepers fix billing fields, the master admin can also read and reply to feedback by voice',
+      'It understands messy asks: misspelled names get a "did you mean…?", brand-new residents are offered as a create, and relative times ("tomorrow at 10") resolve in your facility\'s timezone',
+    ],
+  },
+  {
     version: '4.8',
     date: '2026-07-22',
     title: 'Supervisor Tools + Smarter Assistant + Mobile Polish',

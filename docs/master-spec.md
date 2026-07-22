@@ -974,7 +974,7 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `GET/PATCH /api/feedback/settings` | **Master admin** | Forward-email setting (`profiles.feedback_email`, nullable). PATCH body `{ feedbackEmail: email\|null }`. |
 | `PUT /api/availability` | self / admin / franchise / **master (P39)** | Replaces the week for (stylistId, facility). Admins may write ANY stylist at their facility; master derives the facility from the stylist row (optional `facilityId` body field for multi-facility stylists). Stylist validation = home-OR-assignment. Edited from /my-account (self) AND the /stylists/[id] `AvailabilityEditorCard` (supervisors, P39). |
 | `POST /api/coverage` | stylist (self, `pending`) / admin+franchise+master ON BEHALF (P39) | Supervisor callers pass `stylistId` — request starts pre-approved `'open'` with approvedBy/At stamped, no admin notify fan-out. Master GET needs `?facilityId=`; `[id]` PUT/DELETE + `/substitutes` gained the master bypass (scope = the row's facility). |
-| `POST /api/ai/assistant` | Any authed role (P38 2026-07-21) | The AI personal assistant. Body `{ message 1–600, history [{role:'user'\|'model', text ≤1500}] ≤10 }`. Server builds an `AssistantCtx` (plain master honors `selected_facility_id` directly; stylist identity via `getEffectiveStylistId`) and runs a Gemini function-calling loop (`src/lib/ai-assistant/gemini.ts`, ≤5 tool rounds + forced-text round) over the ROLE-FILTERED tool registry (`tools.ts`): reads execute server-side (get_schedule/find_resident/list_services/find_open_slots (P39 — next-available slot search from real hours+bookings+time off, facility-tz-correct) + get_business_numbers/get_facility_numbers for billing roles/master + get_my_earnings for stylists); writes (book/cancel/reschedule) only PROPOSE — response `{ data: { answer, pendingAction? } }` where `pendingAction.request` is server-built from resolved entities and executed by the CLIENT against `/api/bookings*` after the user confirms (widget validates a hard method/path/body allowlist). Bucket `aiAssistant` 60/h/user; `maxDuration 60`; 503 without GEMINI_API_KEY. Widget: `<AssistantWidget>` in `(protected)/layout.tsx` (all roles), voice input via the feedback-widget Web Speech pattern. Harness: `npx tsx scripts/test-ai-assistant.ts`. |
+| `POST /api/ai/assistant` | Any authed role (P38 2026-07-21; expanded P40 2026-07-22) | The AI personal assistant — the ONLY AI endpoint since P40 (`/api/ai/analyst` deleted). Body `{ message 1–600, history [{role:'user'\|'model', text ≤1500}] ≤10 }`. Server builds an `AssistantCtx` (plain master honors `selected_facility_id` directly; stylist identity via `getEffectiveStylistId`) and runs a Gemini function-calling loop (`src/lib/ai-assistant/gemini.ts`, ≤6 tool rounds + forced-text round; preamble carries a generated per-role capability line) over the ROLE-FILTERED 30-tool registry (`tools.ts`). READS execute server-side: schedule, find_resident (enriched: last visit, 90d no-shows, live owed for billing roles), services, find_open_slots (P39), business/facility numbers (packs from ai-analyst.ts — live per-resident balance SUMs since P40), my earnings, resident ledger, stylist info, time-off requests, waitlist, signup queue, payroll summary, feedback inbox (master). WRITES only PROPOSE (16 `AssistantActionKind`s: book/cancel/reschedule/update_appointment/create_resident/update_resident/set_stylist_hours/add_time_off/decide_time_off/add_to_waitlist/add_signup_entry/create_service/update_service/update_stylist/reply_to_feedback/send_receipt) — response `{ data: { answer, pendingAction? } }` where `pendingAction.request` is server-built from resolved entities with a closed per-kind field set and executed by the CLIENT against the existing REST endpoints after the user confirms, validated against the shared `ACTION_RULES` allowlist (`src/lib/ai-assistant/action-allowlist.ts`). Bucket `aiAssistant` 60/h/user; `maxDuration 60`; 503 without GEMINI_API_KEY. UI: `<AssistantWidget>` in `(protected)/layout.tsx` (all roles, voice) + inline `<AssistantCard>` on /analytics and master-admin Reports. Harness: `npx tsx scripts/test-ai-assistant.ts` (53 checks). |
 | `GET /api/billing/monthly/[facilityId]` | Master / `canAccessBilling` (bookkeeper cross-facility) (2026-06-12) | Monthly facility statement. No `?month=` → month buckets `{ month, invoicedCents, openCents, invoiceCount, paidCents, paymentCount, servicesCents, serviceCount }[]` from 3 GROUP BY queries (qb_invoices by invoice_date, qb_payments by payment_date, completed+active+non-demo bookings by `start_time AT TIME ZONE facility.timezone`; price_cents+addons only, never tips) — `unstable_cache` 120s tag `'billing'`. Bucket payload also carries `facilityName`/`facilityCode`/`paymentType` for the page header. `?month=YYYY-MM` → uncached detail: invoices (≤500, resident names), payments (≤500, memo ≤120, `hasCheckImage` boolean), per-resident rollup (services/invoiced/paid/owed merged in JS), per-booking `services[]` rows (date in facility tz, resident, serviceLabel from service_names→service→raw_service_name, amount, paymentStatus; ≤1000) for the by-day view. Consumed by `/billing/monthly`. |
 | `GET\|POST /api/billing/memo-match/[paymentId]` | Master / `canAccessBilling` (bookkeeper cross-facility; others own-facility — cross-facility = 404) (2026-06-12) | Memo dissection. GET previews: `parseMemo` (`src/lib/memo-attribution.ts`, pure heuristic) splits the memo into name+amount lines, fuzzy-matches residents (≥0.7), proposes each resident's unpaid completed booking within ±60 days of the memo date (exact date first, then closest; claim-once). POST applies operator-confirmed lines (Zod `{lines[≤30]}`, server re-validates scoping + unpaid status): bookings → `payment_status='paid'` + note `Paid via check #N ($X.XX)`, payment → `residentBreakdown` array. 409 when the payment already has any breakdown (never clobbers remittance/scan breakdowns). Busts `billing`+`bookings`. UI: "Match memo →" in rfms-view memo cell → `<MemoMatchModal>`. |
 | `GET /api/billing/check-image/[paymentId]` | Master / `canAccessBilling` (bookkeeper cross-facility; others scoped to own facility — cross-facility = 404) (2026-06-12) | Returns `{ data: { url } }` — 1-hour signed URL for the payment's scanned check image in the private `check-images` bucket. 404 when the payment has no image. Consumed by `<CheckImageButton>` (`src/components/billing/check-image-button.tsx`) — camera icon + lightbox used in `rfms-view.tsx` checks table and `/billing/monthly` payments. Billing summary exposes `hasCheckImage` per payment (path never leaves the server). |
@@ -2939,24 +2939,50 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   (`queueableFetch` supports DELETE, body optional); paid-then-cancel warns in all three
   confirm UIs. Bookkeeper: DELETE allowed (OCR cleanup), PUT-cancel stripped — intentional.
 
-## P35 — "Ask AI" business analyst (2026-07-15)
+## P35 — "Ask AI" business analyst (2026-07-15; ROUTE + PANEL RETIRED in P40)
 
-- **`POST /api/ai/analyst`** — auth + role gate (admin/bookkeeper/master; stylist/
-  facility_staff/viewer 403). Body `{ question: 3-500 chars, history?: [{q,a}] ≤3 }`.
-  Bucket `aiAnalyst` 30/h/user. `maxDuration=60`. 503 when `GEMINI_API_KEY` unset;
-  502 human message on Gemini failure.
-- **Safety contract** (`src/lib/ai-analyst.ts`): the model NEVER writes SQL / touches
-  the DB. The server assembles a fixed role-scoped data pack (active=true,
-  is_demo=false, revenue = completed only, facility-tz month windows) and Gemini
-  answers ONLY from that JSON (canonical direct-fetch pattern: v1beta,
-  gemini-2.5-flash, no SDK, no systemInstruction). Scope from the CALLER's role,
-  never the question: plain master (no facility_users row) → network pack;
-  debug-impersonating master + admins/bookkeepers → their facility pack.
+- **`POST /api/ai/analyst` and `<AiAnalystPanel>` were DELETED in P40 (2026-07-22)** —
+  the inline Ask AI surfaces on /analytics and Master Admin → Reports now mount
+  `<AssistantCard scope="facility"|"master">`, the full assistant (see P40 below).
+- **`src/lib/ai-analyst.ts` STAYS** — its pack builders feed the assistant's
+  `get_business_numbers` / `get_facility_numbers` tools. Safety contract unchanged:
+  the model NEVER writes SQL / touches the DB; fixed role-scoped aggregates
+  (active=true, is_demo=false, revenue = completed only, facility-tz month windows).
 - Packs: facility = periods revenue (this/last month, 90d), by-service/by-stylist
-  top-15, aging buckets + open total, collected 30d, top-10 resident open balances,
-  activity counts. Master = per-facility MTD revenue/visits + open balance +
-  collected 30d + network totals (~5k tokens at 110 facilities).
-- **UI**: `<AiAnalystPanel scope>` (`src/components/ai/ai-analyst-panel.tsx`) —
-  collapsible chat card, suggested chips, 3-turn follow-up history, `data-tour=
-  "ai-analyst"` anchor (reserved). Mounted lazily (next/dynamic) on /analytics
-  (facility) and master-admin Reports tab (network).
+  top-15, aging buckets + open total, collected 30d, **top-10 resident open balances
+  as a LIVE `SUM(qb_invoices.open_balance_cents)` per resident (P40 — the
+  denormalized `residents.qb_outstanding_balance_cents` is stale) + 
+  `unattributedOpenInvoicesCents` (NULL-resident open invoices)**, activity counts.
+  Master = per-facility MTD revenue/visits + open balance + collected 30d + network
+  totals (~5k tokens at 110 facilities).
+- Bucket `aiAnalyst` unused since P40 (left in rate-limit.ts, annotated).
+
+## P40 — Assistant v2: one AI everywhere, role-scoped read/write (2026-07-22)
+
+- **Shared chat brain**: `src/components/assistant/use-assistant-chat.ts` (state,
+  `send()` → `POST /api/ai/assistant`, `runAction()` = confirmed-action client
+  execution) + `assistant-chat.tsx` (log/confirm-card/composer + `ASSISTANT_CHIPS`).
+  `assistant-widget.tsx` = floating trigger/portal/voice shell; `assistant-card.tsx`
+  = inline collapsible card on /analytics + master-admin Reports.
+- **`src/lib/ai-assistant/action-allowlist.ts`** — single source of truth for
+  confirmed actions: `AssistantActionKind` (16 kinds), `ACTION_RULES` (method +
+  UUID-anchored pathRe + closed bodyKeys per kind), `actionAllowed()`. Consumed by
+  server tools, the client hook, and the harness. Writes NEVER execute server-side:
+  tools return a `pendingAction` built only from resolved entities; the client
+  executes the existing REST endpoint (its own guards remain the authority).
+- **30 tools** (`src/lib/ai-assistant/tools.ts`, role-filtered by `toolsForCtx`).
+  Reads: schedule, find_resident (enriched: last visit, 90d no-shows, live owed for
+  billing roles), services, open slots, business/facility numbers, my earnings,
+  resident ledger, stylist info, time-off requests, waitlist, signup queue, payroll
+  summary, feedback inbox (master). Writes (all propose→confirm): book / cancel /
+  reschedule / update_appointment (status·payment·tip·notes; bookkeeper never
+  status) / create_resident / update_resident / set_stylist_hours (full-week
+  expansion) / add_time_off (supervisor pre-approved, stylist pending) /
+  decide_time_off / add_to_waitlist / add_signup_entry / create_service /
+  update_service / update_stylist / reply_to_feedback (master) / send_receipt
+  (REAL-message warning).
+- **Engine**: `MAX_TOOL_ROUNDS = 6`; preamble generates a per-role capability line
+  from the filtered write-tool list. Harness `scripts/test-ai-assistant.ts` (53
+  checks): role write-matrix + ACTION_RULES coverage + loop mechanics.
+- **Excluded on purpose**: statement/bulk sends, payments/refunds/COF charges,
+  facility settings (Stripe keys), merges, imports, payroll mutations, check-in.
