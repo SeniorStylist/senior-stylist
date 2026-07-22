@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -74,6 +74,328 @@ function summarizeAvailability(rows: StylistAvailability[]): string[] {
     }
   }
   return groups
+}
+
+// ── P39 — supervisor schedule tools ─────────────────────────────────────────
+// Admins/franchise admins/master edit a stylist's weekly hours and file time
+// off FROM this page (the self-service editor lives on stylist-only
+// /my-account). Same PUT /api/availability + POST /api/coverage contracts.
+
+interface EditableDayRow {
+  dayOfWeek: number
+  active: boolean
+  startTime: string
+  endTime: string
+}
+
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] // Mon-first display
+
+function buildDayRows(rows: StylistAvailability[]): EditableDayRow[] {
+  return DAY_ORDER.map((dow) => {
+    const existing = rows.find((r) => r.dayOfWeek === dow)
+    return {
+      dayOfWeek: dow,
+      active: existing?.active ?? false,
+      startTime: existing?.startTime ?? '09:00',
+      endTime: existing?.endTime ?? '17:00',
+    }
+  })
+}
+
+interface CoverageRow {
+  id: string
+  startDate: string
+  endDate: string
+  status: string
+  reason: string | null
+}
+
+function AvailabilityEditorCard({
+  stylistId,
+  initialAvailability,
+  canEdit,
+  scheduleNotes,
+}: {
+  stylistId: string
+  initialAvailability: StylistAvailability[]
+  canEdit: boolean
+  scheduleNotes: string | null
+}) {
+  const { toast } = useToast()
+  const [savedRows, setSavedRows] = useState<StylistAvailability[]>(initialAvailability)
+  const [editing, setEditing] = useState(false)
+  const [dayRows, setDayRows] = useState<EditableDayRow[]>(() => buildDayRows(initialAvailability))
+  const [saving, setSaving] = useState(false)
+  // Time off
+  const [timeOff, setTimeOff] = useState<CoverageRow[] | null>(null)
+  const [toStart, setToStart] = useState('')
+  const [toEnd, setToEnd] = useState('')
+  const [toReason, setToReason] = useState('')
+  const [toSaving, setToSaving] = useState(false)
+  const [toOpen, setToOpen] = useState(false)
+
+  useEffect(() => {
+    if (!canEdit) return
+    fetch(`/api/coverage?stylistId=${stylistId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const rows = (j.data?.requests ?? []) as CoverageRow[]
+        setTimeOff(rows.filter((r) => ['pending', 'open', 'filled'].includes(r.status)))
+      })
+      .catch(() => setTimeOff([]))
+  }, [stylistId, canEdit])
+
+  const saveHours = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stylistId, availability: dayRows }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof json.error === 'string' ? json.error : 'Could not save the schedule')
+        return
+      }
+      setSavedRows(json.data?.availability ?? [])
+      setEditing(false)
+      toast.success('Schedule saved')
+    } catch {
+      toast.error('Network error — schedule not saved')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addTimeOff = async () => {
+    if (!toStart || !toEnd) {
+      toast.error('Pick a start and end date')
+      return
+    }
+    setToSaving(true)
+    try {
+      const res = await fetch('/api/coverage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stylistId,
+          startDate: toStart,
+          endDate: toEnd,
+          ...(toReason.trim() ? { reason: toReason.trim().slice(0, 2000) } : {}),
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof json.error === 'string' ? json.error : 'Could not add time off')
+        return
+      }
+      setTimeOff((prev) => [...(prev ?? []), json.data.request as CoverageRow])
+      setToStart('')
+      setToEnd('')
+      setToReason('')
+      setToOpen(false)
+      toast.success('Time off added (pre-approved)')
+    } catch {
+      toast.error('Network error — time off not added')
+    } finally {
+      setToSaving(false)
+    }
+  }
+
+  const cancelTimeOff = async (row: CoverageRow) => {
+    const res = await fetch(`/api/coverage/${row.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled' }),
+    }).catch(() => null)
+    if (res?.ok) {
+      setTimeOff((prev) => (prev ?? []).filter((r) => r.id !== row.id))
+      toast.success('Time off cancelled')
+    } else {
+      const j = await res?.json().catch(() => ({}))
+      toast.error(typeof j?.error === 'string' ? j.error : 'Could not cancel')
+    }
+  }
+
+  const STATUS_CHIP: Record<string, string> = {
+    pending: 'bg-amber-50 text-amber-700 border-amber-200',
+    open: 'bg-sky-50 text-sky-700 border-sky-200',
+    filled: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
+      <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-stone-900">Schedule & Hours</h3>
+        {canEdit && !editing && (
+          <button
+            type="button"
+            onClick={() => {
+              setDayRows(buildDayRows(savedRows))
+              setEditing(true)
+            }}
+            className="text-xs font-semibold text-[#8B2E4A] border border-[#D4A0B0] bg-[#F9EFF2] hover:bg-[#F2E0E6] rounded-lg px-3 py-1.5 transition-colors"
+          >
+            Edit hours
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="px-5 py-4 space-y-2">
+          {dayRows.map((row, i) => (
+            <div key={row.dayOfWeek} className="flex items-center gap-2.5">
+              <label className="flex items-center gap-2 w-16 shrink-0 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={row.active}
+                  onChange={(e) =>
+                    setDayRows((prev) => prev.map((r, j) => (j === i ? { ...r, active: e.target.checked } : r)))
+                  }
+                  className="rounded accent-[#8B2E4A] w-4 h-4"
+                />
+                <span className="text-sm font-medium text-stone-700">{DAY_SHORT[row.dayOfWeek]}</span>
+              </label>
+              {row.active ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={row.startTime}
+                    onChange={(e) =>
+                      setDayRows((prev) => prev.map((r, j) => (j === i ? { ...r, startTime: e.target.value } : r)))
+                    }
+                    className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
+                  />
+                  <span className="text-stone-400 text-xs">to</span>
+                  <input
+                    type="time"
+                    value={row.endTime}
+                    onChange={(e) =>
+                      setDayRows((prev) => prev.map((r, j) => (j === i ? { ...r, endTime: e.target.value } : r)))
+                    }
+                    className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-stone-400">Off</span>
+              )}
+            </div>
+          ))}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button size="sm" loading={saving} onClick={saveHours}>
+              Save hours
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="px-5 py-4 text-sm text-stone-600 space-y-1">
+          {(() => {
+            const lines = summarizeAvailability(savedRows)
+            if (lines.length === 0) {
+              return (
+                <p className="text-stone-500">
+                  No availability set.{canEdit ? ' Use "Edit hours" to assign this stylist’s schedule.' : ''}
+                </p>
+              )
+            }
+            return lines.map((line) => <p key={line}>{line}</p>)
+          })()}
+        </div>
+      )}
+
+      {scheduleNotes && (
+        <div className="px-5 pb-4">
+          <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide mb-1">
+            Schedule notes (unmatched facilities)
+          </p>
+          <p className="text-xs text-stone-500 italic">{scheduleNotes}</p>
+        </div>
+      )}
+
+      {canEdit && (
+        <div className="px-5 py-4 border-t border-stone-100">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide">Time off</p>
+            {!toOpen && (
+              <button
+                type="button"
+                onClick={() => setToOpen(true)}
+                className="text-xs font-semibold text-[#8B2E4A] hover:underline"
+              >
+                + Add time off
+              </button>
+            )}
+          </div>
+          {toOpen && (
+            <div className="space-y-2 mb-3 bg-stone-50 border border-stone-100 rounded-xl p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={toStart}
+                  onChange={(e) => setToStart(e.target.value)}
+                  aria-label="Time off start date"
+                  className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
+                />
+                <span className="text-stone-400 text-xs">to</span>
+                <input
+                  type="date"
+                  value={toEnd}
+                  onChange={(e) => setToEnd(e.target.value)}
+                  aria-label="Time off end date"
+                  className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
+                />
+              </div>
+              <input
+                type="text"
+                value={toReason}
+                onChange={(e) => setToReason(e.target.value)}
+                placeholder="Reason (optional)"
+                className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#8B2E4A]"
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setToOpen(false)} disabled={toSaving}>
+                  Cancel
+                </Button>
+                <Button size="sm" loading={toSaving} onClick={addTimeOff}>
+                  Add
+                </Button>
+              </div>
+            </div>
+          )}
+          {timeOff === null ? (
+            <p className="text-xs text-stone-400">Loading…</p>
+          ) : timeOff.length === 0 ? (
+            <p className="text-xs text-stone-400">No upcoming time off.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {timeOff.map((r) => (
+                <li key={r.id} className="flex items-center gap-2 text-sm text-stone-700">
+                  <span>
+                    {r.startDate === r.endDate ? r.startDate : `${r.startDate} – ${r.endDate}`}
+                  </span>
+                  <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_CHIP[r.status] ?? 'bg-stone-50 text-stone-500 border-stone-200'}`}>
+                    {r.status === 'open' ? 'approved' : r.status}
+                  </span>
+                  {r.reason && <span className="text-xs text-stone-400 truncate">{r.reason}</span>}
+                  <button
+                    type="button"
+                    onClick={() => cancelTimeOff(r)}
+                    className="ml-auto text-xs text-stone-400 hover:text-rose-600"
+                  >
+                    Cancel
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const PHONE_LABELS = ['mobile', 'office', 'home', 'work', 'fax', 'custom'] as const
@@ -1211,28 +1533,13 @@ export function StylistDetailClient({
           )}
         </div>
 
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
-          <div className="px-5 py-4 border-b border-stone-100">
-            <h3 className="text-sm font-semibold text-stone-900">Availability</h3>
-          </div>
-          <div className="px-5 py-4 text-sm text-stone-600 space-y-1">
-            {(() => {
-              const lines = summarizeAvailability(availability)
-              if (lines.length === 0) {
-                return <p className="text-stone-500">No availability set.</p>
-              }
-              return lines.map((line) => <p key={line}>{line}</p>)
-            })()}
-          </div>
-          {stylist.scheduleNotes && (
-            <div className="px-5 pb-4">
-              <p className="text-[11px] font-semibold text-stone-400 uppercase tracking-wide mb-1">
-                Schedule notes (unmatched facilities)
-              </p>
-              <p className="text-xs text-stone-500 italic">{stylist.scheduleNotes}</p>
-            </div>
-          )}
-        </div>
+        {/* P39 — supervisor schedule tools: hours editor + time off on behalf */}
+        <AvailabilityEditorCard
+          stylistId={stylist.id}
+          initialAvailability={availability}
+          canEdit={!!isAdmin || !!isMasterAdmin}
+          scheduleNotes={stylist.scheduleNotes ?? null}
+        />
 
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm">
           <div className="px-5 py-4 border-b border-stone-100">

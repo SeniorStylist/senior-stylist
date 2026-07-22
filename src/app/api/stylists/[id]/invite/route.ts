@@ -20,9 +20,13 @@ export async function POST(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin')
+    // P39 — master admin (env email, no facility row) may invite any stylist,
+    // consistent with the rest of /api/stylists/*.
+    const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const master = !!su && user.email === su
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (!master && facilityUser!.role !== 'admin')
       return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     const { id: stylistId } = await params
@@ -33,11 +37,14 @@ export async function POST(
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
 
     // Scope guard: stylist must be in caller's franchise or same facility
-    const franchise = await getUserFranchise(user.id)
-    const inFranchise = franchise && stylist.franchiseId === franchise.franchiseId
-    const inFacility = stylist.facilityId === facilityUser.facilityId
-    if (!inFranchise && !inFacility) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    // (master bypasses — supervises everything).
+    if (!master) {
+      const franchise = await getUserFranchise(user.id)
+      const inFranchise = franchise && stylist.franchiseId === franchise.franchiseId
+      const inFacility = stylist.facilityId === facilityUser!.facilityId
+      if (!inFranchise && !inFacility) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     if (!stylist.email) {
@@ -62,7 +69,11 @@ export async function POST(
     await ensureInviteTrackingSchema()
 
     const normalizedEmail = stylist.email.toLowerCase().trim()
-    const facilityId = facilityUser.facilityId
+    // Master: anchor the invite at the stylist's home facility.
+    const facilityId = facilityUser?.facilityId ?? stylist.facilityId
+    if (!facilityId) {
+      return Response.json({ error: 'This stylist has no facility to invite into yet.' }, { status: 422 })
+    }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
 
     const facility = await db.query.facilities.findFirst({

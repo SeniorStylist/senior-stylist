@@ -23,10 +23,24 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 403 })
-    if (facilityUser.role !== 'admin') {
+    // P39 — master admin (env email, no facility row) may query any facility
+    // via ?facilityId= (supervisor model).
+    const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const master = !!su && user.email === su
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 403 })
+    if (!master && facilityUser!.role !== 'admin') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    let scopeFacilityId: string
+    if (master) {
+      const facParam = request.nextUrl.searchParams.get('facilityId') ?? ''
+      if (!/^[0-9a-f-]{36}$/i.test(facParam)) {
+        return Response.json({ error: 'facilityId required' }, { status: 422 })
+      }
+      scopeFacilityId = facParam
+    } else {
+      scopeFacilityId = facilityUser!.facilityId
     }
 
     const date = request.nextUrl.searchParams.get('date') ?? ''
@@ -37,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch facility address for zip-proximity ranking
     const facilityRow = await db.query.facilities.findFirst({
-      where: eq(facilities.id, facilityUser.facilityId),
+      where: eq(facilities.id, scopeFacilityId),
       columns: { address: true },
     })
     const facilityZip = extractZip(facilityRow?.address ?? '')
@@ -56,7 +70,7 @@ export async function GET(request: NextRequest) {
         stylistFacilityAssignments,
         and(
           eq(stylistFacilityAssignments.stylistId, stylists.id),
-          eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+          eq(stylistFacilityAssignments.facilityId, scopeFacilityId),
           eq(stylistFacilityAssignments.active, true),
         ),
       )
@@ -64,7 +78,7 @@ export async function GET(request: NextRequest) {
         stylistAvailability,
         and(
           eq(stylistAvailability.stylistId, stylists.id),
-          eq(stylistAvailability.facilityId, facilityUser.facilityId),
+          eq(stylistAvailability.facilityId, scopeFacilityId),
           eq(stylistAvailability.dayOfWeek, dayOfWeek),
           eq(stylistAvailability.active, true),
         ),

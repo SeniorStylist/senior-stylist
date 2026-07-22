@@ -9,6 +9,12 @@ import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
+// P39 — master-email bypass (same local pattern as /api/stylists/[id]).
+function isMasterCaller(email: string | null | undefined) {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  return !!su && email === su
+}
+
 const STATUS_VALUES = ['open', 'filled', 'cancelled'] as const
 
 const updateSchema = z
@@ -50,11 +56,15 @@ export async function PUT(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // P39 — master admin (env email, no facility row) supervises all facilities.
+    const master = isMasterCaller(user.email)
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
     const existing = await db.query.coverageRequests.findFirst({
-      where: and(eq(coverageRequests.id, id), eq(coverageRequests.facilityId, facilityUser.facilityId)),
+      where: master
+        ? eq(coverageRequests.id, id)
+        : and(eq(coverageRequests.id, id), eq(coverageRequests.facilityId, facilityUser!.facilityId)),
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
 
@@ -64,7 +74,7 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? 'Invalid body' }, { status: 422 })
     }
 
-    const isAdmin = facilityUser.role === 'admin'
+    const isAdmin = master || facilityUser!.role === 'admin'
 
     if (!isAdmin) {
       const profile = await db.query.profiles.findFirst({
@@ -125,7 +135,7 @@ export async function PUT(
           columns: { id: true, email: true },
         })
         const facility = await db.query.facilities.findFirst({
-          where: (f, { eq: eqOp }) => eqOp(f.id, facilityUser.facilityId),
+          where: (f, { eq: eqOp }) => eqOp(f.id, existing.facilityId),
           columns: { name: true },
         })
         if (requesterProfile?.email && requester) {
@@ -160,7 +170,7 @@ export async function PUT(
                 title: approved ? 'Time off approved' : 'Time off request denied',
                 body: approved ? `Your time off for ${rangeLabel} was approved.` : `Your request for ${rangeLabel} was denied.`,
                 url: '/my-account',
-                facilityId: facilityUser.facilityId,
+                facilityId: existing.facilityId,
               }),
             )
             .catch((err) => console.error('[coverage PUT decision] notify failed:', err))
@@ -203,7 +213,7 @@ export async function PUT(
         if (!sub) return Response.json({ error: 'Substitute not found' }, { status: 422 })
         // Accept if in facility OR in same franchise pool (facilityId null + franchiseId matches)
         const callerFranchise = await getUserFranchise(user.id)
-        const isFacilityMatch = sub.facilityId === facilityUser.facilityId
+        const isFacilityMatch = sub.facilityId === existing.facilityId
         const isFranchisePool =
           sub.facilityId === null &&
           !!callerFranchise &&
@@ -240,7 +250,7 @@ export async function PUT(
           columns: { email: true },
         })
         const facility = await db.query.facilities.findFirst({
-          where: (f, { eq: eqOp }) => eqOp(f.id, facilityUser.facilityId),
+          where: (f, { eq: eqOp }) => eqOp(f.id, existing.facilityId),
           columns: { name: true },
         })
         if (requesterProfile?.email && requester && substituteName) {
@@ -282,15 +292,19 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // P39 — master admin bypass (see PUT).
+    const master = isMasterCaller(user.email)
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
     const existing = await db.query.coverageRequests.findFirst({
-      where: and(eq(coverageRequests.id, id), eq(coverageRequests.facilityId, facilityUser.facilityId)),
+      where: master
+        ? eq(coverageRequests.id, id)
+        : and(eq(coverageRequests.id, id), eq(coverageRequests.facilityId, facilityUser!.facilityId)),
     })
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
 
-    if (facilityUser.role !== 'admin') {
+    if (!master && facilityUser!.role !== 'admin') {
       const profile = await db.query.profiles.findFirst({
         where: eq(profiles.id, user.id),
         columns: { stylistId: true },

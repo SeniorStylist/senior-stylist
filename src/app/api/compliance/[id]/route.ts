@@ -19,19 +19,23 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    const { facilityId } = facilityUser
+    // P39 — master admin bypass (supervisor model).
+    const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const master = !!su && user.email === su
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
     const doc = await db.query.complianceDocuments.findFirst({
-      where: and(
-        eq(complianceDocuments.id, id),
-        eq(complianceDocuments.facilityId, facilityId)
-      ),
+      where: master
+        ? eq(complianceDocuments.id, id)
+        : and(
+            eq(complianceDocuments.id, id),
+            eq(complianceDocuments.facilityId, facilityUser!.facilityId)
+          ),
     })
     if (!doc) return Response.json({ error: 'Not found' }, { status: 404 })
 
-    if (facilityUser.role !== 'admin') {
+    if (!master && facilityUser!.role !== 'admin') {
       const profile = await db.query.profiles.findFirst({
         where: eq(profiles.id, user.id),
         columns: { stylistId: true },

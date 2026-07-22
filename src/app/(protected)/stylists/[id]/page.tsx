@@ -28,9 +28,13 @@ export default async function StylistDetailPage({
   const user = await getAuthUser()
   if (!user) redirect('/login')
 
+  // P39 — the master admin (env email, no facility_users row) supervises every
+  // stylist: allow through and scope queries to the stylist's own facility.
+  const suEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  const master = !!suEmail && user.email === suEmail
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser) redirect('/dashboard')
-  if (!isAdminOrAbove(facilityUser.role)) redirect('/dashboard')
+  if (!facilityUser && !master) redirect('/dashboard')
+  if (facilityUser && !isAdminOrAbove(facilityUser.role)) redirect('/dashboard')
 
   try {
   const franchise = await getUserFranchise(user.id)
@@ -39,17 +43,33 @@ export default async function StylistDetailPage({
   })
   if (!stylist) notFound()
 
-  // Allow if stylist belongs to caller's facility, OR franchise-pool stylist in caller's franchise
-  const sameFacility = stylist.facilityId === facilityUser.facilityId
-  const franchisePoolInFranchise =
-    !!franchise && stylist.facilityId === null && stylist.franchiseId === franchise.franchiseId
-  const sameFranchiseFacility =
-    !!franchise &&
-    stylist.facilityId !== null &&
-    franchise.facilityIds.includes(stylist.facilityId)
-  if (!sameFacility && !franchisePoolInFranchise && !sameFranchiseFacility) {
-    notFound()
+  // Allow if stylist belongs to caller's facility, OR franchise-pool stylist in
+  // caller's franchise. Master bypasses scope entirely.
+  if (!master && facilityUser) {
+    const sameFacility = stylist.facilityId === facilityUser.facilityId
+    const franchisePoolInFranchise =
+      !!franchise && stylist.facilityId === null && stylist.franchiseId === franchise.franchiseId
+    const sameFranchiseFacility =
+      !!franchise &&
+      stylist.facilityId !== null &&
+      franchise.facilityIds.includes(stylist.facilityId)
+    if (!sameFacility && !franchisePoolInFranchise && !sameFranchiseFacility) {
+      notFound()
+    }
   }
+
+  // Facility scope for the stats/availability/compliance queries: the caller's
+  // facility, or — for the master — the stylist's home facility / first active
+  // assignment.
+  let scopeFacilityId = facilityUser?.facilityId ?? stylist.facilityId ?? null
+  if (!scopeFacilityId) {
+    const firstAssignment = await db.query.stylistFacilityAssignments.findFirst({
+      where: and(eq(stylistFacilityAssignments.stylistId, id), eq(stylistFacilityAssignments.active, true)),
+      columns: { facilityId: true },
+    })
+    scopeFacilityId = firstAssignment?.facilityId ?? null
+  }
+  if (!scopeFacilityId) notFound()
 
   const now = new Date()
   const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
@@ -77,7 +97,7 @@ export default async function StylistDetailPage({
   ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
-        eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.facilityId, scopeFacilityId),
         eq(bookings.stylistId, id),
         gte(bookings.startTime, now),
         lte(bookings.startTime, in14Days),
@@ -88,7 +108,7 @@ export default async function StylistDetailPage({
     }),
     db.query.bookings.findMany({
       where: and(
-        eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.facilityId, scopeFacilityId),
         eq(bookings.stylistId, id),
         ne(bookings.status, 'cancelled'),
         eq(bookings.active, true),
@@ -98,7 +118,7 @@ export default async function StylistDetailPage({
     // This month's bookings with service names for the commission breakdown
     db.query.bookings.findMany({
       where: and(
-        eq(bookings.facilityId, facilityUser.facilityId),
+        eq(bookings.facilityId, scopeFacilityId),
         eq(bookings.stylistId, id),
         ne(bookings.status, 'cancelled'),
         gte(bookings.startTime, startOfMonth)
@@ -108,14 +128,14 @@ export default async function StylistDetailPage({
     db.query.stylistAvailability.findMany({
       where: and(
         eq(stylistAvailability.stylistId, id),
-        eq(stylistAvailability.facilityId, facilityUser.facilityId)
+        eq(stylistAvailability.facilityId, scopeFacilityId)
       ),
       orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
     }),
     db.query.complianceDocuments.findMany({
       where: and(
         eq(complianceDocuments.stylistId, id),
-        eq(complianceDocuments.facilityId, facilityUser.facilityId)
+        eq(complianceDocuments.facilityId, scopeFacilityId)
       ),
       orderBy: [desc(complianceDocuments.uploadedAt)],
     }),
@@ -227,7 +247,7 @@ export default async function StylistDetailPage({
       stats={stats}
       complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
       availability={JSON.parse(JSON.stringify(availability))}
-      isAdmin={facilityUser.role === 'admin'}
+      isAdmin={master || facilityUser?.role === 'admin'}
       isMasterAdmin={isMasterAdmin}
       franchiseFacilities={JSON.parse(JSON.stringify(franchiseFacilityOptions))}
       assignments={JSON.parse(JSON.stringify(assignments))}

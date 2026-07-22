@@ -1,13 +1,22 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { stylistAvailability, stylists, profiles } from '@/db/schema'
+import { stylistAvailability, stylists, stylistFacilityAssignments, profiles, facilities } from '@/db/schema'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { and, asc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+// Master-email bypass — same local pattern as /api/stylists/[id].
+function isMasterAdmin(email: string | null | undefined) {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  return !!su && email === su
+}
+
 const availabilitySchema = z.object({
   stylistId: z.string().uuid(),
+  // P39 — master admin only: which facility's schedule to write (masters have
+  // no facility_users row). Admin/stylist callers are pinned to their own.
+  facilityId: z.string().uuid().optional(),
   availability: z
     .array(
       z
@@ -28,39 +37,107 @@ const availabilitySchema = z.object({
     ),
 })
 
+/** Does the stylist work at this facility? Home row OR active assignment (F228 rule). */
+async function stylistWorksAt(stylistId: string, facilityId: string): Promise<boolean> {
+  const home = await db.query.stylists.findFirst({
+    where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityId)),
+    columns: { id: true },
+  })
+  if (home) return true
+  const assignment = await db.query.stylistFacilityAssignments.findFirst({
+    where: and(
+      eq(stylistFacilityAssignments.stylistId, stylistId),
+      eq(stylistFacilityAssignments.facilityId, facilityId),
+      eq(stylistFacilityAssignments.active, true),
+    ),
+    columns: { id: true },
+  })
+  return !!assignment
+}
+
+/**
+ * P39 — resolve the (caller, facility) scope for an availability read/write.
+ * - master (env email, no facility row): any facility the stylist works at —
+ *   the requested one, else the stylist's home facility / first assignment.
+ * - admin/franchise: own selected facility (stylist must work there).
+ * - stylist: self only, own selected facility.
+ * Returns an error Response, or the resolved facilityId.
+ */
+async function resolveScope(
+  user: { id: string; email?: string },
+  stylistId: string,
+  requestedFacilityId: string | null,
+): Promise<{ facilityId: string } | Response> {
+  const facilityUser = await getUserFacility(user.id)
+  if (!facilityUser) {
+    if (!isMasterAdmin(user.email)) {
+      return Response.json({ error: 'No facility' }, { status: 400 })
+    }
+    // Master: derive the facility from the stylist when not specified.
+    const stylist = await db.query.stylists.findFirst({
+      where: eq(stylists.id, stylistId),
+      columns: { id: true, facilityId: true },
+    })
+    if (!stylist) return Response.json({ error: 'Not found' }, { status: 404 })
+    let facilityId = requestedFacilityId
+    if (!facilityId) {
+      facilityId = stylist.facilityId ?? null
+      if (!facilityId) {
+        const assignment = await db.query.stylistFacilityAssignments.findFirst({
+          where: and(eq(stylistFacilityAssignments.stylistId, stylistId), eq(stylistFacilityAssignments.active, true)),
+          columns: { facilityId: true },
+        })
+        facilityId = assignment?.facilityId ?? null
+      }
+    }
+    if (!facilityId) {
+      return Response.json({ error: 'This stylist has no facility to schedule at yet.' }, { status: 422 })
+    }
+    const fac = await db.query.facilities.findFirst({
+      where: and(eq(facilities.id, facilityId), eq(facilities.active, true)),
+      columns: { id: true },
+    })
+    if (!fac || !(await stylistWorksAt(stylistId, facilityId))) {
+      return Response.json({ error: 'Stylist is not assigned to that facility' }, { status: 404 })
+    }
+    return { facilityId }
+  }
+
+  if (facilityUser.role !== 'admin') {
+    const profile = await db.query.profiles.findFirst({
+      where: eq(profiles.id, user.id),
+      columns: { stylistId: true },
+    })
+    if (!profile?.stylistId || profile.stylistId !== stylistId) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
+
+  // Home row OR active assignment (was home-only — 404'd legit edits for
+  // assignment-linked stylists, the F228 roster class).
+  if (!(await stylistWorksAt(stylistId, facilityUser.facilityId))) {
+    return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+  return { facilityId: facilityUser.facilityId }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-
     const stylistId = request.nextUrl.searchParams.get('stylistId')
     const parsed = z.string().uuid().safeParse(stylistId)
     if (!parsed.success) return Response.json({ error: 'stylistId required' }, { status: 422 })
-
-    if (facilityUser.role !== 'admin') {
-      const profile = await db.query.profiles.findFirst({
-        where: eq(profiles.id, user.id),
-        columns: { stylistId: true },
-      })
-      if (!profile?.stylistId || profile.stylistId !== parsed.data) {
-        return Response.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    const target = await db.query.stylists.findFirst({
-      where: and(eq(stylists.id, parsed.data), eq(stylists.facilityId, facilityUser.facilityId)),
-      columns: { id: true },
-    })
-    if (!target) return Response.json({ error: 'Not found' }, { status: 404 })
+    const requestedFacility = request.nextUrl.searchParams.get('facilityId')
+    const scope = await resolveScope(user, parsed.data, requestedFacility)
+    if (scope instanceof Response) return scope
 
     const availability = await db.query.stylistAvailability.findMany({
       where: and(
         eq(stylistAvailability.stylistId, parsed.data),
-        eq(stylistAvailability.facilityId, facilityUser.facilityId)
+        eq(stylistAvailability.facilityId, scope.facilityId)
       ),
       orderBy: [asc(stylistAvailability.dayOfWeek)],
     })
@@ -78,9 +155,6 @@ export async function PUT(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-
     const body = await request.json()
     const parsed = availabilitySchema.safeParse(body)
     if (!parsed.success) {
@@ -88,25 +162,12 @@ export async function PUT(request: NextRequest) {
     }
     const { stylistId, availability } = parsed.data
 
-    if (facilityUser.role !== 'admin') {
-      const profile = await db.query.profiles.findFirst({
-        where: eq(profiles.id, user.id),
-        columns: { stylistId: true },
-      })
-      if (!profile?.stylistId || profile.stylistId !== stylistId) {
-        return Response.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    const target = await db.query.stylists.findFirst({
-      where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityUser.facilityId)),
-      columns: { id: true },
-    })
-    if (!target) return Response.json({ error: 'Not found' }, { status: 404 })
+    const scope = await resolveScope(user, stylistId, parsed.data.facilityId ?? null)
+    if (scope instanceof Response) return scope
 
     const rows = availability.map((r) => ({
       stylistId,
-      facilityId: facilityUser.facilityId,
+      facilityId: scope.facilityId,
       dayOfWeek: r.dayOfWeek,
       startTime: r.startTime,
       endTime: r.endTime,
@@ -122,7 +183,7 @@ export async function PUT(request: NextRequest) {
         .where(
           and(
             eq(stylistAvailability.stylistId, stylistId),
-            eq(stylistAvailability.facilityId, facilityUser.facilityId)
+            eq(stylistAvailability.facilityId, scope.facilityId)
           )
         )
       if (rows.length > 0) {
@@ -133,7 +194,7 @@ export async function PUT(request: NextRequest) {
     const updated = await db.query.stylistAvailability.findMany({
       where: and(
         eq(stylistAvailability.stylistId, stylistId),
-        eq(stylistAvailability.facilityId, facilityUser.facilityId)
+        eq(stylistAvailability.facilityId, scope.facilityId)
       ),
       orderBy: [asc(stylistAvailability.dayOfWeek)],
     })

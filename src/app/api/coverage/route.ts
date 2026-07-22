@@ -22,10 +22,33 @@ const createSchema = z
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     reason: z.string().max(2000).optional(),
+    // P39 — admin/master file time off ON BEHALF of a stylist (supervisor
+    // model). Stylist callers must omit this (forced self).
+    stylistId: z.string().uuid().optional(),
   })
   .refine((d) => d.endDate >= d.startDate, {
     message: 'endDate must be on or after startDate',
   })
+
+// P39 — master-email bypass (same local pattern as /api/stylists/[id]).
+function isMasterCaller(email: string | null | undefined) {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  return !!su && email === su
+}
+
+/** Home row OR active assignment — the canonical works-at check (F228 rule). */
+async function stylistWorksAt(stylistId: string, facilityId: string): Promise<boolean> {
+  const home = await db.query.stylists.findFirst({
+    where: (s, { and: a, eq: e }) => a(e(s.id, stylistId), e(s.facilityId, facilityId)),
+    columns: { id: true },
+  })
+  if (home) return true
+  const assignment = await db.query.stylistFacilityAssignments.findFirst({
+    where: (r, { and: a, eq: e }) => a(e(r.stylistId, stylistId), e(r.facilityId, facilityId), e(r.active, true)),
+    columns: { id: true },
+  })
+  return !!assignment
+}
 
 function todayUTCDateStr(): string {
   const d = new Date()
@@ -41,10 +64,21 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role === 'viewer') {
+    // P39 — master admin may read any facility's requests via ?facilityId=.
+    const master = isMasterCaller(user.email)
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    if (facilityUser?.role === 'viewer') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    let scopeFacilityId: string
+    if (master) {
+      const facParam = z.string().uuid().safeParse(request.nextUrl.searchParams.get('facilityId'))
+      if (!facParam.success) return Response.json({ error: 'facilityId required' }, { status: 422 })
+      scopeFacilityId = facParam.data
+    } else {
+      scopeFacilityId = facilityUser!.facilityId
     }
 
     const statusParam = request.nextUrl.searchParams.get('status')
@@ -57,7 +91,7 @@ export async function GET(request: NextRequest) {
     }
 
     let effectiveStylistId: string | null = null
-    if (facilityUser.role !== 'admin') {
+    if (!master && facilityUser!.role !== 'admin') {
       const ownStylistId = await getEffectiveStylistId(user.id)
       if (!ownStylistId) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
@@ -69,7 +103,7 @@ export async function GET(request: NextRequest) {
       effectiveStylistId = parsed.data
     }
 
-    const conditions = [eq(coverageRequests.facilityId, facilityUser.facilityId)]
+    const conditions = [eq(coverageRequests.facilityId, scopeFacilityId)]
     if (statusParsed?.success) conditions.push(eq(coverageRequests.status, statusParsed.data))
     if (effectiveStylistId) conditions.push(eq(coverageRequests.stylistId, effectiveStylistId))
 
@@ -98,26 +132,55 @@ export async function POST(request: NextRequest) {
     const rl = await checkRateLimit('coverage', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-
-    const ownStylistId = await getEffectiveStylistId(user.id)
-    if (!ownStylistId) {
-      return Response.json({ error: 'Only stylists can request coverage' }, { status: 403 })
-    }
-
-    const stylist = await db.query.stylists.findFirst({
-      where: eq(stylists.id, ownStylistId),
-      columns: { id: true, name: true, facilityId: true },
-    })
-    if (!stylist || stylist.facilityId !== facilityUser.facilityId) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    // P39 — supervisor model: admins/franchise admins and the master admin may
+    // file time off ON BEHALF of a stylist (body.stylistId). Their requests
+    // start pre-approved ('open') since they ARE the approver. Stylist callers
+    // keep the original self-only 'pending' flow.
+    const master = isMasterCaller(user.email)
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.issues[0]?.message ?? 'Invalid body' }, { status: 422 })
+    }
+
+    const isSupervisor = master || facilityUser!.role === 'admin'
+    let stylist: { id: string; name: string; facilityId: string | null } | undefined
+    let scopeFacilityId: string
+    let onBehalf = false
+
+    if (isSupervisor && parsed.data.stylistId) {
+      onBehalf = true
+      stylist = await db.query.stylists.findFirst({
+        where: eq(stylists.id, parsed.data.stylistId),
+        columns: { id: true, name: true, facilityId: true },
+      })
+      if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+      scopeFacilityId = facilityUser?.facilityId ?? stylist.facilityId ?? ''
+      if (!scopeFacilityId) {
+        return Response.json({ error: 'This stylist has no facility yet.' }, { status: 422 })
+      }
+      if (!(await stylistWorksAt(stylist.id, scopeFacilityId))) {
+        return Response.json({ error: 'Stylist is not assigned to this facility' }, { status: 403 })
+      }
+    } else {
+      if (master) {
+        return Response.json({ error: 'Pass a stylistId to file time off for a stylist.' }, { status: 422 })
+      }
+      const ownStylistId = await getEffectiveStylistId(user.id)
+      if (!ownStylistId) {
+        return Response.json({ error: 'Only stylists can request coverage' }, { status: 403 })
+      }
+      stylist = await db.query.stylists.findFirst({
+        where: eq(stylists.id, ownStylistId),
+        columns: { id: true, name: true, facilityId: true },
+      })
+      scopeFacilityId = facilityUser!.facilityId
+      if (!stylist || !(await stylistWorksAt(stylist.id, scopeFacilityId))) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     if (parsed.data.startDate < todayUTCDateStr()) {
@@ -144,18 +207,26 @@ export async function POST(request: NextRequest) {
     const [inserted] = await db
       .insert(coverageRequests)
       .values({
-        facilityId: facilityUser.facilityId,
+        facilityId: scopeFacilityId,
         stylistId: stylist.id,
         startDate: parsed.data.startDate,
         endDate: parsed.data.endDate,
         reason: parsed.data.reason ?? null,
-        // 13F: requests start pending — an admin approves (→ open) or denies.
-        status: 'pending',
+        // 13F: stylist requests start pending — an admin approves (→ open) or
+        // denies. P39: supervisor-filed time off is pre-approved by definition.
+        status: onBehalf ? 'open' : 'pending',
+        ...(onBehalf ? { approvedBy: user.id, approvedAt: new Date() } : {}),
       })
       .returning()
 
+    // P39 — supervisor-filed: the approver already knows; skip the admin
+    // notification fan-out and return immediately.
+    if (onBehalf) {
+      return Response.json({ data: { request: inserted } })
+    }
+
     const facility = await db.query.facilities.findFirst({
-      where: (f, { eq: eqOp }) => eqOp(f.id, facilityUser.facilityId),
+      where: (f, { eq: eqOp }) => eqOp(f.id, scopeFacilityId),
       columns: { name: true },
     })
 
@@ -164,7 +235,7 @@ export async function POST(request: NextRequest) {
       .from(facilityUsers)
       .innerJoin(profiles, eq(profiles.id, facilityUsers.userId))
       .where(
-        and(eq(facilityUsers.facilityId, facilityUser.facilityId), eq(facilityUsers.role, 'admin'))
+        and(eq(facilityUsers.facilityId, scopeFacilityId), eq(facilityUsers.role, 'admin'))
       )
 
     const fallback = process.env.NEXT_PUBLIC_ADMIN_EMAIL
@@ -203,7 +274,7 @@ export async function POST(request: NextRequest) {
               title: 'Time-off request',
               body: `${stylist.name} needs ${rangeLabel}`,
               url: '/dashboard',
-              facilityId: facilityUser.facilityId,
+              facilityId: scopeFacilityId,
             },
           })),
         ),

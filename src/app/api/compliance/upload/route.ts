@@ -31,9 +31,12 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    const { facilityId } = facilityUser
+    // P39 — master admin (env email, no facility row): facility derived from
+    // the stylist's home row below.
+    const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const master = !!su && user.email === su
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
     const form = await request.formData()
     const file = form.get('file')
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Only PDF, JPG, PNG allowed' }, { status: 422 })
     }
 
-    if (facilityUser.role !== 'admin') {
+    if (!master && facilityUser!.role !== 'admin') {
       const profile = await db.query.profiles.findFirst({
         where: eq(profiles.id, user.id),
         columns: { stylistId: true },
@@ -67,10 +70,16 @@ export async function POST(request: NextRequest) {
     }
 
     const stylist = await db.query.stylists.findFirst({
-      where: and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityId)),
-      columns: { id: true },
+      where: master
+        ? eq(stylists.id, stylistId)
+        : and(eq(stylists.id, stylistId), eq(stylists.facilityId, facilityUser!.facilityId)),
+      columns: { id: true, facilityId: true },
     })
     if (!stylist) return Response.json({ error: 'Stylist not found' }, { status: 404 })
+    const facilityId = facilityUser?.facilityId ?? stylist.facilityId
+    if (!facilityId) {
+      return Response.json({ error: 'This stylist has no facility yet.' }, { status: 422 })
+    }
 
     const ext = MIME_EXT[file.type]
     const path = `${facilityId}/${stylistId}/${documentType}-${Date.now()}.${ext}`
