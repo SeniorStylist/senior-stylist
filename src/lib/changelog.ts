@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.0',
+    date: '2026-07-22',
+    title: 'The Assistant Sees Everything (Owner Edition)',
+    items: [
+      'Master admin: the assistant now covers your WHOLE network — "which facility owes us the most?" answers across every community, and you can act on any facility just by naming it: "book Mrs. Smith at Symphony Manor tomorrow at 10", "how much does F228 owe?"',
+      'Say "switch me to Glen Meadow" and the app moves there — the facility switcher also now works properly for the owner account everywhere',
+      'Real answers to "how do I…": the assistant has a built-in guide to every feature — ask how to scan a log sheet, set up the family portal, or run payroll and it walks you through step by step, with as much detail as you want',
+      'Upgraded to a smarter AI model across the board — better at understanding shorthand, misspellings, and what you actually meant',
+      'Every cross-facility change shows which community it lands in on the confirm card, and nothing ever saves without your tap',
+    ],
+  },
+  {
     version: '4.9',
     date: '2026-07-22',
     title: 'Ask the AI to Do It',

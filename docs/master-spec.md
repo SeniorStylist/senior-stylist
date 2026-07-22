@@ -2986,3 +2986,30 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   checks): role write-matrix + ACTION_RULES coverage + loop mechanics.
 - **Excluded on purpose**: statement/bulk sends, payments/refunds/COF charges,
   facility settings (Stripe keys), merges, imports, payroll mutations, check-in.
+
+## P41 — Master network scope + help KB + gemini-2.5-pro (2026-07-22)
+
+- **Per-call master facility targeting**: `resolveCtxFacility` applied at the
+  gemini.ts dispatch for every needsFacility tool — masters pass `facilityName`
+  (F-code exact → fuzzy ≥0.6) and the tool runs with a swapped ctx clone;
+  non-masters' arg is IGNORED. Param injected into tool schemas for masters
+  only. Facility-less masters keep the full tool set. Master
+  `get_business_numbers` = ALWAYS the network pack; `get_facility_numbers`
+  nameOrCode optional (defaults to selected).
+- **9 endpoint master bypasses** (bare master = no facility_users row →
+  getUserFacility null → these 400'd even same-facility): row-scoped
+  bookings PUT/DELETE/receipt, residents PUT, services PUT; master-only body
+  `facilityId` (active-validated, ignored for non-masters) on bookings POST,
+  residents POST, waitlist POST, signup-sheet POST, services POST.
+  `POST /api/facilities/select` gained the master branch (any active
+  facility).
+- **`switch_facility`** (master + bookkeeper): proposes the select POST;
+  client hard-reloads on success. 17 action kinds; create kinds accept
+  `facilityId` in bodyKeys; `PendingAction.facility` display field renders
+  "At {name}" on cross-facility confirm cards.
+- **Help KB**: `src/lib/ai-assistant/help-kb.ts` (24 role-aware guides) +
+  `explain_feature` tool (all roles except viewer). Preamble length rules
+  calibrated (how-tos COMPLETE). Update a feature's guide in the same commit
+  as the feature.
+- **Model default `gemini-2.5-pro`** (env ASSISTANT_GEMINI_MODEL overrides).
+  Harness 76 checks.

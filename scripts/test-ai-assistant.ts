@@ -3,7 +3,9 @@
 // No GEMINI_API_KEY and no DB needed: registry filtering + helpers are pure,
 // and the Gemini loop runs against a scripted fake transport with fake tools.
 
-import { toolsForCtx, rankByName, parseLocalDateTime, levSimilarity, computeOpenSlots, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
+import { toolsForCtx, rankByName, parseLocalDateTime, levSimilarity, computeOpenSlots, resolveCtxFacility, ALL_TOOLS, type AssistantCtx, type AssistantTool } from '../src/lib/ai-assistant/tools'
+import { HELP_GUIDES, scoreGuide } from '../src/lib/ai-assistant/help-kb'
+import { normalizeWords } from '../src/lib/fuzzy'
 import { ACTION_RULES, actionAllowed, type AssistantActionKind, type PendingAction } from '../src/lib/ai-assistant/action-allowlist'
 import { fromDateTimeLocalInTz } from '../src/lib/time'
 import { runAssistant, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
@@ -97,6 +99,50 @@ console.log('\n[1] Role filtering (toolsForCtx)')
 
   check('bookkeeper reads include ledger + payroll + waitlist',
     ['get_resident_ledger', 'get_payroll_summary', 'get_waitlist'].every((n) => bookkeeper.includes(n)))
+
+  // ---- P41 additions ----
+  check('switch_facility: master + bookkeeper ONLY',
+    facilityMaster.includes('switch_facility') && bookkeeper.includes('switch_facility')
+    && !admin.includes('switch_facility') && !staff.includes('switch_facility') && !stylist.includes('switch_facility'))
+  check('explain_feature: every role except viewer',
+    [admin, staff, bookkeeper, stylist, facilityMaster].every((set) => set.includes('explain_feature')))
+}
+
+// ---------------------------------------------------------------------------
+// P41 — master facility resolution + help KB (DB-free paths). Async (tsx
+// compiles to CJS — no top-level await), invoked from main().
+async function p41Checks() {
+  console.log('\n[1b] P41 — master facility resolution + help KB (DB-free paths)')
+  // resolveCtxFacility: non-master args are IGNORED (no DB hit — returns ctx)
+  const adminScoped = await resolveCtxFacility(baseCtx, { facilityName: 'Some Other Facility' })
+  check('non-master facilityName IGNORED (ctx authoritative)', adminScoped.ok && adminScoped.ctx === baseCtx)
+
+  const masterCtx: AssistantCtx = { ...baseCtx, role: 'master' }
+  const masterNoArg = await resolveCtxFacility(masterCtx, {})
+  check('master + selected facility + no arg → passthrough', masterNoArg.ok && masterNoArg.ctx === masterCtx)
+
+  const masterSameCode = await resolveCtxFacility(masterCtx, { facilityName: 'f177' })
+  check('master naming the selected F-code → passthrough (no lookup)', masterSameCode.ok && masterSameCode.ctx === masterCtx)
+
+  const bareMaster = await resolveCtxFacility({ ...masterCtx, facilityId: null, facilityName: null, facilityCode: null }, {})
+  check('facility-less master + no arg → asks which facility', !bareMaster.ok && bareMaster.error.includes('Which facility'))
+
+  // Help KB: every guide id unique, and the how-to lookup finds the scan guide
+  const ids = new Set(HELP_GUIDES.map((g) => g.id))
+  check('help KB: unique guide ids', ids.size === HELP_GUIDES.length)
+  const scanWords = normalizeWords('how do I record a log sheet')
+  const best = [...HELP_GUIDES].sort((a, b) => scoreGuide(b, scanWords) - scoreGuide(a, scanWords))[0]
+  check('"record a log sheet" resolves to a log guide', !!best && scoreGuide(best, scanWords) > 0 && /log/i.test(best.title))
+  check('gibberish scores zero everywhere', HELP_GUIDES.every((g) => scoreGuide(g, normalizeWords('zzqx wvvk')) === 0))
+
+  // explain_feature executes without a DB (pure KB lookup)
+  const explain = ALL_TOOLS.find((t) => t.name === 'explain_feature')!
+  const r1 = await explain.execute({ ...baseCtx, role: 'stylist', stylistId: 's1', stylistName: 'S' }, { topic: 'scan a log sheet' })
+  check('explain_feature returns a guide body', typeof (r1.response.guide as { body?: string } | undefined)?.body === 'string')
+  const r2 = await explain.execute(baseCtx, { topic: 'zzqx wvvk' })
+  check('explain_feature no-match lists available topics', Array.isArray(r2.response.availableTopics))
+  const r3 = await explain.execute({ ...baseCtx, role: 'stylist', stylistId: 's1', stylistName: 'S' }, { topic: 'quickbooks csv import' })
+  check('role-gated guide hidden from stylist (QB imports)', !(r3.response.guide as { title?: string } | undefined)?.title?.includes('QuickBooks CSV'))
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +262,8 @@ const call = (name: string, args: Record<string, unknown>, sig?: string) => ({
 })
 
 async function main() {
+  await p41Checks()
+
   // 3a — plain text answer
   {
     const { transport } = scriptedTransport([() => text('Hello!')])
