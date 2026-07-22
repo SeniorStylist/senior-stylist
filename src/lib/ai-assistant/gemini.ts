@@ -39,7 +39,7 @@ interface GeminiResponse {
 /** Injectable model transport — the tsx harness swaps in a scripted fake. */
 export type GeminiTransport = (body: Record<string, unknown>) => Promise<GeminiResponse>
 
-const MAX_TOOL_ROUNDS = 5
+const MAX_TOOL_ROUNDS = 6 // P40 — deeper turns: resolve → read → propose chains need headroom
 
 // P38b — model quality knob. Default is 2.5-flash WITH dynamic thinking (the
 // original thinkingBudget:0 fast mode picked tools comically badly — treated
@@ -89,7 +89,13 @@ function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: Assis
     ? `\n- "Next available slot" / "fit her in" / "when is X free" → call find_open_slots first, offer the top 1-2 slots conversationally, then once the user picks one propose it with book_appointment.`
     : ''
   const moneyHint = toolNames.has('get_business_numbers')
-    ? `\n- Money questions (owed, revenue, balances, collections, "numbers") → get_business_numbers${ctx.facilityId ? ` (covers ${facLabel})` : ''}${toolNames.has('get_facility_numbers') ? ', or get_facility_numbers for a specific named facility' : ''}. Who-is-coming/schedule questions → get_schedule. A person's details → find_resident.`
+    ? `\n- Money questions (owed, revenue, balances, collections, "numbers") → get_business_numbers${ctx.facilityId ? ` (covers ${facLabel})` : ''}${toolNames.has('get_facility_numbers') ? ', or get_facility_numbers for a specific named facility' : ''}. Who-is-coming/schedule questions → get_schedule. A person's details → find_resident.${toolNames.has('get_resident_ledger') ? ' "How much does X owe" / invoice-level detail → get_resident_ledger.' : ''}`
+    : ''
+  // P40 — generated capability line so the model knows its write powers without
+  // guessing (tool descriptions alone get skimmed on casual asks).
+  const writeNames = tools.filter((t) => t.kind === 'write').map((t) => t.name)
+  const capabilityLine = writeNames.length
+    ? `\n- You can also DO things (each becomes a Confirm card): ${writeNames.join(', ')}. Route naturally: mark paid / add a tip / done / no-show → update_appointment; new resident → create_resident; change room/phone/POA → update_resident; working hours → set_stylist_hours (you must restate the FULL resulting week — unlisted days become days off); vacation/time off → add_time_off; approve/deny time off → decide_time_off (get ids from get_time_off_requests); waitlist → add_to_waitlist; sign-up sheet request (no time picked yet) → add_signup_entry; new/changed service or price → create_service / update_service; commission or deactivate stylist → update_stylist${writeNames.includes('reply_to_feedback') ? '; reply to user feedback → reply_to_feedback (ids from get_feedback_inbox)' : ''}${writeNames.includes('send_receipt') ? '; email/text a receipt to the family → send_receipt (warn: sends a REAL message)' : ''}.`
     : ''
 
   return `You are the built-in personal assistant for Senior Stylist, a salon-services platform for senior living facilities. ${scopeLine}${ctx.role === 'stylist' && ctx.stylistName ? ` The user is ${ctx.stylistName}.` : ''}

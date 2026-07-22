@@ -53,7 +53,8 @@ console.log('\n[1] Role filtering (toolsForCtx)')
   check('viewer gets ZERO tools', viewer.length === 0)
 
   const plainMaster = names({ ...baseCtx, role: 'master', facilityId: null, facilityName: null })
-  check('plain master (no facility): only network-capable tools', plainMaster.every((n) => ['get_business_numbers', 'get_facility_numbers'].includes(n)) && plainMaster.length === 2)
+  const NETWORK_TOOLS = ['get_business_numbers', 'get_facility_numbers', 'get_feedback_inbox', 'reply_to_feedback']
+  check('plain master (no facility): only network-capable tools', plainMaster.every((n) => NETWORK_TOOLS.includes(n)) && plainMaster.length === NETWORK_TOOLS.length)
 
   const facilityMaster = names({ ...baseCtx, role: 'master' })
   check('master with facility selected: schedule + writes too', ['get_schedule', 'find_resident', 'book_appointment', 'get_facility_numbers'].every((n) => facilityMaster.includes(n)))

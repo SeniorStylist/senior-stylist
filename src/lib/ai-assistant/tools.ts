@@ -1370,6 +1370,859 @@ const rescheduleAppointment: AssistantTool = {
   },
 }
 
+// ── P40 write tools ─────────────────────────────────────────────────────────
+
+/** Resolve a facility resident by name for write tools (unambiguous only). */
+async function resolveResidentStrict(
+  ctx: AssistantCtx,
+  raw: unknown,
+): Promise<
+  | { ok: false; error: string; candidates?: Array<{ name: string; room: string | null }> }
+  | { ok: true; resident: { id: string; name: string; roomNumber: string | null } }
+> {
+  const name = typeof raw === 'string' ? raw.trim() : ''
+  if (name.length < 2) return { ok: false, error: 'Which resident?' }
+  const roster = await db.query.residents.findMany({
+    where: and(eq(residents.facilityId, ctx.facilityId!), eq(residents.active, true), eq(residents.isDemo, false)),
+    columns: { id: true, name: true, roomNumber: true },
+  })
+  const ranked = rankByName(roster, name)
+  if (!ranked.scored[0] || ranked.scored[0].score < 0.6) {
+    return { ok: false, error: `No resident matching "${name}" here.` }
+  }
+  if (ranked.ambiguous) {
+    return {
+      ok: false,
+      error: 'Multiple residents are close to that name — ask which one.',
+      candidates: ranked.scored.map((x) => ({ name: x.item.name, room: x.item.roomNumber ?? null })),
+    }
+  }
+  return { ok: true, resident: ranked.scored[0].item }
+}
+
+/** Resolve a roster stylist by name (supervisor tools). */
+async function resolveRosterStylist(
+  ctx: AssistantCtx,
+  raw: unknown,
+): Promise<
+  | { ok: false; error: string; stylists?: string[] }
+  | { ok: true; stylist: { id: string; name: string } }
+> {
+  const name = typeof raw === 'string' ? raw.trim() : ''
+  const roster = await facilityRoster(ctx.facilityId!)
+  if (!name) {
+    if (roster.length === 1) return { ok: true, stylist: roster[0] }
+    return { ok: false, error: 'Which stylist?', stylists: roster.map((s) => s.name) }
+  }
+  const ranked = rankByName(roster, name)
+  if (!ranked.scored[0] || ranked.scored[0].score < 0.6) {
+    return { ok: false, error: `No stylist matching "${name}" here.`, stylists: roster.map((s) => s.name) }
+  }
+  return { ok: true, stylist: ranked.scored[0].item }
+}
+
+const updateAppointment: AssistantTool = {
+  name: 'update_appointment',
+  description:
+    "Propose changes to an existing appointment: mark it completed / no-show / back to scheduled, set payment (paid/unpaid/waived), add a tip, or update the note. Get the bookingId from get_schedule. Nothing changes until the user confirms.",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      bookingId: { type: 'STRING', description: 'From get_schedule.' },
+      markStatus: { type: 'STRING', description: "Optional: 'completed', 'no_show', or 'scheduled' (undo)." },
+      paymentStatus: { type: 'STRING', description: "Optional: 'paid', 'unpaid', or 'waived'." },
+      tipDollars: { type: 'NUMBER', description: 'Optional tip amount in dollars (0 clears the tip).' },
+      note: { type: 'STRING', description: 'Optional note to set on the appointment.' },
+    },
+    required: ['bookingId'],
+  },
+  kind: 'write',
+  roles: WRITE_ROLES,
+  needsFacility: true,
+  async execute(ctx, args) {
+    const guard = stylistWriteGuard(ctx)
+    if (guard) return err(guard)
+    const id = typeof args.bookingId === 'string' ? args.bookingId : ''
+    if (!UUID_RE.test(id)) return err('bookingId must come from get_schedule.')
+    const booking = await db.query.bookings.findFirst({
+      where: and(eq(bookings.id, id), eq(bookings.facilityId, ctx.facilityId!), eq(bookings.active, true)),
+      columns: { id: true, startTime: true, status: true, stylistId: true, rawServiceName: true },
+      with: {
+        resident: { columns: { name: true } },
+        service: { columns: { name: true } },
+      },
+    })
+    if (!booking) return err('That appointment was not found at this facility.')
+    if (booking.status === 'cancelled') return err('That appointment is cancelled — book a new one instead.')
+    if (ctx.role === 'stylist' && booking.stylistId !== ctx.stylistId) {
+      return err('Stylists can only change their own appointments.')
+    }
+
+    const markStatus = typeof args.markStatus === 'string' ? args.markStatus.trim() : ''
+    const paymentStatus = typeof args.paymentStatus === 'string' ? args.paymentStatus.trim() : ''
+    const hasTip = args.tipDollars !== undefined && args.tipDollars !== null
+    const note = typeof args.note === 'string' ? args.note.trim().slice(0, 2000) : ''
+
+    const body: Record<string, unknown> = {}
+    const changes: string[] = []
+    if (markStatus) {
+      if (!['completed', 'no_show', 'scheduled'].includes(markStatus)) {
+        return err("markStatus must be 'completed', 'no_show', or 'scheduled'.")
+      }
+      if (ctx.role === 'bookkeeper') {
+        return err("Bookkeepers can't change appointment status — payment, tips, and notes are fine.")
+      }
+      body.status = markStatus
+      changes.push(`Status → ${markStatus === 'no_show' ? 'no-show' : markStatus}`)
+    }
+    if (paymentStatus) {
+      if (!['paid', 'unpaid', 'waived'].includes(paymentStatus)) {
+        return err("paymentStatus must be 'paid', 'unpaid', or 'waived'.")
+      }
+      body.paymentStatus = paymentStatus
+      changes.push(`Payment → ${paymentStatus}`)
+    }
+    if (hasTip) {
+      const dollars = Number(args.tipDollars)
+      if (!Number.isFinite(dollars) || dollars < 0 || dollars > 100000) return err('That tip amount is not valid.')
+      const cents = Math.round(dollars * 100)
+      body.tipCents = cents > 0 ? cents : null
+      changes.push(cents > 0 ? `Tip → ${money(cents)}` : 'Tip cleared')
+    }
+    if (note) {
+      body.notes = note
+      changes.push(`Note → "${note.slice(0, 60)}${note.length > 60 ? '…' : ''}"`)
+    }
+    if (changes.length === 0) return err('Nothing to change — give a status, payment, tip, or note.')
+
+    const label = `${booking.resident?.name ?? 'Unknown'} — ${booking.service?.name ?? booking.rawServiceName ?? 'service'} — ${whenLabel(booking.startTime, ctx.timezone)}`
+    return {
+      response: {
+        proposed: true,
+        summary: `${label}: ${changes.join(', ')}`,
+        instruction: 'Tell the user to review and tap Confirm below. Do not claim it is done.',
+      },
+      pendingAction: {
+        kind: 'update_appointment',
+        summary: { title: 'Update appointment?', lines: [label, ...changes] },
+        request: { method: 'PUT', path: `/api/bookings/${booking.id}`, body },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const createResident: AssistantTool = {
+  name: 'create_resident',
+  description: 'Propose adding a NEW resident to this facility (name, room, phone). Confirmed on screen before anything is created.',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      name: { type: 'STRING' },
+      roomNumber: { type: 'STRING' },
+      phone: { type: 'STRING' },
+    },
+    required: ['name'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const name = typeof args.name === 'string' ? args.name.trim().slice(0, 200) : ''
+    if (name.length < 2) return err("What's the resident's name?")
+    // Near-duplicate guard (mirrors book_appointment's createNewResident check).
+    const roster = await db.query.residents.findMany({
+      where: and(eq(residents.facilityId, ctx.facilityId!), eq(residents.active, true), eq(residents.isDemo, false)),
+      columns: { id: true, name: true, roomNumber: true },
+    })
+    const ranked = rankByName(roster, name)
+    if (ranked.scored[0] && ranked.scored[0].score >= 0.9) {
+      return err(`A resident named "${ranked.scored[0].item.name}" already exists — confirm with the user this is a different person.`)
+    }
+    const roomNumber = typeof args.roomNumber === 'string' ? args.roomNumber.trim().slice(0, 50) : ''
+    const phone = typeof args.phone === 'string' ? args.phone.trim().slice(0, 50) : ''
+    return {
+      response: { proposed: true, summary: `New resident: ${name}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'create_resident',
+        summary: {
+          title: 'Add new resident?',
+          lines: [name, ...(roomNumber ? [`Room ${roomNumber}`] : []), ...(phone ? [`Phone ${phone}`] : [])],
+        },
+        request: {
+          method: 'POST',
+          path: '/api/residents',
+          body: { name, ...(roomNumber ? { roomNumber } : {}), ...(phone ? { phone } : {}) },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const updateResident: AssistantTool = {
+  name: 'update_resident',
+  description:
+    "Propose updating a resident's details: room, phone, POA (family) contact name/phone/email, date of birth, or internal note. Confirmed on screen first.",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      residentName: { type: 'STRING' },
+      roomNumber: { type: 'STRING' },
+      phone: { type: 'STRING' },
+      poaName: { type: 'STRING', description: 'Family/POA contact name.' },
+      poaPhone: { type: 'STRING' },
+      poaEmail: { type: 'STRING' },
+      dateOfBirth: { type: 'STRING', description: 'YYYY-MM-DD.' },
+      note: { type: 'STRING', description: 'Internal staff note.' },
+    },
+    required: ['residentName'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const resolved = await resolveResidentStrict(ctx, args.residentName)
+    if (!resolved.ok) return err(resolved.error, resolved.candidates ? { candidates: resolved.candidates } : undefined)
+    const resident = resolved.resident
+
+    const body: Record<string, unknown> = {}
+    const changes: string[] = []
+    const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
+    const room = str(args.roomNumber, 50)
+    if (room) { body.roomNumber = room; changes.push(`Room → ${room}`) }
+    const phone = str(args.phone, 50)
+    if (phone) { body.phone = phone; changes.push(`Phone → ${phone}`) }
+    const poaName = str(args.poaName, 200)
+    if (poaName) { body.poaName = poaName; changes.push(`POA name → ${poaName}`) }
+    const poaPhone = str(args.poaPhone, 50)
+    if (poaPhone) { body.poaPhone = poaPhone; changes.push(`POA phone → ${poaPhone}`) }
+    const poaEmail = str(args.poaEmail, 320)
+    if (poaEmail) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(poaEmail)) return err('That POA email does not look valid.')
+      body.poaEmail = poaEmail
+      changes.push(`POA email → ${poaEmail}`)
+    }
+    const dob = str(args.dateOfBirth, 10)
+    if (dob) {
+      if (!DATE_RE.test(dob)) return err('dateOfBirth must be YYYY-MM-DD.')
+      body.dateOfBirth = dob
+      changes.push(`Date of birth → ${dob}`)
+    }
+    const note = str(args.note, 2000)
+    if (note) { body.notes = note; changes.push('Note updated') }
+    if (changes.length === 0) return err('Nothing to change — give at least one field.')
+
+    return {
+      response: { proposed: true, summary: `${resident.name}: ${changes.join(', ')}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'update_resident',
+        summary: { title: 'Update resident?', lines: [resident.name, ...changes] },
+        request: { method: 'PUT', path: `/api/residents/${resident.id}`, body },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const DAY_NAME_TO_DOW: Record<string, number> = {
+  sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2,
+  wednesday: 3, wed: 3, thursday: 4, thu: 4, thur: 4, thurs: 4,
+  friday: 5, fri: 5, saturday: 6, sat: 6,
+}
+const DOW_LABEL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const setStylistHours: AssistantTool = {
+  name: 'set_stylist_hours',
+  description:
+    "Propose a stylist's weekly working hours. Pass EVERY working day — days not listed become days off (this replaces the whole week). Stylists set their own; admins can set anyone's.",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      stylistName: { type: 'STRING', description: 'Omit for yourself (stylists always set their own).' },
+      workingDays: {
+        type: 'ARRAY',
+        description: 'Every working day of the week.',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            day: { type: 'STRING', description: "e.g. 'monday'." },
+            startTime: { type: 'STRING', description: "24h 'HH:MM', e.g. '09:00'." },
+            endTime: { type: 'STRING', description: "24h 'HH:MM', e.g. '17:00'." },
+          },
+          required: ['day', 'startTime', 'endTime'],
+        },
+      },
+    },
+    required: ['workingDays'],
+  },
+  kind: 'write',
+  roles: ['admin', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    let stylistId: string
+    let stylistLabel: string
+    if (ctx.role === 'stylist') {
+      if (!ctx.stylistId) return err("Your account isn't linked to a stylist profile yet.")
+      stylistId = ctx.stylistId
+      stylistLabel = 'your'
+    } else {
+      const resolved = await resolveRosterStylist(ctx, args.stylistName)
+      if (!resolved.ok) return err(resolved.error, resolved.stylists ? { stylists: resolved.stylists } : undefined)
+      stylistId = resolved.stylist.id
+      stylistLabel = `${resolved.stylist.name}'s`
+    }
+
+    const raw = Array.isArray(args.workingDays) ? args.workingDays : []
+    if (raw.length === 0) return err('Give at least one working day.')
+    const HM_RE = /^\d{2}:\d{2}$/
+    const byDow = new Map<number, { startTime: string; endTime: string }>()
+    for (const entry of raw) {
+      const e = entry as Record<string, unknown>
+      const dow = DAY_NAME_TO_DOW[String(e.day ?? '').trim().toLowerCase()]
+      if (dow === undefined) return err(`"${String(e.day)}" is not a day of the week.`)
+      const start = String(e.startTime ?? '')
+      const end = String(e.endTime ?? '')
+      if (!HM_RE.test(start) || !HM_RE.test(end) || start >= end) {
+        return err(`Times for ${DOW_LABEL[dow]} must be 24h HH:MM with start before end.`)
+      }
+      byDow.set(dow, { startTime: start, endTime: end })
+    }
+    const availability = [0, 1, 2, 3, 4, 5, 6].map((dow) => ({
+      dayOfWeek: dow,
+      active: byDow.has(dow),
+      startTime: byDow.get(dow)?.startTime ?? '09:00',
+      endTime: byDow.get(dow)?.endTime ?? '17:00',
+    }))
+    const weekLines = [1, 2, 3, 4, 5, 6, 0].map((dow) => {
+      const w = byDow.get(dow)
+      return `${DOW_LABEL[dow]}: ${w ? `${w.startTime} – ${w.endTime}` : 'off'}`
+    })
+
+    return {
+      response: {
+        proposed: true,
+        summary: `Set ${stylistLabel} weekly hours (${byDow.size} working day${byDow.size === 1 ? '' : 's'})`,
+        instruction: 'The confirm card shows the FULL resulting week — ask the user to review it.',
+      },
+      pendingAction: {
+        kind: 'set_stylist_hours',
+        summary: { title: `Set ${stylistLabel} weekly hours?`, lines: weekLines },
+        request: {
+          method: 'PUT',
+          path: '/api/availability',
+          body: { stylistId, ...(ctx.role === 'master' ? { facilityId: ctx.facilityId } : {}), availability },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const addTimeOff: AssistantTool = {
+  name: 'add_time_off',
+  description:
+    'Propose time off. Stylists request their own (goes to the admin for approval); admins file it FOR a stylist (immediately approved).',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      stylistName: { type: 'STRING', description: 'Admins only — whose time off. Stylists omit (always themselves).' },
+      startDate: { type: 'STRING', description: 'YYYY-MM-DD.' },
+      endDate: { type: 'STRING', description: 'YYYY-MM-DD (same as startDate for one day).' },
+      reason: { type: 'STRING' },
+    },
+    required: ['startDate', 'endDate'],
+  },
+  kind: 'write',
+  roles: ['admin', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const startDate = typeof args.startDate === 'string' ? args.startDate : ''
+    const endDate = typeof args.endDate === 'string' ? args.endDate : ''
+    if (!DATE_RE.test(startDate) || !DATE_RE.test(endDate) || endDate < startDate) {
+      return err('Dates must be YYYY-MM-DD with the end on or after the start.')
+    }
+    const reason = typeof args.reason === 'string' ? args.reason.trim().slice(0, 2000) : ''
+
+    if (ctx.role === 'stylist') {
+      if (!ctx.stylistId) return err("Your account isn't linked to a stylist profile yet.")
+      const dates = startDate === endDate ? startDate : `${startDate} – ${endDate}`
+      return {
+        response: { proposed: true, summary: `Request time off ${dates}`, instruction: 'Ask the user to confirm; it goes to the admin for approval.' },
+        pendingAction: {
+          kind: 'add_time_off',
+          summary: {
+            title: 'Request time off?',
+            lines: [dates, ...(reason ? [`Reason: ${reason}`] : []), 'Goes to your admin for approval.'],
+          },
+          request: {
+            method: 'POST',
+            path: '/api/coverage',
+            body: { startDate, endDate, ...(reason ? { reason } : {}) },
+          },
+          expiresAt: expiry(),
+        },
+      }
+    }
+
+    const resolved = await resolveRosterStylist(ctx, args.stylistName)
+    if (!resolved.ok) return err(resolved.error, resolved.stylists ? { stylists: resolved.stylists } : undefined)
+    const dates = startDate === endDate ? startDate : `${startDate} – ${endDate}`
+    return {
+      response: { proposed: true, summary: `Time off for ${resolved.stylist.name}: ${dates}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'add_time_off',
+        summary: {
+          title: `Add time off for ${resolved.stylist.name}?`,
+          lines: [dates, ...(reason ? [`Reason: ${reason}`] : []), 'Filed by you — immediately approved.'],
+        },
+        request: {
+          method: 'POST',
+          path: '/api/coverage',
+          body: { stylistId: resolved.stylist.id, startDate, endDate, ...(reason ? { reason } : {}) },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const decideTimeOff: AssistantTool = {
+  name: 'decide_time_off',
+  description: 'Propose approving or denying a pending time-off request (requestId from get_time_off_requests or get_stylist_info).',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      requestId: { type: 'STRING' },
+      decision: { type: 'STRING', description: "'approve' or 'deny'." },
+      reason: { type: 'STRING', description: 'Optional reason shown to the stylist when denying.' },
+    },
+    required: ['requestId', 'decision'],
+  },
+  kind: 'write',
+  roles: ['admin', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const id = typeof args.requestId === 'string' ? args.requestId : ''
+    if (!UUID_RE.test(id)) return err('requestId must come from get_time_off_requests.')
+    const decision = typeof args.decision === 'string' ? args.decision.trim() : ''
+    if (!['approve', 'deny'].includes(decision)) return err("decision must be 'approve' or 'deny'.")
+    const request = await db.query.coverageRequests.findFirst({
+      where: and(eq(coverageRequests.id, id), eq(coverageRequests.facilityId, ctx.facilityId!)),
+      with: { stylist: { columns: { name: true } } },
+    })
+    if (!request) return err('That request was not found at this facility.')
+    if (request.status !== 'pending') return err(`That request is already ${request.status === 'open' ? 'approved' : request.status}.`)
+    const reason = typeof args.reason === 'string' ? args.reason.trim().slice(0, 500) : ''
+    const dates = request.startDate === request.endDate ? request.startDate : `${request.startDate} – ${request.endDate}`
+    return {
+      response: { proposed: true, summary: `${decision} ${request.stylist?.name ?? 'stylist'}'s ${dates}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'decide_time_off',
+        summary: {
+          title: decision === 'approve' ? 'Approve time off?' : 'Deny time off?',
+          lines: [`${request.stylist?.name ?? 'Unknown'} — ${dates}`, ...(request.reason ? [`Their reason: ${request.reason}`] : []), ...(decision === 'deny' && reason ? [`Denial note: ${reason}`] : [])],
+        },
+        request: {
+          method: 'PUT',
+          path: `/api/coverage/${request.id}`,
+          body: { action: decision, ...(decision === 'deny' && reason ? { deniedReason: reason } : {}) },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const addToWaitlist: AssistantTool = {
+  name: 'add_to_waitlist',
+  description: 'Propose adding a resident to the cancellation waitlist (they get slotted when an appointment frees up).',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      residentName: { type: 'STRING' },
+      serviceName: { type: 'STRING' },
+      earliestDate: { type: 'STRING', description: 'YYYY-MM-DD — earliest acceptable date.' },
+      latestDate: { type: 'STRING', description: 'Optional YYYY-MM-DD upper bound.' },
+      note: { type: 'STRING' },
+    },
+    required: ['residentName', 'earliestDate'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const earliestDate = typeof args.earliestDate === 'string' ? args.earliestDate : ''
+    if (!DATE_RE.test(earliestDate)) return err('earliestDate must be YYYY-MM-DD.')
+    const latestDate = typeof args.latestDate === 'string' && DATE_RE.test(args.latestDate) ? args.latestDate : null
+    if (latestDate && latestDate < earliestDate) return err('latestDate must be on or after earliestDate.')
+
+    const resolved = await resolveResidentStrict(ctx, args.residentName)
+    if (!resolved.ok) return err(resolved.error, resolved.candidates ? { candidates: resolved.candidates } : undefined)
+    const resident = resolved.resident
+
+    let serviceId: string | null = null
+    let serviceLabel: string | null = null
+    const serviceName = typeof args.serviceName === 'string' ? args.serviceName.trim() : ''
+    if (serviceName) {
+      const catalog = await db.query.services.findMany({
+        where: and(eq(services.facilityId, ctx.facilityId!), eq(services.active, true), eq(services.isDemo, false), eq(services.source, 'price_list')),
+        columns: { id: true, name: true },
+      })
+      const svc = rankByName(catalog, serviceName)
+      if (svc.scored[0] && svc.scored[0].score >= 0.55) {
+        serviceId = svc.scored[0].item.id
+        serviceLabel = svc.scored[0].item.name
+      } else {
+        serviceLabel = serviceName.slice(0, 200)
+      }
+    }
+    const note = typeof args.note === 'string' ? args.note.trim().slice(0, 2000) : ''
+    const windowLabel = latestDate ? `${earliestDate} – ${latestDate}` : `from ${earliestDate}`
+    return {
+      response: { proposed: true, summary: `Waitlist: ${resident.name} (${windowLabel})`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'add_to_waitlist',
+        summary: {
+          title: 'Add to waitlist?',
+          lines: [resident.name, ...(serviceLabel ? [serviceLabel] : []), `Window: ${windowLabel}`, ...(note ? [`Note: ${note}`] : [])],
+        },
+        request: {
+          method: 'POST',
+          path: '/api/waitlist',
+          body: {
+            residentId: resident.id,
+            residentName: resident.name,
+            ...(resident.roomNumber ? { roomNumber: resident.roomNumber } : {}),
+            ...(serviceId ? { serviceId } : {}),
+            ...(serviceLabel ? { serviceName: serviceLabel } : {}),
+            earliestDate,
+            ...(latestDate ? { latestDate } : {}),
+            ...(note ? { notes: note } : {}),
+          },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const addSignupEntry: AssistantTool = {
+  name: 'add_signup_entry',
+  description: "Propose adding a resident to the sign-up sheet (an appointment REQUEST — a stylist later picks the exact time).",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      residentName: { type: 'STRING' },
+      serviceName: { type: 'STRING' },
+      requestedDate: { type: 'STRING', description: 'YYYY-MM-DD the request is logged for (usually today).' },
+      preferredDate: { type: 'STRING', description: 'Optional YYYY-MM-DD the resident would like.' },
+      note: { type: 'STRING' },
+    },
+    required: ['residentName', 'serviceName', 'requestedDate'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const requestedDate = typeof args.requestedDate === 'string' ? args.requestedDate : ''
+    if (!DATE_RE.test(requestedDate)) return err('requestedDate must be YYYY-MM-DD.')
+    const preferredDate = typeof args.preferredDate === 'string' && DATE_RE.test(args.preferredDate) ? args.preferredDate : null
+    const serviceNameRaw = typeof args.serviceName === 'string' ? args.serviceName.trim() : ''
+    if (!serviceNameRaw) return err('Which service?')
+
+    const resolved = await resolveResidentStrict(ctx, args.residentName)
+    if (!resolved.ok) return err(resolved.error, resolved.candidates ? { candidates: resolved.candidates } : undefined)
+    const resident = resolved.resident
+
+    const catalog = await db.query.services.findMany({
+      where: and(eq(services.facilityId, ctx.facilityId!), eq(services.active, true), eq(services.isDemo, false), eq(services.source, 'price_list')),
+      columns: { id: true, name: true },
+    })
+    const svc = rankByName(catalog, serviceNameRaw)
+    const serviceId = svc.scored[0] && svc.scored[0].score >= 0.55 ? svc.scored[0].item.id : null
+    const serviceLabel = serviceId ? svc.scored[0].item.name : serviceNameRaw.slice(0, 200)
+    const note = typeof args.note === 'string' ? args.note.trim().slice(0, 500) : ''
+
+    return {
+      response: { proposed: true, summary: `Sign-up: ${resident.name} — ${serviceLabel}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'add_signup_entry',
+        summary: {
+          title: 'Add to sign-up sheet?',
+          lines: [resident.name, serviceLabel, `Requested ${requestedDate}`, ...(preferredDate ? [`Prefers ${preferredDate}`] : []), ...(note ? [`Note: ${note}`] : [])],
+        },
+        request: {
+          method: 'POST',
+          path: '/api/signup-sheet',
+          body: {
+            residentId: resident.id,
+            residentName: resident.name,
+            ...(resident.roomNumber ? { roomNumber: resident.roomNumber } : {}),
+            serviceId,
+            serviceName: serviceLabel,
+            requestedDate,
+            ...(preferredDate ? { preferredDate } : {}),
+            ...(note ? { notes: note } : {}),
+          },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const createService: AssistantTool = {
+  name: 'create_service',
+  description: 'Propose adding a service to the catalog (name + price; simple fixed pricing).',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      name: { type: 'STRING' },
+      priceDollars: { type: 'NUMBER' },
+      durationMinutes: { type: 'INTEGER', description: 'Default 30.' },
+    },
+    required: ['name', 'priceDollars'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const name = typeof args.name === 'string' ? args.name.trim().slice(0, 200) : ''
+    if (!name) return err("What's the service called?")
+    const dollars = Number(args.priceDollars)
+    if (!Number.isFinite(dollars) || dollars < 0 || dollars > 100000) return err('That price is not valid.')
+    const priceCents = Math.round(dollars * 100)
+    const durationMinutes = Math.min(Math.max(Number(args.durationMinutes ?? 30) || 30, 5), 1440)
+    const catalog = await db.query.services.findMany({
+      where: and(eq(services.facilityId, ctx.facilityId!), eq(services.active, true), eq(services.isDemo, false)),
+      columns: { id: true, name: true },
+    })
+    const ranked = rankByName(catalog, name)
+    if (ranked.scored[0] && ranked.scored[0].score >= 0.9) {
+      return err(`A service named "${ranked.scored[0].item.name}" already exists — update it instead?`)
+    }
+    return {
+      response: { proposed: true, summary: `New service: ${name} · ${money(priceCents)}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'create_service',
+        summary: { title: 'Add service?', lines: [name, `${money(priceCents)} · ${durationMinutes} min`] },
+        request: { method: 'POST', path: '/api/services', body: { name, priceCents, durationMinutes } },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const updateService: AssistantTool = {
+  name: 'update_service',
+  description: 'Propose changing a service: price, name, duration, or retire it from the catalog.',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      serviceName: { type: 'STRING' },
+      priceDollars: { type: 'NUMBER' },
+      newName: { type: 'STRING' },
+      durationMinutes: { type: 'INTEGER' },
+      retire: { type: 'BOOLEAN', description: 'true to remove it from the catalog (soft).' },
+    },
+    required: ['serviceName'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const name = typeof args.serviceName === 'string' ? args.serviceName.trim() : ''
+    if (!name) return err('Which service?')
+    const catalog = await db.query.services.findMany({
+      where: and(eq(services.facilityId, ctx.facilityId!), eq(services.active, true), eq(services.isDemo, false)),
+      columns: { id: true, name: true, priceCents: true, durationMinutes: true, pricingType: true },
+    })
+    const ranked = rankByName(catalog, name)
+    if (!ranked.scored[0] || ranked.scored[0].score < 0.6) {
+      return err(`No service matching "${name}".`, { catalog: catalog.slice(0, 30).map((c) => c.name) })
+    }
+    if (ranked.ambiguous) {
+      return err('Multiple services match — ask which one.', { candidates: ranked.scored.map((x) => x.item.name) })
+    }
+    const service = ranked.scored[0].item
+
+    const body: Record<string, unknown> = {}
+    const changes: string[] = []
+    if (args.priceDollars !== undefined && args.priceDollars !== null) {
+      const dollars = Number(args.priceDollars)
+      if (!Number.isFinite(dollars) || dollars < 0 || dollars > 100000) return err('That price is not valid.')
+      if (service.pricingType !== 'fixed') {
+        return err(`"${service.name}" has ${service.pricingType} pricing — change its price from the Services page.`)
+      }
+      body.priceCents = Math.round(dollars * 100)
+      changes.push(`Price ${money(service.priceCents)} → ${money(Math.round(dollars * 100))}`)
+    }
+    const newName = typeof args.newName === 'string' ? args.newName.trim().slice(0, 200) : ''
+    if (newName) { body.name = newName; changes.push(`Name → ${newName}`) }
+    if (args.durationMinutes !== undefined && args.durationMinutes !== null) {
+      const mins = Number(args.durationMinutes)
+      if (!Number.isInteger(mins) || mins < 5 || mins > 1440) return err('Duration must be 5–1440 minutes.')
+      body.durationMinutes = mins
+      changes.push(`Duration → ${mins} min`)
+    }
+    if (args.retire === true) { body.active = false; changes.push('Retired from the catalog') }
+    if (changes.length === 0) return err('Nothing to change — give a price, name, duration, or retire.')
+
+    return {
+      response: { proposed: true, summary: `${service.name}: ${changes.join(', ')}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'update_service',
+        summary: { title: 'Update service?', lines: [service.name, ...changes] },
+        request: { method: 'PUT', path: `/api/services/${service.id}`, body },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const updateStylist: AssistantTool = {
+  name: 'update_stylist',
+  description: "Propose changing a stylist's commission percent or status (active / on_leave / inactive / terminated).",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      stylistName: { type: 'STRING' },
+      commissionPercent: { type: 'INTEGER', description: '0–100.' },
+      status: { type: 'STRING', description: "'active', 'on_leave', 'inactive', or 'terminated'." },
+    },
+    required: ['stylistName'],
+  },
+  kind: 'write',
+  roles: ['admin', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const resolved = await resolveRosterStylist(ctx, args.stylistName)
+    if (!resolved.ok) return err(resolved.error, resolved.stylists ? { stylists: resolved.stylists } : undefined)
+    const current = await db.query.stylists.findFirst({
+      where: eq(stylists.id, resolved.stylist.id),
+      columns: { name: true, commissionPercent: true, status: true },
+    })
+    if (!current) return err('Stylist not found.')
+
+    const body: Record<string, unknown> = {}
+    const changes: string[] = []
+    if (args.commissionPercent !== undefined && args.commissionPercent !== null) {
+      const pct = Number(args.commissionPercent)
+      if (!Number.isInteger(pct) || pct < 0 || pct > 100) return err('Commission must be a whole number 0–100.')
+      body.commissionPercent = pct
+      changes.push(`Commission ${current.commissionPercent ?? 0}% → ${pct}%`)
+    }
+    const status = typeof args.status === 'string' ? args.status.trim() : ''
+    if (status) {
+      if (!['active', 'on_leave', 'inactive', 'terminated'].includes(status)) {
+        return err("status must be 'active', 'on_leave', 'inactive', or 'terminated'.")
+      }
+      body.status = status
+      changes.push(`Status ${current.status} → ${status}`)
+    }
+    if (changes.length === 0) return err('Nothing to change — give a commission or status.')
+
+    return {
+      response: { proposed: true, summary: `${current.name}: ${changes.join(', ')}`, instruction: 'Ask the user to confirm below.' },
+      pendingAction: {
+        kind: 'update_stylist',
+        summary: { title: 'Update stylist?', lines: [current.name, ...changes] },
+        request: { method: 'PUT', path: `/api/stylists/${resolved.stylist.id}`, body },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const replyToFeedback: AssistantTool = {
+  name: 'reply_to_feedback',
+  description: 'Propose replying to a feedback submission (feedbackId from get_feedback_inbox). The sender gets a notification + email.',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      feedbackId: { type: 'STRING' },
+      reply: { type: 'STRING' },
+      markResolved: { type: 'BOOLEAN', description: 'true to also mark the item resolved.' },
+    },
+    required: ['feedbackId', 'reply'],
+  },
+  kind: 'write',
+  roles: ['master'],
+  needsFacility: false,
+  async execute(_ctx, args) {
+    const id = typeof args.feedbackId === 'string' ? args.feedbackId : ''
+    if (!UUID_RE.test(id)) return err('feedbackId must come from get_feedback_inbox.')
+    const reply = typeof args.reply === 'string' ? args.reply.trim().slice(0, 2000) : ''
+    if (reply.length < 2) return err('What should the reply say?')
+    const item = await db.query.feedbackSubmissions.findFirst({
+      where: eq(feedbackSubmissions.id, id),
+      columns: { id: true, message: true, status: true },
+    })
+    if (!item) return err('That feedback item was not found.')
+    const status = args.markResolved === true ? 'resolved' : item.status === 'new' ? 'reviewed' : null
+    return {
+      response: { proposed: true, summary: `Reply to feedback: "${reply.slice(0, 60)}${reply.length > 60 ? '…' : ''}"`, instruction: 'Ask the user to confirm; the sender gets a notification + email.' },
+      pendingAction: {
+        kind: 'reply_to_feedback',
+        summary: {
+          title: 'Send this reply?',
+          lines: [`Their note: ${item.message.slice(0, 100)}${item.message.length > 100 ? '…' : ''}`, `Your reply: ${reply}`, 'They get a notification + email copy.'],
+        },
+        request: {
+          method: 'PATCH',
+          path: `/api/feedback/${item.id}`,
+          body: { reply, ...(status ? { status } : {}) },
+        },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
+const sendReceipt: AssistantTool = {
+  name: 'send_receipt',
+  description: "Propose sending a visit receipt to the resident's family (email/text — a REAL message). bookingId from get_schedule.",
+  parameters: {
+    type: 'OBJECT',
+    properties: { bookingId: { type: 'STRING' } },
+    required: ['bookingId'],
+  },
+  kind: 'write',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const id = typeof args.bookingId === 'string' ? args.bookingId : ''
+    if (!UUID_RE.test(id)) return err('bookingId must come from get_schedule.')
+    const booking = await db.query.bookings.findFirst({
+      where: and(eq(bookings.id, id), eq(bookings.facilityId, ctx.facilityId!), eq(bookings.active, true)),
+      columns: { id: true, startTime: true, rawServiceName: true },
+      with: {
+        resident: { columns: { name: true, poaEmail: true, poaPhone: true } },
+        service: { columns: { name: true } },
+      },
+    })
+    if (!booking) return err('That appointment was not found at this facility.')
+    if (!booking.resident?.poaEmail && !booking.resident?.poaPhone) {
+      return err('This resident has no family email or phone on file — add POA contact info first (update_resident).')
+    }
+    const channels = [booking.resident.poaEmail ? 'email' : null, booking.resident.poaPhone ? 'text' : null].filter(Boolean).join(' + ')
+    const label = `${booking.resident.name} — ${booking.service?.name ?? booking.rawServiceName ?? 'service'} — ${whenLabel(booking.startTime, ctx.timezone)}`
+    return {
+      response: { proposed: true, summary: `Send receipt (${channels}) for ${label}`, instruction: 'Warn the user this sends a REAL message to the family, then ask them to confirm.' },
+      pendingAction: {
+        kind: 'send_receipt',
+        summary: {
+          title: 'Send receipt to the family?',
+          lines: [label, `Sends a REAL ${channels} to ${booking.resident.poaEmail ?? booking.resident.poaPhone}.`],
+        },
+        request: { method: 'POST', path: `/api/bookings/${booking.id}/receipt`, body: null },
+        expiresAt: expiry(),
+      },
+    }
+  },
+}
+
 // ---------------------------------------------------------------------------
 
 export const ALL_TOOLS: AssistantTool[] = [
@@ -1390,6 +2243,19 @@ export const ALL_TOOLS: AssistantTool[] = [
   bookAppointment,
   cancelAppointment,
   rescheduleAppointment,
+  updateAppointment,
+  createResident,
+  updateResident,
+  setStylistHours,
+  addTimeOff,
+  decideTimeOff,
+  addToWaitlist,
+  addSignupEntry,
+  createService,
+  updateService,
+  updateStylist,
+  replyToFeedback,
+  sendReceipt,
 ]
 
 /** The tools this caller's model is allowed to see and call. */
@@ -1408,4 +2274,8 @@ export const toolNameSchema = z.enum([
   'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
   'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
   'book_appointment', 'cancel_appointment', 'reschedule_appointment',
+  'update_appointment', 'create_resident', 'update_resident',
+  'set_stylist_hours', 'add_time_off', 'decide_time_off',
+  'add_to_waitlist', 'add_signup_entry', 'create_service', 'update_service',
+  'update_stylist', 'reply_to_feedback', 'send_receipt',
 ])
