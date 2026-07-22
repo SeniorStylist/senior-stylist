@@ -14,6 +14,7 @@
 //   (P38b). Model swappable via ASSISTANT_GEMINI_MODEL.
 
 import type { AssistantCtx, AssistantTool, PendingAction } from './tools'
+import { resolveCtxFacility } from './tools'
 import { toDateTimeLocalInTz } from '@/lib/time'
 
 export interface AssistantTurn {
@@ -114,8 +115,29 @@ ${writeTools ? '- Booking/cancelling/moving an appointment only PROPOSES the cha
 User message: ${message}`
 }
 
-function toFunctionDeclarations(tools: AssistantTool[]) {
-  return tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }))
+function toFunctionDeclarations(tools: AssistantTool[], master: boolean) {
+  return tools.map((t) => {
+    // P41 — masters get a facilityName targeting param on every facility-
+    // scoped tool (resolved at dispatch); other roles never see the param.
+    if (master && t.needsFacility) {
+      const p = t.parameters as { type: string; properties?: Record<string, unknown>; required?: string[] }
+      return {
+        name: t.name,
+        description: t.description,
+        parameters: {
+          ...p,
+          properties: {
+            ...(p.properties ?? {}),
+            facilityName: {
+              type: 'STRING',
+              description: 'Target another facility by name or F-code (e.g. F177). Omit for the currently selected facility.',
+            },
+          },
+        },
+      }
+    }
+    return { name: t.name, description: t.description, parameters: t.parameters }
+  })
 }
 
 export interface AssistantRunResult {
@@ -140,7 +162,7 @@ export async function runAssistant(
   const send = transport ?? (apiKey ? defaultTransport(apiKey) : null)
   if (!send) return null
 
-  const declarations = toFunctionDeclarations(tools)
+  const declarations = toFunctionDeclarations(tools, ctx.role === 'master')
   const contents: GeminiContent[] = [
     { role: 'user', parts: [{ text: buildPreamble(ctx, tools, history, message) }] },
   ]
@@ -198,9 +220,22 @@ export async function runAssistant(
         response = { error: 'one_action_per_message — one proposed action at a time; finish this one first.' }
       } else {
         try {
-          const result = await tool.execute(ctx, call.args ?? {})
-          response = result.response
-          if (result.pendingAction && !pendingAction) pendingAction = result.pendingAction
+          // P41 — master facility targeting resolved ONCE here; tool bodies
+          // consume the (possibly swapped) ctx unchanged.
+          let execCtx = ctx
+          let scopeError: Record<string, unknown> | null = null
+          if (tool.needsFacility) {
+            const scoped = await resolveCtxFacility(ctx, call.args ?? {})
+            if (scoped.ok) execCtx = scoped.ctx
+            else scopeError = { error: scoped.error, ...(scoped.facilities ? { facilities: scoped.facilities } : {}) }
+          }
+          if (scopeError) {
+            response = scopeError
+          } else {
+            const result = await tool.execute(execCtx, call.args ?? {})
+            response = result.response
+            if (result.pendingAction && !pendingAction) pendingAction = result.pendingAction
+          }
         } catch (e) {
           console.error(`[assistant] tool ${call.name} threw:`, e)
           response = { error: 'That lookup failed — answer with what you have or ask the user to try again.' }

@@ -53,9 +53,12 @@ console.log('\n[1] Role filtering (toolsForCtx)')
   const viewer = names({ ...baseCtx, role: 'viewer' })
   check('viewer gets ZERO tools', viewer.length === 0)
 
+  // P41 — a facility-less master keeps the FULL master tool set: the
+  // dispatch layer resolves a facility per call from args.facilityName.
   const plainMaster = names({ ...baseCtx, role: 'master', facilityId: null, facilityName: null })
-  const NETWORK_TOOLS = ['get_business_numbers', 'get_facility_numbers', 'get_feedback_inbox', 'reply_to_feedback']
-  check('plain master (no facility): only network-capable tools', plainMaster.every((n) => NETWORK_TOOLS.includes(n)) && plainMaster.length === NETWORK_TOOLS.length)
+  const facilityMasterNames = names({ ...baseCtx, role: 'master' })
+  check('plain master (no facility): FULL master tool set (per-call facility resolution)',
+    plainMaster.length === facilityMasterNames.length && facilityMasterNames.every((n) => plainMaster.includes(n)))
 
   const facilityMaster = names({ ...baseCtx, role: 'master' })
   check('master with facility selected: schedule + writes too', ['get_schedule', 'find_resident', 'book_appointment', 'get_facility_numbers'].every((n) => facilityMaster.includes(n)))

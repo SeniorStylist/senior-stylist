@@ -109,6 +109,62 @@ async function facilityRoster(facilityId: string) {
   })
 }
 
+/** P41 — match one active non-demo facility by exact F-code, then fuzzy name. */
+async function matchFacility(q: string): Promise<
+  | { ok: true; facility: { id: string; name: string; facilityCode: string | null; timezone: string | null } }
+  | { ok: false; error: string; facilities?: string[] }
+> {
+  const all = await db.query.facilities.findMany({
+    where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
+    columns: { id: true, name: true, facilityCode: true, timezone: true },
+  })
+  const byCode = all.find((f) => (f.facilityCode ?? '').toLowerCase() === q.toLowerCase())
+  if (byCode) return { ok: true, facility: byCode }
+  const { scored, ambiguous } = rankByName(all, q)
+  if (!scored[0] || scored[0].score < 0.6) return { ok: false, error: `No facility matching "${q}".` }
+  if (ambiguous) {
+    return {
+      ok: false,
+      error: `Multiple facilities are close to "${q}" — which one?`,
+      facilities: scored.slice(0, 4).map((x) => x.item.name),
+    }
+  }
+  return { ok: true, facility: scored[0].item }
+}
+
+/**
+ * P41 — per-call master facility targeting. The master admin may aim ANY
+ * facility-scoped tool at another facility via args.facilityName (name or
+ * F-code); for every other role the arg is IGNORED — their ctx facility is
+ * authoritative. Applied once at the gemini.ts dispatch layer so tool bodies
+ * consume the (possibly swapped) ctx unchanged.
+ */
+export async function resolveCtxFacility(
+  ctx: AssistantCtx,
+  args: Record<string, unknown>,
+): Promise<{ ok: true; ctx: AssistantCtx } | { ok: false; error: string; facilities?: string[] }> {
+  if (ctx.role !== 'master') return { ok: true, ctx }
+  const raw = typeof args.facilityName === 'string' ? args.facilityName.trim() : ''
+  if (!raw) {
+    if (!ctx.facilityId) return { ok: false, error: 'Which facility? Give the name or F-code (e.g. F177).' }
+    return { ok: true, ctx }
+  }
+  if (ctx.facilityCode && raw.toLowerCase() === ctx.facilityCode.toLowerCase()) return { ok: true, ctx }
+  const m = await matchFacility(raw)
+  if (!m.ok) return m
+  if (m.facility.id === ctx.facilityId) return { ok: true, ctx }
+  return {
+    ok: true,
+    ctx: {
+      ...ctx,
+      facilityId: m.facility.id,
+      facilityName: m.facility.name,
+      facilityCode: m.facility.facilityCode,
+      timezone: m.facility.timezone ?? 'America/New_York',
+    },
+  }
+}
+
 /** Normalized Levenshtein similarity (1 = identical). Catches MISSPELLINGS —
  * the word-overlap fuzzyScore scores "Adeel Kohen" vs "Adele Cohen" as 0. */
 export function levSimilarity(a: string, b: string): number {
@@ -439,42 +495,40 @@ function trimPack(pack: Record<string, unknown>): Record<string, unknown> {
 const getBusinessNumbers: AssistantTool = {
   name: 'get_business_numbers',
   description:
-    'THE money tool: revenue, visit counts, what is owed (open balances — including which residents owe the most), aging, collections, and per-service/per-stylist breakdowns for the currently selected facility. Use for any "how much / owed / revenue / numbers" question. For the master admin with no facility selected it covers the whole network.',
+    'THE money tool: revenue, visit counts, what is owed (open balances — including which residents owe the most), aging, collections, and per-service/per-stylist breakdowns for the currently selected facility. Use for any "how much / owed / revenue / numbers" question. For the master admin this ALWAYS covers the whole network (every facility) — use get_facility_numbers for one facility.',
   parameters: { type: 'OBJECT', properties: {} },
   kind: 'read',
   roles: ['admin', 'bookkeeper', 'master'],
   needsFacility: false,
   async execute(ctx) {
-    const pack = ctx.facilityId ? await buildFacilityDataPack(ctx.facilityId) : await buildMasterDataPack()
+    // P41 — master sees the NETWORK regardless of the selected facility;
+    // per-facility drill-down is get_facility_numbers.
+    const pack = ctx.role !== 'master' && ctx.facilityId
+      ? await buildFacilityDataPack(ctx.facilityId)
+      : await buildMasterDataPack()
     return { response: trimPack(pack) }
   },
 }
 
 const getFacilityNumbers: AssistantTool = {
   name: 'get_facility_numbers',
-  description: 'Master admin: business numbers for ONE named facility (name or F-code).',
+  description: 'Master admin: business numbers for ONE facility (name or F-code). Omit nameOrCode for the currently selected facility.',
   parameters: {
     type: 'OBJECT',
-    properties: { nameOrCode: { type: 'STRING', description: 'Facility name or F-code like F177.' } },
-    required: ['nameOrCode'],
+    properties: { nameOrCode: { type: 'STRING', description: 'Facility name or F-code like F177. Omit for the currently selected facility.' } },
   },
   kind: 'read',
   roles: ['master'],
   needsFacility: false,
-  async execute(_ctx, args) {
+  async execute(ctx, args) {
     const q = typeof args.nameOrCode === 'string' ? args.nameOrCode.trim() : ''
-    if (!q) return err('Give a facility name or F-code.')
-    const all = await db.query.facilities.findMany({
-      where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
-      columns: { id: true, name: true, facilityCode: true },
-    })
-    const byCode = all.find((f) => (f.facilityCode ?? '').toLowerCase() === q.toLowerCase())
-    const target = byCode ?? (() => {
-      const { scored } = rankByName(all, q)
-      return scored[0] && scored[0].score >= 0.6 ? scored[0].item : null
-    })()
-    if (!target) return err(`No facility matching "${q}".`)
-    return { response: trimPack(await buildFacilityDataPack(target.id)) }
+    if (!q) {
+      if (!ctx.facilityId) return err('Give a facility name or F-code.')
+      return { response: trimPack(await buildFacilityDataPack(ctx.facilityId)) }
+    }
+    const m = await matchFacility(q)
+    if (!m.ok) return err(m.error, m.facilities ? { facilities: m.facilities } : undefined)
+    return { response: trimPack(await buildFacilityDataPack(m.facility.id)) }
   },
 }
 
@@ -2262,7 +2316,9 @@ export const ALL_TOOLS: AssistantTool[] = [
 export function toolsForCtx(ctx: AssistantCtx): AssistantTool[] {
   return ALL_TOOLS.filter((t) => {
     if (!t.roles.includes(ctx.role)) return false
-    if (t.needsFacility && !ctx.facilityId) return false
+    // P41 — a facility-less MASTER keeps facility-scoped tools: the dispatch
+    // layer resolves a facility per call from args.facilityName.
+    if (t.needsFacility && !ctx.facilityId && ctx.role !== 'master') return false
     return true
   })
 }
