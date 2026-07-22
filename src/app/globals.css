@@ -136,10 +136,13 @@ h1 {
   font-size: clamp(1.75rem, 5vw, 2.5rem);
 }
 
-/* Main content — account for mobile nav + safe area at bottom */
+/* Main content — account for mobile nav + safe area at bottom.
+   P39: scrollbar-gutter keeps the 6px custom thumb inside a stable track that
+   matches the container (part of the "scroll line looks off" fix). */
 .main-content {
   -webkit-overflow-scrolling: touch;
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  scrollbar-gutter: stable;
 }
 @media (min-width: 768px) {
   .main-content {

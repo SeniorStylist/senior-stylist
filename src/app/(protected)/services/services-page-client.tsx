@@ -348,7 +348,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
 
   return (
     <ErrorBoundary>
-    <div className="page-enter p-6 max-w-4xl mx-auto">
+    <div className="page-enter p-6 pb-32 md:pb-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <PageHeader

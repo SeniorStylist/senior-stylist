@@ -239,7 +239,7 @@ export function MergeTab() {
       {/* Confirmation modal */}
       {confirmPair && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full max-h-[85dvh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-stone-900 mb-2">Confirm merge</h3>
             <p className="text-sm text-stone-600 mb-4">
               <strong>{confirmPair.secondary.name}</strong> will be deactivated. All its residents,

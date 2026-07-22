@@ -91,9 +91,9 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
 
   return (
     <>
-      {/* Floating indicator / trigger — mobile only. Phase 12Y: lives inside
-          <main> so .main-content's transform-induced containing block lets us
-          use plain `bottom-4` (sits above the nav naturally). */}
+      {/* Floating indicator / trigger — mobile only. Viewport-anchored fixed
+          positioning (P39 note: .main-content has NO transform — there is no
+          containing-block trick; nav clearance comes from the CSS vars). */}
       {debugInfo ? (
         <div
           className="md:hidden fixed left-4 z-50 flex items-center gap-1.5 bg-amber-400 text-amber-950 text-xs font-bold px-3 py-2 rounded-2xl shadow-xl"

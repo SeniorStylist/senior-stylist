@@ -659,7 +659,7 @@ export function OcrImportModal({
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
     >
-      <div className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-3xl md:mx-4 max-h-[90vh] flex flex-col shadow-2xl">
+      <div className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-3xl md:mx-4 max-h-[90dvh] flex flex-col shadow-2xl">
 
         {/* Header */}
         <div

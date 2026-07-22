@@ -351,7 +351,7 @@ export function SignupSheetPanel({
         data-tour="signup-sheet-panel"
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-t-3xl md:rounded-2xl w-full md:max-w-lg flex flex-col shadow-2xl"
-        style={{ maxHeight: '90vh' }}
+        style={{ maxHeight: '90dvh' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">

@@ -230,7 +230,16 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+    // P39 — `fixed inset-0` (NOT h-screen/100vh): 100vh is the LARGE viewport
+    // on iOS, so the scroll container extended behind the URL bar / home
+    // indicator and the custom scrollbar thumb never lined up with the visible
+    // area (Josh's "gray line doesn't match" report). fixed inset-0 anchors the
+    // shell to the visual viewport on first paint and tracks the URL bar —
+    // the historically verified iOS pattern (12Y-followups). h-[100dvh] is the
+    // documented iOS cold-load bug; never use it here. Body content height is
+    // 0 (everything lives in this fixed layer), so the document can't scroll
+    // behind, and html/body overscroll-behavior:none kills the bounce.
+    <div className="fixed inset-0 flex" style={{ backgroundColor: 'var(--color-bg)' }}>
       <TourModeBanner />
       <NavigationProgress />
       <div className="hidden md:flex">

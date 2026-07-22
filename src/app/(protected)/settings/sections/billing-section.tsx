@@ -423,7 +423,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
 
       {qbInvoiceConfirmFull && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85dvh] overflow-y-auto p-6">
             <h3
               className="text-xl text-stone-900 mb-2"
               style={{ fontFamily: 'DM Serif Display, serif' }}

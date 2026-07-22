@@ -53,7 +53,7 @@ export function OnboardingModal({ role }: OnboardingModalProps) {
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)' }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-300">
+      <div className="bg-white rounded-2xl shadow-2xl border border-stone-100 max-w-md w-full max-h-[85dvh] overflow-y-auto animate-in fade-in slide-in-from-bottom-3 duration-300">
         <div
           className="px-6 pt-6 pb-5 text-white"
           style={{ background: 'linear-gradient(135deg, #8B2E4A 0%, #6B2238 100%)' }}

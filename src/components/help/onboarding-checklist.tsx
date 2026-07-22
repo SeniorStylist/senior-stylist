@@ -89,7 +89,7 @@ export function OnboardingChecklist({ role, completedTours, isMaster, userId }: 
     <div
       role="complementary"
       aria-label="Getting started checklist"
-      className="fixed right-4 md:right-6 z-[45] w-72 max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-stone-200 shadow-lg transition-transform duration-300"
+      className="fixed left-4 right-auto md:left-auto md:right-6 z-[45] w-72 max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-stone-200 shadow-lg transition-transform duration-300"
       style={{
         // Mobile: sit ABOVE the QuickBookFAB (56px + gap) so the card never
         // covers it; desktop keeps the standard offset. z-[45] stays below

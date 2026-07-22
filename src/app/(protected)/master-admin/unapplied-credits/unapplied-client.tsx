@@ -439,7 +439,7 @@ export function UnappliedClient({
         {proposals && (
           <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setProposals(null)}>
             <div
-              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85dvh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 py-4 border-b border-stone-100 shrink-0">

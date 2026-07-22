@@ -168,8 +168,10 @@ export function PeekDrawer({ role, isMaster }: PeekDrawerProps) {
     </>
   )
 
-  // Phase 12Y — portal to body so .main-content's transform-induced containing
-  // block doesn't constrain the drawer/backdrop to the scroll area.
+  // Portal to body so no ancestor (transformed or otherwise) can ever become
+  // the containing block and trap the drawer/backdrop inside the scroll area.
+  // (P39 note: .main-content no longer carries a transform — the portal is
+  // kept as the belt-and-braces standard for global overlays.)
   return createPortal(ui, document.body)
 }
 

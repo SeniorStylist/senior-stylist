@@ -191,7 +191,7 @@ export function ResidentsPageClient({ residents: initialResidents, facilityId, r
 
   return (
     <ErrorBoundary>
-    <div className="page-enter p-6 max-w-4xl mx-auto" {...pullHandlers}>
+    <div className="page-enter p-6 pb-32 md:pb-6 max-w-4xl mx-auto" {...pullHandlers}>
       {/* Pull-to-refresh indicator */}
       {(pullProgress > 0 || pullRefreshing) && (
         <div

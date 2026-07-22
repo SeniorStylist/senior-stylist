@@ -274,7 +274,7 @@ export function MobileTourOverlay() {
           paddingBottom: '1.25rem',
           transform: sheetMounted ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
-          maxHeight: '60vh',
+          maxHeight: '60dvh',
           overflowY: 'auto',
         }}
         onTouchStart={onTouchStart}
