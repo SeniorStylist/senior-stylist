@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react'
 import type { AssistantChatState } from './use-assistant-chat'
+import { segmentMessage } from '@/lib/ai-assistant/app-links'
 
 export const ASSISTANT_CHIPS: Record<string, string[]> = {
   admin: ["What's on the schedule today?", 'Who owes us the most right now?', "Mark this morning's visits as paid", 'Put Mrs. Smith in the next open slot'],
@@ -13,6 +14,28 @@ export const ASSISTANT_CHIPS: Record<string, string[]> = {
   bookkeeper: ['Who owes us the most right now?', 'How much did we collect this month?', "Show me this period's payroll"],
   stylist: ["What's my day look like tomorrow?", 'How much have I made this month?', 'Put a resident in my next open slot'],
   master: ['Which facility owes us the most?', 'Switch me to another facility', 'How do I scan a log sheet?', 'Any new feedback?'],
+}
+
+// P42 — created documents (signs, statements) arrive as same-origin relative
+// paths; render ONLY allowlisted app paths as tappable links (app-links.ts).
+function renderModelText(text: string) {
+  const segments = segmentMessage(text)
+  if (segments.length === 1 && segments[0].type === 'text') return text
+  return segments.map((s, i) =>
+    s.type === 'link' ? (
+      <a
+        key={i}
+        href={s.value}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 my-0.5 px-2.5 py-1 rounded-full bg-[#F9EFF2] border border-[#E8CDD5] text-[#8B2E4A] text-xs font-semibold no-underline hover:bg-[#F2E0E6] transition-colors"
+      >
+        {s.value.startsWith('/signage') ? 'Open your sign' : 'Open printable document'} →
+      </a>
+    ) : (
+      <span key={i}>{s.value}</span>
+    ),
+  )
 }
 
 export function AssistantChat({
@@ -65,7 +88,7 @@ export function AssistantChat({
                   : 'max-w-[85%] rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-800 px-3.5 py-2 text-sm whitespace-pre-wrap'
               }
             >
-              {m.text}
+              {m.role === 'model' ? renderModelText(m.text) : m.text}
             </div>
           </div>
         ))}

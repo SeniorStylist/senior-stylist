@@ -1189,6 +1189,101 @@ const explainFeature: AssistantTool = {
   },
 }
 
+// P42 — "make me a sign": builds a prefilled /signage link (the page reads
+// these params on mount — KEEP ids/params in sync with signage-client.tsx
+// TEMPLATES + its P42 prefill effect). Read-kind: it only constructs a URL.
+const SIGN_TEMPLATE_IDS = [
+  'salon-day', 'now-open', 'price-list', 'welcome',
+  'holiday-hours', 'closed-holiday', 'happy-holidays',
+] as const
+
+const createSign: AssistantTool = {
+  name: 'create_sign',
+  description:
+    'Create a printable salon sign: builds a ready link to the Signage page prefilled with the chosen template and text. Use when the user asks to make/create a sign or poster (salon day, open/closed, holiday, price list, welcome). Include the returned link on its own line in your answer.',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      template: { type: 'STRING', description: `One of: ${SIGN_TEMPLATE_IDS.join(', ')}` },
+      title: { type: 'STRING', description: 'Big headline (optional — template default otherwise).' },
+      subtitle: { type: 'STRING', description: 'Line under the headline (optional).' },
+      dateLine: { type: 'STRING', description: 'Date/time line, e.g. "Friday, July 25" (optional).' },
+      body: { type: 'STRING', description: 'Main lines, separated by newlines (optional).' },
+      footer: { type: 'STRING', description: 'Small bottom line (optional).' },
+    },
+    required: ['template'],
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: false,
+  async execute(_ctx, args) {
+    const template = typeof args.template === 'string' ? args.template.trim() : ''
+    if (!(SIGN_TEMPLATE_IDS as readonly string[]).includes(template)) {
+      return err(`Unknown template "${template}".`, { templates: [...SIGN_TEMPLATE_IDS] })
+    }
+    const p = new URLSearchParams({ template })
+    const put = (key: string, v: unknown, max: number) => {
+      if (typeof v === 'string' && v.trim()) p.set(key, v.trim().slice(0, max))
+    }
+    put('title', args.title, 80)
+    put('subtitle', args.subtitle, 120)
+    put('dateLine', args.dateLine, 80)
+    put('body', args.body, 600)
+    put('footer', args.footer, 120)
+    return {
+      response: {
+        link: `/signage?${p.toString()}`,
+        note: 'Sign is ready — the link opens the Signage page prefilled, with live preview and Print / Save as PDF. Put the link on its own line.',
+      },
+    }
+  },
+}
+
+// P42 — "create an invoice/statement": links the printable document built
+// from real billing data (QB stays the source of truth — this NEVER creates
+// invoice records and never sends anything).
+const createStatement: AssistantTool = {
+  name: 'create_statement',
+  description:
+    "Create a printable billing document. With residentName: that resident's statement (all invoices + what's owed). Without: the facility's monthly invoice (completed visits, grouped by resident) — optionally for a specific month. Use when the user asks to create/print an invoice, statement, or bill. Include the returned link on its own line.",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      residentName: { type: 'STRING', description: 'Resident to make a statement for. Omit for the facility monthly invoice.' },
+      month: { type: 'STRING', description: 'YYYY-MM for the facility invoice (default: current month).' },
+    },
+  },
+  kind: 'read',
+  roles: ['admin', 'bookkeeper', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const residentName = typeof args.residentName === 'string' ? args.residentName.trim() : ''
+    if (residentName) {
+      const resolved = await resolveResidentStrict(ctx, residentName)
+      if (!resolved.ok) return err(resolved.error, resolved.candidates ? { candidates: resolved.candidates } : undefined)
+      return {
+        response: {
+          link: `/api/billing/statement/${resolved.resident.id}`,
+          residentName: resolved.resident.name,
+          note: 'Statement is ready — the link opens a printable page (Print / Save as PDF). Nothing is sent to anyone. Put the link on its own line.',
+        },
+      }
+    }
+    const p = getLocalParts(new Date(), ctx.timezone)
+    const month =
+      typeof args.month === 'string' && /^\d{4}-\d{2}$/.test(args.month)
+        ? args.month
+        : `${p.year}-${String(p.month).padStart(2, '0')}`
+    return {
+      response: {
+        link: `/invoice/${ctx.facilityId}?month=${month}`,
+        month,
+        note: `Facility invoice for ${month} is ready — printable page of that month's completed visits grouped by resident. Put the link on its own line.`,
+      },
+    }
+  },
+}
+
 // ---------------------------------------------------------------------------
 // WRITE TOOLS — propose only; the client executes after human confirmation.
 // ---------------------------------------------------------------------------
@@ -2403,6 +2498,8 @@ export const ALL_TOOLS: AssistantTool[] = [
   getPayrollSummary,
   getFeedbackInbox,
   explainFeature,
+  createSign,
+  createStatement,
   bookAppointment,
   cancelAppointment,
   rescheduleAppointment,
@@ -2439,7 +2536,7 @@ export const toolNameSchema = z.enum([
   'get_business_numbers', 'get_facility_numbers', 'get_my_earnings',
   'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
   'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
-  'explain_feature',
+  'explain_feature', 'create_sign', 'create_statement',
   'book_appointment', 'cancel_appointment', 'reschedule_appointment',
   'update_appointment', 'create_resident', 'update_resident',
   'set_stylist_hours', 'add_time_off', 'decide_time_off',

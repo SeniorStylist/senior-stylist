@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Printer } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/components/ui/toast'
@@ -113,6 +113,38 @@ export function SignageClient({ facilityName, facilityPhone }: { facilityName: s
     setBody(t.body)
     setFooter(t.footer)
   }
+
+  // P42 — URL prefill for the assistant's create_sign links (and shareable
+  // sign URLs generally). Read on MOUNT via window.location (the imports-
+  // client 12D idiom — no Suspense boundary, no hydration mismatch):
+  // ?template=<id> picks the base template, then optional title/subtitle/
+  // dateLine/body/footer/accent/showFacility override individual fields
+  // (body carries encoded newlines). KEEP the param names in sync with the
+  // create_sign tool in src/lib/ai-assistant/tools.ts.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if ([...params.keys()].length === 0) return
+    const t = TEMPLATES.find((x) => x.id === params.get('template'))
+    if (t) applyTemplate(t)
+    const s = (k: string) => {
+      const v = params.get(k)
+      return v !== null && v.trim() !== '' ? v : null
+    }
+    const pTitle = s('title')
+    const pSubtitle = s('subtitle')
+    const pDateLine = s('dateLine')
+    const pBody = s('body')
+    const pFooter = s('footer')
+    const pAccent = s('accent')
+    if (pTitle) setTitle(pTitle.slice(0, 80))
+    if (pSubtitle) setSubtitle(pSubtitle.slice(0, 120))
+    if (pDateLine) setDateLine(pDateLine.slice(0, 80))
+    if (pBody) setBody(pBody.slice(0, 600))
+    if (pFooter) setFooter(pFooter.slice(0, 120))
+    if (pAccent && /^#[0-9a-fA-F]{6}$/.test(pAccent)) setAccent(pAccent)
+    if (params.get('showFacility') === '0') setShowFacility(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only prefill
+  }, [])
 
   const cfg: SignConfig = { facilityName, facilityPhone, showFacility, accent, title, subtitle, dateLine, body, footer }
   const html = buildSignHtml(cfg)
