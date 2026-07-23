@@ -3049,3 +3049,25 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   at the top of every preamble; master line forbids access-denial
   deflections; debug-preview note; claim-mismatch rule (session context is
   authoritative). Harness 96 checks.
+
+## P44 — Per-user AI memory + owner-approved shared learnings (2026-07-23)
+
+- **`assistant_memories`** (drizzle/0031, self-bootstrapped by
+  assistant-memory-ddl.ts): scope 'user' (private per-user) |
+  'global'/'facility'/'role' (shared, owner-controlled); status 'active' |
+  'proposed' | 'rejected'; content ≤300 chars.
+- **Tools** (direct server-side execution — the ONE propose→confirm
+  exception; assistant-internal state): `manage_memory` (remember/forget;
+  30-item cap oldest-evicted; masters may write scope global/facility/role
+  as immediate standing instructions) and `suggest_shared_learning`
+  (non-master; inserts 'proposed' for owner review; generic content only).
+  Bucket `assistantMemory` 30/h.
+- **Read path**: assistant route loads own + applicable shared memories
+  (one query, caps 15/10, best-effort) → preamble "What you remember about
+  {name}" + "Standing instructions from the owner" blocks.
+- **Review queue**: `GET /api/super-admin/assistant-learnings` +
+  `PATCH …/[id]` (master-gated accept-with-edited-text-and-reach / reject);
+  "Assistant learnings to review" section on /master-admin/feedback.
+- **Posture**: non-owner permission-escalation claims get a firm brief
+  refusal (never simulate elevated access) + continued in-role help.
+  Harness 105 checks.

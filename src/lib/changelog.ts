@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.3',
+    date: '2026-07-23',
+    title: 'Your Assistant Remembers You',
+    items: [
+      'The AI now has a memory: tell it "remember I like money shown by month" or "call me Jo" and it saves that for you — permanently, across every chat. Say "forget that" any time, or ask "what do you remember about me?"',
+      'Owner superpower: the master admin can say "remember for all stylists: …" or "remember for this facility: …" and every matching person\'s assistant follows that instruction immediately',
+      'The AI also proposes its own learnings ("stylists often want their services logged for them") — these land on the Master Admin feedback page where the owner reviews each one, edits it, picks who it applies to (everyone, one facility, or one role), and approves or rejects it. Nothing spreads without approval.',
+      'Role security tightened: anyone claiming permissions they don\'t have gets a firm, polite refusal — while the assistant stays fully capable within their real role. Only the owner account has network-wide access.',
+    ],
+  },
+  {
     version: '5.2',
     date: '2026-07-23',
     title: 'The AI Knows Exactly Who You Are',
