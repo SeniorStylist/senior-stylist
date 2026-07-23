@@ -124,6 +124,175 @@ function EmailSettingsCard() {
   )
 }
 
+// P44 — AI-proposed shared learnings review queue. The assistant proposes
+// generic learnings from any user's conversation; nothing takes effect until
+// the owner accepts it here with a chosen reach (everyone / facility / role).
+interface LearningRow {
+  id: string
+  content: string
+  suggestedScope: string
+  role: string | null
+  facilityId: string | null
+  facilityName: string | null
+  proposerName: string
+  createdAt: string
+}
+
+const LEARNING_ROLES = ['admin', 'facility_staff', 'bookkeeper', 'stylist'] as const
+
+function AssistantLearningsSection() {
+  const { toast } = useToast()
+  const [rows, setRows] = useState<LearningRow[] | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [scope, setScope] = useState<'global' | 'facility' | 'role'>('global')
+  const [roleName, setRoleName] = useState<string>('stylist')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/super-admin/assistant-learnings')
+      .then((r) => r.json())
+      .then((json) => setRows(Array.isArray(json.data) ? json.data : []))
+      .catch(() => setRows([]))
+  }, [])
+
+  const decide = async (row: LearningRow, action: 'accept' | 'reject') => {
+    if (busy) return
+    setBusy(true)
+    const prev = rows
+    setRows((rs) => (rs ?? []).filter((r) => r.id !== row.id))
+    try {
+      const body =
+        action === 'accept'
+          ? {
+              action,
+              scope,
+              content: draft.trim() || row.content,
+              ...(scope === 'facility' && row.facilityId ? { facilityId: row.facilityId } : {}),
+              ...(scope === 'role' ? { role: roleName } : {}),
+            }
+          : { action }
+      const res = await fetch(`/api/super-admin/assistant-learnings/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(typeof json.error === 'string' ? json.error : 'failed')
+      setOpenId(null)
+      toast.success(action === 'accept' ? 'Learning is live for its audience' : 'Rejected')
+    } catch (e) {
+      setRows(prev)
+      toast.error(e instanceof Error && e.message !== 'failed' ? e.message : 'Could not update — try again')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (rows === null || rows.length === 0) return null
+
+  return (
+    <div className="mb-5 rounded-2xl border border-[#E8CDD5] bg-[#FDF8FA] p-4">
+      <p className="text-sm font-semibold text-stone-900 mb-0.5">✨ Assistant learnings to review</p>
+      <p className="text-xs text-stone-500 mb-3">
+        The AI noticed these patterns while helping your team. Approve one and every matching user&apos;s
+        assistant follows it — or reject it and nothing changes.
+      </p>
+      <div className="space-y-2.5">
+        {rows.map((row) => {
+          const open = openId === row.id
+          return (
+            <div key={row.id} className="rounded-xl border border-stone-200 bg-white p-3">
+              <p className="text-sm text-stone-800">{row.content}</p>
+              <p className="text-[11px] text-stone-400 mt-1">
+                From {row.proposerName}
+                {row.facilityName ? ` · ${row.facilityName}` : ''} · suggested reach:{' '}
+                {row.suggestedScope === 'role' ? `role${row.role ? ` (${row.role})` : ''}` : row.suggestedScope}
+              </p>
+              {open ? (
+                <div className="mt-2.5 space-y-2">
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value.slice(0, 300))}
+                    rows={2}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+                  />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(['global', 'facility', 'role'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={s === 'facility' && !row.facilityId}
+                        onClick={() => setScope(s)}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors disabled:opacity-40 ${
+                          scope === s ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]' : 'bg-white text-stone-600 border-stone-200'
+                        }`}
+                      >
+                        {s === 'global' ? 'Everyone' : s === 'facility' ? row.facilityName ?? 'This facility' : 'A role'}
+                      </button>
+                    ))}
+                    {scope === 'role' && (
+                      <select
+                        value={roleName}
+                        onChange={(e) => setRoleName(e.target.value)}
+                        className="text-[11px] border border-stone-200 rounded-lg px-2 py-1 bg-white"
+                      >
+                        {LEARNING_ROLES.map((r) => (
+                          <option key={r} value={r}>{r.replace('_', ' ')}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void decide(row, 'accept')}
+                      disabled={busy}
+                      className="px-3 py-1.5 rounded-lg bg-[#8B2E4A] text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(null)}
+                      className="px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 text-xs font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenId(row.id)
+                      setDraft(row.content)
+                      setScope(row.suggestedScope === 'facility' && row.facilityId ? 'facility' : row.suggestedScope === 'role' ? 'role' : 'global')
+                      if (row.role && (LEARNING_ROLES as readonly string[]).includes(row.role)) setRoleName(row.role)
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[#F9EFF2] border border-[#E8CDD5] text-[#8B2E4A] text-xs font-semibold"
+                  >
+                    Review…
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void decide(row, 'reject')}
+                    disabled={busy}
+                    className="px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 text-xs font-semibold disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function FeedbackClient() {
   const { toast } = useToast()
   const [rows, setRows] = useState<FeedbackRow[] | null>(null)
@@ -206,6 +375,8 @@ export function FeedbackClient() {
       </p>
 
       <EmailSettingsCard />
+
+      <AssistantLearningsSection />
 
       <div className="flex gap-1.5 mb-4">
         {(['all', ...STATUSES] as const).map((s) => (
