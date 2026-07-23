@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
           } else {
             emit({
               type: 'done',
-              data: { answer: result.answer, pendingAction: result.pendingAction, guide: result.guide },
+              data: { answer: result.answer, pendingAction: result.pendingAction, guide: result.guide, cards: result.cards },
             })
           }
         } catch (err) {

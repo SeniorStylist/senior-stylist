@@ -113,7 +113,7 @@ export async function buildFacilityDataPack(facilityId: string): Promise<Record<
   // invoices held real balances (Josh's "no specific residents owe money"
   // screenshot). Live SUM always agrees with the aging block above.
   const topBalances = (await db.execute(sql`
-    SELECT r.name, COALESCE(SUM(qi.open_balance_cents), 0)::bigint AS owed_cents
+    SELECT r.id::text AS rid, r.name, COALESCE(SUM(qi.open_balance_cents), 0)::bigint AS owed_cents
     FROM residents r
     JOIN qb_invoices qi ON qi.resident_id = r.id AND qi.is_demo = false AND qi.open_balance_cents > 0
     WHERE r.facility_id = ${facilityId} AND r.active = true AND r.is_demo = false
@@ -184,7 +184,8 @@ export async function buildFacilityDataPack(facilityId: string): Promise<Record<
       openInvoicesTotalCents: n(aging.open_total),
       agingCents: { days0to30: n(aging.b0_30), days31to60: n(aging.b31_60), days61to90: n(aging.b61_90), over90: n(aging.b90plus) },
       collectedLast30DaysCents: collected30d,
-      topOpenResidentBalances: topBalances.map((r) => ({ resident: s(r.name), owedCents: n(r.owed_cents) })),
+      // residentId (P47) feeds the assistant's tappable answer cards.
+      topOpenResidentBalances: topBalances.map((r) => ({ residentId: s(r.rid), resident: s(r.name), owedCents: n(r.owed_cents) })),
       // Open invoice money with no resident attached — mention it when asked
       // "who owes us" so the per-resident list + this reconcile with the total.
       unattributedOpenInvoicesCents: unattributedOpenCents,

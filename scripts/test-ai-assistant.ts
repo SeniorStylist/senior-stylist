@@ -14,6 +14,9 @@ import { segmentMessage, isAllowedAppLink } from '../src/lib/ai-assistant/app-li
 import { validateWalkSteps, GUIDE_ANCHORS, buildAnchorVocab } from '../src/lib/ai-assistant/guide-anchors'
 import { statusLabelFor, hasStatusLabel } from '../src/lib/ai-assistant/status-labels'
 import { chipsForPage } from '../src/components/assistant/assistant-chat'
+import {
+  isAnswerCard, scheduleCard, moneyPackCards, rebookingCard, gapsCard, MAX_CARD_ROWS,
+} from '../src/lib/ai-assistant/answer-cards'
 
 let failures = 0
 function check(label: string, cond: boolean) {
@@ -470,6 +473,89 @@ async function main() {
     await runAssistant(baseCtx, 'hi', [], toolsForCtx(baseCtx), 'fast', ht.transport)
     const hp = (ht.calls[0] as { contents: Array<{ parts: Array<{ text?: string }> }> }).contents[0].parts[0].text ?? ''
     check('preamble routes gaps + rebooking + morning brief', hp.includes('get_schedule_gaps') && hp.includes('get_rebooking_candidates') && hp.includes('morning brief'))
+  }
+
+  // ---- P47 — rich answer cards (builders + validator + loop channel) ----
+  console.log('\n[1h] P47 — answer cards')
+  {
+    const RID = '11111111-2222-3333-4444-555555555555'
+    const sched = scheduleCard('2026-07-23', [
+      { when: 'Thu, Jul 23 · 10:00 AM', resident: 'Edna Smith', residentId: RID, room: '12', service: 'Wash & Set', stylist: 'Sarah', status: 'scheduled' },
+      { when: 'Thu, Jul 23 · 11:00 AM', resident: 'Unknown', residentId: null, room: null, service: 'Haircut', stylist: null, status: 'scheduled' },
+    ])
+    check('scheduleCard: table with resident entity only when id present',
+      sched?.kind === 'table' && sched.rows.length === 2
+      && sched.rows[0][1].entity?.type === 'resident' && sched.rows[0][1].entity?.id === RID
+      && sched.rows[1][1].entity === undefined && sched.rows[0][0].text === '10:00 AM')
+    check('scheduleCard: empty input → null', scheduleCard('2026-07-23', []) === null)
+    const bigRows = Array.from({ length: 20 }, (_, i) => ({
+      when: `· ${i}`, resident: `R${i}`, room: null, service: 'S', stylist: null, status: 'scheduled',
+    }))
+    const capped = scheduleCard('2026-07-23', bigRows)
+    check('scheduleCard: rows capped at MAX_CARD_ROWS', capped?.kind === 'table' && capped.rows.length === MAX_CARD_ROWS)
+
+    const money = moneyPackCards({
+      scope: 'facility',
+      facility: { name: 'Sunrise' },
+      revenue: { thisMonthCents: 123456, thisMonthVisits: 42, lastMonthCents: 100, lastMonthVisits: 1 },
+      billing: {
+        openInvoicesTotalCents: 550000, collectedLast30DaysCents: 20000,
+        topOpenResidentBalances: [
+          { residentId: RID, resident: 'Edna Smith', owedCents: 12345 },
+          { residentId: null, resident: 'Unattributed', owedCents: 1 },
+        ],
+      },
+    })
+    check('moneyPackCards(facility): stats + top-balances table with entity',
+      money.length === 2 && money[0].kind === 'stats'
+      && money[0].stats[0].value === '$1,234.56'
+      && money[1].kind === 'table' && money[1].rows[0][0].entity?.id === RID && money[1].rows[1][0].entity === undefined)
+    const net = moneyPackCards({
+      scope: 'network',
+      totals: { facilities: 3, monthToDateRevenueCents: 100, monthToDateVisits: 2, openBalanceCents: 300, collectedLast30DaysCents: 400 },
+      facilities: [
+        { facility: 'A', openBalanceCents: 100, monthToDateRevenueCents: 5 },
+        { facility: 'B', openBalanceCents: 900, monthToDateRevenueCents: 6 },
+      ],
+    })
+    check('moneyPackCards(network): facilities sorted by open balance', net[1].kind === 'table' && net[1].rows[0][0].text === 'B')
+
+    const rb = rebookingCard([{ resident: 'E', residentId: RID, room: '9', lastVisit: 'Jul 1', daysSinceLastVisit: 30, usualCadenceDays: 21, usualService: 'Perm' }])
+    const gp = gapsCard('2026-07-23', [{ stylist: 'Sarah', stylistId: RID, blocks: [{ from: '2:00 PM', to: '3:30 PM', minutes: 90 }] }])
+    check('rebookingCard + gapsCard carry entities',
+      rb?.kind === 'list' && rb.items[0].entity?.type === 'resident'
+      && gp?.kind === 'list' && gp.items[0].entity?.type === 'stylist')
+
+    // Validator matrix
+    check('isAnswerCard accepts every builder output',
+      [sched, ...money, ...net].filter(Boolean).every((c) => isAnswerCard(c)))
+    check('isAnswerCard rejects junk',
+      !isAnswerCard(null) && !isAnswerCard({ kind: 'table', title: 't' })
+      && !isAnswerCard({ kind: 'chart', title: 't', rows: [] })
+      && !isAnswerCard({ kind: 'list', title: 't', items: [{ text: 'x', entity: { type: 'facility', id: RID } }] })
+      && !isAnswerCard({ kind: 'list', title: 't', items: [{ text: 'x', entity: { type: 'resident', id: 'not-a-uuid' } }] }))
+
+    // Loop channel: cards ACCUMULATE across tool calls, capped, model told once per accepting response.
+    const cardTool = (name: string, n: number): AssistantTool => ({
+      name, description: 'x', parameters: { type: 'OBJECT', properties: {} }, kind: 'read', roles: ['admin'], needsFacility: false,
+      async execute() {
+        return {
+          response: { ok: true },
+          cards: Array.from({ length: n }, (_, i) => ({ kind: 'stats' as const, title: `${name}-${i}`, stats: [{ label: 'x', value: 'y' }] })),
+        }
+      },
+    })
+    const ct = scriptedTransport([
+      () => call('tool_a', {}),
+      () => call('tool_b', {}),
+      () => text('Here you go.'),
+    ])
+    const cr = await runAssistant(baseCtx, 'numbers?', [], [cardTool('tool_a', 2), cardTool('tool_b', 2)], 'fast', ct.transport)
+    check('cards accumulate across calls and cap at 3', cr?.cards.length === 3 && cr.cards[0].title === 'tool_a-0' && cr.cards[2].title === 'tool_b-0')
+    const echo2 = JSON.stringify(ct.calls[1])
+    check('accepting functionResponse carries the _card short-prose note', echo2.includes('_card') && echo2.includes('do NOT repeat'))
+    const cp = (ct.calls[0] as { contents: Array<{ parts: Array<{ text?: string }> }> }).contents[0].parts[0].text ?? ''
+    check('preamble teaches the card-attached prose rule', cp.includes('visual card'))
   }
 
   // 3a — plain text answer

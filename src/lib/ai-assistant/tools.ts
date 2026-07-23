@@ -36,6 +36,10 @@ import {
 } from '@/lib/time'
 import { buildFacilityDataPack, buildMasterDataPack } from '@/lib/ai-analyst'
 import { resolveCommission } from '@/lib/stylist-commission'
+import {
+  type AnswerCard, scheduleCard, ledgerCards, moneyPackCards, rebookingCard, gapsCard,
+  earningsCard, payrollDetailCard, payrollPeriodsCard,
+} from './answer-cards'
 
 export interface AssistantCtx {
   userId: string
@@ -74,6 +78,10 @@ export interface ToolResult {
   pendingAction?: PendingAction
   /** P45 — a coworker-mode guided walk for the client to run on-screen. */
   guide?: GuidedWalkPayload
+  /** P47 — rich answer cards built DETERMINISTICALLY from this tool's own
+   * query data (never model-authored). Accumulated in gemini.ts, capped at
+   * MAX_CARDS_PER_TURN across the turn. */
+  cards?: AnswerCard[]
 }
 
 // P45 — validated walk handed to the client (steps are engine-ready).
@@ -386,7 +394,7 @@ const getSchedule: AssistantTool = {
       ),
       columns: { id: true, startTime: true, status: true, paymentStatus: true, priceCents: true, rawServiceName: true },
       with: {
-        resident: { columns: { name: true, roomNumber: true } },
+        resident: { columns: { id: true, name: true, roomNumber: true } },
         service: { columns: { name: true, priceCents: true } },
         stylist: { columns: { name: true } },
       },
@@ -398,6 +406,7 @@ const getSchedule: AssistantTool = {
       bookingId: b.id,
       when: whenLabel(b.startTime, ctx.timezone),
       resident: b.resident?.name ?? 'Unknown',
+      residentId: b.resident?.id ?? null, // P47 — card entity (tap → peek)
       room: b.resident?.roomNumber ?? null,
       service: b.service?.name ?? b.rawServiceName ?? 'Unknown service',
       stylist: b.stylist?.name ?? null,
@@ -408,7 +417,8 @@ const getSchedule: AssistantTool = {
     if (residentName) {
       shaped = shaped.filter((r) => fuzzyScore(r.resident, residentName) >= 0.5)
     }
-    return { response: { date, days, timezone: ctx.timezone, rows: shaped } }
+    const card = scheduleCard(date, shaped)
+    return { response: { date, days, timezone: ctx.timezone, rows: shaped }, ...(card ? { cards: [card] } : {}) }
   },
 }
 
@@ -550,7 +560,7 @@ const getBusinessNumbers: AssistantTool = {
     const pack = ctx.role !== 'master' && ctx.facilityId
       ? await buildFacilityDataPack(ctx.facilityId)
       : await buildMasterDataPack()
-    return { response: trimPack(pack) }
+    return { response: trimPack(pack), cards: moneyPackCards(pack) }
   },
 }
 
@@ -568,11 +578,13 @@ const getFacilityNumbers: AssistantTool = {
     const q = typeof args.nameOrCode === 'string' ? args.nameOrCode.trim() : ''
     if (!q) {
       if (!ctx.facilityId) return err('Give a facility name or F-code.')
-      return { response: trimPack(await buildFacilityDataPack(ctx.facilityId)) }
+      const pack = await buildFacilityDataPack(ctx.facilityId)
+      return { response: trimPack(pack), cards: moneyPackCards(pack) }
     }
     const m = await matchFacility(q)
     if (!m.ok) return err(m.error, m.facilities ? { facilities: m.facilities } : undefined)
-    return { response: trimPack(await buildFacilityDataPack(m.facility.id)) }
+    const pack = await buildFacilityDataPack(m.facility.id)
+    return { response: trimPack(pack), cards: moneyPackCards(pack) }
   },
 }
 
@@ -622,14 +634,18 @@ const getMyEarnings: AssistantTool = {
     })
     const pct = resolveCommission(stylist?.commissionPercent ?? 0, assignment)
     const revenueCents = Number(r.revenue_cents ?? 0)
+    const shaped = {
+      month: monthArg,
+      completedVisits: Number(r.visits ?? 0),
+      revenue: money(revenueCents),
+      estimatedCommission: money(Math.round((revenueCents * pct) / 100)),
+      tips: money(Number(r.tips_cents ?? 0)),
+    }
     return {
+      cards: [earningsCard(shaped)],
       response: {
-        month: monthArg,
-        completedVisits: Number(r.visits ?? 0),
-        revenue: money(revenueCents),
+        ...shaped,
         commissionPercent: pct,
-        estimatedCommission: money(Math.round((revenueCents * pct) / 100)),
-        tips: money(Number(r.tips_cents ?? 0)),
         note: 'Completed visits only. Estimated — the payroll page is the authority.',
       },
     }
@@ -823,16 +839,20 @@ const getRebookingCandidates: AssistantTool = {
       ? await db.query.services.findMany({ where: inArray(services.id, svcIds), columns: { id: true, name: true } })
       : []
     const svcName = new Map(svcRows.map((s) => [s.id, s.name]))
+    const candidates = rows.map((r) => ({
+      resident: r.name,
+      residentId: r.residentId, // P47 — card entity (tap → peek)
+      room: r.roomNumber,
+      lastVisit: formatDateInTz(new Date(r.lastVisit), ctx.timezone, { month: 'short', day: 'numeric' }),
+      daysSinceLastVisit: r.daysSinceLastVisit,
+      usualCadenceDays: r.usualCadenceDays,
+      usualService: (r.suggestedServiceId && svcName.get(r.suggestedServiceId)) || null,
+    }))
+    const card = rebookingCard(candidates)
     return {
+      ...(card ? { cards: [card] } : {}),
       response: {
-        candidates: rows.map((r) => ({
-          resident: r.name,
-          room: r.roomNumber,
-          lastVisit: formatDateInTz(new Date(r.lastVisit), ctx.timezone, { month: 'short', day: 'numeric' }),
-          daysSinceLastVisit: r.daysSinceLastVisit,
-          usualCadenceDays: r.usualCadenceDays,
-          usualService: (r.suggestedServiceId && svcName.get(r.suggestedServiceId)) || null,
-        })),
+        candidates,
         note: 'Offer to book them: find_open_slots for a stylist, then book_appointment with the usual service.',
       },
     }
@@ -922,7 +942,7 @@ const getScheduleGaps: AssistantTool = {
     } catch { /* coverage table issues never block gap search */ }
 
     const now = Date.now()
-    const gaps: Array<{ stylist: string; blocks: Array<{ from: string; to: string; minutes: number }> }> = []
+    const gaps: Array<{ stylist: string; stylistId: string; blocks: Array<{ from: string; to: string; minutes: number }> }> = []
     const fullyBooked: string[] = []
     const notWorking: string[] = []
     for (const st of roster) {
@@ -964,6 +984,7 @@ const getScheduleGaps: AssistantTool = {
         .sort((a, b) => a.startMs - b.startMs)
       gaps.push({
         stylist: st.name,
+        stylistId: st.id, // P47 — card entity (tap → peek)
         blocks: top.map((b) => ({
           from: formatTimeInTz(new Date(b.startMs), ctx.timezone),
           to: formatTimeInTz(new Date(b.endMs), ctx.timezone),
@@ -972,7 +993,9 @@ const getScheduleGaps: AssistantTool = {
       })
     }
 
+    const card = gapsCard(date, gaps)
     return {
+      ...(card ? { cards: [card] } : {}),
       response: {
         date,
         timezone: ctx.timezone,
@@ -1039,14 +1062,22 @@ const getResidentLedger: AssistantTool = {
     const openInvoices = invoices.filter((i) => (i.openBalanceCents ?? 0) > 0)
     const owedCents = openInvoices.reduce((s, i) => s + (i.openBalanceCents ?? 0), 0)
     const creditCents = credits.reduce((s, c) => s + Math.max(0, (c.openBalanceCents ?? 0) - (c.appliedCents ?? 0)), 0)
+    const shapedOpen = openInvoices.slice(0, 10).map((i) => ({
+      num: i.invoiceNum, date: String(i.invoiceDate), open: money(i.openBalanceCents ?? 0), status: i.status,
+    }))
     return {
+      cards: ledgerCards({
+        resident: resident.name,
+        residentId: resident.id,
+        owed: money(owedCents),
+        availableCredit: money(creditCents),
+        openInvoices: shapedOpen,
+      }),
       response: {
         resident: resident.name,
         owed: money(owedCents),
         availableCredit: money(creditCents),
-        openInvoices: openInvoices.slice(0, 10).map((i) => ({
-          num: i.invoiceNum, date: String(i.invoiceDate), open: money(i.openBalanceCents ?? 0), status: i.status,
-        })),
+        openInvoices: shapedOpen,
         recentPayments: payments.slice(0, 6).map((p) => ({
           date: String(p.paymentDate), amount: money(p.amountCents ?? 0), method: p.paymentMethod ?? null,
         })),
@@ -1289,18 +1320,22 @@ const getPayrollSummary: AssistantTool = {
         with: { items: { with: { stylist: { columns: { name: true } } } } },
       })
       if (!period) return err('Pay period not found at this facility.')
+      const periodLabel = `${period.startDate} – ${period.endDate}`
+      const stylistRows = (period.items ?? []).map((i) => ({
+        stylist: i.stylist?.name ?? 'Unknown',
+        revenue: money(i.grossRevenueCents ?? 0),
+        commissionPercent: i.commissionRate,
+        commission: money(i.commissionAmountCents ?? 0),
+        tips: money(i.tipCentsTotal ?? 0),
+        netPay: money(i.netPayCents ?? 0),
+      }))
+      const card = payrollDetailCard(periodLabel, stylistRows)
       return {
+        ...(card ? { cards: [card] } : {}),
         response: {
-          period: `${period.startDate} – ${period.endDate}`,
+          period: periodLabel,
           status: period.status,
-          stylists: (period.items ?? []).map((i) => ({
-            stylist: i.stylist?.name ?? 'Unknown',
-            revenue: money(i.grossRevenueCents ?? 0),
-            commissionPercent: i.commissionRate,
-            commission: money(i.commissionAmountCents ?? 0),
-            tips: money(i.tipCentsTotal ?? 0),
-            netPay: money(i.netPayCents ?? 0),
-          })),
+          stylists: stylistRows,
         },
       }
     }
@@ -1310,15 +1345,18 @@ const getPayrollSummary: AssistantTool = {
       orderBy: (t, { desc }) => [desc(t.startDate)],
       limit: 6,
     })
+    const shapedPeriods = periods.map((pp) => ({
+      periodId: pp.id,
+      dates: `${pp.startDate} – ${pp.endDate}`,
+      status: pp.status,
+      stylists: (pp.items ?? []).length,
+      totalPayout: money((pp.items ?? []).reduce((s, i) => s + (i.netPayCents ?? 0), 0)),
+    }))
+    const card = payrollPeriodsCard(shapedPeriods)
     return {
+      ...(card ? { cards: [card] } : {}),
       response: {
-        periods: periods.map((pp) => ({
-          periodId: pp.id,
-          dates: `${pp.startDate} – ${pp.endDate}`,
-          status: pp.status,
-          stylists: (pp.items ?? []).length,
-          totalPayout: money((pp.items ?? []).reduce((s, i) => s + (i.netPayCents ?? 0), 0)),
-        })),
+        periods: shapedPeriods,
         note: 'Pass a periodId for the per-stylist breakdown.',
       },
     }
