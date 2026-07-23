@@ -49,7 +49,15 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const chat = useAssistantChat()
-  const { input, setInput, textareaRef } = chat
+  const { input, setInput, textareaRef, activeGuide } = chat
+
+  // P45 — coworker mode: when a guided walk starts, collapse the chat so the
+  // user sees the page + spotlight. Conversation survives (the hook lives in
+  // this always-mounted widget); the trigger becomes a pulsing "guiding"
+  // bubble they can tap to reopen chat mid-walk.
+  useEffect(() => {
+    if (activeGuide) setOpen(false)
+  }, [activeGuide])
 
   const [listening, setListening] = useState(false)
   const [micDenied, setMicDenied] = useState(false)
@@ -201,21 +209,31 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
 
   return createPortal(
     <>
-      {/* Trigger — stacked 12px above the feedback bubble */}
+      {/* Trigger — stacked 12px above the feedback bubble. During a guided
+          walk it becomes the "coworker bubble": fully visible, pulsing, and
+          raised above the spotlight mask (9000-9002) but below the walk's
+          instruction card (9010) so it stays tappable mid-walk. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="AI assistant"
-        title="AI assistant"
+        aria-label={activeGuide ? 'Guided walk running — open chat' : 'AI assistant'}
+        title={activeGuide ? 'Guiding you — tap for chat' : 'AI assistant'}
         data-tour="assistant-button"
-        className="fixed z-30 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-md)] opacity-45 hover:opacity-100 focus-visible:opacity-100 active:scale-95 transition-all duration-200"
+        className={
+          activeGuide
+            ? 'fixed z-[9005] w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-lg)] opacity-100 active:scale-95 transition-all duration-200'
+            : 'fixed z-30 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-md)] opacity-45 hover:opacity-100 focus-visible:opacity-100 active:scale-95 transition-all duration-200'
+        }
         style={{
           right: '0.875rem',
           bottom: 'calc(var(--app-floating-bottom) + 116px)',
           backgroundColor: '#8B2E4A',
         }}
       >
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {activeGuide && (
+          <span className="absolute inset-0 rounded-full bg-[#8B2E4A] opacity-60 animate-ping" aria-hidden />
+        )}
+        <svg className="relative" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
           <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
         </svg>

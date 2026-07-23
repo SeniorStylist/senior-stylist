@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { actionAllowed, type PendingAction, type AssistantActionKind } from '@/lib/ai-assistant/action-allowlist'
+import type { GuidedWalkPayload } from '@/lib/ai-assistant/tools'
 
 export interface ChatMsg {
   role: 'user' | 'model'
@@ -56,6 +57,8 @@ export function useAssistantChat() {
   const [sending, setSending] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [confirming, setConfirming] = useState(false)
+  // P45 — coworker mode: a server-validated guided walk to run on-screen.
+  const [activeGuide, setActiveGuide] = useState<GuidedWalkPayload | null>(null)
   const [model, setModelState] = useState<AssistantModelChoice>(loadModelPref)
   const setModel = (m: AssistantModelChoice) => {
     setModelState(m)
@@ -72,6 +75,25 @@ export function useAssistantChat() {
     // keep the newest message in view
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [messages, pendingAction, sending])
+
+  // P45 — run the guided walk via the tour runtime (real-data mode: no
+  // tutorial cookie, no demo data — startGuidedWalk guards all of that).
+  // 'guided-walk-done' fires on both completion and the user closing it.
+  useEffect(() => {
+    if (!activeGuide) return
+    let cancelled = false
+    import('@/lib/help/scripted-tour')
+      .then((m) => {
+        if (!cancelled) m.startGuidedWalk(activeGuide)
+      })
+      .catch(() => setActiveGuide(null))
+    const onDone = () => setActiveGuide(null)
+    window.addEventListener('guided-walk-done', onDone)
+    return () => {
+      cancelled = true
+      window.removeEventListener('guided-walk-done', onDone)
+    }
+  }, [activeGuide])
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim()
@@ -103,6 +125,12 @@ export function useAssistantChat() {
       setMessages([...nextMessages, { role: 'model', text: answer }])
       const pa = json.data?.pendingAction as PendingAction | null | undefined
       if (pa && actionAllowed(pa)) setPendingAction(pa)
+      // P45 — a guided walk starts immediately (server already validated the
+      // steps against the anchor allowlist).
+      const g = json.data?.guide as GuidedWalkPayload | null | undefined
+      if (g && typeof g.title === 'string' && Array.isArray(g.steps) && g.steps.length > 0) {
+        setActiveGuide(g)
+      }
     } catch {
       setMessages(messages)
       setInput(text)
@@ -169,6 +197,7 @@ export function useAssistantChat() {
     setPendingAction,
     confirming,
     expired,
+    activeGuide,
     model,
     setModel,
     send,
