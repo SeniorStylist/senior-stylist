@@ -3036,3 +3036,16 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
 - **In-chat links**: `app-links.ts` allowlist (`/signage`, `/invoice/`,
   `/api/billing/statement/`) → "Open →" buttons in model bubbles; anything
   else stays text. 32 tools total; harness 90 checks.
+
+## P43 — Owner never demoted + assistant user identity (2026-07-23)
+
+- **Assistant ctx**: master-by-EMAIL precedence — a master holding a real
+  facility_users row was previously demoted to that row's role (the "only a
+  Master Admin can…" screenshot). Now `isMaster && !debugPreview` → role
+  'master' always (facility = membership row ?? selected cookie ?? null);
+  the `__debug_role` preview stays faithful but is flagged
+  (`ctx.debugPreview`).
+- **`AssistantCtx.userName`** (profiles.fullName ?? email) + identity line
+  at the top of every preamble; master line forbids access-denial
+  deflections; debug-preview note; claim-mismatch rule (session context is
+  authoritative). Harness 96 checks.

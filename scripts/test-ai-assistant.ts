@@ -30,6 +30,8 @@ const baseCtx: AssistantCtx = {
   timezone: 'America/New_York',
   stylistId: null,
   stylistName: null,
+  userName: 'Josh Gerhardt',
+  debugPreview: false,
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +304,35 @@ const call = (name: string, args: Record<string, unknown>, sig?: string) => ({
 
 async function main() {
   await p41Checks()
+
+  // ---- P43 — identity in the preamble: the assistant knows WHO it serves ----
+  console.log('\n[1d] P43 — user identity + owner-never-demoted preamble')
+  {
+    const firstText = (calls: Req[]) => {
+      const c = calls[0] as { contents: Array<{ parts: Array<{ text?: string }> }> }
+      return c.contents[0].parts[0].text ?? ''
+    }
+
+    const masterCtx: AssistantCtx = { ...baseCtx, role: 'master', userName: 'Josh Gerhardt' }
+    const t1 = scriptedTransport([() => text('ok')])
+    await runAssistant(masterCtx, 'hi', [], [fakeRead], 'fast', t1.transport)
+    const p1 = firstText(t1.calls)
+    check('master preamble names the user + OWNER', p1.includes('Josh Gerhardt') && p1.includes('OWNER of the entire Senior Stylist network'))
+    check('master preamble forbids the access-denial deflection', p1.includes('Never tell them they lack access'))
+
+    const t2 = scriptedTransport([() => text('ok')])
+    await runAssistant(baseCtx, 'hi', [], [fakeRead], 'fast', t2.transport)
+    const p2 = firstText(t2.calls)
+    check('admin preamble names the user, NOT owner', p2.includes('Josh Gerhardt') && !p2.includes('OWNER of the entire'))
+
+    const debugCtx: AssistantCtx = { ...baseCtx, role: 'stylist', stylistId: 's1', stylistName: 'Senait', debugPreview: true }
+    const t3 = scriptedTransport([() => text('ok')])
+    await runAssistant(debugCtx, 'hi', [], [fakeRead], 'fast', t3.transport)
+    const p3 = firstText(t3.calls)
+    check('debug-preview preamble carries the Debug note', p3.includes('Debug Mode') && p3.includes('amber badge'))
+    check('non-debug preamble has NO Debug note', !p1.includes('Debug Mode') && !p2.includes('Debug Mode'))
+    check('claim-mismatch rule present (session is authoritative)', p1.includes('AUTHORITATIVE about who the user is'))
+  }
 
   // 3a — plain text answer
   {

@@ -46,6 +46,10 @@ export interface AssistantCtx {
   /** Effective stylist id (stylist role only — null = unlinked account). */
   stylistId: string | null
   stylistName: string | null
+  /** P43 — who the assistant is talking to (profiles.fullName ?? email). */
+  userName: string | null
+  /** P43 — true when the OWNER is previewing another role via Debug Mode. */
+  debugPreview: boolean
 }
 
 // P40 — the PendingAction shape + per-kind execution rules live in the shared

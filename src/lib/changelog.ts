@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.2',
+    date: '2026-07-23',
+    title: 'The AI Knows Exactly Who You Are',
+    items: [
+      'Fixed the big one: if the owner account also belonged to a facility as an admin, the AI quietly treated you as just that facility\'s admin — "only a Master Admin can see network data" while you ARE the master admin. The owner is now ALWAYS the owner, network-wide, no matter what.',
+      'The assistant now knows your name and exact role on every message — ask "who am I?" and it answers correctly, and it will never argue with you about your own permissions again',
+      'If you\'re previewing the app as another role through Debug Mode, the AI knows that too and says so instead of acting confused',
+    ],
+  },
+  {
     version: '5.1',
     date: '2026-07-23',
     title: 'Quick/Smart Switch + The AI Makes Things',

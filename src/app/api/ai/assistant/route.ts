@@ -8,7 +8,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { db } from '@/db'
-import { facilities, stylists } from '@/db/schema'
+import { facilities, stylists, profiles } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
@@ -55,11 +55,52 @@ export async function POST(request: NextRequest) {
     // ---- Build the assistant ctx (authority = server, never the client) ----
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const isMaster = !!superAdminEmail && user.email === superAdminEmail
+    const cookieStore = await cookies()
     const facilityUser = await getUserFacility(user.id)
 
+    // P43 — who the assistant is talking to (identity line in the preamble).
+    const profileRow = await db.query.profiles.findFirst({
+      where: eq(profiles.id, user.id),
+      columns: { fullName: true },
+    })
+    const userName = profileRow?.fullName?.trim() || user.email || null
+
+    // P43 — the owner is ALWAYS the owner. Josh's screenshot bug: a master
+    // who ALSO holds a real facility_users row (admin at F177) entered the
+    // facilityUser branch first and was DEMOTED to 'admin' — every master
+    // power (network pack, facilityName targeting, switch_facility) vanished
+    // while the UI (email-based isMaster) still showed master chips. RULE:
+    // membership rows never demote the master email. The ONE exception is a
+    // Debug role-preview (__debug_role cookie, master-verified inside
+    // getUserFacility) — that feature's whole point is a faithful preview,
+    // so it keeps the impersonated role but is FLAGGED on the ctx.
+    const debugPreview = isMaster && !!cookieStore.get('__debug_role')?.value && !!facilityUser
+
     let ctx: AssistantCtx
-    if (facilityUser) {
-      // Regular roles — and a master DEBUG-impersonating one (faithful preview).
+    if (isMaster && !debugPreview) {
+      // Owner: role 'master' regardless of membership rows. Facility = their
+      // membership row's facility ?? the selected_facility_id cookie ?? none.
+      const facId = facilityUser?.facilityId ?? cookieStore.get('selected_facility_id')?.value ?? null
+      const fac = facId
+        ? await db.query.facilities.findFirst({
+            where: and(eq(facilities.id, facId), eq(facilities.active, true)),
+            columns: { id: true, name: true, facilityCode: true, timezone: true },
+          })
+        : null
+      ctx = {
+        userId: user.id,
+        role: 'master',
+        facilityId: fac?.id ?? null,
+        facilityName: fac?.name ?? null,
+        facilityCode: fac?.facilityCode ?? null,
+        timezone: fac?.timezone ?? 'America/New_York',
+        stylistId: null,
+        stylistName: null,
+        userName,
+        debugPreview: false,
+      }
+    } else if (facilityUser) {
+      // Regular roles — and the owner's Debug role-preview (faithful).
       const fac = await db.query.facilities.findFirst({
         where: eq(facilities.id, facilityUser.facilityId),
         columns: { id: true, name: true, facilityCode: true, timezone: true },
@@ -87,26 +128,8 @@ export async function POST(request: NextRequest) {
         timezone: fac.timezone ?? 'America/New_York',
         stylistId,
         stylistName,
-      }
-    } else if (isMaster) {
-      // Plain master: getUserFacility is null before it ever reads the cookie —
-      // honor selected_facility_id directly (masters may see any facility).
-      const selected = (await cookies()).get('selected_facility_id')?.value
-      const fac = selected
-        ? await db.query.facilities.findFirst({
-            where: and(eq(facilities.id, selected), eq(facilities.active, true)),
-            columns: { id: true, name: true, facilityCode: true, timezone: true },
-          })
-        : null
-      ctx = {
-        userId: user.id,
-        role: 'master',
-        facilityId: fac?.id ?? null,
-        facilityName: fac?.name ?? null,
-        facilityCode: fac?.facilityCode ?? null,
-        timezone: fac?.timezone ?? 'America/New_York',
-        stylistId: null,
-        stylistName: null,
+        userName,
+        debugPreview,
       }
     } else {
       return Response.json({ error: 'No facility' }, { status: 400 })
