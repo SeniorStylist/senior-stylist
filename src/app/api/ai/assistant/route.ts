@@ -25,6 +25,10 @@ const bodySchema = z.object({
     .array(z.object({ role: z.enum(['user', 'model']), text: z.string().max(1500) }))
     .max(10)
     .optional(),
+  // P42 — Quick/Smart switch. WHITELIST enum: a raw model string never
+  // reaches this route; gemini.ts maps fast→flash, smart→pro. Default fast
+  // (Josh's budget call); ASSISTANT_GEMINI_MODEL env overrides both.
+  model: z.enum(['fast', 'smart']).optional().default('fast'),
 })
 
 export async function POST(request: NextRequest) {
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return Response.json({ error: 'Send a message between 1 and 600 characters.' }, { status: 422 })
     }
-    const { message, history } = parsed.data
+    const { message, history, model } = parsed.data
 
     // ---- Build the assistant ctx (authority = server, never the client) ----
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
@@ -109,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tools = toolsForCtx(ctx)
-    const result = await runAssistant(ctx, message, (history ?? []) as AssistantTurn[], tools)
+    const result = await runAssistant(ctx, message, (history ?? []) as AssistantTurn[], tools, model)
     if (!result) {
       return Response.json(
         { error: "The assistant couldn't respond just now — try again in a moment." },

@@ -42,19 +42,28 @@ export type GeminiTransport = (body: Record<string, unknown>) => Promise<GeminiR
 
 const MAX_TOOL_ROUNDS = 6 // P40 — deeper turns: resolve → read → propose chains need headroom
 
-// P38b/P41 — model quality knob. Default is now gemini-2.5-pro (Josh asked
-// twice for "a lot smarter"; flash misread context too often). Dynamic
-// thinking stays ON (thinkingBudget:0 was tried and made tool selection
-// unusably dumb — never re-add it). Pro is slower per round: with <=6 tool
-// rounds inside the route's maxDuration=60 this is tight but OK — do NOT
-// raise MAX_TOOL_ROUNDS without revisiting. Set
-// ASSISTANT_GEMINI_MODEL=gemini-2.5-flash in Vercel to restore the
-// faster/cheaper model — no code change needed.
-const ASSISTANT_MODEL = process.env.ASSISTANT_GEMINI_MODEL || 'gemini-2.5-pro'
+// P38b/P41/P42 — model quality knob. P42: the user picks per request via the
+// Quick/Smart pill (fast → flash, smart → pro; WHITELIST map — a raw model
+// string can never reach the URL). Default is fast/flash (budget), made
+// smarter by the always-on grounding digest. Dynamic thinking stays ON
+// (thinkingBudget:0 was tried and made tool selection unusably dumb — never
+// re-add it). Pro is slower per round: with <=6 tool rounds inside the
+// route's maxDuration=60 this is tight — do NOT raise MAX_TOOL_ROUNDS
+// without revisiting. ASSISTANT_GEMINI_MODEL env, when set, overrides BOTH
+// choices (kill switch).
+export const MODEL_IDS = {
+  fast: 'gemini-2.5-flash',
+  smart: 'gemini-2.5-pro',
+} as const
+export type AssistantModelChoice = keyof typeof MODEL_IDS
 
-function defaultTransport(apiKey: string): GeminiTransport {
+function resolveModelId(choice: AssistantModelChoice): string {
+  return process.env.ASSISTANT_GEMINI_MODEL || MODEL_IDS[choice]
+}
+
+function defaultTransport(apiKey: string, modelId: string): GeminiTransport {
   return async (body) => {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${ASSISTANT_MODEL}:generateContent?key=${apiKey}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -165,10 +174,11 @@ export async function runAssistant(
   message: string,
   history: AssistantTurn[],
   tools: AssistantTool[],
+  model: AssistantModelChoice = 'fast',
   transport?: GeminiTransport,
 ): Promise<AssistantRunResult | null> {
   const apiKey = process.env.GEMINI_API_KEY
-  const send = transport ?? (apiKey ? defaultTransport(apiKey) : null)
+  const send = transport ?? (apiKey ? defaultTransport(apiKey, resolveModelId(model)) : null)
   if (!send) return null
 
   const declarations = toFunctionDeclarations(tools, ctx.role === 'master')

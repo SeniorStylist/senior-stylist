@@ -32,7 +32,7 @@ export function AssistantChat({
 }) {
   const {
     messages, input, setInput, sending, pendingAction, setPendingAction,
-    confirming, expired, send, runAction, logRef, textareaRef,
+    confirming, expired, model, setModel, send, runAction, logRef, textareaRef,
   } = chat
 
   return (
@@ -145,9 +145,32 @@ export function AssistantChat({
             </button>
           </div>
         </div>
-        <p className="mt-1.5 text-[10.5px] text-stone-400">
-          Answers come from your real data. Actions always ask you to confirm first.
-        </p>
+        <div className="mt-1.5 flex items-center gap-2">
+          {/* P42 — Quick/Smart model pill (per-device, ss_assistant_model) */}
+          <div
+            className="shrink-0 inline-flex rounded-full border border-stone-200 bg-stone-50 p-0.5"
+            role="group"
+            aria-label="Assistant mode"
+            title="Quick — fast & cheap · Smart — deeper thinking (a bit slower)"
+          >
+            {(['fast', 'smart'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setModel(m)}
+                aria-pressed={model === m}
+                className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold transition-colors ${
+                  model === m ? 'bg-[#8B2E4A] text-white' : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                {m === 'fast' ? 'Quick' : '✦ Smart'}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10.5px] text-stone-400 truncate">
+            Answers come from your real data. Actions always ask to confirm.
+          </p>
+        </div>
       </div>
     </div>
   )

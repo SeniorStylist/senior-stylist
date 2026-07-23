@@ -267,7 +267,7 @@ async function main() {
   // 3a — plain text answer
   {
     const { transport } = scriptedTransport([() => text('Hello!')])
-    const r = await runAssistant(baseCtx, 'hi', [], [fakeRead], transport)
+    const r = await runAssistant(baseCtx, 'hi', [], [fakeRead], 'fast', transport)
     check('text-only answer returned', r?.answer === 'Hello!')
     check('no pendingAction on read-only turn', r?.pendingAction == null)
   }
@@ -278,7 +278,7 @@ async function main() {
       () => call('get_schedule', { date: '2026-07-22' }, 'SIG123'),
       () => text('You have 1 appointment.'),
     ])
-    const r = await runAssistant(baseCtx, 'my day?', [], [fakeRead], transport)
+    const r = await runAssistant(baseCtx, 'my day?', [], [fakeRead], 'fast', transport)
     check('answer after tool round', r?.answer === 'You have 1 appointment.')
     const second = calls[1] as { contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }
     const echoed = second.contents[1]
@@ -303,7 +303,7 @@ async function main() {
       }],
     }
     const { transport, calls } = scriptedTransport([() => parallel, () => text('Done.')])
-    const r = await runAssistant(baseCtx, 'book it', [], [fakeRead, fakeWrite], transport)
+    const r = await runAssistant(baseCtx, 'book it', [], [fakeRead, fakeWrite], 'fast', transport)
     const second = calls[1] as { contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }
     const frParts = second.contents[2].parts
     check('parallel calls → 2 ordered functionResponses', frParts.length === 2 &&
@@ -320,7 +320,7 @@ async function main() {
       () => text('Confirm below.'),
     ]
     const { transport, calls } = scriptedTransport(twoWrites)
-    const r = await runAssistant(baseCtx, 'book two', [], [fakeWrite], transport)
+    const r = await runAssistant(baseCtx, 'book two', [], [fakeWrite], 'fast', transport)
     const third = calls[2] as { contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }
     const secondResponse = third.contents[4].parts[0].functionResponse as { response: Record<string, unknown> }
     check('second write refused with one_action_per_message', String(secondResponse.response.error ?? '').includes('one_action_per_message'))
@@ -333,7 +333,7 @@ async function main() {
       () => ({ candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'MALFORMED_FUNCTION_CALL' }] }),
       () => text('Recovered.'),
     ])
-    const r = await runAssistant(baseCtx, 'hi', [], [fakeRead], transport)
+    const r = await runAssistant(baseCtx, 'hi', [], [fakeRead], 'fast', transport)
     check('malformed call retried once then answered', r?.answer === 'Recovered.' && calls.length === 2)
   }
 
@@ -351,7 +351,7 @@ async function main() {
         return cfg?.functionCallingConfig?.mode === 'NONE' ? text('Forced summary.') : call('get_schedule', {})
       },
     ])
-    const r = await runAssistant(baseCtx, 'loop forever', [], [fakeRead], transport)
+    const r = await runAssistant(baseCtx, 'loop forever', [], [fakeRead], 'fast', transport)
     check('forced-text round after budget (mode NONE)', r?.answer === 'Forced summary.')
     const last = calls[calls.length - 1] as { toolConfig?: { functionCallingConfig?: { mode?: string } } }
     check('final call used mode NONE', last.toolConfig?.functionCallingConfig?.mode === 'NONE')
@@ -363,7 +363,7 @@ async function main() {
       () => call('made_up_tool', {}),
       () => text('Sorry, I cannot do that.'),
     ])
-    const r = await runAssistant(baseCtx, 'weird', [], [fakeRead], transport)
+    const r = await runAssistant(baseCtx, 'weird', [], [fakeRead], 'fast', transport)
     const second = calls[1] as { contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }
     const fr = second.contents[2].parts[0].functionResponse as { response: Record<string, unknown> }
     check('unknown tool → error fed back, answer still produced', String(fr.response.error ?? '').includes('Unknown tool') && r?.answer === 'Sorry, I cannot do that.')

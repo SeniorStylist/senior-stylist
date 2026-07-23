@@ -16,6 +16,19 @@ export interface ChatMsg {
   text: string
 }
 
+// P42 — Quick/Smart pill. 'fast' = gemini flash (default, cheap), 'smart' =
+// pro (deeper, slower). Per-device preference; the route whitelists the enum.
+export type AssistantModelChoice = 'fast' | 'smart'
+const MODEL_KEY = 'ss_assistant_model'
+function loadModelPref(): AssistantModelChoice {
+  if (typeof window === 'undefined') return 'fast'
+  try {
+    return localStorage.getItem(MODEL_KEY) === 'smart' ? 'smart' : 'fast'
+  } catch {
+    return 'fast'
+  }
+}
+
 const DONE_LABEL: Record<AssistantActionKind, string> = {
   book: 'Booked',
   cancel: 'Cancelled',
@@ -43,6 +56,15 @@ export function useAssistantChat() {
   const [sending, setSending] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [model, setModelState] = useState<AssistantModelChoice>(loadModelPref)
+  const setModel = (m: AssistantModelChoice) => {
+    setModelState(m)
+    try {
+      localStorage.setItem(MODEL_KEY, m)
+    } catch {
+      /* private mode — session-only */
+    }
+  }
   const logRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -66,6 +88,7 @@ export function useAssistantChat() {
         body: JSON.stringify({
           message: text,
           history: messages.slice(-8).map((m) => ({ role: m.role, text: m.text.slice(0, 1500) })),
+          model,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -146,6 +169,8 @@ export function useAssistantChat() {
     setPendingAction,
     confirming,
     expired,
+    model,
+    setModel,
     send,
     runAction,
     logRef,
