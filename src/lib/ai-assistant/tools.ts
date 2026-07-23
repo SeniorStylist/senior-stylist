@@ -29,6 +29,8 @@ import { ensureAssistantMemorySchema } from '@/lib/assistant-memory-ddl'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { fuzzyScore, normalizeWords } from '@/lib/fuzzy'
 import { HELP_GUIDES, scoreGuide, type KbRole } from './help-kb'
+import { buildAnchorVocab, validateWalkSteps } from './guide-anchors'
+import type { ScriptedStep } from '@/lib/help/scripted-tour-types'
 import {
   dayRangeInTimezone, fromDateTimeLocalInTz, toDateTimeLocalInTz, formatTimeInTz, formatDateInTz, getLocalParts,
 } from '@/lib/time'
@@ -68,6 +70,14 @@ export interface ToolResult {
   response: Record<string, unknown>
   /** Present only when a write tool produced a proposal for the client. */
   pendingAction?: PendingAction
+  /** P45 — a coworker-mode guided walk for the client to run on-screen. */
+  guide?: GuidedWalkPayload
+}
+
+// P45 — validated walk handed to the client (steps are engine-ready).
+export interface GuidedWalkPayload {
+  title: string
+  steps: ScriptedStep[]
 }
 
 // Gemini functionDeclarations parameter schema (uppercase OpenAPI subset).
@@ -1372,6 +1382,57 @@ const suggestSharedLearning: AssistantTool = {
       source: 'ai_observed',
     })
     return { response: { proposed: true, note: 'Sent to the owner for review — it takes effect only if they approve it. No need to mention this unless relevant.' } }
+  },
+}
+
+// P45 — COWORKER MODE: author an on-screen guided walk (spotlight + arrow +
+// auto-filled fields) that runs on the user's REAL data. The client collapses
+// the chat to a bubble and the tour runtime drives the steps; the USER
+// performs every click on the highlighted element (fills are visible).
+// Selectors are restricted to the documented anchor allowlist.
+const startGuidedWalkTool: AssistantTool = {
+  name: 'start_guided_walk',
+  description:
+    `Show the user HOW on-screen: starts a guided walk — the app navigates to the right page, a spotlight + arrow point at each element, "type" steps fill fields for them, and the user performs each click. Use when they ask to be taken somewhere or helped hands-on ("take me to…", "help me scan/add/book…", "show me where"). 2–8 short steps. Anchors by page — ${buildAnchorVocab()}. Conditional anchors (marked "after X") need that click step first. Keep your text answer to ONE short line — the walk itself is the answer.`,
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      title: { type: 'STRING', description: 'Short walk title, e.g. "Scan a log sheet".' },
+      steps: {
+        type: 'ARRAY',
+        description: 'The steps, in order.',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            action: { type: 'STRING', description: "'click' (user taps the highlighted element — advances automatically), 'type' (auto-fills the field, Next advances), or 'point' (just highlight + explain, Next advances)." },
+            anchor: { type: 'STRING', description: 'A documented anchor slug. Required for click/type; optional for point (omit = centered note).' },
+            instruction: { type: 'STRING', description: 'Coaching line ≤120 chars, e.g. "Tap the camera button to open the scanner."' },
+            typeValue: { type: 'STRING', description: 'For type steps: the exact text to fill.' },
+            route: { type: 'STRING', description: 'Optional page path override (usually derived from the anchor).' },
+          },
+          required: ['action', 'instruction'],
+        },
+      },
+    },
+    required: ['title', 'steps'],
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist', 'master'],
+  needsFacility: false,
+  async execute(_ctx, args) {
+    const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim().slice(0, 80) : 'Guided walk'
+    const validated = validateWalkSteps(args.steps)
+    if (!validated.ok) {
+      return err(validated.error, { anchorsByPage: buildAnchorVocab() })
+    }
+    return {
+      response: {
+        walkStarted: true,
+        stepCount: validated.steps.length,
+        note: 'The walk is starting on their screen now. Answer with ONE short line like "Let\'s do it — follow the arrows on screen."',
+      },
+      guide: { title, steps: validated.steps },
+    }
   },
 }
 
@@ -2686,6 +2747,7 @@ export const ALL_TOOLS: AssistantTool[] = [
   explainFeature,
   manageMemory,
   suggestSharedLearning,
+  startGuidedWalkTool,
   createSign,
   createStatement,
   bookAppointment,
@@ -2725,7 +2787,7 @@ export const toolNameSchema = z.enum([
   'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
   'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
   'explain_feature', 'create_sign', 'create_statement',
-  'manage_memory', 'suggest_shared_learning',
+  'manage_memory', 'suggest_shared_learning', 'start_guided_walk',
   'book_appointment', 'cancel_appointment', 'reschedule_appointment',
   'update_appointment', 'create_resident', 'update_resident',
   'set_stylist_hours', 'add_time_off', 'decide_time_off',

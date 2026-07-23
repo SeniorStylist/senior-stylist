@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return Response.json({ data: { answer: result.answer, pendingAction: result.pendingAction } })
+    return Response.json({ data: { answer: result.answer, pendingAction: result.pendingAction, guide: result.guide } })
   } catch (err) {
     console.error('POST /api/ai/assistant error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
