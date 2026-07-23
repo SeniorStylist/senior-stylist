@@ -282,7 +282,32 @@ export function useAssistantChat() {
       }
       const doneLabel = DONE_LABEL[a.kind] ?? 'Done'
       setMessages((prev) => [...prev, { role: 'model', text: `[done] ${doneLabel}: ${a.summary.lines[0] ?? ''}` }])
-      toast.success(`${doneLabel}!`)
+      // P46 — cancels get one-tap Undo (the daily-log booking-cancel pattern:
+      // PUT the status back to scheduled).
+      if (a.kind === 'cancel') {
+        const bookingPath = a.request.path
+        toast.success('Cancelled', {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              void fetch(bookingPath, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'scheduled' }),
+              }).then((r) => {
+                if (r.ok) {
+                  toast.success('Appointment restored')
+                  setMessages((prev) => [...prev, { role: 'model', text: '[done] Undone — the appointment is back on the schedule.' }])
+                } else {
+                  toast.error("Couldn't restore it — rebook from the calendar.")
+                }
+              }).catch(() => toast.error("Couldn't restore it — rebook from the calendar."))
+            },
+          },
+        })
+      } else {
+        toast.success(`${doneLabel}!`)
+      }
       setPendingAction(null)
     } catch {
       toast.error('Network error — nothing was changed.')

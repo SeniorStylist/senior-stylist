@@ -27,7 +27,7 @@ export type TutorialIcon =
   | 'HeartHandshake' | 'ShieldCheck' | 'CreditCard' | 'ScanLine'
   | 'GitMerge' | 'Database' | 'FileSpreadsheet' | 'Wallet' | 'PlusSquare'
   | 'Network' | 'BookOpen' | 'CircleHelp' | 'ClipboardList' | 'PenLine'
-  | 'Clock' | 'Search' | 'PanelRight'
+  | 'Clock' | 'Search' | 'PanelRight' | 'Sparkles'
 
 export type Tutorial = {
   id: string
@@ -176,6 +176,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-peek-drawer', category: 'Navigation', title: 'Quick Profile Peek', blurb: 'Click any resident or stylist name to see their profile without leaving the page.', estMinutes: 1, icon: 'PanelRight', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-peek-drawer' },
 
   // Phase 15 feature-wave tours (2026-07-07)
+  { id: 'meet-assistant', category: 'Getting Started', title: 'Meet Your AI Assistant', blurb: 'Ask anything in plain English, get things done with a confirm tap, and be walked through the app with on-screen arrows.', estMinutes: 1, icon: 'Sparkles', roles: ['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist'], tourId: 'meet-assistant', platform: 'both' },
   { id: 'admin-notifications', category: 'Navigation', title: 'Notification Inbox', blurb: 'The bell collects booking, payment, birthday, and waitlist alerts in one place.', estMinutes: 1, icon: 'Mail', roles: ['admin', 'super_admin', 'facility_staff', 'bookkeeper', 'stylist'], tourId: 'admin-notifications', platform: 'both' },
   { id: 'admin-waitlist', category: 'Scheduling', title: 'Cancellation Waitlist', blurb: 'Keep residents who want an earlier slot on a list — cancellations alert you when a slot matches.', estMinutes: 2, icon: 'ClipboardList', roles: ['admin', 'super_admin', 'facility_staff'], tourId: 'admin-waitlist', platform: 'desktop' },
   { id: 'admin-birthdays', category: 'Residents', title: 'Resident Birthdays', blurb: 'Add birthdays to profiles — get day-of reminders, a dashboard card, and digest mentions.', estMinutes: 1, icon: 'HeartHandshake', roles: ['admin', 'super_admin', 'facility_staff'], tourId: 'admin-birthdays', platform: 'both' },

@@ -4,7 +4,7 @@
 // the floating AssistantWidget and the inline AssistantCard. All behavior
 // lives in useAssistantChat; this is presentation only.
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import type { AssistantChatState } from './use-assistant-chat'
 import { segmentMessage } from '@/lib/ai-assistant/app-links'
@@ -87,6 +87,27 @@ export function AssistantChat({
   const merged = [...chipsForPage(pathname), ...chips]
   const displayChips = merged.filter((c, i) => merged.indexOf(c) === i).slice(0, 6)
 
+  // P46 — answer thumbs on the latest reply (fire-and-forget into the owner
+  // feedback queue). Keyed by message index; one rating per answer.
+  const [rated, setRated] = useState<Record<number, 'up' | 'down'>>({})
+  const rate = (idx: number, rating: 'up' | 'down') => {
+    if (rated[idx]) return
+    setRated((r) => ({ ...r, [idx]: rating }))
+    const answer = messages[idx]?.text ?? ''
+    const question = [...messages.slice(0, idx)].reverse().find((m) => m.role === 'user')?.text
+    void fetch('/api/ai/assistant/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, answer: answer.slice(0, 600), question: question?.slice(0, 600) }),
+    }).catch(() => {})
+  }
+  const lastModelIdx = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'model' && !messages[i].text.startsWith('[done]')) return i
+    }
+    return -1
+  })()
+
   return (
     <div className="flex flex-col" style={heightStyle}>
       {/* Chat log */}
@@ -109,7 +130,7 @@ export function AssistantChat({
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+          <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex flex-col items-start'}>
             <div
               className={
                 m.role === 'user'
@@ -119,6 +140,23 @@ export function AssistantChat({
             >
               {m.role === 'model' ? renderModelText(m.text) : m.text}
             </div>
+            {/* P46 — thumbs on the latest real answer */}
+            {i === lastModelIdx && !sending && (
+              <div className="mt-1 ml-1 flex items-center gap-1">
+                {rated[i] ? (
+                  <span className="text-[10.5px] text-stone-400">{rated[i] === 'up' ? 'Glad it helped!' : 'Thanks — the owner will see this.'}</span>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => rate(i, 'up')} aria-label="Good answer" className="p-1 rounded-md text-stone-300 hover:text-emerald-600 hover:bg-stone-50 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" /></svg>
+                    </button>
+                    <button type="button" onClick={() => rate(i, 'down')} aria-label="Bad answer" className="p-1 rounded-md text-stone-300 hover:text-rose-600 hover:bg-stone-50 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="rotate-180"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" /></svg>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {sending && (

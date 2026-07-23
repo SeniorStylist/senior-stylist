@@ -359,4 +359,36 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
     ],
     learnings: ['Due-for-a-visit suggestions', 'Copy day', 'Printable week on desktop'],
   },
+
+  // P46 — the assistant finally gets its own tour (the anchor existed since
+  // P38 but nothing pointed at it).
+  {
+    id: 'scripted-meet-assistant',
+    title: 'Meet Your AI Assistant',
+    scenarioSummary: 'Ask anything, get things done, be walked through the app',
+    platform: 'desktop',
+    role: 'admin',
+    steps: [
+      {
+        type: 'highlight',
+        selector: '[data-tour="assistant-button"]',
+        route: '/dashboard',
+        title: 'Your AI coworker lives here',
+        description: 'Tap the sparkle anytime — ask about your day, your residents, or your numbers in plain English. Type or talk.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'It does things, too',
+        description: 'Book, mark visits paid, add walk-ins, make signs and statements — every change shows a Confirm card first.',
+      },
+      {
+        type: 'highlight',
+        selector: '',
+        title: 'Say "show me how"',
+        description: 'Ask "help me scan a sheet" and it walks you there with arrows on screen. Quick mode is fast; ✦ Smart thinks deeper.',
+      },
+    ],
+    learnings: ['Where the assistant lives', 'Ask questions or give it work', 'Guided walks + Quick/Smart modes'],
+  },
 ]

@@ -86,6 +86,7 @@ export const SCRIPTED_TOUR_MAP: Record<string, { mobile: string; desktop: string
   'admin-coverage-approval': { mobile: 'scripted-admin-coverage-approval', desktop: 'scripted-admin-coverage-approval' },
   'admin-photos': { mobile: 'scripted-admin-photos', desktop: 'scripted-admin-photos' },
   'admin-scheduling-tools': { mobile: 'scripted-admin-scheduling-tools-mobile', desktop: 'scripted-admin-scheduling-tools' },
+  'meet-assistant': { mobile: 'scripted-meet-assistant', desktop: 'scripted-meet-assistant' },
 }
 
 // Tours that create their own demo records through the UI flow — no pre-seeding needed.
@@ -95,6 +96,7 @@ export const UNSEEDED_SCRIPTED_TOURS = new Set([
   'scripted-facility-staff-residents',
   'scripted-admin-residents',
   // Phase 15 info tours — nothing to seed
+  'scripted-meet-assistant', // P46
   'scripted-admin-notifications',
   'scripted-admin-waitlist',
   'scripted-admin-waitlist-mobile',
