@@ -47,6 +47,16 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
     }
   }, [])
 
+  // P47 — the floating pill is gone; the sheet now opens from the mobile-nav
+  // More menu ("Debug mode" row) and the header's amber Debug pill, both via
+  // this event.
+  useEffect(() => {
+    if (!isMaster) return
+    const h = () => setOpen(true)
+    window.addEventListener('open-mobile-debug', h)
+    return () => window.removeEventListener('open-mobile-debug', h)
+  }, [isMaster])
+
   useEffect(() => {
     if (!isMaster) return
     setFacilityStylists([])
@@ -91,39 +101,9 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
 
   return (
     <>
-      {/* Floating indicator / trigger — mobile only. Viewport-anchored fixed
-          positioning (P39 note: .main-content has NO transform — there is no
-          containing-block trick; nav clearance comes from the CSS vars). */}
-      {debugInfo ? (
-        <div
-          className="md:hidden fixed left-4 z-50 flex items-center gap-1.5 bg-amber-400 text-amber-950 text-xs font-bold px-3 py-2 rounded-2xl shadow-xl"
-          style={{ bottom: 'var(--app-floating-bottom)' }}
-        >
-          <span className="text-amber-800 text-[10px] font-semibold uppercase tracking-wide">Debug</span>
-          <span>{ROLE_LABELS[debugInfo.role as DebugRole] ?? debugInfo.role}</span>
-          <button
-            onClick={() => setOpen(true)}
-            className="ml-1 underline text-amber-900 text-[11px]"
-          >
-            change
-          </button>
-          <button
-            onClick={handleReset}
-            className="ml-1 bg-amber-950/10 hover:bg-amber-950/20 px-1.5 py-0.5 rounded-lg text-[11px] transition-colors"
-          >
-            exit
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setOpen(true)}
-          className="md:hidden fixed left-4 z-50 bg-[#8B2E4A] text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg"
-          style={{ bottom: 'var(--app-floating-bottom)' }}
-        >
-          Debug
-        </button>
-      )}
-
+      {/* P47 — no floating chrome anymore: entry points are the mobile-nav
+          More menu row (master-only) and the header amber Debug pill while
+          impersonating; both dispatch 'open-mobile-debug'. */}
       <BottomSheet
         isOpen={open}
         onClose={() => setOpen(false)}

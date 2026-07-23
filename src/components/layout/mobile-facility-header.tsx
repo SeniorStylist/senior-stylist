@@ -69,18 +69,51 @@ export function MobileFacilityHeader({
             style={{ objectFit: 'contain', height: 36, width: 'auto' }}
           />
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
+          {/* P47 — mobile palette entry (all roles except viewer). */}
+          {role !== 'viewer' && (
+            <button
+              type="button"
+              aria-label="Search"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+              className="w-9 h-9 flex items-center justify-center rounded-full text-stone-500 active:bg-stone-100 transition-colors"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </button>
+          )}
+          {/* P47 — the AI assistant moved from the floating bubble into the
+              header (Josh's pick). Keep data-tour-mobile in sync with the
+              widget's data-tour anchor — the meet-assistant tour resolves it. */}
+          <button
+            type="button"
+            aria-label="AI assistant"
+            data-tour-mobile="assistant-button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-assistant'))}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-[#8B2E4A] active:bg-[#F9EFF2] transition-colors"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l1.9 5.7a2 2 0 001.3 1.3L21 12l-5.8 1.9a2 2 0 00-1.3 1.3L12 21l-1.9-5.8a2 2 0 00-1.3-1.3L3 12l5.8-2a2 2 0 001.3-1.3L12 3z" />
+            </svg>
+          </button>
+          <div className="w-1" />
           <NotificationBell anchor="mobile" />
           {debugMode && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-mobile-debug'))}
+              className="ml-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide"
+            >
               Debug
-            </span>
+            </button>
           )}
           {showSwitcher ? (
             <button
               onClick={() => setOpen(true)}
               disabled={switching}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-stone-100 text-stone-700 text-xs font-medium max-w-[160px]"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-stone-100 text-stone-700 text-xs font-medium max-w-[32vw]"
             >
               {facilityCode && (
                 <span className="font-mono text-stone-500 shrink-0">{facilityCode}</span>
@@ -91,7 +124,7 @@ export function MobileFacilityHeader({
               </svg>
             </button>
           ) : facilityName ? (
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 max-w-[160px]">
+            <div className="flex items-center gap-1.5 text-xs text-stone-500 max-w-[32vw]">
               {facilityCode && <span className="font-mono shrink-0">{facilityCode}</span>}
               <span className="truncate">{facilityName}</span>
             </div>

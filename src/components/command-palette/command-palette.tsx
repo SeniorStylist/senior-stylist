@@ -281,7 +281,7 @@ export function CommandPalette({ role, isMaster, canSearchEntities }: CommandPal
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[300] w-[560px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden"
+        className="fixed z-[300] inset-x-3 top-[calc(var(--app-safe-top,0px)+12px)] md:inset-x-auto md:top-[15%] md:left-1/2 md:-translate-x-1/2 md:w-[560px] md:max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden"
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-stone-100">
           <Search size={16} className="text-stone-400 shrink-0" />

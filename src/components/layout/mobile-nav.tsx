@@ -191,9 +191,11 @@ interface MobileNavProps {
   role?: string
   debugMode?: boolean
   userId?: string
+  /** P47 — master only: shows the "Debug mode" row in the More sheet. */
+  isMaster?: boolean
 }
 
-export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
+export function MobileNav({ role = 'admin', userId, isMaster = false }: MobileNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
@@ -378,6 +380,25 @@ export function MobileNav({ role = 'admin', userId }: MobileNavProps) {
                   </button>
                 ))}
               </div>
+              {/* P47 — Debug moved off the floating pill into More (master only) */}
+              {isMaster && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.selection()
+                    setMoreOpen(false)
+                    window.dispatchEvent(new CustomEvent('open-mobile-debug'))
+                  }}
+                  className="w-full flex items-center gap-3 py-3.5 px-1 text-left border-t border-stone-50 text-stone-700"
+                >
+                  <span className="text-stone-400">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22a7 7 0 007-7v-4a7 7 0 10-14 0v4a7 7 0 007 7z" /><path d="M12 2v3" /><path d="M5 8l-3-2" /><path d="M19 8l3-2" /><path d="M2 15h3" /><path d="M19 15h3" />
+                    </svg>
+                  </span>
+                  <span className="text-sm font-medium">Debug mode</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setCustomizing(true)}

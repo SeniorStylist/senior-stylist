@@ -246,10 +246,13 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
 
   return createPortal(
     <>
-      {/* Trigger — stacked 12px above the feedback bubble. During a guided
-          walk it becomes the "coworker bubble": fully visible, pulsing, and
-          raised above the spotlight mask (9000-9002) but below the walk's
-          instruction card (9010) so it stays tappable mid-walk. */}
+      {/* Trigger — desktop: floating sparkle stacked 12px above the feedback
+          bubble. P47 mobile: the entry moved into the top header (sparkle
+          next to the bell — data-tour-mobile="assistant-button" there), so
+          the floating bubble hides on phones EXCEPT during a guided walk,
+          where it MUST stay: the pulsing z-[9005] coworker bubble rides
+          above the spotlight mask (9000-9002), below the walk card (9010),
+          and the header button gets covered by the mask. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -259,7 +262,7 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
         className={
           activeGuide
             ? 'fixed z-[9005] w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-lg)] opacity-100 active:scale-95 transition-all duration-200'
-            : 'fixed z-30 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-md)] opacity-70 hover:opacity-100 focus-visible:opacity-100 active:scale-95 transition-all duration-200'
+            : 'hidden md:flex fixed z-30 w-10 h-10 rounded-full items-center justify-center text-white shadow-[var(--shadow-md)] opacity-70 hover:opacity-100 focus-visible:opacity-100 active:scale-95 transition-all duration-200'
         }
         style={{
           right: '0.875rem',
