@@ -76,6 +76,35 @@ function defaultTransport(apiKey: string, modelId: string): GeminiTransport {
   }
 }
 
+// P46 — human labels for page-context lines ("They are currently looking at
+// the Daily Log"). Longest-prefix match so /residents/[id] resolves too.
+const PAGE_LABELS: Array<[string, string]> = [
+  ['/dashboard', 'the Calendar'],
+  ['/log', 'the Daily Log'],
+  ['/residents/import', 'the resident import page'],
+  ['/residents/', "a resident's profile page"],
+  ['/residents', 'the Residents list'],
+  ['/billing/monthly', 'the Monthly billing view'],
+  ['/billing', 'the Billing page'],
+  ['/analytics', 'the Analytics page'],
+  ['/payroll/', 'a pay period detail page'],
+  ['/payroll', 'the Payroll page'],
+  ['/settings', 'Settings'],
+  ['/signup-sheet', 'the Sign-Up Sheet'],
+  ['/my-account', 'their My Account page'],
+  ['/stylists/directory', 'the Stylist Directory'],
+  ['/stylists/', "a stylist's profile page"],
+  ['/stylists', 'the Stylists page'],
+  ['/master-admin', 'the Master Admin page'],
+  ['/signage', 'the Signage maker'],
+  ['/help', 'the Help Center'],
+]
+function pageLabel(page: string | null | undefined): string | null {
+  if (!page) return null
+  const hit = PAGE_LABELS.find(([prefix]) => page.startsWith(prefix))
+  return hit ? hit[1] : null
+}
+
 const ROLE_LABEL: Record<AssistantCtx['role'], string> = {
   admin: 'a facility admin',
   facility_staff: 'facility front-desk staff',
@@ -140,7 +169,7 @@ function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: Assis
 
 Domain vocabulary: codes like F177 are FACILITY codes (buildings/salons), never people — ${ctx.facilityCode ? `${ctx.facilityCode} is ${ctx.facilityName}. ` : ''}"residents" are the seniors who live at a facility; "stylists" are the hairdressers. Users type quickly and casually — interpret intent generously from partial context, and only ask a clarifying question when a wrong guess would matter.
 
-Right now at the facility it is ${weekday} ${nowLocal} (${ctx.timezone}). Resolve every relative date/time ("tomorrow at 10", "next Tuesday") against this, in the facility timezone. Times without am/pm default to business hours (7:00–18:59). If a time or name is genuinely ambiguous, ask instead of guessing.
+Right now at the facility it is ${weekday} ${nowLocal} (${ctx.timezone}). Resolve every relative date/time ("tomorrow at 10", "next Tuesday") against this, in the facility timezone. Times without am/pm default to business hours (7:00–18:59). If a time or name is genuinely ambiguous, ask instead of guessing.${pageLabel(ctx.page) ? ` They are currently looking at ${pageLabel(ctx.page)} — "this page"/"here" means that, and prefer answers/actions relevant to it.` : ''} A "morning brief" request = today's schedule + anything unpaid + who's due for a visit, in one tight summary.
 
 Rules:
 - Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability. If a tool returns an error, adapt (try another tool or ask) — don't just repeat the error.${slotHint}${moneyHint}${createHint}${memoryHint}

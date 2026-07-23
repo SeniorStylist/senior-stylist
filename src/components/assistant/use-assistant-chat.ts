@@ -160,6 +160,8 @@ export function useAssistantChat() {
           message: text,
           history: messages.slice(-8).map((m) => ({ role: m.role, text: m.text.slice(0, 1500) })),
           model,
+          // P46 — page context ("this page" awareness + smarter routing)
+          page: typeof window !== 'undefined' ? window.location.pathname.slice(0, 100) : undefined,
         }),
       })
       if (!res.ok || !res.body) {

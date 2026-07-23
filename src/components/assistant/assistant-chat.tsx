@@ -5,15 +5,38 @@
 // lives in useAssistantChat; this is presentation only.
 
 import type { ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import type { AssistantChatState } from './use-assistant-chat'
 import { segmentMessage } from '@/lib/ai-assistant/app-links'
 
 export const ASSISTANT_CHIPS: Record<string, string[]> = {
-  admin: ["What's on the schedule today?", 'Who owes us the most right now?', "Mark this morning's visits as paid", 'Put Mrs. Smith in the next open slot'],
-  facility_staff: ["What's on the schedule today?", 'Book an appointment for a resident', 'Add someone to the waitlist'],
+  admin: ['☀️ My morning brief', "What's on the schedule today?", 'Who owes us the most right now?', 'Put Mrs. Smith in the next open slot'],
+  facility_staff: ['☀️ My morning brief', "What's on the schedule today?", 'Book an appointment for a resident', 'Add someone to the waitlist'],
   bookkeeper: ['Who owes us the most right now?', 'How much did we collect this month?', "Show me this period's payroll"],
-  stylist: ["What's my day look like tomorrow?", 'How much have I made this month?', 'Put a resident in my next open slot'],
-  master: ['Which facility owes us the most?', 'Switch me to another facility', 'How do I scan a log sheet?', 'Any new feedback?'],
+  stylist: ['☀️ My morning brief', "What's my day look like tomorrow?", 'How much have I made this month?'],
+  master: ['☀️ My morning brief', 'Which facility owes us the most?', 'Switch me to another facility', 'Any new feedback?'],
+}
+
+// P46 — page-aware chips (copilot research: adaptive chips beat static ones;
+// they double as capability discovery). Longest-prefix match on pathname;
+// merged ahead of the role chips.
+const CHIPS_BY_ROUTE: Array<[string, string[]]> = [
+  ['/log', ['Help me scan a sheet', "Who's unpaid today?", 'Add a walk-in for me']],
+  ['/dashboard', ["Who's due for a visit?", 'Find the next open slot', 'Book an appointment']],
+  ['/billing/monthly', ['Explain this monthly view', 'Who owes the most?']],
+  ['/billing', ['Who owes the most?', 'Create a statement', 'Where are the schedule gaps this week?']],
+  ['/residents', ['Add a new resident', "Who hasn't been seen lately?"]],
+  ['/payroll', ['Summarize the latest pay period', 'How is payroll calculated?']],
+  ['/analytics', ['How did we do this month?', 'Which service earns the most?']],
+  ['/settings', ['How do I invite a teammate?', 'Walk me through the settings']],
+  ['/signup-sheet', ['Add a request for me', 'How does the sign-up sheet work?']],
+  ['/my-account', ['How much have I made this month?', 'Request time off']],
+  ['/master-admin', ['Which facility owes us the most?', 'Any new feedback?']],
+]
+export function chipsForPage(pathname: string | null): string[] {
+  if (!pathname) return []
+  const hit = CHIPS_BY_ROUTE.find(([prefix]) => pathname.startsWith(prefix))
+  return hit ? hit[1] : []
 }
 
 // P42 — created documents (signs, statements) arrive as same-origin relative
@@ -58,6 +81,12 @@ export function AssistantChat({
     confirming, expired, model, setModel, statusLabel, lastError, send, stop, runAction, logRef, textareaRef,
   } = chat
 
+  // P46 — page-aware chips merged ahead of role chips; deduped; the row
+  // STAYS visible after the conversation starts (compact, above composer).
+  const pathname = usePathname()
+  const merged = [...chipsForPage(pathname), ...chips]
+  const displayChips = merged.filter((c, i) => merged.indexOf(c) === i).slice(0, 6)
+
   return (
     <div className="flex flex-col" style={heightStyle}>
       {/* Chat log */}
@@ -66,7 +95,7 @@ export function AssistantChat({
           <div className="pt-2">
             <p className="text-sm text-stone-600 mb-3">{intro}</p>
             <div className="flex flex-col items-start gap-1.5">
-              {chips.map((c) => (
+              {displayChips.map((c) => (
                 <button
                   key={c}
                   type="button"
@@ -150,6 +179,22 @@ export function AssistantChat({
           </div>
         )}
       </div>
+
+      {/* P46 — persistent suggestion chips (horizontal scroll) once chatting */}
+      {messages.length > 0 && !sending && displayChips.length > 0 && (
+        <div className="shrink-0 px-3 pt-1.5 flex gap-1.5 overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none]">
+          {displayChips.slice(0, 4).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => void send(c)}
+              className="shrink-0 text-[11px] font-medium text-[#8B2E4A] bg-[#F9EFF2] border border-[#E8CDD5] rounded-full px-2.5 py-1 hover:bg-[#F2E0E6] transition-colors"
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Composer */}
       <div className="shrink-0 border-t border-stone-100 p-3">

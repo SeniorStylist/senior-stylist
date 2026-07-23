@@ -58,6 +58,8 @@ export interface AssistantCtx {
   memories: string[]
   /** P44 — owner-approved shared instructions (global + this facility + this role). */
   sharedMemories: string[]
+  /** P46 — the app page the user is currently on (validated pathname). */
+  page?: string | null
 }
 
 // P40 — the PendingAction shape + per-kind execution rules live in the shared

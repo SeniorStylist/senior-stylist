@@ -22,6 +22,8 @@ export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
   message: z.string().min(1).max(600),
+  // P46 — current app page for context-aware answers (validated, optional)
+  page: z.string().max(100).optional(),
   history: z
     .array(z.object({ role: z.enum(['user', 'model']), text: z.string().max(1500) }))
     .max(10)
@@ -52,6 +54,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Send a message between 1 and 600 characters.' }, { status: 422 })
     }
     const { message, history, model } = parsed.data
+    // P46 — page context: accept only simple app pathnames (no protocols/queries)
+    const page =
+      typeof parsed.data.page === 'string' && /^\/[a-z0-9\-/[\]]*$/i.test(parsed.data.page)
+        ? parsed.data.page
+        : null
 
     // ---- Build the assistant ctx (authority = server, never the client) ----
     const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
@@ -139,6 +146,7 @@ export async function POST(request: NextRequest) {
     } else {
       return Response.json({ error: 'No facility' }, { status: 400 })
     }
+    ctx.page = page
 
     // P44 — load this user's memory + applicable owner-approved shared
     // instructions (global / their role / their facility). Best-effort: an
