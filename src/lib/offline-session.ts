@@ -21,6 +21,13 @@ export function clearPageCache(): void {
 
 export function clearOfflineOnLogout(): void {
   clearReadCache()
+  // P46 — the assistant chat persists to localStorage and can contain
+  // resident names; same shared-device rule as the read cache.
+  try {
+    localStorage.removeItem('ss_assistant_chat')
+  } catch {
+    /* best-effort */
+  }
   try {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_PAGES' })

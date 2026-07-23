@@ -17,6 +17,35 @@ export interface ChatMsg {
   text: string
 }
 
+// P46 — conversation persistence: the thread survives reloads (incl. our own
+// switch_facility hard reload). Device-local like the read cache — cleared on
+// sign-out via clearAssistantChat() (chats can contain resident names).
+const CHAT_KEY = 'ss_assistant_chat'
+const CHAT_MAX = 30
+function loadSavedChat(): ChatMsg[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(CHAT_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((m): m is ChatMsg => !!m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string')
+      .slice(-CHAT_MAX)
+  } catch {
+    return []
+  }
+}
+/** Called from the sign-out teardown (offline-session) — never leave a chat
+ * with resident names behind on a shared device. */
+export function clearAssistantChat(): void {
+  try {
+    localStorage.removeItem(CHAT_KEY)
+  } catch {
+    /* best-effort */
+  }
+}
+
 // P42 — Quick/Smart pill. 'fast' = gemini flash (default, cheap), 'smart' =
 // pro (deeper, slower). Per-device preference; the route whitelists the enum.
 export type AssistantModelChoice = 'fast' | 'smart'
@@ -52,7 +81,10 @@ const DONE_LABEL: Record<AssistantActionKind, string> = {
 
 export function useAssistantChat() {
   const { toast } = useToast()
-  const [messages, setMessages] = useState<ChatMsg[]>([])
+  const [messages, setMessages] = useState<ChatMsg[]>(loadSavedChat)
+  // P46 — a failed turn renders an inline Retry bubble instead of toast-only.
+  const [lastError, setLastError] = useState<{ text: string; message: string } | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
@@ -77,6 +109,16 @@ export function useAssistantChat() {
     // keep the newest message in view
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [messages, pendingAction, sending])
+
+  // P46 — persist the thread (capped) so reloads/facility switches keep it.
+  useEffect(() => {
+    try {
+      if (messages.length === 0) localStorage.removeItem(CHAT_KEY)
+      else localStorage.setItem(CHAT_KEY, JSON.stringify(messages.slice(-CHAT_MAX)))
+    } catch {
+      /* private mode / quota — session-only */
+    }
+  }, [messages])
 
   // P45 — run the guided walk via the tour runtime (real-data mode: no
   // tutorial cookie, no demo data — startGuidedWalk guards all of that).
@@ -103,6 +145,9 @@ export function useAssistantChat() {
     setSending(true)
     setStatusLabel(null)
     setPendingAction(null)
+    setLastError(null)
+    const controller = new AbortController()
+    abortRef.current = controller
     const nextMessages: ChatMsg[] = [...messages, { role: 'user', text }]
     setMessages(nextMessages)
     setInput('')
@@ -110,6 +155,7 @@ export function useAssistantChat() {
       const res = await fetch('/api/ai/assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           message: text,
           history: messages.slice(-8).map((m) => ({ role: m.role, text: m.text.slice(0, 1500) })),
@@ -121,7 +167,7 @@ export function useAssistantChat() {
         const json = await res.json().catch(() => ({}))
         setMessages(messages)
         setInput(text)
-        toast.error(typeof json.error === 'string' ? json.error : "The assistant couldn't respond — try again.")
+        setLastError({ text, message: typeof json.error === 'string' ? json.error : "The assistant couldn't respond." })
         return
       }
 
@@ -164,7 +210,7 @@ export function useAssistantChat() {
       if (out.streamError || !fd) {
         setMessages(messages)
         setInput(text)
-        toast.error(out.streamError ?? "The assistant couldn't respond — try again.")
+        setLastError({ text, message: out.streamError ?? "The assistant couldn't respond." })
         return
       }
       const answer = typeof fd.answer === 'string' ? fd.answer : '…'
@@ -177,14 +223,24 @@ export function useAssistantChat() {
       if (g && typeof g.title === 'string' && Array.isArray(g.steps) && g.steps.length > 0) {
         setActiveGuide(g)
       }
-    } catch {
+    } catch (e) {
       setMessages(messages)
       setInput(text)
-      toast.error('Network error — try again.')
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        // User pressed Stop — quiet restore, no error bubble.
+      } else {
+        setLastError({ text, message: 'Network error.' })
+      }
     } finally {
+      abortRef.current = null
       setSending(false)
       setStatusLabel(null)
     }
+  }
+
+  /** P46 — cancel the in-flight turn (Stop button). */
+  const stop = () => {
+    abortRef.current?.abort()
   }
 
   const runAction = async () => {
@@ -246,9 +302,11 @@ export function useAssistantChat() {
     expired,
     activeGuide,
     statusLabel,
+    lastError,
     model,
     setModel,
     send,
+    stop,
     runAction,
     logRef,
     textareaRef,

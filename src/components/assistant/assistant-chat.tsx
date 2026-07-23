@@ -55,7 +55,7 @@ export function AssistantChat({
 }) {
   const {
     messages, input, setInput, sending, pendingAction, setPendingAction,
-    confirming, expired, model, setModel, statusLabel, send, runAction, logRef, textareaRef,
+    confirming, expired, model, setModel, statusLabel, lastError, send, stop, runAction, logRef, textareaRef,
   } = chat
 
   return (
@@ -98,6 +98,21 @@ export function AssistantChat({
               <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
               {/* P46 — live status line streamed from the server, never a bare spinner */}
               <span aria-live="polite">{statusLabel ?? 'Thinking…'}</span>
+            </div>
+          </div>
+        )}
+        {/* P46 — inline error with one-tap Retry (typed message already restored) */}
+        {lastError && !sending && (
+          <div className="flex justify-start">
+            <div className="rounded-2xl rounded-bl-md bg-amber-50 border border-amber-200 text-amber-800 px-3.5 py-2 text-sm" role="alert">
+              {lastError.message}
+              <button
+                type="button"
+                onClick={() => void send(lastError.text)}
+                className="ml-2 font-semibold text-[#8B2E4A] underline underline-offset-2"
+              >
+                Retry
+              </button>
             </div>
           </div>
         )}
@@ -155,19 +170,38 @@ export function AssistantChat({
           />
           <div className="absolute right-2 top-2 flex items-center gap-1.5">
             {composerAccessory}
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={sending || input.trim().length === 0}
-              aria-label="Send"
-              className="w-8 h-8 rounded-full bg-[#8B2E4A] text-white flex items-center justify-center disabled:opacity-40 hover:bg-[#72253C] transition-colors"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
+            {sending ? (
+              /* P46 — Stop cancels the in-flight turn and restores the message */
+              <button
+                type="button"
+                onClick={stop}
+                aria-label="Stop"
+                title="Stop"
+                className="w-8 h-8 rounded-full bg-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-300 transition-colors"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="5" y="5" width="14" height="14" rx="2" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void send()}
+                disabled={input.trim().length === 0}
+                aria-label="Send"
+                className="w-8 h-8 rounded-full bg-[#8B2E4A] text-white flex items-center justify-center disabled:opacity-40 hover:bg-[#72253C] transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            )}
           </div>
+          {/* P46 — silent 600-char cap gets a visible counter near the limit */}
+          {input.length >= 500 && (
+            <span className="absolute right-3 -bottom-0.5 text-[10px] text-stone-400 tabular-nums">{input.length}/600</span>
+          )}
         </div>
         <div className="mt-1.5 flex items-center gap-2">
           {/* P42 — Quick/Smart model pill (per-device, ss_assistant_model) */}

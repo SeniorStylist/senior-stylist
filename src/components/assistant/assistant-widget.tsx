@@ -9,6 +9,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useDialogFocus } from '@/hooks/use-dialog-focus'
+import { useVisualViewportOcclusion } from '@/hooks/use-visual-viewport'
 import { isNativeApp } from '@/lib/detect-device'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { useToast } from '@/components/ui/toast'
@@ -58,6 +60,20 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
   useEffect(() => {
     if (activeGuide) setOpen(false)
   }, [activeGuide])
+
+  // P46 — desktop popover a11y: focus trap + Escape (mobile BottomSheet
+  // already has both). Keyboard occlusion shrinks the mobile panel height.
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  useDialogFocus(panelRef, open && !isMobile)
+  useEffect(() => {
+    if (!open || isMobile) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, isMobile])
+  const occlusion = useVisualViewportOcclusion()
 
   const [listening, setListening] = useState(false)
   const [micDenied, setMicDenied] = useState(false)
@@ -199,7 +215,11 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
     <AssistantChat
       chat={chat}
       chips={chips}
-      heightStyle={{ height: isMobile ? '70dvh' : '480px' }}
+      heightStyle={{
+        // P46 — shrink with the keyboard (the sheet's own maxHeight shrinks;
+        // a hard 70dvh inside it clipped the composer when typing).
+        height: isMobile ? `min(70dvh, calc(100dvh - ${occlusion + 140}px))` : '480px',
+      }}
       placeholder={listening ? 'Listening… speak now' : 'Ask, or say what to do…'}
       composerAccessory={micButton}
     />
@@ -222,7 +242,7 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
         className={
           activeGuide
             ? 'fixed z-[9005] w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-lg)] opacity-100 active:scale-95 transition-all duration-200'
-            : 'fixed z-30 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-md)] opacity-45 hover:opacity-100 focus-visible:opacity-100 active:scale-95 transition-all duration-200'
+            : 'fixed z-30 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-[var(--shadow-md)] opacity-70 hover:opacity-100 focus-visible:opacity-100 active:scale-95 transition-all duration-200'
         }
         style={{
           right: '0.875rem',
@@ -248,9 +268,11 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
           <>
             <div className="fixed inset-0 z-[85]" onClick={() => setOpen(false)} aria-hidden />
             <div
+              ref={panelRef}
               className="fixed z-[86] w-[400px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-xl)] overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-[160ms]"
               style={{ right: '1.25rem', bottom: 'calc(var(--app-floating-bottom) + 64px)' }}
               role="dialog"
+              aria-modal="true"
               aria-label="AI assistant"
             >
               <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-stone-100">
