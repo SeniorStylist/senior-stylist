@@ -12,6 +12,8 @@ import { runAssistant, MODEL_IDS, type GeminiTransport } from '../src/lib/ai-ass
 import { buildGroundingDigest } from '../src/lib/ai-assistant/grounding'
 import { segmentMessage, isAllowedAppLink } from '../src/lib/ai-assistant/app-links'
 import { validateWalkSteps, GUIDE_ANCHORS, buildAnchorVocab } from '../src/lib/ai-assistant/guide-anchors'
+import { statusLabelFor, hasStatusLabel } from '../src/lib/ai-assistant/status-labels'
+import { chipsForPage } from '../src/components/assistant/assistant-chat'
 
 let failures = 0
 function check(label: string, cond: boolean) {
@@ -425,6 +427,49 @@ async function main() {
     ])
     const gr = await runAssistant(baseCtx, 'guide me', [], [fakeGuideTool], 'fast', gt.transport)
     check('guide captured through the loop (first wins)', gr?.guide?.title === 'Walk A' && gr?.answer === 'Going!')
+  }
+
+  // ---- P46 — streaming status, page chips, growth tools ----
+  console.log('\n[1g] P46 — status labels + onEvent + chips + growth tools')
+  {
+    check('every registered tool has a friendly status label', ALL_TOOLS.every((t) => hasStatusLabel(t.name)))
+    check('unknown tool falls back to the default label', statusLabelFor('made_up_tool') === 'Working on it…')
+
+    // onEvent fires once per tool dispatch with the friendly label.
+    const events: string[] = []
+    const et = scriptedTransport([
+      () => call('get_schedule', { date: '2026-07-23' }),
+      () => text('Your day is clear.'),
+    ])
+    const er = await runAssistant(baseCtx, 'my day?', [], [fakeRead], 'fast', et.transport, (e) => {
+      if (e.type === 'status') events.push(e.label)
+    })
+    check('onEvent streamed the tool status label', events.length === 1 && events[0] === 'Checking the schedule…' && er?.answer === 'Your day is clear.')
+
+    // Page-aware chips: prefix matching, specific-before-general, empty fallbacks.
+    check('/log gets scan-a-sheet chips', chipsForPage('/log').some((c) => c.toLowerCase().includes('scan')))
+    check('/billing/monthly beats the /billing prefix', chipsForPage('/billing/monthly')[0] !== chipsForPage('/billing')[0])
+    check('unknown page + null → no page chips', chipsForPage('/nowhere').length === 0 && chipsForPage(null).length === 0)
+
+    // New industry tools: role filters.
+    const names46 = (c: AssistantCtx) => toolsForCtx(c).map((t) => t.name)
+    const admin46 = names46(baseCtx)
+    const staff46 = names46({ ...baseCtx, role: 'facility_staff' })
+    const stylist46 = names46({ ...baseCtx, role: 'stylist', stylistId: 's1', stylistName: 'S' })
+    const bookkeeper46 = names46({ ...baseCtx, role: 'bookkeeper' })
+    const master46 = names46({ ...baseCtx, role: 'master' })
+    check('get_rebooking_candidates: admin/staff/master only',
+      [admin46, staff46, master46].every((s) => s.includes('get_rebooking_candidates'))
+      && !stylist46.includes('get_rebooking_candidates') && !bookkeeper46.includes('get_rebooking_candidates'))
+    check('get_schedule_gaps: admin/staff/stylist/master, NOT bookkeeper',
+      [admin46, staff46, stylist46, master46].every((s) => s.includes('get_schedule_gaps'))
+      && !bookkeeper46.includes('get_schedule_gaps'))
+
+    // Growth routing hint rides the preamble when the tools are present.
+    const ht = scriptedTransport([() => text('ok')])
+    await runAssistant(baseCtx, 'hi', [], toolsForCtx(baseCtx), 'fast', ht.transport)
+    const hp = (ht.calls[0] as { contents: Array<{ parts: Array<{ text?: string }> }> }).contents[0].parts[0].text ?? ''
+    check('preamble routes gaps + rebooking + morning brief', hp.includes('get_schedule_gaps') && hp.includes('get_rebooking_candidates') && hp.includes('morning brief'))
   }
 
   // 3a — plain text answer

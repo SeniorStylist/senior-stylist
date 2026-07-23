@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.5',
+    date: '2026-07-23',
+    title: 'Watch It Work — A Smarter, Friendlier Assistant',
+    items: [
+      'No more frozen "Thinking…" — the assistant now narrates as it works: "Checking the schedule…", "Crunching the numbers…", "Building your walkthrough…" swap live while it runs',
+      'It never forgets your chat: the conversation survives page reloads and facility switches, and there\'s now a Stop button plus one-tap Retry when something fails',
+      'The suggestion chips adapt to where you are — on the Daily Log you\'ll see "Help me scan a sheet", on Billing "Who owes the most?" — and they stay visible while you chat',
+      'New "☀️ My morning brief" chip: today\'s schedule, anything unpaid, and who\'s due for a visit in one tight summary',
+      'Ask "who\'s due for a visit?" or "who has open time today?" — the assistant now finds residents overdue by their own visit rhythm and open gaps in stylists\' days, and offers to book them together',
+      'Rate any answer 👍/👎 — feedback goes straight to the owner so the assistant keeps getting better; and a new "Meet your AI assistant" tour lives in the Help Center',
+      'Cancelled the wrong appointment through the AI? The success toast now has one-tap Undo',
+    ],
+  },
+  {
     version: '5.4',
     date: '2026-07-23',
     title: 'Your AI Coworker — It Walks You There',
