@@ -18,13 +18,15 @@
 //   second Gemini fetches).
 
 import { db } from '@/db'
-import { sql, and, eq, or, inArray, lt, gt, lte, gte, ne } from 'drizzle-orm'
+import { sql, and, eq, or, inArray, lt, gt, lte, gte, ne, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   bookings, residents, services, stylists, stylistFacilityAssignments, facilities, residentPreferences,
   stylistAvailability, coverageRequests, qbInvoices, qbPayments, qbUnappliedCredits,
-  waitlistEntries, signupSheetEntries, payPeriods, feedbackSubmissions,
+  waitlistEntries, signupSheetEntries, payPeriods, feedbackSubmissions, assistantMemories,
 } from '@/db/schema'
+import { ensureAssistantMemorySchema } from '@/lib/assistant-memory-ddl'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { fuzzyScore, normalizeWords } from '@/lib/fuzzy'
 import { HELP_GUIDES, scoreGuide, type KbRole } from './help-kb'
 import {
@@ -1194,6 +1196,182 @@ const explainFeature: AssistantTool = {
         hint: 'Answer from this guide in your own words — complete and step-by-step. Keep it in mind for follow-ups like "more detail".',
       },
     }
+  },
+}
+
+// P44 — per-user memory + owner-taught shared instructions. Assistant-
+// INTERNAL state, not business data: these two tools execute server-side
+// directly (the documented exception to propose→confirm — a confirm card
+// would make memory useless). kind stays 'read' so the one-write-per-turn
+// guard and capability line don't apply; safety = own-userId scoping, the
+// 300-char/30-item caps, and the assistantMemory rate bucket.
+const MEMORY_ROLE_NAMES = ['admin', 'facility_staff', 'bookkeeper', 'stylist'] as const
+const MEMORY_CAP_PER_USER = 30
+
+const manageMemory: AssistantTool = {
+  name: 'manage_memory',
+  description:
+    "Save or delete a lasting memory about THIS user — their preferences, habits, how they like things ('prefers money shown by month', 'call them Jo'). Call it whenever they state a lasting preference or say remember/forget, then confirm out loud. Master admin may also pass scope global/facility/role to set standing instructions for the team.",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      action: { type: 'STRING', description: "'remember' or 'forget'" },
+      content: { type: 'STRING', description: 'The memory — short, general, ≤300 chars. For forget: words matching the memory to remove.' },
+      scope: { type: 'STRING', description: "Master admin only: 'global' (everyone), 'facility' (the current facility), or 'role'. Omit for personal memory." },
+      roleName: { type: 'STRING', description: "With scope 'role': admin, facility_staff, bookkeeper, or stylist." },
+    },
+    required: ['action', 'content'],
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist', 'master'],
+  needsFacility: false,
+  async execute(ctx, args) {
+    const action = args.action
+    const content = typeof args.content === 'string' ? args.content.trim().slice(0, 300) : ''
+    if (action !== 'remember' && action !== 'forget') return err("action must be 'remember' or 'forget'.")
+    if (!content) return err('Give the memory content.')
+
+    const rl = await checkRateLimit('assistantMemory', ctx.userId)
+    if (!rl.ok) return err('Memory changes are rate-limited — try again in a bit.')
+    await ensureAssistantMemorySchema()
+
+    if (action === 'forget') {
+      const own = await db.query.assistantMemories.findMany({
+        where: and(
+          eq(assistantMemories.scope, 'user'),
+          eq(assistantMemories.userId, ctx.userId),
+          eq(assistantMemories.status, 'active'),
+        ),
+        columns: { id: true, content: true },
+      })
+      let pool = own.map((m) => ({ id: m.id, name: m.content }))
+      if (ctx.role === 'master') {
+        const shared = await db.query.assistantMemories.findMany({
+          where: and(ne(assistantMemories.scope, 'user'), eq(assistantMemories.status, 'active')),
+          columns: { id: true, content: true },
+        })
+        pool = pool.concat(shared.map((m) => ({ id: m.id, name: m.content })))
+      }
+      if (pool.length === 0) return err('There are no saved memories to forget.')
+      const { scored } = rankByName(pool, content)
+      if (!scored[0] || scored[0].score < 0.4) {
+        return err('No saved memory matches that.', { memories: pool.slice(0, 10).map((p) => p.name) })
+      }
+      await db.delete(assistantMemories).where(eq(assistantMemories.id, scored[0].item.id))
+      return { response: { forgotten: scored[0].item.name, note: 'Confirm to the user that it is forgotten.' } }
+    }
+
+    // remember — masters may write shared scopes directly (owner-taught).
+    const rawScope = typeof args.scope === 'string' ? args.scope.trim() : ''
+    let scope: 'user' | 'global' | 'facility' | 'role' = 'user'
+    let role: string | null = null
+    let facilityId: string | null = null
+    if (ctx.role === 'master' && ['global', 'facility', 'role'].includes(rawScope)) {
+      scope = rawScope as 'global' | 'facility' | 'role'
+      if (scope === 'facility') {
+        if (!ctx.facilityId) return err('Select or name a facility first for a facility-wide memory.')
+        facilityId = ctx.facilityId
+      }
+      if (scope === 'role') {
+        const rn = typeof args.roleName === 'string' ? args.roleName.trim() : ''
+        if (!(MEMORY_ROLE_NAMES as readonly string[]).includes(rn)) {
+          return err(`roleName must be one of: ${MEMORY_ROLE_NAMES.join(', ')}.`)
+        }
+        role = rn
+      }
+    }
+
+    const dupe = await db.query.assistantMemories.findFirst({
+      where: and(
+        eq(assistantMemories.scope, scope),
+        scope === 'user' ? eq(assistantMemories.userId, ctx.userId) : undefined,
+        eq(assistantMemories.status, 'active'),
+        eq(assistantMemories.content, content),
+      ),
+      columns: { id: true },
+    })
+    if (dupe) return { response: { remembered: content, note: 'Already saved — confirm to the user.' } }
+
+    if (scope === 'user') {
+      const existing = await db.query.assistantMemories.findMany({
+        where: and(
+          eq(assistantMemories.scope, 'user'),
+          eq(assistantMemories.userId, ctx.userId),
+          eq(assistantMemories.status, 'active'),
+        ),
+        columns: { id: true },
+        orderBy: [asc(assistantMemories.createdAt)],
+      })
+      if (existing.length >= MEMORY_CAP_PER_USER) {
+        await db.delete(assistantMemories).where(eq(assistantMemories.id, existing[0].id))
+      }
+    }
+
+    await db.insert(assistantMemories).values({
+      userId: ctx.userId,
+      scope,
+      facilityId,
+      role,
+      content,
+      status: 'active',
+      source: scope === 'user' ? 'user_stated' : 'owner',
+    })
+    return {
+      response: {
+        remembered: content,
+        scope,
+        note: scope === 'user'
+          ? 'Saved — acknowledge naturally ("Got it — I\'ll remember that").'
+          : `Saved as a standing ${scope} instruction — every matching user's assistant will follow it from now on.`,
+      },
+    }
+  },
+}
+
+const suggestSharedLearning: AssistantTool = {
+  name: 'suggest_shared_learning',
+  description:
+    'Propose a GENERIC learning that would help OTHER users too (a recurring workflow need, a better way to help a role — e.g. "stylists often want their services logged for them"). It goes to the owner for review and only takes effect if approved. NEVER include resident/family names or any personal data.',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      content: { type: 'STRING', description: 'The generic learning, ≤300 chars. No names, no personal data.' },
+      suggestedScope: { type: 'STRING', description: "'global' (everyone), 'facility' (this facility), or 'role' (this kind of user). Default global." },
+      roleName: { type: 'STRING', description: "With scope 'role': admin, facility_staff, bookkeeper, or stylist. Default: the current user's role." },
+    },
+    required: ['content'],
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist'], // masters write directly via manage_memory
+  needsFacility: false,
+  async execute(ctx, args) {
+    const content = typeof args.content === 'string' ? args.content.trim().slice(0, 300) : ''
+    if (!content) return err('Give the learning content.')
+    const rawScope = typeof args.suggestedScope === 'string' ? args.suggestedScope.trim() : ''
+    const scope = ['global', 'facility', 'role'].includes(rawScope) ? rawScope : 'global'
+    const rn = typeof args.roleName === 'string' ? args.roleName.trim() : ''
+    const role = scope === 'role'
+      ? ((MEMORY_ROLE_NAMES as readonly string[]).includes(rn) ? rn : ctx.role)
+      : null
+
+    const rl = await checkRateLimit('assistantMemory', ctx.userId)
+    if (!rl.ok) return err('Suggestions are rate-limited — try again later.')
+    await ensureAssistantMemorySchema()
+
+    const pending = await db.$count(assistantMemories, eq(assistantMemories.status, 'proposed'))
+    if (pending >= 20) {
+      return { response: { skipped: 'The owner review queue is full — do not propose more for now.' } }
+    }
+    await db.insert(assistantMemories).values({
+      userId: ctx.userId,
+      scope,
+      facilityId: ctx.facilityId,
+      role,
+      content,
+      status: 'proposed',
+      source: 'ai_observed',
+    })
+    return { response: { proposed: true, note: 'Sent to the owner for review — it takes effect only if they approve it. No need to mention this unless relevant.' } }
   },
 }
 
@@ -2506,6 +2684,8 @@ export const ALL_TOOLS: AssistantTool[] = [
   getPayrollSummary,
   getFeedbackInbox,
   explainFeature,
+  manageMemory,
+  suggestSharedLearning,
   createSign,
   createStatement,
   bookAppointment,
@@ -2545,6 +2725,7 @@ export const toolNameSchema = z.enum([
   'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
   'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
   'explain_feature', 'create_sign', 'create_statement',
+  'manage_memory', 'suggest_shared_learning',
   'book_appointment', 'cancel_appointment', 'reschedule_appointment',
   'update_appointment', 'create_resident', 'update_resident',
   'set_stylist_hours', 'add_time_off', 'decide_time_off',

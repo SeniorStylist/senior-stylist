@@ -110,6 +110,11 @@ function buildPreamble(ctx: AssistantCtx, tools: AssistantTool[], history: Assis
   const moneyHint = toolNames.has('get_business_numbers')
     ? `\n- Money questions (owed, revenue, balances, collections, "numbers") → get_business_numbers${ctx.facilityId ? ` (covers ${facLabel})` : ''}${toolNames.has('get_facility_numbers') ? ', or get_facility_numbers for a specific named facility' : ''}. Who-is-coming/schedule questions → get_schedule. A person's details → find_resident.${toolNames.has('get_resident_ledger') ? ' "How much does X owe" / invoice-level detail → get_resident_ledger.' : ''}`
     : ''
+  // P44 — memory teaching: personal remember/forget for everyone; masters
+  // teach the team directly; others propose shared learnings for owner review.
+  const memoryHint = toolNames.has('manage_memory')
+    ? `\n- When the user states a LASTING preference, habit, or correction ("always…", "I prefer…", "call me…", "remember…"), call manage_memory to save it and acknowledge naturally. When they say forget/stop doing X, forget it. Don't save one-off details or anything sensitive.${ctx.role === 'master' ? ' As the owner you can also pass scope global/facility/role — a standing instruction every matching user\'s assistant follows immediately.' : toolNames.has('suggest_shared_learning') ? ' When you learn something that would clearly help OTHER users too (a recurring workflow need, a better way to help a role), ALSO call suggest_shared_learning — keep it GENERIC (never resident/family names or personal data); the owner reviews it before it takes effect.' : ''}`
+    : ''
   // P42 — document creation hint (signs, printable statements/invoices).
   const createHint = toolNames.has('create_sign') || toolNames.has('create_statement')
     ? `\n- "Make/create a sign or poster" → create_sign${toolNames.has('create_statement') ? '; "create/print an invoice, statement, or bill" → create_statement (a printable document from real billing data — it never creates billing records or sends anything)' : ''}. Put returned links on their OWN line — the app renders them as open buttons. A new service on the menu → create_service.`
@@ -137,7 +142,7 @@ Domain vocabulary: codes like F177 are FACILITY codes (buildings/salons), never 
 Right now at the facility it is ${weekday} ${nowLocal} (${ctx.timezone}). Resolve every relative date/time ("tomorrow at 10", "next Tuesday") against this, in the facility timezone. Times without am/pm default to business hours (7:00–18:59). If a time or name is genuinely ambiguous, ask instead of guessing.
 
 Rules:
-- Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability. If a tool returns an error, adapt (try another tool or ask) — don't just repeat the error.${slotHint}${moneyHint}${createHint}
+- Use the provided tools for ANY facts (schedule, residents, services, money). Never invent names, numbers, or availability. If a tool returns an error, adapt (try another tool or ask) — don't just repeat the error.${slotHint}${moneyHint}${createHint}${memoryHint}
 - All *Cents values are integer US cents — present money as dollars ($123.45).
 ${writeTools ? '- Booking/cancelling/moving an appointment only PROPOSES the change — the user must tap Confirm on screen. Never claim an action is done; say it is ready to confirm.\n- When a resident name has no exact match, offer the close matches ("Did you mean Adele Cohen in Room 204?") AND ask whether it\'s a brand-new resident. Only pass createNewResident: true after the user confirms the person is new.\n' : ''}- You cannot do anything the user could not do themselves in the app. If asked for something outside your tools, say which page of the app has it (Calendar, Daily Log, Residents, Billing, Analytics, Payroll, Settings).
 - "How do I…" / "where is…" / "what does X do" / "explain…" / "what can you do" → call explain_feature and answer from the guide COMPLETELY, step by step, tailored to this user's role. Never brush off a how-to with just a page name, and when they ask for more detail, go deeper from the guide already in context.

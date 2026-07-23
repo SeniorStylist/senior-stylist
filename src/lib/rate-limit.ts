@@ -42,6 +42,7 @@ type Bucket =
   | 'memoMatchBatch'
   | 'aiAnalyst'
   | 'aiAssistant'
+  | 'assistantMemory'
   | 'portalBulkInvite'
   | 'portalSignup'
   | 'paymentSetup'
@@ -95,6 +96,8 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   memoMatchBatch: { tokens: 5, window: '1 h' },
   aiAnalyst: { tokens: 30, window: '1 h' }, // unused since P40 (analyst route deleted; assistant uses aiAssistant)
   aiAssistant: { tokens: 60, window: '1 h' },
+  assistantMemory: { tokens: 30, window: '1 h' }, // P44 — manage_memory + suggest_shared_learning
+
   portalBulkInvite: { tokens: 5, window: '1 h' },
   portalSignup: { tokens: 5, window: '1 h' },
   paymentSetup: { tokens: 20, window: '1 h' },
