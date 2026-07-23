@@ -3114,3 +3114,34 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   computeOpenSlots, 6-stylist cap, 3 batched queries). Assistant cancel
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
+
+## P47 — Rich answer cards, token streaming, Cmd-K merge + mobile chrome (2026-07-23)
+
+- **Answer cards**: pure `src/lib/ai-assistant/answer-cards.ts` (AnswerCard
+  table/stats/list union, CardEntity resident/stylist ids, caps 3/turn ·
+  8 rows, isAnswerCard validator, per-tool builders). Tools build cards
+  deterministically from their own rows (model never authors one); channel
+  mirrors pendingAction/guide but accumulates: ToolResult.cards →
+  runAssistant cards[] (+`_card` short-prose note on accepting
+  functionResponses) → done.data.cards → ChatMsg.cards (validated on done
+  AND on the restored localStorage blob). Emitters: schedule/ledger/
+  business+facility numbers (topOpenResidentBalances gained residentId)/
+  rebooking/gaps/earnings/payroll. Renderer answer-card.tsx — entity cells
+  tap → openPeek.
+- **Token streaming**: default transport is now `streamGenerateContent
+  ?alt=sse` for every round (parseSseChunk + createStreamAssembler; parts
+  with functionCall/thoughtSignature append WHOLE — the signature contract
+  survives streaming). Events gain token/token_reset; per-round fallback
+  to non-streaming on stream failure. Client streamText renders live
+  typing; done stays authoritative.
+- **Cmd-K merge**: 'open-assistant' CustomEvent (prompt ⇒ auto-send);
+  palette pinned Ask-AI row (index 0; Enter-no-selection picks index 1);
+  palette mounts for all roles except viewer with `canSearchEntities`
+  gating the /api/search fetch (admin/bookkeeper/master); stylist page
+  rows added; sidebar trigger widened.
+- **Mobile chrome**: palette mobile layout (inset-x-3 under safe area);
+  header Search + Sparkle buttons (sparkle = data-tour-mobile
+  "assistant-button"); floating AI bubble hidden on mobile except the
+  guided-walk coworker bubble; feedback bubble unmoved; Debug pill →
+  More-sheet row + header amber pill via 'open-mobile-debug'.
+  Harness 138 checks.

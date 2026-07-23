@@ -7,6 +7,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.6',
+    date: '2026-07-23',
+    title: 'Answers You Can Tap — Live Typing, Smarter Search, Cleaner Mobile',
+    items: [
+      'The assistant now answers with real cards: ask "who owes the most?" or "what\'s today look like?" and you get a clean mini table or tiles under the reply — tap any person\'s name to pop open their profile',
+      'Answers type out word-by-word as the AI writes them — no more waiting for the whole reply to appear at once',
+      'Cmd+K (Ctrl+K) search and the assistant are now one team: type anything in the search palette and pick "✦ Ask the assistant" to send it straight to the AI — and the palette now works for every role',
+      'Your phone got a cleaner top bar: a Search button and the AI sparkle now live in the header next to the bell — no more floating AI bubble covering your content (it still appears as the pulsing guide bubble during walkthroughs)',
+      'Master admin: the mobile Debug button moved off the screen corner into the More menu; the amber Debug pill in the header opens it while you\'re impersonating',
+      'The feedback bubble stayed right where it was',
+    ],
+  },
+  {
     version: '5.5',
     date: '2026-07-23',
     title: 'Watch It Work — A Smarter, Friendlier Assistant',
