@@ -8,6 +8,7 @@ import { useState, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import type { AssistantChatState } from './use-assistant-chat'
 import { segmentMessage } from '@/lib/ai-assistant/app-links'
+import { AssistantAnswerCard } from './answer-card'
 
 export const ASSISTANT_CHIPS: Record<string, string[]> = {
   admin: ['☀️ My morning brief', "What's on the schedule today?", 'Who owes us the most right now?', 'Put Mrs. Smith in the next open slot'],
@@ -140,6 +141,14 @@ export function AssistantChat({
             >
               {m.role === 'model' ? renderModelText(m.text) : m.text}
             </div>
+            {/* P47 — tool-built answer cards (full-width, escape the 85% bubble cap) */}
+            {m.role === 'model' && m.cards && m.cards.length > 0 && (
+              <div className="w-full mt-1.5 space-y-1.5">
+                {m.cards.map((c, j) => (
+                  <AssistantAnswerCard key={j} card={c} />
+                ))}
+              </div>
+            )}
             {/* P46 — thumbs on the latest real answer */}
             {i === lastModelIdx && !sending && (
               <div className="mt-1 ml-1 flex items-center gap-1">

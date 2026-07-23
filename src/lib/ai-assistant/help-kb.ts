@@ -388,6 +388,8 @@ Ask things: "who's on the schedule tomorrow?", "how much does Mrs. Hall owe?", "
 
 Do things (role-permitting): book, move, or cancel appointments ("put her in my next open slot"), mark visits done/paid with tips, add walk-ins and brand-new residents, update rooms and family contacts, set a stylist's weekly hours, file or approve time off, manage the waitlist and sign-up sheet, create or reprice services, send a receipt to the family. The master admin can do all of this for ANY facility by naming it, ask network-wide money questions, reply to feedback, and say "switch me to [facility]".
 
+Data answers come with visual cards — mini tables and tiles under the reply (today's schedule, who owes the most, who's due for a visit). Tap any person's name on a card to pop open their quick profile.
+
 It speaks plain English (typos fine), understands relative times in your facility's timezone, and if a name is close-but-not-quite it asks "did you mean…?". Voice: tap the mic, or use your keyboard's mic key in the app.
 
 It can never do more than your role allows, and it never touches payments, refunds, or bulk sends.`,

@@ -11,10 +11,20 @@ import { useEffect, useRef, useState } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { actionAllowed, type PendingAction, type AssistantActionKind } from '@/lib/ai-assistant/action-allowlist'
 import type { GuidedWalkPayload } from '@/lib/ai-assistant/tools'
+import { isAnswerCard, MAX_CARDS_PER_TURN, type AnswerCard } from '@/lib/ai-assistant/answer-cards'
 
 export interface ChatMsg {
   role: 'user' | 'model'
   text: string
+  /** P47 — tool-built answer cards rendered under the bubble. */
+  cards?: AnswerCard[]
+}
+
+/** P47 — validate an untrusted cards value (done payload / restored blob). */
+function sanitizeCards(v: unknown): AnswerCard[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const cards = v.filter(isAnswerCard).slice(0, MAX_CARDS_PER_TURN)
+  return cards.length > 0 ? cards : undefined
 }
 
 // P46 — conversation persistence: the thread survives reloads (incl. our own
@@ -31,6 +41,7 @@ function loadSavedChat(): ChatMsg[] {
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter((m): m is ChatMsg => !!m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string')
+      .map((m) => ({ role: m.role, text: m.text, cards: sanitizeCards(m.cards) }))
       .slice(-CHAT_MAX)
   } catch {
     return []
@@ -183,6 +194,7 @@ export function useAssistantChat() {
         answer?: unknown
         pendingAction?: PendingAction | null
         guide?: GuidedWalkPayload | null
+        cards?: unknown
       }
       const out: { finalData: DoneData | null; streamError: string | null } = { finalData: null, streamError: null }
       const handleLine = (line: string) => {
@@ -216,7 +228,7 @@ export function useAssistantChat() {
         return
       }
       const answer = typeof fd.answer === 'string' ? fd.answer : '…'
-      setMessages([...nextMessages, { role: 'model', text: answer }])
+      setMessages([...nextMessages, { role: 'model', text: answer, cards: sanitizeCards(fd.cards) }])
       const pa = fd.pendingAction
       if (pa && actionAllowed(pa)) setPendingAction(pa)
       // P45 — a guided walk starts immediately (server already validated the
