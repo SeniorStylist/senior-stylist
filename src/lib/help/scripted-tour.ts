@@ -2,7 +2,7 @@
 // Coexists with the legacy Driver.js engine — only handles the 10 new
 // character-driven tutorials. Lazy-loaded to keep the main bundle clean.
 
-import type { ScriptedTour, ScriptedTourState } from './scripted-tour-types'
+import type { ScriptedStep, ScriptedTour, ScriptedTourState } from './scripted-tour-types'
 import { setScriptedTourActive } from './tour-mode'
 import { setTutorialCookie, clearTutorialCookie } from './tutorial-cookie'
 import { clearPageCache } from '@/lib/offline-session'
@@ -20,6 +20,14 @@ let _activeListenerCleanup: (() => void) | null = null
 let _activeTour: ScriptedTour | null = null
 let _activeState: ScriptedTourState | null = null
 let _setUiState: ((state: { tourId: string; stepIndex: number } | null) => void) | null = null
+
+// P45 — engine mode. 'tutorial' = the classic demo-data tutorials (tutorial
+// cookie + demo tagging + completion tracking). 'real' = an AI-authored
+// GUIDED WALK on the user's REAL data: same spotlight/arrow/auto-fill
+// runtime, but it must NEVER set the tutorial cookie or the scripted-tour
+// write-tagging flag, never wipe the page cache, never refresh the router,
+// never POST complete-tour, and never write tutorial telemetry.
+let _mode: 'tutorial' | 'real' = 'tutorial'
 
 // Called by the ScriptedTourOverlay to register its state setter
 export function registerScriptedTourUI(
@@ -75,6 +83,7 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   // Scripted tours let real writes through (tagged is_demo via the tutorial-mode
   // cookie the server reads) — they do NOT install the legacy write-faking
   // interceptor.
+  _mode = 'tutorial'
   setTutorialCookie()
   setScriptedTourActive(true)
   armPagehideGuard()
@@ -98,6 +107,41 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   saveSessionState()
   _setUiState?.({ tourId, stepIndex: 0 })
   trackStep(tourId, 0, 'shown')
+  wireStep(first, 0)
+}
+
+// P45 — Coworker mode: run an AI-authored guided walk on the user's REAL
+// data. Reuses the entire step/overlay runtime; deliberately skips the
+// catalog lookup, the tutorial cookie, the write-tagging flag, page-cache
+// wipes, seeding, session persistence (a reload simply ends the walk),
+// telemetry, and completion tracking. Ends (either path) by dispatching a
+// 'guided-walk-done' CustomEvent so the assistant chat can restore itself.
+export function startGuidedWalk(walk: { title: string; steps: ScriptedStep[] }) {
+  if (!walk.steps.length) return
+  if (isScriptedTourRunning()) closeTour('abandoned') // cleans up per the CURRENT mode
+  _mode = 'real'
+  _activeTour = {
+    id: 'guided-walk',
+    title: walk.title,
+    scenarioSummary: walk.title,
+    platform: 'desktop', // unused by the runtime — overlay picks mobile/desktop live
+    role: 'any',
+    steps: walk.steps,
+    learnings: [],
+  }
+  _activeState = { tourId: 'guided-walk', stepIndex: 0, scenarioState: {}, startedAt: Date.now() }
+
+  const first = walk.steps[0]
+  if (first?.route && typeof window !== 'undefined') {
+    const resolved = resolveRoute(first.route)
+    if (window.location.pathname !== resolved.split('?')[0]) {
+      const router = getTourRouter()
+      if (router) router.push(resolved)
+      else window.location.href = resolved
+    }
+  }
+
+  _setUiState?.({ tourId: 'guided-walk', stepIndex: 0 })
   wireStep(first, 0)
 }
 
@@ -155,7 +199,7 @@ export function advanceStep() {
   }
 
   _activeState = { ..._activeState, stepIndex: nextIndex }
-  saveSessionState()
+  if (_mode !== 'real') saveSessionState()
 
   const step = _activeTour.steps[nextIndex]
   if (step?.route) {
@@ -165,8 +209,9 @@ export function advanceStep() {
       router.push(resolved)
       // Re-render the destination's server components with the tutorial cookie so
       // demo records surface in SSR-fed lists (the Router Cache may hold a stale
-      // pre-tour snapshot of this route).
-      router.refresh()
+      // pre-tour snapshot of this route). Real-data walks skip the refresh —
+      // there's no cookie flavoring to undo and it would just slow the hop.
+      if (_mode !== 'real') router.refresh()
     } else {
       window.location.href = resolved
     }
@@ -181,7 +226,7 @@ export function retreatStep() {
   if (!_activeTour || !_activeState) return
   const prevIndex = Math.max(0, _activeState.stepIndex - 1)
   _activeState = { ..._activeState, stepIndex: prevIndex }
-  saveSessionState()
+  if (_mode !== 'real') saveSessionState()
   _setUiState?.({ tourId: _activeState.tourId, stepIndex: prevIndex })
   wireStep(_activeTour.steps[prevIndex], prevIndex)
 }
@@ -192,18 +237,27 @@ export function isScriptedTourRunning(): boolean {
 }
 
 export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
+  const wasReal = _mode === 'real'
   if (_activeState) {
     trackStep(_activeState.tourId, _activeState.stepIndex, reason)
   }
   clearActiveListener()
   disarmPagehideGuard()
   setScriptedTourActive(false)
-  clearTutorialCookie()
   clearSessionState()
-  clearPageCache() // drop any demo-rendered pages cached during the tour
+  if (!wasReal) {
+    clearTutorialCookie()
+    clearPageCache() // drop any demo-rendered pages cached during the tour
+  }
   _activeTour = null
   _activeState = null
   _setUiState?.(null)
+  _mode = 'tutorial'
+  if (wasReal) {
+    // P45 — tell the assistant chat the guided walk ended (restores its bubble).
+    window.dispatchEvent(new CustomEvent('guided-walk-done'))
+    return
+  }
   // Real data returns IMMEDIATELY on cancel — demo mode must never outlive the
   // tour (Phase 21 contract). Router Cache may hold demo-flavored RSC snapshots.
   getTourRouter()?.refresh()
@@ -211,6 +265,18 @@ export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
 
 function completeTour() {
   if (!_activeTour || !_activeState) return
+  // P45 — a real-data guided walk ends quietly: no celebration card, no
+  // completion tracking, no cookie/cache/refresh (none were set). The
+  // 'guided-walk-done' event lets the assistant post its own wrap-up.
+  if (_mode === 'real') {
+    clearActiveListener()
+    _activeTour = null
+    _activeState = null
+    _setUiState?.(null)
+    _mode = 'tutorial'
+    window.dispatchEvent(new CustomEvent('guided-walk-done', { detail: { completed: true } }))
+    return
+  }
   const tourId = _activeTour.id
   trackStep(tourId, _activeState.stepIndex, 'completed')
   clearActiveListener()
@@ -395,6 +461,7 @@ export function resumeScriptedTour(): boolean {
 
 // Telemetry — fire-and-forget
 function trackStep(tourId: string, stepIndex: number, action: string) {
+  if (_mode === 'real') return // P45 — guided walks never pollute tutorial telemetry
   fetch('/api/help/track', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
