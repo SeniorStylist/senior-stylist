@@ -11,6 +11,7 @@ import { fromDateTimeLocalInTz } from '../src/lib/time'
 import { runAssistant, MODEL_IDS, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
 import { buildGroundingDigest } from '../src/lib/ai-assistant/grounding'
 import { segmentMessage, isAllowedAppLink } from '../src/lib/ai-assistant/app-links'
+import { validateWalkSteps, GUIDE_ANCHORS, buildAnchorVocab } from '../src/lib/ai-assistant/guide-anchors'
 
 let failures = 0
 function check(label: string, cond: boolean) {
@@ -366,6 +367,64 @@ async function main() {
     const suggestTool = ALL_TOOLS.find((t) => t.name === 'suggest_shared_learning')!
     const noLearn = await suggestTool.execute(baseCtx, { content: '' })
     check('suggest_shared_learning rejects empty content (pure, pre-DB)', typeof noLearn.response.error === 'string')
+
+    // ---- P45 — coworker mode: guide vocabulary + walk validation ----
+    console.log('\n[1f] P45 — guided walks (coworker mode)')
+    check('anchor vocabulary is non-trivial + digest builds', Object.keys(GUIDE_ANCHORS).length >= 60 && buildAnchorVocab().includes('/log'))
+
+    const goodWalk = validateWalkSteps([
+      { action: 'click', anchor: 'nav-daily-log', instruction: 'Tap the Daily Log tab.' },
+      { action: 'point', anchor: 'daily-log-scan-sheet', instruction: 'This camera button opens the scanner.' },
+      { action: 'click', anchor: 'daily-log-scan-sheet', instruction: 'Tap it to open the scanner.' },
+      { action: 'point', anchor: 'ocr-upload-area', instruction: 'Add your photos here.' },
+    ])
+    check('valid walk passes + maps to engine steps', goodWalk.ok && goodWalk.steps.length === 4
+      && goodWalk.steps[0].selector === '[data-tour="nav-daily-log"]' && goodWalk.steps[0].type === 'click')
+    check('anchor route stamped for navigation', goodWalk.ok && goodWalk.steps[1].route === '/log' && !goodWalk.steps[0].route)
+
+    const badAnchor = validateWalkSteps([{ action: 'click', anchor: 'made-up-thing', instruction: 'x' }])
+    check('unknown anchor rejected', !badAnchor.ok && badAnchor.error.includes('unknown anchor'))
+    const noOpener = validateWalkSteps([{ action: 'point', anchor: 'ocr-upload-area', instruction: 'x' }])
+    check('conditional anchor without its opener rejected', !noOpener.ok && noOpener.error.includes('daily-log-scan-sheet'))
+    const noValue = validateWalkSteps([{ action: 'type', anchor: 'residents-search', instruction: 'x' }])
+    check('type step without typeValue rejected', !noValue.ok)
+    const tooMany = validateWalkSteps(Array.from({ length: 13 }, () => ({ action: 'point' as const, instruction: 'x' })))
+    check('walks capped at 12 steps', !tooMany.ok)
+    const badRoute = validateWalkSteps([{ action: 'point', instruction: 'x', route: '/api/evil' }])
+    check('non-app route rejected', !badRoute.ok)
+
+    const walkTool = ALL_TOOLS.find((t) => t.name === 'start_guided_walk')!
+    check('start_guided_walk: every role except viewer', stylistTools.includes('start_guided_walk') && masterTools.includes('start_guided_walk'))
+    const badWalk = await walkTool.execute(baseCtx, { title: 'x', steps: [{ action: 'click', anchor: 'nope', instruction: 'x' }] })
+    check('tool returns vocabulary on rejection', typeof badWalk.response.error === 'string' && typeof badWalk.response.anchorsByPage === 'string')
+    const okWalk = await walkTool.execute(baseCtx, {
+      title: 'Scan a sheet',
+      steps: [{ action: 'click', anchor: 'nav-daily-log', instruction: 'Tap Daily Log.' }],
+    })
+    check('tool returns a guide payload on success', okWalk.response.walkStarted === true && okWalk.guide?.steps.length === 1)
+
+    // Guide flows through the Gemini loop like pendingAction (first wins).
+    const fakeGuideTool: AssistantTool = {
+      name: 'fake_guide',
+      description: 'x',
+      parameters: { type: 'OBJECT', properties: {} },
+      kind: 'read',
+      roles: ['admin'],
+      needsFacility: false,
+      async execute() {
+        return {
+          response: { ok: true },
+          guide: { title: 'Walk A', steps: [{ type: 'highlight', selector: '', title: 't', description: 'd' }] },
+        }
+      },
+    }
+    const gt = scriptedTransport([
+      () => call('fake_guide', {}),
+      () => call('fake_guide', {}),
+      () => text('Going!'),
+    ])
+    const gr = await runAssistant(baseCtx, 'guide me', [], [fakeGuideTool], 'fast', gt.transport)
+    check('guide captured through the loop (first wins)', gr?.guide?.title === 'Walk A' && gr?.answer === 'Going!')
   }
 
   // 3a — plain text answer

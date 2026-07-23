@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.4',
+    date: '2026-07-23',
+    title: 'Your AI Coworker — It Walks You There',
+    items: [
+      'Ask "help me scan this sheet" or "take me to settings" and the assistant doesn\'t just explain — the chat shrinks to a small pulsing bubble, the app moves to the right page, and a spotlight + arrow lands on the exact button, step by step',
+      'It fills fields for you as you go (you watch it type), and YOU perform every tap on the highlighted element — nothing happens without your finger on it, all on your real data',
+      'Tap the pulsing bubble anytime to reopen the chat mid-walk — your whole conversation is still there; close the walk with the ✕ whenever you\'re done',
+      'Works for every role, everywhere: scanning sheets, adding walk-ins and residents, booking, inviting teammates, sending statements, and more',
+    ],
+  },
+  {
     version: '5.3',
     date: '2026-07-23',
     title: 'Your Assistant Remembers You',

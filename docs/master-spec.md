@@ -3071,3 +3071,22 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
 - **Posture**: non-owner permission-escalation claims get a firm brief
   refusal (never simulate elevated access) + continued in-role help.
   Harness 105 checks.
+
+## P45 — Coworker mode: AI-authored guided walks on real data (2026-07-23)
+
+- **Engine**: scripted-tour gains `_mode 'tutorial'|'real'` +
+  `startGuidedWalk({title, steps})` — same spotlight/arrow/auto-fill
+  runtime, ZERO demo side effects (no tutorial cookie, no write-tagging
+  flag, no cache wipes/refreshes, no completion tracking/telemetry/
+  celebration); ends via the `guided-walk-done` CustomEvent.
+- **Vocabulary**: `src/lib/ai-assistant/guide-anchors.ts` — ~75 curated
+  data-tour anchors by route with conditional openers (`requires`) +
+  `validateWalkSteps` (allowlist enforcement, opener ordering, 12-step cap,
+  auto route-stamping). New guidable anchors must be added here.
+- **Tool + channel**: `start_guided_walk` (all roles except viewer) →
+  `ToolResult.guide` → runAssistant (first wins) → route `data.guide` →
+  `use-assistant-chat.activeGuide` → dynamic-import launch. The user
+  performs every click; type-steps auto-fill visibly.
+- **UI**: widget collapses to a pulsing coworker bubble (z-9005, above the
+  spotlight mask, below the walk card); tap reopens the intact chat.
+  33 tools; harness 117 checks.
