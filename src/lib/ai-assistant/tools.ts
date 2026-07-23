@@ -50,6 +50,10 @@ export interface AssistantCtx {
   userName: string | null
   /** P43 — true when the OWNER is previewing another role via Debug Mode. */
   debugPreview: boolean
+  /** P44 — this user's own saved memories (scope 'user', active, newest first). */
+  memories: string[]
+  /** P44 — owner-approved shared instructions (global + this facility + this role). */
+  sharedMemories: string[]
 }
 
 // P40 — the PendingAction shape + per-kind execution rules live in the shared

@@ -32,6 +32,8 @@ const baseCtx: AssistantCtx = {
   stylistName: null,
   userName: 'Josh Gerhardt',
   debugPreview: false,
+  memories: [],
+  sharedMemories: [],
 }
 
 // ---------------------------------------------------------------------------

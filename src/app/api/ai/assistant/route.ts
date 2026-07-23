@@ -8,8 +8,9 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { db } from '@/db'
-import { facilities, stylists, profiles } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { facilities, stylists, profiles, assistantMemories } from '@/db/schema'
+import { and, eq, or, desc } from 'drizzle-orm'
+import { ensureAssistantMemorySchema } from '@/lib/assistant-memory-ddl'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -98,6 +99,8 @@ export async function POST(request: NextRequest) {
         stylistName: null,
         userName,
         debugPreview: false,
+        memories: [],
+        sharedMemories: [],
       }
     } else if (facilityUser) {
       // Regular roles — and the owner's Debug role-preview (faithful).
@@ -130,9 +133,38 @@ export async function POST(request: NextRequest) {
         stylistName,
         userName,
         debugPreview,
+        memories: [],
+        sharedMemories: [],
       }
     } else {
       return Response.json({ error: 'No facility' }, { status: 400 })
+    }
+
+    // P44 — load this user's memory + applicable owner-approved shared
+    // instructions (global / their role / their facility). Best-effort: an
+    // unmigrated table must never break the assistant.
+    try {
+      await ensureAssistantMemorySchema()
+      const memoryRows = await db.query.assistantMemories.findMany({
+        where: and(
+          eq(assistantMemories.status, 'active'),
+          or(
+            and(eq(assistantMemories.scope, 'user'), eq(assistantMemories.userId, user.id)),
+            eq(assistantMemories.scope, 'global'),
+            and(eq(assistantMemories.scope, 'role'), eq(assistantMemories.role, ctx.role)),
+            ctx.facilityId
+              ? and(eq(assistantMemories.scope, 'facility'), eq(assistantMemories.facilityId, ctx.facilityId))
+              : undefined,
+          ),
+        ),
+        columns: { scope: true, content: true },
+        orderBy: [desc(assistantMemories.createdAt)],
+        limit: 60,
+      })
+      ctx.memories = memoryRows.filter((r) => r.scope === 'user').slice(0, 15).map((r) => r.content)
+      ctx.sharedMemories = memoryRows.filter((r) => r.scope !== 'user').slice(0, 10).map((r) => r.content)
+    } catch {
+      /* pre-migration or transient — assistant runs memory-less */
     }
 
     const tools = toolsForCtx(ctx)

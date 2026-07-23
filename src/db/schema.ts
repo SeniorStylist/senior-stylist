@@ -1206,6 +1206,29 @@ export const userPrefs = pgTable('user_prefs', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// P44 — per-user AI assistant memory + owner-approved shared learnings.
+// scope 'user' = private per-user memory (userId = owner, active immediately).
+// scope 'global'|'facility'|'role' = shared instructions: written 'active'
+// directly by the master admin, or 'proposed' by the assistant from any
+// conversation (userId = proposer) pending owner review on /master-admin/
+// feedback. Migration drizzle/0031_assistant_memories.sql; self-bootstrapped
+// by src/lib/assistant-memory-ddl.ts (keep in sync).
+export const assistantMemories = pgTable('assistant_memories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => profiles.id, { onDelete: 'cascade' }),
+  scope: text('scope').notNull().default('user'), // 'user' | 'global' | 'facility' | 'role'
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }),
+  role: text('role'), // for scope 'role' — e.g. 'stylist'
+  content: text('content').notNull(), // <= 300 chars, enforced app-side
+  status: text('status').notNull().default('active'), // 'active' | 'proposed' | 'rejected'
+  source: text('source'), // 'user_stated' | 'ai_observed' | 'owner'
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userActiveIdx: index('assistant_memories_user_active_idx').on(t.userId).where(sql`scope = 'user' AND status = 'active'`),
+  proposedIdx: index('assistant_memories_proposed_idx').on(t.status).where(sql`status = 'proposed'`),
+}))
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const bookingsRelations = relations(bookings, ({ one }) => ({
