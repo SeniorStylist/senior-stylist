@@ -55,7 +55,7 @@ export function AssistantChat({
 }) {
   const {
     messages, input, setInput, sending, pendingAction, setPendingAction,
-    confirming, expired, model, setModel, send, runAction, logRef, textareaRef,
+    confirming, expired, model, setModel, statusLabel, send, runAction, logRef, textareaRef,
   } = chat
 
   return (
@@ -96,7 +96,8 @@ export function AssistantChat({
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-400 px-3.5 py-2 text-sm inline-flex items-center gap-2">
               <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
-              Thinking…
+              {/* P46 — live status line streamed from the server, never a bare spinner */}
+              <span aria-live="polite">{statusLabel ?? 'Thinking…'}</span>
             </div>
           </div>
         )}

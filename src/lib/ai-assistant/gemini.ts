@@ -16,6 +16,7 @@
 import type { AssistantCtx, AssistantTool, PendingAction, GuidedWalkPayload } from './tools'
 import { resolveCtxFacility, stampMasterFacility } from './tools'
 import { buildGroundingDigest } from './grounding'
+import { statusLabelFor } from './status-labels'
 import { toDateTimeLocalInTz } from '@/lib/time'
 
 export interface AssistantTurn {
@@ -194,6 +195,9 @@ export interface AssistantRunResult {
  * captured for the client (later write calls in the same turn are refused).
  * Returns null on unrecoverable model failure.
  */
+/** P46 — live status events streamed to the client while the turn runs. */
+export type AssistantEvent = { type: 'status'; label: string }
+
 export async function runAssistant(
   ctx: AssistantCtx,
   message: string,
@@ -201,6 +205,7 @@ export async function runAssistant(
   tools: AssistantTool[],
   model: AssistantModelChoice = 'fast',
   transport?: GeminiTransport,
+  onEvent?: (e: AssistantEvent) => void,
 ): Promise<AssistantRunResult | null> {
   const apiKey = process.env.GEMINI_API_KEY
   const send = transport ?? (apiKey ? defaultTransport(apiKey, resolveModelId(model)) : null)
@@ -258,6 +263,8 @@ export async function runAssistant(
     for (const part of functionCalls) {
       const call = part.functionCall!
       const tool = tools.find((t) => t.name === call.name)
+      // P46 — surface what we're doing (never a bare spinner)
+      if (tool) onEvent?.({ type: 'status', label: statusLabelFor(call.name) })
       let response: Record<string, unknown>
       if (!tool) {
         response = { error: `Unknown tool "${call.name}".` }

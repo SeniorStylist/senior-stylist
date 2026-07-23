@@ -59,6 +59,8 @@ export function useAssistantChat() {
   const [confirming, setConfirming] = useState(false)
   // P45 — coworker mode: a server-validated guided walk to run on-screen.
   const [activeGuide, setActiveGuide] = useState<GuidedWalkPayload | null>(null)
+  // P46 — live status line streamed from the server while a turn runs.
+  const [statusLabel, setStatusLabel] = useState<string | null>(null)
   const [model, setModelState] = useState<AssistantModelChoice>(loadModelPref)
   const setModel = (m: AssistantModelChoice) => {
     setModelState(m)
@@ -99,6 +101,7 @@ export function useAssistantChat() {
     const text = (raw ?? input).trim()
     if (!text || sending) return
     setSending(true)
+    setStatusLabel(null)
     setPendingAction(null)
     const nextMessages: ChatMsg[] = [...messages, { role: 'user', text }]
     setMessages(nextMessages)
@@ -113,21 +116,64 @@ export function useAssistantChat() {
           model,
         }),
       })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        // keep the typed message recoverable
+      if (!res.ok || !res.body) {
+        // Pre-stream failures (auth/rate-limit/validation) stay plain JSON.
+        const json = await res.json().catch(() => ({}))
         setMessages(messages)
         setInput(text)
         toast.error(typeof json.error === 'string' ? json.error : "The assistant couldn't respond — try again.")
         return
       }
-      const answer = typeof json.data?.answer === 'string' ? json.data.answer : '…'
+
+      // P46 — NDJSON stream: {type:'status',label} lines while the assistant
+      // works (rendered live in the thinking bubble), then one terminal
+      // {type:'done',data} or {type:'error',error} line.
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      interface DoneData {
+        answer?: unknown
+        pendingAction?: PendingAction | null
+        guide?: GuidedWalkPayload | null
+      }
+      const out: { finalData: DoneData | null; streamError: string | null } = { finalData: null, streamError: null }
+      const handleLine = (line: string) => {
+        if (!line) return
+        try {
+          const evt = JSON.parse(line) as { type?: string; label?: string; data?: DoneData; error?: string }
+          if (evt.type === 'status' && typeof evt.label === 'string') setStatusLabel(evt.label)
+          else if (evt.type === 'done') out.finalData = evt.data ?? null
+          else if (evt.type === 'error') out.streamError = typeof evt.error === 'string' ? evt.error : 'error'
+        } catch {
+          /* partial line — ignore */
+        }
+      }
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let nl: number
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+          handleLine(buffer.slice(0, nl).trim())
+          buffer = buffer.slice(nl + 1)
+        }
+      }
+      handleLine(buffer.trim())
+
+      const fd = out.finalData
+      if (out.streamError || !fd) {
+        setMessages(messages)
+        setInput(text)
+        toast.error(out.streamError ?? "The assistant couldn't respond — try again.")
+        return
+      }
+      const answer = typeof fd.answer === 'string' ? fd.answer : '…'
       setMessages([...nextMessages, { role: 'model', text: answer }])
-      const pa = json.data?.pendingAction as PendingAction | null | undefined
+      const pa = fd.pendingAction
       if (pa && actionAllowed(pa)) setPendingAction(pa)
       // P45 — a guided walk starts immediately (server already validated the
       // steps against the anchor allowlist).
-      const g = json.data?.guide as GuidedWalkPayload | null | undefined
+      const g = fd.guide
       if (g && typeof g.title === 'string' && Array.isArray(g.steps) && g.steps.length > 0) {
         setActiveGuide(g)
       }
@@ -137,6 +183,7 @@ export function useAssistantChat() {
       toast.error('Network error — try again.')
     } finally {
       setSending(false)
+      setStatusLabel(null)
     }
   }
 
@@ -198,6 +245,7 @@ export function useAssistantChat() {
     confirming,
     expired,
     activeGuide,
+    statusLabel,
     model,
     setModel,
     send,

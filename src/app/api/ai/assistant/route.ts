@@ -168,15 +168,60 @@ export async function POST(request: NextRequest) {
     }
 
     const tools = toolsForCtx(ctx)
-    const result = await runAssistant(ctx, message, (history ?? []) as AssistantTurn[], tools, model)
-    if (!result) {
-      return Response.json(
-        { error: "The assistant couldn't respond just now — try again in a moment." },
-        { status: 502 },
-      )
-    }
 
-    return Response.json({ data: { answer: result.answer, pendingAction: result.pendingAction, guide: result.guide } })
+    // P46 — stream NDJSON so the client can show live status lines
+    // ("Crunching the numbers…") instead of a frozen spinner. Protocol:
+    // one JSON object per line — {type:'status',label} while working, then
+    // exactly one terminal line: {type:'done',data:{answer,pendingAction,
+    // guide}} or {type:'error',error}. Auth/rate-limit/ctx all resolved
+    // BEFORE the stream starts (above), so failures there stay plain JSON.
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const emit = (obj: unknown) => {
+          try {
+            controller.enqueue(encoder.encode(`${JSON.stringify(obj)}\n`))
+          } catch {
+            /* client went away mid-stream */
+          }
+        }
+        try {
+          const result = await runAssistant(
+            ctx,
+            message,
+            (history ?? []) as AssistantTurn[],
+            tools,
+            model,
+            undefined,
+            (e) => emit(e),
+          )
+          if (!result) {
+            emit({ type: 'error', error: "The assistant couldn't respond just now — try again in a moment." })
+          } else {
+            emit({
+              type: 'done',
+              data: { answer: result.answer, pendingAction: result.pendingAction, guide: result.guide },
+            })
+          }
+        } catch (err) {
+          console.error('POST /api/ai/assistant stream error:', err)
+          emit({ type: 'error', error: 'Internal server error' })
+        } finally {
+          try {
+            controller.close()
+          } catch {
+            /* already closed */
+          }
+        }
+      },
+    })
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Accel-Buffering': 'no',
+      },
+    })
   } catch (err) {
     console.error('POST /api/ai/assistant error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
