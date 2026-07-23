@@ -794,6 +794,200 @@ const findOpenSlots: AssistantTool = {
   },
 }
 
+// P46-C5 — industry tools: rebooking surfacing + gap-filling (the two
+// pure-software wins from the salon-AI research: Mangomint-style "not seen
+// in N weeks" + Boulevard-style "fill the calendar").
+
+const getRebookingCandidates: AssistantTool = {
+  name: 'get_rebooking_candidates',
+  description:
+    "Residents DUE for a visit based on their own visit rhythm (median gap between completed visits, or the family's chosen frequency) who have NO future booking. Use for \"who's due / who should we rebook\" and morning briefs; pair each with find_open_slots + book_appointment.",
+  parameters: { type: 'OBJECT', properties: {} },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'master'],
+  needsFacility: true,
+  async execute(ctx) {
+    // Same cadence SQL as the dashboard Due-for-Visit panel — one source.
+    const { getDueForVisit } = await import('@/lib/dashboard-panels')
+    const rows = await getDueForVisit(ctx.facilityId!)
+    if (rows.length === 0) {
+      return {
+        response: {
+          candidates: [],
+          note: 'No one is overdue right now — everyone with a visit rhythm is either up to date or already booked.',
+        },
+      }
+    }
+    const svcIds = [...new Set(rows.map((r) => r.suggestedServiceId).filter((id): id is string => !!id))]
+    const svcRows = svcIds.length
+      ? await db.query.services.findMany({ where: inArray(services.id, svcIds), columns: { id: true, name: true } })
+      : []
+    const svcName = new Map(svcRows.map((s) => [s.id, s.name]))
+    return {
+      response: {
+        candidates: rows.map((r) => ({
+          resident: r.name,
+          room: r.roomNumber,
+          lastVisit: formatDateInTz(new Date(r.lastVisit), ctx.timezone, { month: 'short', day: 'numeric' }),
+          daysSinceLastVisit: r.daysSinceLastVisit,
+          usualCadenceDays: r.usualCadenceDays,
+          usualService: (r.suggestedServiceId && svcName.get(r.suggestedServiceId)) || null,
+        })),
+        note: 'Offer to book them: find_open_slots for a stylist, then book_appointment with the usual service.',
+      },
+    }
+  },
+}
+
+const getScheduleGaps: AssistantTool = {
+  name: 'get_schedule_gaps',
+  description:
+    "Open (idle) blocks in stylists' schedules for a date — working hours with no booking. Use for \"who has open time / gaps today / fill the calendar\"; pair the gaps with get_rebooking_candidates to suggest who to book into them. Stylists see only their own gaps.",
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      date: { type: 'STRING', description: 'Facility-local date YYYY-MM-DD. Default: today.' },
+      stylistName: { type: 'STRING', description: 'Optional: only this stylist.' },
+    },
+  },
+  kind: 'read',
+  roles: ['admin', 'facility_staff', 'stylist', 'master'],
+  needsFacility: true,
+  async execute(ctx, args) {
+    const date =
+      typeof args.date === 'string' && DATE_RE.test(args.date)
+        ? args.date
+        : (() => {
+            const p = getLocalParts(new Date(), ctx.timezone)
+            return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+          })()
+    const range = dayRangeInTimezone(date, ctx.timezone)
+    if (!range) return err('That date is not valid.')
+
+    // Whose schedules — stylists are pinned to themselves.
+    let roster: Array<{ id: string; name: string }>
+    if (ctx.role === 'stylist') {
+      if (!ctx.stylistId) {
+        return err("Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team.")
+      }
+      roster = [{ id: ctx.stylistId, name: ctx.stylistName ?? 'you' }]
+    } else {
+      roster = await facilityRoster(ctx.facilityId!)
+      const named = typeof args.stylistName === 'string' ? args.stylistName.trim() : ''
+      if (named) {
+        const st = rankByName(roster, named)
+        if (st.scored.length === 0 || st.scored[0].score < 0.6) {
+          return err(`No stylist matching "${named}" here.`, { stylists: roster.map((s) => s.name) })
+        }
+        roster = [st.scored[0].item]
+      }
+      roster = roster.slice(0, 6) // max:1 pool — cap the scan
+    }
+    if (roster.length === 0) return err('No stylists work at this facility yet.')
+    const ids = roster.map((r) => r.id)
+
+    // Three batched queries for the whole roster (never per-stylist loops).
+    const allWindows = await db.query.stylistAvailability.findMany({
+      where: and(
+        inArray(stylistAvailability.stylistId, ids),
+        eq(stylistAvailability.facilityId, ctx.facilityId!),
+        eq(stylistAvailability.active, true),
+      ),
+      columns: { stylistId: true, dayOfWeek: true, startTime: true, endTime: true },
+    })
+    const busyRows = await db.query.bookings.findMany({
+      where: and(
+        eq(bookings.facilityId, ctx.facilityId!),
+        inArray(bookings.stylistId, ids),
+        eq(bookings.active, true),
+        or(eq(bookings.status, 'scheduled'), eq(bookings.status, 'completed')),
+        gt(bookings.endTime, range.start),
+        lt(bookings.startTime, range.end),
+      ),
+      columns: { stylistId: true, startTime: true, endTime: true },
+      limit: 500,
+    })
+    const offIds = new Set<string>()
+    try {
+      const coverage = await db.query.coverageRequests.findMany({
+        where: and(
+          inArray(coverageRequests.stylistId, ids),
+          inArray(coverageRequests.status, ['open', 'filled']),
+          lte(coverageRequests.startDate, date),
+          gte(coverageRequests.endDate, date),
+        ),
+        columns: { stylistId: true },
+      })
+      for (const c of coverage) offIds.add(c.stylistId)
+    } catch { /* coverage table issues never block gap search */ }
+
+    const now = Date.now()
+    const gaps: Array<{ stylist: string; blocks: Array<{ from: string; to: string; minutes: number }> }> = []
+    const fullyBooked: string[] = []
+    const notWorking: string[] = []
+    for (const st of roster) {
+      const windows = allWindows.filter((w) => w.stylistId === st.id)
+      if (windows.length === 0 || offIds.has(st.id)) {
+        notWorking.push(st.name)
+        continue
+      }
+      const slots = computeOpenSlots({
+        windows,
+        busy: busyRows
+          .filter((b) => b.stylistId === st.id)
+          .map((b) => ({ start: b.startTime.getTime(), end: b.endTime.getTime() })),
+        offDates: new Set<string>(),
+        startDate: date,
+        days: 1,
+        tz: ctx.timezone,
+        durationMinutes: 30,
+        now,
+        limit: 48,
+      })
+      if (slots.length === 0) {
+        // No open 30-min slot left today: either off that weekday or truly full.
+        const dow = new Date(`${date}T12:00:00Z`).getUTCDay()
+        if (windows.some((w) => w.dayOfWeek === dow)) fullyBooked.push(st.name)
+        else notWorking.push(st.name)
+        continue
+      }
+      // Merge contiguous 30-min slots into idle blocks.
+      const blocks: Array<{ startMs: number; endMs: number }> = []
+      for (const s of slots) {
+        const last = blocks[blocks.length - 1]
+        if (last && s.startUtcMs === last.endMs) last.endMs = s.startUtcMs + 30 * 60_000
+        else blocks.push({ startMs: s.startUtcMs, endMs: s.startUtcMs + 30 * 60_000 })
+      }
+      const top = blocks
+        .sort((a, b) => b.endMs - b.startMs - (a.endMs - a.startMs))
+        .slice(0, 3)
+        .sort((a, b) => a.startMs - b.startMs)
+      gaps.push({
+        stylist: st.name,
+        blocks: top.map((b) => ({
+          from: formatTimeInTz(new Date(b.startMs), ctx.timezone),
+          to: formatTimeInTz(new Date(b.endMs), ctx.timezone),
+          minutes: Math.round((b.endMs - b.startMs) / 60_000),
+        })),
+      })
+    }
+
+    return {
+      response: {
+        date,
+        timezone: ctx.timezone,
+        gaps,
+        fullyBooked,
+        notWorking,
+        note:
+          gaps.length > 0
+            ? 'Suggest filling the biggest gaps — get_rebooking_candidates finds who is due, then book_appointment.'
+            : 'No open blocks left that day.',
+      },
+    }
+  },
+}
+
 const getResidentLedger: AssistantTool = {
   name: 'get_resident_ledger',
   description:
@@ -2736,6 +2930,8 @@ export const ALL_TOOLS: AssistantTool[] = [
   findResident,
   listServices,
   findOpenSlots,
+  getRebookingCandidates,
+  getScheduleGaps,
   getBusinessNumbers,
   getFacilityNumbers,
   getMyEarnings,
@@ -2785,6 +2981,7 @@ export function toolsForCtx(ctx: AssistantCtx): AssistantTool[] {
 // Zod schema kept exported so the route/harness can sanity-check tool names.
 export const toolNameSchema = z.enum([
   'get_schedule', 'find_resident', 'list_services', 'find_open_slots',
+  'get_rebooking_candidates', 'get_schedule_gaps',
   'get_business_numbers', 'get_facility_numbers', 'get_my_earnings',
   'get_resident_ledger', 'get_stylist_info', 'get_time_off_requests',
   'get_waitlist', 'get_signup_queue', 'get_payroll_summary', 'get_feedback_inbox',
