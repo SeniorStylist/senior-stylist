@@ -79,7 +79,7 @@ export function AssistantChat({
 }) {
   const {
     messages, input, setInput, sending, pendingAction, setPendingAction,
-    confirming, expired, model, setModel, statusLabel, lastError, send, stop, runAction, logRef, textareaRef,
+    confirming, expired, model, setModel, statusLabel, streamText, lastError, send, stop, runAction, logRef, textareaRef,
   } = chat
 
   // P46 — page-aware chips merged ahead of role chips; deduped; the row
@@ -170,11 +170,20 @@ export function AssistantChat({
         ))}
         {sending && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-400 px-3.5 py-2 text-sm inline-flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
-              {/* P46 — live status line streamed from the server, never a bare spinner */}
-              <span aria-live="polite">{statusLabel ?? 'Thinking…'}</span>
-            </div>
+            {streamText ? (
+              /* P47 — the answer typing out live (token deltas); the terminal
+                 done event replaces this with the authoritative message. */
+              <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-800 px-3.5 py-2 text-sm whitespace-pre-wrap">
+                {streamText}
+                <span className="inline-block w-[2px] h-[1em] ml-0.5 align-text-bottom bg-[#8B2E4A] animate-pulse" aria-hidden />
+              </div>
+            ) : (
+              <div className="rounded-2xl rounded-bl-md bg-stone-50 border border-stone-100 text-stone-400 px-3.5 py-2 text-sm inline-flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-200 border-t-[#8B2E4A] animate-spin" />
+                {/* P46 — live status line streamed from the server, never a bare spinner */}
+                <span aria-live="polite">{statusLabel ?? 'Thinking…'}</span>
+              </div>
+            )}
           </div>
         )}
         {/* P46 — inline error with one-tap Retry (typed message already restored) */}

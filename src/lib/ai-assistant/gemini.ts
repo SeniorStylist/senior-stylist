@@ -43,6 +43,14 @@ interface GeminiResponse {
 /** Injectable model transport — the tsx harness swaps in a scripted fake. */
 export type GeminiTransport = (body: Record<string, unknown>) => Promise<GeminiResponse>
 
+/** P47 — streaming transport: fires onChunk per SSE chunk, resolves with the
+ * fully ASSEMBLED response (part structure + thoughtSignature preserved —
+ * the assembled content is what gets echoed verbatim on tool rounds). */
+export type GeminiStreamTransport = (
+  body: Record<string, unknown>,
+  onChunk: (c: GeminiResponse) => void,
+) => Promise<GeminiResponse>
+
 const MAX_TOOL_ROUNDS = 6 // P40 — deeper turns: resolve → read → propose chains need headroom
 
 // P38b/P41/P42 — model quality knob. P42: the user picks per request via the
@@ -74,6 +82,106 @@ function defaultTransport(apiKey: string, modelId: string): GeminiTransport {
     })
     if (!res.ok) throw new Error(`gemini http ${res.status}`)
     return (await res.json()) as GeminiResponse
+  }
+}
+
+// ── P47 — token-level streaming (streamGenerateContent, SSE) ───────────────
+
+/**
+ * Pure SSE line parser: consumes every COMPLETE line in `buffer`, emitting
+ * the payload of `data: {...}` lines, and returns the unconsumed remainder
+ * (a line split across network reads waits for its newline). CRLF-safe;
+ * non-data lines (comments, blanks, event:) are ignored.
+ */
+export function parseSseChunk(buffer: string, emit: (json: string) => void): string {
+  let rest = buffer
+  for (;;) {
+    const nl = rest.indexOf('\n')
+    if (nl < 0) return rest
+    const line = rest.slice(0, nl).replace(/\r$/, '')
+    rest = rest.slice(nl + 1)
+    if (line.startsWith('data:')) {
+      const payload = line.slice(5).trim()
+      if (payload && payload !== '[DONE]') emit(payload)
+    }
+  }
+}
+
+/**
+ * Assembles streamed GenerateContentResponse chunks back into ONE response.
+ * LOAD-BEARING part-merge rule (thoughtSignature contract): a part carrying a
+ * functionCall, functionResponse, or thoughtSignature is APPENDED WHOLE —
+ * never merged, never rebuilt (the assembled content is echoed verbatim into
+ * the next round's contents, and a broken signature silently degrades tool
+ * rounds). Only plain unsigned text parts concatenate, and only into a
+ * previous part that is itself unsigned text-only.
+ */
+export function createStreamAssembler(): { push(chunk: GeminiResponse): void; result(): GeminiResponse } {
+  const parts: GeminiPart[] = []
+  let role: 'user' | 'model' = 'model'
+  let finishReason: string | undefined
+  let promptFeedback: GeminiResponse['promptFeedback']
+  return {
+    push(chunk) {
+      if (chunk.promptFeedback) promptFeedback = chunk.promptFeedback
+      const cand = chunk.candidates?.[0]
+      if (!cand) return
+      if (cand.finishReason) finishReason = cand.finishReason
+      const content = cand.content
+      if (!content) return
+      if (content.role) role = content.role
+      for (const p of content.parts ?? []) {
+        const signed = p.thoughtSignature !== undefined || p.functionCall !== undefined || p.functionResponse !== undefined
+        const prev = parts[parts.length - 1]
+        const prevUnsignedText =
+          !!prev && prev.text !== undefined && prev.functionCall === undefined &&
+          prev.functionResponse === undefined && prev.thoughtSignature === undefined
+        if (!signed && p.text !== undefined && prevUnsignedText) {
+          prev.text = (prev.text ?? '') + p.text
+        } else {
+          parts.push({ ...p })
+        }
+      }
+    },
+    result(): GeminiResponse {
+      return {
+        candidates: [{ content: { role, parts }, ...(finishReason ? { finishReason } : {}) }],
+        ...(promptFeedback ? { promptFeedback } : {}),
+      }
+    },
+  }
+}
+
+function defaultStreamTransport(apiKey: string, modelId: string): GeminiStreamTransport {
+  return async (body, onChunk) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:streamGenerateContent?alt=sse&key=${apiKey}`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok || !res.body) throw new Error(`gemini stream http ${res.status}`)
+    const assembler = createStreamAssembler()
+    const handle = (json: string) => {
+      try {
+        const chunk = JSON.parse(json) as GeminiResponse
+        assembler.push(chunk)
+        onChunk(chunk)
+      } catch {
+        /* malformed data line — skip */
+      }
+    }
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      buffer = parseSseChunk(buffer, handle)
+    }
+    parseSseChunk(`${buffer}\n`, handle) // flush a final unterminated line
+    return assembler.result()
   }
 }
 
@@ -231,8 +339,15 @@ export interface AssistantRunResult {
  * captured for the client (later write calls in the same turn are refused).
  * Returns null on unrecoverable model failure.
  */
-/** P46 — live status events streamed to the client while the turn runs. */
-export type AssistantEvent = { type: 'status'; label: string }
+/** P46 — live status events streamed to the client while the turn runs.
+ * P47 adds token deltas: `token` appends to the client's live answer buffer;
+ * `token_reset` clears it (the round turned out to be a tool round, or the
+ * stream fell back to non-streaming). The terminal `done` answer is always
+ * authoritative — the client replaces its buffer with it. */
+export type AssistantEvent =
+  | { type: 'status'; label: string }
+  | { type: 'token'; text: string }
+  | { type: 'token_reset' }
 
 export async function runAssistant(
   ctx: AssistantCtx,
@@ -242,10 +357,59 @@ export async function runAssistant(
   model: AssistantModelChoice = 'fast',
   transport?: GeminiTransport,
   onEvent?: (e: AssistantEvent) => void,
+  streamTransport?: GeminiStreamTransport,
 ): Promise<AssistantRunResult | null> {
   const apiKey = process.env.GEMINI_API_KEY
   const send = transport ?? (apiKey ? defaultTransport(apiKey, resolveModelId(model)) : null)
-  if (!send) return null
+  // P47 — the production default STREAMS every round (token deltas via
+  // onEvent). An injected plain GeminiTransport (harness) stays single-shot.
+  const stream = streamTransport ?? (!transport && apiKey ? defaultStreamTransport(apiKey, resolveModelId(model)) : null)
+  if (!send && !stream) return null
+
+  /** One model round-trip. Streaming path emits token deltas until a
+   * functionCall part appears (then token_reset — it's a tool round). On a
+   * stream failure it falls back to the non-streaming transport ONCE —
+   * streaming must never make the assistant less reliable. */
+  let tokensLive = false // tokens emitted by a previous round still on screen
+  const roundTrip = async (body: Record<string, unknown>): Promise<GeminiResponse> => {
+    if (stream) {
+      // A retried/multi-round turn must never APPEND onto a stale buffer.
+      if (tokensLive) {
+        onEvent?.({ type: 'token_reset' })
+        tokensLive = false
+      }
+      let sawCall = false
+      try {
+        return await stream(body, (chunk) => {
+          const parts = chunk.candidates?.[0]?.content?.parts ?? []
+          if (!sawCall && parts.some((p) => p.functionCall)) {
+            sawCall = true
+            if (tokensLive) {
+              onEvent?.({ type: 'token_reset' })
+              tokensLive = false
+            }
+            return
+          }
+          if (sawCall) return
+          const delta = parts.filter((p) => typeof p.text === 'string' && !p.functionCall).map((p) => p.text ?? '').join('')
+          if (delta) {
+            tokensLive = true
+            onEvent?.({ type: 'token', text: delta })
+          }
+        })
+      } catch (e) {
+        if (send) {
+          if (tokensLive) {
+            onEvent?.({ type: 'token_reset' })
+            tokensLive = false
+          }
+          return send(body)
+        }
+        throw e
+      }
+    }
+    return send!(body)
+  }
 
   const declarations = toFunctionDeclarations(tools, ctx.role === 'master')
   const contents: GeminiContent[] = [
@@ -270,7 +434,7 @@ export async function runAssistant(
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     let data: GeminiResponse
     try {
-      data = await send(baseBody())
+      data = await roundTrip(baseBody())
     } catch {
       return null
     }
@@ -359,7 +523,7 @@ export async function runAssistant(
 
   // Round budget exhausted — force a text answer from accumulated results.
   try {
-    const data = await send({
+    const data = await roundTrip({
       contents,
       ...(declarations.length > 0
         ? { tools: [{ functionDeclarations: declarations }], toolConfig: { functionCallingConfig: { mode: 'NONE' } } }

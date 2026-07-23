@@ -104,6 +104,9 @@ export function useAssistantChat() {
   const [activeGuide, setActiveGuide] = useState<GuidedWalkPayload | null>(null)
   // P46 — live status line streamed from the server while a turn runs.
   const [statusLabel, setStatusLabel] = useState<string | null>(null)
+  // P47 — the answer typing out live (token deltas). Cleared by token_reset
+  // (round became a tool round / stream fell back), replaced by done.
+  const [streamText, setStreamText] = useState<string | null>(null)
   const [model, setModelState] = useState<AssistantModelChoice>(loadModelPref)
   const setModel = (m: AssistantModelChoice) => {
     setModelState(m)
@@ -119,7 +122,7 @@ export function useAssistantChat() {
   useEffect(() => {
     // keep the newest message in view
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
-  }, [messages, pendingAction, sending])
+  }, [messages, pendingAction, sending, streamText])
 
   // P46 — persist the thread (capped) so reloads/facility switches keep it.
   useEffect(() => {
@@ -155,6 +158,7 @@ export function useAssistantChat() {
     if (!text || sending) return
     setSending(true)
     setStatusLabel(null)
+    setStreamText(null)
     setPendingAction(null)
     setLastError(null)
     const controller = new AbortController()
@@ -200,8 +204,12 @@ export function useAssistantChat() {
       const handleLine = (line: string) => {
         if (!line) return
         try {
-          const evt = JSON.parse(line) as { type?: string; label?: string; data?: DoneData; error?: string }
+          const evt = JSON.parse(line) as { type?: string; label?: string; text?: string; data?: DoneData; error?: string }
           if (evt.type === 'status' && typeof evt.label === 'string') setStatusLabel(evt.label)
+          // P47 — live typing: append token deltas; token_reset clears (the
+          // round turned out to be a tool round). Status events never clear.
+          else if (evt.type === 'token' && typeof evt.text === 'string') setStreamText((p) => (p ?? '') + evt.text)
+          else if (evt.type === 'token_reset') setStreamText(null)
           else if (evt.type === 'done') out.finalData = evt.data ?? null
           else if (evt.type === 'error') out.streamError = typeof evt.error === 'string' ? evt.error : 'error'
         } catch {
@@ -249,6 +257,7 @@ export function useAssistantChat() {
       abortRef.current = null
       setSending(false)
       setStatusLabel(null)
+      setStreamText(null)
     }
   }
 
@@ -341,6 +350,7 @@ export function useAssistantChat() {
     expired,
     activeGuide,
     statusLabel,
+    streamText,
     lastError,
     model,
     setModel,

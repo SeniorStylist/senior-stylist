@@ -8,7 +8,7 @@ import { HELP_GUIDES, scoreGuide } from '../src/lib/ai-assistant/help-kb'
 import { normalizeWords } from '../src/lib/fuzzy'
 import { ACTION_RULES, actionAllowed, type AssistantActionKind, type PendingAction } from '../src/lib/ai-assistant/action-allowlist'
 import { fromDateTimeLocalInTz } from '../src/lib/time'
-import { runAssistant, MODEL_IDS, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
+import { runAssistant, MODEL_IDS, parseSseChunk, createStreamAssembler, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
 import { buildGroundingDigest } from '../src/lib/ai-assistant/grounding'
 import { segmentMessage, isAllowedAppLink } from '../src/lib/ai-assistant/app-links'
 import { validateWalkSteps, GUIDE_ANCHORS, buildAnchorVocab } from '../src/lib/ai-assistant/guide-anchors'
@@ -556,6 +556,66 @@ async function main() {
     check('accepting functionResponse carries the _card short-prose note', echo2.includes('_card') && echo2.includes('do NOT repeat'))
     const cp = (ct.calls[0] as { contents: Array<{ parts: Array<{ text?: string }> }> }).contents[0].parts[0].text ?? ''
     check('preamble teaches the card-attached prose rule', cp.includes('visual card'))
+  }
+
+  // ---- P47 — token-level streaming (SSE parse, assembler invariant, loop) ----
+  console.log('\n[1i] P47 — token streaming')
+  {
+    // parseSseChunk edge matrix
+    const got: string[] = []
+    let rest = parseSseChunk('data: {"a":1}\n\ndata: {"b"', (j) => got.push(j))
+    check('parseSseChunk: complete line emitted, partial retained', got.length === 1 && got[0] === '{"a":1}' && rest === 'data: {"b"')
+    rest = parseSseChunk(rest + ':2}\r\n: comment\nevent: x\ndata: [DONE]\n', (j) => got.push(j))
+    check('parseSseChunk: split-across-reads + CRLF + comments + DONE', got.length === 2 && got[1] === '{"b":2}' && rest === '')
+
+    // Assembler: unsigned text concatenates; signed/functionCall parts append WHOLE.
+    const asm = createStreamAssembler()
+    const chunk = (parts: Array<Record<string, unknown>>) => ({ candidates: [{ content: { role: 'model' as const, parts } }] })
+    asm.push(chunk([{ text: 'Hel' }]))
+    asm.push(chunk([{ text: 'lo ' }]))
+    asm.push(chunk([{ text: 'world', thoughtSignature: 'SIGTEXT' }]))
+    asm.push(chunk([{ functionCall: { name: 'get_schedule', args: { date: 'x' } }, thoughtSignature: 'SIGCALL' }]))
+    asm.push(chunk([{ text: 'tail' }]))
+    const assembled = asm.result()
+    const parts = assembled.candidates?.[0]?.content?.parts ?? []
+    check('assembler: unsigned text merged, signed text NOT merged',
+      parts.length === 4 && parts[0].text === 'Hello ' && parts[1].text === 'world' && parts[1].thoughtSignature === 'SIGTEXT')
+    check('assembler: functionCall appended whole with signature intact',
+      parts[2].functionCall?.name === 'get_schedule' && parts[2].thoughtSignature === 'SIGCALL' && parts[3].text === 'tail')
+
+    // Scripted stream transport: text round streams tokens; tool round resets.
+    const sseRound = (chunks: Array<Record<string, unknown>>) => (onChunk: (c: Record<string, unknown>) => void) => {
+      const a = createStreamAssembler()
+      for (const c of chunks) {
+        a.push(c as never)
+        onChunk(c)
+      }
+      return a.result()
+    }
+    const rounds = [
+      sseRound([
+        chunk([{ text: 'Loo' }]),
+        chunk([{ text: 'king…' }]),
+        chunk([{ functionCall: { name: 'get_schedule', args: { date: '2026-07-23' } }, thoughtSignature: 'S1' }]),
+      ]),
+      sseRound([chunk([{ text: 'You have ' }]), chunk([{ text: '1 appointment.' }])]),
+    ]
+    let ri = 0
+    const streamCalls: Array<Record<string, unknown>> = []
+    const fakeStream = async (body: Record<string, unknown>, onChunk: (c: never) => void) => {
+      streamCalls.push(body)
+      return rounds[Math.min(ri++, rounds.length - 1)](onChunk as never) as never
+    }
+    const sevents: Array<{ type: string; text?: string }> = []
+    const sr = await runAssistant(baseCtx, 'my day?', [], [fakeRead], 'fast', undefined, (e) => {
+      sevents.push(e as { type: string; text?: string })
+    }, fakeStream)
+    const tokens = sevents.filter((e) => e.type === 'token').map((e) => e.text).join('')
+    check('stream loop: final answer = token concatenation', sr?.answer === 'You have 1 appointment.' && tokens.endsWith('You have 1 appointment.'))
+    check('tool-round tokens reset exactly once before the call',
+      sevents.filter((e) => e.type === 'token_reset').length === 1)
+    const echoed = JSON.stringify((streamCalls[1] as { contents: unknown[] }).contents)
+    check('assembled tool round echoed with signature (verbatim contract)', echoed.includes('S1') && echoed.includes('get_schedule'))
   }
 
   // 3a — plain text answer
