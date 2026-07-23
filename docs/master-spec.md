@@ -3012,4 +3012,27 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   calibrated (how-tos COMPLETE). Update a feature's guide in the same commit
   as the feature.
 - **Model default `gemini-2.5-pro`** (env ASSISTANT_GEMINI_MODEL overrides).
-  Harness 76 checks.
+  Harness 76 checks. (Superseded by P42: per-request fast/smart choice,
+  default fast.)
+
+## P42 — Quick/Smart switch + grounding digest + creation powers (2026-07-23)
+
+- **Per-request model**: route body `model: 'fast'|'smart'` (Zod whitelist,
+  default fast) → `MODEL_IDS` map (flash/pro) in gemini.ts;
+  ASSISTANT_GEMINI_MODEL env overrides both. UI pill in the shared chat
+  composer, persisted via `ss_assistant_model` localStorage.
+- **`src/lib/ai-assistant/grounding.ts`**: always-on ~2.7KB preamble digest
+  (roles matrix, app map, money rules + show-the-math, auto-derived KB
+  topics). Update alongside any role/page/money change.
+- **`GET /api/billing/statement/[residentId]`** (NEW): inline printable
+  resident statement (buildResidentStatementHtml + sticky print bar; live
+  SUM outstanding; guard = master OR canAccessBilling + same facility;
+  GET-only, never sends). Consumed by the assistant's `create_statement`
+  tool; facility variant links the existing `/invoice/[facilityId]?month=`.
+- **Signage URL prefill**: `/signage?template=<id>&title=&subtitle=&
+  dateLine=&body=&footer=&accent=&showFacility=` read on mount by
+  signage-client; the assistant's `create_sign` tool builds these links
+  (7 template ids validated, field caps).
+- **In-chat links**: `app-links.ts` allowlist (`/signage`, `/invoice/`,
+  `/api/billing/statement/`) → "Open →" buttons in model bubbles; anything
+  else stays text. 32 tools total; harness 90 checks.

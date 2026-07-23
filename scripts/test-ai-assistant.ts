@@ -8,7 +8,9 @@ import { HELP_GUIDES, scoreGuide } from '../src/lib/ai-assistant/help-kb'
 import { normalizeWords } from '../src/lib/fuzzy'
 import { ACTION_RULES, actionAllowed, type AssistantActionKind, type PendingAction } from '../src/lib/ai-assistant/action-allowlist'
 import { fromDateTimeLocalInTz } from '../src/lib/time'
-import { runAssistant, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
+import { runAssistant, MODEL_IDS, type GeminiTransport } from '../src/lib/ai-assistant/gemini'
+import { buildGroundingDigest } from '../src/lib/ai-assistant/grounding'
+import { segmentMessage, isAllowedAppLink } from '../src/lib/ai-assistant/app-links'
 
 let failures = 0
 function check(label: string, cond: boolean) {
@@ -143,6 +145,43 @@ async function p41Checks() {
   check('explain_feature no-match lists available topics', Array.isArray(r2.response.availableTopics))
   const r3 = await explain.execute({ ...baseCtx, role: 'stylist', stylistId: 's1', stylistName: 'S' }, { topic: 'quickbooks csv import' })
   check('role-gated guide hidden from stylist (QB imports)', !(r3.response.guide as { title?: string } | undefined)?.title?.includes('QuickBooks CSV'))
+
+  // ---- P42 — model whitelist, grounding digest, creation tools, app links ----
+  console.log('\n[1c] P42 — Quick/Smart + grounding + creation powers')
+  check('MODEL_IDS whitelist maps fast→flash, smart→pro',
+    MODEL_IDS.fast === 'gemini-2.5-flash' && MODEL_IDS.smart === 'gemini-2.5-pro' && Object.keys(MODEL_IDS).length === 2)
+
+  const digest = buildGroundingDigest('bookkeeper')
+  check('grounding digest under budget (<3.5KB)', digest.length < 3500)
+  check('grounding digest highlights the caller role', digest.includes('YOU are helping') && digest.includes('Bookkeeper'))
+  check('grounding digest carries the money rules', digest.includes('COMPLETED visits only') && digest.includes('never facility revenue') && digest.includes('show the math'))
+  check('grounding digest covers all roles + pages', ['Master admin', 'Front desk', 'Stylist:', 'Daily Log', 'Payroll'].every((s) => digest.includes(s)))
+
+  const createSignTool = ALL_TOOLS.find((t) => t.name === 'create_sign')!
+  const bad = await createSignTool.execute(baseCtx, { template: 'evil-template' })
+  check('create_sign rejects unknown template', typeof bad.response.error === 'string' && Array.isArray(bad.response.templates))
+  const good = await createSignTool.execute(baseCtx, { template: 'closed-holiday', title: 'Closed Friday', body: 'See you Monday!\nHappy 4th' })
+  const link = good.response.link as string
+  check('create_sign returns a relative encoded /signage link',
+    link.startsWith('/signage?template=closed-holiday') && link.includes('title=Closed+Friday') && !link.includes('\n'))
+  check('create_sign link passes the chat allowlist', isAllowedAppLink(link))
+
+  const names2 = (ctx: AssistantCtx) => toolsForCtx(ctx).map((t) => t.name)
+  check('create_statement: billing roles only (bookkeeper yes, staff/stylist no)',
+    names2({ ...baseCtx, role: 'bookkeeper' }).includes('create_statement')
+    && !names2({ ...baseCtx, role: 'facility_staff' }).includes('create_statement')
+    && !names2({ ...baseCtx, role: 'stylist', stylistId: 's1', stylistName: 'S' }).includes('create_statement'))
+  check('create_sign: signage roles only (staff yes, bookkeeper no)',
+    names2({ ...baseCtx, role: 'facility_staff' }).includes('create_sign')
+    && !names2({ ...baseCtx, role: 'bookkeeper' }).includes('create_sign'))
+
+  const segs = segmentMessage('Your sign is ready:\n/signage?template=welcome&title=Hi\nEnjoy!')
+  check('segmentMessage links an allowlisted path', segs.some((s) => s.type === 'link' && s.value.startsWith('/signage?')))
+  const ext = segmentMessage('Visit https://evil.example.com/signage now, or //evil.com/invoice/x')
+  check('external + protocol-relative URLs are NEVER linkified', ext.every((s) => s.type === 'text'))
+  const stmt = segmentMessage('Here: /api/billing/statement/11111111-2222-3333-4444-555555555555')
+  check('statement path linkified', stmt.some((s) => s.type === 'link' && s.value.startsWith('/api/billing/statement/')))
+  check('random api path NOT linkified', segmentMessage('see /api/residents please').every((s) => s.type === 'text'))
 }
 
 // ---------------------------------------------------------------------------

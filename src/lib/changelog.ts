@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.1',
+    date: '2026-07-23',
+    title: 'Quick/Smart Switch + The AI Makes Things',
+    items: [
+      'New Quick | ✦ Smart switch right in the AI chat: Quick is fast and economical (the default), Smart thinks deeper for hard questions — your pick is remembered on your device',
+      'Quick mode got a brain transplant: the assistant now always knows every role and what each person can do, every page of the app, and the money rules — so "what can a bookkeeper do?" or "where do I print the week?" answer instantly',
+      'Ask it to MAKE things: "make me a closed-for-holiday sign for Friday" gives you a tap-to-open link with the sign ready to print; "create an invoice for Mrs. Hall" opens her printable statement built from real billing data',
+      'Money answers now show the math — the period, the total, and what it breaks into',
+      'Billing documents are always generated from QuickBooks-synced data — the AI never invents billing records and never sends anything without you',
+    ],
+  },
+  {
     version: '5.0',
     date: '2026-07-22',
     title: 'The Assistant Sees Everything (Owner Edition)',
