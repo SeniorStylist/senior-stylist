@@ -422,7 +422,9 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
 
       {/* Nav */}
       <nav className="flex-1 min-h-0 px-3 py-3 overflow-y-auto">
-        {(role === 'admin' || role === 'bookkeeper') && (
+        {/* P47 — every sidebar role except viewer (palette = pages + Ask AI
+            for everyone; entity search stays role-gated inside). */}
+        {role !== 'viewer' && (
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}

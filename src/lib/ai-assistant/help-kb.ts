@@ -382,7 +382,7 @@ And of course — you can just ask me. I can explain any feature in as much deta
     id: 'assistant',
     title: 'The AI assistant — what it can do',
     keywords: ['ai', 'assistant', 'voice', 'ask', 'sparkle', 'chat', 'what can you do'],
-    body: `The assistant (the sparkle button, and the Ask AI card on Analytics) answers questions from your real data and makes changes for you — always with a Confirm tap before anything is saved.
+    body: `The assistant (the sparkle button, and the Ask AI card on Analytics) answers questions from your real data and makes changes for you — always with a Confirm tap before anything is saved. Fast ways in: press Cmd+K (Ctrl+K on Windows) or the Search box in the sidebar — type anything and pick "Ask the assistant"; on your phone, tap the sparkle in the top bar.
 
 Ask things: "who's on the schedule tomorrow?", "how much does Mrs. Hall owe?", "when was John's last visit?", "how did we do last month?", "how do I scan a log sheet?"
 

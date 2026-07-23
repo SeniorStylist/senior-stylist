@@ -253,11 +253,14 @@ export default async function ProtectedLayout({
             <TourRouterProvider />
             <TourResumer />
             <MobileTourOverlay />
-            {(activeRole === 'admin' || activeRole === 'bookkeeper' || isMaster) && (
+            {/* P47 — every role except viewer: pages + the Ask-AI handoff;
+                resident/stylist search stays admin/bookkeeper/master. */}
+            {(activeRole !== 'viewer' || isMaster) && (
               <CommandPalette
                 role={activeRole}
                 isMaster={isMaster}
                 facilityId={activeFacilityId}
+                canSearchEntities={isMaster || activeRole === 'admin' || activeRole === 'bookkeeper'}
               />
             )}
             <PeekDrawer role={activeRole} isMaster={isMaster} />

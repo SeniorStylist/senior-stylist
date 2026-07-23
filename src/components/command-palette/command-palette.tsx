@@ -16,6 +16,7 @@ import {
   Settings,
   Shield,
   BookOpen,
+  Sparkles,
   User as UserIcon,
   type LucideIcon,
 } from 'lucide-react'
@@ -25,6 +26,10 @@ interface CommandPaletteProps {
   role: string
   isMaster: boolean
   facilityId: string
+  /** P47 — admin/bookkeeper/master only: fetch resident/stylist results.
+   * Other roles get pages + the Ask-AI handoff (the /api/search route 403s
+   * them anyway — prop-gating avoids console noise + rate-bucket burn). */
+  canSearchEntities: boolean
 }
 
 interface ResidentResult {
@@ -47,6 +52,9 @@ type FlatItem =
   | { kind: 'page'; id: string; route: string; label: string; secondary: string; icon: LucideIcon }
   | { kind: 'resident'; id: string; route: string; label: string; secondary: string; icon: LucideIcon }
   | { kind: 'stylist'; id: string; route: string; label: string; secondary: string; icon: LucideIcon }
+  // P47 — Cmd-K ↔ assistant merge: pinned handoff row (closes the palette,
+  // opens the assistant, auto-sends the typed query).
+  | { kind: 'ask-ai'; id: string; route: string; label: string; secondary: string; icon: LucideIcon }
 
 const PAGE_ICON_MAP: Record<string, LucideIcon> = {
   Calendar,
@@ -61,7 +69,7 @@ const PAGE_ICON_MAP: Record<string, LucideIcon> = {
   BookOpen,
 }
 
-export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
+export function CommandPalette({ role, isMaster, canSearchEntities }: CommandPaletteProps) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -105,7 +113,7 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
   }, [open])
 
   useEffect(() => {
-    if (query.length < 2) {
+    if (!canSearchEntities || query.length < 2) {
       setResults({ residents: [], stylists: [] })
       setLoading(false)
       return
@@ -132,7 +140,22 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
       clearTimeout(timer)
       ctrl.abort()
     }
-  }, [query])
+  }, [query, canSearchEntities])
+
+  // P47 — the pinned Ask-AI handoff row (always first; Enter with no
+  // selection hits it when a query is typed, so "type → Enter" asks the AI
+  // whenever nothing else was picked).
+  const askAiItem = useMemo<FlatItem>(
+    () => ({
+      kind: 'ask-ai',
+      id: 'ask-ai',
+      route: '',
+      label: query.trim().length >= 2 ? `Ask the assistant: “${query.trim()}”` : 'Ask the AI assistant',
+      secondary: query.trim().length >= 2 ? 'Sends your question to the AI' : 'Questions, bookings, walkthroughs — anything',
+      icon: Sparkles,
+    }),
+    [query],
+  )
 
   const filteredPages = useMemo<PaletteRoute[]>(() => {
     const rolePages = PALETTE_ROUTES.filter((p) => isMaster || p.roles.includes(role))
@@ -144,7 +167,7 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
   }, [query, role, isMaster])
 
   const allItems = useMemo<FlatItem[]>(() => {
-    const items: FlatItem[] = []
+    const items: FlatItem[] = [askAiItem]
     for (const p of filteredPages) {
       items.push({
         kind: 'page',
@@ -180,13 +203,22 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
       })
     }
     return items
-  }, [filteredPages, results, isMaster])
+  }, [askAiItem, filteredPages, results, isMaster])
 
   useEffect(() => {
     setActiveIndex(-1)
   }, [query])
 
   function selectItem(item: FlatItem) {
+    if (item.kind === 'ask-ai') {
+      // P47 — hand off to the assistant (auto-sends when a query was typed).
+      const prompt = query.trim()
+      setOpen(false)
+      window.dispatchEvent(
+        new CustomEvent('open-assistant', { detail: prompt.length >= 2 ? { prompt } : {} }),
+      )
+      return
+    }
     router.push(item.route)
     setOpen(false)
   }
@@ -214,7 +246,9 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
       moveActive(-1)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      const idx = activeIndex >= 0 ? activeIndex : 0
+      // No selection: prefer the first REAL result (pre-P47 muscle memory);
+      // the Ask-AI row (index 0) is one ArrowUp away.
+      const idx = activeIndex >= 0 ? activeIndex : allItems.length > 1 ? 1 : 0
       const item = allItems[idx]
       if (item) selectItem(item)
     }
@@ -223,7 +257,7 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
   if (!open) return null
   if (typeof document === 'undefined') return null
 
-  let cursor = 0
+  let cursor = 1 // index 0 = the pinned Ask-AI row
   const pageOffset = cursor
   cursor += filteredPages.length
   const residentOffset = cursor
@@ -236,8 +270,6 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
     filteredPages.length === 0 &&
     results.residents.length === 0 &&
     results.stylists.length === 0
-
-  const showInitial = !query && filteredPages.length === 0
 
   return createPortal(
     <>
@@ -269,6 +301,20 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
         </div>
 
         <div className="max-h-[min(360px,60dvh)] overflow-y-auto overscroll-contain">
+          {/* P47 — pinned Ask-AI handoff (always index 0) */}
+          <div
+            data-result-index={0}
+            onMouseEnter={() => setActiveIndex(0)}
+            onClick={() => selectItem(askAiItem)}
+            className={`px-4 py-2.5 flex items-center gap-3 cursor-pointer transition-colors border-b border-stone-100 ${activeIndex === 0 ? 'bg-[#F9EFF2]' : ''}`}
+          >
+            <Sparkles size={14} className="text-[#8B2E4A] shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-[#8B2E4A] truncate">{askAiItem.label}</div>
+              <div className="text-xs text-stone-500 truncate">{askAiItem.secondary}</div>
+            </div>
+          </div>
+
           {filteredPages.length > 0 && (
             <ResultSection
               title="Pages"
@@ -365,13 +411,8 @@ export function CommandPalette({ role, isMaster }: CommandPaletteProps) {
           )}
 
           {showEmpty && (
-            <div className="px-4 py-8 text-center text-sm text-stone-400">
-              No results for &ldquo;{query}&rdquo;
-            </div>
-          )}
-          {showInitial && (
-            <div className="px-4 py-8 text-center text-sm text-stone-400">
-              Start typing to search
+            <div className="px-4 py-6 text-center text-sm text-stone-400">
+              No matches for &ldquo;{query}&rdquo; — try asking the assistant above
             </div>
           )}
         </div>

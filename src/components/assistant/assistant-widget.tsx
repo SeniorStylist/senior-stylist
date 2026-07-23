@@ -61,6 +61,23 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
     if (activeGuide) setOpen(false)
   }, [activeGuide])
 
+  // P47 — external open: the Cmd-K palette's Ask-AI row and the mobile header
+  // sparkle dispatch 'open-assistant' (detail.prompt ⇒ auto-send — Josh's
+  // pick; the user explicitly tapped "Ask the assistant: <query>").
+  const sendRef = useRef(chat.send)
+  sendRef.current = chat.send
+  useEffect(() => {
+    const h = (e: Event) => {
+      setOpen(true)
+      const p = (e as CustomEvent<{ prompt?: string }>).detail?.prompt
+      if (typeof p === 'string' && p.trim()) {
+        setTimeout(() => void sendRef.current(p), 50) // let the panel mount
+      }
+    }
+    window.addEventListener('open-assistant', h)
+    return () => window.removeEventListener('open-assistant', h)
+  }, [])
+
   // P46 — desktop popover a11y: focus trap + Escape (mobile BottomSheet
   // already has both). Keyboard occlusion shrinks the mobile panel height.
   const panelRef = useRef<HTMLDivElement | null>(null)
