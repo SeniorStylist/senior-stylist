@@ -256,6 +256,23 @@ export async function GET(request: NextRequest) {
       return iso >= startDate && iso <= endDate
     })
 
+    // Requested facilities that contributed ZERO rows — surfaced in a response
+    // header so the client can warn instead of shipping a file that's silently
+    // missing a facility (rolled-back sheet / misread service date — the F149
+    // bookkeeper report, 2026-07-27). Capped so a master "all facilities for one
+    // day" export doesn't build a huge header.
+    const facilitiesWithRows = new Set(exportRows.map((b) => b.facilityId))
+    const emptyFacilityLabels = targetFacilityIds
+      .filter((id) => !facilitiesWithRows.has(id))
+      .map((id) => {
+        const fac = facilityMap.get(id)
+        return fac ? facilityLabel(fac.facilityCode, fac.name) : 'Unknown facility'
+      })
+    const cappedEmptyLabels = emptyFacilityLabels.slice(0, 10)
+    if (emptyFacilityLabels.length > 10) {
+      cappedEmptyLabels.push(`+${emptyFacilityLabels.length - 10} more`)
+    }
+
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Daily Log')
     ws.columns = COLUMN_DEFS.map((c) => ({ key: c.key, width: c.width }))
@@ -321,14 +338,19 @@ export async function GET(request: NextRequest) {
     }
     const filename = `${fileLabel}_${startDate}_to_${endDate}.xlsx`
 
-    return new Response(buf, {
-      headers: {
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Cache-Control': 'no-store',
-      },
-    })
+    const responseHeaders: Record<string, string> = {
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    }
+    if (cappedEmptyLabels.length > 0) {
+      responseHeaders['X-Export-Empty-Facilities'] = encodeURIComponent(
+        JSON.stringify(cappedEmptyLabels),
+      )
+    }
+
+    return new Response(buf, { headers: responseHeaders })
   } catch (err) {
     console.error('GET /api/exports/daily-logs error:', err)
     return new Response('Internal server error', { status: 500 })

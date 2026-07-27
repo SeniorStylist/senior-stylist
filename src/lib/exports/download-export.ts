@@ -33,7 +33,7 @@ export async function deliverBlob(
 export async function downloadExportFile(
   url: string,
   fallbackName: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; warning?: string } | { ok: false; error: string }> {
   try {
     const res = await fetch(url)
     if (!res.ok) {
@@ -46,10 +46,28 @@ export async function downloadExportFile(
       }
       return { ok: false, error: msg }
     }
+
+    // The daily-logs export flags requested facilities that produced no rows
+    // (rolled-back sheet, wrong service date) — surface them as a non-fatal
+    // warning alongside the successful download.
+    let warning: string | undefined
+    const emptyHeader = res.headers.get('X-Export-Empty-Facilities')
+    if (emptyHeader) {
+      try {
+        const labels = JSON.parse(decodeURIComponent(emptyHeader)) as unknown
+        if (Array.isArray(labels) && labels.length > 0) {
+          warning = `No completed appointments in this date range for: ${labels.join(', ')}. Check Log Sheet History for rolled-back sheets or wrong service dates.`
+        }
+      } catch {
+        /* malformed header — skip the warning */
+      }
+    }
+
     const blob = await res.blob()
     const cd = res.headers.get('Content-Disposition') ?? ''
     const filename = cd.match(/filename="([^"]+)"/)?.[1] ?? fallbackName
-    return await deliverBlob(blob, filename)
+    const delivered = await deliverBlob(blob, filename)
+    return delivered.ok ? { ok: true, warning } : delivered
   } catch {
     return { ok: false, error: 'Network error — please try again.' }
   }

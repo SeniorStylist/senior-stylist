@@ -106,6 +106,9 @@ export function ExportDailyLogsMultiModal({
       toast.error(result.error)
       return
     }
+    // Persistent (error-variant) so a facility silently missing from the file
+    // can't be overlooked — the F149 report was exactly this going unnoticed.
+    if (result.warning) toast.error(result.warning)
     onClose()
   }
 

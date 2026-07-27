@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
     const rows = await db.query.bookings.findMany({
       where: and(
         eq(bookings.facilityId, facilityId),
+        eq(bookings.active, true), // rolled-back imports must not appear (non-negotiable filter)
         eq(bookings.status, 'completed'),
         eq(bookings.isDemo, false), // is_demo filter — Phase 13
         gte(bookings.startTime, start),

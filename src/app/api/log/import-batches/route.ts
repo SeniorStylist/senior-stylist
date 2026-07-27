@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { db } from '@/db'
-import { importBatches, facilities, profiles } from '@/db/schema'
-import { eq, and, desc, inArray } from 'drizzle-orm'
+import { importBatches, facilities, profiles, bookings } from '@/db/schema'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +54,9 @@ export async function GET() {
     const facilityIds = [...new Set(batchRows.map((b) => b.facilityId))]
     const uploaderIds = [...new Set(batchRows.map((b) => b.uploadedBy))]
 
-    const [facilityRows, uploaderRows] = await Promise.all([
+    const batchIds = batchRows.map((b) => b.id)
+
+    const [facilityRows, uploaderRows, activeCountRows] = await Promise.all([
       db
         .select({ id: facilities.id, name: facilities.name, facilityCode: facilities.facilityCode })
         .from(facilities)
@@ -63,10 +65,19 @@ export async function GET() {
         .select({ id: profiles.id, fullName: profiles.fullName })
         .from(profiles)
         .where(inArray(profiles.id, uploaderIds)),
+      // One GROUP BY for all batches (max:1 pool — never per-batch counts).
+      // Active bookings = what exports/daily log actually show; a non-rolled-back
+      // batch with 0 active bookings is the "sheet missing from export" diagnostic.
+      db
+        .select({ importBatchId: bookings.importBatchId, n: sql<number>`count(*)` })
+        .from(bookings)
+        .where(and(inArray(bookings.importBatchId, batchIds), eq(bookings.active, true)))
+        .groupBy(bookings.importBatchId),
     ])
 
     const facilityMap = new Map(facilityRows.map((f) => [f.id, f]))
     const uploaderMap = new Map(uploaderRows.map((p) => [p.id, p]))
+    const activeCountMap = new Map(activeCountRows.map((r) => [r.importBatchId, Number(r.n)]))
 
     const data = batchRows.map((b) => {
       const facility = facilityMap.get(b.facilityId)
@@ -79,6 +90,7 @@ export async function GET() {
         fileName: b.fileName,
         sourceType: b.sourceType,
         rowCount: b.rowCount,
+        activeBookingCount: activeCountMap.get(b.id) ?? 0,
         createdAt: b.createdAt,
         deletedAt: b.deletedAt,
         uploaderName: uploader?.fullName ?? null,
