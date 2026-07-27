@@ -762,6 +762,8 @@ Used when a list is too long for a plain `<select>` and needs typeahead filterin
 - Dropdown: `absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-48 overflow-y-auto`
 - Each option: `px-2 py-1.5 text-xs hover:bg-stone-50 cursor-pointer`
 
+**`<ServiceCombobox>` (2026-07-27 — `src/components/services/service-combobox.tsx`) is the REUSABLE extraction of this pattern for service pickers** (daily-log edit, OCR scan review, walk-in form). Same mechanics, plus: display value is DERIVED (`selectedId ? selectedName : searchValue`) so programmatic selection stays in sync; inline `➕ Create "<typed>"` row (via `onCreate`) replaces `__create__` sentinel options; optional `groupByCategory`/`categoryPriority` (category headers via `sortCategoryGroups`) and `priceLabel` suffix; `invalid` red-border state; `dataTour`/`optionDataTour` for tour anchors. Parent contract: clear your selection inside `onSearchChange`. Use this for any new service picker — never a bare `<select>` for a facility service catalog, and NEVER `<input list>` + `<datalist>` (renders as an invisible free-text field on most browsers).
+
 ---
 
 ## 8. Wave 2+3 UI Patterns
