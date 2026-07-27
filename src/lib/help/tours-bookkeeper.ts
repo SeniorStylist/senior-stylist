@@ -35,9 +35,10 @@ export const BOOKKEEPER_TOURS: ScriptedTour[] = [
       {
         type: 'type',
         selector: '[data-tour="walkin-service-select"]',
-        typeValue: '{{wash-and-set}}',
-        title: 'Service selected',
-        description: 'Wash & Set is set. Time and stylist default to now.',
+        typeValue: 'Wash',
+        advanceSelector: '[data-tour="walkin-service-option"]',
+        title: 'Pick the service',
+        description: 'We typed "Wash" — the list filters as you type. Tap Wash & Set below.',
         placement: 'bottom',
       },
       {

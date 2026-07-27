@@ -6,11 +6,7 @@ import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
 import { getLocalParts, fromDateTimeLocalInTz } from '@/lib/time'
 import { formatPricingLabel } from '@/lib/pricing'
-import {
-  buildCategoryPriority,
-  sortCategoryGroups,
-  sortServicesWithinCategory,
-} from '@/lib/service-sort'
+import { buildCategoryPriority } from '@/lib/service-sort'
 import { SkeletonBookingCard } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import dynamic from 'next/dynamic'
@@ -42,6 +38,7 @@ const LogSheetsModal = dynamic(
   { ssr: false },
 )
 import { HelpTip } from '@/components/ui/help-tip'
+import { ServiceCombobox } from '@/components/services/service-combobox'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 import { ExportDailyLogsMultiModal, type ExportFacilityOption } from '@/components/exports/export-daily-logs-multi-modal'
@@ -485,6 +482,8 @@ export function LogClient({
   const [wiResidentDropOpen, setWiResidentDropOpen] = useState(false)
   const [wiResidentId, setWiResidentId] = useState('')
   const [wiServiceId, setWiServiceId] = useState('')
+  // Free-typed text in the service combobox (create-mode name / filter query)
+  const [wiServiceSearch, setWiServiceSearch] = useState('')
   // Stylists log walk-ins under their own name only — selector locks to self.
   const [wiStylistId, setWiStylistId] = useState(stylistFilter ?? stylists[0]?.id ?? '')
   const [wiTime, setWiTime] = useState(() => roundToNearest30(new Date(), facilityTimezone))
@@ -939,6 +938,7 @@ export function LogClient({
         setWiResidentSearch('')
         setWiResidentId('')
         setWiServiceId('')
+        setWiServiceSearch('')
         setWiAddonServiceIds([])
         setWiServiceCreate(false)
         setWiNewServiceName('')
@@ -955,6 +955,7 @@ export function LogClient({
         setWiResidentSearch('')
         setWiResidentId('')
         setWiServiceId('')
+        setWiServiceSearch('')
         setWiAddonServiceIds([])
         setWiServiceCreate(false)
         setWiNewServiceName('')
@@ -1460,52 +1461,44 @@ export function LogClient({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <select
-              value={wiServiceCreate ? '__create__' : wiServiceId}
-              onChange={(e) => {
-                if (e.target.value === '__create__') {
-                  setWiServiceCreate(true)
-                  setWiServiceId('')
-                } else {
-                  setWiServiceCreate(false)
-                  setWiServiceId(e.target.value)
-                }
+            {/* Service — type-to-filter combobox (typing "Shampoo" shows only
+                Shampoo services); the inline Create row replaces the P37
+                "➕ New service…" sentinel option. */}
+            <ServiceCombobox
+              services={services}
+              selectedId={wiServiceCreate ? null : (wiServiceId || null)}
+              searchValue={wiServiceCreate ? wiNewServiceName : wiServiceSearch}
+              onSearchChange={(v) => {
+                setWiServiceSearch(v)
+                setWiServiceId('')
+                setWiServiceCreate(false)
               }}
-              data-tour="walkin-service-select"
-              className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A] transition-all"
-            >
-              <option value="">Select a service</option>
-              {(() => {
-                const grouped = new Map<string, Service[]>()
-                for (const s of services) {
-                  const key = s.category?.trim() || 'Other'
-                  if (!grouped.has(key)) grouped.set(key, [])
-                  grouped.get(key)!.push(s)
-                }
-                const orderedGroups = sortCategoryGroups(
-                  [...grouped.entries()],
-                  wiServiceCategoryPriority,
-                )
-                if (orderedGroups.length <= 1) {
-                  return sortServicesWithinCategory(services).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} · {formatPricingLabel(s)}
-                    </option>
-                  ))
-                }
-                return orderedGroups.map(([category, list]) => (
-                  <optgroup key={category} label={category}>
-                    {sortServicesWithinCategory(list).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} · {formatPricingLabel(s)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))
-              })()}
-              {/* P37 — walk-in service not in the catalog yet (e.g. "S/B Dry $45") */}
-              <option value="__create__">➕ New service…</option>
-            </select>
+              onSelect={(s) => {
+                setWiServiceCreate(false)
+                setWiServiceId(s.id)
+                setWiServiceSearch(s.name)
+              }}
+              onCreate={(name) => {
+                // P37 — walk-in service not in the catalog yet (e.g. "S/B Dry $45")
+                setWiServiceCreate(true)
+                setWiServiceId('')
+                setWiNewServiceName(name)
+                setWiServiceSearch(name)
+              }}
+              onClear={() => {
+                setWiServiceCreate(false)
+                setWiServiceId('')
+                setWiServiceSearch('')
+                setWiNewServiceName('')
+              }}
+              groupByCategory
+              categoryPriority={wiServiceCategoryPriority}
+              priceLabel={(s) => formatPricingLabel(s)}
+              placeholder="Type to search services…"
+              dataTour="walkin-service-select"
+              optionDataTour="walkin-service-option"
+              inputClassName="bg-stone-50 border-stone-200 rounded-xl px-3 py-2.5 focus:ring-0"
+            />
             <select
               value={wiStylistId}
               onChange={(e) => setWiStylistId(e.target.value)}
@@ -1574,7 +1567,7 @@ export function LogClient({
           )}
 
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null); setLocalNewResidents([]); setWiCreateOpen(false); setWiCreateName(''); setWiCreateRoom(''); setWiCreateError(null); setWiServiceCreate(false); setWiNewServiceName(''); setWiNewServicePrice('') }} disabled={wiAdding}>
+            <Button variant="ghost" size="sm" onClick={() => { setShowWalkIn(false); setWiError(null); setLocalNewResidents([]); setWiCreateOpen(false); setWiCreateName(''); setWiCreateRoom(''); setWiCreateError(null); setWiServiceCreate(false); setWiNewServiceName(''); setWiNewServicePrice(''); setWiServiceSearch('') }} disabled={wiAdding}>
               Cancel
             </Button>
             <Button size="sm" loading={wiAdding} onClick={handleAddWalkIn} data-tour="walkin-submit">
@@ -1877,38 +1870,40 @@ export function LogClient({
                                 className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
                               />
                             </div>
-                            {/* Service — pick existing or "➕ New service" (inline-create) */}
+                            {/* Service — type-to-filter combobox; picking "Create" flags an
+                                inline ad-hoc service create on save (bookkeeper request). */}
                             <div>
                               <label className="text-[10px] text-stone-400 uppercase tracking-wide">Service</label>
-                              <select
-                                value={editServiceCreate ? '__create__' : (editServiceId ?? '')}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  if (val === '__create__') {
+                              <div className="mt-0.5">
+                                <ServiceCombobox
+                                  services={services}
+                                  selectedId={editServiceCreate ? null : editServiceId}
+                                  searchValue={editServiceName}
+                                  onSearchChange={(v) => {
+                                    setEditServiceName(v)
+                                    setEditServiceId(null)
+                                    setEditServiceCreate(false)
+                                  }}
+                                  onSelect={(s) => {
+                                    setEditServiceCreate(false)
+                                    setEditServiceId(s.id)
+                                    setEditServiceName(s.name)
+                                  }}
+                                  onCreate={(name) => {
                                     setEditServiceCreate(true)
                                     setEditServiceId(null)
-                                    setEditServiceName('')
-                                  } else {
-                                    const picked = services.find(s => s.id === val)
+                                    setEditServiceName(name)
+                                  }}
+                                  onClear={() => {
                                     setEditServiceCreate(false)
-                                    setEditServiceId(val || null)
-                                    setEditServiceName(picked?.name ?? '')
-                                  }
-                                }}
-                                className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
-                              >
-                                <option value="">Select a service…</option>
-                                {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                <option value="__create__">➕ New service (type name below)…</option>
-                              </select>
-                              {editServiceCreate && (
-                                <input
-                                  type="text"
-                                  value={editServiceName}
-                                  onChange={(e) => setEditServiceName(e.target.value)}
-                                  placeholder="New service name…"
-                                  className="mt-1.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                    setEditServiceId(null)
+                                    setEditServiceName('')
+                                  }}
+                                  placeholder="Type to search services…"
                                 />
+                              </div>
+                              {editServiceCreate && editServiceName.trim() && (
+                                <p className="text-[10px] text-stone-400 mt-0.5">Will create new service &ldquo;{editServiceName.trim()}&rdquo;</p>
                               )}
                             </div>
                             {/* Stylist — correct the stylist after a log-sheet import */}

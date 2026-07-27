@@ -5,6 +5,7 @@ import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
 import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo, comboLabel } from '@/lib/payments'
+import { ServiceCombobox } from '@/components/services/service-combobox'
 import type { Resident, Stylist, Service } from '@/types'
 
 // Minimal roster shapes — everything the scan/review flow actually reads. Using
@@ -1212,47 +1213,31 @@ export function OcrImportModal({
                                   )
                                 })()}
 
-                                {/* Service — visible dropdown of existing services + "New service"
-                                    option that reveals a text input (mirrors the stylist field). The
-                                    old <input list> + <datalist> rendered as an invisible free-text
-                                    field on most browsers, so bookkeepers couldn't tell they could
-                                    create a service. */}
+                                {/* Service — type-to-filter combobox (typing "Shampoo" shows only
+                                    Shampoo services). Typed text that matches nothing IS the
+                                    new-service name (serviceId stays null → create on import).
+                                    NEVER a <datalist> — it rendered as an invisible free-text
+                                    field on most browsers. */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  <select
-                                    value={entry.serviceId ?? '__create__'}
-                                    onChange={(e) => {
-                                      const val = e.target.value
-                                      if (val === '__create__') {
-                                        // Keep serviceName so an OCR-read name stays in the text input
-                                        updateEntry(activeTab, ei, { serviceId: null })
-                                      } else {
-                                        const picked = services.find(s => s.id === val)
-                                        updateEntry(activeTab, ei, { serviceId: val, serviceName: picked?.name ?? '' })
-                                      }
-                                    }}
-                                    className={cn(
-                                      'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]',
-                                      entry.serviceId || (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
-                                    )}
-                                  >
-                                    {services.map(s => (
-                                      <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
-                                    ))}
-                                    <option value="__create__">➕ New service (type name below)…</option>
-                                  </select>
-                                  {!entry.serviceId && (
-                                    <input
-                                      type="text"
-                                      value={entry.serviceName ?? ''}
-                                      onChange={(e) => updateEntry(activeTab, ei, { serviceName: e.target.value })}
-                                      placeholder="New service name…"
-                                      className={cn(
-                                        'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A] mt-1.5',
-                                        (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
-                                      )}
-                                    />
-                                  )}
+                                  <ServiceCombobox
+                                    services={services}
+                                    selectedId={entry.serviceId}
+                                    searchValue={entry.serviceName ?? ''}
+                                    onSearchChange={(v) =>
+                                      updateEntry(activeTab, ei, { serviceId: null, serviceName: v })
+                                    }
+                                    onSelect={(s) =>
+                                      updateEntry(activeTab, ei, { serviceId: s.id, serviceName: s.name })
+                                    }
+                                    onCreate={(name) =>
+                                      updateEntry(activeTab, ei, { serviceId: null, serviceName: name })
+                                    }
+                                    priceLabel={(s) => formatCents(s.priceCents)}
+                                    placeholder="Type to search services…"
+                                    invalid={!entry.serviceId && !(entry.serviceName ?? '').trim()}
+                                    inputClassName="min-h-[44px] text-xs rounded-lg px-2 py-2 focus:ring-0"
+                                  />
                                   {entry.serviceId ? null
                                     : (entry.serviceName ?? '').trim() ? (
                                       <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>
