@@ -7,6 +7,7 @@ import { eq, and, isNull, inArray, notInArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { splitStylistCell } from '@/lib/service-log-import'
 import { isTutorialRequest, isTutorialModeActive } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
@@ -221,7 +222,9 @@ export async function POST(request: NextRequest) {
       const [row] = await tx
         .insert(stylists)
         .values({
-          name: parsed.data.name,
+          // Strip an embedded "ST### - " prefix — the code lives in stylistCode,
+          // and a code inside the name double-prefixes every export label.
+          name: splitStylistCell(parsed.data.name).stylistName,
           stylistCode,
           facilityId,
           franchiseId,

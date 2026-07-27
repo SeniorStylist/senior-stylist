@@ -4,6 +4,7 @@ import { stylists, facilities, stylistAvailability, franchises, franchiseFacilit
 import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { splitStylistCell } from '@/lib/service-log-import'
 import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -156,7 +157,9 @@ function mapRow(raw: Record<string, unknown>): {
   const phonesRaw = byHeader.phone ? parsePhones(byHeader.phone) : undefined
 
   const candidate: Record<string, unknown> = {
-    name: nameField,
+    // Strip an embedded "ST### - " prefix from CSV name cells — the code column
+    // is parsed separately and a code inside the name doubles up export labels.
+    name: splitStylistCell(nameField).stylistName,
     stylistCode,
     color: byHeader.color,
     commissionPercent,

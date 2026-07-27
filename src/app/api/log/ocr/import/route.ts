@@ -6,6 +6,7 @@ import { residents, services, bookings, stylists, stylistFacilityAssignments, fr
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { splitStylistCell } from '@/lib/service-log-import'
 import crypto from 'crypto'
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
       .where(and(eq(residents.facilityId, facilityId), eq(residents.active, true)))
 
     const existingStylists = await db
-      .select({ id: stylists.id, name: stylists.name })
+      .select({ id: stylists.id, name: stylists.name, stylistCode: stylists.stylistCode })
       .from(stylists)
       .where(and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)))
 
@@ -180,6 +181,24 @@ export async function POST(request: Request) {
       ...existingStylists.map((s) => s.id),
       ...assignmentRows.map((r) => r.id),
     ])
+    // Roster rule (P33/P34b): pool/cross-facility stylists have no home row —
+    // include active assignment-linked stylists in the name/code MATCH pool so
+    // a typed name can't mint a duplicate of a stylist who already works here.
+    const assignmentStylistRows = await db
+      .select({ id: stylists.id, name: stylists.name, stylistCode: stylists.stylistCode })
+      .from(stylists)
+      .innerJoin(stylistFacilityAssignments, eq(stylistFacilityAssignments.stylistId, stylists.id))
+      .where(and(
+        eq(stylistFacilityAssignments.facilityId, facilityId),
+        eq(stylistFacilityAssignments.active, true),
+        eq(stylists.active, true),
+      ))
+    {
+      const seenStylistIds = new Set(existingStylists.map((s) => s.id))
+      for (const s of assignmentStylistRows) {
+        if (!seenStylistIds.has(s.id)) existingStylists.push(s)
+      }
+    }
     // P37 — stylist caller: every sheet is forced to their own stylist id and
     // stylistName is cleared (never create stylists). The IDOR check below then
     // also verifies their stylist record actually works at this facility.
@@ -248,9 +267,20 @@ export async function POST(request: Request) {
         // fuzzy DB match → create. Mirrors the resident/service resolution below.
         let sheetStylistId = sheet.stylistId
         if (!sheetStylistId) {
-          const name = sheet.stylistName.trim()
+          // Strip an embedded "ST### - " prefix from the typed name — bookkeepers
+          // type "ST818 - Mariah Owens", which both fails the fuzzy match (raw
+          // string vs roster "Mariah Owens" → duplicate stylist minted) and
+          // double-prefixes the Excel export ("ST913 - ST818 - Mariah Owens").
+          const { stylistCode: typedCode, stylistName: name } = splitStylistCell(sheet.stylistName)
           const key = name.toLowerCase()
-          if (stylistMap.has(key)) {
+          // A typed code that exactly matches a roster stylist wins outright.
+          const codeMatch = typedCode
+            ? existingStylists.find((s) => s.stylistCode?.toUpperCase() === typedCode.toUpperCase())
+            : undefined
+          if (codeMatch) {
+            sheetStylistId = codeMatch.id
+            stylistMap.set(key, codeMatch.id)
+          } else if (stylistMap.has(key)) {
             sheetStylistId = stylistMap.get(key)!
           } else {
             const dbMatch = existingStylists.find((s) => fuzzyScore(s.name, name) >= 0.8)
@@ -269,7 +299,7 @@ export async function POST(request: Request) {
                 .onConflictDoNothing()
               sheetStylistId = newStylist.id
               stylistMap.set(key, newStylist.id)
-              existingStylists.push({ id: newStylist.id, name })
+              existingStylists.push({ id: newStylist.id, name, stylistCode })
               createdStylists++
             }
           }
