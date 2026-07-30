@@ -12,6 +12,9 @@ const createSchema = z.object({
   address: z.string().max(500).optional(),
   phone: z.string().max(50).optional(),
   timezone: z.string().max(100).optional(),
+  // F-code — honored ONLY for the master admin (ignored for everyone else);
+  // lets "F240 - Arden Courts Fair Oaks" be created in one step.
+  facilityCode: z.string().trim().toUpperCase().regex(/^F\d{2,5}$/).optional(),
 })
 
 export async function GET() {
@@ -72,13 +75,14 @@ export async function POST(request: NextRequest) {
 
     const { name, address, phone, timezone } = parsed.data
 
+    const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const isMaster = !!superAdminEmail && user.email === superAdminEmail
+
     // Authorization: facility creation is for genuine onboarding (the user has no
     // facility yet), an existing admin adding another facility, the master admin, or
     // tutorial mode. A non-admin member of an existing facility (stylist / bookkeeper /
     // facility_staff / viewer) must NOT be able to spin up new facilities and self-admin.
     if (!isDemo) {
-      const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-      const isMaster = !!superAdminEmail && user.email === superAdminEmail
       if (!isMaster) {
         const memberships = await db.query.facilityUsers.findMany({
           where: (t, { eq }) => eq(t.userId, user.id),
@@ -108,6 +112,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // F-code: master-only (ignored for other callers); reject a code already
+    // held by an active facility (no DB unique constraint on facility_code).
+    const facilityCode = isMaster && !isDemo ? parsed.data.facilityCode ?? null : null
+    if (facilityCode) {
+      const codeClash = await db.query.facilities.findFirst({
+        where: (t, { and, eq }) => and(
+          sql`upper(${t.facilityCode}) = ${facilityCode}`,
+          eq(t.active, true),
+        ),
+        columns: { id: true, name: true },
+      })
+      if (codeClash) {
+        return Response.json(
+          { error: `Code ${facilityCode} is already used by ${codeClash.name}` },
+          { status: 409 },
+        )
+      }
+    }
+
     const [facility] = await db
       .insert(facilities)
       .values({
@@ -115,6 +138,7 @@ export async function POST(request: NextRequest) {
         address: address ?? null,
         phone: phone ?? null,
         timezone: timezone ?? 'America/New_York',
+        ...(facilityCode ? { facilityCode } : {}),
         isDemo,
       })
       .returning()
