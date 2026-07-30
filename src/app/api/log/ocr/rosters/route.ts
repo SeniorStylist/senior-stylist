@@ -83,7 +83,9 @@ export async function GET(request: NextRequest) {
               ? or(eq(stylists.facilityId, facilityId), inArray(stylists.id, assignedIds))
               : eq(stylists.facilityId, facilityId),
           ),
-          columns: { id: true, name: true },
+          // stylistCode lets the review dropdown show "ST618 - Gloria Camacho"
+          // so bookkeepers can spot the existing record before creating a dupe.
+          columns: { id: true, name: true, stylistCode: true },
           orderBy: [asc(stylists.name)],
         })
       })(),

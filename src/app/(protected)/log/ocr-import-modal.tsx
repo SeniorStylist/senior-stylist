@@ -19,7 +19,7 @@ import type { Resident, Stylist, Service } from '@/types'
 // different target facility (GET /api/log/ocr/rosters) interchangeably with the
 // full rows passed as props for the pinned facility.
 export type RosterResident = Pick<Resident, 'id' | 'name' | 'roomNumber'>
-export type RosterStylist = Pick<Stylist, 'id' | 'name'>
+export type RosterStylist = Pick<Stylist, 'id' | 'name'> & { stylistCode?: string | null }
 export type RosterService = Pick<Service, 'id' | 'name' | 'priceCents' | 'pricingType'>
 type Rosters = { residents: RosterResident[]; stylists: RosterStylist[]; services: RosterService[] }
 
@@ -1105,7 +1105,9 @@ export function OcrImportModal({
                             )}
                           >
                             {stylists.map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
+                              // Code shown so the existing record (e.g. ST618) is
+                              // recognizable before anyone creates a duplicate
+                              <option key={s.id} value={s.id}>{s.stylistCode ? `${s.stylistCode} - ${s.name}` : s.name}</option>
                             ))}
                             <option value="__create__">➕ New stylist (type name below)…</option>
                           </select>
@@ -1129,7 +1131,10 @@ export function OcrImportModal({
                         {sheet.stylistId ? (
                           <p className="text-[10px] text-emerald-600 mt-0.5">✓ Matched to existing stylist</p>
                         ) : sheet.stylistName.trim() ? (
-                          <p className="text-[10px] text-stone-400 mt-0.5">Will create new stylist</p>
+                          <p className="text-[10px] text-stone-400 mt-0.5">
+                            Will match by code/name across all facilities, or create new.
+                            Tip: include the code (e.g. &ldquo;ST825 - Paula Jones&rdquo;) to keep your numbering.
+                          </p>
                         ) : (
                           <p className="text-xs text-red-500 mt-0.5">Required — select a stylist or type a new name</p>
                         )}
