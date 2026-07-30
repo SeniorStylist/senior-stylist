@@ -733,6 +733,10 @@ When a long async operation replaces step content (e.g. OCR scanning in `ocr-imp
 
 Tip rotation: `useEffect` keyed on the `scanning` flag; 3s interval fades out (`tipVisible=false`) → 400ms delay increments index → fades in. Progress bar: regex parse the progress string → `(X/Y)*100` capped at 90, default 5 when empty.
 
+### File uploads (2026-07-30)
+
+Every client file upload MUST go through `src/lib/uploads/compress-upload.ts` before hitting the network: `compressImageForUpload` (2000px longest edge, JPEG 0.8, pass-through ≤1.2MB, original on failure), `pdfToPageImages` (all pages, ~144dpi), `packFilesByBudget` (≤3.5MB per request). Vercel rejects request bodies over ~4.5MB at the platform edge with a NON-JSON error page — server-side size checks can never fire, and bare `res.json()` throws a bogus "Network error". Parse upload responses with `readJsonSafe` and branch 413/504 into human messages.
+
 ### Searchable Combobox (FacilityCombobox / ResidentCombobox pattern)
 
 Used when a list is too long for a plain `<select>` and needs typeahead filtering (e.g. facility picker and resident line pickers in `scan-check-modal.tsx`).
