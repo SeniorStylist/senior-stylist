@@ -7,6 +7,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { compressImageForUpload } from '@/lib/uploads/compress-upload'
 
 interface GalleryPhoto {
   id: string
@@ -50,7 +51,9 @@ export function ResidentPhotoGallery({ residentId, canManage }: { residentId: st
     setUploading(true)
     try {
       const form = new FormData()
-      form.append('file', file)
+      // Shrink client-side — full-res phone photos exceed the platform's ~4.5MB
+      // request cap (and the route's 5MB check could never fire before it).
+      form.append('file', await compressImageForUpload(file))
       form.append('sharedWithFamily', 'false')
       const res = await fetch(`/api/residents/${residentId}/photos`, { method: 'POST', body: form })
       const j = await res.json().catch(() => ({}))
@@ -58,7 +61,13 @@ export function ResidentPhotoGallery({ residentId, canManage }: { residentId: st
         toast.success('Photo added to the gallery')
         void load()
       } else {
-        toast.error(typeof j.error === 'string' ? j.error : 'Upload failed')
+        toast.error(
+          typeof j.error === 'string'
+            ? j.error
+            : res.status === 413
+              ? 'Photo too large to upload — try a smaller one.'
+              : 'Upload failed',
+        )
       }
     } catch {
       toast.error('Network error')

@@ -6,6 +6,12 @@ import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
 import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo, comboLabel } from '@/lib/payments'
 import { ServiceCombobox } from '@/components/services/service-combobox'
+import {
+  compressImageForUpload,
+  pdfToPageImages,
+  packFilesByBudget,
+  readJsonSafe,
+} from '@/lib/uploads/compress-upload'
 import type { Resident, Stylist, Service } from '@/types'
 
 // Minimal roster shapes — everything the scan/review flow actually reads. Using
@@ -497,14 +503,26 @@ export function OcrImportModal({
     setScanProgress('')
     setScanError(null)
     try {
-      // Split into chunks of 3 so each batch stays well under the 120s Vercel limit
-      const chunkSize = 3
-      const chunks: File[][] = []
-      for (let i = 0; i < files.length; i += chunkSize) {
-        chunks.push(files.slice(i, i + chunkSize))
+      // Shrink everything client-side FIRST — Vercel hard-rejects request
+      // bodies over ~4.5MB at the platform edge (before our route runs), which
+      // is what the "Network Error" reports on phone JPEGs and PDFs were.
+      // PDFs also expand to one JPEG per page so multi-page scans aren't lost.
+      setScanProgress('Preparing sheets…')
+      const uploadFiles: File[] = []
+      for (const f of files) {
+        if (f.type === 'application/pdf') {
+          uploadFiles.push(...(await pdfToPageImages(f)))
+        } else {
+          uploadFiles.push(await compressImageForUpload(f))
+        }
       }
 
+      // Pack by byte budget (≤3.5MB per POST, ≤3 sheets) instead of a blind
+      // count-of-3 — three full-res camera JPEGs used to blow the body cap.
+      const chunks = packFilesByBudget(uploadFiles)
+
       const allRawSheets: OcrRawSheet[] = []
+      let chunkFailure: { fromIndex: number; message: string } | null = null
       for (let ci = 0; ci < chunks.length; ci++) {
         setScanProgress(`Scanning batch ${ci + 1} of ${chunks.length}…`)
         const fd = new FormData()
@@ -515,9 +533,25 @@ export function OcrImportModal({
         fd.append('stylistsJson', JSON.stringify(stylists.map(s => s.name)))
         fd.append('residentsJson', JSON.stringify(residents.map(r => ({ name: r.name, roomNumber: r.roomNumber ?? null }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
-        const json = await res.json()
-        if (!res.ok) { setScanError(typeof json.error === 'string' ? json.error : 'Scan failed'); return }
-        allRawSheets.push(...(json.data.sheets as OcrRawSheet[]))
+        // Platform errors (413 too large, 504 timeout) return non-JSON pages —
+        // never let res.json() throw into the generic catch below.
+        const json = await readJsonSafe(res)
+        if (!res.ok) {
+          const message =
+            typeof json.error === 'string' ? json.error
+            : res.status === 413 ? 'These sheets are too large to upload — try scanning fewer at once.'
+            : res.status === 504 ? 'The scan timed out — try scanning fewer sheets at once.'
+            : `Scan failed (${res.status})`
+          if (allRawSheets.length > 0) {
+            // Keep the sheets that already scanned instead of discarding them
+            chunkFailure = { fromIndex: allRawSheets.length, message }
+            break
+          }
+          setScanError(message)
+          return
+        }
+        const data = json.data as { sheets?: OcrRawSheet[] } | undefined
+        allRawSheets.push(...(data?.sheets ?? []))
       }
 
       const errorSheets = allRawSheets.filter(s => s.error)
@@ -526,7 +560,14 @@ export function OcrImportModal({
         .map(s => buildSheetState(s, residents, stylists, services, date))
         .map(s => (selfStylist ? { ...s, stylistId: selfStylist.id, stylistName: selfStylist.name } : s))
 
-      setSheetErrors(errorSheets.map(s => ({ index: s.imageIndex, error: s.error! })))
+      const sheetErrorList = errorSheets.map(s => ({ index: s.imageIndex, error: s.error! }))
+      if (chunkFailure) {
+        sheetErrorList.push({
+          index: chunkFailure.fromIndex,
+          error: `Remaining sheets weren't scanned: ${chunkFailure.message}`,
+        })
+      }
+      setSheetErrors(sheetErrorList)
 
       if (built.length === 0) {
         const msgs = errorSheets.map(s => `Sheet ${s.imageIndex + 1}: ${s.error}`).join('. ')
@@ -536,8 +577,10 @@ export function OcrImportModal({
       setSheets(built)
       setActiveTab(0)
       setStep('review')
-    } catch {
-      setScanError('Network error. Please try again.')
+    } catch (err) {
+      // Genuine transport failure — everything else now surfaces a real message
+      console.error('[handleScan] upload failed:', err)
+      setScanError('Upload failed — check your connection and try again.')
     } finally {
       setScanProgress('')
       setScanning(false)
@@ -635,18 +678,26 @@ export function OcrImportModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const json = await res.json()
+      const json = await readJsonSafe(res)
       if (!res.ok) {
-        setImportError(typeof json.error === 'string' ? json.error : 'Import failed')
+        setImportError(
+          typeof json.error === 'string'
+            ? json.error
+            : res.status === 504
+              ? 'The import timed out — try again with fewer sheets.'
+              : `Import failed (${res.status})`,
+        )
         return
       }
-      const { bookings: n } = json.data.created
+      const data = json.data as { created: { bookings: number } }
+      const n = data.created.bookings
       reset()
       onClose()
       onImported()
       toast(`${n} booking${n !== 1 ? 's' : ''} imported`, 'success')
-    } catch {
-      setImportError('Network error. Please try again.')
+    } catch (err) {
+      console.error('[handleImport] failed:', err)
+      setImportError('Upload failed — check your connection and try again.')
     } finally {
       setImporting(false)
     }
@@ -855,6 +906,17 @@ export function OcrImportModal({
           {/* ── STEP 2: REVIEW ── */}
           {step === 'review' && sheets.length > 0 && (
             <div data-tour="ocr-results-table">
+              {/* Sheets that couldn't be read (or a batch that failed mid-scan) —
+                  surfaced here so partial results are never mistaken for all. */}
+              {sheetErrors.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  {sheetErrors.map((se, i) => (
+                    <p key={i} className="text-xs text-amber-700">
+                      Sheet {se.index + 1}: {se.error}
+                    </p>
+                  ))}
+                </div>
+              )}
               {/* Facility target — bookkeeper/master can import this scan to a chosen
                   facility. Switching re-matches names against that facility's records. */}
               {canPickFacility && (

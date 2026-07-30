@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { btnBase, transitionBase } from '@/lib/animations'
+import { compressImageForUpload, readJsonSafe } from '@/lib/uploads/compress-upload'
 import { formatDollars, BillingResident } from '../views/billing-shared'
 
 type Confidence = 'high' | 'medium' | 'low'
@@ -269,12 +270,19 @@ export function ScanCheckModal({
     setScanning(true)
     try {
       const fd = new FormData()
-      fd.append('image', file)
+      // Shrink client-side — Vercel rejects bodies over ~4.5MB at the platform
+      // edge with a non-JSON page (the "Network error during scan" reports).
+      fd.append('image', await compressImageForUpload(file))
       fd.append('facilityId', facilityId)
       const res = await fetch('/api/billing/scan-check', { method: 'POST', body: fd })
-      const body = await res.json()
+      const body = await readJsonSafe(res)
       if (!res.ok) {
-        toast(body?.error ?? 'Scan failed', 'error')
+        const msg =
+          typeof body?.error === 'string' ? body.error
+          : res.status === 413 ? 'This image is too large to upload — try a smaller photo.'
+          : res.status === 504 ? 'The scan timed out — please try again.'
+          : `Scan failed (${res.status})`
+        toast(msg, 'error')
         return
       }
       const data = body.data as ScanResult

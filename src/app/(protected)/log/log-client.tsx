@@ -39,6 +39,7 @@ const LogSheetsModal = dynamic(
 )
 import { HelpTip } from '@/components/ui/help-tip'
 import { ServiceCombobox } from '@/components/services/service-combobox'
+import { compressImageForUpload } from '@/lib/uploads/compress-upload'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 import { ExportDailyLogsMultiModal, type ExportFacilityOption } from '@/components/exports/export-daily-logs-multi-modal'
@@ -546,9 +547,12 @@ export function LogClient({
   const uploadBookingPhoto = async () => {
     if (!photoBooking || !photoFile) return
     setPhotoUploading(true)
+    // Shrink before upload AND before any offline enqueue — full-res camera
+    // photos exceed the platform's ~4.5MB request cap.
+    const uploadFile = await compressImageForUpload(photoFile)
     try {
       const form = new FormData()
-      form.append('file', photoFile)
+      form.append('file', uploadFile)
       form.append('bookingId', photoBooking.id)
       form.append('caption', photoCaption.trim())
       form.append('sharedWithFamily', photoShare ? 'true' : 'false')
@@ -568,8 +572,8 @@ export function LogClient({
         bookingId: photoBooking.id,
         caption: photoCaption.trim(),
         sharedWithFamily: photoShare,
-        blob: photoFile,
-        fileName: photoFile.name || 'photo.jpg',
+        blob: uploadFile,
+        fileName: uploadFile.name || 'photo.jpg',
       })
       if (queued) {
         toast("Photo saved offline — it'll upload when you're back online", 'success')
