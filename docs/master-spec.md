@@ -3115,6 +3115,39 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P48 — Unlinked-stylist dead end + QuickBooks operations (2026-08-01)
+
+- **Unlinked stylist**: `log-client.tsx` gains `blockedUnlinked` — the Scan /
+  Add-walk-in buttons render visible-but-disabled with an explanatory toast
+  instead of unmounting (an absent control reads as a bug; this was reported
+  twice as "it's not working"). Amber banner gains "Ask my admin to link me"
+  → `POST /api/profile/request-stylist-link` (stylist-only, 409 if already
+  linked, bucket `stylistLinkRequest` 3/24h) → `notifyFacilityAdmins` +
+  awaited per-admin email (`buildStylistLinkRequestEmailHtml`). New
+  NotificationTypes `stylist_link_request`, `qb_sync_failed`. Settings → Team
+  flags unlinked stylist members with an amber "Not linked" chip.
+- **`readApiError()`** in `ocr-import-modal.tsx` — 413/504 return HTML, so the
+  old unconditional `res.json()` threw and mislabeled size/timeout failures as
+  "Network error". Status-mapped messages; server text still wins.
+- **QB sync cursor invariant** (`qb-invoice-sync.ts`): the cursor/lastSyncedAt
+  writes are now guarded — query-failed or row-write-failed → no advance;
+  safety cap → advance to the newest ingested `LastUpdatedTime` (resume, don't
+  stall or skip); clean → `now()`. New `result.cursorAdvanced` is the success
+  signal (a capped run errors yet progresses). Fixes silent skipped-window
+  data loss that a nightly cron would have made recurring.
+- **`GET /api/cron/qb-invoice-sync`** (`0 5 * * *`, 9th cron, maxDuration 300):
+  200 no-op while `QB_INVOICE_SYNC_ENABLED` is unset; runs before
+  autopay-sweep (shared balance column); 2 selection queries (24h error
+  cooldown + staleness order, LIMIT 25); per-facility try/catch; fire-and-
+  forget `quickbooks_sync_log` rows; batched failure notify; one awaited owner
+  email; `revalidateTag` once.
+- **`/master-admin/quickbooks`**: separate master page (not a tab — P22).
+  `getCachedQbStatus` = 4 batched queries, `connected` derived in SQL (tokens
+  never selected), live open-balance SUM, health chips
+  (Needs reconnect / Attention / Healthy / Not connected), search +
+  needs-attention filter + `?facility=` deep link, per-row Sync now via the
+  existing master bypass.
+
 ## P47 — Rich answer cards, token streaming, Cmd-K merge + mobile chrome (2026-07-23)
 
 - **Answer cards**: pure `src/lib/ai-assistant/answer-cards.ts` (AnswerCard
