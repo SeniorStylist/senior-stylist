@@ -740,6 +740,51 @@ export function buildFeedbackReplyEmailHtml(params: {
 </html>`.trim()
 }
 
+/** P48 — nightly QuickBooks sync summary, sent to the owner only on failures. */
+export function buildQBSyncFailureEmailHtml(params: {
+  failures: { name: string; message: string }[]
+}): string {
+  const { failures } = params
+  const rows = failures
+    .map(
+      (f) => `<tr>
+        <td style="padding:8px 12px;font-size:13px;color:#1C1917;border-bottom:1px solid #F5F5F4;">${escHtml(f.name)}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#B91C1C;border-bottom:1px solid #F5F5F4;">${escHtml(f.message)}</td>
+      </tr>`,
+    )
+    .join('')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'QuickBooks', title: 'Overnight sync had trouble', subtitle: `${failures.length} facilit${failures.length === 1 ? 'y' : 'ies'}` })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:14px;color:#1C1917;line-height:1.6;">
+        These facilities didn't pull invoices last night. The most common cause is a QuickBooks connection that needs to be re-authorized.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 12px;font-size:11px;color:#78716C;text-transform:uppercase;letter-spacing:0.05em;background:#FAFAF9;">Facility</th>
+            <th style="text-align:left;padding:8px 12px;font-size:11px;color:#78716C;text-transform:uppercase;letter-spacing:0.05em;background:#FAFAF9;">What happened</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="margin:0 0 20px;font-size:13px;color:#57534E;line-height:1.6;">
+        They'll be retried automatically tomorrow. Nothing was skipped — the sync only advances once it succeeds.
+      </p>
+      <p style="margin:0;">
+        <a href="https://portal.seniorstylist.com/master-admin/quickbooks" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Open QuickBooks status</a>
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 /**
  * P48 — an unlinked stylist asked to be connected to their stylist record.
  * Until an admin links them, their daily log is view-only and they cannot
