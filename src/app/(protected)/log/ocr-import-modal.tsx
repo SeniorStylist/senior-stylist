@@ -296,6 +296,30 @@ function rematchSheetState(
   }
 }
 
+/**
+ * P48 — read an API failure into a message a stylist can act on.
+ *
+ * The old path did `await res.json()` unconditionally: a 413 (phone photos are
+ * often 3-8MB each) or a 504 returns HTML, `.json()` throws, and the catch
+ * reported "Network error" — which is how a size/timeout problem gets filed as
+ * "it's not working". Parse defensively and name the real cause.
+ */
+async function readApiError(res: Response, fallback: string): Promise<string> {
+  let serverMsg: string | null = null
+  try {
+    const json = await res.json()
+    if (typeof json?.error === 'string') serverMsg = json.error
+  } catch {
+    /* non-JSON body (gateway error page) — fall through to status mapping */
+  }
+  if (serverMsg) return serverMsg
+  if (res.status === 413) return 'Those photos are too large. Try one sheet at a time, or retake them at a lower resolution.'
+  if (res.status === 429) return "You've scanned a lot in a short time — wait a few minutes and try again."
+  if (res.status === 504 || res.status === 408) return 'That took too long to process. Try scanning fewer sheets at once.'
+  if (res.status === 401) return 'Your session expired — reload the page and sign in again.'
+  return fallback
+}
+
 export function OcrImportModal({
   open,
   onClose,
@@ -514,8 +538,8 @@ export function OcrImportModal({
         fd.append('stylistsJson', JSON.stringify(stylists.map(s => s.name)))
         fd.append('residentsJson', JSON.stringify(residents.map(r => ({ name: r.name, roomNumber: r.roomNumber ?? null }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
+        if (!res.ok) { setScanError(await readApiError(res, 'Scan failed')); return }
         const json = await res.json()
-        if (!res.ok) { setScanError(typeof json.error === 'string' ? json.error : 'Scan failed'); return }
         allRawSheets.push(...(json.data.sheets as OcrRawSheet[]))
       }
 
@@ -634,11 +658,11 @@ export function OcrImportModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const json = await res.json()
       if (!res.ok) {
-        setImportError(typeof json.error === 'string' ? json.error : 'Import failed')
+        setImportError(await readApiError(res, 'Import failed'))
         return
       }
+      const json = await res.json()
       const { bookings: n } = json.data.created
       reset()
       onClose()

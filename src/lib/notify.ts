@@ -27,6 +27,10 @@ export type NotificationType =
   | 'autopay_summary'
   | 'feedback_received'
   | 'feedback_reply'
+  // P48 — a stylist whose login has no linked stylist record asks to be linked
+  | 'stylist_link_request'
+  // P48 — the nightly QuickBooks invoice sync failed for a facility
+  | 'qb_sync_failed'
 
 export interface NotifyPayload {
   type: NotificationType

@@ -740,6 +740,43 @@ export function buildFeedbackReplyEmailHtml(params: {
 </html>`.trim()
 }
 
+/**
+ * P48 — an unlinked stylist asked to be connected to their stylist record.
+ * Until an admin links them, their daily log is view-only and they cannot
+ * scan a log sheet at all, so this needs to reach a human quickly.
+ */
+export function buildStylistLinkRequestEmailHtml(params: {
+  stylistName: string
+  stylistEmail: string
+  facilityName: string
+}): string {
+  const { stylistName, stylistEmail, facilityName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Action Needed', title: 'Link a stylist account', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:14px;color:#1C1917;line-height:1.6;">
+        <strong>${escHtml(stylistName)}</strong> (${escHtml(stylistEmail)}) is signed in, but their login isn't connected to a stylist record yet.
+      </p>
+      <div style="background:#FFFBEB;border-left:4px solid #B45309;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#92400E;line-height:1.6;">Until they're linked, their daily log is view-only — they can't scan a log sheet or add a walk-in.</p>
+      </div>
+      <p style="margin:0 0 20px;font-size:13px;color:#57534E;line-height:1.6;">
+        Fix: open <strong>Settings &rarr; Team</strong>, find their row, and choose <strong>Assign stylist</strong>. It takes a few seconds.
+      </p>
+      <p style="margin:0;">
+        <a href="https://portal.seniorstylist.com/settings?section=team" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;">Open Settings &rarr; Team</a>
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 export function buildDailyLogEmailHtml(params: {
   facilityName: string
   facilityCode: string | null

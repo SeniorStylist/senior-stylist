@@ -32,6 +32,7 @@ type Bucket =
   | 'search'
   | 'peek'
   | 'exportExcel'
+  | 'stylistLinkRequest'
   | 'helpSeed'
   | 'helpTrack'
   | 'multiLogImport'
@@ -107,6 +108,8 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   residentPhotos: { tokens: 30, window: '1 h' },
   copyDay: { tokens: 10, window: '1 h' },
   portalServices: { tokens: 60, window: '1 m' },
+  // P48 — "ask my admin to link me" from an unlinked stylist's daily log
+  stylistLinkRequest: { tokens: 3, window: '24 h' },
 }
 
 let redis: Redis | null = null

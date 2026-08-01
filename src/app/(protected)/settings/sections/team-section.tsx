@@ -474,6 +474,17 @@ export function TeamSection({
                 <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', roleBadgeClass(cu.role))}>
                   {roleBadgeLabel(cu.role)}
                 </span>
+                {/* P48 — an unlinked stylist login is view-only on the daily log
+                    and can't scan a sheet at all, which reads to them as "the
+                    app is broken". Flag it here, where the fix lives. */}
+                {cu.role === 'stylist' && !cu.stylistId && (
+                  <span
+                    title="This login isn't connected to a stylist record — their daily log is view-only until you assign one."
+                    className="shrink-0 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
+                  >
+                    Not linked
+                  </span>
+                )}
                 {(() => {
                   const isOpen = assigningUserId === cu.userId
                   const isSaving = savingStylistFor === cu.userId
@@ -492,7 +503,10 @@ export function TeamSection({
                           'text-xs px-2 py-0.5 rounded-full border transition-colors disabled:opacity-50 max-w-[160px] truncate',
                           cu.stylistName
                             ? 'border-stone-200 text-stone-500 hover:border-[#C4687A] hover:text-[#8B2E4A]'
-                            : 'border-dashed border-stone-300 text-stone-400 hover:border-[#C4687A] hover:text-[#8B2E4A]'
+                            : cu.role === 'stylist'
+                              // P48 — an unlinked STYLIST is actively blocked; make it pull the eye.
+                              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:border-amber-500'
+                              : 'border-dashed border-stone-300 text-stone-400 hover:border-[#C4687A] hover:text-[#8B2E4A]'
                         )}
                       >
                         {isSaving ? '…' : cu.stylistName ? `↔ ${cu.stylistName}` : '+ Assign stylist'}
