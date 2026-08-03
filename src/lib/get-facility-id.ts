@@ -61,6 +61,11 @@ export function isFacilityStaff(role: string): boolean {
 export function canScanLogs(role: string): boolean {
   return isAdminOrAbove(role) || role === 'bookkeeper'
 }
+// Round 6 (2026-07-30, Josh): bookkeepers self-serve stylist add + rename —
+// gates the /stylists pages and the stylist create/name-edit API branches.
+export function canManageStylists(role: string): boolean {
+  return isAdminOrAbove(role) || role === 'bookkeeper'
+}
 
 /**
  * Returns the facilityUser row for the current user, respecting the

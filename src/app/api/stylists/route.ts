@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylists, franchiseFacilities, stylistFacilityAssignments } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
 import { eq, and, isNull, inArray, notInArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
@@ -160,9 +160,12 @@ export async function POST(request: NextRequest) {
     const master = isMasterAdmin(user.email)
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!master && facilityUser!.role !== 'admin') {
+    // Round 6: bookkeepers may create stylists (they already could via the OCR
+    // scan flow — this is the direct UI path, same code-honoring semantics).
+    if (!master && !canManageStylists(facilityUser!.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
+    const isBookkeeper = !master && facilityUser!.role === 'bookkeeper'
 
     const body = await request.json()
     const parsed = createSchema.safeParse(body)
@@ -230,11 +233,20 @@ export async function POST(request: NextRequest) {
           franchiseId,
           isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created stylist
           ...(parsed.data.color ? { color: parsed.data.color } : {}),
-          ...(parsed.data.commissionPercent != null
+          // Commission is payroll data — bookkeeper-supplied values are ignored
+          ...(!isBookkeeper && parsed.data.commissionPercent != null
             ? { commissionPercent: parsed.data.commissionPercent }
             : {}),
         })
         .returning()
+      // Roster surfaces read active assignment rows — without this the new
+      // stylist is invisible on /stylists (mirrors the OCR-import create).
+      if (facilityId) {
+        await tx
+          .insert(stylistFacilityAssignments)
+          .values({ stylistId: row.id, facilityId, active: true })
+          .onConflictDoNothing()
+      }
       return row
     })
 

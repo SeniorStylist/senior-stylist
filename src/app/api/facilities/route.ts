@@ -79,19 +79,21 @@ export async function POST(request: NextRequest) {
     const isMaster = !!superAdminEmail && user.email === superAdminEmail
 
     // Authorization: facility creation is for genuine onboarding (the user has no
-    // facility yet), an existing admin adding another facility, the master admin, or
-    // tutorial mode. A non-admin member of an existing facility (stylist / bookkeeper /
-    // facility_staff / viewer) must NOT be able to spin up new facilities and self-admin.
-    if (!isDemo) {
-      if (!isMaster) {
-        const memberships = await db.query.facilityUsers.findMany({
-          where: (t, { eq }) => eq(t.userId, user.id),
-          columns: { role: true },
-        })
-        const hasAdminRole = memberships.some((m) => m.role === 'admin' || m.role === 'super_admin')
-        if (memberships.length > 0 && !hasAdminRole) {
-          return Response.json({ error: 'Forbidden' }, { status: 403 })
-        }
+    // facility yet), an existing admin adding another facility, the master admin,
+    // a bookkeeper (round 6 — they onboard new facilities from log sheets; see
+    // below: they do NOT get a membership row), or tutorial mode. Other non-admin
+    // members (stylist / facility_staff / viewer) must NOT be able to spin up new
+    // facilities and self-admin.
+    let isBookkeeper = false
+    if (!isDemo && !isMaster) {
+      const memberships = await db.query.facilityUsers.findMany({
+        where: (t, { eq }) => eq(t.userId, user.id),
+        columns: { role: true },
+      })
+      const hasAdminRole = memberships.some((m) => m.role === 'admin' || m.role === 'super_admin')
+      isBookkeeper = !hasAdminRole && memberships.some((m) => m.role === 'bookkeeper')
+      if (memberships.length > 0 && !hasAdminRole && !isBookkeeper) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
@@ -112,9 +114,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // F-code: master-only (ignored for other callers); reject a code already
-    // held by an active facility (no DB unique constraint on facility_code).
-    const facilityCode = isMaster && !isDemo ? parsed.data.facilityCode ?? null : null
+    // F-code: master + bookkeeper (ignored for other callers); reject a code
+    // already held by an active facility (no DB unique constraint on facility_code).
+    const facilityCode = (isMaster || isBookkeeper) && !isDemo ? parsed.data.facilityCode ?? null : null
     if (facilityCode) {
       const codeClash = await db.query.facilities.findFirst({
         where: (t, { and, eq }) => and(
@@ -143,32 +145,38 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // Ensure profile exists before inserting facilityUsers (FK: facility_users → profiles)
-    await db
-      .insert(profiles)
-      .values({
-        id: user.id,
-        email: user.email ?? null,
-        fullName: user.user_metadata?.full_name ?? null,
-        avatarUrl: user.user_metadata?.avatar_url ?? null,
-        role: 'admin',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: profiles.id,
-        set: {
+    // Bookkeepers keep their single anchor facility_users row — their access to
+    // the new facility flows through the role-based cross-facility branches
+    // (layout switcher, facilities/select, rosters, ocr import). Inserting an
+    // admin membership here would silently escalate them.
+    if (!isBookkeeper) {
+      // Ensure profile exists before inserting facilityUsers (FK: facility_users → profiles)
+      await db
+        .insert(profiles)
+        .values({
+          id: user.id,
           email: user.email ?? null,
+          fullName: user.user_metadata?.full_name ?? null,
+          avatarUrl: user.user_metadata?.avatar_url ?? null,
+          role: 'admin',
+          createdAt: new Date(),
           updatedAt: new Date(),
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: profiles.id,
+          set: {
+            email: user.email ?? null,
+            updatedAt: new Date(),
+          },
+        })
 
-    // Add creator as admin
-    await db.insert(facilityUsers).values({
-      userId: user.id,
-      facilityId: facility.id,
-      role: 'admin',
-    })
+      // Add creator as admin
+      await db.insert(facilityUsers).values({
+        userId: user.id,
+        facilityId: facility.id,
+        role: 'admin',
+      })
+    }
 
     revalidateTag('facilities', {})
 
