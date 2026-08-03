@@ -968,8 +968,13 @@ export const portalClaimRequests = pgTable('portal_claim_requests', {
   fullName: text('full_name').notNull(),
   phone: text('phone'),
   dateOfBirth: date('date_of_birth'),
+  // P50 — the wizard asks WHO the resident is (drizzle/0032, self-bootstrapped
+  // by portal-claims-ddl.ts). relationship: 'self'|'spouse'|'child'|'poa'|'other'
+  residentName: text('resident_name'),
+  roomNumber: text('room_number'),
+  relationship: text('relationship'),
   residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
-  // 'email' | 'name' | null
+  // 'email' | 'name' | 'resident_room' | null
   matchType: text('match_type'),
   // 'high' | 'medium' | 'low' | null
   matchConfidence: text('match_confidence'),

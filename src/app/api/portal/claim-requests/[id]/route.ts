@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
+import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,9 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
+    // P50 — this handler does a full-row claim read; bootstrap the new columns
+    // so a pre-migration deploy can't break approvals.
+    await ensurePortalClaimsSchema()
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

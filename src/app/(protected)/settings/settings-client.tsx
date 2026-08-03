@@ -36,6 +36,10 @@ interface ClaimRequest {
   matchConfidence: string | null
   residentName: string | null
   residentRoom: string | null
+  // P50 — what the applicant typed in the signup wizard
+  claimedResidentName: string | null
+  claimedRoom: string | null
+  relationship: string | null
   createdAt: string
 }
 

@@ -6,6 +6,7 @@ import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents
 import { eq, and, inArray, or } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
+import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 import { SettingsClient } from './settings-client'
 
 export default async function SettingsPage() {
@@ -31,17 +32,22 @@ export default async function SettingsPage() {
         })
       : Promise.resolve([]),
     facilityUser.role === 'admin'
-      ? db.query.portalClaimRequests.findMany({
-          where: and(
-            eq(portalClaimRequests.facilityId, facilityUser.facilityId),
-            eq(portalClaimRequests.status, 'pending_review'),
-          ),
-          orderBy: (t, { desc }) => [desc(t.createdAt)],
-          columns: {
-            id: true, email: true, fullName: true, phone: true, dateOfBirth: true,
-            matchType: true, matchConfidence: true, residentId: true, createdAt: true,
-          },
-        })
+      ? // P50 — bootstrap the new claim columns before selecting them (module-
+        // guarded, once per instance — the P19 hot-path ensure pattern).
+        ensurePortalClaimsSchema().then(() =>
+          db.query.portalClaimRequests.findMany({
+            where: and(
+              eq(portalClaimRequests.facilityId, facilityUser.facilityId),
+              eq(portalClaimRequests.status, 'pending_review'),
+            ),
+            orderBy: (t, { desc }) => [desc(t.createdAt)],
+            columns: {
+              id: true, email: true, fullName: true, phone: true, dateOfBirth: true,
+              residentName: true, roomNumber: true, relationship: true,
+              matchType: true, matchConfidence: true, residentId: true, createdAt: true,
+            },
+          }),
+        )
       : Promise.resolve([]),
   ])
 
@@ -57,9 +63,14 @@ export default async function SettingsPage() {
     })
     for (const r of claimResidents) claimResidentMap.set(r.id, r)
   }
+  // P50 — claimedResidentName/claimedRoom = what the applicant TYPED;
+  // residentName/residentRoom = the auto-matched roster resident.
   const claimRequests = rawClaims.map((c) => ({
     ...c,
     dateOfBirth: c.dateOfBirth ?? null,
+    claimedResidentName: c.residentName ?? null,
+    claimedRoom: c.roomNumber ?? null,
+    relationship: c.relationship ?? null,
     residentName: c.residentId ? (claimResidentMap.get(c.residentId)?.name ?? null) : null,
     residentRoom: c.residentId ? (claimResidentMap.get(c.residentId)?.roomNumber ?? null) : null,
   }))

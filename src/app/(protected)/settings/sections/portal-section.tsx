@@ -14,9 +14,22 @@ interface ClaimRequest {
   dateOfBirth: string | null
   matchType: string | null
   matchConfidence: string | null
+  /** Auto-matched roster resident (may be null). */
   residentName: string | null
   residentRoom: string | null
+  /** P50 — what the applicant typed in the wizard. */
+  claimedResidentName: string | null
+  claimedRoom: string | null
+  relationship: string | null
   createdAt: string
+}
+
+const RELATIONSHIP_LABEL: Record<string, string> = {
+  self: 'The resident',
+  spouse: 'Spouse/partner',
+  child: 'Son/daughter',
+  poa: 'Power of attorney',
+  other: 'Family/friend',
 }
 
 interface Props {
@@ -284,9 +297,23 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
               <div key={c.id} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div>
-                    <p className="text-sm font-semibold text-stone-800">{c.fullName}</p>
+                    <p className="text-sm font-semibold text-stone-800">
+                      {c.fullName}
+                      {c.relationship && (
+                        <span className="ml-1.5 text-[10px] font-medium text-stone-500 bg-stone-100 rounded-full px-2 py-0.5">
+                          {RELATIONSHIP_LABEL[c.relationship] ?? c.relationship}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-stone-500">{c.email}</p>
                     {c.phone && <p className="text-xs text-stone-400">{c.phone}</p>}
+                    {/* P50 — what the applicant told us about the resident */}
+                    {c.claimedResidentName && (
+                      <p className="text-xs text-stone-600 mt-1">
+                        For: <span className="font-medium">{c.claimedResidentName}</span>
+                        {c.claimedRoom && <span className="text-stone-400"> · Rm {c.claimedRoom}</span>}
+                      </p>
+                    )}
                     <p className="text-[10px] text-stone-400 mt-1">Requested {formatDate(c.createdAt)}</p>
                   </div>
                   <div className="text-right shrink-0">

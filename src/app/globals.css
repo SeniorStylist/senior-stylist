@@ -576,7 +576,18 @@ button:active, [role="button"]:active {
   body:has(.portal-main) button,
   body:has(.portal-main) a,
   body:has(.portal-main) td,
-  body:has(.portal-main) th {
+  body:has(.portal-main) th,
+  /* P50 — form fields scale too. They were excluded, so at A++ the labels
+     grew while the text seniors actually TYPE stayed 14px. */
+  body:has(.portal-main) input,
+  body:has(.portal-main) select,
+  body:has(.portal-main) textarea {
     font-size: calc(1em * var(--portal-text-scale, 1));
   }
+}
+
+/* P50 — cap a CTA's scale at 1.25× so A++ (1.5×) never wraps or overflows
+   fixed-height buttons (the Phase-17 portal-nav cap idiom, as a utility). */
+.portal-cta-cap {
+  font-size: calc(1rem * min(var(--portal-text-scale, 1), 1.25)) !important;
 }
