@@ -74,6 +74,7 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'daily-log-finalize-button': { route: '/log', label: 'Finalize Day button', kind: 'button' },
   'daily-log-entry-row': { route: '/log', label: "the day's appointment rows", kind: 'area' },
   'log-payment-toggle': { route: '/log', label: 'payment chip on a row (tap to cycle paid)', kind: 'button' },
+  'log-add-card': { route: '/log', label: 'Save a card on file button on a row (vaults a handed-over card, charges nothing)', kind: 'button' },
   'log-facility-picker': { route: '/log', label: 'facility picker (bookkeeper/master)', kind: 'select' },
   'peek-resident-trigger': { route: '/log', label: 'a resident name (tap for quick profile)', kind: 'button' },
   'ocr-upload-area': { route: '/log', label: 'photo upload area (scan modal)', kind: 'area', requires: ['daily-log-scan-sheet'] },

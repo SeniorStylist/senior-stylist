@@ -122,6 +122,8 @@ export async function PATCH(request: NextRequest) {
 
     const auth = await authorizeResidentPayment(parsed.data.residentId)
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+    // P50 — stylists vault cards only; make-default drives autopay (staff/family).
+    if (auth.actor.via === 'stylist') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     await ensurePaymentsSchema()
     const card = await db.query.paymentMethods.findFirst({
@@ -155,6 +157,8 @@ export async function DELETE(request: NextRequest) {
 
     const auth = await authorizeResidentPayment(parsed.data.residentId)
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+    // P50 — removing a family's card is an admin/family action, never a stylist's.
+    if (auth.actor.via === 'stylist') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     await ensurePaymentsSchema()
     const card = await db.query.paymentMethods.findFirst({

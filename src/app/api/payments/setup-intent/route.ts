@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         residentId: auth.actor.residentId,
         facilityId: auth.actor.facilityId,
-        createdBy: auth.actor.via === 'admin' ? auth.actor.actorId : '',
+        createdBy: auth.actor.via !== 'portal' ? auth.actor.actorId : '',
       },
     })
 

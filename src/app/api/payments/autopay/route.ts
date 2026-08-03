@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
 
     const auth = await authorizeResidentPayment(residentId)
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+    // P50 — stylists vault cards at the chair; autopay/billing stays off-limits.
+    if (auth.actor.via === 'stylist') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     await ensurePaymentsSchema()
     const resident = await db.query.residents.findFirst({
@@ -75,6 +77,8 @@ export async function POST(request: NextRequest) {
 
     const auth = await authorizeResidentPayment(body.residentId)
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+    // P50 — stylists vault cards at the chair; autopay/billing stays off-limits.
+    if (auth.actor.via === 'stylist') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     await ensurePaymentsSchema()
 
