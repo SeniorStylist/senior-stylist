@@ -665,12 +665,14 @@ export function buildFeedbackEmailHtml(params: {
   category: string
   message: string
   senderName: string
+  /** P49 — the LOGIN address (distinguishes duplicate accounts sharing a name). */
+  senderEmail?: string | null
   senderRole: string | null
   facilityName: string | null
   pagePath: string | null
   device?: string | null
 }): string {
-  const { category, message, senderName, senderRole, facilityName, pagePath, device } = params
+  const { category, message, senderName, senderEmail, senderRole, facilityName, pagePath, device } = params
   const categoryLabel: Record<string, string> = {
     bug: '🐞 Bug report',
     idea: '💡 Idea',
@@ -692,6 +694,7 @@ export function buildFeedbackEmailHtml(params: {
       </div>
       <table style="width:100%;border-collapse:collapse;">
         ${metaRow('From', senderName)}
+        ${senderEmail ? metaRow('Email', senderEmail) : ''}
         ${senderRole ? metaRow('Role', senderRole) : ''}
         ${pagePath ? metaRow('Page', pagePath) : ''}
         ${device ? metaRow('Device', device) : ''}
