@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const [profile, facility] = await Promise.all([
       db.query.profiles.findFirst({
         where: eq(profiles.id, user.id),
-        columns: { fullName: true },
+        columns: { fullName: true, email: true },
       }),
       facilityUser
         ? db.query.facilities.findFirst({
@@ -127,6 +127,9 @@ export async function POST(request: NextRequest) {
           category,
           message,
           senderName: profile?.fullName ?? user.email ?? 'Unknown user',
+          // P49 — always include the LOGIN address so duplicate accounts are
+          // distinguishable from the notification alone.
+          senderEmail: profile?.email ?? user.email ?? null,
           senderRole: facilityUser?.role ?? null,
           facilityName: facility?.name ?? null,
           pagePath: pagePath ?? null,
@@ -178,7 +181,13 @@ export async function GET() {
           })
         : Promise.resolve([]),
     ])
-    const profileMap = new Map(profileRows.map((p) => [p.id, p.fullName ?? p.email ?? '—']))
+    // P49 — do NOT collapse name and email into one string. The old
+    // `fullName ?? email` map meant any user with a name saved never showed
+    // their address anywhere — which made "which login sent this?" (duplicate
+    // accounts, Senait) unanswerable from the review page.
+    const profileMap = new Map(
+      profileRows.map((p) => [p.id, { name: p.fullName ?? p.email ?? '—', email: p.email ?? null }]),
+    )
     const facilityMap = new Map(facilityRows.map((f) => [f.id, f.name]))
 
     return Response.json({
@@ -191,7 +200,9 @@ export async function GET() {
         pagePath: r.pagePath,
         meta: r.meta ?? null,
         createdAt: r.createdAt,
-        senderName: r.userId ? profileMap.get(r.userId) ?? '—' : '—',
+        senderName: r.userId ? profileMap.get(r.userId)?.name ?? '—' : '—',
+        senderEmail: r.userId ? profileMap.get(r.userId)?.email ?? null : null,
+        userId: r.userId ?? null,
         facilityName: r.facilityId ? facilityMap.get(r.facilityId) ?? '—' : null,
         // P37 — two-way replies
         reply: r.reply ?? null,

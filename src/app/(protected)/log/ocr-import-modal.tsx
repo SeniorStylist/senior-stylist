@@ -303,6 +303,21 @@ function rematchSheetState(
   }
 }
 
+/**
+ * P48 + round-5 merge — name the real cause of a failed scan/import request.
+ * The body was already read via readJsonSafe (413/504 gateway pages are not
+ * JSON); when the server sent no message, map the status to something the
+ * bookkeeper can act on instead of a generic "Network error".
+ */
+function apiFailureMessage(res: Response, json: Record<string, unknown>, fallback: string): string {
+  if (typeof json.error === 'string') return json.error
+  if (res.status === 413) return 'Those sheets are too large to upload — try scanning fewer at once.'
+  if (res.status === 429) return "You've scanned a lot in a short time — wait a few minutes and try again."
+  if (res.status === 504 || res.status === 408) return 'That took too long to process. Try scanning fewer sheets at once.'
+  if (res.status === 401) return 'Your session expired — reload the page and sign in again.'
+  return `${fallback} (${res.status})`
+}
+
 export function OcrImportModal({
   open,
   onClose,
@@ -627,11 +642,7 @@ export function OcrImportModal({
         // never let res.json() throw into the generic catch below.
         const json = await readJsonSafe(res)
         if (!res.ok) {
-          const message =
-            typeof json.error === 'string' ? json.error
-            : res.status === 413 ? 'These sheets are too large to upload — try scanning fewer at once.'
-            : res.status === 504 ? 'The scan timed out — try scanning fewer sheets at once.'
-            : `Scan failed (${res.status})`
+          const message = apiFailureMessage(res, json, 'Scan failed')
           if (allRawSheets.length > 0) {
             // Keep the sheets that already scanned instead of discarding them
             chunkFailure = { fromIndex: allRawSheets.length, message }
@@ -770,13 +781,7 @@ export function OcrImportModal({
       })
       const json = await readJsonSafe(res)
       if (!res.ok) {
-        setImportError(
-          typeof json.error === 'string'
-            ? json.error
-            : res.status === 504
-              ? 'The import timed out — try again with fewer sheets.'
-              : `Import failed (${res.status})`,
-        )
+        setImportError(apiFailureMessage(res, json, 'Import failed'))
         return
       }
       const data = json.data as { created: { bookings: number } }

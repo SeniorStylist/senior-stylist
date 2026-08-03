@@ -29,6 +29,13 @@ export interface SyncQBInvoicesResult {
   updated: number
   skipped: number
   errors: string[]
+  /**
+   * P48 — did the sync make real forward progress (cursor moved)? This, not
+   * `errors.length`, is the signal callers should treat as success/failure:
+   * a safety-cap run reports an error yet still advanced, while a token
+   * failure reports an error and did NOT.
+   */
+  cursorAdvanced: boolean
 }
 
 function deriveStatus(amountCents: number, openBalanceCents: number): string {
@@ -54,7 +61,10 @@ export async function syncQBInvoices(
   facilityId: string,
   options: { fullSync?: boolean } = {},
 ): Promise<SyncQBInvoicesResult> {
-  const result: SyncQBInvoicesResult = { created: 0, updated: 0, skipped: 0, errors: [] }
+  const result: SyncQBInvoicesResult = { created: 0, updated: 0, skipped: 0, errors: [], cursorAdvanced: false }
+  // Per-row upsert failures: they mean the window was NOT fully ingested, so
+  // the cursor must not move past it (see the guarded update at the end).
+  let writeFailures = 0
   const { fullSync = false } = options
 
   const facility = await db.query.facilities.findFirst({
@@ -90,6 +100,11 @@ export async function syncQBInvoices(
   const SAFETY_CAP = 5000
   const allInvoices: QBInvoice[] = []
 
+  // P48 — track WHY the loop ended. The cursor may only move forward over a
+  // window we actually ingested; see the guarded update at the end.
+  let fetchFailed = false
+  let capped = false
+
   while (true) {
     const query = `SELECT * FROM Invoice${whereClause} STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
     const path = `/query?query=${encodeURIComponent(query)}&minorversion=65`
@@ -100,6 +115,7 @@ export async function syncQBInvoices(
       result.errors.push(
         `Query failed at position ${startPosition}: ${(err as Error).message?.slice(0, 200)}`,
       )
+      fetchFailed = true
       break
     }
     const page = res.QueryResponse?.Invoice ?? []
@@ -108,6 +124,7 @@ export async function syncQBInvoices(
     startPosition += PAGE_SIZE
     if (allInvoices.length >= SAFETY_CAP) {
       result.errors.push(`Stopped at ${SAFETY_CAP} invoices — re-sync to continue`)
+      capped = true
       break
     }
   }
@@ -180,9 +197,12 @@ export async function syncQBInvoices(
       else result.created++
     } catch (err) {
       result.errors.push(`Invoice ${invoiceNum}: ${(err as Error).message?.slice(0, 200)}`)
+      writeFailures++
     }
   }
 
+  // Balance recomputes are derived from whatever is now in our DB, so they are
+  // always safe to run — even after a partial pull.
   await db.execute(sql`
     UPDATE facilities SET qb_outstanding_balance_cents = COALESCE((
       SELECT SUM(open_balance_cents) FROM qb_invoices
@@ -197,14 +217,51 @@ export async function syncQBInvoices(
     ), 0) WHERE facility_id = ${facilityId}
   `)
 
-  await db
-    .update(facilities)
-    .set({
-      qbInvoicesLastSyncedAt: new Date(),
-      qbInvoicesSyncCursor: new Date().toISOString(),
-      updatedAt: new Date(),
-    })
-    .where(eq(facilities.id, facilityId))
+  /**
+   * P48 — THE CURSOR MAY ONLY MOVE OVER A WINDOW WE ACTUALLY INGESTED.
+   *
+   * This block used to run unconditionally. An expired refresh token throws
+   * inside qbGet, is caught by the pagination loop above, and execution fell
+   * straight through to here — stamping the cursor to now() even though zero
+   * invoices were pulled. The next incremental run then asked for
+   * `LastUpdatedTime > <the failed run>` and silently skipped every invoice
+   * that changed during the outage. Manual use masked it (the operator saw an
+   * error and clicked again); the nightly cron would have made it silent
+   * recurring data loss.
+   *
+   * - query failed, or any row failed to write → do NOT advance (a later run
+   *   must re-cover the same window)
+   * - safety cap hit → advance only as far as the newest invoice we stored, so
+   *   the next run RESUMES instead of either stalling on the same 5000 or
+   *   skipping the remainder
+   * - clean full pull → advance to now()
+   */
+  let nextCursor: string | null = null
+  if (!fetchFailed && writeFailures === 0) {
+    if (capped) {
+      const newest = allInvoices.reduce<string | null>((max, inv) => {
+        const t = inv.MetaData?.LastUpdatedTime
+        return t && (!max || t > max) ? t : max
+      }, null)
+      nextCursor = newest // null → stay put rather than guess
+    } else {
+      nextCursor = new Date().toISOString()
+    }
+  }
+
+  if (nextCursor) {
+    await db
+      .update(facilities)
+      .set({
+        // Only stamped alongside real forward progress, so "Last synced" on the
+        // billing page and the master QB dashboard stays truthful.
+        qbInvoicesLastSyncedAt: new Date(),
+        qbInvoicesSyncCursor: nextCursor,
+        updatedAt: new Date(),
+      })
+      .where(eq(facilities.id, facilityId))
+  }
+  result.cursorAdvanced = !!nextCursor
 
   return result
 }

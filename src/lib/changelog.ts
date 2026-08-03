@@ -7,6 +7,30 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.8',
+    date: '2026-08-03',
+    title: 'Know Exactly Who — Feedback Emails + Duplicate Logins',
+    items: [
+      'Every feedback submission now shows the exact email address (and account id) it came from — on the review page, and in the notification email you receive. Before, anyone with a name saved never showed their address anywhere',
+      'Settings → Team flags a "Possible duplicate" when one person appears to have two logins (same name or email under two accounts) — with a tooltip explaining how to retire the unused one',
+      'The "already linked to another team member" error now names the exact account holding the link, so you know which login to disconnect instead of guessing',
+      'Fixed the real reason some stylists could never auto-link on sign-up: stylists who work at a facility through an assignment (rather than it being their home facility) were invisible to the automatic linker — invites and sign-ins now link them correctly',
+    ],
+  },
+  {
+    version: '5.7',
+    date: '2026-08-01',
+    title: 'Stylist Fix + QuickBooks Health at a Glance',
+    items: [
+      'Fixed a real blocker: if a stylist\'s login wasn\'t connected to their stylist record, the "Scan log sheet" and "Add walk-in" buttons simply vanished — so scanning a day log looked broken. The buttons now stay visible, explain why they\'re unavailable, and there\'s a one-tap "Ask my admin to link me" that instantly notifies your admins by bell and email',
+      'Settings → Team now flags any teammate whose login isn\'t linked to a stylist record with an amber "Not linked" badge, so you can spot and fix it before anyone gets stuck',
+      'Scan errors are honest now — a too-large photo or a timeout says exactly that instead of "network error"',
+      'New QuickBooks status page for the owner (Master Admin → QuickBooks): every facility\'s connection, expense account, last sync, last import, and open balance in one grid, with anything needing attention flagged',
+      'QuickBooks invoices can now sync automatically every night (turns on once Intuit approves the production app)',
+      'Fixed a data-integrity bug in the QuickBooks sync: if a pull failed partway, it used to skip ahead anyway and silently miss every invoice that changed during the outage. It now only moves forward over data it actually received',
+    ],
+  },
+  {
     version: '5.6',
     date: '2026-07-23',
     title: 'Answers You Can Tap — Live Typing, Smarter Search, Cleaner Mobile',

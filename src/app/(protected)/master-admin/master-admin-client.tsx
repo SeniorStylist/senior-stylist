@@ -556,6 +556,19 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                   </span>
                 )}
               </a>
+              {/* P48 — network-wide QuickBooks health (own page: this one already
+                  fires 8 queries, and P22 was that cold burst timing out). */}
+              <a
+                href="/master-admin/quickbooks"
+                data-tour="master-quickbooks-status"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white hover:bg-[#F9EFF2] hover:border-[#8B2E4A]/20 transition-colors text-sm font-medium text-stone-700 shadow-[var(--shadow-sm)]"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22v-5" /><path d="M9 8V2" /><path d="M15 8V2" />
+                  <path d="M18 8v4a6 6 0 01-12 0V8z" />
+                </svg>
+                QuickBooks
+              </a>
             </div>
             {activeTab === 'facilities' && (
               <div className="flex items-center gap-3">

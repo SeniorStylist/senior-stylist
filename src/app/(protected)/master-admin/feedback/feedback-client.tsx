@@ -26,6 +26,9 @@ interface FeedbackRow {
   meta: FeedbackMeta | null
   createdAt: string
   senderName: string
+  /** P49 — which LOGIN sent it (duplicate accounts share a display name). */
+  senderEmail: string | null
+  userId: string | null
   facilityName: string | null
   // P37 — two-way replies
   reply: string | null
@@ -484,6 +487,14 @@ export function FeedbackClient() {
 
                 <div className="flex items-center justify-between mt-3 gap-3">
                   <div className="min-w-0">
+                    {/* P49 — which login sent this. The short user-id suffix is what
+                        tells two accounts with the same display name apart. */}
+                    {r.senderEmail && (
+                      <span className="block text-[10.5px] text-stone-400 truncate">
+                        <a href={`mailto:${r.senderEmail}`} className="hover:text-[#8B2E4A] underline-offset-2 hover:underline">{r.senderEmail}</a>
+                        {r.userId ? <span className="font-mono"> · {r.userId.slice(0, 8)}</span> : null}
+                      </span>
+                    )}
                     <span className="block text-[11px] text-stone-400 font-mono truncate">{r.pagePath ?? ''}</span>
                     {metaSummary(r.meta) && (
                       <span className="block text-[10.5px] text-stone-400 truncate">{metaSummary(r.meta)}</span>

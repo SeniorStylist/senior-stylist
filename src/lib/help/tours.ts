@@ -761,6 +761,8 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/settings?section=billing', element: '[data-tour="settings-qb-connect-btn"]', isAction: true, title: 'Connect QuickBooks', description: 'Starts the Intuit OAuth login to authorize access to this facility\'s QuickBooks account.', actionHint: 'Tap Connect QuickBooks — no real connection is made.' },
       { route: '/settings?section=billing', element: '', isAction: false, title: 'After connecting', description: 'Payroll syncs as Bills and invoices flow back. See a discrepancy? Use manual sync to refresh.', mobileDescription: 'Payroll syncs as Bills. Use manual sync if you see issues.' },
       { route: '/settings?section=billing', element: '', isAction: false, title: 'Per-facility setup', description: 'Each facility needs its own connection — they may use separate QB accounts. Repeat for each one.' },
+      // P48 — the new network-wide health view
+      { route: '/master-admin', element: '[data-tour="master-quickbooks-status"]', isAction: false, title: 'Check every facility', description: 'Master Admin → QuickBooks shows each facility\'s connection, expense account, last sync and open balance in one grid.', mobileDescription: 'Master Admin → QuickBooks shows every facility\'s status at once.' },
     ],
   },
 

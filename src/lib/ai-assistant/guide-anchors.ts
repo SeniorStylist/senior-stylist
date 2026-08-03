@@ -139,6 +139,8 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'stylists-table': { route: '/stylists', label: 'stylist roster', kind: 'area' },
   'master-facility-list': { route: '/master-admin', label: 'facility grid', kind: 'area', desktopOnly: true },
   'master-add-facility-btn': { route: '/master-admin', label: 'Add Facility button', kind: 'button', desktopOnly: true },
+  // P48 — network-wide QuickBooks health page
+  'master-quickbooks-status': { route: '/master-admin', label: 'QuickBooks status link', kind: 'button', desktopOnly: true },
   'help-home': { route: '/help', label: 'Help Center home', kind: 'area' },
 }
 

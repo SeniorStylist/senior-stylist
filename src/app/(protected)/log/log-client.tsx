@@ -103,6 +103,8 @@ interface LogClientProps {
   isMaster?: boolean
   // P30 — stylist account with no linked stylist profile: read-only + banner
   unlinkedStylist?: boolean
+  /** P48 — scopes the "asked my admin" cooldown per user (shared devices). */
+  userId?: string
   carePrefs?: Record<string, { styleNotes: string | null; allergyNotes: string | null }>
 }
 
@@ -189,6 +191,7 @@ export function LogClient({
   exportFacilities,
   isMaster = false,
   unlinkedStylist = false,
+  userId,
   carePrefs = {},
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
@@ -198,6 +201,10 @@ export function LogClient({
   const canWrite =
     (role === 'admin' || role === 'super_admin' || role === 'stylist' || role === 'bookkeeper') &&
     !(role === 'stylist' && unlinkedStylist)
+  // P48 — a stylist who WOULD be able to write except their login isn't linked.
+  // Their action buttons render disabled-with-an-explanation rather than
+  // vanishing: an absent control is indistinguishable from a broken one.
+  const blockedUnlinked = role === 'stylist' && unlinkedStylist
   const [date, setDate] = useState(initialDate)
   // Phase 17 — set when a day was served from the offline read-cache
   const [offlineAt, setOfflineAt] = useState<number | null>(null)
@@ -514,6 +521,48 @@ export function LogClient({
   const [undoingBatch, setUndoingBatch] = useState(false)
 
   const { toast } = useToast()
+
+  // P48 — unlinked stylist: "Ask my admin to link me". Persisted per user so
+  // the confirmed state survives a reload (the request is rate-limited 3/day
+  // server-side; this just stops confused re-tapping).
+  const linkRequestKey = `ss_link_request:${userId ?? 'me'}`
+  const [linkRequestState, setLinkRequestState] = useState<'idle' | 'sending' | 'sent'>(() => {
+    if (typeof window === 'undefined') return 'idle'
+    try {
+      const at = Number(localStorage.getItem(linkRequestKey) ?? 0)
+      // Re-arm after 24h so a forgotten request can be nudged again.
+      return at && Date.now() - at < 24 * 60 * 60 * 1000 ? 'sent' : 'idle'
+    } catch {
+      return 'idle'
+    }
+  })
+  const requestStylistLink = async () => {
+    if (linkRequestState !== 'idle') return
+    setLinkRequestState('sending')
+    try {
+      const res = await fetch('/api/profile/request-stylist-link', { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setLinkRequestState('idle')
+        toast.error(typeof json.error === 'string' ? json.error : "Couldn't reach your admin — try again shortly.")
+        return
+      }
+      setLinkRequestState('sent')
+      try { localStorage.setItem(linkRequestKey, String(Date.now())) } catch { /* private mode */ }
+      toast.success('Your admin has been notified — they can link you in Settings → Team.')
+    } catch {
+      setLinkRequestState('idle')
+      toast.error('Network error — try again when you have signal.')
+    }
+  }
+
+  const explainUnlinked = () => {
+    toast.info(
+      linkRequestState === 'sent'
+        ? "Your admin has been notified — once they link your account you can scan your sheet here."
+        : "Your account isn't linked to your stylist profile yet — tap “Ask my admin to link me” at the top and they can fix it in seconds.",
+    )
+  }
 
   // F6: offline write-queue pending count (pill in the header while syncing)
   const [pendingWrites, setPendingWrites] = useState(0)
@@ -1185,10 +1234,26 @@ export function LogClient({
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <p className="text-sm text-amber-800">
-            <span className="font-semibold">Your account isn&apos;t linked to a stylist profile yet.</span>{' '}
-            Ask your admin to link you (Settings → Team) — until then the day log is view-only.
-          </p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-amber-800">
+              <span className="font-semibold">Your account isn&apos;t linked to a stylist profile yet.</span>{' '}
+              Until an admin links you, the day log is view-only — you can&apos;t scan a log sheet or add a walk-in.
+            </p>
+            {/* P48 — one tap bells + emails the facility admins. Before this the
+                banner was a dead end and stylists reported the app as broken. */}
+            <button
+              type="button"
+              onClick={requestStylistLink}
+              disabled={linkRequestState !== 'idle'}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-700 disabled:bg-amber-200 disabled:text-amber-700"
+            >
+              {linkRequestState === 'sent'
+                ? '✓ Your admin has been notified'
+                : linkRequestState === 'sending'
+                  ? 'Sending…'
+                  : 'Ask my admin to link me'}
+            </button>
+          </div>
         </div>
       )}
       {canWrite && todayOcrBatch && (
@@ -2250,18 +2315,25 @@ export function LogClient({
       </div>
       )}{/* end body wrapper */}
 
-      {/* Mobile footer bar — pinned above nav bar */}
-      {!showWalkIn && canWrite && (
+      {/* Mobile footer bar — pinned above nav bar.
+          P48: an UNLINKED stylist still sees these, disabled with an
+          explanation. Hiding them made the feature look broken (Senait
+          reported "it's not working" twice — there was simply no button). */}
+      {!showWalkIn && (canWrite || blockedUnlinked) && (
         <div
           className="md:hidden fixed left-0 right-0 bg-white border-t border-stone-100 px-4 flex gap-2 z-40"
           style={{ bottom: 'var(--app-nav-clearance)', paddingTop: '8px', paddingBottom: '8px' }}
         >
           {/* P37 — stylists can scan their OWN sheet (import forces their stylist id) */}
           <button
-            onClick={() => setOcrOpen(true)}
+            onClick={() => (blockedUnlinked ? explainUnlinked() : setOcrOpen(true))}
             data-tour-mobile="daily-log-scan-sheet"
-            className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
-            title="Import from photo"
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl px-4 py-3 active:scale-95 transition-all text-sm font-semibold ${
+              blockedUnlinked
+                ? 'bg-stone-50 text-stone-400 border border-stone-200'
+                : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
+            }`}
+            title={blockedUnlinked ? 'Needs your admin to link your account' : 'Import from photo'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
@@ -2270,9 +2342,11 @@ export function LogClient({
             Scan log sheet
           </button>
           <button
-            onClick={() => setShowWalkIn(true)}
+            onClick={() => (blockedUnlinked ? explainUnlinked() : setShowWalkIn(true))}
             data-tour-mobile="daily-log-add-walkin"
-            className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl px-4 py-3 active:scale-95 transition-all text-sm font-semibold ${
+              blockedUnlinked ? 'bg-stone-200 text-stone-500' : 'bg-[#8B2E4A] text-white hover:bg-[#72253C]'
+            }`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -2283,15 +2357,19 @@ export function LogClient({
         </div>
       )}
 
-      {/* Desktop inline buttons */}
-      {!showWalkIn && canWrite && (
+      {/* Desktop inline buttons (see the P48 note on the mobile bar above) */}
+      {!showWalkIn && (canWrite || blockedUnlinked) && (
         <div className="hidden md:flex gap-2 mt-4">
           {/* P37 — stylists can scan their OWN sheet (import forces their stylist id) */}
           <button
-            onClick={() => setOcrOpen(true)}
+            onClick={() => (blockedUnlinked ? explainUnlinked() : setOcrOpen(true))}
             data-tour="daily-log-scan-sheet"
-            className="flex-1 flex items-center justify-center gap-2 bg-white text-stone-600 border border-stone-200 rounded-2xl px-4 py-3 shadow-sm hover:bg-stone-50 active:scale-95 transition-all text-sm font-semibold"
-            title="Import from photo"
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl px-4 py-3 shadow-sm active:scale-95 transition-all text-sm font-semibold ${
+              blockedUnlinked
+                ? 'bg-stone-50 text-stone-400 border border-stone-200'
+                : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
+            }`}
+            title={blockedUnlinked ? 'Needs your admin to link your account' : 'Import from photo'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
@@ -2300,9 +2378,11 @@ export function LogClient({
             Scan log sheet
           </button>
           <button
-            onClick={() => setShowWalkIn(true)}
+            onClick={() => (blockedUnlinked ? explainUnlinked() : setShowWalkIn(true))}
             data-tour="daily-log-add-walkin"
-            className="flex-1 flex items-center justify-center gap-2 bg-[#8B2E4A] text-white rounded-2xl px-4 py-3 hover:bg-[#72253C] active:scale-95 transition-all text-sm font-semibold"
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl px-4 py-3 active:scale-95 transition-all text-sm font-semibold ${
+              blockedUnlinked ? 'bg-stone-200 text-stone-500' : 'bg-[#8B2E4A] text-white hover:bg-[#72253C]'
+            }`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />

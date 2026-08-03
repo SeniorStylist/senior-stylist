@@ -190,6 +190,7 @@ export default async function LogPage() {
       services={toClientJson(servicesList)}
       stylistFilter={stylistFilter}
       unlinkedStylist={unlinkedStylist}
+      userId={user.id}
       serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
       facilityTimezone={facility?.timezone ?? 'America/New_York'}
       facilityId={facilityId}

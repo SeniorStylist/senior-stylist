@@ -192,7 +192,11 @@ Rule of thumb the app enforces everywhere: revenue counts COMPLETED visits only,
 4. Transaction Memos ("Transaction List by Customer") — enriches payments with memo text.
 5. Unapplied Credits ("Customer Balance Detail", All Dates) — money QB received but never applied to an invoice. Review them at Master Admin → Unapplied Credits, where you can auto-match or manually apply credits to open invoices (then mirror the application in QB — the next Step 2 import re-syncs from QB).
 
-Each importer shows exactly which QB report to export. Facility rows are matched by F-code; residents by QB customer ID, then name.`,
+Each importer shows exactly which QB report to export. Facility rows are matched by F-code; residents by QB customer ID, then name.
+
+Master Admin → QuickBooks (a separate page) shows the whole network at a glance: which facilities are connected, whether each has an expense account set (required before payroll can push), when invoices last synced, when QB CSVs were last imported, and each facility's open balance. Anything needing action is flagged — "Needs reconnect" means that facility's last QuickBooks call failed and the connection has to be re-authorized in its Settings → Billing.
+
+Live invoice pulling (the "Sync from QB" button) stays switched off until Intuit approves the production app; payroll Bill push and vendor sync work as soon as a facility connects. Once it's enabled, invoices also sync automatically every night.`,
   },
   {
     id: 'payments-cards',
@@ -240,7 +244,9 @@ Compliance: upload license, insurance, and background-check documents; admins ve
 
 Commission and status: set the commission percentage and active status on the stylist page (feeds payroll).
 
-Giving a stylist a login: send an account invite from their page, then make sure their login is LINKED to their stylist record (Settings → Team → Assign stylist). An unlinked stylist login sees an amber "ask your admin to link you" banner. If a stylist switches email addresses: Disconnect stylist, invite the new email, relink.`,
+Giving a stylist a login: send an account invite from their page, then make sure their login is LINKED to their stylist record (Settings → Team → Assign stylist). An unlinked stylist login sees an amber "ask your admin to link you" banner. If a stylist switches email addresses: Disconnect stylist, invite the new email, relink.
+
+Duplicate logins: if one person ends up with two accounts (invited at two addresses, or signed in two different ways), Settings → Team shows an amber "Possible duplicate" flag on both rows, and each row shows its login email. Only one login can hold the stylist link — trying to assign it to the other tells you exactly which email holds it. To retire the unused login: Disconnect stylist on it, assign the stylist to the login they actually use, then Remove the old membership.`,
   },
   {
     id: 'services',

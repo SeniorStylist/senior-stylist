@@ -445,6 +445,18 @@ export function TeamSection({
             const initials = cu.profile.fullName
               ? cu.profile.fullName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
               : (cu.profile.email?.slice(0, 2).toUpperCase() ?? '??')
+            // P49 — one person, two logins (invited at two addresses, or magic
+            // link + Google minting separate auth ids). Flag members whose
+            // normalized name OR email matches another member's under a
+            // different userId — computed from the already-loaded list.
+            const normName = (cu.profile.fullName ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+            const normEmail = (cu.profile.email ?? '').trim().toLowerCase()
+            const possibleDuplicate = localUsers.some(
+              (u) =>
+                u.userId !== cu.userId &&
+                ((normName && (u.profile.fullName ?? '').trim().toLowerCase().replace(/\s+/g, ' ') === normName) ||
+                  (normEmail && (u.profile.email ?? '').trim().toLowerCase() === normEmail)),
+            )
             return (
               <div
                 key={cu.userId}
@@ -467,13 +479,35 @@ export function TeamSection({
                     {cu.profile.fullName ?? cu.profile.email ?? 'Unknown'}
                     {isYou && <span className="ml-1.5 text-xs text-stone-400">(you)</span>}
                   </p>
-                  {cu.profile.fullName && (
+                  {/* P49 — the login email is always visible: as this sub-line
+                      when a fullName headline is shown, or as the headline
+                      itself when the profile has no name (magic-link case). */}
+                  {cu.profile.fullName && cu.profile.email && (
                     <p className="text-xs text-stone-400 truncate">{cu.profile.email}</p>
                   )}
                 </div>
+                {possibleDuplicate && (
+                  <span
+                    title="Another member of this team has the same name or email — one person may have two logins. To retire one: Disconnect stylist on the unused login, then Remove it."
+                    className="shrink-0 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
+                  >
+                    Possible duplicate
+                  </span>
+                )}
                 <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', roleBadgeClass(cu.role))}>
                   {roleBadgeLabel(cu.role)}
                 </span>
+                {/* P48 — an unlinked stylist login is view-only on the daily log
+                    and can't scan a sheet at all, which reads to them as "the
+                    app is broken". Flag it here, where the fix lives. */}
+                {cu.role === 'stylist' && !cu.stylistId && (
+                  <span
+                    title="This login isn't connected to a stylist record — their daily log is view-only until you assign one."
+                    className="shrink-0 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
+                  >
+                    Not linked
+                  </span>
+                )}
                 {(() => {
                   const isOpen = assigningUserId === cu.userId
                   const isSaving = savingStylistFor === cu.userId
@@ -492,7 +526,10 @@ export function TeamSection({
                           'text-xs px-2 py-0.5 rounded-full border transition-colors disabled:opacity-50 max-w-[160px] truncate',
                           cu.stylistName
                             ? 'border-stone-200 text-stone-500 hover:border-[#C4687A] hover:text-[#8B2E4A]'
-                            : 'border-dashed border-stone-300 text-stone-400 hover:border-[#C4687A] hover:text-[#8B2E4A]'
+                            : cu.role === 'stylist'
+                              // P48 — an unlinked STYLIST is actively blocked; make it pull the eye.
+                              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:border-amber-500'
+                              : 'border-dashed border-stone-300 text-stone-400 hover:border-[#C4687A] hover:text-[#8B2E4A]'
                         )}
                       >
                         {isSaving ? '…' : cu.stylistName ? `↔ ${cu.stylistName}` : '+ Assign stylist'}
