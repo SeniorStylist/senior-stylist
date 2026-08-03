@@ -7,6 +7,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.9',
+    date: '2026-08-03',
+    title: 'New-Facility Onboarding — QR to Chair',
+    items: [
+      'The family signup page (from the QR poster) is now a gentle one-question-at-a-time wizard built for seniors: who you are, your name, the resident\'s name and room, email, phone — big text, big buttons, every optional step skippable',
+      'Signups now tell you WHO they\'re for: the approval queue shows the resident\'s name, room, and relationship with a confidence badge, so approving is one glance instead of guesswork',
+      'Applicants hear back: a "request received" email on signup, and a kind note if a request is declined; admins get a bell for every new signup',
+      'Family appointment requests now land in the salon\'s Sign-Up Sheet queue — with a "From family portal" chip, the family\'s preferred dates and stylist, and a pending badge for admins and facility staff — instead of creating phantom calendar bookings nobody saw',
+      'The family gets a real confirmation email the moment the stylist schedules their request — and the reminder checkboxes on the portal profile page actually control emails and texts now',
+      'Families can turn automatic payment on or off themselves from the portal billing page (a saved card required, confirm step, email confirmation every time) — and everyone on the family\'s email list is notified whenever a card is saved or autopay changes',
+      'Stylists can save a handed-over card right at the chair from any daily-log row — it goes straight into Stripe\'s secure form (camera scan works in the phone browser), charges nothing, and the family gets a "card saved" email',
+      'New families\' first sign-in walks them through a one-time setup: save a card, opt into autopay, and pick a visit rhythm (weekly / every 2 weeks / monthly) — which feeds the salon\'s "due for a visit" list',
+      'Fixed: families who signed up via the QR poster (with a different email than the one on file) could never request a sign-in link — now they can',
+    ],
+  },
+  {
     version: '5.8',
     date: '2026-08-03',
     title: 'Know Exactly Who — Feedback Emails + Duplicate Logins',
