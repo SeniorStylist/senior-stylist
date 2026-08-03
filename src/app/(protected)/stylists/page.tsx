@@ -2,10 +2,11 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { stylists, complianceDocuments, stylistFacilityAssignments } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
-import { eq, and, inArray } from 'drizzle-orm'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
+import { eq, and, inArray, or } from 'drizzle-orm'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
+import { AddStylistInline } from '@/components/stylists/add-stylist-inline'
 import { computeComplianceStatus, complianceStatusLabel } from '@/lib/compliance'
 
 const STATUS_COLOR: Record<'green' | 'amber' | 'red', string> = {
@@ -20,7 +21,8 @@ export default async function StylistsPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  if (facilityUser.role !== 'admin') redirect('/dashboard')
+  // Round 6 — bookkeepers manage stylist names/codes (cross-facility by role)
+  if (!canManageStylists(facilityUser.role)) redirect('/dashboard')
 
   try {
   const assigned = await db
@@ -34,16 +36,18 @@ export default async function StylistsPage() {
     )
   const assignedIds = assigned.map((r) => r.id)
 
-  const stylistsList = assignedIds.length
-    ? await db.query.stylists.findMany({
-        where: and(
-          inArray(stylists.id, assignedIds),
-          eq(stylists.active, true),
-          eq(stylists.status, 'active'),
-        ),
-        orderBy: (t, { asc }) => [asc(t.name)],
-      })
-    : []
+  // Roster rule (P33/P34b): home rows PLUS assignment-linked rows — this page
+  // previously read assignments only and missed home stylists with no row.
+  const stylistsList = await db.query.stylists.findMany({
+    where: and(
+      assignedIds.length
+        ? or(eq(stylists.facilityId, facilityUser.facilityId), inArray(stylists.id, assignedIds))
+        : eq(stylists.facilityId, facilityUser.facilityId),
+      eq(stylists.active, true),
+      eq(stylists.status, 'active'),
+    ),
+    orderBy: (t, { asc }) => [asc(t.name)],
+  })
 
   const facilityDocs = await db.query.complianceDocuments.findMany({
     where: eq(complianceDocuments.facilityId, facilityUser.facilityId),
@@ -65,21 +69,24 @@ export default async function StylistsPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1
-          className="text-2xl font-normal text-stone-900"
-          style={{ fontFamily: "'DM Serif Display', serif" }}
-        >
-          Stylists
-        </h1>
-        <p className="text-sm text-stone-500 mt-0.5">
-          {stylistsList.length} active stylist{stylistsList.length !== 1 ? 's' : ''}
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1
+            className="text-2xl font-normal text-stone-900"
+            style={{ fontFamily: "'DM Serif Display', serif" }}
+          >
+            Stylists
+          </h1>
+          <p className="text-sm text-stone-500 mt-0.5">
+            {stylistsList.length} active stylist{stylistsList.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <AddStylistInline />
       </div>
 
       {stylistsList.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
-          <p className="text-stone-400 text-sm">No stylists yet. Add one from the dashboard.</p>
+          <p className="text-stone-400 text-sm">No stylists yet. Add one with the button above.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden" data-tour="stylists-table">

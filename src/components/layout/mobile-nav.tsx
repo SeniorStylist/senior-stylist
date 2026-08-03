@@ -58,6 +58,23 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    // Round 6 — bookkeepers add/rename stylists. Not in DEFAULT_PINNED (both
+    // roles are at the 5-tab max) — reachable from the More sheet.
+    href: '/stylists',
+    label: 'Stylists',
+    slug: 'nav-stylists',
+    roles: ['admin', 'bookkeeper'],
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="6" cy="6" r="3"/>
+        <circle cx="6" cy="18" r="3"/>
+        <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+        <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+        <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+      </svg>
+    ),
+  },
+  {
     href: '/my-account',
     label: 'Account',
     slug: 'nav-my-account',

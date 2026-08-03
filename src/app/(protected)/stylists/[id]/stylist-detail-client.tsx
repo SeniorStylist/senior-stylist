@@ -734,7 +734,9 @@ export function StylistDetailClient({
               )}
             </div>
 
-            {franchiseFacilities.length > 0 && (
+            {/* Facility moves are admin-only — the PUT whitelist drops facilityId
+                for bookkeepers, so don't render a control that silently no-ops */}
+            {isAdmin && franchiseFacilities.length > 0 && (
               <div>
                 <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
                   Facility assignment
@@ -758,7 +760,12 @@ export function StylistDetailClient({
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
                 Commission %
               </label>
-              {editingCommission ? (
+              {/* Commission edits are payroll data — admin/master only. Bookkeepers
+                  see it read-only (they already have payroll access; the PUT
+                  whitelist drops commissionPercent for them anyway). */}
+              {!isAdmin ? (
+                <span className="text-sm font-semibold text-stone-900">{commissionPercent}%</span>
+              ) : editingCommission ? (
                 <div className="flex gap-2 items-center">
                   <input
                     type="number"

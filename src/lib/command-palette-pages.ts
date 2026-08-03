@@ -13,7 +13,7 @@ export const PALETTE_ROUTES: PaletteRoute[] = [
   { id: 'residents', label: 'Residents', description: 'Manage resident profiles', route: '/residents', icon: 'Users', roles: ['admin', 'facility_staff'] },
   { id: 'daily-log', label: 'Daily Log', description: 'View and edit the daily log', route: '/log', icon: 'FileText', roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist'] },
   { id: 'my-account', label: 'My Account', description: 'Your schedule, earnings, and documents', route: '/my-account', icon: 'Wallet', roles: ['stylist'] },
-  { id: 'stylists', label: 'Stylists', description: 'Manage stylists', route: '/stylists', icon: 'Scissors', roles: ['admin'] },
+  { id: 'stylists', label: 'Stylists', description: 'Manage stylists', route: '/stylists', icon: 'Scissors', roles: ['admin', 'bookkeeper'] },
   { id: 'billing', label: 'Billing', description: 'Invoices, payments, and statements', route: '/billing', icon: 'CreditCard', roles: ['admin', 'bookkeeper'] },
   { id: 'analytics', label: 'Analytics', description: 'Revenue and performance reports', route: '/analytics', icon: 'BarChart3', roles: ['admin', 'bookkeeper'] },
   { id: 'payroll', label: 'Payroll', description: 'Pay periods and stylist payroll', route: '/payroll', icon: 'Wallet', roles: ['admin', 'bookkeeper'] },
