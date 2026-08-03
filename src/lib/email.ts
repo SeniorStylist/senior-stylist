@@ -74,10 +74,16 @@ export function buildBookingConfirmationEmailHtml(params: {
   priceStr: string
   facilityName: string
   portalUrl: string
-  bookedBy: 'staff' | 'portal'
+  bookedBy: 'staff' | 'portal' | 'request'
 }): string {
   const { residentName, serviceName, stylistName, dateStr, timeStr, priceStr, facilityName, portalUrl, bookedBy } = params
-  const bookedByNote = bookedBy === 'staff' ? 'Booked by salon staff.' : 'Booked via the resident portal.'
+  const bookedByNote =
+    bookedBy === 'staff'
+      ? 'Booked by salon staff.'
+      : bookedBy === 'request'
+        ? // P50 — the sign-up-queue request the family filed is now scheduled.
+          'Your requested appointment has been scheduled.'
+        : 'Booked via the resident portal.'
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>

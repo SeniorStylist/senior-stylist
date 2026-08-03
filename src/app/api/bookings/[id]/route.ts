@@ -504,6 +504,16 @@ export async function PUT(
       ).catch((e) => console.error('[autopay on-completion] failed:', e))
     }
 
+    // P50 — a family-requested booking got scheduled: confirm to the family.
+    // Covers pre-existing 'requested' ghost bookings (the new portal path goes
+    // through the sign-up queue, whose convert has its own hook). Gated inside
+    // on poaNotificationsEnabled + the family's email-reminders preference.
+    if (updates.status === 'scheduled' && existing.status === 'requested' && !updated.isDemo) {
+      import('@/lib/family-confirmation').then(({ sendFamilyBookingConfirmation }) =>
+        sendFamilyBookingConfirmation(id),
+      ).catch(() => {})
+    }
+
     // W6: push the stylist when a scheduled booking's time moves — fire-and-forget.
     if (
       updates.startTime !== undefined &&

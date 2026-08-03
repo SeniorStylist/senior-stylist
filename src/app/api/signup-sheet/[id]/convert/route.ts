@@ -221,6 +221,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     revalidateTag('signup-sheet', {})
     revalidateTag('bookings', {})
 
+    // P50 — the family hears "you're scheduled" the moment the stylist picks
+    // a time. Fire-and-forget; self-gates on notification prefs + demo.
+    if (!result.isDemo) {
+      import('@/lib/family-confirmation').then(({ sendFamilyBookingConfirmation }) =>
+        sendFamilyBookingConfirmation(result.id),
+      ).catch(() => {})
+    }
+
     const data = await db.query.bookings.findFirst({
       where: eq(bookings.id, result.id),
       with: { resident: true, stylist: true, service: true },

@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
       }
       const residentIds = [...byResident.keys()]
       if (residentIds.length > 0 && process.env.TWILIO_ENABLED === 'true') {
-        const { residents } = await import('@/db/schema')
+        const { residents, residentPreferences } = await import('@/db/schema')
         const { isNotNull } = await import('drizzle-orm')
         const { sendSms, buildAppointmentReminderSms } = await import('@/lib/sms')
         const poaRows = await db.query.residents.findMany({
@@ -146,7 +146,24 @@ export async function GET(request: NextRequest) {
           ),
           columns: { id: true, name: true, poaPhone: true },
         })
-        for (const res of poaRows.slice(0, MAX_SMS_PER_RUN)) {
+        // P50 — the family's own sms_reminders checkbox finally has a reader.
+        // ONE supplementary query (cron batching rule); missing row = default true.
+        const smsOptOut = new Set<string>()
+        if (poaRows.length > 0) {
+          try {
+            const prefRows = await db.query.residentPreferences.findMany({
+              where: and(
+                inArray(residentPreferences.residentId, poaRows.map((r) => r.id)),
+                eq(residentPreferences.smsReminders, false),
+              ),
+              columns: { residentId: true },
+            })
+            for (const p of prefRows) smsOptOut.add(p.residentId)
+          } catch {
+            // resident_preferences may predate migration in an env — default to sending
+          }
+        }
+        for (const res of poaRows.filter((r) => !smsOptOut.has(r.id)).slice(0, MAX_SMS_PER_RUN)) {
           const info = byResident.get(res.id)
           if (!info || !res.poaPhone) continue
           const w = windows.get(info.facilityId)
