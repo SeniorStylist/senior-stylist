@@ -319,11 +319,24 @@ export function OcrImportModal({
 }: OcrImportModalProps) {
   const { toast } = useToast()
 
-  const facilityOptions = facilities ?? []
+  // Facilities created inline this session (round 6 — bookkeepers onboard new
+  // facilities straight from the scan flow). The SSR prop list catches up on
+  // the next page load; merging locally makes them selectable immediately.
+  const [createdFacilities, setCreatedFacilities] = useState<
+    { id: string; name: string; facilityCode?: string | null }[]
+  >([])
+  const facilityOptions = [...(facilities ?? []), ...createdFacilities]
   // The facility list is only >1 for bookkeeper/master (per log/page.tsx).
   // P37 — stylists never pick a facility (their import is pinned server-side).
   const canPickFacility = !selfStylist && facilityOptions.length > 1
   const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId ?? '')
+
+  // Inline "New facility" form state
+  const [newFacilityOpen, setNewFacilityOpen] = useState(false)
+  const [newFacilityName, setNewFacilityName] = useState('')
+  const [newFacilityCode, setNewFacilityCode] = useState('')
+  const [creatingFacility, setCreatingFacility] = useState(false)
+  const [newFacilityError, setNewFacilityError] = useState<string | null>(null)
 
   // Rosters for the SELECTED facility. Props cover the pinned facility; when the
   // user targets a different facility we fetch its rosters so (a) Gemini matches
@@ -385,7 +398,84 @@ export function OcrImportModal({
     setSelectedFacilityId(currentFacilityId ?? '')
     setFetchedRosters(null)
     setRostersLoading(false)
+    // Keep createdFacilities — they exist server-side now
+    setNewFacilityOpen(false)
+    setNewFacilityName('')
+    setNewFacilityCode('')
+    setNewFacilityError(null)
   }
+
+  // Round 6 — create a facility inline (name + optional F-code) and select it.
+  const createFacility = async () => {
+    const nm = newFacilityName.trim()
+    const code = newFacilityCode.trim().toUpperCase()
+    if (!nm) { setNewFacilityError('Enter the facility name'); return }
+    if (code && !/^F\d{2,5}$/.test(code)) { setNewFacilityError('Code must look like F240'); return }
+    setCreatingFacility(true)
+    setNewFacilityError(null)
+    try {
+      const res = await fetch('/api/facilities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nm, ...(code ? { facilityCode: code } : {}) }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNewFacilityError(typeof j.error === 'string' ? j.error : 'Could not create the facility')
+        return
+      }
+      const created = j.data as { id: string; name: string; facilityCode?: string | null }
+      setCreatedFacilities((prev) => [...prev, { id: created.id, name: created.name, facilityCode: created.facilityCode ?? null }])
+      setNewFacilityOpen(false)
+      setNewFacilityName('')
+      setNewFacilityCode('')
+      toast(`${created.facilityCode ? `${created.facilityCode} - ` : ''}${created.name} created`, 'success')
+      void handleFacilityChange(created.id)
+    } catch {
+      setNewFacilityError('Network error — please try again.')
+    } finally {
+      setCreatingFacility(false)
+    }
+  }
+
+  const newFacilityForm = newFacilityOpen ? (
+    <div className="mt-2 rounded-xl border border-stone-200 bg-white p-3 space-y-2">
+      <input
+        autoFocus
+        type="text"
+        value={newFacilityName}
+        onChange={(e) => { setNewFacilityName(e.target.value); setNewFacilityError(null) }}
+        placeholder="Facility name (e.g. Arden Courts Fair Oaks)"
+        className="w-full min-h-[40px] px-3 py-2 rounded-lg border border-stone-200 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+      />
+      <input
+        type="text"
+        value={newFacilityCode}
+        onChange={(e) => { setNewFacilityCode(e.target.value); setNewFacilityError(null) }}
+        placeholder="Facility code (optional, e.g. F240)"
+        className="w-full min-h-[40px] px-3 py-2 rounded-lg border border-stone-200 text-sm text-stone-900 font-mono focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+      />
+      {newFacilityError && <p className="text-xs text-red-600" role="alert">{newFacilityError}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void createFacility()}
+          disabled={creatingFacility || !newFacilityName.trim()}
+          className="flex-1 min-h-[40px] text-sm font-medium bg-[#8B2E4A] text-white rounded-lg hover:bg-[#72253C] transition-colors disabled:opacity-50"
+        >
+          {creatingFacility ? 'Creating…' : 'Create facility'}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setNewFacilityOpen(false); setNewFacilityError(null) }}
+          disabled={creatingFacility}
+          className="flex-1 min-h-[40px] text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  ) : null
 
   const fetchRostersFor = async (facilityId: string): Promise<Rosters | null> => {
     setRostersLoading(true)
@@ -799,7 +889,10 @@ export function OcrImportModal({
                   </label>
                   <select
                     value={selectedFacilityId}
-                    onChange={(e) => void handleFacilityChange(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__new__') { setNewFacilityOpen(true); return }
+                      void handleFacilityChange(e.target.value)
+                    }}
                     disabled={rostersLoading}
                     className="w-full min-h-[44px] bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 disabled:opacity-60"
                   >
@@ -808,7 +901,10 @@ export function OcrImportModal({
                         {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
                       </option>
                     ))}
+                    {/* Round 6 — bookkeepers onboard brand-new facilities here */}
+                    <option value="__new__">➕ New facility…</option>
                   </select>
+                  {newFacilityForm}
                   <p className="text-[11px] text-stone-500 mt-1">
                     {rostersLoading
                       ? 'Loading facility records…'
@@ -924,7 +1020,10 @@ export function OcrImportModal({
                   <label className="text-xs font-semibold text-stone-600 block mb-1">Import to facility</label>
                   <select
                     value={selectedFacilityId}
-                    onChange={(e) => void handleFacilityChange(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__new__') { setNewFacilityOpen(true); return }
+                      void handleFacilityChange(e.target.value)
+                    }}
                     disabled={rostersLoading}
                     className="w-full min-h-[44px] bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 disabled:opacity-60"
                   >
@@ -933,7 +1032,10 @@ export function OcrImportModal({
                         {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
                       </option>
                     ))}
+                    {/* Round 6 — bookkeepers onboard brand-new facilities here */}
+                    <option value="__new__">➕ New facility…</option>
                   </select>
+                  {newFacilityForm}
                   {rostersLoading && (
                     <p className="mt-1 text-[11px] text-stone-500">Loading facility records…</p>
                   )}

@@ -68,6 +68,13 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin, facilities:
   // Move state — seeded from the prop when provided (bookkeeper/master get the full
   // cross-facility list from the /log page); the fetch below is a fallback only.
   const [facilities, setFacilities] = useState<FacilityOption[]>(facilitiesProp ?? [])
+
+  // Re-sync when the SSR list changes (e.g. a facility created inline in the
+  // scan flow arrives after router.refresh()) — a useState initializer alone
+  // never picks up later prop values.
+  useEffect(() => {
+    if (facilitiesProp && facilitiesProp.length > 0) setFacilities(facilitiesProp)
+  }, [facilitiesProp])
   const [facilitySearch, setFacilitySearch] = useState('')
   const [targetFacilityId, setTargetFacilityId] = useState('')
 
