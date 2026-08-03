@@ -1363,3 +1363,41 @@ export function buildAutopayEnabledEmailHtml(params: {
 </body>
 </html>`.trim()
 }
+
+// P50 — card-added security notice. Sent (fire-and-forget) to the poaEmail +
+// every linked portal account whenever a card is vaulted for a resident,
+// whether the family added it in the portal or handed it to salon staff.
+// NEVER include more than brand + last4 — no PAN, no expiry.
+export function buildCardAddedEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  cardLabel: string
+  addedVia: 'portal' | 'staff'
+}): string {
+  const { residentName, facilityName, cardLabel, addedVia } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Payment Settings', title: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        A payment card (<strong>${escHtml(cardLabel)}</strong>) was just saved for
+        <strong>${escHtml(residentName)}</strong>'s salon account
+        ${addedVia === 'portal' ? 'through the family portal' : 'by salon staff'}.
+      </p>
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        The card is stored securely with Stripe — the salon never sees or keeps the card number.
+        Nothing has been charged.
+      </p>
+      <p style="margin:0;color:#A8A29E;font-size:12px;line-height:1.6;">
+        If this wasn't you or your family, call the salon or the facility's front desk and
+        they will remove the card right away.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}

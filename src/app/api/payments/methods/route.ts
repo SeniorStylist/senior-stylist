@@ -65,8 +65,40 @@ export async function POST(request: NextRequest) {
     const saved = await saveCardFromSetupIntent(parsed.data.setupIntentId, {
       residentId: auth.actor.residentId,
       facilityId: auth.actor.facilityId,
-      createdBy: auth.actor.via === 'admin' ? auth.actor.actorId : null,
+      createdBy: auth.actor.via !== 'portal' ? auth.actor.actorId : null,
     })
+
+    // P50 — card-added security notice to the family (poaEmail ∪ linked portal
+    // accounts). Fire-and-forget on purpose: it's a notice; a mail failure must
+    // not fail the vault. Not gated on the email-reminders preference.
+    const actor = auth.actor
+    void (async () => {
+      const [{ sendEmail, buildCardAddedEmailHtml }, { getFamilyRecipients }] = await Promise.all([
+        import('@/lib/email'),
+        import('@/lib/portal-recipients'),
+      ])
+      const [recipients, facility] = await Promise.all([
+        getFamilyRecipients(actor.residentId),
+        db.query.facilities.findFirst({ where: (f, { eq: eqOp }) => eqOp(f.id, actor.facilityId), columns: { name: true } }),
+      ])
+      if (!recipients || recipients.emails.length === 0) return
+      const cardLabel = saved?.brand ? `${saved.brand.toUpperCase()} ••${saved.last4 ?? ''}` : 'a card'
+      const html = buildCardAddedEmailHtml({
+        residentName: actor.residentName,
+        facilityName: facility?.name ?? 'Senior Stylist',
+        cardLabel,
+        addedVia: actor.via === 'portal' ? 'portal' : 'staff',
+      })
+      await Promise.all(
+        recipients.emails.map((to) =>
+          sendEmail({
+            to,
+            subject: `Card saved for ${actor.residentName} — ${facility?.name ?? 'Senior Stylist'}`,
+            html,
+          }).catch(() => false),
+        ),
+      )
+    })().catch((err) => console.error('[payments.methods] card-added notice failed:', err))
 
     return Response.json({ data: { card: saved } })
   } catch (err) {
