@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '5.8',
+    date: '2026-08-03',
+    title: 'Know Exactly Who — Feedback Emails + Duplicate Logins',
+    items: [
+      'Every feedback submission now shows the exact email address (and account id) it came from — on the review page, and in the notification email you receive. Before, anyone with a name saved never showed their address anywhere',
+      'Settings → Team flags a "Possible duplicate" when one person appears to have two logins (same name or email under two accounts) — with a tooltip explaining how to retire the unused one',
+      'The "already linked to another team member" error now names the exact account holding the link, so you know which login to disconnect instead of guessing',
+      'Fixed the real reason some stylists could never auto-link on sign-up: stylists who work at a facility through an assignment (rather than it being their home facility) were invisible to the automatic linker — invites and sign-ins now link them correctly',
+    ],
+  },
+  {
     version: '5.7',
     date: '2026-08-01',
     title: 'Stylist Fix + QuickBooks Health at a Glance',

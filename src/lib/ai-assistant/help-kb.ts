@@ -242,7 +242,9 @@ Compliance: upload license, insurance, and background-check documents; admins ve
 
 Commission and status: set the commission percentage and active status on the stylist page (feeds payroll).
 
-Giving a stylist a login: send an account invite from their page, then make sure their login is LINKED to their stylist record (Settings → Team → Assign stylist). An unlinked stylist login sees an amber "ask your admin to link you" banner. If a stylist switches email addresses: Disconnect stylist, invite the new email, relink.`,
+Giving a stylist a login: send an account invite from their page, then make sure their login is LINKED to their stylist record (Settings → Team → Assign stylist). An unlinked stylist login sees an amber "ask your admin to link you" banner. If a stylist switches email addresses: Disconnect stylist, invite the new email, relink.
+
+Duplicate logins: if one person ends up with two accounts (invited at two addresses, or signed in two different ways), Settings → Team shows an amber "Possible duplicate" flag on both rows, and each row shows its login email. Only one login can hold the stylist link — trying to assign it to the other tells you exactly which email holds it. To retire the unused login: Disconnect stylist on it, assign the stylist to the login they actually use, then Remove the old membership.`,
   },
   {
     id: 'services',

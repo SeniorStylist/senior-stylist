@@ -3115,6 +3115,25 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P49 — Feedback identity + duplicate logins (2026-08-03)
+
+- **Feedback sender identity**: `GET /api/feedback` rows gain `senderEmail` +
+  `userId` (the `fullName ?? email` collapse is retired as an anti-pattern);
+  the master feedback card renders a mailto + 8-char id under each entry;
+  `buildFeedbackEmailHtml` gains an Email row (POST selects profile email).
+- **Auto-link fix**: `linkStylistByEmailOrName` (onboarding.ts) now matches
+  stylists via home row OR active `stylist_facility_assignments` (P33 rule —
+  it was home-only, so assignment-linked stylists could never auto-link on
+  invite redeem / heal-on-login), and never steals a stylist already linked
+  to another profile.
+- **Named 409s**: both stylist-link takeover guards return the holder's
+  email ("already linked to {email} — disconnect that login first").
+- **Duplicate-login flagging**: Settings → Team shows an amber "Possible
+  duplicate" chip when two members share a normalized name or email under
+  different userIds (client-side, no new query). Retire path = Disconnect
+  stylist → assign → Remove membership. Root-cause prevention = Supabase
+  same-email identity linking (infra toggle).
+
 ## P48 — Unlinked-stylist dead end + QuickBooks operations (2026-08-01)
 
 - **Unlinked stylist**: `log-client.tsx` gains `blockedUnlinked` — the Scan /
