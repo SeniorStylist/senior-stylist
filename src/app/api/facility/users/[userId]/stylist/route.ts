@@ -70,12 +70,18 @@ export async function PUT(
       }
 
       // Takeover guard — a stylist record can be linked to only one login.
+      // P49 — NAME the holder so a duplicate-login situation is actionable:
+      // the admin can see exactly which account to disconnect first.
       const existingLink = await db.query.profiles.findFirst({
         where: and(eq(profiles.stylistId, stylistId), ne(profiles.id, userId)),
-        columns: { id: true },
+        columns: { email: true, fullName: true },
       })
       if (existingLink) {
-        return Response.json({ error: 'This stylist is already linked to another team member' }, { status: 409 })
+        const who = existingLink.email ?? existingLink.fullName ?? 'another team member'
+        return Response.json(
+          { error: `This stylist is already linked to ${who} — use "Disconnect stylist" on that member first.` },
+          { status: 409 },
+        )
       }
 
       stylistName = stylist.name

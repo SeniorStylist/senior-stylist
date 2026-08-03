@@ -39,12 +39,19 @@ export async function PUT(request: NextRequest) {
       if (!assignment) return Response.json({ error: 'Stylist not found' }, { status: 404 })
     }
 
-    // Reject if the stylist is already linked to a different user (prevents takeover)
+    // Reject if the stylist is already linked to a different user (prevents takeover).
+    // P49 — NAME the holder: a bare "another user" left admins with a duplicate
+    // login no way to know which account to disconnect.
     const existingLink = await db.query.profiles.findFirst({
       where: and(eq(profiles.stylistId, stylistId), ne(profiles.id, user.id)),
+      columns: { email: true, fullName: true },
     })
     if (existingLink) {
-      return Response.json({ error: 'This stylist is already linked to another user' }, { status: 409 })
+      const who = existingLink.email ?? existingLink.fullName ?? 'another user'
+      return Response.json(
+        { error: `This stylist is already linked to ${who} — disconnect that login first (Settings → Team).` },
+        { status: 409 },
+      )
     }
 
     await db.update(profiles).set({ stylistId, updatedAt: new Date() }).where(eq(profiles.id, user.id))
