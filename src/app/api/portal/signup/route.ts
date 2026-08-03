@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
-import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
+import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimPendingEmailHtml } from '@/lib/email'
 import { fuzzyScore } from '@/lib/fuzzy'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
@@ -182,6 +182,23 @@ export async function POST(request: NextRequest) {
       html: buildClaimRequestEmailHtml({ fullName, email: normalizedEmail, facilityName: facility.name, settingsUrl }),
     }).catch(() => {})
   }
+
+  // P50 — in-app bell for every facility admin (email alone rots unwatched).
+  import('@/lib/notify').then(({ notifyFacilityAdmins }) =>
+    notifyFacilityAdmins(facility.id, {
+      type: 'portal_claim',
+      title: 'New Family Portal request',
+      body: `${fullName} asked for portal access${claimedResidentName ? ` for ${claimedResidentName}` : ''} — review it in Settings.`,
+      url: '/settings?section=portal',
+    }),
+  ).catch(() => {})
+
+  // P50 — the applicant gets a real confirmation instead of silence.
+  sendEmail({
+    to: normalizedEmail,
+    subject: `We received your request — ${facility.name} Family Portal`,
+    html: buildClaimPendingEmailHtml({ fullName, facilityName: facility.name }),
+  }).catch(() => {})
 
   return Response.json({ status: 'pending' })
 }

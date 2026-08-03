@@ -31,6 +31,10 @@ export type NotificationType =
   | 'stylist_link_request'
   // P48 — the nightly QuickBooks invoice sync failed for a facility
   | 'qb_sync_failed'
+  // P50 — a family member requested portal access (signup wizard)
+  | 'portal_claim'
+  // P50 — a family member requested an appointment from the portal
+  | 'portal_request'
 
 export interface NotifyPayload {
   type: NotificationType

@@ -743,6 +743,71 @@ export function buildFeedbackReplyEmailHtml(params: {
 </html>`.trim()
 }
 
+/**
+ * P50 — the pending signup applicant gets a real confirmation instead of
+ * on-screen text and then silence.
+ */
+export function buildClaimPendingEmailHtml(params: {
+  fullName: string
+  facilityName: string
+}): string {
+  const { fullName, facilityName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Family Portal', title: 'We received your request', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Hi ${escHtml(fullName)},
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Thank you for signing up for the ${escHtml(facilityName)} Family Portal. The salon team is reviewing your request — this usually takes about one business day.
+      </p>
+      <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
+        Once you're approved, we'll email you a sign-in link. Nothing else to do right now.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+/**
+ * P50 — a declined request gets a kind, actionable note instead of a black
+ * hole. NEVER include the admin's internal notes — they are for staff.
+ */
+export function buildClaimRejectedEmailHtml(params: {
+  fullName: string
+  facilityName: string
+  residentName?: string | null
+}): string {
+  const { fullName, facilityName, residentName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Family Portal', title: 'About your request', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Hi ${escHtml(fullName)},
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        We weren't able to verify your connection to ${residentName ? `<strong>${escHtml(residentName)}</strong>` : 'your family member'} from the details provided, so we couldn't open portal access this time.
+      </p>
+      <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
+        The easiest fix: call or visit the front desk at ${escHtml(facilityName)} — they can confirm your details and set you up in a minute or two.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 /** P48 — nightly QuickBooks sync summary, sent to the owner only on failures. */
 export function buildQBSyncFailureEmailHtml(params: {
   failures: { name: string; message: string }[]

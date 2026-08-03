@@ -13,7 +13,7 @@ import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
-import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
+import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimRejectedEmailHtml } from '@/lib/email'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
@@ -82,6 +82,22 @@ export async function PATCH(
           notes: notes ?? null,
         })
         .where(eq(portalClaimRequests.id, id))
+
+      // P50 — the applicant hears back instead of a black hole. Internal
+      // admin `notes` are deliberately NOT included.
+      const rejFacility = await db.query.facilities.findFirst({
+        where: eq(facilities.id, claim.facilityId),
+        columns: { name: true },
+      })
+      sendEmail({
+        to: claim.email,
+        subject: `About your Family Portal request — ${rejFacility?.name ?? 'Senior Stylist'}`,
+        html: buildClaimRejectedEmailHtml({
+          fullName: claim.fullName,
+          facilityName: rejFacility?.name ?? 'the facility',
+          residentName: claim.residentName ?? null,
+        }),
+      }).catch(() => {})
 
       return Response.json({ data: { status: 'rejected' } })
     }
