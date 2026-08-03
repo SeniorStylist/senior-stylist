@@ -51,6 +51,24 @@ export default async function VerifyPage({
   const sessionToken = await createPortalSession(result.portalAccountId)
   await setPortalSessionCookie(sessionToken)
 
+  // P50-C7 — brand-new accounts (onboarded_at IS NULL) go through the one-time
+  // welcome flow after the optional password step. Best-effort: a deploy that
+  // predates the 0034 migration must never break sign-in — treat as onboarded.
+  let needsWelcome = false
+  try {
+    const { db } = await import('@/db')
+    const { portalAccounts } = await import('@/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const [row] = await db
+      .select({ onboardedAt: portalAccounts.onboardedAt })
+      .from(portalAccounts)
+      .where(eq(portalAccounts.id, result.portalAccountId))
+      .limit(1)
+    needsWelcome = !!row && row.onboardedAt === null
+  } catch {
+    needsWelcome = false
+  }
+
   return (
     <div className="page-enter mt-6">
       <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center">
@@ -63,7 +81,7 @@ export default async function VerifyPage({
         <p className="text-sm text-stone-500 mt-1">Welcome back, {result.email}.</p>
       </div>
 
-      <VerifySetPassword facilityCode={decoded} />
+      <VerifySetPassword facilityCode={decoded} nextPath={needsWelcome ? 'welcome' : ''} />
     </div>
   )
 }

@@ -208,8 +208,11 @@ export async function requirePortalAuth(facilityCode: string): Promise<{ session
 
 export async function findAccountByEmail(email: string) {
   const lowered = email.toLowerCase()
+  // Column-whitelisted (P50-C7 audit): a full-row select breaks on deploys
+  // that predate the onboarded_at migration. Add columns here as callers need.
   return db.query.portalAccounts.findFirst({
     where: eq(portalAccounts.email, lowered),
+    columns: { id: true, email: true, passwordHash: true },
   })
 }
 

@@ -872,6 +872,9 @@ export const portalAccounts = pgTable('portal_accounts', {
   dateOfBirth: date('date_of_birth'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  // P50-C7 — null = the first-login welcome flow hasn't run yet. Backfilled
+  // now() for pre-P50 accounts by drizzle/0034 so they never see the flow.
+  onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
 }, (t) => ({
   emailUniq: unique('portal_accounts_email_key').on(t.email),
 }))

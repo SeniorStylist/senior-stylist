@@ -415,6 +415,52 @@ export const PORTAL_STRINGS = {
   'signup.review.submit': { en: 'Create my account', es: 'Crear mi cuenta' },
   'signup.progress': { en: 'Step {step} of {total}', es: 'Paso {step} de {total}' },
 
+  // ---- P50-C7 first-login welcome flow ----
+  'welcome.title': { en: "Let's get set up", es: 'Vamos a configurar' },
+  'welcome.subtitle': {
+    en: 'A few quick steps — you can skip any of them.',
+    es: 'Unos pasos rápidos — puede omitir cualquiera.',
+  },
+  'welcome.stepCard.title': { en: 'Save a card for {name}', es: 'Guardar una tarjeta para {name}' },
+  'welcome.stepCard.hint': {
+    en: 'Salon visits can then be paid automatically — no checks to mail. Nothing is charged now.',
+    es: 'Las visitas al salón podrán pagarse automáticamente — sin cheques por correo. No se cobra nada ahora.',
+  },
+  'welcome.stepAutopay.title': { en: 'Turn on automatic payment?', es: '¿Activar el pago automático?' },
+  'welcome.stepAutopay.hint': {
+    en: 'Each visit is charged to the saved card and you get an email receipt every time.',
+    es: 'Cada visita se cobra a la tarjeta guardada y recibirá un recibo por correo cada vez.',
+  },
+  'welcome.stepAutopay.yes': { en: 'Yes, turn it on', es: 'Sí, activarlo' },
+  'welcome.stepRhythm.title': {
+    en: 'How often does {name} like salon visits?',
+    es: '¿Con qué frecuencia le gustan a {name} las visitas al salón?',
+  },
+  'welcome.stepRhythm.hint': {
+    en: 'This helps the salon keep a regular rhythm. You can change it any time.',
+    es: 'Esto ayuda al salón a mantener un ritmo regular. Puede cambiarlo en cualquier momento.',
+  },
+  'welcome.rhythm.weekly': { en: 'Every week', es: 'Cada semana' },
+  'welcome.rhythm.biweekly': { en: 'Every 2 weeks', es: 'Cada 2 semanas' },
+  'welcome.rhythm.monthly': { en: 'Once a month', es: 'Una vez al mes' },
+  'welcome.rhythm.notSure': { en: 'Not sure yet', es: 'Aún no estoy seguro' },
+  'welcome.skipStep': { en: 'Skip this step', es: 'Omitir este paso' },
+  'welcome.skipAll': { en: 'Skip setup for now', es: 'Omitir la configuración por ahora' },
+  'welcome.done.title': { en: "You're all set!", es: '¡Todo listo!' },
+  'welcome.done.hint': {
+    en: 'Would you like to request a first appointment now?',
+    es: '¿Le gustaría solicitar una primera cita ahora?',
+  },
+  'welcome.done.request': { en: 'Request an appointment', es: 'Solicitar una cita' },
+  'welcome.done.home': { en: 'Go to my home page', es: 'Ir a mi página principal' },
+  'welcome.cardSaved': { en: 'Card saved ✓', es: 'Tarjeta guardada ✓' },
+  // ---- P50-C7 request-page visit rhythm ----
+  'request.rhythm.title': {
+    en: 'How often does {name} like visits?',
+    es: '¿Con qué frecuencia le gustan las visitas a {name}?',
+  },
+  'request.rhythm.saved': { en: 'Preference saved', es: 'Preferencia guardada' },
+
   // ---- extra common ----
   'common.networkError': { en: 'Network error. Please try again.', es: 'Error de red. Inténtelo de nuevo.' },
 } as const
