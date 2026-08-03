@@ -15,6 +15,7 @@ import { and, eq, gt, inArray, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
+import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import { createCalendarEvent } from '@/lib/google-calendar/sync'
@@ -36,6 +37,8 @@ const convertSchema = z.object({
 })
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // P50 — bootstrap the portal-request columns (GET reads full rows).
+  await ensureSignupSheetSchema()
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

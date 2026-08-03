@@ -1033,8 +1033,14 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
   requestedDate: date('requested_date').notNull(),
   // Phase 12S — optional date the resident prefers; drives auto-assignment.
   preferredDate: date('preferred_date'),
+  // P50 — end of the family's preferred window (drizzle/0033).
+  preferredDateTo: date('preferred_date_to'),
   notes: text('notes'),
-  createdBy: uuid('created_by').references(() => profiles.id).notNull(),
+  // P50 — nullable: portal-created entries have no profiles row.
+  createdBy: uuid('created_by').references(() => profiles.id),
+  // P50 — 'staff' | 'portal' (who filed the request) + the portal account.
+  source: text('source').default('staff').notNull(),
+  createdByPortalAccountId: uuid('created_by_portal_account_id').references(() => portalAccounts.id, { onDelete: 'set null' }),
   assignedToStylistId: uuid('assigned_to_stylist_id').references(() => stylists.id),
   // 'pending' | 'scheduled' | 'cancelled'
   status: text('status').default('pending').notNull(),

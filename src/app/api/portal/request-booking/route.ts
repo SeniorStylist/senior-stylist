@@ -1,9 +1,23 @@
+// P50 — family appointment requests land in the SIGN-UP-SHEET QUEUE.
+//
+// The old handler created a ghost `bookings` row: status='requested' at a
+// fabricated 10:00 SERVER-LOCAL slot on the alphabetically-first stylist —
+// indistinguishable from a real appointment on the calendar, invisible as a
+// request, never confirmed to the family. Now a request is a real
+// signup_sheet_entries row (the mature stylist-fits-you-in pipeline: queue,
+// badge, drag-to-calendar, convert), the family's preferred stylist is
+// honored, dates are facility-tz correct, and the family gets a "we got it"
+// email immediately plus a confirmation when it's scheduled (P50-C4).
+//
+// Route path is kept — old clients and SW-cached portal pages keep working.
+
 import { db } from '@/db'
-import { bookings, facilities, services, stylistFacilityAssignments, stylists } from '@/db/schema'
+import { facilities, residentPreferences, residents, services, signupSheetEntries } from '@/db/schema'
 import { getPortalSession } from '@/lib/portal-auth'
-import { resolvePrice } from '@/lib/pricing'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { buildPortalRequestEmailHtml, sendEmail } from '@/lib/email'
+import { buildPortalRequestEmailHtml, buildRequestReceivedEmailHtml, sendEmail } from '@/lib/email'
+import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
+import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 import { and, eq, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
@@ -16,6 +30,15 @@ const schema = z.object({
   preferredDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
 })
+
+/** Today's calendar date in the facility's timezone (YYYY-MM-DD). */
+function todayInTz(tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+  } catch {
+    return new Intl.DateTimeFormat('en-CA').format(new Date())
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,12 +57,15 @@ export async function POST(request: NextRequest) {
     const residentRow = session.residents.find((r) => r.residentId === residentId)
     if (!residentRow) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
+    await ensureSignupSheetSchema()
+
     const svcRows = await db.query.services.findMany({
       where: and(
         eq(services.facilityId, residentRow.facilityId),
         inArray(services.id, serviceIds),
         eq(services.active, true),
       ),
+      columns: { id: true, name: true },
     })
     if (svcRows.length !== serviceIds.length) {
       return Response.json({ error: 'One or more services not available' }, { status: 422 })
@@ -48,75 +74,69 @@ export async function POST(request: NextRequest) {
       .map((id) => svcRows.find((s) => s.id === id))
       .filter((s): s is NonNullable<typeof s> => !!s)
 
-    const totalDurationMinutes = orderedSvcs.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
-    // price_cents only — never add tip_cents (tips go to stylist, not facility revenue)
-    const priceCents = orderedSvcs.reduce((sum, s) => sum + resolvePrice(s).priceCents, 0)
+    const [facility, residentDetail, prefs] = await Promise.all([
+      db.query.facilities.findFirst({
+        where: eq(facilities.id, residentRow.facilityId),
+        columns: { id: true, name: true, contactEmail: true, timezone: true },
+      }),
+      db.query.residents.findFirst({
+        where: eq(residents.id, residentId),
+        columns: { roomNumber: true },
+      }),
+      db.query.residentPreferences.findFirst({
+        where: eq(residentPreferences.residentId, residentId),
+        columns: { preferredStylistId: true },
+      }).catch(() => null),
+    ])
 
-    const stylistRow = await db
-      .select({ id: stylists.id })
-      .from(stylistFacilityAssignments)
-      .innerJoin(stylists, eq(stylists.id, stylistFacilityAssignments.stylistId))
-      .where(
-        and(
-          eq(stylistFacilityAssignments.facilityId, residentRow.facilityId),
-          eq(stylistFacilityAssignments.active, true),
-          eq(stylists.active, true),
-          eq(stylists.status, 'active'),
-        ),
-      )
-      .orderBy(stylists.name)
-      .limit(1)
+    // The family's chosen stylist wins; else date-aware least-loaded; else the
+    // fallback; else null (entry shows as unassigned — visible to everyone).
+    const assignedToStylistId = await resolveAssignedStylist(
+      residentRow.facilityId,
+      preferredDateFrom ?? null,
+      db,
+      { preferredStylistId: prefs?.preferredStylistId ?? null },
+    )
 
-    if (stylistRow.length === 0) {
-      return Response.json(
-        { error: 'This facility has no stylists yet — please contact the office.' },
-        { status: 400 },
-      )
-    }
-    const placeholderStylistId = stylistRow[0].id
+    // Multi-service policy: ONE entry per visit — the first service is the
+    // primary; the rest ride in notes (convert creates one booking and the
+    // BookingModal supports multi-select).
+    const extraServices = orderedSvcs.slice(1).map((s) => s.name)
+    const combinedNotes = [
+      notes?.trim() || null,
+      extraServices.length > 0 ? `Also requested: ${extraServices.join(', ')}` : null,
+    ].filter(Boolean).join('\n') || null
 
-    const baseDate = preferredDateFrom ? new Date(preferredDateFrom + 'T10:00:00') : (() => {
-      const t = new Date()
-      t.setDate(t.getDate() + 1)
-      t.setHours(10, 0, 0, 0)
-      return t
-    })()
-    const startTime = baseDate
-    const endTime = new Date(startTime.getTime() + Math.max(totalDurationMinutes, 15) * 60 * 1000)
-
-    const facility = await db.query.facilities.findFirst({
-      where: eq(facilities.id, residentRow.facilityId),
-      columns: { id: true, name: true, contactEmail: true },
-    })
-
-    let bookingId: string | null = null
+    let entryId: string
     try {
       const [created] = await db
-        .insert(bookings)
+        .insert(signupSheetEntries)
         .values({
           facilityId: residentRow.facilityId,
           residentId: residentRow.residentId,
-          stylistId: placeholderStylistId,
+          residentName: residentRow.residentName,
+          roomNumber: residentDetail?.roomNumber ?? null,
           serviceId: orderedSvcs[0].id,
-          serviceIds: orderedSvcs.map((s) => s.id),
-          serviceNames: orderedSvcs.map((s) => s.name),
-          totalDurationMinutes,
-          durationMinutes: orderedSvcs[0].durationMinutes,
-          priceCents,
-          startTime,
-          endTime,
-          status: 'requested',
-          paymentStatus: 'unpaid',
-          requestedByPortal: true,
-          portalNotes: notes ?? null,
+          serviceName: orderedSvcs[0].name,
+          requestedDate: todayInTz(facility?.timezone ?? 'America/New_York'),
+          preferredDate: preferredDateFrom ?? null,
+          preferredDateTo: preferredDateTo ?? null,
+          notes: combinedNotes,
+          createdBy: null,
+          source: 'portal',
+          createdByPortalAccountId: session.portalAccountId,
+          assignedToStylistId,
+          status: 'pending',
+          isDemo: false,
         })
-        .returning({ id: bookings.id })
-      bookingId = created.id
+        .returning({ id: signupSheetEntries.id })
+      entryId = created.id
     } catch (err) {
       console.error('[portal/request-booking] insert failed:', err)
       return Response.json({ error: 'Could not create request — please try again.' }, { status: 500 })
     }
 
+    // Staff email (existing) + in-app bell for admins (P50).
     const adminUrl = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/dashboard`
     const recipients = new Set<string>()
     if (facility?.contactEmail) recipients.add(facility.contactEmail)
@@ -134,11 +154,33 @@ export async function POST(request: NextRequest) {
           notes: notes ?? null,
           adminUrl,
         }),
-      })
+      }).catch(() => {})
     }
+    import('@/lib/notify').then(({ notifyFacilityAdmins }) =>
+      notifyFacilityAdmins(residentRow.facilityId, {
+        type: 'portal_request',
+        title: 'New appointment request',
+        body: `${residentRow.residentName} — ${orderedSvcs.map((s) => s.name).join(', ')} (from the family portal)`,
+        url: '/signup-sheet',
+      }),
+    ).catch(() => {})
 
-    revalidateTag('bookings', {})
-    return Response.json({ data: { bookingId } })
+    // Family confirmation — the requester's own email (P50: the requester is
+    // often NOT the poaEmail on file).
+    sendEmail({
+      to: session.email,
+      subject: `Request received — ${residentRow.residentName} at ${facility?.name ?? residentRow.facilityName}`,
+      html: buildRequestReceivedEmailHtml({
+        residentName: residentRow.residentName,
+        facilityName: facility?.name ?? residentRow.facilityName,
+        serviceNames: orderedSvcs.map((s) => s.name),
+        preferredDateFrom: preferredDateFrom ?? null,
+        preferredDateTo: preferredDateTo ?? null,
+      }),
+    }).catch(() => {})
+
+    revalidateTag('signup-sheet', {})
+    return Response.json({ data: { entryId } })
   } catch (err) {
     console.error('POST /api/portal/request-booking error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

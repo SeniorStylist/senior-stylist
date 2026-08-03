@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
+import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 
 const patchSchema = z.object({
   status: z.enum(['pending', 'cancelled']).optional(),
@@ -15,6 +16,8 @@ const patchSchema = z.object({
 })
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // P50 — bootstrap the portal-request columns (GET reads full rows).
+  await ensureSignupSheetSchema()
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

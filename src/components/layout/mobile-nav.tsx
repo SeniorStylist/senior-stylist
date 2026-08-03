@@ -319,9 +319,11 @@ export function MobileNav({ role = 'admin', userId, isMaster = false }: MobileNa
             >
               <span className="relative">
                 {item.icon}
-                {item.href === '/dashboard' && (
+                {/* Stylists: Calendar tab (their queue lives on the dashboard).
+                    P50 — admins/staff: the Sign-Ups tab (portal requests). */}
+                {(item.href === '/dashboard' || item.href === '/signup-sheet') && (
                   <span className="absolute -top-1 -right-2">
-                    <PendingSignupBadge role={role} />
+                    <PendingSignupBadge role={role} mount={item.href === '/dashboard' ? 'stylist' : 'staff'} />
                   </span>
                 )}
               </span>

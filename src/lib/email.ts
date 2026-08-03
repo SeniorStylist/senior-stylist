@@ -744,6 +744,47 @@ export function buildFeedbackReplyEmailHtml(params: {
 }
 
 /**
+ * P50 — family "we got your appointment request" confirmation. Sent when a
+ * portal request lands in the sign-up queue; the stylist will pick the time.
+ */
+export function buildRequestReceivedEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  serviceNames: string[]
+  preferredDateFrom?: string | null
+  preferredDateTo?: string | null
+}): string {
+  const { residentName, facilityName, serviceNames, preferredDateFrom, preferredDateTo } = params
+  const windowLine = preferredDateFrom
+    ? preferredDateTo && preferredDateTo !== preferredDateFrom
+      ? `${formatDateRange(preferredDateFrom, preferredDateTo)}`
+      : new Date(preferredDateFrom + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    : null
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Appointment Request', title: 'We got your request', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Your appointment request for <strong>${escHtml(residentName)}</strong> is in the salon's queue:
+      </p>
+      <div style="background:#F9EFF2;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">${serviceNames.map(escHtml).join(', ')}</p>
+        ${windowLine ? `<p style="margin:6px 0 0;font-size:13px;color:#57534E;">Preferred: ${escHtml(windowLine)}</p>` : ''}
+      </div>
+      <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
+        The stylist will fit ${escHtml(residentName)} into the schedule and you'll get another email once the day and time are set. Nothing else to do right now.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+/**
  * P50 — the pending signup applicant gets a real confirmation instead of
  * on-screen text and then silence.
  */

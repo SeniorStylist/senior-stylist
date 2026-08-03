@@ -102,6 +102,8 @@ Front desk / admin: open the Sign-Up Sheet from the dashboard, enter the residen
 
 Stylists: pending requests appear in an amber panel above your calendar, with a badge on the Calendar tab counting them. Tap "Pick time →" to open the booking form pre-filled, choose a slot, and the request becomes a real appointment. On desktop you can also drag a request card straight onto the calendar.
 
+Family-portal requests land in this same queue with a "From family portal" chip (and a preferred date range when the family gave one) — admins and front desk see a count badge on the Sign-Up Sheet item. When a portal request is scheduled, the family automatically gets a confirmation email.
+
 The assistant can add requests too: "put Mrs. Horn on the sign-up sheet for a perm next week."`,
   },
   {
@@ -157,7 +159,7 @@ Connecting a family:
 - Bulk: Settings → Family Portal shows a Portal Status panel — who's connected, who could be invited — with a one-tap "invite everyone".
 - Self-serve: print the facility's QR poster (Settings → Family Portal) — families scan it and sign up themselves. Signups matching the POA on file connect instantly; others go to your approval queue in Settings.
 
-What families can do: view upcoming visits and history (with shared style photos), request appointments (which land as requests for you to confirm), pay balances online, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the daily log. There's an English/Spanish toggle and a large-print mode.
+What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family portal" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the daily log. There's an English/Spanish toggle and a large-print mode.
 
 Welcome coupons and per-facility toggles live in Settings → Family Portal.`,
   },

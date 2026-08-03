@@ -8,6 +8,9 @@ type Db = typeof defaultDb
  * Resolves the best stylist to auto-assign to a signup-sheet entry.
  *
  * Priority:
+ *  0. P50 — opts.preferredStylistId (the family's chosen stylist from
+ *     resident_preferences): validated active + status='active' + an active
+ *     assignment at this facility. If valid, they win outright.
  *  1. preferredDate present → facility stylists with stylist_availability for that
  *     day-of-week (active=true). If multiple, pick the least-loaded (fewest
  *     non-cancelled bookings on that date). If exactly one, return them.
@@ -19,7 +22,25 @@ export async function resolveAssignedStylist(
   facilityId: string,
   preferredDate: string | null,
   dbInstance: Db = defaultDb,
+  opts?: { preferredStylistId?: string | null },
 ): Promise<string | null> {
+  if (opts?.preferredStylistId) {
+    const preferred = await dbInstance
+      .select({ stylistId: stylists.id })
+      .from(stylists)
+      .innerJoin(
+        stylistFacilityAssignments,
+        and(
+          eq(stylistFacilityAssignments.stylistId, stylists.id),
+          eq(stylistFacilityAssignments.facilityId, facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .where(and(eq(stylists.id, opts.preferredStylistId), eq(stylists.active, true), eq(stylists.status, 'active')))
+      .limit(1)
+    if (preferred[0]) return preferred[0].stylistId
+  }
+
   if (preferredDate) {
     const [y, m, d] = preferredDate.split('-').map(Number)
     if (!y || !m || !d) return resolveFallback(facilityId, dbInstance)

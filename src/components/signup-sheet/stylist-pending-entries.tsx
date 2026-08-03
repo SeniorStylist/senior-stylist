@@ -84,10 +84,19 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
                         )}
                       </p>
                       <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {/* P50 — requests filed by the family themselves */}
+                        {entry.source === 'portal' && (
+                          <span className="text-[10.5px] font-semibold bg-[#F9EFF2] text-[#8B2E4A] rounded-full px-2 py-0.5">
+                            From family portal
+                          </span>
+                        )}
                         {entry.preferredDate && (
                           <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-600 rounded-full px-2 py-0.5">
                             <Calendar size={12} />
                             {formatDateChip(entry.preferredDate, facilityTimezone)}
+                            {entry.preferredDateTo && entry.preferredDateTo !== entry.preferredDate && (
+                              <span>– {formatDateChip(entry.preferredDateTo, facilityTimezone)}</span>
+                            )}
                           </span>
                         )}
                         {viewAsAdmin && entry.assignedStylist && (
