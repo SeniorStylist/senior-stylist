@@ -5,9 +5,11 @@ import { useState } from 'react'
 
 interface Props {
   facilityCode: string
+  /** P50-C7 — '' = portal home; 'welcome' = the one-time first-login setup flow. */
+  nextPath?: string
 }
 
-export function VerifySetPassword({ facilityCode }: Props) {
+export function VerifySetPassword({ facilityCode, nextPath = '' }: Props) {
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
   const [password, setPassword] = useState('')
@@ -17,7 +19,8 @@ export function VerifySetPassword({ facilityCode }: Props) {
   const [done, setDone] = useState(false)
 
   const goHome = () => {
-    router.push(`/family/${encodeURIComponent(facilityCode)}`)
+    const base = `/family/${encodeURIComponent(facilityCode)}`
+    router.push(nextPath === 'welcome' ? `${base}/welcome` : base)
     router.refresh()
   }
 

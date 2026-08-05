@@ -4,11 +4,13 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { portalClaimRequests, residents } from '@/db/schema'
 import { and, eq, inArray, desc } from 'drizzle-orm'
+import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
+    await ensurePortalClaimsSchema()
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -41,6 +43,10 @@ export async function GET(request: NextRequest) {
         fullName: true,
         phone: true,
         dateOfBirth: true,
+        // P50 — what the applicant said about the resident
+        residentName: true,
+        roomNumber: true,
+        relationship: true,
         residentId: true,
         matchType: true,
         matchConfidence: true,
@@ -62,8 +68,12 @@ export async function GET(request: NextRequest) {
       for (const r of residentRows) residentMap.set(r.id, r)
     }
 
+    // NOTE: `residentName` (matched-resident, existing consumer contract) vs
+    // P50 `claimedResidentName`/`claimedRoom` (what the applicant typed).
     const data = rows.map((r) => ({
       ...r,
+      claimedResidentName: r.residentName ?? null,
+      claimedRoom: r.roomNumber ?? null,
       residentName: r.residentId ? (residentMap.get(r.residentId)?.name ?? null) : null,
       residentRoom: r.residentId ? (residentMap.get(r.residentId)?.roomNumber ?? null) : null,
     }))

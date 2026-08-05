@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
+import { AutopayCard } from '@/components/payments/autopay-card'
 import { usePortalT, portalLocale, type PortalLang } from '@/lib/portal-i18n'
 import { PortalOfflineSnapshot } from '@/components/portal/portal-offline-snapshot'
 import { formatDollars } from '@/lib/format'
@@ -225,11 +226,6 @@ export function BillingClient({
         >
           {formatDollars(outstandingCents)}
         </p>
-        {autopayEnabled && (
-          <p className="text-xs mt-2 font-medium text-stone-600">
-            {t('billing.autopayOn')}
-          </p>
-        )}
       </section>
 
       {showPay && (
@@ -338,6 +334,9 @@ export function BillingClient({
 
       {/* Card on file — save a card for automatic payment of services (COF). */}
       <SavedCardsCard residentId={residentId} lang={lang} />
+
+      {/* P50 — family opts in to autopay themselves (consent email fires server-side). */}
+      <AutopayCard residentId={residentId} lang={lang} initialEnabled={autopayEnabled} />
 
       {stripeAvailable && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">

@@ -872,6 +872,9 @@ export const portalAccounts = pgTable('portal_accounts', {
   dateOfBirth: date('date_of_birth'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  // P50-C7 — null = the first-login welcome flow hasn't run yet. Backfilled
+  // now() for pre-P50 accounts by drizzle/0034 so they never see the flow.
+  onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
 }, (t) => ({
   emailUniq: unique('portal_accounts_email_key').on(t.email),
 }))
@@ -968,8 +971,13 @@ export const portalClaimRequests = pgTable('portal_claim_requests', {
   fullName: text('full_name').notNull(),
   phone: text('phone'),
   dateOfBirth: date('date_of_birth'),
+  // P50 — the wizard asks WHO the resident is (drizzle/0032, self-bootstrapped
+  // by portal-claims-ddl.ts). relationship: 'self'|'spouse'|'child'|'poa'|'other'
+  residentName: text('resident_name'),
+  roomNumber: text('room_number'),
+  relationship: text('relationship'),
   residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
-  // 'email' | 'name' | null
+  // 'email' | 'name' | 'resident_room' | null
   matchType: text('match_type'),
   // 'high' | 'medium' | 'low' | null
   matchConfidence: text('match_confidence'),
@@ -1028,8 +1036,14 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
   requestedDate: date('requested_date').notNull(),
   // Phase 12S — optional date the resident prefers; drives auto-assignment.
   preferredDate: date('preferred_date'),
+  // P50 — end of the family's preferred window (drizzle/0033).
+  preferredDateTo: date('preferred_date_to'),
   notes: text('notes'),
-  createdBy: uuid('created_by').references(() => profiles.id).notNull(),
+  // P50 — nullable: portal-created entries have no profiles row.
+  createdBy: uuid('created_by').references(() => profiles.id),
+  // P50 — 'staff' | 'portal' (who filed the request) + the portal account.
+  source: text('source').default('staff').notNull(),
+  createdByPortalAccountId: uuid('created_by_portal_account_id').references(() => portalAccounts.id, { onDelete: 'set null' }),
   assignedToStylistId: uuid('assigned_to_stylist_id').references(() => stylists.id),
   // 'pending' | 'scheduled' | 'cancelled'
   status: text('status').default('pending').notNull(),

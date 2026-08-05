@@ -74,10 +74,16 @@ export function buildBookingConfirmationEmailHtml(params: {
   priceStr: string
   facilityName: string
   portalUrl: string
-  bookedBy: 'staff' | 'portal'
+  bookedBy: 'staff' | 'portal' | 'request'
 }): string {
   const { residentName, serviceName, stylistName, dateStr, timeStr, priceStr, facilityName, portalUrl, bookedBy } = params
-  const bookedByNote = bookedBy === 'staff' ? 'Booked by salon staff.' : 'Booked via the resident portal.'
+  const bookedByNote =
+    bookedBy === 'staff'
+      ? 'Booked by salon staff.'
+      : bookedBy === 'request'
+        ? // P50 — the sign-up-queue request the family filed is now scheduled.
+          'Your requested appointment has been scheduled.'
+        : 'Booked via the resident portal.'
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>
@@ -743,6 +749,112 @@ export function buildFeedbackReplyEmailHtml(params: {
 </html>`.trim()
 }
 
+/**
+ * P50 — family "we got your appointment request" confirmation. Sent when a
+ * portal request lands in the sign-up queue; the stylist will pick the time.
+ */
+export function buildRequestReceivedEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  serviceNames: string[]
+  preferredDateFrom?: string | null
+  preferredDateTo?: string | null
+}): string {
+  const { residentName, facilityName, serviceNames, preferredDateFrom, preferredDateTo } = params
+  const windowLine = preferredDateFrom
+    ? preferredDateTo && preferredDateTo !== preferredDateFrom
+      ? `${formatDateRange(preferredDateFrom, preferredDateTo)}`
+      : new Date(preferredDateFrom + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    : null
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Appointment Request', title: 'We got your request', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Your appointment request for <strong>${escHtml(residentName)}</strong> is in the salon's queue:
+      </p>
+      <div style="background:#F9EFF2;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">${serviceNames.map(escHtml).join(', ')}</p>
+        ${windowLine ? `<p style="margin:6px 0 0;font-size:13px;color:#57534E;">Preferred: ${escHtml(windowLine)}</p>` : ''}
+      </div>
+      <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
+        The stylist will fit ${escHtml(residentName)} into the schedule and you'll get another email once the day and time are set. Nothing else to do right now.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+/**
+ * P50 — the pending signup applicant gets a real confirmation instead of
+ * on-screen text and then silence.
+ */
+export function buildClaimPendingEmailHtml(params: {
+  fullName: string
+  facilityName: string
+}): string {
+  const { fullName, facilityName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Family Portal', title: 'We received your request', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Hi ${escHtml(fullName)},
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Thank you for signing up for the ${escHtml(facilityName)} Family Portal. The salon team is reviewing your request — this usually takes about one business day.
+      </p>
+      <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
+        Once you're approved, we'll email you a sign-in link. Nothing else to do right now.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+/**
+ * P50 — a declined request gets a kind, actionable note instead of a black
+ * hole. NEVER include the admin's internal notes — they are for staff.
+ */
+export function buildClaimRejectedEmailHtml(params: {
+  fullName: string
+  facilityName: string
+  residentName?: string | null
+}): string {
+  const { fullName, facilityName, residentName } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Family Portal', title: 'About your request', subtitle: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        Hi ${escHtml(fullName)},
+      </p>
+      <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
+        We weren't able to verify your connection to ${residentName ? `<strong>${escHtml(residentName)}</strong>` : 'your family member'} from the details provided, so we couldn't open portal access this time.
+      </p>
+      <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
+        The easiest fix: call or visit the front desk at ${escHtml(facilityName)} — they can confirm your details and set you up in a minute or two.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
 /** P48 — nightly QuickBooks sync summary, sent to the owner only on failures. */
 export function buildQBSyncFailureEmailHtml(params: {
   failures: { name: string; message: string }[]
@@ -1244,6 +1356,44 @@ export function buildAutopayEnabledEmailHtml(params: {
       <p style="margin:0;color:#A8A29E;font-size:12px;line-height:1.6;">
         If you did not expect this change, reply to this email or contact the facility's front desk
         and they will turn it off right away.
+      </p>
+    </div>
+    ${EMAIL_FOOTER}
+  </div>
+</body>
+</html>`.trim()
+}
+
+// P50 — card-added security notice. Sent (fire-and-forget) to the poaEmail +
+// every linked portal account whenever a card is vaulted for a resident,
+// whether the family added it in the portal or handed it to salon staff.
+// NEVER include more than brand + last4 — no PAN, no expiry.
+export function buildCardAddedEmailHtml(params: {
+  residentName: string
+  facilityName: string
+  cardLabel: string
+  addedVia: 'portal' | 'staff'
+}): string {
+  const { residentName, facilityName, cardLabel, addedVia } = params
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
+    ${emailHeader({ eyebrow: 'Payment Settings', title: facilityName })}
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        A payment card (<strong>${escHtml(cardLabel)}</strong>) was just saved for
+        <strong>${escHtml(residentName)}</strong>'s salon account
+        ${addedVia === 'portal' ? 'through the family portal' : 'by salon staff'}.
+      </p>
+      <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
+        The card is stored securely with Stripe — the salon never sees or keeps the card number.
+        Nothing has been charged.
+      </p>
+      <p style="margin:0;color:#A8A29E;font-size:12px;line-height:1.6;">
+        If this wasn't you or your family, call the salon or the facility's front desk and
+        they will remove the card right away.
       </p>
     </div>
     ${EMAIL_FOOTER}

@@ -163,6 +163,13 @@ export default function CalendarView({
 
           const primaryLabel = primaryNames.join(' + ')
           const fullLabel = [...primaryNames, ...addonNames].join(' + ')
+          // P50 — family-portal requests (and legacy ghost bookings) surface as an
+          // amber chip until a stylist confirms or clears them.
+          const requestedChip = booking.status === 'requested' && (
+            <span className="mr-1 inline-block rounded-full bg-amber-300 text-amber-950 text-[9px] font-bold px-1.5 leading-tight align-middle">
+              Requested
+            </span>
+          )
           // Format the raw stored UTC instant, NOT arg.event.start — FullCalendar's
           // marker→Date conversion is tz-dependent; booking.startTime is conversion-free.
           const startTime = booking.startTime
@@ -172,6 +179,7 @@ export default function CalendarView({
           if (view === 'dayGridMonth') {
             return (
               <div className="px-1 truncate text-xs font-medium leading-tight">
+                {requestedChip}
                 {booking.recurring && <span className="mr-0.5">↻</span>}
                 {booking.source === 'historical_import' && <HistoricalBadge fileName={booking.importBatch?.fileName} />}
                 {booking.resident?.name}
@@ -183,6 +191,7 @@ export default function CalendarView({
             return (
               <div className="px-1 py-0.5 overflow-hidden">
                 <div className="text-xs font-semibold truncate leading-tight">
+                  {requestedChip}
                   {booking.recurring && <span className="mr-0.5">↻</span>}
                   {startTime && <span className="opacity-70 font-normal mr-1">{startTime}</span>}
                   {booking.resident?.name}
@@ -198,6 +207,7 @@ export default function CalendarView({
           return (
             <div className="px-1 py-0.5 overflow-hidden">
               <div className="text-xs font-semibold truncate leading-tight">
+                {requestedChip}
                 {booking.recurring && <span className="mr-0.5">↻</span>}
                 {booking.source === 'historical_import' && <HistoricalBadge fileName={booking.importBatch?.fileName} />}
                 {startTime && <span className="opacity-70 font-normal mr-1">{startTime}</span>}

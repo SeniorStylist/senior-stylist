@@ -3115,6 +3115,69 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P50 — New-facility onboarding package (2026-08-03)
+
+QR-to-chair funnel: poster scan → senior signup wizard → claim approval →
+magic link → welcome flow (card / autopay / rhythm) → appointment requests
+into the sign-up-sheet queue → family confirmations. Migrations
+`drizzle/0032_p50_claim_details.sql` / `0033_p50_signup_source.sql` /
+`0034_p50_portal_onboarded.sql` (0034's backfill is migration-only).
+
+- **Schema**: `portal_claim_requests` += `resident_name`, `room_number`,
+  `relationship` ('self'|'spouse'|'child'|'poa'|'other');
+  `signup_sheet_entries` — `created_by` now nullable, += `source`
+  ('staff' default | 'portal'), `created_by_portal_account_id` (SET NULL),
+  `preferred_date_to`; `portal_accounts` += `onboarded_at` (null = show the
+  first-login welcome flow). DDL bootstraps: `portal-claims-ddl.ts`
+  (claim columns + onboarded_at; NOT the backfill), `signup-sheet-ddl.ts`
+  (called in ALL signup-sheet routes).
+- **Signup wizard** (`/family/[code]/signup`): one-question-per-screen
+  (role → your name → resident+room → email → phone → review), 18px inputs,
+  ≥52px CTAs, `.portal-cta-cap`; portal text-scale now also scales
+  input/select/textarea. Matching: exact poaEmail → auto-approve (ONLY
+  auto-approve path); wizard resident-name fuzzy ≥0.85 + room exact →
+  pending 'high' (resident preselected on the admin card), ≥0.75 →
+  pending 'medium'. Names/rooms never grant access alone.
+- **Comms**: `buildClaimPendingEmailHtml` + `buildClaimRejectedEmailHtml`
+  (never include admin notes); `notifyFacilityAdmins` bells; NotificationType
+  += 'portal_claim', 'portal_request'. `POST /api/portal/request-link`
+  second lookup via portal_accounts → portal_account_residents → residents
+  (QR-onboarded emails ≠ poaEmail could never get a link).
+- **Requests → queue**: `POST /api/portal/request-booking` rewritten in
+  place (same path/bucket) — creates ONE signup_sheet_entries row
+  (source='portal', requestedDate = today in facility tz, preferred range,
+  first service + extras in notes) instead of a ghost 'requested' booking.
+  `resolveAssignedStylist(opts.preferredStylistId)` wins when valid.
+  "From family portal" chip on both queue surfaces;
+  `<PendingSignupBadge mount="staff">` widens the badge to
+  admin/facility_staff. Calendar shows an amber "Requested" chip on
+  legacy `status='requested'` events.
+- **Family confirmations**: `src/lib/portal-recipients.ts::
+  getFamilyRecipients(residentId)` — poaEmail ∪ linked portal account
+  emails + resident_preferences flags. `family-confirmation.ts::
+  sendFamilyBookingConfirmation` fires on signup-sheet convert +
+  requested→scheduled PUT flips (gated poaNotificationsEnabled +
+  emailReminders). email_reminders/sms_reminders now have readers
+  (bookings-POST POA email; schedule-reminders SMS cron batched opt-out).
+- **Portal autopay opt-in**: `/api/payments/autopay` uses
+  `authorizeResidentPayment`; portal writes restricted to autopayEnabled +
+  defaultPaymentMethodId (autopayMethod stripped; null method → 'card';
+  enable requires an active card). Consent email → full recipient set.
+  `<AutopayCard>` on portal billing. Every card vault fire-and-forgets
+  `buildCardAddedEmailHtml` to the family.
+- **Stylist chair vaulting**: `authorizeResidentPayment` `via:'stylist'`
+  (getEffectiveStylistId + home-OR-assignment facility scope, no booking
+  needed); allowed on setup-intent + methods GET/POST, 403 on methods
+  PATCH/DELETE + autopay. `<AddCardModal>` from daily-log rows
+  (`data-tour="log-add-card"`). `/api/payments/intent` stylist branch moved
+  to getEffectiveStylistId.
+- **Welcome flow**: magic-link verify routes `onboarded_at IS NULL` →
+  `/family/[code]/welcome` (skippable card → autopay → rhythm; done screen
+  links to /request). `POST /api/portal/onboarding-complete` (session-gated,
+  idempotent, portalProfileUpdate bucket). Preferences POST is a PARTIAL
+  merge now. Request page gains a visit-rhythm pill row (visit_frequency
+  drives due-for-visit + rebooking — the re-request surface).
+
 ## P49 — Feedback identity + duplicate logins (2026-08-03)
 
 - **Feedback sender identity**: `GET /api/feedback` rows gain `senderEmail` +

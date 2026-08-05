@@ -487,7 +487,9 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                         {item.icon}
                       </span>
                       <span className="flex-1">{item.label}</span>
-                      {item.href === '/dashboard' && <PendingSignupBadge role={role} />}
+                      {item.href === '/dashboard' && <PendingSignupBadge role={role} mount="stylist" />}
+                      {/* P50 — office roles get the count on the Sign-Up Sheet item */}
+                      {item.href === '/signup-sheet' && <PendingSignupBadge role={role} mount="staff" />}
                     </Link>
                   )
                 })}

@@ -259,8 +259,14 @@ export interface SignupSheetEntry {
   requestedTime: string | null
   requestedDate: string
   preferredDate: string | null
+  /** P50 — end of the family's preferred window. */
+  preferredDateTo?: string | null
   notes: string | null
-  createdBy: string
+  /** P50 — nullable: portal-created entries have no profiles row. */
+  createdBy: string | null
+  /** P50 — 'staff' | 'portal'. */
+  source?: string
+  createdByPortalAccountId?: string | null
   assignedToStylistId: string | null
   status: SignupSheetStatus
   bookingId: string | null

@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getLocalParts } from '@/lib/time'
+import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { facilities } from '@/db/schema'
 import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
@@ -29,6 +30,8 @@ const createSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  // P50 — bootstrap the portal-request columns (GET reads full rows).
+  await ensureSignupSheetSchema()
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -140,6 +143,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  // P50 — bootstrap the portal-request columns (GET reads full rows).
+  await ensureSignupSheetSchema()
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

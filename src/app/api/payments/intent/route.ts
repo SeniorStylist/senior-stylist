@@ -7,10 +7,11 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db'
-import { bookings, profiles, residents } from '@/db/schema'
+import { bookings, residents } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, isAdminOrAbove, isFacilityStaff, canAccessBilling } from '@/lib/get-facility-id'
+import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { ensureStripeCustomer } from '@/lib/payments/customer'
 import { getPlatformStripe, platformPublishableKey, platformStripeKey, paymentsLiveEnabled } from '@/lib/payments/stripe-client'
@@ -57,13 +58,20 @@ export async function POST(request: NextRequest) {
         }
       } else if (fu.role === 'stylist') {
         // Stylists may only collect for their own bookings — require + verify ownership.
+        // P50 drive-by: identity via getEffectiveStylistId (P30 rule — raw
+        // profiles.stylistId breaks debug impersonation and forks identity).
         if (!body.bookingIds?.length) return Response.json({ error: 'Select a booking' }, { status: 403 })
-        const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, user.id), columns: { stylistId: true } })
-        if (!profile?.stylistId) return Response.json({ error: 'Forbidden' }, { status: 403 })
+        const stylistId = await getEffectiveStylistId(user.id)
+        if (!stylistId) {
+          return Response.json(
+            { error: "Your account isn't linked to a stylist profile yet — ask your admin to link you in Settings → Team." },
+            { status: 403 },
+          )
+        }
         const owned = await db
           .select({ id: bookings.id })
           .from(bookings)
-          .where(and(inArray(bookings.id, body.bookingIds), eq(bookings.stylistId, profile.stylistId), eq(bookings.facilityId, resident.facilityId)))
+          .where(and(inArray(bookings.id, body.bookingIds), eq(bookings.stylistId, stylistId), eq(bookings.facilityId, resident.facilityId)))
         if (owned.length !== body.bookingIds.length) return Response.json({ error: 'Forbidden' }, { status: 403 })
       } else {
         return Response.json({ error: 'Forbidden' }, { status: 403 })

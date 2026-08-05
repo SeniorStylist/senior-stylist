@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatPricingLabel } from '@/lib/pricing'
 import type { PricingTier, PricingOption } from '@/types'
 import { cn } from '@/lib/utils'
@@ -22,10 +22,11 @@ interface Props {
   facilityCode: string
   lang: PortalLang
   residentId: string
+  residentName: string
   groups: { category: string; services: ClientService[] }[]
 }
 
-export function RequestClient({ facilityCode, lang, residentId, groups }: Props) {
+export function RequestClient({ facilityCode, lang, residentId, residentName, groups }: Props) {
   const router = useRouter()
   const t = usePortalT(lang)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -36,6 +37,44 @@ export function RequestClient({ facilityCode, lang, residentId, groups }: Props)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  // P50-C7 — optional visit-rhythm preference (feeds due-for-visit re-requests)
+  const [rhythm, setRhythm] = useState<'weekly' | 'biweekly' | 'monthly' | null>(null)
+  const [rhythmSaved, setRhythmSaved] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/portal/residents/${residentId}/preferences`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return
+        const v = j?.data?.preferences?.visitFrequency
+        if (v === 'weekly' || v === 'biweekly' || v === 'monthly') setRhythm(v)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [residentId])
+
+  const saveRhythm = async (freq: 'weekly' | 'biweekly' | 'monthly') => {
+    const prev = rhythm
+    setRhythm(freq)
+    try {
+      const res = await fetch(`/api/portal/residents/${residentId}/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visitFrequency: freq }),
+      })
+      if (!res.ok) {
+        setRhythm(prev)
+        return
+      }
+      setRhythmSaved(true)
+      setTimeout(() => setRhythmSaved(false), 2000)
+    } catch {
+      setRhythm(prev)
+    }
+  }
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -236,6 +275,32 @@ export function RequestClient({ facilityCode, lang, residentId, groups }: Props)
           className="w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20 resize-none"
         />
         <p className="text-[11px] text-stone-400 text-right mt-1">{notes.length}/2000</p>
+      </section>
+
+      {/* P50-C7 — optional visit rhythm. Saves immediately (separate from the
+          request submit); drives the salon's due-for-visit re-request panel. */}
+      <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-stone-900">{t('request.rhythm.title', { name: residentName })}</h2>
+          {rhythmSaved && <span className="text-[11px] font-semibold text-emerald-600">✓ {t('request.rhythm.saved')}</span>}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {(['weekly', 'biweekly', 'monthly'] as const).map((freq) => (
+            <button
+              key={freq}
+              type="button"
+              onClick={() => void saveRhythm(freq)}
+              className={cn(
+                'rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors',
+                rhythm === freq
+                  ? 'border-[#8B2E4A] bg-[#F9EFF2] text-[#8B2E4A]'
+                  : 'border-stone-200 text-stone-600 hover:bg-stone-50',
+              )}
+            >
+              {t(`welcome.rhythm.${freq}`)}
+            </button>
+          ))}
+        </div>
       </section>
 
       {error && (

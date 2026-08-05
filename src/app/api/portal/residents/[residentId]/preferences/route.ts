@@ -128,20 +128,30 @@ export async function POST(
       const t = v.trim()
       return t.length ? t : null
     }
-    const values = {
-      residentId,
-      styleNotes: trim(p.styleNotes),
-      allergyNotes: trim(p.allergyNotes),
-      preferredStylistId: p.preferredStylistId ?? null,
-      visitFrequency: p.visitFrequency ?? null,
-      emailReminders: p.emailReminders ?? true,
-      smsReminders: p.smsReminders ?? true,
-      updatedAt: new Date(),
-    }
+    // P50-C7 — PARTIAL merge: only fields present in the body are written. The
+    // welcome flow and request page send { visitFrequency } alone; a full-reset
+    // upsert here would silently wipe style/allergy notes saved on the profile
+    // page. The profile page keeps sending the full object — unaffected.
+    const set: Partial<typeof residentPreferences.$inferInsert> = { updatedAt: new Date() }
+    if (p.styleNotes !== undefined) set.styleNotes = trim(p.styleNotes)
+    if (p.allergyNotes !== undefined) set.allergyNotes = trim(p.allergyNotes)
+    if (p.preferredStylistId !== undefined) set.preferredStylistId = p.preferredStylistId
+    if (p.visitFrequency !== undefined) set.visitFrequency = p.visitFrequency
+    if (p.emailReminders !== undefined) set.emailReminders = p.emailReminders
+    if (p.smsReminders !== undefined) set.smsReminders = p.smsReminders
     await db
       .insert(residentPreferences)
-      .values(values)
-      .onConflictDoUpdate({ target: residentPreferences.residentId, set: values })
+      .values({
+        residentId,
+        styleNotes: set.styleNotes ?? null,
+        allergyNotes: set.allergyNotes ?? null,
+        preferredStylistId: set.preferredStylistId ?? null,
+        visitFrequency: set.visitFrequency ?? null,
+        emailReminders: set.emailReminders ?? true,
+        smsReminders: set.smsReminders ?? true,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({ target: residentPreferences.residentId, set })
 
     return Response.json({ data: { ok: true } })
   } catch (err) {

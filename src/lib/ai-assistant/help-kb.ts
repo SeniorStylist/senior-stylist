@@ -102,6 +102,8 @@ Front desk / admin: open the Sign-Up Sheet from the dashboard, enter the residen
 
 Stylists: pending requests appear in an amber panel above your calendar, with a badge on the Calendar tab counting them. Tap "Pick time →" to open the booking form pre-filled, choose a slot, and the request becomes a real appointment. On desktop you can also drag a request card straight onto the calendar.
 
+Family-portal requests land in this same queue with a "From family portal" chip (and a preferred date range when the family gave one) — admins and front desk see a count badge on the Sign-Up Sheet item. When a portal request is scheduled, the family automatically gets a confirmation email.
+
 The assistant can add requests too: "put Mrs. Horn on the sign-up sheet for a perm next week."`,
   },
   {
@@ -156,8 +158,9 @@ Connecting a family:
 - On the resident's page, the Family Portal card has "Send Link" (emails the POA a sign-in link) and "Copy Link" (share it yourself). Both need the POA email on file.
 - Bulk: Settings → Family Portal shows a Portal Status panel — who's connected, who could be invited — with a one-tap "invite everyone".
 - Self-serve: print the facility's QR poster (Settings → Family Portal) — families scan it and sign up themselves. Signups matching the POA on file connect instantly; others go to your approval queue in Settings.
+- First sign-in: a newly approved family's first email-link login walks them through a one-time, all-skippable setup — save a card, opt in to automatic payment, and pick a visit rhythm (weekly / every 2 weeks / monthly). The rhythm feeds your due-for-visit panel.
 
-What families can do: view upcoming visits and history (with shared style photos), request appointments (which land as requests for you to confirm), pay balances online, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the daily log. There's an English/Spanish toggle and a large-print mode.
+What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family portal" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the daily log. There's an English/Spanish toggle and a large-print mode.
 
 Welcome coupons and per-facility toggles live in Settings → Family Portal.`,
   },
@@ -208,7 +211,8 @@ Live invoice pulling (the "Sync from QB" button) stays switched off until Intuit
 - Payment types on a visit: Cash, Check, Card, and ACH count as paid immediately. "Invoice", RFMS, COF, RA, or None mean the visit stays on the open balance until a payment covers it.
 - Card on file: on a resident's page (billing roles), save a card — it's stored securely by Stripe, the app never sees the number. "Collect now" charges the saved card against the open balance; "Send payment link" emails/texts the family a secure pay page instead.
 - Take a payment at the chair: stylists, admins, and bookkeepers can open "Take card payment" and have the family tap/enter their card on the phone right after a visit (optionally saving it for next time).
-- Autopay: per facility (Settings → Billing) and per resident. It can charge automatically when a visit completes, or sweep balances nightly. Families are notified when autopay is turned on, every automatic charge emails a receipt, and there's a safety cap on automatic amounts. Failed charges alert the office and fall back to a pay link.
+- Save a handed-over card at the chair: on any daily-log row, the "Save a card on file" button vaults a card the family hands over — it charges nothing, works for stylists too (scoped to residents at facilities where they work), and the family gets a "card saved" email. In a phone BROWSER the card form offers the camera scan (point the phone at the card); inside the installed app, type the number instead.
+- Autopay: per facility (Settings → Billing) and per resident. It can charge automatically when a visit completes, or sweep balances nightly. Families can also turn autopay on or off themselves from the family portal's Billing page (a saved card is required). Everyone on the family's email list is notified when autopay changes, every automatic charge emails a receipt, and there's a safety cap on automatic amounts. Failed charges alert the office and fall back to a pay link. Whenever a card is saved — by the family or by staff — the family gets a "card saved" security email.
 - Refunds: billing roles can refund a Stripe payment from the resident's ledger (two-tap confirm).
 
 The assistant deliberately does NOT move money — charging, refunding, and statement sending stay human-only actions in the UI.`,

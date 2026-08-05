@@ -76,6 +76,7 @@ export default async function RequestServicePage({
         facilityCode={decoded}
         lang={lang}
         residentId={selected.residentId}
+        residentName={selected.residentName}
         groups={groups.map(([cat, items]) => ({
           category: cat,
           services: items.map((s) => ({

@@ -159,6 +159,34 @@ apps). This is a multi-day, multi-step process; go phase by phase.
        stylists (Sierra, Mariah Owens, Senait Edwards), upload compliance docs, set weekly
        availability, connect QuickBooks per facility.
 
+## J. P50 — new-facility onboarding funnel (2026-08-03)
+
+Ops to make the QR-to-chair funnel live for a NEW facility:
+
+1. [ ] **Apply migrations 0032–0034 BEFORE deploy** (Supabase SQL Editor or psql):
+       `drizzle/0032_p50_claim_details.sql`, `drizzle/0033_p50_signup_source.sql`,
+       `drizzle/0034_p50_portal_onboarded.sql`. All idempotent. 0034 matters most — its
+       backfill marks every EXISTING portal account as "already onboarded" so long-time
+       families never see the first-login setup wizard. (The app self-bootstraps the
+       columns if you forget, but NOT the backfill.)
+2. [ ] **Per new facility**: give it a `facilityCode` (F###), flip **Settings → Family
+       Portal → self-signup ON**, assign the stylist(s) with weekly availability rows —
+       availability is what drives request auto-assignment into the right stylist's queue.
+3. [ ] **Print the QR poster** from Settings → Family Portal. No reprint needed for
+       facilities that already have posters — the QR URL didn't change; the page behind
+       it became the senior-friendly wizard.
+4. [ ] **Cards/autopay work on Stripe TEST keys today** — E's live-keys +
+       `PAYMENTS_LIVE_ENABLED=true` flip is only needed for real money. Card **camera
+       scan** works in the phone BROWSER (Safari/Chrome offer it inside the Stripe card
+       field); inside the installed app people type the number instead. Card-PHOTO OCR
+       (snapping a picture of a card) is permanently off the table — PCI.
+5. [ ] **SMS reminders stay dormant** until F (Twilio) is done — the family's SMS
+       checkbox is honored the moment it's live.
+6. [ ] **One-time sweep**: the calendar now shows an amber "Requested" chip on old
+       family requests that became invisible phantom bookings — open the calendar,
+       spot the chips, and either schedule or cancel them. New requests go to the
+       Sign-Up Sheet queue instead, so chips should stop appearing.
+
 ---
 
 When an item is done, tell Claude which one — each unlocked feature gets verified together.

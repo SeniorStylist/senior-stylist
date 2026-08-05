@@ -4,6 +4,7 @@ import {
   bookings,
   facilities,
   residents,
+  residentPreferences,
   stylists,
   services,
   stylistFacilityAssignments,
@@ -536,9 +537,18 @@ export async function POST(request: NextRequest) {
       console.error('Confirmation email failed (non-fatal):', emailErr)
     }
 
-    // POA booking confirmation — fire-and-forget
+    // POA booking confirmation — fire-and-forget.
+    // P50 — also honors the family's own email-reminders checkbox
+    // (resident_preferences.email_reminders — previously written but read by
+    // nothing; null row = opted in).
     const poaEmail = data?.resident?.poaEmail
     if (poaEmail && data?.resident?.portalToken && data?.resident?.poaNotificationsEnabled !== false) {
+      const emailPrefs = await db.query.residentPreferences
+        .findFirst({ where: eq(residentPreferences.residentId, data.resident.id), columns: { emailReminders: true } })
+        .catch(() => null)
+      if (emailPrefs?.emailReminders === false) {
+        // Family opted out of appointment emails.
+      } else {
       const facility = facilityRow
       const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${data.resident.portalToken}`
       const tz = facility?.timezone ?? 'America/New_York'
@@ -557,6 +567,7 @@ export async function POST(request: NextRequest) {
         bookedBy: 'staff',
       })
       sendEmail({ to: poaEmail, subject: `Appointment booked for ${data.resident.name}`, html: poaHtml }).catch(console.error)
+      }
     }
 
     revalidateTag('bookings', {})

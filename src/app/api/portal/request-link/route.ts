@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { facilities, residents } from '@/db/schema'
+import { facilities, residents, portalAccounts, portalAccountResidents } from '@/db/schema'
 import { createMagicLink } from '@/lib/portal-auth'
 import { buildPortalMagicLinkEmailHtml, sendEmail } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
@@ -34,10 +34,36 @@ export async function POST(request: NextRequest) {
     })
 
     if (facility) {
-      const matchingResidents = await db.query.residents.findMany({
+      let matchingResidents = await db.query.residents.findMany({
         where: and(eq(residents.facilityId, facility.id), eq(residents.poaEmail, email), eq(residents.active, true)),
         columns: { id: true, name: true },
       })
+
+      // P50 — the QR-onboarded cohort's dead-end fix: a claim-approved account
+      // is linked via portal_account_residents but its email usually ISN'T the
+      // resident's poaEmail — so the old poaEmail-only lookup silently sent
+      // NOTHING and "email me a link" was broken for exactly the people who
+      // signed up through the wizard. Second lookup through the account links.
+      if (matchingResidents.length === 0) {
+        const account = await db.query.portalAccounts.findFirst({
+          where: eq(portalAccounts.email, email),
+          columns: { id: true },
+        })
+        if (account) {
+          const links = await db
+            .select({ id: residents.id, name: residents.name })
+            .from(portalAccountResidents)
+            .innerJoin(residents, eq(residents.id, portalAccountResidents.residentId))
+            .where(
+              and(
+                eq(portalAccountResidents.portalAccountId, account.id),
+                eq(portalAccountResidents.facilityId, facility.id),
+                eq(residents.active, true),
+              ),
+            )
+          matchingResidents = links
+        }
+      }
 
       if (matchingResidents.length > 0) {
         const first = matchingResidents[0]

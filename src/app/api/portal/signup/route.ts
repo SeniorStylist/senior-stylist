@@ -12,8 +12,9 @@ import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
-import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
+import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimPendingEmailHtml } from '@/lib/email'
 import { fuzzyScore } from '@/lib/fuzzy'
+import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,13 @@ const signupSchema = z.object({
   fullName: z.string().min(2).max(200),
   facilityCode: z.string().min(1).max(50),
   phone: z.string().max(30).optional().nullable(),
+  // Accepted for back-compat; the P50 wizard no longer sends it (unused PII).
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // P50 — the wizard asks WHO the resident is, which turns admin review from
+  // guesswork into a one-click confirm.
+  residentName: z.string().min(2).max(200).optional().nullable(),
+  roomNumber: z.string().max(50).optional().nullable(),
+  relationship: z.enum(['self', 'spouse', 'child', 'poa', 'other']).optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -36,8 +43,10 @@ export async function POST(request: NextRequest) {
   const parsed = signupSchema.safeParse(body)
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
-  const { email, fullName, facilityCode, phone, dateOfBirth } = parsed.data
+  const { email, fullName, facilityCode, phone, dateOfBirth, residentName, roomNumber, relationship } = parsed.data
   const normalizedEmail = email.toLowerCase().trim()
+
+  await ensurePortalClaimsSchema()
 
   const facility = await db.query.facilities.findFirst({
     where: and(eq(facilities.facilityCode, facilityCode), eq(facilities.active, true)),
@@ -98,7 +107,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ status: 'auto_approved' })
   }
 
-  // 2. Try name match: fullName fuzzy against resident.poaName
+  // 2. Match against the facility roster. P50 tier order:
+  //    (a) the wizard-supplied RESIDENT name vs residents.name (+ room as a
+  //        confidence booster) — the strongest non-email signal;
+  //    (b) the applicant's own name vs residents.poaName (legacy fallback).
   const facilityResidents = await db.query.residents.findMany({
     where: and(
       eq(residents.facilityId, facility.id),
@@ -108,21 +120,40 @@ export async function POST(request: NextRequest) {
     columns: { id: true, name: true, poaName: true, roomNumber: true },
   })
 
-  let bestMatch: { resident: typeof facilityResidents[0]; score: number } | null = null
-  for (const r of facilityResidents) {
-    if (!r.poaName) continue
-    const score = fuzzyScore(fullName, r.poaName)
-    if (score > (bestMatch?.score ?? 0.59)) {
-      bestMatch = { resident: r, score }
+  const normRoom = (v: string | null | undefined) => (v ?? '').trim().toLowerCase().replace(/^#/, '')
+  const claimedResidentName = residentName?.trim() ?? ''
+  const claimedRoom = normRoom(roomNumber)
+
+  let bestMatch: { resident: (typeof facilityResidents)[0]; score: number; type: 'resident_room' | 'name' } | null = null
+  if (claimedResidentName.length >= 2) {
+    for (const r of facilityResidents) {
+      const score = fuzzyScore(claimedResidentName, r.name)
+      if (score > (bestMatch?.score ?? 0.74)) {
+        bestMatch = { resident: r, score, type: 'resident_room' }
+      }
+    }
+  }
+  if (!bestMatch) {
+    for (const r of facilityResidents) {
+      if (!r.poaName) continue
+      const score = fuzzyScore(fullName, r.poaName)
+      if (score > (bestMatch?.score ?? 0.59)) {
+        bestMatch = { resident: r, score, type: 'name' }
+      }
     }
   }
 
   // Name-based matches NEVER auto-approve — only an exact POA-email match (handled
-  // above) does. A name collision must always go to an admin for review, so a
-  // stranger who happens to share a resident's POA name can't self-grant access to
-  // that resident's billing + appointment data.
+  // above) does. Room numbers are visible on doors, so even resident-name+room is
+  // NOT proof of a real family connection; it just makes the admin's review a
+  // one-click confirm instead of a full-roster hunt. A stranger who knows a name
+  // must always pass a human.
+  const roomAgrees =
+    bestMatch?.type === 'resident_room' && claimedRoom !== '' && normRoom(bestMatch.resident.roomNumber) === claimedRoom
   const confidence = bestMatch
-    ? (bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low')
+    ? bestMatch.type === 'resident_room'
+      ? (bestMatch.score >= 0.85 && roomAgrees) ? 'high' : bestMatch.score >= 0.75 ? 'medium' : 'low'
+      : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
     : null
 
   await db.insert(portalClaimRequests).values({
@@ -132,8 +163,11 @@ export async function POST(request: NextRequest) {
     fullName,
     phone: phone ?? null,
     dateOfBirth: dateOfBirth ?? null,
+    residentName: claimedResidentName || null,
+    roomNumber: roomNumber?.trim() || null,
+    relationship: relationship ?? null,
     residentId: bestMatch?.resident.id ?? null,
-    matchType: bestMatch ? 'name' : null,
+    matchType: bestMatch?.type ?? null,
     matchConfidence: confidence,
     status: 'pending_review',
   })
@@ -148,6 +182,23 @@ export async function POST(request: NextRequest) {
       html: buildClaimRequestEmailHtml({ fullName, email: normalizedEmail, facilityName: facility.name, settingsUrl }),
     }).catch(() => {})
   }
+
+  // P50 — in-app bell for every facility admin (email alone rots unwatched).
+  import('@/lib/notify').then(({ notifyFacilityAdmins }) =>
+    notifyFacilityAdmins(facility.id, {
+      type: 'portal_claim',
+      title: 'New Family Portal request',
+      body: `${fullName} asked for portal access${claimedResidentName ? ` for ${claimedResidentName}` : ''} — review it in Settings.`,
+      url: '/settings?section=portal',
+    }),
+  ).catch(() => {})
+
+  // P50 — the applicant gets a real confirmation instead of silence.
+  sendEmail({
+    to: normalizedEmail,
+    subject: `We received your request — ${facility.name} Family Portal`,
+    html: buildClaimPendingEmailHtml({ fullName, facilityName: facility.name }),
+  }).catch(() => {})
 
   return Response.json({ status: 'pending' })
 }
