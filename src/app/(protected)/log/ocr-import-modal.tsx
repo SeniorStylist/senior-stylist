@@ -11,6 +11,8 @@ import {
   pdfToPageImages,
   packFilesByBudget,
   readJsonSafe,
+  loadPdfjs,
+  withTimeout,
 } from '@/lib/uploads/compress-upload'
 import type { Resident, Stylist, Service } from '@/types'
 
@@ -150,22 +152,25 @@ function buildSheetFromSaved(s: SavedSheet, idx: number): SheetState {
 }
 
 async function renderPdfPage(file: File, scale: number): Promise<string> {
+  let pdf: { destroy: () => Promise<void> } | null = null
   try {
-    const pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    // Same-origin worker + deadlines via the shared loader — a hung worker
+    // used to leave the preview spinner going forever (see loadPdfjs docs).
+    const pdfjsLib = await loadPdfjs()
     const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-    const page = await pdf.getPage(1)
+    const doc = await withTimeout(pdfjsLib.getDocument({ data: arrayBuffer }).promise, 15_000, 'PDF open')
+    pdf = doc
+    const page = await withTimeout(doc.getPage(1), 10_000, 'PDF page load')
     const viewport = page.getViewport({ scale })
     const canvas = document.createElement('canvas')
     canvas.width = viewport.width
     canvas.height = viewport.height
     const ctx = canvas.getContext('2d')!
-    await page.render({ canvasContext: ctx, canvas, viewport }).promise
+    await withTimeout(page.render({ canvasContext: ctx, canvas, viewport }).promise, 20_000, 'PDF render')
     return canvas.toDataURL('image/jpeg', 0.85)
   } catch (err) {
     console.error(`[renderPdfPage] scale=${scale} file="${file.name}" error:`, err)
+    try { await pdf?.destroy() } catch { /* already dead */ }
     throw err
   }
 }
@@ -616,7 +621,11 @@ export function OcrImportModal({
       const uploadFiles: File[] = []
       for (const f of files) {
         if (f.type === 'application/pdf') {
-          uploadFiles.push(...(await pdfToPageImages(f)))
+          // Belt-and-braces deadline: no pdf.js regression may ever freeze the
+          // scan at "Preparing sheets…" — worst case the original PDF uploads.
+          uploadFiles.push(
+            ...(await withTimeout(pdfToPageImages(f), 90_000, 'PDF preparation').catch(() => [f])),
+          )
         } else {
           uploadFiles.push(await compressImageForUpload(f))
         }

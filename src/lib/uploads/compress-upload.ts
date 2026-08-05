@@ -22,6 +22,33 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY))
 }
 
+/** Race a promise against a deadline — pdf.js has NO internal timeouts. */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms),
+    ),
+  ])
+}
+
+/**
+ * THE pdf.js loader — dynamic import + SAME-ORIGIN worker, set once.
+ *
+ * NEVER point workerSrc at a CDN: the old cdnjs URL used a filename that
+ * doesn't exist for pdfjs-dist 5.x (`pdf.worker.min.js` — v5 ships `.mjs`),
+ * and on networks that stall instead of 404ing the worker handshake hangs
+ * getDocument() forever with the failure memoized for the whole session
+ * ("PDF scan remains idle", bookkeeper report 2026-08-03). The worker file is
+ * committed to /public by `npm run copy:pdf-worker` — re-run + re-commit after
+ * any pdfjs-dist upgrade (version mismatch throws).
+ */
+export async function loadPdfjs() {
+  const pdfjsLib = await import('pdfjs-dist')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+  return pdfjsLib
+}
+
 async function drawToBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
   try {
     return await createImageBitmap(file)
@@ -79,23 +106,35 @@ export async function compressImageForUpload(file: File): Promise<File> {
  * Returns the original file untouched if rendering fails.
  */
 export async function pdfToPageImages(file: File): Promise<File[]> {
+  let pdf: { destroy: () => Promise<void> } | null = null
   try {
-    const pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    const pdfjsLib = await loadPdfjs()
     const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    // Every await is deadline-raced — a hung worker/render must degrade to
+    // "upload the original PDF" (the catch below), never freeze the scan flow.
+    const started = Date.now()
+    const doc = await withTimeout(
+      pdfjsLib.getDocument({ data: arrayBuffer }).promise,
+      15_000,
+      'PDF open',
+    )
+    pdf = doc
     const baseName = file.name.replace(/\.pdf$/i, '')
     const pages: File[] = []
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p)
+    for (let p = 1; p <= doc.numPages; p++) {
+      if (Date.now() - started > 60_000) throw new Error('PDF processing exceeded 60s budget')
+      const page = await withTimeout(doc.getPage(p), 10_000, `PDF page ${p} load`)
       const viewport = page.getViewport({ scale: 2 })
       const canvas = document.createElement('canvas')
       canvas.width = viewport.width
       canvas.height = viewport.height
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('canvas 2d context unavailable')
-      await page.render({ canvasContext: ctx, canvas, viewport }).promise
+      await withTimeout(
+        page.render({ canvasContext: ctx, canvas, viewport }).promise,
+        20_000,
+        `PDF page ${p} render`,
+      )
       const blob = await canvasToJpegBlob(canvas)
       if (!blob) throw new Error('toBlob returned null')
       pages.push(new File([blob], `${baseName}-p${p}.jpg`, { type: 'image/jpeg' }))
@@ -103,6 +142,9 @@ export async function pdfToPageImages(file: File): Promise<File[]> {
     return pages.length > 0 ? pages : [file]
   } catch (err) {
     console.error('[pdfToPageImages] falling back to original PDF:', err)
+    // Kill a stuck worker — pdf.js memoizes a failed worker setup for the whole
+    // session, so leaving it alive poisons every later PDF.
+    try { await pdf?.destroy() } catch { /* already dead */ }
     return [file]
   }
 }
