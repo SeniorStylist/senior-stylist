@@ -7,6 +7,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.0',
+    // NOTE: must be STRICTLY later than the previous entry's date — 5.8 and 5.9
+    // share 2026-08-03, so anyone who read then would never see the unread dot.
+    // This date also gates the one-time assistant announcement banner.
+    date: '2026-08-05',
+    title: 'Meet Your AI Assistant — Ask It Anything',
+    items: [
+      'Not sure where something is? Ask the assistant (the ✨ sparkle button, bottom-right on desktop, top bar on your phone): "where do I edit a service date?" or "how do I scan a log sheet?" — it answers with the exact steps for YOUR role',
+      'It does things for you, too: "add a walk-in for Mrs. Smith, wash and set", "reschedule John to 2pm", "who still owes this month?" — it fills in the details and asks you to confirm before anything is saved',
+      'Say "show me how" and it walks you through the actual screens step by step, pointing at the buttons like a coworker standing next to you',
+      'Bookkeepers: you can now add and rename stylists yourselves (Stylists page in the sidebar — codes like ST825 are kept), and create a brand-new facility right from the scan screen\'s facility dropdown',
+      'Scanning is sturdier: photos and PDFs are compressed automatically before upload (no more "Network Error" on big files), every page of a multi-page PDF is read, and typing in any service box filters the list as you type',
+      'Exports now warn you if a selected facility ended up with no rows in the file, and Log Sheet History shows exactly how many bookings each sheet has on file',
+    ],
+  },
+  {
     version: '5.9',
     date: '2026-08-03',
     title: 'New-Facility Onboarding — QR to Chair',

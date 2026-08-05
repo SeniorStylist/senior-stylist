@@ -18,6 +18,7 @@ import { MobileDebugButton } from '@/components/layout/mobile-debug-button'
 import { TourResumer } from '@/components/help/tour-resumer'
 import { MobileTourOverlay } from '@/components/help/mobile-tour-overlay'
 import { TourModeBanner } from '@/components/help/tour-mode-banner'
+import { AssistantAnnouncementBanner } from '@/components/announcements/assistant-announcement-banner'
 import { TourRouterProvider } from '@/components/help/tour-router-provider'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { PeekDrawer } from '@/components/peek-drawer/peek-drawer'
@@ -241,6 +242,8 @@ export default async function ProtectedLayout({
     //   the URL-bar state settles).
     <div className="flex h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <TourModeBanner />
+      {/* One-time AI-assistant announcement (all roles) — changelog-date gated */}
+      <AssistantAnnouncementBanner changelogLastReadAt={changelogLastReadAt} />
       <NavigationProgress />
       <div className="hidden md:flex">
         <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} isFranchiseAdmin={franchiseAdmin} />
