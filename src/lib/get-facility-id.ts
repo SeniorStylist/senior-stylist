@@ -39,9 +39,16 @@ async function isMasterAdmin(userId: string): Promise<boolean> {
  *
  * `facility_staff` and `bookkeeper` (Phase 11J.1) are passed through
  * unchanged — they are first-class roles, not aliases.
+ *
+ * P51 — the ORIGINAL role survives as `rawRole` on every returned row.
+ * This is what lets the manage-tier helpers below distinguish a franchise
+ * admin (rawRole 'super_admin') from a facility admin (rawRole 'admin')
+ * AFTER normalization — bare `role === 'admin'` guards cannot.
  */
-function normalizeRole<T extends { role: string }>(fu: T): T {
-  return fu.role === 'super_admin' ? { ...fu, role: 'admin' } : fu
+function normalizeRole<T extends { role: string }>(fu: T): T & { rawRole: string } {
+  return fu.role === 'super_admin'
+    ? { ...fu, role: 'admin', rawRole: 'super_admin' }
+    : { ...fu, rawRole: fu.role }
 }
 
 // Role helpers (Phase 11J.1). `super_admin` is accepted defensively even though
@@ -60,6 +67,26 @@ export function isFacilityStaff(role: string): boolean {
 }
 export function canScanLogs(role: string): boolean {
   return isAdminOrAbove(role) || role === 'bookkeeper'
+}
+
+/**
+ * P51 — the "manage tier": who may see/edit stylist compensation + personal
+ * info, manage the directory/applicants, edit the service catalog, and run
+ * payroll. Facility-side roles (facility admin, front desk) are explicitly
+ * OUT — facilities see rosters and schedules, never pay or PII (Josh,
+ * 2026-08-07). Franchise admins qualify via rawRole (they are normalized to
+ * 'admin' — see normalizeRole); bookkeepers qualify by role ("bookkeepers do
+ * a lot of front work"); master is passed in by callers that already did the
+ * env-email check.
+ */
+type FuLike = { role: string; rawRole?: string } | null | undefined
+export function isManageTier(fu: FuLike, isMaster = false): boolean {
+  return isMaster || fu?.rawRole === 'super_admin' || fu?.role === 'bookkeeper'
+}
+export const canManageStylists = isManageTier
+export const canEditServices = isManageTier
+export function canAccessPayrollFu(fu: FuLike, isMaster = false): boolean {
+  return isManageTier(fu, isMaster)
 }
 
 /**
@@ -120,7 +147,7 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
           where: and(eq(facilities.id, selected), eq(facilities.active, true)),
           columns: { id: true },
         })
-        if (fac) return { ...bookkeeperRow, facilityId: selected }
+        if (fac) return normalizeRole({ ...bookkeeperRow, facilityId: selected })
       }
     }
 
