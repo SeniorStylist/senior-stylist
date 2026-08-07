@@ -12,6 +12,7 @@ interface SheetBatch {
   fileName: string
   sourceType: string
   rowCount: number
+  activeBookingCount?: number
   createdAt: string
   deletedAt: string | null
   uploaderName: string | null
@@ -67,6 +68,13 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin, facilities:
   // Move state — seeded from the prop when provided (bookkeeper/master get the full
   // cross-facility list from the /log page); the fetch below is a fallback only.
   const [facilities, setFacilities] = useState<FacilityOption[]>(facilitiesProp ?? [])
+
+  // Re-sync when the SSR list changes (e.g. a facility created inline in the
+  // scan flow arrives after router.refresh()) — a useState initializer alone
+  // never picks up later prop values.
+  useEffect(() => {
+    if (facilitiesProp && facilitiesProp.length > 0) setFacilities(facilitiesProp)
+  }, [facilitiesProp])
   const [facilitySearch, setFacilitySearch] = useState('')
   const [targetFacilityId, setTargetFacilityId] = useState('')
 
@@ -257,13 +265,18 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin, facilities:
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {filtered.map((batch) => {
               const isRolledBack = !!batch.deletedAt
+              // undefined = older API response without the count — don't warn on unknown
+              const activeCount = batch.activeBookingCount
+              const hasNoActiveBookings = !isRolledBack && activeCount === 0
               const isActive = activeAction?.batchId === batch.id
 
               return (
                 <div
                   key={batch.id}
                   className={`border rounded-2xl p-4 transition-colors ${
-                    isRolledBack ? 'border-stone-100 bg-stone-50' : 'border-stone-200 bg-white'
+                    isRolledBack || hasNoActiveBookings
+                      ? 'border-amber-200 bg-amber-50/40'
+                      : 'border-stone-200 bg-white'
                   }`}
                 >
                   {/* Header row */}
@@ -285,9 +298,24 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin, facilities:
                         )}
                       </div>
                       <p className="text-xs text-stone-500 mt-0.5">
-                        {formatDate(batch.createdAt)} · {batch.rowCount} booking{batch.rowCount === 1 ? '' : 's'}
+                        {formatDate(batch.createdAt)} ·{' '}
+                        {typeof activeCount === 'number' && !isRolledBack
+                          ? `${activeCount} booking${activeCount === 1 ? '' : 's'} on file`
+                          : `${batch.rowCount} booking${batch.rowCount === 1 ? '' : 's'}`}
                         {batch.uploaderName && ` · by ${batch.uploaderName}`}
                       </p>
+                      {isRolledBack && (
+                        <p className="text-xs text-amber-700 mt-1">
+                          Rolled back — these bookings are not in the daily log or exports.
+                          Re-scan or re-import the sheet to restore them.
+                        </p>
+                      )}
+                      {hasNoActiveBookings && (
+                        <p className="text-xs text-amber-700 mt-1">
+                          0 bookings on file — this sheet won&apos;t appear in exports. Its
+                          bookings may have been deleted or their service date changed.
+                        </p>
+                      )}
                     </div>
 
                     {/* Action buttons (only when not rolled back) */}

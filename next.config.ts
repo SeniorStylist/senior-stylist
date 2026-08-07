@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel-insights.com https://accounts.google.com https://cdnjs.cloudflare.com",
+  // cdnjs was allowlisted only for the pdf.js worker — now served same-origin
+  // from /public/pdf.worker.min.mjs (see scripts/copy-pdf-worker.mjs)
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel-insights.com https://accounts.google.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",

@@ -733,6 +733,10 @@ When a long async operation replaces step content (e.g. OCR scanning in `ocr-imp
 
 Tip rotation: `useEffect` keyed on the `scanning` flag; 3s interval fades out (`tipVisible=false`) → 400ms delay increments index → fades in. Progress bar: regex parse the progress string → `(X/Y)*100` capped at 90, default 5 when empty.
 
+### File uploads (2026-07-30)
+
+Every client file upload MUST go through `src/lib/uploads/compress-upload.ts` before hitting the network: `compressImageForUpload` (2000px longest edge, JPEG 0.8, pass-through ≤1.2MB, original on failure), `pdfToPageImages` (all pages, ~144dpi), `packFilesByBudget` (≤3.5MB per request). Vercel rejects request bodies over ~4.5MB at the platform edge with a NON-JSON error page — server-side size checks can never fire, and bare `res.json()` throws a bogus "Network error". Parse upload responses with `readJsonSafe` and branch 413/504 into human messages.
+
 ### Searchable Combobox (FacilityCombobox / ResidentCombobox pattern)
 
 Used when a list is too long for a plain `<select>` and needs typeahead filtering (e.g. facility picker and resident line pickers in `scan-check-modal.tsx`).
@@ -761,6 +765,8 @@ Used when a list is too long for a plain `<select>` and needs typeahead filterin
 - Input: `rounded-lg border border-stone-200 px-2 py-1 pr-6 text-xs focus:border-[#8B2E4A] focus:ring-2 focus:ring-rose-100 focus:outline-none`
 - Dropdown: `absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-lg max-h-48 overflow-y-auto`
 - Each option: `px-2 py-1.5 text-xs hover:bg-stone-50 cursor-pointer`
+
+**`<ServiceCombobox>` (2026-07-27 — `src/components/services/service-combobox.tsx`) is the REUSABLE extraction of this pattern for service pickers** (daily-log edit, OCR scan review, walk-in form). Same mechanics, plus: display value is DERIVED (`selectedId ? selectedName : searchValue`) so programmatic selection stays in sync; inline `➕ Create "<typed>"` row (via `onCreate`) replaces `__create__` sentinel options; optional `groupByCategory`/`categoryPriority` (category headers via `sortCategoryGroups`) and `priceLabel` suffix; `invalid` red-border state; `dataTour`/`optionDataTour` for tour anchors. Parent contract: clear your selection inside `onSearchChange`. Use this for any new service picker — never a bare `<select>` for a facility service catalog, and NEVER `<input list>` + `<datalist>` (renders as an invisible free-text field on most browsers).
 
 ---
 

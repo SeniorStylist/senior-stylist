@@ -3,9 +3,10 @@ import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { db } from '@/db'
 import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches, facilities } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { splitStylistCell } from '@/lib/service-log-import'
 import crypto from 'crypto'
 
 const WORD_EXPANSIONS: Record<string, string> = { w: 'wash', c: 'cut', hl: 'highlight', clr: 'color' }
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
       .where(and(eq(residents.facilityId, facilityId), eq(residents.active, true)))
 
     const existingStylists = await db
-      .select({ id: stylists.id, name: stylists.name })
+      .select({ id: stylists.id, name: stylists.name, stylistCode: stylists.stylistCode })
       .from(stylists)
       .where(and(eq(stylists.facilityId, facilityId), eq(stylists.active, true)))
 
@@ -180,6 +181,24 @@ export async function POST(request: Request) {
       ...existingStylists.map((s) => s.id),
       ...assignmentRows.map((r) => r.id),
     ])
+    // Roster rule (P33/P34b): pool/cross-facility stylists have no home row —
+    // include active assignment-linked stylists in the name/code MATCH pool so
+    // a typed name can't mint a duplicate of a stylist who already works here.
+    const assignmentStylistRows = await db
+      .select({ id: stylists.id, name: stylists.name, stylistCode: stylists.stylistCode })
+      .from(stylists)
+      .innerJoin(stylistFacilityAssignments, eq(stylistFacilityAssignments.stylistId, stylists.id))
+      .where(and(
+        eq(stylistFacilityAssignments.facilityId, facilityId),
+        eq(stylistFacilityAssignments.active, true),
+        eq(stylists.active, true),
+      ))
+    {
+      const seenStylistIds = new Set(existingStylists.map((s) => s.id))
+      for (const s of assignmentStylistRows) {
+        if (!seenStylistIds.has(s.id)) existingStylists.push(s)
+      }
+    }
     // P37 — stylist caller: every sheet is forced to their own stylist id and
     // stylistName is cleared (never create stylists). The IDOR check below then
     // also verifies their stylist record actually works at this facility.
@@ -248,30 +267,96 @@ export async function POST(request: Request) {
         // fuzzy DB match → create. Mirrors the resident/service resolution below.
         let sheetStylistId = sheet.stylistId
         if (!sheetStylistId) {
-          const name = sheet.stylistName.trim()
+          // Strip an embedded "ST### - " prefix from the typed name — bookkeepers
+          // type "ST818 - Mariah Owens", which both fails the fuzzy match (raw
+          // string vs roster "Mariah Owens" → duplicate stylist minted) and
+          // double-prefixes the Excel export ("ST913 - ST818 - Mariah Owens").
+          const { stylistCode: typedCode, stylistName: name } = splitStylistCell(sheet.stylistName)
           const key = name.toLowerCase()
-          if (stylistMap.has(key)) {
+
+          // Reuse a stylist found OUTSIDE this facility's pool: ensure an active
+          // assignment row (so they enter this facility's roster) and cache them
+          // for the rest of the import.
+          const attachStylist = async (s: { id: string; name: string; stylistCode: string }) => {
+            await tx
+              .insert(stylistFacilityAssignments)
+              .values({ stylistId: s.id, facilityId, active: true })
+              .onConflictDoNothing()
+            existingStylists.push(s)
+            stylistMap.set(key, s.id)
+            sheetStylistId = s.id
+          }
+
+          // 1. Typed code matching a facility-roster stylist wins outright.
+          const codeMatch = typedCode
+            ? existingStylists.find((s) => s.stylistCode?.toUpperCase() === typedCode.toUpperCase())
+            : undefined
+          if (codeMatch) {
+            sheetStylistId = codeMatch.id
+            stylistMap.set(key, codeMatch.id)
+          } else if (stylistMap.has(key)) {
             sheetStylistId = stylistMap.get(key)!
-          } else {
+          }
+
+          // 2. Typed code matching ANY active stylist network-wide (codes are
+          // globally unique; the bookkeeper tracks stylists by code across
+          // facilities — "ST618 - Gloria Camacho" at a new facility must reuse
+          // the existing ST618 record, not mint a duplicate).
+          if (!sheetStylistId && typedCode) {
+            const globalByCode = await tx
+              .select({ id: stylists.id, name: stylists.name, stylistCode: stylists.stylistCode })
+              .from(stylists)
+              .where(and(eq(stylists.stylistCode, typedCode.toUpperCase()), eq(stylists.active, true)))
+              .limit(1)
+            if (globalByCode.length === 1) await attachStylist(globalByCode[0])
+          }
+
+          // 3. Fuzzy match within the facility pool (unchanged).
+          if (!sheetStylistId) {
             const dbMatch = existingStylists.find((s) => fuzzyScore(s.name, name) >= 0.8)
             if (dbMatch) {
               sheetStylistId = dbMatch.id
               stylistMap.set(key, dbMatch.id)
-            } else {
-              const stylistCode = await generateStylistCode(tx)
-              const [newStylist] = await tx
-                .insert(stylists)
-                .values({ name, stylistCode, facilityId, franchiseId })
-                .returning({ id: stylists.id })
-              await tx
-                .insert(stylistFacilityAssignments)
-                .values({ stylistId: newStylist.id, facilityId, active: true })
-                .onConflictDoNothing()
-              sheetStylistId = newStylist.id
-              stylistMap.set(key, newStylist.id)
-              existingStylists.push({ id: newStylist.id, name })
-              createdStylists++
             }
+          }
+
+          // 4. EXACT name match network-wide — only when unambiguous (exactly
+          // one active stylist with that name). Fuzzy stays facility-local to
+          // avoid cross-facility false positives.
+          if (!sheetStylistId && name) {
+            const globalByName = await tx
+              .select({ id: stylists.id, name: stylists.name, stylistCode: stylists.stylistCode })
+              .from(stylists)
+              .where(and(sql`lower(${stylists.name}) = ${name.toLowerCase()}`, eq(stylists.active, true)))
+              .limit(2)
+            if (globalByName.length === 1) await attachStylist(globalByName[0])
+          }
+
+          // 5. Create — honoring the typed code when it's free (the bookkeeper's
+          // accounting runs on their code list, e.g. "ST825 - Paula Jones").
+          if (!sheetStylistId) {
+            let stylistCode = typedCode?.toUpperCase() ?? null
+            if (stylistCode) {
+              const clash = await tx
+                .select({ id: stylists.id })
+                .from(stylists)
+                .where(eq(stylists.stylistCode, stylistCode))
+                .limit(1)
+              if (clash.length > 0) stylistCode = null // taken — fall back to generated
+            }
+            if (!stylistCode) stylistCode = await generateStylistCode(tx)
+            const [newStylist] = await tx
+              .insert(stylists)
+              .values({ name, stylistCode, facilityId, franchiseId })
+              .returning({ id: stylists.id })
+            await tx
+              .insert(stylistFacilityAssignments)
+              .values({ stylistId: newStylist.id, facilityId, active: true })
+              .onConflictDoNothing()
+            sheetStylistId = newStylist.id
+            stylistMap.set(key, newStylist.id)
+            existingStylists.push({ id: newStylist.id, name, stylistCode })
+            createdStylists++
           }
         }
 

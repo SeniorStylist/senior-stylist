@@ -5,6 +5,15 @@ import { cn, formatCents } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { fuzzyScore, fuzzyMatches, fuzzyBestMatch } from '@/lib/fuzzy'
 import { PAYMENT_TYPE_OPTIONS, parsePaymentCombo, comboLabel } from '@/lib/payments'
+import { ServiceCombobox } from '@/components/services/service-combobox'
+import {
+  compressImageForUpload,
+  pdfToPageImages,
+  packFilesByBudget,
+  readJsonSafe,
+  loadPdfjs,
+  withTimeout,
+} from '@/lib/uploads/compress-upload'
 import type { Resident, Stylist, Service } from '@/types'
 
 // Minimal roster shapes — everything the scan/review flow actually reads. Using
@@ -12,7 +21,7 @@ import type { Resident, Stylist, Service } from '@/types'
 // different target facility (GET /api/log/ocr/rosters) interchangeably with the
 // full rows passed as props for the pinned facility.
 export type RosterResident = Pick<Resident, 'id' | 'name' | 'roomNumber'>
-export type RosterStylist = Pick<Stylist, 'id' | 'name'>
+export type RosterStylist = Pick<Stylist, 'id' | 'name'> & { stylistCode?: string | null }
 export type RosterService = Pick<Service, 'id' | 'name' | 'priceCents' | 'pricingType'>
 type Rosters = { residents: RosterResident[]; stylists: RosterStylist[]; services: RosterService[] }
 
@@ -143,22 +152,25 @@ function buildSheetFromSaved(s: SavedSheet, idx: number): SheetState {
 }
 
 async function renderPdfPage(file: File, scale: number): Promise<string> {
+  let pdf: { destroy: () => Promise<void> } | null = null
   try {
-    const pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    // Same-origin worker + deadlines via the shared loader — a hung worker
+    // used to leave the preview spinner going forever (see loadPdfjs docs).
+    const pdfjsLib = await loadPdfjs()
     const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-    const page = await pdf.getPage(1)
+    const doc = await withTimeout(pdfjsLib.getDocument({ data: arrayBuffer }).promise, 15_000, 'PDF open')
+    pdf = doc
+    const page = await withTimeout(doc.getPage(1), 10_000, 'PDF page load')
     const viewport = page.getViewport({ scale })
     const canvas = document.createElement('canvas')
     canvas.width = viewport.width
     canvas.height = viewport.height
     const ctx = canvas.getContext('2d')!
-    await page.render({ canvasContext: ctx, canvas, viewport }).promise
+    await withTimeout(page.render({ canvasContext: ctx, canvas, viewport }).promise, 20_000, 'PDF render')
     return canvas.toDataURL('image/jpeg', 0.85)
   } catch (err) {
     console.error(`[renderPdfPage] scale=${scale} file="${file.name}" error:`, err)
+    try { await pdf?.destroy() } catch { /* already dead */ }
     throw err
   }
 }
@@ -297,27 +309,18 @@ function rematchSheetState(
 }
 
 /**
- * P48 — read an API failure into a message a stylist can act on.
- *
- * The old path did `await res.json()` unconditionally: a 413 (phone photos are
- * often 3-8MB each) or a 504 returns HTML, `.json()` throws, and the catch
- * reported "Network error" — which is how a size/timeout problem gets filed as
- * "it's not working". Parse defensively and name the real cause.
+ * P48 + round-5 merge — name the real cause of a failed scan/import request.
+ * The body was already read via readJsonSafe (413/504 gateway pages are not
+ * JSON); when the server sent no message, map the status to something the
+ * bookkeeper can act on instead of a generic "Network error".
  */
-async function readApiError(res: Response, fallback: string): Promise<string> {
-  let serverMsg: string | null = null
-  try {
-    const json = await res.json()
-    if (typeof json?.error === 'string') serverMsg = json.error
-  } catch {
-    /* non-JSON body (gateway error page) — fall through to status mapping */
-  }
-  if (serverMsg) return serverMsg
-  if (res.status === 413) return 'Those photos are too large. Try one sheet at a time, or retake them at a lower resolution.'
+function apiFailureMessage(res: Response, json: Record<string, unknown>, fallback: string): string {
+  if (typeof json.error === 'string') return json.error
+  if (res.status === 413) return 'Those sheets are too large to upload — try scanning fewer at once.'
   if (res.status === 429) return "You've scanned a lot in a short time — wait a few minutes and try again."
   if (res.status === 504 || res.status === 408) return 'That took too long to process. Try scanning fewer sheets at once.'
   if (res.status === 401) return 'Your session expired — reload the page and sign in again.'
-  return fallback
+  return `${fallback} (${res.status})`
 }
 
 export function OcrImportModal({
@@ -336,11 +339,24 @@ export function OcrImportModal({
 }: OcrImportModalProps) {
   const { toast } = useToast()
 
-  const facilityOptions = facilities ?? []
+  // Facilities created inline this session (round 6 — bookkeepers onboard new
+  // facilities straight from the scan flow). The SSR prop list catches up on
+  // the next page load; merging locally makes them selectable immediately.
+  const [createdFacilities, setCreatedFacilities] = useState<
+    { id: string; name: string; facilityCode?: string | null }[]
+  >([])
+  const facilityOptions = [...(facilities ?? []), ...createdFacilities]
   // The facility list is only >1 for bookkeeper/master (per log/page.tsx).
   // P37 — stylists never pick a facility (their import is pinned server-side).
   const canPickFacility = !selfStylist && facilityOptions.length > 1
   const [selectedFacilityId, setSelectedFacilityId] = useState(currentFacilityId ?? '')
+
+  // Inline "New facility" form state
+  const [newFacilityOpen, setNewFacilityOpen] = useState(false)
+  const [newFacilityName, setNewFacilityName] = useState('')
+  const [newFacilityCode, setNewFacilityCode] = useState('')
+  const [creatingFacility, setCreatingFacility] = useState(false)
+  const [newFacilityError, setNewFacilityError] = useState<string | null>(null)
 
   // Rosters for the SELECTED facility. Props cover the pinned facility; when the
   // user targets a different facility we fetch its rosters so (a) Gemini matches
@@ -402,7 +418,84 @@ export function OcrImportModal({
     setSelectedFacilityId(currentFacilityId ?? '')
     setFetchedRosters(null)
     setRostersLoading(false)
+    // Keep createdFacilities — they exist server-side now
+    setNewFacilityOpen(false)
+    setNewFacilityName('')
+    setNewFacilityCode('')
+    setNewFacilityError(null)
   }
+
+  // Round 6 — create a facility inline (name + optional F-code) and select it.
+  const createFacility = async () => {
+    const nm = newFacilityName.trim()
+    const code = newFacilityCode.trim().toUpperCase()
+    if (!nm) { setNewFacilityError('Enter the facility name'); return }
+    if (code && !/^F\d{2,5}$/.test(code)) { setNewFacilityError('Code must look like F240'); return }
+    setCreatingFacility(true)
+    setNewFacilityError(null)
+    try {
+      const res = await fetch('/api/facilities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nm, ...(code ? { facilityCode: code } : {}) }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNewFacilityError(typeof j.error === 'string' ? j.error : 'Could not create the facility')
+        return
+      }
+      const created = j.data as { id: string; name: string; facilityCode?: string | null }
+      setCreatedFacilities((prev) => [...prev, { id: created.id, name: created.name, facilityCode: created.facilityCode ?? null }])
+      setNewFacilityOpen(false)
+      setNewFacilityName('')
+      setNewFacilityCode('')
+      toast(`${created.facilityCode ? `${created.facilityCode} - ` : ''}${created.name} created`, 'success')
+      void handleFacilityChange(created.id)
+    } catch {
+      setNewFacilityError('Network error — please try again.')
+    } finally {
+      setCreatingFacility(false)
+    }
+  }
+
+  const newFacilityForm = newFacilityOpen ? (
+    <div className="mt-2 rounded-xl border border-stone-200 bg-white p-3 space-y-2">
+      <input
+        autoFocus
+        type="text"
+        value={newFacilityName}
+        onChange={(e) => { setNewFacilityName(e.target.value); setNewFacilityError(null) }}
+        placeholder="Facility name (e.g. Arden Courts Fair Oaks)"
+        className="w-full min-h-[40px] px-3 py-2 rounded-lg border border-stone-200 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+      />
+      <input
+        type="text"
+        value={newFacilityCode}
+        onChange={(e) => { setNewFacilityCode(e.target.value); setNewFacilityError(null) }}
+        placeholder="Facility code (optional, e.g. F240)"
+        className="w-full min-h-[40px] px-3 py-2 rounded-lg border border-stone-200 text-sm text-stone-900 font-mono focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+      />
+      {newFacilityError && <p className="text-xs text-red-600" role="alert">{newFacilityError}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void createFacility()}
+          disabled={creatingFacility || !newFacilityName.trim()}
+          className="flex-1 min-h-[40px] text-sm font-medium bg-[#8B2E4A] text-white rounded-lg hover:bg-[#72253C] transition-colors disabled:opacity-50"
+        >
+          {creatingFacility ? 'Creating…' : 'Create facility'}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setNewFacilityOpen(false); setNewFacilityError(null) }}
+          disabled={creatingFacility}
+          className="flex-1 min-h-[40px] text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  ) : null
 
   const fetchRostersFor = async (facilityId: string): Promise<Rosters | null> => {
     setRostersLoading(true)
@@ -520,14 +613,30 @@ export function OcrImportModal({
     setScanProgress('')
     setScanError(null)
     try {
-      // Split into chunks of 3 so each batch stays well under the 120s Vercel limit
-      const chunkSize = 3
-      const chunks: File[][] = []
-      for (let i = 0; i < files.length; i += chunkSize) {
-        chunks.push(files.slice(i, i + chunkSize))
+      // Shrink everything client-side FIRST — Vercel hard-rejects request
+      // bodies over ~4.5MB at the platform edge (before our route runs), which
+      // is what the "Network Error" reports on phone JPEGs and PDFs were.
+      // PDFs also expand to one JPEG per page so multi-page scans aren't lost.
+      setScanProgress('Preparing sheets…')
+      const uploadFiles: File[] = []
+      for (const f of files) {
+        if (f.type === 'application/pdf') {
+          // Belt-and-braces deadline: no pdf.js regression may ever freeze the
+          // scan at "Preparing sheets…" — worst case the original PDF uploads.
+          uploadFiles.push(
+            ...(await withTimeout(pdfToPageImages(f), 90_000, 'PDF preparation').catch(() => [f])),
+          )
+        } else {
+          uploadFiles.push(await compressImageForUpload(f))
+        }
       }
 
+      // Pack by byte budget (≤3.5MB per POST, ≤3 sheets) instead of a blind
+      // count-of-3 — three full-res camera JPEGs used to blow the body cap.
+      const chunks = packFilesByBudget(uploadFiles)
+
       const allRawSheets: OcrRawSheet[] = []
+      let chunkFailure: { fromIndex: number; message: string } | null = null
       for (let ci = 0; ci < chunks.length; ci++) {
         setScanProgress(`Scanning batch ${ci + 1} of ${chunks.length}…`)
         const fd = new FormData()
@@ -538,9 +647,21 @@ export function OcrImportModal({
         fd.append('stylistsJson', JSON.stringify(stylists.map(s => s.name)))
         fd.append('residentsJson', JSON.stringify(residents.map(r => ({ name: r.name, roomNumber: r.roomNumber ?? null }))))
         const res = await fetch('/api/log/ocr', { method: 'POST', body: fd })
-        if (!res.ok) { setScanError(await readApiError(res, 'Scan failed')); return }
-        const json = await res.json()
-        allRawSheets.push(...(json.data.sheets as OcrRawSheet[]))
+        // Platform errors (413 too large, 504 timeout) return non-JSON pages —
+        // never let res.json() throw into the generic catch below.
+        const json = await readJsonSafe(res)
+        if (!res.ok) {
+          const message = apiFailureMessage(res, json, 'Scan failed')
+          if (allRawSheets.length > 0) {
+            // Keep the sheets that already scanned instead of discarding them
+            chunkFailure = { fromIndex: allRawSheets.length, message }
+            break
+          }
+          setScanError(message)
+          return
+        }
+        const data = json.data as { sheets?: OcrRawSheet[] } | undefined
+        allRawSheets.push(...(data?.sheets ?? []))
       }
 
       const errorSheets = allRawSheets.filter(s => s.error)
@@ -549,7 +670,14 @@ export function OcrImportModal({
         .map(s => buildSheetState(s, residents, stylists, services, date))
         .map(s => (selfStylist ? { ...s, stylistId: selfStylist.id, stylistName: selfStylist.name } : s))
 
-      setSheetErrors(errorSheets.map(s => ({ index: s.imageIndex, error: s.error! })))
+      const sheetErrorList = errorSheets.map(s => ({ index: s.imageIndex, error: s.error! }))
+      if (chunkFailure) {
+        sheetErrorList.push({
+          index: chunkFailure.fromIndex,
+          error: `Remaining sheets weren't scanned: ${chunkFailure.message}`,
+        })
+      }
+      setSheetErrors(sheetErrorList)
 
       if (built.length === 0) {
         const msgs = errorSheets.map(s => `Sheet ${s.imageIndex + 1}: ${s.error}`).join('. ')
@@ -559,8 +687,10 @@ export function OcrImportModal({
       setSheets(built)
       setActiveTab(0)
       setStep('review')
-    } catch {
-      setScanError('Network error. Please try again.')
+    } catch (err) {
+      // Genuine transport failure — everything else now surfaces a real message
+      console.error('[handleScan] upload failed:', err)
+      setScanError('Upload failed — check your connection and try again.')
     } finally {
       setScanProgress('')
       setScanning(false)
@@ -658,18 +788,20 @@ export function OcrImportModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      const json = await readJsonSafe(res)
       if (!res.ok) {
-        setImportError(await readApiError(res, 'Import failed'))
+        setImportError(apiFailureMessage(res, json, 'Import failed'))
         return
       }
-      const json = await res.json()
-      const { bookings: n } = json.data.created
+      const data = json.data as { created: { bookings: number } }
+      const n = data.created.bookings
       reset()
       onClose()
       onImported()
       toast(`${n} booking${n !== 1 ? 's' : ''} imported`, 'success')
-    } catch {
-      setImportError('Network error. Please try again.')
+    } catch (err) {
+      console.error('[handleImport] failed:', err)
+      setImportError('Upload failed — check your connection and try again.')
     } finally {
       setImporting(false)
     }
@@ -771,7 +903,10 @@ export function OcrImportModal({
                   </label>
                   <select
                     value={selectedFacilityId}
-                    onChange={(e) => void handleFacilityChange(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__new__') { setNewFacilityOpen(true); return }
+                      void handleFacilityChange(e.target.value)
+                    }}
                     disabled={rostersLoading}
                     className="w-full min-h-[44px] bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 disabled:opacity-60"
                   >
@@ -780,7 +915,10 @@ export function OcrImportModal({
                         {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
                       </option>
                     ))}
+                    {/* Round 6 — bookkeepers onboard brand-new facilities here */}
+                    <option value="__new__">➕ New facility…</option>
                   </select>
+                  {newFacilityForm}
                   <p className="text-[11px] text-stone-500 mt-1">
                     {rostersLoading
                       ? 'Loading facility records…'
@@ -878,6 +1016,17 @@ export function OcrImportModal({
           {/* ── STEP 2: REVIEW ── */}
           {step === 'review' && sheets.length > 0 && (
             <div data-tour="ocr-results-table">
+              {/* Sheets that couldn't be read (or a batch that failed mid-scan) —
+                  surfaced here so partial results are never mistaken for all. */}
+              {sheetErrors.length > 0 && (
+                <div className="mx-5 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  {sheetErrors.map((se, i) => (
+                    <p key={i} className="text-xs text-amber-700">
+                      Sheet {se.index + 1}: {se.error}
+                    </p>
+                  ))}
+                </div>
+              )}
               {/* Facility target — bookkeeper/master can import this scan to a chosen
                   facility. Switching re-matches names against that facility's records. */}
               {canPickFacility && (
@@ -885,7 +1034,10 @@ export function OcrImportModal({
                   <label className="text-xs font-semibold text-stone-600 block mb-1">Import to facility</label>
                   <select
                     value={selectedFacilityId}
-                    onChange={(e) => void handleFacilityChange(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__new__') { setNewFacilityOpen(true); return }
+                      void handleFacilityChange(e.target.value)
+                    }}
                     disabled={rostersLoading}
                     className="w-full min-h-[44px] bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 disabled:opacity-60"
                   >
@@ -894,7 +1046,10 @@ export function OcrImportModal({
                         {f.facilityCode ? `${f.facilityCode} · ${f.name}` : f.name}
                       </option>
                     ))}
+                    {/* Round 6 — bookkeepers onboard brand-new facilities here */}
+                    <option value="__new__">➕ New facility…</option>
                   </select>
+                  {newFacilityForm}
                   {rostersLoading && (
                     <p className="mt-1 text-[11px] text-stone-500">Loading facility records…</p>
                   )}
@@ -1066,7 +1221,9 @@ export function OcrImportModal({
                             )}
                           >
                             {stylists.map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
+                              // Code shown so the existing record (e.g. ST618) is
+                              // recognizable before anyone creates a duplicate
+                              <option key={s.id} value={s.id}>{s.stylistCode ? `${s.stylistCode} - ${s.name}` : s.name}</option>
                             ))}
                             <option value="__create__">➕ New stylist (type name below)…</option>
                           </select>
@@ -1090,7 +1247,10 @@ export function OcrImportModal({
                         {sheet.stylistId ? (
                           <p className="text-[10px] text-emerald-600 mt-0.5">✓ Matched to existing stylist</p>
                         ) : sheet.stylistName.trim() ? (
-                          <p className="text-[10px] text-stone-400 mt-0.5">Will create new stylist</p>
+                          <p className="text-[10px] text-stone-400 mt-0.5">
+                            Will match by code/name across all facilities, or create new.
+                            Tip: include the code (e.g. &ldquo;ST825 - Paula Jones&rdquo;) to keep your numbering.
+                          </p>
                         ) : (
                           <p className="text-xs text-red-500 mt-0.5">Required — select a stylist or type a new name</p>
                         )}
@@ -1236,47 +1396,31 @@ export function OcrImportModal({
                                   )
                                 })()}
 
-                                {/* Service — visible dropdown of existing services + "New service"
-                                    option that reveals a text input (mirrors the stylist field). The
-                                    old <input list> + <datalist> rendered as an invisible free-text
-                                    field on most browsers, so bookkeepers couldn't tell they could
-                                    create a service. */}
+                                {/* Service — type-to-filter combobox (typing "Shampoo" shows only
+                                    Shampoo services). Typed text that matches nothing IS the
+                                    new-service name (serviceId stays null → create on import).
+                                    NEVER a <datalist> — it rendered as an invisible free-text
+                                    field on most browsers. */}
                                 <div>
                                   <label className="text-xs text-stone-500 block mb-0.5">Service</label>
-                                  <select
-                                    value={entry.serviceId ?? '__create__'}
-                                    onChange={(e) => {
-                                      const val = e.target.value
-                                      if (val === '__create__') {
-                                        // Keep serviceName so an OCR-read name stays in the text input
-                                        updateEntry(activeTab, ei, { serviceId: null })
-                                      } else {
-                                        const picked = services.find(s => s.id === val)
-                                        updateEntry(activeTab, ei, { serviceId: val, serviceName: picked?.name ?? '' })
-                                      }
-                                    }}
-                                    className={cn(
-                                      'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A]',
-                                      entry.serviceId || (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
-                                    )}
-                                  >
-                                    {services.map(s => (
-                                      <option key={s.id} value={s.id}>{s.name} · {formatCents(s.priceCents)}</option>
-                                    ))}
-                                    <option value="__create__">➕ New service (type name below)…</option>
-                                  </select>
-                                  {!entry.serviceId && (
-                                    <input
-                                      type="text"
-                                      value={entry.serviceName ?? ''}
-                                      onChange={(e) => updateEntry(activeTab, ei, { serviceName: e.target.value })}
-                                      placeholder="New service name…"
-                                      className={cn(
-                                        'w-full min-h-[44px] text-xs border rounded-lg px-2 py-2 bg-white focus:outline-none focus:border-[#8B2E4A] mt-1.5',
-                                        (entry.serviceName ?? '').trim() ? 'border-stone-200' : 'border-red-300'
-                                      )}
-                                    />
-                                  )}
+                                  <ServiceCombobox
+                                    services={services}
+                                    selectedId={entry.serviceId}
+                                    searchValue={entry.serviceName ?? ''}
+                                    onSearchChange={(v) =>
+                                      updateEntry(activeTab, ei, { serviceId: null, serviceName: v })
+                                    }
+                                    onSelect={(s) =>
+                                      updateEntry(activeTab, ei, { serviceId: s.id, serviceName: s.name })
+                                    }
+                                    onCreate={(name) =>
+                                      updateEntry(activeTab, ei, { serviceId: null, serviceName: name })
+                                    }
+                                    priceLabel={(s) => formatCents(s.priceCents)}
+                                    placeholder="Type to search services…"
+                                    invalid={!entry.serviceId && !(entry.serviceName ?? '').trim()}
+                                    inputClassName="min-h-[44px] text-xs rounded-lg px-2 py-2 focus:ring-0"
+                                  />
                                   {entry.serviceId ? null
                                     : (entry.serviceName ?? '').trim() ? (
                                       <p className="text-[10px] text-stone-400 mt-0.5">Will create new service</p>

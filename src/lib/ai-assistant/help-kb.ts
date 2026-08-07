@@ -54,7 +54,7 @@ Other tools in the header: Email (send the formatted day log to any address), Ex
 
 Steps:
 1. On the Daily Log page, tap the scan button (camera icon).
-2. Bookkeepers and the master admin first pick which facility the sheets belong to — the "Scanning sheets for facility" selector at the top. Get this right: the sheet's residents are matched against THAT facility's roster. (The app also reads the facility name printed on the sheet and warns you if it doesn't match, with a one-tap "Switch to…" fix.)
+2. Bookkeepers and the master admin first pick which facility the sheets belong to — the "Scanning sheets for facility" selector at the top. A brand-new facility can be created right there ("➕ New facility…" with a name and F-code). Get this right: the sheet's residents are matched against THAT facility's roster. (The app also reads the facility name printed on the sheet and warns you if it doesn't match, with a one-tap "Switch to…" fix.)
 3. Take photos or upload images of each sheet (multiple pages fine). The scanner reads resident names, rooms, services, prices, tips, and the stylist from the header.
 4. Review screen: every row shows what was read. Matched residents/services are picked automatically; unmatched ones show "Will create new". You can fix any field, uncheck rows you don't want, set the payment type, and enter a mail subject per sheet.
 5. Confirm to import. Each row becomes a completed booking on that day's log.
@@ -235,9 +235,11 @@ A stylist's own earnings (visits, revenue, estimated commission, month pace) liv
   {
     id: 'stylists-team',
     title: 'Stylists & team — hours, time off, compliance, accounts',
-    keywords: ['stylist', 'team', 'hours', 'availability', 'time off', 'vacation', 'coverage', 'compliance', 'license', 'insurance', 'link', 'invite stylist', 'commission'],
-    roles: ['admin', 'facility_staff', 'master'],
+    keywords: ['stylist', 'team', 'hours', 'availability', 'time off', 'vacation', 'coverage', 'compliance', 'license', 'insurance', 'link', 'invite stylist', 'commission', 'rename stylist', 'add stylist', 'stylist code'],
+    roles: ['admin', 'facility_staff', 'bookkeeper', 'master'],
     body: `The Stylists tab lists everyone who works at the facility; each stylist's page is their full record.
+
+Adding and renaming: "+ Add stylist" on the Stylists page takes a name and an optional code (e.g. ST825) — the code is kept if it's free. Bookkeepers can add and rename stylists too (open the stylist, edit the name, Save); typing a code during a log-sheet scan ("ST825 - Paula Jones") also creates or matches the stylist automatically. Commission, status, and codes on existing stylists stay with admins/master.
 
 Weekly hours: the stylist page has an hours editor — set which days and times they work. These hours drive auto-assignment, open-slot search, and the sign-up sheet. Stylists edit their own on My Account; admins, franchise admins, and the master admin can edit anyone's. (Or tell the assistant: "set Senait's hours Monday to Friday 9 to 5" — unlisted days become days off, and it restates the whole week before you confirm.)
 

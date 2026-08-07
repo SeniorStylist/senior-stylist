@@ -3,9 +3,10 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { stylists, complianceDocuments, stylistFacilityAssignments, stylistAvailability } from '@/db/schema'
 import { getUserFacility, canManageStylists, isFacilityStaff } from '@/lib/get-facility-id'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, or } from 'drizzle-orm'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
+import { AddStylistInline } from '@/components/stylists/add-stylist-inline'
 import { computeComplianceStatus, complianceStatusLabel } from '@/lib/compliance'
 
 const STATUS_COLOR: Record<'green' | 'amber' | 'red', string> = {
@@ -26,9 +27,10 @@ export default async function StylistsPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  // P51 lockdown — manage tier gets the full page (detail links, compliance);
-  // facility admin + front desk get a READ-ONLY roster (names, colors,
-  // schedule days — no personal info, no compliance, no click-through).
+  // P51 lockdown — the manage tier (master/franchise/bookkeeper — Round 6's
+  // bookkeeper self-serve rides this) gets the full page (detail links,
+  // compliance, add button); facility admin + front desk get a READ-ONLY
+  // roster (names, colors, schedule days — no personal info, no click-through).
   const canManage = isMaster || canManageStylists(facilityUser)
   const rosterOnly = !canManage && (facilityUser.role === 'admin' || isFacilityStaff(facilityUser.role))
   if (!canManage && !rosterOnly) redirect('/dashboard')
@@ -45,20 +47,22 @@ export default async function StylistsPage() {
     )
   const assignedIds = assigned.map((r) => r.id)
 
-  const stylistsList = assignedIds.length
-    ? await db.query.stylists.findMany({
-        where: and(
-          inArray(stylists.id, assignedIds),
-          eq(stylists.active, true),
-          eq(stylists.status, 'active'),
-        ),
-        // Roster view never loads personal columns
-        columns: rosterOnly
-          ? { id: true, name: true, color: true, specialties: true }
-          : undefined,
-        orderBy: (t, { asc }) => [asc(t.name)],
-      })
-    : []
+  // Roster rule (P33/P34b): home rows PLUS assignment-linked rows — this page
+  // previously read assignments only and missed home stylists with no row.
+  const stylistsList = await db.query.stylists.findMany({
+    where: and(
+      assignedIds.length
+        ? or(eq(stylists.facilityId, facilityUser.facilityId), inArray(stylists.id, assignedIds))
+        : eq(stylists.facilityId, facilityUser.facilityId),
+      eq(stylists.active, true),
+      eq(stylists.status, 'active'),
+    ),
+    // Roster view never loads personal columns
+    columns: rosterOnly
+      ? { id: true, name: true, color: true, specialties: true }
+      : undefined,
+    orderBy: (t, { asc }) => [asc(t.name)],
+  })
 
   // Manage tier only — compliance dots
   const stylistStatus = new Map<string, ReturnType<typeof computeComplianceStatus>>()
@@ -102,22 +106,27 @@ export default async function StylistsPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1
-          className="text-2xl font-normal text-stone-900"
-          style={{ fontFamily: "'DM Serif Display', serif" }}
-        >
-          Stylists
-        </h1>
-        <p className="text-sm text-stone-500 mt-0.5">
-          {stylistsList.length} active stylist{stylistsList.length !== 1 ? 's' : ''}
-          {rosterOnly ? ' · schedules and profiles are managed by your franchise team' : ''}
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1
+            className="text-2xl font-normal text-stone-900"
+            style={{ fontFamily: "'DM Serif Display', serif" }}
+          >
+            Stylists
+          </h1>
+          <p className="text-sm text-stone-500 mt-0.5">
+            {stylistsList.length} active stylist{stylistsList.length !== 1 ? 's' : ''}
+            {rosterOnly ? ' · schedules and profiles are managed by your franchise team' : ''}
+          </p>
+        </div>
+        {canManage && <AddStylistInline />}
       </div>
 
       {stylistsList.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
-          <p className="text-stone-400 text-sm">No stylists yet.</p>
+          <p className="text-stone-400 text-sm">
+            {canManage ? 'No stylists yet. Add one with the button above.' : 'No stylists yet.'}
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden" data-tour="stylists-table">

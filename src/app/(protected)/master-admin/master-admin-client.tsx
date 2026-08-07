@@ -160,6 +160,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   const [createError, setCreateError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
+    facilityCode: '',
     address: '',
     phone: '',
     timezone: 'America/New_York',
@@ -342,23 +343,30 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   const handleCreateFacility = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name.trim()) return
+    const code = formData.facilityCode.trim().toUpperCase()
+    if (code && !/^F\d{2,5}$/.test(code)) {
+      setCreateError('Facility code must look like F240')
+      return
+    }
     setCreating(true)
     setCreateError(null)
     try {
       const res = await fetch('/api/facilities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        // Empty code omitted — the schema only accepts F### or absence
+        body: JSON.stringify({ ...formData, facilityCode: code || undefined }),
       })
       if (res.status === 409) {
-        setCreateError('A facility with this name already exists')
+        const j = await res.json().catch(() => ({}))
+        setCreateError(typeof j.error === 'string' ? j.error : 'A facility with this name already exists')
         return
       }
       if (!res.ok) {
         setCreateError('Failed to create facility')
         return
       }
-      setFormData({ name: '', address: '', phone: '', timezone: 'America/New_York' })
+      setFormData({ name: '', facilityCode: '', address: '', phone: '', timezone: 'America/New_York' })
       setShowCreateForm(false)
       router.refresh()
     } catch {
@@ -372,6 +380,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     setEditingId(f.id)
     setEditData({
       name: f.name,
+      facilityCode: f.facilityCode ?? '',
       address: f.address ?? '',
       phone: f.phone ?? '',
       timezone: f.timezone,
@@ -382,16 +391,23 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   }
 
   const handleSaveEdit = async (id: string) => {
+    const code = (editData.facilityCode ?? '').trim().toUpperCase()
+    if (code && !/^F\d{2,5}$/.test(code)) {
+      setEditError('Facility code must look like F240')
+      return
+    }
     setEditSaving(true)
     setEditError(null)
     try {
       const res = await fetch(`/api/super-admin/facility/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editData),
+        // Empty code → null (clears it); schema only accepts F### or null
+        body: JSON.stringify({ ...editData, facilityCode: code || null }),
       })
       if (res.status === 409) {
-        setEditError('A facility with this name already exists')
+        const j = await res.json().catch(() => ({}))
+        setEditError(typeof j.error === 'string' ? j.error : 'A facility with this name already exists')
         return
       }
       if (!res.ok) {
@@ -664,6 +680,16 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                 )}
               </div>
               <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">Facility Code</label>
+                <input
+                  type="text"
+                  value={formData.facilityCode}
+                  onChange={(e) => { setFormData((d) => ({ ...d, facilityCode: e.target.value })); setCreateError(null) }}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
+                  placeholder="F240"
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-stone-600 mb-1">Address</label>
                 <input
                   type="text"
@@ -869,6 +895,16 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Facility Code</label>
+                        <input
+                          type="text"
+                          value={editData.facilityCode ?? ''}
+                          onChange={(e) => { setEditData((d) => ({ ...d, facilityCode: e.target.value })); setEditError(null) }}
+                          placeholder="F240"
+                          className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
+                        />
+                      </div>
                       <div>
                         <label className="block text-xs font-medium text-stone-600 mb-1">Address</label>
                         <input

@@ -14,6 +14,15 @@ const updateSchema = z.object({
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
   active: z.boolean().optional(),
   contactEmail: z.string().email().optional().nullable(),
+  // F-code (e.g. "F240"). Previously settable ONLY via CSV/multi-log imports —
+  // no UI could assign one to a hand-created facility (2026-07-30).
+  facilityCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^F\d{2,5}$/)
+    .optional()
+    .nullable(),
 })
 
 async function getSuperAdmin() {
@@ -51,6 +60,25 @@ export async function PUT(
       })
       if (existing) {
         return Response.json({ error: 'A facility with this name already exists' }, { status: 409 })
+      }
+    }
+
+    // facility_code has no DB unique constraint — enforce here so two active
+    // facilities can never share an F-code (exports/matching key off it).
+    if (parsed.data.facilityCode) {
+      const codeClash = await db.query.facilities.findFirst({
+        where: (t, { and }) => and(
+          sql`upper(${t.facilityCode}) = ${parsed.data.facilityCode!}`,
+          eq(t.active, true),
+          ne(t.id, id),
+        ),
+        columns: { id: true, name: true },
+      })
+      if (codeClash) {
+        return Response.json(
+          { error: `Code ${parsed.data.facilityCode} is already used by ${codeClash.name}` },
+          { status: 409 },
+        )
       }
     }
 

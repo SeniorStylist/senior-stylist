@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { stylists } from '@/db/schema'
+import { stylists, stylistFacilityAssignments } from '@/db/schema'
 import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
+import { splitStylistCell } from '@/lib/service-log-import'
 import { eq, and, or, inArray, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -95,6 +96,8 @@ export async function PUT(
     const master = isMasterAdmin(user.email)
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // Round 6 bookkeeper edits ride the P51 manage tier (restricted-field
+    // whitelist below still applies to them).
     if (!master && !canManageStylists(facilityUser)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -103,6 +106,26 @@ export async function PUT(
     const parsed = updateSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    // Round 6 → P51: bookkeepers are full manage tier now (Josh 2026-08-07 —
+    // "bookkeepers should have a lot of permissions" — supersedes Round 6's
+    // name/color-only grant). Master-only fields are still SILENT-DROPPED,
+    // never 403'd: the stylist-detail client always PUTs the full body, so
+    // rejecting a disallowed field would break every bookkeeper save. This
+    // drops stylistCode BEFORE the master-only check below so bookkeepers
+    // never trip it.
+    if (!master && facilityUser!.role === 'bookkeeper') {
+      const MASTER_ONLY = new Set(['stylistCode', 'franchiseId'])
+      for (const key of Object.keys(parsed.data) as Array<keyof typeof parsed.data>) {
+        if (MASTER_ONLY.has(key as string)) delete parsed.data[key]
+      }
+    }
+
+    // Strip an embedded "ST### - " prefix from renames — the code lives in
+    // stylistCode; a code inside the name double-prefixes export labels.
+    if (parsed.data.name) {
+      parsed.data.name = splitStylistCell(parsed.data.name).stylistName
     }
 
     // stylist_code edits: master admin only
@@ -118,9 +141,23 @@ export async function PUT(
     if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })
 
     if (!master) {
-      const ownsExisting =
+      let ownsExisting =
         (existing.facilityId && allowedFacilityIds.includes(existing.facilityId)) ||
         (existing.franchiseId && franchise && existing.franchiseId === franchise.franchiseId)
+      if (!ownsExisting && allowedFacilityIds.length > 0) {
+        // Roster rule (P34b): pool/cross-facility stylists have no home row at
+        // this facility — an active assignment at an in-scope facility grants
+        // edit access too (otherwise renaming an attached stylist 404s).
+        const assignment = await db.query.stylistFacilityAssignments.findFirst({
+          where: and(
+            eq(stylistFacilityAssignments.stylistId, id),
+            inArray(stylistFacilityAssignments.facilityId, allowedFacilityIds),
+            eq(stylistFacilityAssignments.active, true),
+          ),
+          columns: { id: true },
+        })
+        ownsExisting = !!assignment
+      }
       if (!ownsExisting) return Response.json({ error: 'Not found' }, { status: 404 })
     }
 

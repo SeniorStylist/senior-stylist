@@ -60,6 +60,8 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
       toast.error(result.error)
       return
     }
+    // Persistent (error-variant) so an empty export can't be overlooked.
+    if (result.warning) toast.error(result.warning)
     onClose()
   }
 

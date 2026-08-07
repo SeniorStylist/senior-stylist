@@ -7,6 +7,7 @@ import { eq, and, isNull, inArray, notInArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { generateStylistCode } from '@/lib/stylist-code'
+import { splitStylistCell } from '@/lib/service-log-import'
 import { isTutorialRequest, isTutorialModeActive } from '@/lib/help/tutorial-request'
 
 const createSchema = z.object({
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
     const master = isMasterAdmin(user.email)
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // Round 6 bookkeeper create rides the P51 manage tier (fu-object call).
     if (!master && !canManageStylists(facilityUser)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -222,17 +224,29 @@ export async function POST(request: NextRequest) {
       const [row] = await tx
         .insert(stylists)
         .values({
-          name: parsed.data.name,
+          // Strip an embedded "ST### - " prefix — the code lives in stylistCode,
+          // and a code inside the name double-prefixes every export label.
+          name: splitStylistCell(parsed.data.name).stylistName,
           stylistCode,
           facilityId,
           franchiseId,
           isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created stylist
           ...(parsed.data.color ? { color: parsed.data.color } : {}),
+          // P51 — bookkeepers are full manage tier (payroll incl.), so their
+          // commission values are honored now (supersedes Round 6's ignore).
           ...(parsed.data.commissionPercent != null
             ? { commissionPercent: parsed.data.commissionPercent }
             : {}),
         })
         .returning()
+      // Roster surfaces read active assignment rows — without this the new
+      // stylist is invisible on /stylists (mirrors the OCR-import create).
+      if (facilityId) {
+        await tx
+          .insert(stylistFacilityAssignments)
+          .values({ stylistId: row.id, facilityId, active: true })
+          .onConflictDoNothing()
+      }
       return row
     })
 

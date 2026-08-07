@@ -37,6 +37,11 @@ export function facilityLabel(code: string | null | undefined, name: string): st
 }
 
 export function stylistLabel(code: string, name: string): string {
+  // A name that already starts with a stylist code ("ST818 - Mariah Owens" —
+  // typed into the name field before the create paths stripped codes) is shown
+  // as-is; prepending the generated code produced "ST913 - ST818 - Mariah Owens"
+  // (bookkeeper report 2026-07-27). Repairs existing rows with no data migration.
+  if (/^[A-Z]{2,4}\d{2,5}\s*-\s*/.test(name)) return name
   return `${code} - ${name}`
 }
 

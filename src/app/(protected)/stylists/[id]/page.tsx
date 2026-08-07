@@ -35,7 +35,8 @@ export default async function StylistDetailPage({
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser && !master) redirect('/dashboard')
   // P51 lockdown — the detail page (commission editor, PII, compliance) is
-  // manage-tier only; facility admins get the read-only roster on /stylists.
+  // manage-tier only (Round 6's bookkeeper access rides the tier);
+  // facility admins get the read-only roster on /stylists.
   if (facilityUser && !master && !canManageStylists(facilityUser)) redirect('/dashboard')
 
   try {
@@ -46,7 +47,9 @@ export default async function StylistDetailPage({
   if (!stylist) notFound()
 
   // Allow if stylist belongs to caller's facility, OR franchise-pool stylist in
-  // caller's franchise. Master bypasses scope entirely.
+  // caller's franchise, OR is assignment-linked to the caller's facility (P34b
+  // roster rule — pool/cross-facility stylists have no home row here). Master
+  // bypasses scope entirely.
   if (!master && facilityUser) {
     const sameFacility = stylist.facilityId === facilityUser.facilityId
     const franchisePoolInFranchise =
@@ -55,9 +58,19 @@ export default async function StylistDetailPage({
       !!franchise &&
       stylist.facilityId !== null &&
       franchise.facilityIds.includes(stylist.facilityId)
-    if (!sameFacility && !franchisePoolInFranchise && !sameFranchiseFacility) {
-      notFound()
+    let inScope = sameFacility || franchisePoolInFranchise || sameFranchiseFacility
+    if (!inScope) {
+      const assignment = await db.query.stylistFacilityAssignments.findFirst({
+        where: and(
+          eq(stylistFacilityAssignments.stylistId, id),
+          eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+        columns: { id: true },
+      })
+      inScope = !!assignment
     }
+    if (!inScope) notFound()
   }
 
   // Facility scope for the stats/availability/compliance queries: the caller's

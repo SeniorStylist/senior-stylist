@@ -108,7 +108,13 @@ IMPORTANT: Expand all abbreviations using the known services list above. Use the
   return out
 }
 
-async function callGemini(base64: string, mimeType: string, apiKey: string, instruction: string): Promise<string> {
+async function callGemini(
+  base64: string,
+  mimeType: string,
+  apiKey: string,
+  instruction: string,
+  timeoutMs: number,
+): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
   const body = {
     contents: [{
@@ -119,22 +125,35 @@ async function callGemini(base64: string, mimeType: string, apiKey: string, inst
     }],
     // temperature 0 → most-likely reading, repeatable; JSON mode → guarantees
     // parseable output (no markdown fences, no "could not parse" sheet drops).
+    // thinkingBudget 0 → this is mechanical extraction, not reasoning; thinking
+    // burns tens of seconds per messy sheet and times the function out (same
+    // rationale + pattern as api/services/parse-pdf).
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 0 },
     },
   }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const errText = await res.text()
-    throw new Error(`Gemini API error ${res.status}: ${errText}`)
+  // Abort before maxDuration so a slow Gemini call returns clean JSON, not an
+  // HTML platform-timeout page (which the client would render as a network error).
+  const controller = new AbortController()
+  const abortTimer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const errText = await res.text()
+      throw new Error(`Gemini API error ${res.status}: ${errText}`)
+    }
+    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  } finally {
+    clearTimeout(abortTimer)
   }
-  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 }
 
 export async function POST(request: NextRequest) {
@@ -186,6 +205,10 @@ export async function POST(request: NextRequest) {
     if (files.length > MAX_FILE_COUNT) {
       return Response.json({ error: `Too many files (max ${MAX_FILE_COUNT})` }, { status: 413 })
     }
+    // NOTE: Vercel rejects request bodies over ~4.5MB at the platform edge, so
+    // these checks only fire in environments without that cap. The client
+    // compresses + byte-budgets uploads (src/lib/uploads/compress-upload.ts) so
+    // real requests stay well under it.
     for (const f of files) {
       if (f.size > MAX_FILE_BYTES) {
         return Response.json({ error: `File too large (max 10MB): ${f.name}` }, { status: 413 })
@@ -221,6 +244,14 @@ export async function POST(request: NextRequest) {
 
     const sheets: unknown[] = []
 
+    // Time-remaining-aware per-file budget: the old flat 90s × N sequential
+    // races could total 270s against maxDuration=120 — the platform killed the
+    // function mid-flight and the client saw an opaque network error. Now each
+    // file gets what's actually left (capped 75s, floor 15s → per-sheet soft
+    // error instead of a platform timeout).
+    const startedAt = Date.now()
+    const totalBudgetMs = (maxDuration - 15) * 1000
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
 
@@ -230,16 +261,20 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      const remainingMs = totalBudgetMs - (Date.now() - startedAt)
+      if (remainingMs < 15_000) {
+        sheets.push({ imageIndex: i, error: 'Ran out of time — re-scan this sheet in a smaller batch', date: null, stylistName: null, entries: [] })
+        continue
+      }
+
       try {
         const bytes = await file.arrayBuffer()
         const base64 = Buffer.from(bytes).toString('base64')
 
-        const rawText = await Promise.race([
-          callGemini(base64, file.type, apiKey, instruction),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Gemini timeout after 90s')), 90_000)
-          ),
-        ])
+        const rawText = await callGemini(
+          base64, file.type, apiKey, instruction,
+          Math.min(75_000, remainingMs),
+        )
 
         let parsed: { date: string | null; stylistName: string | null; facilityName?: string | null; entries: unknown[] }
         try {
@@ -270,9 +305,12 @@ export async function POST(request: NextRequest) {
         })
       } catch (err) {
         console.error(`[OCR] Gemini call error for file ${i}:`, err)
+        const isAbort = err instanceof Error && err.name === 'AbortError'
         sheets.push({
           imageIndex: i,
-          error: `Gemini error: ${err instanceof Error ? err.message : String(err)}`,
+          error: isAbort
+            ? 'Timed out reading this sheet — try re-scanning it in a smaller batch'
+            : `Gemini error: ${err instanceof Error ? err.message : String(err)}`,
           date: null,
           stylistName: null,
           entries: [],

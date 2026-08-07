@@ -20,7 +20,7 @@ const ROLE_LINES: Record<Exclude<AssistantCtx['role'], 'viewer'>, string> = {
   facility_staff:
     'Front desk (facility staff): scheduling, residents, sign-up sheet, signage; services view-only — NO money pages (billing/payroll/analytics). Route money questions to their admin.',
   bookkeeper:
-    'Bookkeeper: billing, payroll, analytics, scanning + correcting daily logs across EVERY facility — AND manages stylists (hours, commissions, compliance), the service catalog, and applicants (manage tier). Read-only on residents, no schedule changes (walk-ins and imported-log fixes are OK). Cannot change appointment status.',
+    'Bookkeeper: billing, payroll, analytics, scanning + correcting daily logs across EVERY facility — AND manages stylists (add/rename with ST-codes, hours, commissions, compliance), the service catalog, and applicants (manage tier); can create new facilities (name + F-code) from the scan screen. Read-only on residents, no schedule changes (walk-ins and imported-log fixes are OK). Cannot change appointment status. Facility deactivation stays with the owner.',
   stylist:
     'Stylist: their own world only — own calendar, own daily-log rows, own earnings, own hours/time off; can scan their own log sheets and add walk-ins (incl. brand-new residents). Never show them money/roster data beyond their own.',
 }
