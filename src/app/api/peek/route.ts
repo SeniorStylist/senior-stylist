@@ -167,6 +167,11 @@ export async function GET(request: NextRequest) {
         recentNoShows = noShowRows.length
       } catch { /* best-effort */ }
 
+      // P51 — "payment covered" booleans (card on file / salon credit). Amounts
+      // never leave billing surfaces; the booleans are safe for all staff roles.
+      const { getPaymentCoverage } = await import('@/lib/payment-signals')
+      const paymentCovered = await getPaymentCoverage(id)
+
       return Response.json({
         data: {
           type: 'resident' as const,
@@ -184,6 +189,7 @@ export async function GET(request: NextRequest) {
             nextVisit,
             stylePhotos,
             recentNoShows,
+            paymentCovered,
           },
         },
       })

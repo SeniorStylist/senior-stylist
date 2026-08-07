@@ -47,6 +47,7 @@ const LogSheetsModal = dynamic(
   { ssr: false },
 )
 import { HelpTip } from '@/components/ui/help-tip'
+import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { openPeek } from '@/lib/peek-drawer'
 import { ExportDailyLogsModal } from '@/components/exports/export-daily-logs-modal'
 import { ExportDailyLogsMultiModal, type ExportFacilityOption } from '@/components/exports/export-daily-logs-multi-modal'
@@ -113,6 +114,8 @@ interface LogClientProps {
   /** P48 — scopes the "asked my admin" cooldown per user (shared devices). */
   userId?: string
   carePrefs?: Record<string, { styleNotes: string | null; allergyNotes: string | null }>
+  // P51 — card-on-file / salon-credit booleans per resident
+  paymentFlags?: Record<string, { card: boolean; credit: boolean }>
 }
 
 // Round a date to nearest 30 min IN THE FACILITY'S TIMEZONE.
@@ -200,6 +203,7 @@ export function LogClient({
   unlinkedStylist = false,
   userId,
   carePrefs = {},
+  paymentFlags = {},
 }: LogClientProps) {
   const wiServiceCategoryPriority = buildCategoryPriority(serviceCategoryOrder)
   // facility_staff is read-only; bookkeeper can scan and edit billing fields.
@@ -1486,6 +1490,7 @@ export function LogClient({
                         {r.roomNumber && (
                           <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>
                         )}
+                        <PaymentCoveredChip flags={paymentFlags[r.id]} className="ml-2" />
                       </button>
                     ))}
                     {wiResidentSearch.trim().length >= 3 && (
@@ -1864,6 +1869,7 @@ export function LogClient({
                               {booking.resident.name}
                             </p>
                           </button>
+                          <PaymentCoveredChip flags={paymentFlags[booking.resident.id]} />
                           {isCompleted && (
                             <span className="shrink-0 w-4 h-4 rounded-full bg-green-100 flex items-center justify-center" title="Completed">
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3.5">

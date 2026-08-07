@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/ui/modal'
 import { BottomSheet } from '@/components/ui/bottom-sheet'
+import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { Button } from '@/components/ui/button'
 import { formatCents } from '@/lib/utils'
 import { haptics } from '@/lib/haptics'
@@ -56,6 +57,8 @@ interface BookingModalProps {
   // picker. When provided, admins/staff can override auto-assign and pick anyone —
   // including a stylist who isn't on schedule. Omit for stylist-role viewers.
   stylists?: { id: string; name: string; color?: string | null }[]
+  // P51 — card-on-file / salon-credit booleans per resident (typeahead chip)
+  paymentFlags?: Record<string, { card: boolean; credit: boolean }>
 }
 
 interface PickedStylist {
@@ -92,6 +95,7 @@ export function BookingModal({
   waitlistEntryId = null,
   onAddToWaitlist = null,
   stylists = undefined,
+  paymentFlags = {},
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -893,6 +897,7 @@ export function BookingModal({
                       {r.roomNumber && (
                         <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>
                       )}
+                      <PaymentCoveredChip flags={paymentFlags[r.id]} className="ml-2" />
                     </button>
                   ))}
                   {residentSearch.trim().length >= 3 && (

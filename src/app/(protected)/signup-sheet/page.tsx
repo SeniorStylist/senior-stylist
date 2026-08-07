@@ -5,6 +5,7 @@ import { residents, services, stylists } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
+import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { SignupSheetPageClient } from './signup-sheet-client'
 
 export default async function SignupSheetPage() {
@@ -19,7 +20,7 @@ export default async function SignupSheetPage() {
 
   const tutorialMode = await isTutorialModeActive()
 
-  const [facility, residentsList, servicesList, stylistsList] = await Promise.all([
+  const [facility, residentsList, servicesList, stylistsList, paymentFlags] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
     }),
@@ -48,6 +49,8 @@ export default async function SignupSheetPage() {
       ),
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
+    // P51 — card-on-file / salon-credit booleans per resident
+    getPaymentCoverageMap(facilityUser.facilityId),
   ])
 
   if (!facility) redirect('/dashboard')
@@ -60,6 +63,7 @@ export default async function SignupSheetPage() {
       services={JSON.parse(JSON.stringify(servicesList))}
       stylists={JSON.parse(JSON.stringify(stylistsList))}
       role={facilityUser.role}
+      paymentFlags={paymentFlags}
     />
   )
 }

@@ -127,6 +127,8 @@ interface DashboardClientProps {
   hasSeenFirstTour?: boolean
   alreadyCheckedIn?: boolean
   checkinTodayBookings?: TodayBooking[]
+  // P51 — card-on-file / salon-credit booleans per resident
+  paymentFlags?: Record<string, { card: boolean; credit: boolean }>
 }
 
 function formatHHMM(t: string): string {
@@ -162,6 +164,7 @@ export function DashboardClient({
   hasSeenFirstTour = true,
   alreadyCheckedIn = false,
   checkinTodayBookings = [],
+  paymentFlags = {},
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   // Phase 17 — set when the visible range was served from the offline read-cache
@@ -871,6 +874,7 @@ export function DashboardClient({
           prefillServiceId={prefillServiceId}
           signupSheetEntryId={schedulingEntryId}
           stylists={userRole === 'stylist' ? undefined : stylists}
+          paymentFlags={paymentFlags}
         />
       </ErrorBoundary>
     )
@@ -1357,6 +1361,7 @@ export function DashboardClient({
         waitlistEntryId={waitlistEntryIdForBooking}
         onAddToWaitlist={(isAdmin || userRole === 'facility_staff') ? handleAddToWaitlistFromBooking : null}
         stylists={userRole === 'stylist' ? undefined : stylists}
+        paymentFlags={paymentFlags}
       />
 
       {/* Phase 15 F4 — add-to-waitlist form (panel + booking-modal cancel flow) */}
@@ -1395,6 +1400,7 @@ export function DashboardClient({
           todayDate={todayDateStr}
           role={userRole}
           onResidentCreated={(r) => setResidents((prev) => [...prev, r])}
+          paymentFlags={paymentFlags}
         />
       )}
     </div>

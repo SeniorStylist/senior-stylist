@@ -6,6 +6,7 @@ import { ClipboardList, Calendar } from 'lucide-react'
 import type { Resident, Service, SignupSheetEntryWithRelations, Stylist } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/components/ui/toast'
+import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { formatDateInTz } from '@/lib/time'
 
@@ -16,6 +17,8 @@ interface Props {
   services: Service[]
   stylists: Stylist[]
   role: string
+  // P51 — card-on-file / salon-credit booleans per resident
+  paymentFlags?: Record<string, { card: boolean; credit: boolean }>
 }
 
 function formatDateChip(dateStr: string, tz: string) {
@@ -26,7 +29,7 @@ function formatDateChip(dateStr: string, tz: string) {
   }
 }
 
-export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, stylists, role }: Props) {
+export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, stylists, role, paymentFlags = {} }: Props) {
   const router = useRouter()
   const { toast } = useToast()
 
@@ -299,6 +302,7 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
                     {entry.roomNumber && (
                       <span className="text-xs text-stone-400">Rm {entry.roomNumber}</span>
                     )}
+                    {entry.residentId && <PaymentCoveredChip flags={paymentFlags[entry.residentId]} />}
                   </div>
                   <p className="text-[12.5px] text-stone-600 mt-0.5">{entry.serviceName}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -425,6 +429,7 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
                     >
                       <span className="font-medium text-stone-900">{r.name}</span>
                       {r.roomNumber && <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>}
+                      <PaymentCoveredChip flags={paymentFlags[r.id]} className="ml-2" />
                     </button>
                   ))}
                   {residentSearch.trim().length >= 3 && (

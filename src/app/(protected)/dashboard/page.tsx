@@ -9,6 +9,7 @@ import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
+import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
 
@@ -106,7 +107,7 @@ export default async function DashboardPage() {
     // tutorial's seeded resident/service/booking appear in the booking modal etc.
     const tutorialMode = await isTutorialModeActive()
 
-    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings, mostUsedMap] = await Promise.all([
+    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings, mostUsedMap, paymentFlags] = await Promise.all([
       db.query.residents.findMany({
         where: and(
           eq(residents.facilityId, facilityUser.facilityId),
@@ -269,6 +270,8 @@ export default async function DashboardPage() {
       // P31 — cached (5 min, 'bookings' tag) and folded into the batch instead
       // of a sequential round-trip after it.
       getMostUsedServiceIds(facilityUser.facilityId),
+      // P51 — card-on-file / salon-credit booleans per resident (self-guarding → {})
+      getPaymentCoverageMap(facilityUser.facilityId),
     ])
 
     if (!facility) redirect('/login')
@@ -323,6 +326,7 @@ export default async function DashboardPage() {
           hasSeenFirstTour={profile?.hasSeenFirstTour ?? true}
           alreadyCheckedIn={!!todayCheckin}
           checkinTodayBookings={todayBookingsForClient}
+          paymentFlags={paymentFlags}
         />
       </>
     )

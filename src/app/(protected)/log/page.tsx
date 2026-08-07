@@ -8,6 +8,7 @@ import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { toClientJson } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { ensureResidentPrefsSchema } from '@/lib/resident-prefs-ddl'
+import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { eq, and, gte, lt, asc, or, inArray } from 'drizzle-orm'
 import { LogClient } from './log-client'
@@ -64,6 +65,7 @@ export default async function LogPage() {
     exportFacilitiesRaw,
     mostUsedMap,
     carePrefRows,
+    paymentFlags,
   ] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
@@ -160,6 +162,8 @@ export default async function LogPage() {
         return [] as Array<{ residentId: string; styleNotes: string | null; allergyNotes: string | null }>
       }
     })(),
+    // P51 — card-on-file / salon-credit booleans per resident (self-guarding → {})
+    getPaymentCoverageMap(facilityId),
   ])
 
   const carePrefs: Record<string, { styleNotes: string | null; allergyNotes: string | null }> = {}
@@ -185,6 +189,7 @@ export default async function LogPage() {
       initialBookings={toClientJson(todayBookings)}
       initialLogEntries={toClientJson(todayLogEntries)}
       carePrefs={carePrefs}
+      paymentFlags={paymentFlags}
       residents={toClientJson(residentsWithUsage)}
       stylists={toClientJson(stylistsList)}
       services={toClientJson(servicesList)}

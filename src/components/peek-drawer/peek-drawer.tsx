@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/toast'
 import { formatDateInTz } from '@/lib/time'
 import { getInitials } from '@/lib/get-initials'
+import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 
 interface ResidentPeekData {
   type: 'resident'
@@ -27,6 +28,8 @@ interface ResidentPeekData {
     // Phase 16 G11/G7
     stylePhotos?: Array<{ url: string; caption: string | null }>
     recentNoShows?: number
+    // P51 — card-on-file / salon-credit booleans
+    paymentCovered?: { card: boolean; credit: boolean }
   }
 }
 
@@ -203,7 +206,10 @@ function renderContent({
             {getInitials(r.name)}
           </div>
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-stone-900 truncate">{r.name}</h2>
+            <h2 className="text-lg font-semibold text-stone-900 truncate flex items-center gap-1.5">
+              {r.name}
+              <PaymentCoveredChip flags={r.paymentCovered} />
+            </h2>
             <p className="text-sm text-stone-500 truncate">
               {r.roomNumber ? `Room ${r.roomNumber} · ` : ''}{r.facilityName}
             </p>

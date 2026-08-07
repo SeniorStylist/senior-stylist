@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar } from 'lucide-react'
 import type { Resident, Service, SignupSheetEntryWithRelations, Stylist } from '@/types'
 import { useToast } from '@/components/ui/toast'
+import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { formatDateChip } from '@/lib/format'
 
@@ -20,6 +21,8 @@ interface SignupSheetPanelProps {
   /** Role of the current user — drives the admin "Pending requests" section visibility */
   role: string
   onResidentCreated?: (resident: Resident) => void
+  // P51 — card-on-file / salon-credit booleans per resident (typeahead chip)
+  paymentFlags?: Record<string, { card: boolean; credit: boolean }>
 }
 
 export function SignupSheetPanel({
@@ -33,6 +36,7 @@ export function SignupSheetPanel({
   todayDate,
   role,
   onResidentCreated,
+  paymentFlags = {},
 }: SignupSheetPanelProps) {
   const { toast } = useToast()
 
@@ -493,6 +497,7 @@ export function SignupSheetPanel({
                         >
                           <span className="font-medium text-stone-900">{r.name}</span>
                           {r.roomNumber && <span className="text-stone-400 ml-2 text-xs">Room {r.roomNumber}</span>}
+                          <PaymentCoveredChip flags={paymentFlags[r.id]} className="ml-2" />
                         </button>
                       ))}
                       {residentSearch.trim().length >= 3 && (
