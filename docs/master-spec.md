@@ -3115,6 +3115,42 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P51 — Payment chips, role landings, facility lockdown, payer types (2026-08-07)
+
+Six-item batch, no migrations. Full contracts in CLAUDE.md's P51 entry.
+
+- **rawRole + manage tier**: `getUserFacility()` rows carry `rawRole`
+  (pre-normalization) on every path; `isManageTier(fu, isMaster)` =
+  master || rawRole super_admin || bookkeeper (aliases canManageStylists /
+  canEditServices; canAccessPayrollFu). `canAccessPayroll` RENAMED
+  `canManageQuickBooksBilling` (admin-inclusive, QB connection infra only).
+- **Facility lockdown**: facility admin/front desk lose stylist comp+PII
+  (roster-only /stylists page + toRosterStylist dashboard payload), detail
+  page, directory/applicants, compliance, availability-of-others, payroll,
+  and service mutations (non-manage creates land ad-hoc). Kept: coverage
+  approval, Who's Working, team login-linking, billing + own rev-share,
+  analytics minus the commission table (showStylistEarnings). GET
+  /api/residents column-whitelists non-billing roles. Palette/mobile-nav/
+  peek ride a canManage prop (franchise-normalization safe). Assistant:
+  ctx.canManage + requiresManage tools + grounding rewrite.
+- **Landings** (`src/lib/landing.ts`): master → /master-admin, franchise →
+  /franchise, bookkeeper → /log, admin → /analytics, else /dashboard —
+  login-entry only (src/app/page.tsx is the brain; ?redirect= wins;
+  dashboard page untouched). Sidebar ROLE_NAV_LAYOUT per-role order +
+  NavItem.show() + compacted bottom block.
+- **Payment chips**: payment-signals.ts coverage map (ONE batched promise
+  per page) + <PaymentCoveredChip> (card/credit booleans) on booking
+  typeahead, log rows, walk-in, sign-up sheet, peek.
+- **Debug**: rows big→small + master-only signup-wizard preview (server
+  email check; POST stays 403). **Signage**: family-signup QR template
+  (qrDataUrl = only unescaped field, data:image/-guarded; in
+  SIGN_TEMPLATE_IDS). **De-AI**: chrome says "Ask me anything"/"Your
+  assistant"; tour ids frozen.
+- **Payer types** (`src/lib/resident-payment-types.ts`): ip/ip_card/
+  ip_cash/ip_check/facility/credit; isIndividualPayer drives hybrid view;
+  editable on the resident form + detail badge; /billing payer-split line.
+  Framework only — no totals math.
+
 ## P50 — New-facility onboarding package (2026-08-03)
 
 QR-to-chair funnel: poster scan → senior signup wizard → claim approval →

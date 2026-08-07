@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.0',
+    date: '2026-08-07',
+    title: 'The Right View for Every Role',
+    items: [
+      'Payment at a glance: a small green card icon by a resident\'s name means they have a card on file, a blue coin means salon credit — you\'ll see them when booking, on daily-log rows, in the sign-up sheet, and in quick profiles. No icon = sort out payment at the chair',
+      'Every role now lands on its best page at sign-in: facility admins open straight to their reports, franchise owners to the Franchise dashboard, bookkeepers to the Daily Log — and the sidebar is reordered most-important-first per role, with a slimmer bottom section so there\'s more room to see your pages',
+      'A real permissions cleanup: facilities can no longer see stylist commissions, pay, or personal details — the stylist list is now a simple roster (names, colors, schedule days), the directory and payroll are franchise/bookkeeper-side, and services are view-only for facility staff (bookkeepers and franchise owners manage the catalog). Franchise owners keep everything',
+      'The billing page shows how each facility splits: how many residents are facility-billed vs individual payers, with each side\'s open balance. Set it per resident with the new Payment Type field (individual card/cash/check, facility-billed, or salon credit) — deeper per-type math comes next',
+      'The assistant now talks like a personal assistant, not "AI" — the button says "Ask me anything" everywhere',
+      'Signage gained a Family Sign-Up template: print the QR poster families scan to create their portal account, right from the Signage page (the Settings poster still works too)',
+      'Debug tools (owner): impersonation views now run biggest-to-smallest (Franchise → Bookkeeper → Facility Admin → Front Desk → Stylist → Family), plus a new preview of the family sign-up wizard that works even before you turn self-signup on',
+    ],
+  },
+  {
     version: '5.9',
     date: '2026-08-03',
     title: 'New-Facility Onboarding — QR to Chair',
