@@ -61,8 +61,12 @@ console.log('\n[1] Role filtering (toolsForCtx)')
   check('facility_staff has no money tools', !staff.includes('get_business_numbers'))
   check('facility_staff can book', staff.includes('book_appointment'))
 
-  const bookkeeper = names({ ...baseCtx, role: 'bookkeeper' })
+  // P51 — bookkeepers are manage-tier (the route sets canManage for them)
+  const bookkeeper = names({ ...baseCtx, role: 'bookkeeper', canManage: true })
   check('bookkeeper sees business numbers', bookkeeper.includes('get_business_numbers'))
+
+  // P51 — franchise admin: normalized role 'admin' + canManage (rawRole super_admin)
+  const franchiseAdmin = names({ ...baseCtx, role: 'admin', canManage: true })
 
   const viewer = names({ ...baseCtx, role: 'viewer' })
   check('viewer gets ZERO tools', viewer.length === 0)
@@ -84,11 +88,24 @@ console.log('\n[1] Role filtering (toolsForCtx)')
     'create_service', 'update_service', 'update_stylist', 'reply_to_feedback', 'send_receipt',
   ].every((n) => facilityMaster.includes(n)))
 
-  check('admin write set: all P40 writes except feedback reply', [
+  // P51 lockdown — a FACILITY admin (no canManage) loses the manage-tier
+  // tools: update_service, update_stylist, get_payroll_summary. set_stylist_
+  // hours stays listed (self/coverage flows) but its execute rejects
+  // others-editing for non-manage admins.
+  check('facility admin write set: operations only, no manage-tier tools', [
     'update_appointment', 'create_resident', 'update_resident', 'set_stylist_hours',
     'add_time_off', 'decide_time_off', 'add_to_waitlist', 'add_signup_entry',
-    'create_service', 'update_service', 'update_stylist', 'send_receipt',
-  ].every((n) => admin.includes(n)) && !admin.includes('reply_to_feedback') && !admin.includes('get_feedback_inbox'))
+    'create_service', 'send_receipt',
+  ].every((n) => admin.includes(n))
+    && ['update_service', 'update_stylist', 'get_payroll_summary', 'reply_to_feedback', 'get_feedback_inbox']
+      .every((n) => !admin.includes(n)))
+
+  // P51 — franchise admin keeps everything the facility admin lost
+  check('franchise admin (canManage): full manage-tier set', [
+    'update_appointment', 'create_resident', 'update_resident', 'set_stylist_hours',
+    'add_time_off', 'decide_time_off', 'add_to_waitlist', 'add_signup_entry',
+    'create_service', 'update_service', 'update_stylist', 'get_payroll_summary', 'send_receipt',
+  ].every((n) => franchiseAdmin.includes(n)) && !franchiseAdmin.includes('reply_to_feedback'))
 
   check('stylist writes: own appointments + own hours/time-off + ad-hoc service ONLY',
     ['update_appointment', 'set_stylist_hours', 'add_time_off', 'create_service'].every((n) => stylist.includes(n))
@@ -97,16 +114,21 @@ console.log('\n[1] Role filtering (toolsForCtx)')
         'get_resident_ledger', 'get_time_off_requests', 'get_waitlist', 'get_payroll_summary', 'get_feedback_inbox',
        ].every((n) => !stylist.includes(n)))
 
-  check('facility_staff writes: scheduling + residents + services, NO stylist/roster/money writes',
+  // P51 — services are view-only for front desk (create_service still lands
+  // ad-hoc for logging; update_service is manage-tier)
+  check('facility_staff writes: scheduling + residents, NO service-edit/stylist/roster/money writes',
     ['update_appointment', 'create_resident', 'update_resident', 'add_to_waitlist', 'add_signup_entry',
-     'create_service', 'update_service', 'send_receipt'].every((n) => staff.includes(n))
-    && ['set_stylist_hours', 'add_time_off', 'decide_time_off', 'update_stylist', 'reply_to_feedback',
-        'get_resident_ledger', 'get_payroll_summary'].every((n) => !staff.includes(n)))
+     'create_service', 'send_receipt'].every((n) => staff.includes(n))
+    && ['set_stylist_hours', 'add_time_off', 'decide_time_off', 'update_service', 'update_stylist',
+        'reply_to_feedback', 'get_resident_ledger', 'get_payroll_summary'].every((n) => !staff.includes(n)))
 
-  check('bookkeeper writes: appointment corrections + ad-hoc service ONLY',
-    ['update_appointment', 'create_service', 'book_appointment', 'cancel_appointment'].every((n) => bookkeeper.includes(n))
-    && ['create_resident', 'update_resident', 'set_stylist_hours', 'add_time_off', 'decide_time_off',
-        'add_to_waitlist', 'add_signup_entry', 'update_service', 'update_stylist', 'reply_to_feedback',
+  // P51 — bookkeeper is manage-tier: gains stylist + service management on top
+  // of appointment corrections; still no resident/scheduling-adjacent writes.
+  check('bookkeeper writes: corrections + manage-tier stylist/service tools',
+    ['update_appointment', 'create_service', 'book_appointment', 'cancel_appointment',
+     'update_service', 'update_stylist', 'set_stylist_hours'].every((n) => bookkeeper.includes(n))
+    && ['create_resident', 'update_resident', 'add_time_off', 'decide_time_off',
+        'add_to_waitlist', 'add_signup_entry', 'reply_to_feedback',
         'send_receipt'].every((n) => !bookkeeper.includes(n)))
 
   check('bookkeeper reads include ledger + payroll + waitlist',

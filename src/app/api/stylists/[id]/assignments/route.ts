@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylists, stylistFacilityAssignments, facilities, franchiseFacilities } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { eq, and, inArray, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -29,7 +29,7 @@ async function getStylistAndScope(
 } | null> {
   const facilityUser = master ? null : await getUserFacility(userId)
   if (!master && !facilityUser) return null
-  if (!master && facilityUser!.role !== 'admin') return null
+  if (!master && !canManageStylists(facilityUser)) return null
 
   const franchise = master ? null : await getUserFranchise(userId)
   const allowedFacilityIds =
@@ -119,7 +119,7 @@ export async function POST(
     const master = isMasterAdmin(user.email)
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!master && facilityUser!.role !== 'admin') {
+    if (!master && !canManageStylists(facilityUser)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

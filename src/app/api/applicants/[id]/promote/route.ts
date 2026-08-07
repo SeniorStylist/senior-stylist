@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { applicants, stylists } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -16,7 +16,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
 
     const franchise = await getUserFranchise(user.id)
     if (!franchise) return Response.json({ error: 'No franchise' }, { status: 400 })

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities, payPeriods, stylistPayItems, stylists, quickbooksSyncLog } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
 import { qbGet, qbPost } from '@/lib/quickbooks'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { syncVendorsForFacility } from '../../sync-vendors/route'
@@ -30,7 +30,7 @@ export async function POST(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canAccessPayroll(facilityUser.role)) {
+    if (!canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

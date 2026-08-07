@@ -10,7 +10,7 @@ import {
   qbInvoices,
   facilities,
 } from '@/db/schema'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
 import { resolveCommission } from '@/lib/stylist-commission'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, eq, desc, gte, lt, inArray, sql } from 'drizzle-orm'
@@ -45,7 +45,7 @@ export async function GET() {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canAccessPayroll(facilityUser.role)) {
+    if (!canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canAccessPayroll(facilityUser.role)) {
+    if (!canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

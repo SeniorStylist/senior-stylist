@@ -290,10 +290,10 @@ Role visibility: admins see everything; front desk sees General (read-only); boo
     body: `The roles, from widest to narrowest:
 
 - Master admin (the owner account): everything, across every facility — including the Master Admin dashboard, imports, merges, and the stylist directory. Can switch to any facility and act there.
-- Franchise admin: like an admin, but across all the facilities in their franchise, with a Franchise dashboard.
-- Admin: full control of their facility — scheduling, residents, services, billing, payroll, analytics, settings, team.
-- Front desk (facility staff): scheduling, residents, sign-up sheet, services, signage — no money pages (billing/payroll/analytics).
-- Bookkeeper: billing, payroll, analytics, log scanning and corrections across EVERY facility — but read-only on residents and no scheduling changes (they can add walk-ins and fix imported log data).
+- Franchise admin: everything an admin has PLUS full stylist management (commissions, compliance, hours, the directory and applicant pipeline), service-catalog editing, and payroll — across all the facilities in their franchise, with a Franchise dashboard.
+- Admin (facility): runs their facility's day-to-day — scheduling, residents, sign-up sheet, billing (their facility's own bill and revenue-share), analytics reports, signage, settings and team logins, time-off approvals. The stylist roster is view-only (names, colors, schedules — no pay, commission, or personal details), services are view-only, and payroll isn't visible: stylist and catalog management belong to the franchise admin or bookkeeper.
+- Front desk (facility staff): scheduling, residents, sign-up sheet, signage; services view-only — no money pages (billing/payroll/analytics).
+- Bookkeeper: billing, payroll, analytics, log scanning and corrections across EVERY facility — and they manage stylists (commissions, compliance, hours), the service catalog, and applicants. Read-only on residents and no scheduling changes (they can add walk-ins and fix imported log data).
 - Stylist: their own world only — their calendar, their daily log rows, their earnings, their profile/hours/time off. They can scan their own log sheets and add walk-ins (including brand-new residents).
 - Family (portal): their own resident(s) only, via the Family Portal — no staff app access.
 

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { residents } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, canAccessBilling } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
@@ -41,12 +41,35 @@ export async function GET(request: NextRequest) {
       facilityId = facilityUser.facilityId
     }
 
+    // P51 lockdown — callers without billing access (facility_staff, stylist)
+    // get an explicit OPERATIONAL column whitelist: no balances, no Stripe ids,
+    // no POA payment fields. Billing roles keep full rows (minus nothing new).
+    const billingCaller = isMaster || canAccessBilling(facilityUser?.role ?? '')
+
     // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.
     const data = await db.query.residents.findMany({
       where: and(eq(residents.facilityId, facilityId), eq(residents.active, true), eq(residents.isDemo, isTutorialRequest(request))),
       columns: paramFacilityId
         ? { id: true, name: true, roomNumber: true }
-        : undefined,
+        : billingCaller
+          ? undefined
+          : {
+              id: true,
+              facilityId: true,
+              name: true,
+              roomNumber: true,
+              phone: true,
+              notes: true,
+              defaultServiceId: true,
+              residentPaymentType: true,
+              defaultTipType: true,
+              defaultTipValue: true,
+              dateOfBirth: true,
+              active: true,
+              isDemo: true,
+              createdAt: true,
+              updatedAt: true,
+            },
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 

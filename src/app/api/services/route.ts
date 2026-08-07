@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { services } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, canEditServices } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -90,21 +90,16 @@ export async function POST(request: NextRequest) {
       user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     const facilityUser = isMaster ? null : await getUserFacility(user.id)
     if (!isMaster && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    // Bookkeepers AND stylists (P37) may create services too, but ONLY as ad-hoc
-    // logging services (source='ocr_import', plain fixed pricing) — the same trusted
-    // first-class create the OCR importer already does. Stylists need it for walk-ins
-    // with services missing from the catalog ("S/B Dry $45") and the daily-log edit
-    // form's "➕ New service". Admin/facility_staff create real catalog (price_list)
-    // services with full pricing options.
-    const isAdhocRole = !isMaster && (facilityUser!.role === 'bookkeeper' || facilityUser!.role === 'stylist')
-    if (
-      facilityUser &&
-      !isAdminOrAbove(facilityUser.role) &&
-      !isFacilityStaff(facilityUser.role) &&
-      !isAdhocRole
-    ) {
+    // P51 lockdown — CATALOG (price_list) services are created by the manage
+    // tier only (master / franchise admin / bookkeeper). Every other staff
+    // role that can log work (facility admin, front desk, stylist — P37)
+    // still creates AD-HOC logging services (source='ocr_import', plain fixed
+    // pricing), so the daily-log "➕ New service" and walk-in inline create
+    // keep working everywhere. Viewers are rejected outright.
+    if (facilityUser && facilityUser.role === 'viewer') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
+    const isAdhocRole = !isMaster && !canEditServices(facilityUser)
 
     const body = await request.json()
     const parsed = createSchema.safeParse(body)

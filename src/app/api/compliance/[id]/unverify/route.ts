@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { complianceDocuments } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -23,7 +23,7 @@ export async function PUT(
     const master = !!su && user.email === su
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!master && facilityUser!.role !== 'admin') {
+    if (!master && !canManageStylists(facilityUser)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

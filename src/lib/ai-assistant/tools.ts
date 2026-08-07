@@ -64,6 +64,10 @@ export interface AssistantCtx {
   sharedMemories: string[]
   /** P46 — the app page the user is currently on (validated pathname). */
   page?: string | null
+  /** P51 — manage tier (master / franchise admin / bookkeeper): stylist
+   * management + service-catalog editing + payroll. A facility admin has
+   * this false — those requests get redirected per grounding. */
+  canManage?: boolean
 }
 
 // P40 — the PendingAction shape + per-kind execution rules live in the shared
@@ -102,6 +106,9 @@ export interface AssistantTool {
   roles: AssistantCtx['role'][]
   /** When true the tool needs ctx.facilityId (plain-master network ctx lacks it). */
   needsFacility: boolean
+  /** P51 — manage-tier tools (stylist/service/payroll management) are filtered
+   * out for non-manage callers in toolsForCtx. */
+  requiresManage?: boolean
   execute: (ctx: AssistantCtx, args: Record<string, unknown>) => Promise<ToolResult>
 }
 
@@ -1098,7 +1105,7 @@ const getStylistInfo: AssistantTool = {
     properties: { stylistName: { type: 'STRING', description: 'Omit for yourself (stylists always get themselves).' } },
   },
   kind: 'read',
-  roles: ['admin', 'stylist', 'master'],
+  roles: ['admin', 'bookkeeper', 'stylist', 'master'], // P51 — bookkeeper joins the manage tier
   needsFacility: true,
   async execute(ctx, args) {
     let stylistId: string
@@ -1171,11 +1178,16 @@ const getStylistInfo: AssistantTool = {
     if (!stylist) return err('Stylist not found.')
     const mtd = (mtdRows as unknown as Array<Record<string, unknown>>)[0] ?? {}
     const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    // P51 lockdown — commission + compliance are manage-tier data. A stylist
+    // still sees their OWN; a facility admin gets roster-level info only.
+    const managerView = ctx.role === 'master' || !!ctx.canManage || ctx.role === 'stylist'
     return {
       response: {
         name: stylist.name,
         status: stylist.status,
-        commissionPercent: resolveCommission(stylist.commissionPercent ?? 0, assignment),
+        ...(managerView
+          ? { commissionPercent: resolveCommission(stylist.commissionPercent ?? 0, assignment) }
+          : { note: 'Commission and compliance details are managed by the franchise admin or bookkeeper.' }),
         weeklyHours: windows.map((w) => `${DAYS[w.dayOfWeek]} ${w.startTime}-${w.endTime}`),
         upcomingTimeOff: timeOff.map((t) => ({
           requestId: t.id,
@@ -1183,13 +1195,17 @@ const getStylistInfo: AssistantTool = {
           status: t.status === 'open' ? 'approved' : t.status,
           reason: t.reason ?? null,
         })),
-        compliance: {
-          licenseOnFile: !!stylist.licenseNumber,
-          licenseExpires: stylist.licenseExpiresAt ? String(stylist.licenseExpiresAt) : null,
-          insuranceVerified: stylist.insuranceVerified,
-          insuranceExpires: stylist.insuranceExpiresAt ? String(stylist.insuranceExpiresAt) : null,
-          backgroundCheckVerified: stylist.backgroundCheckVerified,
-        },
+        ...(managerView
+          ? {
+              compliance: {
+                licenseOnFile: !!stylist.licenseNumber,
+                licenseExpires: stylist.licenseExpiresAt ? String(stylist.licenseExpiresAt) : null,
+                insuranceVerified: stylist.insuranceVerified,
+                insuranceExpires: stylist.insuranceExpiresAt ? String(stylist.insuranceExpiresAt) : null,
+                backgroundCheckVerified: stylist.backgroundCheckVerified,
+              },
+            }
+          : {}),
         thisMonth: { completedVisits: Number(mtd.visits ?? 0), revenue: money(Number(mtd.revenue_cents ?? 0)) },
       },
     }
@@ -1312,6 +1328,7 @@ const getPayrollSummary: AssistantTool = {
   kind: 'read',
   roles: ['admin', 'bookkeeper', 'master'],
   needsFacility: true,
+  requiresManage: true, // P51 — payroll is manage-tier
   async execute(ctx, args) {
     const periodId = typeof args.periodId === 'string' && UUID_RE.test(args.periodId) ? args.periodId : null
     if (periodId) {
@@ -2353,7 +2370,7 @@ const setStylistHours: AssistantTool = {
     required: ['workingDays'],
   },
   kind: 'write',
-  roles: ['admin', 'stylist', 'master'],
+  roles: ['admin', 'bookkeeper', 'stylist', 'master'], // P51 — bookkeeper joins the manage tier
   needsFacility: true,
   async execute(ctx, args) {
     let stylistId: string
@@ -2363,6 +2380,10 @@ const setStylistHours: AssistantTool = {
       stylistId = ctx.stylistId
       stylistLabel = 'your'
     } else {
+      // P51 lockdown — setting OTHER stylists' hours is manage-tier.
+      if (ctx.role !== 'master' && !ctx.canManage) {
+        return err('Stylist hours are managed by your franchise admin or bookkeeper — ask them to update the schedule.')
+      }
       const resolved = await resolveRosterStylist(ctx, args.stylistName)
       if (!resolved.ok) return err(resolved.error, resolved.stylists ? { stylists: resolved.stylists } : undefined)
       stylistId = resolved.stylist.id
@@ -2725,8 +2746,9 @@ const updateService: AssistantTool = {
     required: ['serviceName'],
   },
   kind: 'write',
-  roles: ['admin', 'facility_staff', 'master'],
+  roles: ['admin', 'bookkeeper', 'master'],
   needsFacility: true,
+  requiresManage: true, // P51 — catalog editing is manage-tier
   async execute(ctx, args) {
     const name = typeof args.serviceName === 'string' ? args.serviceName.trim() : ''
     if (!name) return err('Which service?')
@@ -2790,8 +2812,9 @@ const updateStylist: AssistantTool = {
     required: ['stylistName'],
   },
   kind: 'write',
-  roles: ['admin', 'master'],
+  roles: ['admin', 'bookkeeper', 'master'],
   needsFacility: true,
+  requiresManage: true, // P51 — stylist management is manage-tier
   async execute(ctx, args) {
     const resolved = await resolveRosterStylist(ctx, args.stylistName)
     if (!resolved.ok) return err(resolved.error, resolved.stylists ? { stylists: resolved.stylists } : undefined)
@@ -3009,6 +3032,8 @@ export const ALL_TOOLS: AssistantTool[] = [
 export function toolsForCtx(ctx: AssistantCtx): AssistantTool[] {
   return ALL_TOOLS.filter((t) => {
     if (!t.roles.includes(ctx.role)) return false
+    // P51 — manage-tier tools drop out for non-manage callers (facility admin).
+    if (t.requiresManage && ctx.role !== 'master' && !ctx.canManage) return false
     // P41 — a facility-less MASTER keeps facility-scoped tools: the dispatch
     // layer resolves a facility per call from args.facilityName.
     if (t.needsFacility && !ctx.facilityId && ctx.role !== 'master') return false

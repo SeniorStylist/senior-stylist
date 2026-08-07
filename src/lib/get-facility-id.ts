@@ -59,7 +59,11 @@ export function isAdminOrAbove(role: string): boolean {
 export function canAccessBilling(role: string): boolean {
   return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
 }
-export function canAccessPayroll(role: string): boolean {
+// P51 — RENAMED from canAccessPayroll: this admin-inclusive check now guards
+// only QuickBooks CONNECTION infrastructure (connect/disconnect/accounts/
+// vendor sync) — facility admins keep Billing, and QB connect lives there.
+// Payroll itself moved to the manage tier: use canAccessPayrollFu (below).
+export function canManageQuickBooksBilling(role: string): boolean {
   return role === 'admin' || role === 'super_admin' || role === 'bookkeeper'
 }
 export function isFacilityStaff(role: string): boolean {

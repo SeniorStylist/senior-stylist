@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { payPeriods, stylistPayItems, payDeductions } from '@/db/schema'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
 import { computeNetPay } from '@/lib/payroll'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -28,7 +28,7 @@ export async function POST(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canAccessPayroll(facilityUser.role)) {
+    if (!canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

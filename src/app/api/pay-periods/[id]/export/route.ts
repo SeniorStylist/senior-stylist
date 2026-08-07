@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { payPeriods, facilities } from '@/db/schema'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -43,7 +43,7 @@ export async function GET(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return new Response('No facility', { status: 400 })
-    if (!canAccessPayroll(facilityUser.role)) return new Response('Forbidden', { status: 403 })
+    if (!canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) return new Response('Forbidden', { status: 403 })
 
     const rl = await checkRateLimit('payrollExport', `u:${user.id}`)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylists, franchiseFacilities, stylistFacilityAssignments } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { sanitizeStylist, sanitizeStylists } from '@/lib/sanitize'
 import { eq, and, isNull, inArray, notInArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
 
-    const isAdmin = master || facilityUser?.role === 'admin'
+    // P51 lockdown — commission visibility is manage-tier (master/franchise/bookkeeper)
+    const isAdmin = master || canManageStylists(facilityUser)
     const facilityId = facilityUser?.facilityId
 
     let whereClause: SQL<unknown> | undefined
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
     const master = isMasterAdmin(user.email)
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!master && facilityUser!.role !== 'admin') {
+    if (!master && !canManageStylists(facilityUser)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

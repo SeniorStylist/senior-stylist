@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { oauthStates } from '@/db/schema'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
 import { getQBAuthUrl } from '@/lib/quickbooks'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canAccessPayroll(facilityUser.role)) {
+    if (!canManageQuickBooksBilling(facilityUser.role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 

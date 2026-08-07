@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { payPeriods } from '@/db/schema'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { and, desc, eq } from 'drizzle-orm'
 import { PayrollListClient, type PayPeriodSummary } from './payroll-list-client'
@@ -12,7 +12,7 @@ export default async function PayrollPage() {
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser || !canAccessPayroll(facilityUser.role)) redirect('/dashboard')
+  if (!facilityUser || !canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) redirect('/dashboard')
 
   // is_demo filter — Phase 13: demo period only during a tour, real-only otherwise.
   const tutorialMode = await isTutorialModeActive()

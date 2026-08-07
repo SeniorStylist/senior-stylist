@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylistAvailability, stylists, stylistFacilityAssignments, profiles, facilities } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
 import { and, asc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -103,7 +103,11 @@ async function resolveScope(
     return { facilityId }
   }
 
-  if (facilityUser.role !== 'admin') {
+  // P51 lockdown — editing OTHER stylists' hours is manage-tier (franchise/
+  // bookkeeper/master). The facility-admin editor page is gone, so an
+  // admin-writable API here would be an orphaned backdoor. Self-edit
+  // (via /my-account) stays for every stylist.
+  if (!canManageStylists(facilityUser)) {
     const profile = await db.query.profiles.findFirst({
       where: eq(profiles.id, user.id),
       columns: { stylistId: true },

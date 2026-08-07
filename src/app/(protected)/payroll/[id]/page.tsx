@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, payPeriods, quickbooksSyncLog } from '@/db/schema'
-import { getUserFacility, canAccessPayroll } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { toClientJson } from '@/lib/sanitize'
 import { and, desc, eq } from 'drizzle-orm'
@@ -18,7 +18,7 @@ export default async function PayrollDetailPage({
   if (!user) redirect('/login')
 
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser || !canAccessPayroll(facilityUser.role)) redirect('/dashboard')
+  if (!facilityUser || !canAccessPayrollFu(facilityUser, !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL)) redirect('/dashboard')
 
   const row = await db.query.payPeriods.findFirst({
     where: and(eq(payPeriods.id, id), eq(payPeriods.facilityId, facilityUser.facilityId)),

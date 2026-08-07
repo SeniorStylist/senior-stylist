@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
 import { db } from '@/db'
 import { complianceDocuments, profiles, stylists } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -59,7 +59,8 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Only PDF, JPG, PNG allowed' }, { status: 422 })
     }
 
-    if (!master && facilityUser!.role !== 'admin') {
+    // P51 lockdown — uploading for OTHERS is manage-tier; self-upload stays
+    if (!master && !canManageStylists(facilityUser)) {
       const profile = await db.query.profiles.findFirst({
         where: eq(profiles.id, user.id),
         columns: { stylistId: true },

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylists, facilities, stylistAvailability, franchises, franchiseFacilities } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateStylistCode } from '@/lib/stylist-code'
 import { eq, inArray } from 'drizzle-orm'
@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 })
+    if (!canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
 
     const rl = await checkRateLimit('import', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)

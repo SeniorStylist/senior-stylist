@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
         debugPreview: false,
         memories: [],
         sharedMemories: [],
+        canManage: true, // P51 — owner is always manage-tier
       }
     } else if (facilityUser) {
       // Regular roles — and the owner's Debug role-preview (faithful).
@@ -142,6 +143,10 @@ export async function POST(request: NextRequest) {
         debugPreview,
         memories: [],
         sharedMemories: [],
+        // P51 — manage tier: franchise admin (rawRole) or bookkeeper. The
+        // debug preview stays faithful: previewing a facility admin means
+        // canManage false.
+        canManage: facilityUser.rawRole === 'super_admin' || role === 'bookkeeper',
       }
     } else {
       return Response.json({ error: 'No facility' }, { status: 400 })

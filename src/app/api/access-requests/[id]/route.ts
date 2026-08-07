@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { accessRequests, profiles, facilityUsers, stylists } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
 import { eq, and, ilike } from 'drizzle-orm'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
@@ -30,7 +30,7 @@ export async function PUT(
       user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
     )
 
-    let facilityUser: { facilityId: string; role: string } | null = null
+    let facilityUser: { facilityId: string; role: string; rawRole?: string } | null = null
     if (!isSuperAdmin) {
       const fu = await getUserFacility(user.id)
       if (!fu || fu.role !== 'admin') {
@@ -38,6 +38,9 @@ export async function PUT(
       }
       facilityUser = fu
     }
+    // P51 lockdown — commission values are manage-tier; a facility admin's
+    // approval still works, but any supplied commissionPercent is ignored.
+    const allowCommission = isSuperAdmin || canManageStylists(facilityUser)
 
     const { id } = await params
     const body = await request.json()
@@ -110,8 +113,8 @@ export async function PUT(
       revalidateTag('facilities', {})
     }
 
-    // For stylist role: upsert stylist record with commissionPercent
-    if (assignRole === 'stylist' && commissionPercent != null && accessRequest.fullName) {
+    // For stylist role: upsert stylist record with commissionPercent (manage-tier only — P51)
+    if (assignRole === 'stylist' && allowCommission && commissionPercent != null && accessRequest.fullName) {
       const existingStylist = await db.query.stylists.findFirst({
         where: (t) => and(
           eq(t.facilityId, assignFacilityId),

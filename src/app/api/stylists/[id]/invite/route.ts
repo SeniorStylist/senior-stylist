@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { invites, stylists, profiles, facilityUsers, facilities } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { sendEmail } from '@/lib/email'
 import { buildInviteEmailHtml } from '@/app/api/invites/route'
@@ -26,7 +26,7 @@ export async function POST(
     const master = !!su && user.email === su
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!master && facilityUser!.role !== 'admin')
+    if (!master && !canManageStylists(facilityUser))
       return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     const { id: stylistId } = await params

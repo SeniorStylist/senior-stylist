@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { services } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, canEditServices } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -80,7 +80,8 @@ export async function PUT(
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master) {
       if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
+      // P51 lockdown — catalog editing is manage-tier (facility roles view-only)
+      if (!canEditServices(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -118,15 +119,21 @@ export async function DELETE(
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) return Response.json({ error: 'Forbidden' }, { status: 403 })
-    const { facilityId } = facilityUser
+    // P51 — master bypass added (was missing here; PUT always had it) +
+    // manage-tier guard (facility roles are view-only on the catalog).
+    const master =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    const facilityUser = master ? null : await getUserFacility(user.id)
+    if (!master) {
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!canEditServices(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const [updated] = await db
       .update(services)
       .set({ active: false, updatedAt: new Date() })
-      .where(and(eq(services.id, id), eq(services.facilityId, facilityId)))
+      .where(master ? eq(services.id, id) : and(eq(services.id, id), eq(services.facilityId, facilityUser!.facilityId)))
       .returning()
 
     if (!updated) return Response.json({ error: 'Not found' }, { status: 404 })
