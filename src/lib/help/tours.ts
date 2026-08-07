@@ -41,6 +41,9 @@ export type Tutorial = {
   tourId: string | null
   /** Master-admin (env-email) only. */
   masterOnly?: boolean
+  /** P51 — manage tier only (master/franchise/bookkeeper): tours of pages
+   * facility admins can no longer open (e.g. compliance). */
+  manageOnly?: boolean
   /** Phase 12Y — viewport gate. Defaults to 'both' when omitted. */
   platform?: 'mobile' | 'desktop' | 'both'
   /** Phase 13 — scenario summary shown on help cards, e.g. "Book Mrs. Smith for a wash and set". */
@@ -171,7 +174,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Add residents, set up family portal access, and track service history.', estMinutes: 3, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'admin-residents' },
   { id: 'admin-reports', category: 'Reports', title: 'Reports & Analytics', blurb: 'Track revenue, bookings, and stylist performance over time.', estMinutes: 2, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'admin-reports', platform: 'both' },
   { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
-  { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance', platform: 'desktop' },
+  { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance', platform: 'desktop', manageOnly: true },
   { id: 'admin-command-palette', category: 'Navigation', title: 'Command Palette', blurb: 'Press CMD+K to instantly search residents, stylists, and pages.', estMinutes: 1, icon: 'Search', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-command-palette', platform: 'desktop' },
   { id: 'admin-peek-drawer', category: 'Navigation', title: 'Quick Profile Peek', blurb: 'Click any resident or stylist name to see their profile without leaving the page.', estMinutes: 1, icon: 'PanelRight', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-peek-drawer' },
 

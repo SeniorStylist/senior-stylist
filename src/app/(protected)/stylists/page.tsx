@@ -1,8 +1,8 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { stylists, complianceDocuments, stylistFacilityAssignments } from '@/db/schema'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { stylists, complianceDocuments, stylistFacilityAssignments, stylistAvailability } from '@/db/schema'
+import { getUserFacility, canManageStylists, isFacilityStaff } from '@/lib/get-facility-id'
 import { eq, and, inArray } from 'drizzle-orm'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/avatar'
@@ -14,13 +14,24 @@ const STATUS_COLOR: Record<'green' | 'amber' | 'red', string> = {
   red: 'bg-red-500',
 }
 
+const DAY_LABEL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 export default async function StylistsPage() {
   const user = await getAuthUser()
   if (!user) redirect('/login')
 
+  const isMaster =
+    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  if (facilityUser.role !== 'admin') redirect('/dashboard')
+  // P51 lockdown — manage tier gets the full page (detail links, compliance);
+  // facility admin + front desk get a READ-ONLY roster (names, colors,
+  // schedule days — no personal info, no compliance, no click-through).
+  const canManage = isMaster || canManageStylists(facilityUser)
+  const rosterOnly = !canManage && (facilityUser.role === 'admin' || isFacilityStaff(facilityUser.role))
+  if (!canManage && !rosterOnly) redirect('/dashboard')
 
   try {
   const assigned = await db
@@ -41,26 +52,52 @@ export default async function StylistsPage() {
           eq(stylists.active, true),
           eq(stylists.status, 'active'),
         ),
+        // Roster view never loads personal columns
+        columns: rosterOnly
+          ? { id: true, name: true, color: true, specialties: true }
+          : undefined,
         orderBy: (t, { asc }) => [asc(t.name)],
       })
     : []
 
-  const facilityDocs = await db.query.complianceDocuments.findMany({
-    where: eq(complianceDocuments.facilityId, facilityUser.facilityId),
-    columns: { stylistId: true, documentType: true, expiresAt: true, verified: true },
-  })
-  const docsByStylist = new Map<string, typeof facilityDocs>()
-  for (const d of facilityDocs) {
-    if (!docsByStylist.has(d.stylistId)) docsByStylist.set(d.stylistId, [])
-    docsByStylist.get(d.stylistId)!.push(d)
+  // Manage tier only — compliance dots
+  const stylistStatus = new Map<string, ReturnType<typeof computeComplianceStatus>>()
+  if (canManage && stylistsList.length > 0) {
+    const facilityDocs = await db.query.complianceDocuments.findMany({
+      where: eq(complianceDocuments.facilityId, facilityUser.facilityId),
+      columns: { stylistId: true, documentType: true, expiresAt: true, verified: true },
+    })
+    const docsByStylist = new Map<string, typeof facilityDocs>()
+    for (const d of facilityDocs) {
+      if (!docsByStylist.has(d.stylistId)) docsByStylist.set(d.stylistId, [])
+      docsByStylist.get(d.stylistId)!.push(d)
+    }
+    for (const s of stylistsList) {
+      stylistStatus.set(
+        s.id,
+        computeComplianceStatus(s as Parameters<typeof computeComplianceStatus>[0], docsByStylist.get(s.id) ?? [])
+      )
+    }
   }
 
-  const stylistStatus = new Map<string, ReturnType<typeof computeComplianceStatus>>()
-  for (const s of stylistsList) {
-    stylistStatus.set(
-      s.id,
-      computeComplianceStatus(s, docsByStylist.get(s.id) ?? [])
-    )
+  // Roster view — schedule days per stylist (one query)
+  const daysByStylist = new Map<string, string>()
+  if (rosterOnly && stylistsList.length > 0) {
+    const windows = await db.query.stylistAvailability.findMany({
+      where: and(
+        eq(stylistAvailability.facilityId, facilityUser.facilityId),
+        eq(stylistAvailability.active, true),
+        inArray(stylistAvailability.stylistId, stylistsList.map((s) => s.id)),
+      ),
+      columns: { stylistId: true, dayOfWeek: true },
+      orderBy: (t, { asc }) => [asc(t.dayOfWeek)],
+    })
+    const acc = new Map<string, number[]>()
+    for (const w of windows) {
+      if (!acc.has(w.stylistId)) acc.set(w.stylistId, [])
+      if (!acc.get(w.stylistId)!.includes(w.dayOfWeek)) acc.get(w.stylistId)!.push(w.dayOfWeek)
+    }
+    for (const [id, days] of acc) daysByStylist.set(id, days.map((d) => DAY_LABEL[d]).join(' · '))
   }
 
   return (
@@ -74,72 +111,94 @@ export default async function StylistsPage() {
         </h1>
         <p className="text-sm text-stone-500 mt-0.5">
           {stylistsList.length} active stylist{stylistsList.length !== 1 ? 's' : ''}
+          {rosterOnly ? ' · schedules and profiles are managed by your franchise team' : ''}
         </p>
       </div>
 
       {stylistsList.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-12 text-center">
-          <p className="text-stone-400 text-sm">No stylists yet. Add one from the dashboard.</p>
+          <p className="text-stone-400 text-sm">No stylists yet.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden" data-tour="stylists-table">
-          {stylistsList.map((stylist) => (
-            <Link
-              key={stylist.id}
-              href={`/stylists/${stylist.id}`}
-              className="flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
-            >
-              <Avatar name={stylist.name} color={stylist.color} size="md" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-stone-900">{stylist.name}</p>
-                  {stylist.licenseState && (
-                    <span className="text-[10px] font-semibold text-stone-500 px-1.5 py-0.5 rounded bg-stone-100 shrink-0">
-                      {stylist.licenseState.split(',').map((s) => s.trim()).join(' • ')}
-                    </span>
+          {stylistsList.map((stylist) => {
+            const rowInner = (
+              <>
+                <Avatar name={stylist.name} color={stylist.color} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-stone-900">{stylist.name}</p>
+                    {!rosterOnly && 'licenseState' in stylist && stylist.licenseState && (
+                      <span className="text-[10px] font-semibold text-stone-500 px-1.5 py-0.5 rounded bg-stone-100 shrink-0">
+                        {(stylist.licenseState as string).split(',').map((s) => s.trim()).join(' • ')}
+                      </span>
+                    )}
+                  </div>
+                  {rosterOnly && daysByStylist.get(stylist.id) && (
+                    <p className="text-[11.5px] text-stone-500 leading-snug mt-0.5">
+                      {daysByStylist.get(stylist.id)}
+                    </p>
+                  )}
+                  {stylist.specialties && stylist.specialties.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {stylist.specialties.map((s) => (
+                        <span
+                          key={s}
+                          className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full text-xs font-medium"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
-                {stylist.specialties && stylist.specialties.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {stylist.specialties.map((s) => (
-                      <span
-                        key={s}
-                        className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full text-xs font-medium"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
+                <div
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: stylist.color }}
+                  title="Calendar color"
+                />
+                {canManage && (() => {
+                  const status = stylistStatus.get(stylist.id) ?? 'none'
+                  if (status === 'none') return null
+                  return (
+                    <div
+                      className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLOR[status]}`}
+                      title={`Compliance: ${complianceStatusLabel(status)}`}
+                    />
+                  )
+                })()}
+                {canManage && (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="text-stone-300 shrink-0"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 )}
-              </div>
-              <div
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: stylist.color }}
-                title="Calendar color"
-              />
-              {(() => {
-                const status = stylistStatus.get(stylist.id) ?? 'none'
-                if (status === 'none') return null
-                return (
-                  <div
-                    className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLOR[status]}`}
-                    title={`Compliance: ${complianceStatusLabel(status)}`}
-                  />
-                )
-              })()}
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-stone-300 shrink-0"
+              </>
+            )
+            return canManage ? (
+              <Link
+                key={stylist.id}
+                href={`/stylists/${stylist.id}`}
+                className="flex items-center gap-4 px-5 py-4 hover:bg-stone-50 transition-colors border-b border-stone-50 last:border-0"
               >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </Link>
-          ))}
+                {rowInner}
+              </Link>
+            ) : (
+              <div
+                key={stylist.id}
+                className="flex items-center gap-4 px-5 py-4 border-b border-stone-50 last:border-0"
+              >
+                {rowInner}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

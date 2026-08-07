@@ -53,12 +53,14 @@ type PeekData = ResidentPeekData | StylistPeekData
 interface PeekDrawerProps {
   role: string
   isMaster: boolean
+  // P51 lockdown — manage tier: full-profile link on stylist peeks
+  canManage?: boolean
 }
 
 const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
 const LONG_DATE: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
 
-export function PeekDrawer({ role, isMaster }: PeekDrawerProps) {
+export function PeekDrawer({ role, isMaster, canManage = false }: PeekDrawerProps) {
   const router = useRouter()
   const { toast } = useToast()
   const isMobile = useIsMobile()
@@ -128,7 +130,7 @@ export function PeekDrawer({ role, isMaster }: PeekDrawerProps) {
     return () => document.removeEventListener('keydown', handler)
   }, [open, isMobile, close])
 
-  const content = renderContent({ data, loading, role, isMaster, router, close })
+  const content = renderContent({ data, loading, role, isMaster, canManage, router, close })
 
   if (typeof document === 'undefined') return null
 
@@ -183,6 +185,7 @@ function renderContent({
   loading,
   role,
   isMaster,
+  canManage,
   router,
   close,
 }: {
@@ -190,6 +193,7 @@ function renderContent({
   loading: boolean
   role: string
   isMaster: boolean
+  canManage: boolean
   router: ReturnType<typeof useRouter>
   close: () => void
 }) {
@@ -287,7 +291,8 @@ function renderContent({
   }
 
   const s = data.stylist
-  const canViewFullProfile = role === 'admin' || role === 'bookkeeper' || isMaster
+  // P51 lockdown — /stylists/[id] is manage-tier now
+  const canViewFullProfile = canManage
   return (
     <div className="p-5 flex flex-col gap-4">
       <div className="flex items-center gap-3 pr-10">

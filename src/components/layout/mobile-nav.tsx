@@ -198,9 +198,11 @@ interface MobileNavProps {
   userId?: string
   /** P47 — master only: shows the "Debug mode" row in the More sheet. */
   isMaster?: boolean
+  /** P51 — franchise admin (raw super_admin): keeps manage-tier tabs like Payroll. */
+  isFranchiseAdmin?: boolean
 }
 
-export function MobileNav({ role = 'admin', userId, isMaster = false }: MobileNavProps) {
+export function MobileNav({ role = 'admin', userId, isMaster = false, isFranchiseAdmin = false }: MobileNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
@@ -218,7 +220,12 @@ export function MobileNav({ role = 'admin', userId, isMaster = false }: MobileNa
     }, 4_000)
   }
   const [customizing, setCustomizing] = useState(false)
-  const available = navItems.filter((item) => item.roles.includes(role as NavRole))
+  const available = navItems.filter((item) => {
+    if (!item.roles.includes(role as NavRole)) return false
+    // P51 lockdown — Payroll is manage-tier: bookkeeper, franchise, master
+    if (item.href === '/payroll' && role === 'admin' && !isFranchiseAdmin && !isMaster) return false
+    return true
+  })
   // SSR renders the role default; the saved customization applies after mount
   // (lazy read would mismatch hydration since the server can't see localStorage).
   const [pinned, setPinned] = useState<string[]>(() =>

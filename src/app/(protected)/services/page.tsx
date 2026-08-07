@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { services, facilities } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, canEditServices } from '@/lib/get-facility-id'
 import { eq, and } from 'drizzle-orm'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { ServicesPageClient } from './services-page-client'
@@ -11,9 +11,20 @@ export default async function ServicesPage() {
   const user = await getAuthUser()
   if (!user) redirect('/login')
 
+  const isMaster =
+    !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+    user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) redirect('/dashboard')
+  // P51 — bookkeepers (manage tier) join admin/staff on this page; only the
+  // manage tier gets edit controls (facility roles are view-only).
+  if (
+    !isAdminOrAbove(facilityUser.role) &&
+    !isFacilityStaff(facilityUser.role) &&
+    facilityUser.role !== 'bookkeeper'
+  ) redirect('/dashboard')
+  const canEdit = isMaster || canEditServices(facilityUser)
 
   try {
   // is_demo filter — Phase 13. Demo-only during a scripted tour; real-only otherwise.
@@ -40,6 +51,7 @@ export default async function ServicesPage() {
     <ServicesPageClient
       services={JSON.parse(JSON.stringify(servicesList))}
       serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
+      canEdit={canEdit}
     />
   )
   } catch (err) {

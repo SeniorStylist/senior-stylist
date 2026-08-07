@@ -11,6 +11,8 @@ import { Search, BookOpen, ArrowRight } from 'lucide-react'
 interface HelpClientProps {
   role: string
   isMaster: boolean
+  /** P51 — manage tier: unlocks manageOnly tutorial cards (compliance etc.). */
+  canManage?: boolean
   completedTours: string[]
   helpProgress?: { tourId: string; stepIndex: number; scenarioState: Record<string, string> } | null
 }
@@ -40,8 +42,9 @@ function matchesPlatform(t: Tutorial, isMobile: boolean): boolean {
   return t.platform === (isMobile ? 'mobile' : 'desktop')
 }
 
-function visibleFor(role: string, isMaster: boolean, browseAll: boolean, isMobile: boolean): Tutorial[] {
-  const platformFilter = (t: Tutorial) => matchesPlatform(t, isMobile)
+function visibleFor(role: string, isMaster: boolean, canManage: boolean, browseAll: boolean, isMobile: boolean): Tutorial[] {
+  // P51 — manageOnly cards (compliance etc.) only for the manage tier
+  const platformFilter = (t: Tutorial) => matchesPlatform(t, isMobile) && (!t.manageOnly || isMaster || canManage)
   if (browseAll) return TUTORIAL_CATALOG.filter((t) => (isMaster || !t.masterOnly) && platformFilter(t))
   if (isMaster) return TUTORIAL_CATALOG.filter((t) => t.masterOnly && platformFilter(t))
 
@@ -81,7 +84,7 @@ function filterByQuery(items: Tutorial[], query: string): Tutorial[] {
   )
 }
 
-function HelpInner({ role, isMaster, completedTours, helpProgress }: HelpClientProps) {
+function HelpInner({ role, isMaster, canManage = false, completedTours, helpProgress }: HelpClientProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const isMobile = useIsMobile()
@@ -164,8 +167,8 @@ function HelpInner({ role, isMaster, completedTours, helpProgress }: HelpClientP
   }, [tourParam, router, isMobile])
 
   const allTutorials = useMemo(
-    () => visibleFor(role, isMaster, browseAll, isMobile),
-    [role, isMaster, browseAll, isMobile],
+    () => visibleFor(role, isMaster, canManage, browseAll, isMobile),
+    [role, isMaster, canManage, browseAll, isMobile],
   )
   const tutorials = useMemo(() => filterByQuery(allTutorials, query), [allTutorials, query])
   const grouped = useMemo(() => groupByCategory(tutorials), [tutorials])

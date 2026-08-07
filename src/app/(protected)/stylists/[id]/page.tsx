@@ -12,7 +12,7 @@ import {
   franchiseFacilities,
   profiles,
 } from '@/db/schema'
-import { getUserFacility, getUserFranchise, isAdminOrAbove } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
 import { eq, and, gte, lte, ne, desc } from 'drizzle-orm'
@@ -34,7 +34,9 @@ export default async function StylistDetailPage({
   const master = !!suEmail && user.email === suEmail
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser && !master) redirect('/dashboard')
-  if (facilityUser && !isAdminOrAbove(facilityUser.role)) redirect('/dashboard')
+  // P51 lockdown — the detail page (commission editor, PII, compliance) is
+  // manage-tier only; facility admins get the read-only roster on /stylists.
+  if (facilityUser && !master && !canManageStylists(facilityUser)) redirect('/dashboard')
 
   try {
   const franchise = await getUserFranchise(user.id)
@@ -247,7 +249,7 @@ export default async function StylistDetailPage({
       stats={stats}
       complianceDocuments={JSON.parse(JSON.stringify(complianceDocs))}
       availability={JSON.parse(JSON.stringify(availability))}
-      isAdmin={master || facilityUser?.role === 'admin'}
+      isAdmin={master || canManageStylists(facilityUser)}
       isMasterAdmin={isMasterAdmin}
       franchiseFacilities={JSON.parse(JSON.stringify(franchiseFacilityOptions))}
       assignments={JSON.parse(JSON.stringify(assignments))}

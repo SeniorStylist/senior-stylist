@@ -129,6 +129,9 @@ interface DashboardClientProps {
   checkinTodayBookings?: TodayBooking[]
   // P51 — card-on-file / salon-credit booleans per resident
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P51 lockdown — manage tier (master/franchise/bookkeeper): stylist panel
+  // add/commission/click-through
+  canManageStylists?: boolean
 }
 
 function formatHHMM(t: string): string {
@@ -165,6 +168,7 @@ export function DashboardClient({
   alreadyCheckedIn = false,
   checkinTodayBookings = [],
   paymentFlags = {},
+  canManageStylists = false,
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   // Phase 17 — set when the visible range was served from the offline read-cache
@@ -925,6 +929,7 @@ export function DashboardClient({
               stylists={stylists}
               onStylistAdded={(s) => setStylists((prev) => [...prev, s])}
               isAdmin={isAdmin}
+              canManage={canManageStylists}
             />
           )}
         </div>

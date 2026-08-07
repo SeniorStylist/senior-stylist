@@ -106,6 +106,8 @@ interface ReportsClientProps {
   revShareType?: string | null
   revSharePercentage?: number | null
   exportFacilities: ExportFacilityOption[]
+  // P51 lockdown — per-stylist commission table is manage-tier only
+  showStylistEarnings?: boolean
 }
 
 export function ReportsClient({
@@ -115,6 +117,7 @@ export function ReportsClient({
   revShareType,
   revSharePercentage,
   exportFacilities,
+  showStylistEarnings = false,
 }: ReportsClientProps) {
   const { toast } = useToast()
   const [showExportModal, setShowExportModal] = useState(false)
@@ -424,7 +427,7 @@ export function ReportsClient({
           </div>
 
           {/* Commissions */}
-          {data.commissions.some((c) => c.commissionPercent > 0) && (
+          {showStylistEarnings && data.commissions.some((c) => c.commissionPercent > 0) && (
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3.5 border-b border-stone-100">
                 <p className="text-sm font-semibold text-stone-700">Commissions</p>

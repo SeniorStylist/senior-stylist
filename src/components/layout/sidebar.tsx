@@ -15,7 +15,16 @@ import { PendingSignupBadge } from '@/components/signup-sheet/pending-signup-bad
 
 type NavRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist' | 'viewer'
 
-type NavItem = { href: string; label: string; icon: React.ReactNode; roles: NavRole[] }
+// P51 — optional show() overrides the roles filter: needed where the
+// franchise admin (normalized to 'admin') keeps an item the facility admin
+// loses (Directory, Payroll — manage-tier surfaces).
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ReactNode
+  roles: NavRole[]
+  show?: (role: NavRole, isFranchiseAdmin: boolean) => boolean
+}
 
 const SettingsIcon = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -91,7 +100,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       {
         href: '/stylists',
         label: 'Stylists',
-        roles: ['admin'],
+        roles: ['admin', 'bookkeeper'], // P51 — admin sees the read-only roster; bookkeeper manages
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
@@ -102,6 +111,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         href: '/stylists/directory',
         label: 'Directory',
         roles: ['admin'],
+        // P51 lockdown — manage tier only (franchise via rawRole, bookkeeper)
+        show: (role, isFranchiseAdmin) => isFranchiseAdmin || role === 'bookkeeper',
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
@@ -114,7 +125,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       {
         href: '/services',
         label: 'Services',
-        roles: ['admin', 'facility_staff'],
+        roles: ['admin', 'facility_staff', 'bookkeeper'], // P51 — bookkeeper edits; facility roles view-only
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="8" y1="6" x2="21" y2="6"/>
@@ -172,6 +183,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         href: '/payroll',
         label: 'Payroll',
         roles: ['admin', 'bookkeeper'],
+        // P51 lockdown — manage tier only (facility admin loses payroll)
+        show: (role, isFranchiseAdmin) => isFranchiseAdmin || role === 'bookkeeper',
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -465,18 +478,22 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             </kbd>
           </button>
         )}
-        {(ROLE_NAV_LAYOUT[role as NavRole]
-          ? ROLE_NAV_LAYOUT[role as NavRole]!.map((g) => ({
-              label: g.label,
-              items: g.hrefs
-                .map((h) => NAV_ITEM_BY_HREF[h])
-                .filter((i): i is NavItem => !!i && i.roles.includes(role as NavRole)),
-            }))
-          : navGroups.map((g) => ({
-              label: g.label,
-              items: g.items.filter((item) => item.roles.includes(role as NavRole)),
-            }))
-        ).map((group) => {
+        {(() => {
+          const itemVisible = (i: NavItem) =>
+            i.show ? i.show(role as NavRole, isFranchiseAdmin) : i.roles.includes(role as NavRole)
+          const layout = ROLE_NAV_LAYOUT[role as NavRole]
+          return layout
+            ? layout.map((g) => ({
+                label: g.label,
+                items: g.hrefs
+                  .map((h) => NAV_ITEM_BY_HREF[h])
+                  .filter((i): i is NavItem => !!i && i.roles.includes(role as NavRole) && itemVisible(i)),
+              }))
+            : navGroups.map((g) => ({
+                label: g.label,
+                items: g.items.filter((item) => item.roles.includes(role as NavRole) && itemVisible(item)),
+              }))
+        })().map((group) => {
           const visibleItems = group.items
           if (visibleItems.length === 0) return null
           return (

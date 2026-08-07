@@ -30,6 +30,9 @@ interface CommandPaletteProps {
    * Other roles get pages + the Ask-AI handoff (the /api/search route 403s
    * them anyway — prop-gating avoids console noise + rate-bucket burn). */
   canSearchEntities: boolean
+  /** P51 — manage tier (franchise/bookkeeper/master): unlocks manageTier
+   * palette routes (Payroll, Directory) that plain facility admins lost. */
+  canManage?: boolean
 }
 
 interface ResidentResult {
@@ -69,7 +72,7 @@ const PAGE_ICON_MAP: Record<string, LucideIcon> = {
   BookOpen,
 }
 
-export function CommandPalette({ role, isMaster, canSearchEntities }: CommandPaletteProps) {
+export function CommandPalette({ role, isMaster, canSearchEntities, canManage = false }: CommandPaletteProps) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -158,13 +161,13 @@ export function CommandPalette({ role, isMaster, canSearchEntities }: CommandPal
   )
 
   const filteredPages = useMemo<PaletteRoute[]>(() => {
-    const rolePages = PALETTE_ROUTES.filter((p) => isMaster || p.roles.includes(role))
+    const rolePages = PALETTE_ROUTES.filter((p) => isMaster || p.roles.includes(role) || (p.manageTier && canManage))
     if (!query) return rolePages
     const lower = query.toLowerCase()
     return rolePages.filter(
       (p) => p.label.toLowerCase().includes(lower) || p.description.toLowerCase().includes(lower),
     )
-  }, [query, role, isMaster])
+  }, [query, role, isMaster, canManage])
 
   const allItems = useMemo<FlatItem[]>(() => {
     const items: FlatItem[] = [askAiItem]

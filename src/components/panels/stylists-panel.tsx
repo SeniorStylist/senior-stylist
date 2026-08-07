@@ -23,9 +23,13 @@ interface StylistsPanelProps {
   stylists: Stylist[]
   onStylistAdded: (stylist: Stylist) => void
   isAdmin?: boolean
+  // P51 lockdown — manage tier (master/franchise/bookkeeper) gets the add
+  // button, the commission line, and click-through to the detail page.
+  // Facility roles see a plain roster.
+  canManage?: boolean
 }
 
-export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: StylistsPanelProps) {
+export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true, canManage = false }: StylistsPanelProps) {
   const router = useRouter()
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -73,7 +77,7 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-3 border-b border-stone-100">
-        {isAdmin && (
+        {isAdmin && canManage && (
           <div className="flex justify-end">
             <button
               onClick={() => setShowAdd((v) => !v)}
@@ -149,15 +153,19 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true }: Styl
           stylists.map((stylist) => (
             <button
               key={stylist.id}
-              onClick={() => router.push(`/stylists/${stylist.id}`)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out border-b border-stone-50 last:border-0"
+              onClick={() => { if (canManage) router.push(`/stylists/${stylist.id}`) }}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3.5 min-h-[44px] text-left border-b border-stone-50 last:border-0',
+                canManage && 'hover:bg-[#F9EFF2] transition-colors duration-[120ms] ease-out',
+                !canManage && 'cursor-default'
+              )}
             >
               <Avatar name={stylist.name} color={stylist.color} size="md" />
               <div className="flex-1 min-w-0">
                 <span className="block text-[13.5px] font-semibold text-stone-900 leading-snug truncate">
                   {stylist.name}
                 </span>
-                {stylist.commissionPercent > 0 && (
+                {canManage && stylist.commissionPercent > 0 && (
                   <span className="block text-[11.5px] text-stone-400 leading-snug mt-0.5">{stylist.commissionPercent}% commission</span>
                 )}
               </div>

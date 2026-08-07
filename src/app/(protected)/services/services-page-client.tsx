@@ -92,9 +92,12 @@ function pricingPayload(
 interface ServicesPageClientProps {
   services: Service[]
   serviceCategoryOrder?: string[] | null
+  // P51 lockdown — manage tier (master/franchise/bookkeeper) edits the
+  // catalog; facility admin + front desk get a view-only list.
+  canEdit?: boolean
 }
 
-export function ServicesPageClient({ services: initialServices, serviceCategoryOrder }: ServicesPageClientProps) {
+export function ServicesPageClient({ services: initialServices, serviceCategoryOrder, canEdit = false }: ServicesPageClientProps) {
   const categoryPriority = buildCategoryPriority(serviceCategoryOrder)
   const { toast } = useToast()
   const router = useRouter()
@@ -372,6 +375,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
           </svg>
           <span className="hidden md:inline">Refresh</span>
         </button>
+        {canEdit && (<>
         <Link
           href="/services/import?mode=update"
           className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#8B2E4A] bg-white border border-stone-200 rounded-xl hover:bg-stone-50 active:scale-95 transition-all"
@@ -404,6 +408,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
+        </>)}
         </div>
       </div>
 
@@ -562,6 +567,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
           {/* Table header */}
           <div className="grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-100 bg-stone-50">
             <div className="col-span-1 flex items-center">
+              {canEdit && (
               <input
                 type="checkbox"
                 checked={services.length > 0 && selectedIds.size === services.length}
@@ -577,6 +583,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 }}
                 className="rounded accent-[#8B2E4A] w-3.5 h-3.5"
               />
+              )}
             </div>
             {(['name', 'category', 'duration', 'price'] as const).map((key) => (
               <div
@@ -633,7 +640,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                   nodes.push(
                     <div
                       key={`cat-${cat}`}
-                      draggable
+                      draggable={canEdit}
                       onDragStart={() => setDragCategoryName(cat)}
                       onDragEnd={() => { setDragCategoryName(null); setDragOverCategoryName(null) }}
                       onDragOver={(e) => { if (dragCategoryName && dragCategoryName !== cat) { e.preventDefault(); setDragOverCategoryName(cat) } }}
@@ -662,14 +669,14 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                 dragServiceId === service.id && 'opacity-40',
                 dragOverServiceId === service.id && 'bg-rose-50'
               )}
-              draggable={sortKey === 'category' && editingId !== service.id}
+              draggable={canEdit && sortKey === 'category' && editingId !== service.id}
               onDragStart={() => setDragServiceId(service.id)}
               onDragEnd={() => { setDragServiceId(null); setDragOverServiceId(null) }}
               onDragOver={(e) => { if (dragServiceId && dragServiceId !== service.id) { e.preventDefault(); setDragOverServiceId(service.id) } }}
               onDrop={(e) => { e.preventDefault(); handleServiceDrop(service.id) }}
               onMouseEnter={() => setHoverId(service.id)}
               onMouseLeave={() => { setHoverId(null); if (confirmArchiveId === service.id) setConfirmArchiveId(null) }}
-              onLongPress={() => setSelectedIds((prev) => { const next = new Set(prev); next.add(service.id); return next })}
+              onLongPress={() => { if (canEdit) setSelectedIds((prev) => { const next = new Set(prev); next.add(service.id); return next }) }}
             >
               {editingId === service.id ? (
                 /* Inline edit row */
@@ -789,6 +796,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                         <circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" />
                       </svg>
                     )}
+                    {canEdit && (
                     <input
                       type="checkbox"
                       checked={selectedIds.has(service.id)}
@@ -804,6 +812,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                         selectedIds.size > 0 || hoverId === service.id ? 'opacity-100' : 'opacity-0'
                       )}
                     />
+                    )}
                   </div>
                   <div className="col-span-3 flex items-center gap-3">
                     <div
@@ -846,7 +855,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
                           No
                         </Button>
                       </>
-                    ) : hoverId === service.id ? (
+                    ) : canEdit && hoverId === service.id ? (
                       <>
                         <button
                           onClick={() => startEdit(service)}
@@ -884,7 +893,7 @@ export function ServicesPageClient({ services: initialServices, serviceCategoryO
       )}
 
       {/* Bookkeeper-added (ad-hoc) services — admin can promote into the price list */}
-      <AdhocServicesPanel />
+      {canEdit && <AdhocServicesPanel />}
     </div>
 
       {/* ── Multi-select floating action bar ── */}

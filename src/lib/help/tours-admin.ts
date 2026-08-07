@@ -120,7 +120,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '',
         title: "That's your workflow",
-        description: 'Triage the day → manage residents → watch analytics → configure in Settings. Billing, payroll, and stylists live on the full site too.',
+        description: 'Triage the day → manage residents → watch analytics → configure in Settings. Billing and reports live on the full site too.',
       },
     ],
     learnings: [

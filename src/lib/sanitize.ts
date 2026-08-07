@@ -13,6 +13,32 @@ export function sanitizeStylists(stylists: StylistRow[]): Stylist[] {
   return stylists.map(sanitizeStylist)
 }
 
+// P51 lockdown — operational roster shape for NON-manage-tier browsers
+// (facility admin, front desk, stylist). No commission, no email/phones/
+// address/license/payment fields — those never leave the server for
+// facility-side roles.
+export interface RosterStylist {
+  id: string
+  name: string
+  color: string
+  status: string
+  stylistCode: string
+  facilityId: string | null
+  isDemo: boolean
+}
+
+export function toRosterStylist(s: StylistRow): RosterStylist {
+  return {
+    id: s.id,
+    name: s.name,
+    color: s.color,
+    status: s.status,
+    stylistCode: s.stylistCode,
+    facilityId: s.facilityId ?? null,
+    isDemo: s.isDemo,
+  }
+}
+
 export type PublicFacility = Omit<Facility, 'stripeSecretKey' | 'qbAccessToken' | 'qbRefreshToken'> & {
   hasStripeSecret: boolean
   hasQuickBooks: boolean

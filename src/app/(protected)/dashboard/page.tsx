@@ -4,10 +4,10 @@ import { db } from '@/db'
 import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability, stylistCheckins, bookings } from '@/db/schema'
 import { eq, and, gte, lt, notInArray, inArray, asc, or } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
-import { sanitizeStylists, sanitizeFacility, toClientJson } from '@/lib/sanitize'
+import { sanitizeStylists, sanitizeFacility, toClientJson, toRosterStylist } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { DashboardClient } from './dashboard-client'
@@ -88,6 +88,9 @@ export default async function DashboardPage() {
   const isMaster =
     !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
     user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  // P51 lockdown — manage tier gets full stylist rows; facility roles get the
+  // stripped operational roster (no commission/PII in the browser payload).
+  const canManage = isMaster || canManageStylists(facilityUser)
 
   // Has a facility — load dashboard data (try/catch only wraps DB queries)
   try {
@@ -309,7 +312,7 @@ export default async function DashboardPage() {
           facilityId={facilityUser.facilityId}
           facility={toClientJson(sanitizeFacility(facility))}
           initialResidents={JSON.parse(JSON.stringify(residentsWithUsage))}
-          initialStylists={JSON.parse(JSON.stringify(sanitizeStylists(stylistsList)))}
+          initialStylists={JSON.parse(JSON.stringify(canManage ? sanitizeStylists(stylistsList) : stylistsList.map(toRosterStylist)))}
           initialServices={JSON.parse(JSON.stringify(servicesList))}
           isAdmin={facilityUser.role === 'admin'}
           userRole={facilityUser.role}
@@ -327,6 +330,7 @@ export default async function DashboardPage() {
           alreadyCheckedIn={!!todayCheckin}
           checkinTodayBookings={todayBookingsForClient}
           paymentFlags={paymentFlags}
+          canManageStylists={canManage}
         />
       </>
     )

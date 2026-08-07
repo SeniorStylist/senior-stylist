@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, facilityUsers } from '@/db/schema'
 import { and, eq, inArray, asc } from 'drizzle-orm'
-import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
+import { getUserFacility, canAccessBilling, canManageStylists } from '@/lib/get-facility-id'
 import { ReportsClient } from './reports-client'
 
 export default async function AnalyticsPage() {
@@ -59,6 +59,7 @@ export default async function AnalyticsPage() {
       revShareType={facility?.qbRevShareType ?? null}
       revSharePercentage={facility?.revSharePercentage ?? null}
       exportFacilities={exportFacilities}
+      showStylistEarnings={isMaster || canManageStylists(facilityUser)}
     />
   )
 }

@@ -1,7 +1,7 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
 import { db } from '@/db'
 import { profiles } from '@/db/schema'
 import { eq } from 'drizzle-orm'
@@ -37,6 +37,12 @@ export default async function HelpPage() {
     user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   const effectiveRole = debugRole ?? facilityUser.role
+  // P51 — manage tier: gates manageOnly tutorial cards (compliance etc.).
+  // Faithful under debug impersonation: previewing a facility admin shows
+  // the facility-admin catalog.
+  const canManage =
+    isMaster ||
+    (debugRole ? debugRaw?.includes('super_admin') === true || debugRole === 'bookkeeper' : canManageStylists(facilityUser))
 
   // Best-effort — the help catalog must render even if this read fails
   // (completed badges / resume banner just don't show).
@@ -59,6 +65,7 @@ export default async function HelpPage() {
     <HelpClient
       role={effectiveRole}
       isMaster={isMaster}
+      canManage={canManage}
       completedTours={profile?.completedTours ?? []}
       helpProgress={profile?.helpProgress ?? null}
     />

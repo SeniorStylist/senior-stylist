@@ -8,7 +8,7 @@ import {
   stylistFacilityAssignments,
   applicants as applicantsTable,
 } from '@/db/schema'
-import { getUserFacility, getUserFranchise } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { and, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { sanitizeStylists } from '@/lib/sanitize'
 import { DirectoryClient } from './directory-client'
@@ -19,7 +19,9 @@ export default async function StylistDirectoryPage() {
 
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
-  if (facilityUser.role !== 'admin') redirect('/dashboard')
+  // P51 lockdown — the directory (commissions, applicants, bulk ops) is
+  // manage-tier; it stays franchise-scoped (the master uses Master Admin).
+  if (!canManageStylists(facilityUser)) redirect('/dashboard')
 
   const franchise = await getUserFranchise(user.id)
 

@@ -257,11 +257,11 @@ Duplicate logins: if one person ends up with two accounts (invited at two addres
     keywords: ['service', 'price', 'catalog', 'menu', 'tiered', 'addon', 'price sheet', 'promote', 'reorder', 'category'],
     body: `The Services tab is the facility's menu of offerings and prices.
 
-Adding: "Add Service" with a name, price, and duration. Pricing types beyond fixed: add-on (rides along another service), tiered (price varies by quantity), and multi-option (pick one of several variants).
+Adding and editing the catalog is done by the franchise admin or bookkeeper (facility admins and front desk see the list read-only): "Add Service" with a name, price, and duration. Pricing types beyond fixed: add-on (rides along another service), tiered (price varies by quantity), and multi-option (pick one of several variants).
 
-Importing: admins can upload a price-sheet PDF/photo and the app reads every line into services — review before saving. The master admin can bulk-import price sheets for many facilities at once (files are auto-routed by the facility name found in the document).
+Importing: the franchise admin or bookkeeper can upload a price-sheet PDF/photo and the app reads every line into services — review before saving. The master admin can bulk-import price sheets for many facilities at once (files are auto-routed by the facility name found in the document).
 
-Ad-hoc services: when a bookkeeper or stylist creates a service while logging (e.g. "S/B Dry $45" from a walk-in), it's marked as a logging-only service so it doesn't appear on family-facing menus. Admins can review these at the bottom of the Services page and "promote" the real ones into the catalog with a proper price and category.
+Ad-hoc services: when anyone creates a service while logging (e.g. "S/B Dry $45" from a walk-in), it's marked as a logging-only service so it doesn't appear on family-facing menus. The franchise admin or bookkeeper can review these at the bottom of the Services page and "promote" the real ones into the catalog with a proper price and category.
 
 Organizing: drag services to reorder within a category, and drag category headers to reorder sections (desktop). Prices are edited any time — history keeps whatever price each past visit was actually charged.
 

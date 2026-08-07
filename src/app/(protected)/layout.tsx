@@ -261,9 +261,10 @@ export default async function ProtectedLayout({
                 isMaster={isMaster}
                 facilityId={activeFacilityId}
                 canSearchEntities={isMaster || activeRole === 'admin' || activeRole === 'bookkeeper'}
+                canManage={isMaster || franchiseAdmin || activeRole === 'bookkeeper'}
               />
             )}
-            <PeekDrawer role={activeRole} isMaster={isMaster} />
+            <PeekDrawer role={activeRole} isMaster={isMaster} canManage={isMaster || franchiseAdmin || activeRole === 'bookkeeper'} />
             <ScriptedTourOverlay />
             <FeedbackWidget />
             {/* P38 — AI personal assistant (all roles; capability enforced server-side) */}
@@ -273,7 +274,7 @@ export default async function ProtectedLayout({
           </ToastProvider>
         </div>
       </main>
-      <MobileNav role={activeRole} debugMode={debugMode} userId={user.id} isMaster={isMaster} />
+      <MobileNav role={activeRole} debugMode={debugMode} userId={user.id} isMaster={isMaster} isFranchiseAdmin={franchiseAdmin} />
       <MobileDebugButton isMaster={isMaster} allFacilities={allFacilities} currentFacilityId={activeFacilityId} />
       <InstallBanner />
       <DebugBadge />
