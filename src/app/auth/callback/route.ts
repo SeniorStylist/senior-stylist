@@ -54,7 +54,9 @@ export async function GET(request: NextRequest) {
     redirectUrl.pathname = qIdx >= 0 ? next.slice(0, qIdx) : next
     redirectUrl.search = qIdx >= 0 ? next.slice(qIdx) : ''
   } else {
-    redirectUrl.pathname = '/dashboard'
+    // P51 — '/' is the role-aware landing brain (admin → reports, franchise →
+    // /franchise, bookkeeper → /log, everyone else → calendar).
+    redirectUrl.pathname = '/'
     redirectUrl.search = ''
   }
 

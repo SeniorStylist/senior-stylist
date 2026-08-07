@@ -113,7 +113,8 @@ function LoginForm() {
         return
       }
       haptics.success()
-      window.location.href = redirect && redirect.startsWith('/') ? redirect : '/dashboard'
+      // P51 — '/' is the role-aware landing brain
+      window.location.href = redirect && redirect.startsWith('/') ? redirect : '/'
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {

@@ -155,9 +155,14 @@ const navItems: NavItem[] = [
 const MAX_PINNED = 5
 
 // Per-role default pinned tabs (hrefs, in display order).
+// P51 — admin leads with Analytics (their landing page) and drops Payroll
+// (facility lockdown: per-stylist comp is franchise/bookkeeper-side). Only
+// affects users with no saved pin state; franchise admins (raw super_admin,
+// normalized to 'admin' before this map is consulted) can re-pin Payroll
+// from the More sheet.
 const DEFAULT_PINNED: Record<string, string[]> = {
-  admin: ['/dashboard', '/log', '/residents', '/analytics', '/payroll'],
-  super_admin: ['/dashboard', '/log', '/residents', '/analytics', '/payroll'],
+  admin: ['/analytics', '/dashboard', '/log', '/residents', '/settings'],
+  super_admin: ['/analytics', '/dashboard', '/log', '/residents', '/settings'],
   facility_staff: ['/dashboard', '/log', '/signup-sheet', '/residents', '/settings'],
   stylist: ['/dashboard', '/log', '/my-account', '/help'],
   bookkeeper: ['/log', '/analytics', '/payroll', '/settings', '/help'],

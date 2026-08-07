@@ -202,6 +202,26 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 
 const SETTINGS_ROLES: NavRole[] = ['admin', 'facility_staff', 'bookkeeper']
 
+// P51 — per-role "most important first" nav ordering. Roles listed here get
+// their groups rebuilt from the navGroups item registry in this order (an
+// href the role can't see per item.roles is simply skipped, so this composes
+// with the role filter and with future item removals). Unlisted roles keep
+// the default navGroups order.
+const NAV_ITEM_BY_HREF: Record<string, NavItem> = Object.fromEntries(
+  navGroups.flatMap((g) => g.items).map((i) => [i.href, i]),
+)
+const ROLE_NAV_LAYOUT: Partial<Record<NavRole, { label: string; hrefs: string[] }[]>> = {
+  admin: [
+    { label: 'Reports & Money', hrefs: ['/analytics', '/billing', '/payroll'] },
+    { label: 'Scheduling', hrefs: ['/dashboard', '/residents', '/log', '/signup-sheet'] },
+    { label: 'Salon', hrefs: ['/services', '/signage', '/stylists', '/stylists/directory'] },
+  ],
+  bookkeeper: [
+    { label: 'Daily Work', hrefs: ['/log'] },
+    { label: 'Money', hrefs: ['/billing', '/analytics', '/payroll'] },
+  ],
+}
+
 interface FacilityOption {
   id: string
   name: string
@@ -445,8 +465,19 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
             </kbd>
           </button>
         )}
-        {navGroups.map((group) => {
-          const visibleItems = group.items.filter((item) => item.roles.includes(role as NavRole))
+        {(ROLE_NAV_LAYOUT[role as NavRole]
+          ? ROLE_NAV_LAYOUT[role as NavRole]!.map((g) => ({
+              label: g.label,
+              items: g.hrefs
+                .map((h) => NAV_ITEM_BY_HREF[h])
+                .filter((i): i is NavItem => !!i && i.roles.includes(role as NavRole)),
+            }))
+          : navGroups.map((g) => ({
+              label: g.label,
+              items: g.items.filter((item) => item.roles.includes(role as NavRole)),
+            }))
+        ).map((group) => {
+          const visibleItems = group.items
           if (visibleItems.length === 0) return null
           return (
             <div key={group.label} className="mb-4 last:mb-0">
@@ -498,50 +529,52 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         })}
       </nav>
 
-      {/* Help + Settings + Master Admin block — divider above, always last */}
-      <div className="px-3 pb-2">
-        <div className="border-t border-white/10 mx-1 mb-2" />
-        <Link
-          href="/help"
-          data-tour="nav-help"
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
-            pathname === '/help' || pathname.startsWith('/help/')
-              ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
-              : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
-          )}
-        >
-          <span className={cn('transition-colors duration-150', pathname === '/help' || pathname.startsWith('/help/') ? 'text-[#E8A0B0]' : 'text-white/50')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      {/* P51 — compact bottom block: Help + Settings share one two-up row and
+          the user block collapses to a single line, returning ~120px of
+          vertical space to the nav scroll area. KEEP every data-tour anchor
+          (nav-help, nav-settings, nav-master-admin, sidebar-avatar) — tours
+          target them. */}
+      <div className="px-3 pb-1.5">
+        <div className="border-t border-white/10 mx-1 mb-1.5" />
+        <div className="flex gap-1.5">
+          <Link
+            href="/help"
+            data-tour="nav-help"
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs transition-colors duration-150 ease-out',
+              pathname === '/help' || pathname.startsWith('/help/')
+                ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
+                : 'text-white/60 font-medium hover:bg-white/5 hover:text-white/90'
+            )}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/>
               <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
               <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
-          </span>
-          Help
-        </Link>
-        {SETTINGS_ROLES.includes(role as NavRole) && (
-          <Link
-            href="/settings"
-            data-tour="nav-settings"
-            className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors duration-150 ease-out',
-              pathname === '/settings' || pathname.startsWith('/settings/')
-                ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
-                : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
-            )}
-          >
-            <span className={cn('transition-colors duration-150', pathname === '/settings' || pathname.startsWith('/settings/') ? 'text-[#E8A0B0]' : 'text-white/50')}>
-              {SettingsIcon}
-            </span>
-            Settings
+            Help
           </Link>
-        )}
+          {SETTINGS_ROLES.includes(role as NavRole) && (
+            <Link
+              href="/settings"
+              data-tour="nav-settings"
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs transition-colors duration-150 ease-out',
+                pathname === '/settings' || pathname.startsWith('/settings/')
+                  ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
+                  : 'text-white/60 font-medium hover:bg-white/5 hover:text-white/90'
+              )}
+            >
+              <span className="[&_svg]:w-3.5 [&_svg]:h-3.5">{SettingsIcon}</span>
+              Settings
+            </Link>
+          )}
+        </div>
           {isFranchiseAdmin && (
             <Link
               href="/franchise"
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
+                'flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150',
                 pathname === '/franchise'
                   ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
                   : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
@@ -560,7 +593,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
               href="/master-admin"
               data-tour="nav-master-admin"
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
+                'flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150',
                 pathname === '/master-admin'
                   ? 'bg-[#8B2E4A]/30 text-white font-semibold shadow-inner'
                   : 'text-white/70 font-medium hover:bg-white/5 hover:text-white/90'
@@ -580,58 +613,54 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
           )}
       </div>
 
-      {/* User */}
-      <div className="px-3 py-4 border-t border-white/10">
+      {/* User — single condensed row (email lives in the tooltip) */}
+      <div className="px-3 py-2 border-t border-white/10">
         {role === 'viewer' && (
-          <div className="mx-3 mb-2 px-2 py-1 rounded-lg text-center text-[10px] font-semibold tracking-wide"
+          <div className="mx-3 mb-1.5 px-2 py-1 rounded-lg text-center text-[10px] font-semibold tracking-wide"
             style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
             View Only
           </div>
         )}
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl" data-tour="sidebar-avatar">
+        <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl" data-tour="sidebar-avatar" title={user.email ?? undefined}>
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
             style={{ backgroundColor: 'rgba(139, 46, 74, 0.2)', color: '#C4687A' }}
           >
             {userInitials}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-white truncate">
-              {user.user_metadata?.full_name ?? user.email}
-            </div>
-            <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              {user.email}
-            </div>
+          <div className="flex-1 min-w-0 text-xs font-medium text-white truncate">
+            {user.user_metadata?.full_name ?? user.email}
           </div>
+          <button
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            title="Sign out"
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
-        <button
-          onClick={handleSignOut}
-          className="mt-1 w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150"
-          style={{ color: 'rgba(255,255,255,0.4)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-          Sign out
-        </button>
-        <div className="mt-3 flex items-center justify-center gap-3 px-3">
+        <div className="mt-1 flex items-center justify-center gap-3 px-3">
           <a
             href="/privacy"
-            className="text-xs transition-colors"
+            className="text-[11px] transition-colors"
             style={{ color: 'rgba(255,255,255,0.25)' }}
             onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
           >
             Privacy
           </a>
-          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+          <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
           <a
             href="/terms"
-            className="text-xs transition-colors"
+            className="text-[11px] transition-colors"
             style={{ color: 'rgba(255,255,255,0.25)' }}
             onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}

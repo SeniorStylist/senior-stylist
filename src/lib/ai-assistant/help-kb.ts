@@ -297,6 +297,8 @@ Role visibility: admins see everything; front desk sees General (read-only); boo
 - Stylist: their own world only — their calendar, their daily log rows, their earnings, their profile/hours/time off. They can scan their own log sheets and add walk-ins (including brand-new residents).
 - Family (portal): their own resident(s) only, via the Family Portal — no staff app access.
 
+Where each role lands at sign-in: master → Master Admin, franchise admin → Franchise dashboard, facility admin → Analytics (reports), bookkeeper → Daily Log, front desk and stylists → Calendar. Every page in your sidebar stays one tap away regardless.
+
 Your assistant follows the same rules automatically: it can only see and change what YOU can.`,
   },
   {
