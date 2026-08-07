@@ -66,7 +66,7 @@ export function AssistantChat({
   chat,
   chips,
   heightStyle,
-  placeholder = 'Ask, or say what to do…',
+  placeholder = 'Ask me anything…',
   intro = 'Ask about your day, residents, or numbers — or tell me what to change. Anything that edits data asks you to confirm first.',
   composerAccessory = null,
 }: {

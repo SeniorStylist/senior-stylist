@@ -55,7 +55,7 @@ Other tools in the header: Email (send the formatted day log to any address), Ex
 Steps:
 1. On the Daily Log page, tap the scan button (camera icon).
 2. Bookkeepers and the master admin first pick which facility the sheets belong to — the "Scanning sheets for facility" selector at the top. Get this right: the sheet's residents are matched against THAT facility's roster. (The app also reads the facility name printed on the sheet and warns you if it doesn't match, with a one-tap "Switch to…" fix.)
-3. Take photos or upload images of each sheet (multiple pages fine). The AI reads resident names, rooms, services, prices, tips, and the stylist from the header.
+3. Take photos or upload images of each sheet (multiple pages fine). The scanner reads resident names, rooms, services, prices, tips, and the stylist from the header.
 4. Review screen: every row shows what was read. Matched residents/services are picked automatically; unmatched ones show "Will create new". You can fix any field, uncheck rows you don't want, set the payment type, and enter a mail subject per sheet.
 5. Confirm to import. Each row becomes a completed booking on that day's log.
 
@@ -173,7 +173,7 @@ Welcome coupons and per-facility toggles live in Settings → Family Portal.`,
 
 The facility card shows invoiced/collected/outstanding for the selected period, an aging strip (how old the open balances are), and an action toolbar:
 - Monthly view: month-by-month breakdown — invoiced, services performed, collected, still owed — with per-resident and per-day detail.
-- Scan Check: photograph a check or remittance slip; the AI reads the amount, facility, and per-resident lines, matches them, and records the payment. Unreadable ones are saved for manual resolution, never lost.
+- Scan Check: photograph a check or remittance slip; the scanner reads the amount, facility, and per-resident lines, matches them, and records the payment. Unreadable ones are saved for manual resolution, never lost.
 - Scan memos: reads free-text check memos ("Jean Hall $48 Alma Markley $48…") and proposes which residents/visits they pay for — you confirm before anything is applied.
 - Send Statement: emails the facility their statement (with a confirmation prompt so a stray tap never sends).
 - QuickBooks: sync invoices from QB and send via QB where connected.
@@ -259,7 +259,7 @@ Duplicate logins: if one person ends up with two accounts (invited at two addres
 
 Adding: "Add Service" with a name, price, and duration. Pricing types beyond fixed: add-on (rides along another service), tiered (price varies by quantity), and multi-option (pick one of several variants).
 
-Importing: admins can upload a price-sheet PDF/photo and the AI reads every line into services — review before saving. The master admin can bulk-import price sheets for many facilities at once (files are auto-routed by the facility name found in the document).
+Importing: admins can upload a price-sheet PDF/photo and the app reads every line into services — review before saving. The master admin can bulk-import price sheets for many facilities at once (files are auto-routed by the facility name found in the document).
 
 Ad-hoc services: when a bookkeeper or stylist creates a service while logging (e.g. "S/B Dry $45" from a walk-in), it's marked as a logging-only service so it doesn't appear on family-facing menus. Admins can review these at the bottom of the Services page and "promote" the real ones into the catalog with a proper price and category.
 
@@ -297,7 +297,7 @@ Role visibility: admins see everything; front desk sees General (read-only); boo
 - Stylist: their own world only — their calendar, their daily log rows, their earnings, their profile/hours/time off. They can scan their own log sheets and add walk-ins (including brand-new residents).
 - Family (portal): their own resident(s) only, via the Family Portal — no staff app access.
 
-The AI assistant follows the same rules automatically: it can only see and change what YOU can.`,
+Your assistant follows the same rules automatically: it can only see and change what YOU can.`,
   },
   {
     id: 'analytics-reports',
@@ -311,7 +311,7 @@ How numbers are counted (consistent app-wide):
 - Tips are the stylist's — never included in facility revenue.
 - Days and months follow the FACILITY's timezone.
 
-The "Ask AI" card at the top answers questions directly from your real numbers — "what was our best service last month?", "who owes us the most?" — and can drill into any facility for the master admin.
+The "Ask me anything" card at the top answers questions directly from your real numbers — "what was our best service last month?", "who owes us the most?" — and can drill into any facility for the master admin.
 
 Exports: the Export button produces the bookkeeper-format Excel of daily logs for any facility set and date range. The master admin also gets network-wide reports on the Master Admin page.`,
   },
@@ -334,7 +334,7 @@ Only completed visits export. "Invoice" in the Payment Type column means the vis
     body: `The Master Admin page is the owner's command center:
 
 - Facilities: every community with monthly appointment counts, collected totals, outstanding balances, and a health score chip (green/amber/red from utilization, collections, and cancellations). Search, sort, create, edit, deactivate.
-- Reports: network-wide monthly and outstanding reports, plus the Ask AI card with full network scope.
+- Reports: network-wide monthly and outstanding reports, plus the Ask-me-anything card with full network scope.
 - Franchises: group facilities under franchise owners.
 - Merge: fold duplicate facility records together (guided, with a type-the-name confirmation).
 - Imports: the hub for QuickBooks CSVs, service-log history, price sheets, and the facility CSV.
@@ -391,9 +391,9 @@ And of course — you can just ask me. I can explain any feature in as much deta
   },
   {
     id: 'assistant',
-    title: 'The AI assistant — what it can do',
+    title: 'Your assistant — what it can do',
     keywords: ['ai', 'assistant', 'voice', 'ask', 'sparkle', 'chat', 'what can you do'],
-    body: `The assistant (the sparkle button, and the Ask AI card on Analytics) answers questions from your real data and makes changes for you — always with a Confirm tap before anything is saved. Fast ways in: press Cmd+K (Ctrl+K on Windows) or the Search box in the sidebar — type anything and pick "Ask the assistant"; on your phone, tap the sparkle in the top bar.
+    body: `The assistant (the sparkle button, and the Ask-me-anything card on Analytics) answers questions from your real data and makes changes for you — always with a Confirm tap before anything is saved. Fast ways in: press Cmd+K (Ctrl+K on Windows) or the Search box in the sidebar — type anything and pick "Ask the assistant"; on your phone, tap the sparkle in the top bar.
 
 Ask things: "who's on the schedule tomorrow?", "how much does Mrs. Hall owe?", "when was John's last visit?", "how did we do last month?", "how do I scan a log sheet?"
 

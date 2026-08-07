@@ -204,7 +204,7 @@ export function MemoBatchModal({
             <div className="skeleton rounded-xl h-14" />
             <div className="skeleton rounded-xl h-14" />
             <p className="text-xs text-stone-400 text-center pt-2">
-              AI is reading all memos — this may take a moment…
+              Reading all the memos — this may take a moment…
             </p>
           </div>
         ) : state === 'error' ? (

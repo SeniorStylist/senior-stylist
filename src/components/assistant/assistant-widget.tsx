@@ -237,7 +237,7 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
         // a hard 70dvh inside it clipped the composer when typing).
         height: isMobile ? `min(70dvh, calc(100dvh - ${occlusion + 140}px))` : '480px',
       }}
-      placeholder={listening ? 'Listening… speak now' : 'Ask, or say what to do…'}
+      placeholder={listening ? 'Listening… speak now' : 'Ask me anything…'}
       composerAccessory={micButton}
     />
   )
@@ -256,8 +256,8 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={activeGuide ? 'Guided walk running — open chat' : 'AI assistant'}
-        title={activeGuide ? 'Guiding you — tap for chat' : 'AI assistant'}
+        aria-label={activeGuide ? 'Guided walk running — open chat' : 'Your assistant — ask me anything'}
+        title={activeGuide ? 'Guiding you — tap for chat' : 'Ask me anything'}
         data-tour="assistant-button"
         className={
           activeGuide
@@ -293,7 +293,7 @@ export function AssistantWidget({ role, isMaster }: { role: string; isMaster?: b
               style={{ right: '1.25rem', bottom: 'calc(var(--app-floating-bottom) + 64px)' }}
               role="dialog"
               aria-modal="true"
-              aria-label="AI assistant"
+              aria-label="Your assistant"
             >
               <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-stone-100">
                 <h2 className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5">

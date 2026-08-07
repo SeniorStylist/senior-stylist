@@ -27,11 +27,11 @@ export function AssistantCard({ scope }: { scope: 'facility' | 'master' }) {
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-stone-900">Ask AI</p>
+          <p className="text-sm font-semibold text-stone-900">Ask me anything</p>
           <p className="text-xs text-stone-500">
             {scope === 'master'
-              ? 'Questions and actions across the whole network — answered from your real data'
-              : 'Questions and actions for this facility — answered from your real data'}
+              ? 'Your assistant — questions and actions across the whole network, answered from your real data'
+              : 'Your assistant — questions and actions for this facility, answered from your real data'}
           </p>
         </div>
         <svg

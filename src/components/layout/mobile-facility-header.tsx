@@ -89,7 +89,7 @@ export function MobileFacilityHeader({
               widget's data-tour anchor — the meet-assistant tour resolves it. */}
           <button
             type="button"
-            aria-label="AI assistant"
+            aria-label="Your assistant — ask me anything"
             data-tour-mobile="assistant-button"
             onClick={() => window.dispatchEvent(new CustomEvent('open-assistant'))}
             className="w-9 h-9 flex items-center justify-center rounded-full text-[#8B2E4A] active:bg-[#F9EFF2] transition-colors"

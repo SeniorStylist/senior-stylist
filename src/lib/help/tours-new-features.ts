@@ -364,7 +364,7 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
   // P38 but nothing pointed at it).
   {
     id: 'scripted-meet-assistant',
-    title: 'Meet Your AI Assistant',
+    title: 'Meet Your Assistant',
     scenarioSummary: 'Ask anything, get things done, be walked through the app',
     platform: 'desktop',
     role: 'admin',
@@ -373,7 +373,7 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '[data-tour="assistant-button"]',
         route: '/dashboard',
-        title: 'Your AI coworker lives here',
+        title: 'Your personal assistant lives here',
         description: 'Tap the sparkle anytime — ask about your day, your residents, or your numbers in plain English. Type or talk.',
       },
       {
