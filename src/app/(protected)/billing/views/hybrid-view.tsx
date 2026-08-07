@@ -8,6 +8,7 @@ import {
 } from './billing-shared'
 import { IPView } from './ip-view'
 import { RFMSView } from './rfms-view'
+import { isIndividualPayer } from '@/lib/resident-payment-types'
 
 export function HybridView({
   facility,
@@ -24,8 +25,10 @@ export function HybridView({
   onRefresh: () => void
   onPaymentUpdated?: (payment: BillingPayment) => void
 }) {
-  const ipResidents = residents.filter((r) => r.residentPaymentType === 'ip')
-  const rfmsResidents = residents.filter((r) => r.residentPaymentType !== 'ip')
+  // P51 — any 'ip*' payer type counts as individual (ip, ip_card, ip_cash,
+  // ip_check); null/facility/credit stay on the RFMS side, as always.
+  const ipResidents = residents.filter((r) => isIndividualPayer(r.residentPaymentType))
+  const rfmsResidents = residents.filter((r) => !isIndividualPayer(r.residentPaymentType))
 
   const ipResidentIds = new Set(ipResidents.map((r) => r.id))
   const rfmsResidentIds = new Set(rfmsResidents.map((r) => r.id))

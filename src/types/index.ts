@@ -96,6 +96,8 @@ export interface Resident {
   defaultTipValue: number | null
   dateOfBirth?: string | null
   photoPath?: string | null
+  /** P51 — payer-type framework ('ip' | 'ip_card' | 'ip_cash' | 'ip_check' | 'facility' | 'credit'). */
+  residentPaymentType?: string | null
   active: boolean
   createdAt: Date | null
   updatedAt: Date | null

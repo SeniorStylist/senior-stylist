@@ -10,6 +10,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
+import { RESIDENT_PAYMENT_TYPES, RESIDENT_PAYMENT_TYPE_LABELS, residentPaymentTypeLabel } from '@/lib/resident-payment-types'
 import { ResidentLedger } from '@/components/residents/resident-ledger'
 import { ResidentPhotoGallery } from '@/components/residents/resident-photo-gallery'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
@@ -82,6 +83,8 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [poaEmail, setPoaEmail] = useState(initialResident.poaEmail ?? '')
   const [poaPhone, setPoaPhone] = useState(initialResident.poaPhone ?? '')
   const [poaPaymentMethod, setPoaPaymentMethod] = useState(initialResident.poaPaymentMethod ?? '')
+  // P51 — payer-type framework
+  const [residentPaymentType, setResidentPaymentType] = useState(initialResident.residentPaymentType ?? '')
   const [poaNotificationsEnabled, setPoaNotificationsEnabled] = useState(initialResident.poaNotificationsEnabled !== false)
   const [tipDefault, setTipDefault] = useState<DefaultTipValue>({
     type: (initialResident.defaultTipType as 'percentage' | 'fixed' | null) ?? null,
@@ -190,6 +193,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
           roomNumber: roomNumber.trim() || undefined,
           phone: phone.trim() || undefined,
           dateOfBirth: dateOfBirth || null,
+          residentPaymentType: residentPaymentType || null,
           notes: notes.trim() || undefined,
           defaultServiceId: defaultServiceId || null,
           poaName: poaName.trim() || undefined,
@@ -242,6 +246,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
     setPoaEmail(resident.poaEmail ?? '')
     setPoaPhone(resident.poaPhone ?? '')
     setPoaPaymentMethod(resident.poaPaymentMethod ?? '')
+    setResidentPaymentType(resident.residentPaymentType ?? '')
     setPoaNotificationsEnabled(resident.poaNotificationsEnabled !== false)
     setTipDefault({
       type: (resident.defaultTipType as 'percentage' | 'fixed' | null) ?? null,
@@ -400,6 +405,20 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     </select>
                   </div>
                 )}
+                <div>
+                  <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1">Payment Type</label>
+                  <select
+                    value={residentPaymentType}
+                    onChange={(e) => setResidentPaymentType(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] transition-all"
+                  >
+                    <option value="">— Not set —</option>
+                    {RESIDENT_PAYMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>{RESIDENT_PAYMENT_TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-stone-400 mt-1">Who pays for this resident&apos;s services — drives the billing split.</p>
+                </div>
                 <div className="pt-1">
                   <DefaultTipPicker value={tipDefault} onChange={setTipDefault} />
                 </div>
@@ -478,6 +497,15 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     ? new Date(resident.dateOfBirth.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
                     : undefined}
                 />
+                {/* P51 — payer-type badge */}
+                {residentPaymentTypeLabel(resident.residentPaymentType) && (
+                  <div>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Payment Type</p>
+                    <span className="inline-flex items-center bg-stone-100 text-stone-600 px-2.5 py-0.5 rounded-full text-xs font-medium">
+                      {residentPaymentTypeLabel(resident.residentPaymentType)}
+                    </span>
+                  </div>
+                )}
                 {preferredServiceName && (
                   <div>
                     <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Preferred Service</p>

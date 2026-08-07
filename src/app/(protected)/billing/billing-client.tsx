@@ -17,6 +17,7 @@ import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel
 import { ScanCheckModal, ScanResult } from './components/scan-check-modal'
 import { MemoBatchModal } from '@/components/billing/memo-batch-modal'
 import { PageHeader } from '@/components/ui/page-header'
+import { isIndividualPayer } from '@/lib/resident-payment-types'
 import { CreditCard } from 'lucide-react'
 import { useCountUp } from '@/hooks/use-count-up'
 import { useToast } from '@/components/ui/toast'
@@ -1222,6 +1223,29 @@ export function BillingClient({
                 </div>
               </div>
             )}
+
+            {/* P51 — payer-type framework: facility-vs-individual split, computed
+                client-side from the residents the summary already returns. No
+                totals-math changes — just who-pays visibility. */}
+            {(() => {
+              const rs = summary?.residents ?? []
+              const tagged = rs.filter((r) => !!r.residentPaymentType)
+              if (tagged.length === 0) return null
+              const individual = rs.filter((r) => isIndividualPayer(r.residentPaymentType))
+              const facilityBilled = rs.length - individual.length
+              const indBalance = individual.reduce((s, r) => s + (r.qbOutstandingBalanceCents ?? 0), 0)
+              const facBalance = rs.filter((r) => !isIndividualPayer(r.residentPaymentType)).reduce((s, r) => s + (r.qbOutstandingBalanceCents ?? 0), 0)
+              return (
+                <div className="mt-3 text-xs text-stone-500">
+                  Payer split:{' '}
+                  <span className="font-semibold text-stone-700">{facilityBilled} facility-billed</span>
+                  {facBalance > 0 && <span className="tabular-nums"> ({formatDollars(facBalance)} open)</span>}
+                  {' · '}
+                  <span className="font-semibold text-stone-700">{individual.length} individual payer{individual.length === 1 ? '' : 's'}</span>
+                  {indBalance > 0 && <span className="tabular-nums"> ({formatDollars(indBalance)} open)</span>}
+                </div>
+              )
+            })()}
 
             {customOpen && activePeriod === 'custom' ? (
               <div

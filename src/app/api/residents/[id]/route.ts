@@ -22,6 +22,9 @@ const updateSchema = z.object({
   defaultTipValue: z.number().int().min(0).max(10_000_000).nullable().optional(),
   // Phase 15 F3 — birthday reminders (column existed since 14A, UI writes it now)
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  // P51 — payer-type framework (column existed since P36, UI writes it now).
+  // Framework only: drives badges + the billing facility-vs-individual split.
+  residentPaymentType: z.enum(['ip', 'ip_card', 'ip_cash', 'ip_check', 'facility', 'credit']).nullable().optional(),
 })
 
 export async function GET(

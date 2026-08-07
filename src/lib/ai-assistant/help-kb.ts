@@ -171,7 +171,7 @@ Welcome coupons and per-facility toggles live in Settings → Family Portal.`,
     roles: ['admin', 'bookkeeper', 'master'],
     body: `The Billing page is the money hub for a facility (admins, bookkeepers, and the master admin; bookkeepers and master can switch between facilities right on the page).
 
-The facility card shows invoiced/collected/outstanding for the selected period, an aging strip (how old the open balances are), and an action toolbar:
+The facility card shows invoiced/collected/outstanding for the selected period, an aging strip (how old the open balances are), a payer-split line (how many residents are facility-billed vs individual payers, with each side's open balance — set a resident's Payment Type on their profile: Individual (card/cash/check), Facility-billed, or Salon credit), and an action toolbar:
 - Monthly view: month-by-month breakdown — invoiced, services performed, collected, still owed — with per-resident and per-day detail.
 - Scan Check: photograph a check or remittance slip; the scanner reads the amount, facility, and per-resident lines, matches them, and records the payment. Unreadable ones are saved for manual resolution, never lost.
 - Scan memos: reads free-text check memos ("Jean Hall $48 Alma Markley $48…") and proposes which residents/visits they pay for — you confirm before anything is applied.
