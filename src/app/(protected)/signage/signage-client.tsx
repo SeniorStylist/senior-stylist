@@ -34,6 +34,9 @@ const TEMPLATES: Template[] = [
   { id: 'now-open', name: 'Now Open', category: 'General', accent: '#0F766E', title: 'The Salon is Open', subtitle: 'Walk-ins Welcome', dateLine: '', body: 'Come on in and relax', footer: '' },
   { id: 'price-list', name: 'Price List', category: 'General', accent: '#1E3A5F', title: 'Salon Services', subtitle: '', dateLine: '', body: 'Haircut — $25\nShampoo & Set — $35\nManicure — $20\nStyling — $30', footer: 'Ask at the front desk to book' },
   { id: 'welcome', name: 'Welcome', category: 'General', accent: '#6B21A8', title: 'Welcome!', subtitle: '', dateLine: '', body: 'We’re so glad you’re here.', footer: '' },
+  // P51 — QR poster for the family self-signup wizard (needs a facility code;
+  // the button hides without one). Kept in General to avoid a new category.
+  { id: 'family-signup', name: 'Family Sign-Up', category: 'General', accent: '#8B2E4A', title: 'Family Portal', subtitle: 'Book & pay online for your loved one', dateLine: '', body: 'Scan the code with your phone camera\nto create your family account', footer: 'Questions? Ask at the front desk' },
   { id: 'holiday-hours', name: 'Holiday Hours', category: 'Holiday', accent: '#B91C1C', title: 'Holiday Hours', subtitle: '', dateLine: '', body: 'Closed Dec 24–25\nOpen Dec 26 · 9am–4pm', footer: 'Happy Holidays from all of us' },
   { id: 'closed-holiday', name: 'Closed for Holiday', category: 'Holiday', accent: '#B7791F', title: 'Closed Today', subtitle: 'Happy Holidays!', dateLine: '', body: 'The salon will reopen tomorrow.', footer: '' },
   { id: 'happy-holidays', name: 'Happy Holidays', category: 'Holiday', accent: '#0F766E', title: 'Happy Holidays!', subtitle: 'From the salon team', dateLine: '', body: 'Wishing you joy this season', footer: '' },
@@ -53,6 +56,10 @@ interface SignConfig {
   dateLine: string
   body: string
   footer: string
+  // P51 — the ONLY unescaped field in buildSignHtml. Always a locally-generated
+  // data URL from the qrcode lib (never user input); the data:image/ prefix
+  // check below is the defense if that ever changes.
+  qrDataUrl: string | null
 }
 
 function buildSignHtml(cfg: SignConfig): string {
@@ -79,6 +86,7 @@ body { font-family:'DM Sans',system-ui,sans-serif; color:#1c1917; -webkit-print-
 .dateline { font-size:4.8vh; font-weight:700; background:${cfg.accent}; color:#fff; padding:1.2vh 4vw; border-radius:999px; }
 .lines { display:flex; flex-direction:column; gap:1.2vh; margin-top:1vh; }
 .line { font-size:3.6vh; color:#292524; }
+.qr { width:26vh; height:26vh; border:0.6vh solid ${cfg.accent}; border-radius:2vh; padding:1vh; background:#fff; }
 .note { font-size:3vh; color:#57534e; margin-top:1vh; }
 .footer { font-size:2vh; color:#a8a29e; letter-spacing:0.06em; text-transform:uppercase; margin-top:auto; padding-top:3vh; }
 </style></head>
@@ -87,15 +95,18 @@ ${cfg.showFacility ? `<div class="facility">${e(cfg.facilityName)}</div>` : ''}
 ${cfg.title ? `<div class="title">${e(cfg.title)}</div>` : ''}
 ${cfg.subtitle ? `<div class="subtitle">${e(cfg.subtitle)}</div>` : ''}
 ${cfg.dateLine ? `<div class="dateline">${e(cfg.dateLine)}</div>` : ''}
+${cfg.qrDataUrl && cfg.qrDataUrl.startsWith('data:image/') ? `<img class="qr" src="${cfg.qrDataUrl}" alt="Sign-up QR code">` : ''}
 ${lines ? `<div class="lines">${lines}</div>` : ''}
 ${cfg.footer ? `<div class="note">${e(cfg.footer)}</div>` : ''}
 <div class="footer">Senior Stylist${cfg.facilityPhone ? ' · ' + e(cfg.facilityPhone) : ''}</div>
 </div></div></body></html>`
 }
 
-export function SignageClient({ facilityName, facilityPhone }: { facilityName: string; facilityPhone: string | null }) {
+export function SignageClient({ facilityName, facilityPhone, facilityCode = null }: { facilityName: string; facilityPhone: string | null; facilityCode?: string | null }) {
   const { toast } = useToast()
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id)
+  // P51 — QR data-URL for the family-signup template, generated on selection
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [showFacility, setShowFacility] = useState(true)
   const [accent, setAccent] = useState(TEMPLATES[0].accent)
   const [title, setTitle] = useState(TEMPLATES[0].title)
@@ -146,7 +157,41 @@ export function SignageClient({ facilityName, facilityPhone }: { facilityName: s
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only prefill
   }, [])
 
-  const cfg: SignConfig = { facilityName, facilityPhone, showFacility, accent, title, subtitle, dateLine, body, footer }
+  // P51 — generate the signup-wizard QR once per family-signup selection
+  // (mirrors the Settings → Family Portal poster in portal-section.tsx).
+  useEffect(() => {
+    if (templateId !== 'family-signup' || !facilityCode) {
+      setQrDataUrl(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const QRCode = (await import('qrcode')).default
+        const url = `${window.location.origin}/family/${encodeURIComponent(facilityCode)}/signup`
+        const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 1, color: { dark: '#1C0A12' } })
+        if (!cancelled) setQrDataUrl(dataUrl)
+      } catch {
+        if (!cancelled) setQrDataUrl(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [templateId, facilityCode])
+
+  const cfg: SignConfig = {
+    facilityName,
+    facilityPhone,
+    showFacility,
+    accent,
+    title,
+    subtitle,
+    dateLine,
+    body,
+    footer,
+    qrDataUrl: templateId === 'family-signup' ? qrDataUrl : null,
+  }
   const html = buildSignHtml(cfg)
 
   const print = async () => {
@@ -171,7 +216,9 @@ export function SignageClient({ facilityName, facilityPhone }: { facilityName: s
     setTimeout(() => w.print(), 450)
   }
 
-  const general = TEMPLATES.filter((t) => t.category === 'General')
+  // P51 — the QR poster needs a facility code to build its link; hide the
+  // template for facilities without one.
+  const general = TEMPLATES.filter((t) => t.category === 'General' && (t.id !== 'family-signup' || !!facilityCode))
   const holiday = TEMPLATES.filter((t) => t.category === 'Holiday')
 
   const inputCls = 'w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20'

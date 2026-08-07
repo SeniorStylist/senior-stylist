@@ -347,11 +347,11 @@ You can switch the app to any facility (sidebar switcher, or tell the assistant 
   {
     id: 'signage',
     title: 'Signage — printable salon signs',
-    keywords: ['sign', 'poster', 'print', 'salon day', 'holiday', 'closed', 'welcome'],
+    keywords: ['sign', 'poster', 'print', 'salon day', 'holiday', 'closed', 'welcome', 'qr', 'family sign-up'],
     roles: ['admin', 'facility_staff', 'master'],
-    body: `The Signage page (sidebar, desktop) makes ready-to-print salon signs: Salon Day, Now Open, Price List, Welcome, and holiday variants (Holiday Hours, Closed, Happy Holidays).
+    body: `The Signage page (sidebar, desktop) makes ready-to-print salon signs: Salon Day, Now Open, Price List, Welcome, Family Sign-Up (a QR poster families scan to create their portal account — the facility needs a facility code for it to appear), and holiday variants (Holiday Hours, Closed, Happy Holidays).
 
-Pick a template, edit the text, watch the live preview, then "Print / Save PDF" — it opens the sign in a print window; use your browser's Save-as-PDF to keep a file. Signs are automatically branded with the facility name.`,
+Pick a template, edit the text, watch the live preview, then "Print / Save PDF" — it opens the sign in a print window; use your browser's Save-as-PDF to keep a file. Signs are automatically branded with the facility name. The same family sign-up poster is also printable from Settings → Family Portal.`,
   },
   {
     id: 'notifications',

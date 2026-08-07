@@ -19,8 +19,14 @@ export default async function SignagePage() {
 
   const facility = await db.query.facilities.findFirst({
     where: eq(facilities.id, fu.facilityId),
-    columns: { name: true, phone: true },
+    columns: { name: true, phone: true, facilityCode: true },
   })
 
-  return <SignageClient facilityName={facility?.name ?? 'Our Salon'} facilityPhone={facility?.phone ?? null} />
+  return (
+    <SignageClient
+      facilityName={facility?.name ?? 'Our Salon'}
+      facilityPhone={facility?.phone ?? null}
+      facilityCode={facility?.facilityCode ?? null}
+    />
+  )
 }

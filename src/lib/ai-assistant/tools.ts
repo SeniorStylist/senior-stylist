@@ -1674,14 +1674,14 @@ const startGuidedWalkTool: AssistantTool = {
 // these params on mount — KEEP ids/params in sync with signage-client.tsx
 // TEMPLATES + its P42 prefill effect). Read-kind: it only constructs a URL.
 const SIGN_TEMPLATE_IDS = [
-  'salon-day', 'now-open', 'price-list', 'welcome',
+  'salon-day', 'now-open', 'price-list', 'welcome', 'family-signup',
   'holiday-hours', 'closed-holiday', 'happy-holidays',
 ] as const
 
 const createSign: AssistantTool = {
   name: 'create_sign',
   description:
-    'Create a printable salon sign: builds a ready link to the Signage page prefilled with the chosen template and text. Use when the user asks to make/create a sign or poster (salon day, open/closed, holiday, price list, welcome). Include the returned link on its own line in your answer.',
+    'Create a printable salon sign: builds a ready link to the Signage page prefilled with the chosen template and text. Use when the user asks to make/create a sign or poster (salon day, open/closed, holiday, price list, welcome, or the family sign-up QR poster — template family-signup). Include the returned link on its own line in your answer.',
   parameters: {
     type: 'OBJECT',
     properties: {
