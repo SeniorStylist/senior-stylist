@@ -12,11 +12,13 @@ interface FacilityOption {
 
 type DebugRole = 'admin' | 'super_admin' | 'facility_staff' | 'bookkeeper' | 'stylist'
 
+// P51 — insertion order drives the pill order: bigger → smaller scale
+// (franchise → cross-facility → facility → chair), matching the Debug tab.
 const ROLE_LABELS: Record<DebugRole, string> = {
-  admin: 'Facility Admin',
   super_admin: 'Franchise Admin',
-  facility_staff: 'Facility Staff',
   bookkeeper: 'Bookkeeper',
+  admin: 'Facility Admin',
+  facility_staff: 'Facility Staff',
   stylist: 'Stylist',
 }
 

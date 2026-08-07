@@ -135,13 +135,16 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     }
   }
 
-  const rows: { role: DebugRole | 'portal'; label: string; desc: string }[] = [
-    { role: 'admin', label: 'Facility Admin View', desc: 'Full admin of one facility — residents, billing, settings, reports' },
+  // P51 — ordered bigger → smaller scale (franchise → cross-facility → facility
+  // → chair → family), per Josh 2026-08-07.
+  const rows: { role: DebugRole | 'portal' | 'signup'; label: string; desc: string }[] = [
     { role: 'super_admin', label: 'Franchise Admin View', desc: 'Admin across all the franchise’s facilities + the Franchise dashboard' },
+    { role: 'bookkeeper', label: 'Bookkeeper View', desc: 'Cross-facility billing, payments, payroll; read-only residents/log' },
+    { role: 'admin', label: 'Facility Admin View', desc: 'Full admin of one facility — residents, billing, settings, reports' },
     { role: 'facility_staff', label: 'Facility Staff View', desc: 'Front desk — scheduling, residents, services, sign-up sheet; no billing/payroll' },
-    { role: 'bookkeeper', label: 'Bookkeeper View', desc: 'Billing, payments, payroll; read-only residents/log' },
     { role: 'stylist', label: 'Stylist View', desc: 'Calendar + daily log only; no residents or billing' },
     { role: 'portal', label: 'Family Portal (demo)', desc: 'Log in as a fake POA with demo data — no magic link needed' },
+    { role: 'signup', label: 'Family Sign-Up Wizard (preview)', desc: 'Open the QR-code signup wizard even when self-signup is off — submissions stay disabled' },
   ]
 
   return (
@@ -219,15 +222,26 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
             <button
               onClick={() => {
                 if (role === 'portal') handleOpenPortal()
-                else handleImpersonate(role)
+                else if (role === 'signup') {
+                  // P51 — no session swap needed: the signup page grants the
+                  // master a server-side preview even when self-signup is off.
+                  if (selected?.facilityCode) {
+                    window.open(`/family/${encodeURIComponent(selected.facilityCode)}/signup`, '_blank')
+                  }
+                } else handleImpersonate(role)
               }}
-              disabled={!selectedId || (role !== 'portal' && loading !== null) || (role === 'portal' && (!selected?.facilityCode || portalLoading))}
+              disabled={
+                !selectedId ||
+                (role !== 'portal' && role !== 'signup' && loading !== null) ||
+                ((role === 'portal' || role === 'signup') && !selected?.facilityCode) ||
+                (role === 'portal' && portalLoading)
+              }
               className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#8B2E4A' }}
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#72253C' }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#8B2E4A' }}
             >
-              {role === 'portal' ? (portalLoading ? 'Opening…' : 'Open →') : loading === role ? 'Loading…' : 'Enter'}
+              {role === 'portal' ? (portalLoading ? 'Opening…' : 'Open →') : role === 'signup' ? 'Open →' : loading === role ? 'Loading…' : 'Enter'}
             </button>
           </div>
         ))}

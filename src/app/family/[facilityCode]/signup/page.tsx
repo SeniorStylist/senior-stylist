@@ -22,23 +22,46 @@ export default async function SignupPage({
 
   if (!facility) notFound()
   const { lang, t } = await getPortalT()
+  let masterPreview = false
   if (!facility.portalSelfSignupEnabled) {
-    return (
-      <div className="page-enter flex flex-col gap-4 mt-6">
-        <header>
-          <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-            {t('login.title')}
-          </h1>
-        </header>
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-sm">
-          {t('signup.disabled')}
+    // P51 — master-only PREVIEW of the wizard when self-signup is off (the
+    // Debug tab's "Family Sign-Up Wizard (preview)" row). The email comes from
+    // the authenticated Supabase session server-side — nothing client-supplied.
+    // POST /api/portal/signup keeps its own 403 when the flag is off, so
+    // submissions stay disabled either way.
+    try {
+      const { getAuthUser } = await import('@/lib/supabase/server')
+      const user = await getAuthUser()
+      masterPreview =
+        !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+        user?.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    } catch {
+      masterPreview = false
+    }
+    if (!masterPreview) {
+      return (
+        <div className="page-enter flex flex-col gap-4 mt-6">
+          <header>
+            <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
+              {t('login.title')}
+            </h1>
+          </header>
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-sm">
+            {t('signup.disabled')}
+          </div>
         </div>
-      </div>
-    )
+      )
+    }
   }
 
   return (
     <div className="page-enter flex flex-col gap-4 mt-6">
+      {masterPreview && (
+        <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+          ⚠ Preview mode — self-signup is OFF for this facility. Families can&apos;t see this page,
+          and submissions are disabled.
+        </div>
+      )}
       <header>
         <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
           {t('signup.title')}
