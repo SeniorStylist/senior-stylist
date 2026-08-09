@@ -331,10 +331,6 @@ export const PORTAL_STRINGS = {
     en: "Sign up to view appointments, request service, and manage your loved one's care at {facility}.",
     es: 'Regístrese para ver citas, solicitar servicios y gestionar el cuidado de su ser querido en {facility}.',
   },
-  'signup.disabled': {
-    en: 'Self-signup is not available for this facility. Please contact the facility for portal access.',
-    es: 'El registro no está disponible para este centro. Contacte al centro para obtener acceso al portal.',
-  },
   'signup.fullName': { en: 'Your full name', es: 'Su nombre completo' },
   'signup.fullNameHint': {
     en: 'Enter the name the facility has on file for you (POA/guardian).',
@@ -414,6 +410,24 @@ export const PORTAL_STRINGS = {
   'signup.review.edit': { en: 'Change', es: 'Cambiar' },
   'signup.review.submit': { en: 'Create my account', es: 'Crear mi cuenta' },
   'signup.progress': { en: 'Step {step} of {total}', es: 'Paso {step} de {total}' },
+  // P52 — "is this them?" match confirmation step
+  'signup.match.title': { en: 'We found them — is this right?', es: 'Los encontramos — ¿es correcto?' },
+  'signup.match.hint': {
+    en: 'This resident is on file at {facility}.',
+    es: 'Este residente está registrado en {facility}.',
+  },
+  'signup.match.roomLabel': { en: 'Room {room}', es: 'Habitación {room}' },
+  'signup.match.poaLine': {
+    en: 'Family contact on file: {name}',
+    es: 'Contacto familiar registrado: {name}',
+  },
+  'signup.match.yes': { en: "Yes — that's them", es: 'Sí — es esa persona' },
+  'signup.match.no': { en: 'No, someone else', es: 'No, es otra persona' },
+  'signup.match.checking': { en: 'Checking…', es: 'Verificando…' },
+  'signup.disabledFacility': {
+    en: "Online sign-up isn't set up at {facility} yet. Please ask at the front desk — they can send you an invitation.",
+    es: 'El registro en línea aún no está disponible en {facility}. Pregunte en la recepción — pueden enviarle una invitación.',
+  },
 
   // ---- P50-C7 first-login welcome flow ----
   'welcome.title': { en: "Let's get set up", es: 'Vamos a configurar' },

@@ -12,8 +12,12 @@
 //   full-facility dropdown.
 // - dateOfBirth was dropped from the UI (stored-but-unused; less friction,
 //   less PII). The API still accepts it for back-compat.
+// - P52: steps are IDs, not indices. Leaving the resident step runs the match
+//   preview (POST /api/portal/signup/match, 3s timeout, NEVER blocks); a
+//   confident match inserts the 'confirm' ("is this them?") step. The server
+//   re-derives the match on submit — familyConfirmed is only an assertion.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
@@ -26,14 +30,21 @@ interface Props {
 type Phase = 'wizard' | 'auto_approved' | 'pending'
 type Relationship = 'self' | 'spouse' | 'child' | 'poa' | 'other'
 
-// Wizard steps: 0 who → 1 your name (skipped visually for 'self'? no — still
-// ask, prefills resident) → 2 resident name+room → 3 email → 4 phone → 5 review
-const TOTAL_STEPS = 6
+// P52 — step IDs replace numeric indices; 'confirm' is present only when the
+// match preview found a confident resident (steps.length is 6 or 7).
+type StepId = 'who' | 'yourName' | 'resident' | 'confirm' | 'email' | 'phone' | 'review'
+
+type SignupMatchPreview = {
+  residentName: string
+  roomNumber: string | null
+  poaMasked: string | null
+  hasPoa: boolean
+}
 
 export function SignupClient({ facilityCode, facilityName, lang }: Props) {
   const t = usePortalT(lang)
   const [phase, setPhase] = useState<Phase>('wizard')
-  const [step, setStep] = useState(0)
+  const [stepId, setStepId] = useState<StepId>('who')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [alreadyHasAccess, setAlreadyHasAccess] = useState(false)
@@ -45,22 +56,74 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
 
+  // P52 — "is this them?" preview. The server re-derives the match on submit;
+  // this state only drives the confirm card + the familyConfirmed flag.
+  const [match, setMatch] = useState<SignupMatchPreview | null>(null)
+  const [familyConfirmed, setFamilyConfirmed] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const matchAbortRef = useRef<AbortController | null>(null)
+
   const loginUrl = `/family/${encodeURIComponent(facilityCode)}/login`
   const isSelf = relationship === 'self'
 
-  const next = () => {
+  const steps: StepId[] = match
+    ? ['who', 'yourName', 'resident', 'confirm', 'email', 'phone', 'review']
+    : ['who', 'yourName', 'resident', 'email', 'phone', 'review']
+  const stepIndex = Math.max(0, steps.indexOf(stepId))
+
+  const goTo = (id: StepId) => {
     setError(null)
-    setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1))
+    setStepId(id)
   }
-  const back = () => {
-    setError(null)
-    setStep((s) => Math.max(s - 1, 0))
-  }
+  const next = () => goTo(steps[Math.min(stepIndex + 1, steps.length - 1)])
+  const back = () => goTo(steps[Math.max(stepIndex - 1, 0)])
 
   const pickRelationship = (r: Relationship) => {
     setRelationship(r)
     setError(null)
-    setStep(1)
+    setStepId('yourName')
+  }
+
+  // A retype invalidates any previous match — no stale confirm card.
+  const onResidentEdit = () => {
+    setMatch(null)
+    setFamilyConfirmed(false)
+  }
+
+  // P52 — leaving the resident step runs the match preview. NEVER blocks
+  // signup: any failure/timeout/429 → no match → the confirm step is skipped.
+  const advanceFromResident = async () => {
+    setError(null)
+    setChecking(true)
+    matchAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    matchAbortRef.current = ctrl
+    const timer = setTimeout(() => ctrl.abort(), 3000)
+    let m: SignupMatchPreview | null = null
+    try {
+      const res = await fetch('/api/portal/signup/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facilityCode,
+          residentName: (isSelf ? fullName : residentName).trim(),
+          roomNumber: roomNumber.trim() || null,
+        }),
+        signal: ctrl.signal,
+      })
+      if (res.ok) {
+        const j = await res.json().catch(() => null)
+        m = j?.data?.match ?? null
+      }
+    } catch {
+      m = null
+    } finally {
+      clearTimeout(timer)
+      setChecking(false)
+    }
+    setMatch(m)
+    setFamilyConfirmed(false)
+    setStepId(m ? 'confirm' : 'email')
   }
 
   const handleSubmit = async () => {
@@ -79,6 +142,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
           residentName: (isSelf ? fullName : residentName).trim(),
           roomNumber: roomNumber.trim() || null,
           relationship: relationship ?? undefined,
+          familyConfirmed: familyConfirmed && !!match,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -142,8 +206,8 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
     'portal-cta-cap w-full min-h-[52px] rounded-2xl bg-[#8B2E4A] text-white font-semibold shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all'
 
   const stepBody = () => {
-    switch (step) {
-      case 0:
+    switch (stepId) {
+      case 'who':
         return (
           <div className="flex flex-col gap-3">
             <h2 className="text-xl font-semibold text-stone-800 text-center">{t('signup.step.whoTitle')}</h2>
@@ -167,7 +231,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
             ))}
           </div>
         )
-      case 1:
+      case 'yourName':
         return (
           <StepInput
             title={t('signup.step.yourName')}
@@ -179,7 +243,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
               autoFocus
               autoComplete="name"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => { setFullName(e.target.value); if (isSelf) onResidentEdit() }}
               placeholder="Jane Smith"
               maxLength={200}
               aria-label={t('signup.step.yourName')}
@@ -191,7 +255,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
             </button>
           </StepInput>
         )
-      case 2:
+      case 'resident':
         return (
           <StepInput
             title={isSelf ? t('signup.step.roomSelf') : t('signup.step.residentName')}
@@ -203,7 +267,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
                 type="text"
                 autoFocus
                 value={residentName}
-                onChange={(e) => setResidentName(e.target.value)}
+                onChange={(e) => { setResidentName(e.target.value); onResidentEdit() }}
                 placeholder="Margaret Smith"
                 maxLength={200}
                 aria-label={t('signup.step.residentName')}
@@ -221,7 +285,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
                 type="text"
                 autoFocus={isSelf}
                 value={roomNumber}
-                onChange={(e) => setRoomNumber(e.target.value)}
+                onChange={(e) => { setRoomNumber(e.target.value); onResidentEdit() }}
                 placeholder="112"
                 maxLength={50}
                 inputMode="numeric"
@@ -232,15 +296,51 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
             </div>
             <button
               type="button"
-              onClick={next}
-              disabled={!isSelf && residentName.trim().length < 2}
+              onClick={advanceFromResident}
+              disabled={checking || (!isSelf && residentName.trim().length < 2) || (isSelf && fullName.trim().length < 2)}
               className={primaryBtnCls}
             >
-              {t('signup.nav.next')}
+              {checking ? t('signup.match.checking') : t('signup.nav.next')}
             </button>
           </StepInput>
         )
-      case 3:
+      case 'confirm':
+        // P52 — "is this them?" card. Only reachable when the preview returned
+        // a confident match; the server independently re-derives it on submit.
+        return (
+          <div className="flex flex-col gap-4">
+            <StepInput title={t('signup.match.title')} hint={t('signup.match.hint', { facility: facilityName })}>
+              <div className="rounded-2xl border-2 border-[#8B2E4A]/20 bg-[#F9EFF2] px-5 py-4 text-center">
+                <p className="text-xl font-semibold text-stone-900 break-words">{match?.residentName}</p>
+                {match?.roomNumber && (
+                  <span className="inline-block mt-2 text-sm font-semibold text-stone-600 bg-white border border-stone-200 rounded-full px-3 py-1">
+                    {t('signup.match.roomLabel', { room: match.roomNumber })}
+                  </span>
+                )}
+                {match?.hasPoa && match.poaMasked && (
+                  <p className="text-base text-stone-500 mt-2.5">
+                    {t('signup.match.poaLine', { name: match.poaMasked })}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setFamilyConfirmed(true); goTo('email') }}
+                className={primaryBtnCls}
+              >
+                {t('signup.match.yes')}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFamilyConfirmed(false); setMatch(null); goTo('email') }}
+                className="portal-cta-cap w-full min-h-[52px] rounded-2xl border-2 border-stone-200 bg-white text-stone-700 font-semibold hover:bg-stone-50 active:scale-[0.98] transition-all"
+              >
+                {t('signup.match.no')}
+              </button>
+            </StepInput>
+          </div>
+        )
+      case 'email':
         return (
           <StepInput title={t('signup.step.email')} hint={t('signup.step.emailHint')}>
             <input
@@ -266,7 +366,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
             </button>
           </StepInput>
         )
-      case 4:
+      case 'phone':
         return (
           <StepInput title={t('signup.step.phone')} hint={t('signup.step.phoneHint')}>
             <input
@@ -286,13 +386,13 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
             </button>
           </StepInput>
         )
-      case 5: {
-        const rows: Array<[string, string, number]> = [
-          [t('signup.review.you'), fullName, 1],
-          ...(!isSelf ? ([[t('signup.review.resident'), residentName, 2]] as Array<[string, string, number]>) : []),
-          ...(roomNumber.trim() ? ([[t('signup.review.room'), roomNumber, 2]] as Array<[string, string, number]>) : []),
-          [t('signup.review.email'), email, 3],
-          ...(phone.trim() ? ([[t('signup.review.phone'), phone, 4]] as Array<[string, string, number]>) : []),
+      case 'review': {
+        const rows: Array<[string, string, StepId]> = [
+          [t('signup.review.you'), fullName, 'yourName'],
+          ...(!isSelf ? ([[t('signup.review.resident'), residentName, 'resident']] as Array<[string, string, StepId]>) : []),
+          ...(roomNumber.trim() ? ([[t('signup.review.room'), roomNumber, 'resident']] as Array<[string, string, StepId]>) : []),
+          [t('signup.review.email'), email, 'email'],
+          ...(phone.trim() ? ([[t('signup.review.phone'), phone, 'phone']] as Array<[string, string, StepId]>) : []),
         ]
         return (
           <div className="flex flex-col gap-4">
@@ -306,7 +406,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setStep(editStep)}
+                    onClick={() => goTo(editStep)}
                     className="shrink-0 text-base font-semibold text-[#8B2E4A] min-h-[44px] px-2"
                   >
                     {t('signup.review.edit')}
@@ -328,7 +428,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
   return (
     <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] overflow-hidden">
       {/* P26 — say what the portal gives them BEFORE asking for their details */}
-      {step === 0 && (
+      {stepId === 'who' && (
         <div className="bg-[#F9EFF2] px-5 py-3 border-b border-rose-100">
           <p className="text-base text-[#8B2E4A]">{t('signup.valueStrip')}</p>
         </div>
@@ -337,23 +437,23 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
       <div className="p-5 flex flex-col gap-5">
         {/* Progress: dots + step label */}
         <div className="flex items-center justify-between">
-          {step > 0 ? (
+          {stepIndex > 0 ? (
             <button type="button" onClick={back} className="text-base font-medium text-stone-500 min-h-[44px] pr-3">
               {t('signup.nav.back')}
             </button>
           ) : (
             <span />
           )}
-          <div className="flex items-center gap-1.5" aria-label={t('signup.progress', { step: String(step + 1), total: String(TOTAL_STEPS) })}>
-            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+          <div className="flex items-center gap-1.5" aria-label={t('signup.progress', { step: String(stepIndex + 1), total: String(steps.length) })}>
+            {steps.map((id, i) => (
               <span
-                key={i}
-                className={`rounded-full transition-all ${i === step ? 'w-5 h-2 bg-[#8B2E4A]' : 'w-2 h-2 bg-stone-200'}`}
+                key={id}
+                className={`rounded-full transition-all ${i === stepIndex ? 'w-5 h-2 bg-[#8B2E4A]' : 'w-2 h-2 bg-stone-200'}`}
                 aria-hidden
               />
             ))}
           </div>
-          <span className="text-sm text-stone-400 pl-3">{step + 1}/{TOTAL_STEPS}</span>
+          <span className="text-sm text-stone-400 pl-3">{stepIndex + 1}/{steps.length}</span>
         </div>
 
         {stepBody()}
@@ -367,7 +467,7 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
           </div>
         )}
 
-        {step === 0 && (
+        {stepId === 'who' && (
           <p className="text-center text-base text-stone-500">
             {t('signup.haveAccount')}{' '}
             <Link href={loginUrl} className="font-semibold text-[#8B2E4A] hover:underline">

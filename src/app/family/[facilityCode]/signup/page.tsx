@@ -46,8 +46,8 @@ export default async function SignupPage({
               {t('login.title')}
             </h1>
           </header>
-          <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-sm">
-            {t('signup.disabled')}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-base">
+            {t('signup.disabledFacility', { facility: facility.name })}
           </div>
         </div>
       )
