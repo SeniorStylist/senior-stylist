@@ -22,6 +22,8 @@ const patchSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('approve'),
     residentId: z.string().uuid().optional(),
+    // P52 — create the resident from the claim's details (no-match signups).
+    createResident: z.boolean().optional(),
     notes: z.string().max(2000).optional().nullable(),
   }),
   z.object({
@@ -103,19 +105,62 @@ export async function PATCH(
     }
 
     // action === 'approve'
-    const overrideResidentId = (parsed.data as { residentId?: string }).residentId ?? claim.residentId
+    // P52 resolution precedence: explicit residentId override → createResident
+    // → the claim's matched resident. Approving must ALWAYS end with a linked
+    // resident — the old code returned 200 with zero linkage on a no-match
+    // claim, minting a dead account that could never sign in.
+    const explicitResidentId = (parsed.data as { residentId?: string }).residentId ?? null
+    const wantsCreate = (parsed.data as { createResident?: boolean }).createResident === true
 
-    // Look up the resident to link (use override if provided, else original match)
-    const resident = overrideResidentId
-      ? await db.query.residents.findFirst({
+    let resident: { id: string; name: string; roomNumber: string | null } | null = null
+    if (explicitResidentId) {
+      resident =
+        (await db.query.residents.findFirst({
           where: and(
-            eq(residents.id, overrideResidentId),
+            eq(residents.id, explicitResidentId),
             eq(residents.facilityId, claim.facilityId),
             eq(residents.active, true),
           ),
           columns: { id: true, name: true, roomNumber: true },
+        })) ?? null
+      if (!resident) {
+        return Response.json({ error: 'That resident was not found at this facility.' }, { status: 422 })
+      }
+    } else if (wantsCreate) {
+      // Create the resident from what the family told us. poaEmail is set
+      // unconditionally (it's the portal login identity — a 'self' resident
+      // signs in with their own email), which also makes future re-signups
+      // tier-1 email matches and lets linkResidentsForEmail auto-discover.
+      const [created] = await db
+        .insert(residents)
+        .values({
+          facilityId: claim.facilityId,
+          name: (claim.residentName ?? claim.fullName).trim(),
+          roomNumber: claim.roomNumber?.trim() || null,
+          poaName: claim.relationship === 'self' ? null : claim.fullName,
+          poaEmail: claim.email,
+          poaPhone: claim.phone ?? null,
         })
-      : null
+        .returning({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
+      resident = created
+    } else if (claim.residentId) {
+      resident =
+        (await db.query.residents.findFirst({
+          where: and(
+            eq(residents.id, claim.residentId),
+            eq(residents.facilityId, claim.facilityId),
+            eq(residents.active, true),
+          ),
+          columns: { id: true, name: true, roomNumber: true },
+        })) ?? null
+    }
+
+    if (!resident) {
+      return Response.json(
+        { error: 'Pick a resident to link — or create one from the request details.' },
+        { status: 422 },
+      )
+    }
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, claim.facilityId),
@@ -153,18 +198,16 @@ export async function PATCH(
       portalAccountId = created.id
     }
 
-    // Link resident if matched
-    if (resident) {
-      await db.insert(portalAccountResidents)
-        .values({ portalAccountId, residentId: resident.id, facilityId: claim.facilityId })
-        .onConflictDoNothing()
-    }
+    // Link the resident (always — resident is guaranteed above)
+    await db.insert(portalAccountResidents)
+      .values({ portalAccountId, residentId: resident.id, facilityId: claim.facilityId })
+      .onConflictDoNothing()
 
     // Mark claim as approved
     await db.update(portalClaimRequests)
       .set({
         status: 'approved',
-        residentId: resident?.id ?? claim.residentId ?? null,
+        residentId: resident.id,
         reviewedBy: user.id,
         reviewedAt: new Date(),
         notes: notes ?? null,
@@ -172,15 +215,15 @@ export async function PATCH(
       .where(eq(portalClaimRequests.id, id))
 
     // Issue welcome coupon (fire-and-forget)
-    issueWelcomeCoupon(claim.facilityId, portalAccountId, resident?.id ?? null).catch(() => {})
+    issueWelcomeCoupon(claim.facilityId, portalAccountId, resident.id).catch(() => {})
 
     // Send magic link — AWAITED (user-initiated "send" path)
-    const magicLink = await createMagicLink(claim.email, resident?.id ?? null, facility.facilityCode)
+    const magicLink = await createMagicLink(claim.email, resident.id, facility.facilityCode)
     await sendEmail({
       to: claim.email,
       subject: `Welcome to the ${facility.name} Family Portal`,
       html: buildPortalMagicLinkEmailHtml({
-        residentNames: resident ? [resident.name] : [],
+        residentNames: [resident.name],
         facilityName: facility.name,
         link: magicLink,
         expiresInHours: 72,

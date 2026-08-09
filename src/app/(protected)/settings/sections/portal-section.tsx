@@ -116,14 +116,21 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
     }
   }
 
-  const handleReview = async (id: string, action: 'approve' | 'reject') => {
+  const handleReview = async (id: string, action: 'approve' | 'reject', createResident = false) => {
     setReviewingId(id)
     try {
       const overrideId = action === 'approve' ? overrideFor[id] : undefined
+      // P52 — '__create__' sentinel in the picker (or the create button on
+      // no-match cards) creates the resident from the request details.
+      const body: Record<string, unknown> = { action }
+      if (action === 'approve') {
+        if (overrideId && overrideId !== '__create__') body.residentId = overrideId
+        else if (createResident || overrideId === '__create__') body.createResident = true
+      }
       const res = await fetch(`/api/portal/claim-requests/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(overrideId ? { action, residentId: overrideId } : { action }),
+        body: JSON.stringify(body),
       })
       const j = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -346,6 +353,9 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                       className="w-full px-3 py-2 text-xs border border-stone-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
                     >
                       <option value="">Use the closest match{c.residentName ? ` (${c.residentName})` : ''}</option>
+                      <option value="__create__">
+                        ➕ Create &quot;{c.claimedResidentName ?? c.fullName}&quot; as a new resident
+                      </option>
                       {(residentOptions ?? []).map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.name}{r.roomNumber ? ` · Rm ${r.roomNumber}` : ''}
@@ -363,14 +373,30 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                   </button>
                 )}
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={reviewingId === c.id}
-                    onClick={() => handleReview(c.id, 'approve')}
-                    className="flex-1 text-xs font-semibold bg-[#8B2E4A] text-white rounded-xl py-2 hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {reviewingId === c.id ? 'Approving…' : 'Approve & Send Link'}
-                  </button>
+                  {/* P52 — a no-match claim's primary action CREATES the resident
+                      (a bare approve now 422s server-side — no more dead accounts).
+                      A picked override still wins. */}
+                  {!c.residentName && !overrideFor[c.id] ? (
+                    <button
+                      type="button"
+                      disabled={reviewingId === c.id}
+                      onClick={() => handleReview(c.id, 'approve', true)}
+                      className="flex-1 text-xs font-semibold bg-[#8B2E4A] text-white rounded-xl py-2 hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {reviewingId === c.id
+                        ? 'Creating…'
+                        : `➕ Create "${c.claimedResidentName ?? c.fullName}" as a new resident${c.claimedRoom ? ` (Rm ${c.claimedRoom})` : ''}`}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={reviewingId === c.id}
+                      onClick={() => handleReview(c.id, 'approve')}
+                      className="flex-1 text-xs font-semibold bg-[#8B2E4A] text-white rounded-xl py-2 hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {reviewingId === c.id ? 'Approving…' : 'Approve & Send Link'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={reviewingId === c.id}
