@@ -7,6 +7,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.2',
+    date: '2026-08-09',
+    title: 'Scan, Sign Up, Done',
+    items: [
+      'Every family sign-up QR poster now works out of the box: self-signup is ON for all facilities by default (turn any single facility off in Settings → Family Portal). Owner: the Master Admin facilities tab has a one-tap "Turn on everywhere" button',
+      'The signup wizard now recognizes residents: type a name that\'s on file and you\'ll see an "is this them?" card with the resident\'s name, room, and the family contact\'s initials — tap Yes and, if your name matches the family contact on file, your account connects INSTANTLY (no waiting for approval)',
+      'Everything else still goes to the approval queue — but confirmed matches arrive pre-picked with a "Family confirmed the match" badge, so approving is one tap',
+      'Approving a signup for a brand-new resident now CREATES the resident for you — name, room, and family contact filled straight from the request. No more separate add-resident step',
+      'Fixed: approving a request that matched nobody used to silently create an account that could never sign in — that dead end is gone (the button now always links or creates a resident)',
+      'A facility with signup off shows families a warmer message with the facility\'s name and a pointer to the front desk (in English and Spanish)',
+    ],
+  },
+  {
     version: '6.1',
     date: '2026-08-07',
     title: 'The Right View for Every Role',

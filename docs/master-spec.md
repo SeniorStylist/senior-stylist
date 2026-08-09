@@ -3115,6 +3115,39 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P52 — QR signup works everywhere + family-facing resident matchup (2026-08-09)
+
+Migration `drizzle/0035_p52_signup_everywhere.sql` (flag default → true +
+active-facility backfill + `portal_claim_requests.family_confirmed`).
+Full contracts in CLAUDE.md's Phase 14A section + P52 entry.
+
+- **Signup ON everywhere**: `facilities.portal_self_signup_enabled` defaults
+  TRUE; all 6 `insert(facilities)` sites pass it explicitly (pre-0035 prod);
+  `POST /api/super-admin/portal-signup-all` (master-gated bulk flip,
+  revalidates 'facilities') + a "Turn on everywhere" card on the Master
+  Admin facilities tab — the no-psql production path.
+- **Shared matcher** `src/lib/signup-match.ts::matchResidentForSignup`
+  (floor >0.74; confident = roomAgrees+≥0.75 OR ≥0.85 with runner-up <0.7)
+  — the ONLY signup match logic; preview + POST both call it.
+- **Public preview** `POST /api/portal/signup/match` (bucket
+  portalSignupMatch 15/h/IP): confident-only; returns on-file name/room +
+  `maskName` POA initials (fixed 3 bullets/word); never ids/lists.
+- **Wizard**: StepId machine (who/yourName/resident/confirm/email/phone/
+  review); 'confirm' only on a confident match; 3s abort → silently skip
+  (preview never blocks signup); retype clears the match; payload gains
+  `familyConfirmed`.
+- **Tier 1.5 instant link**: familyConfirmed + confident + typed name
+  fuzzy ≥0.8 vs on-file poaName → auto-approve, matchType
+  'resident_confirmed'. Name+room alone still never auto-approves.
+  Confirmed-but-unlinked claims force 'high' + resident pre-picked;
+  admin card shows an emerald "Family confirmed the match" chip.
+- **Approve creates residents**: PATCH precedence residentId override
+  (422 if foreign) → `createResident: true` (claimed name/room, poaName
+  null for 'self', poaEmail = claim email, poaPhone) → matched resident;
+  else 422 — an approve can never mint an unlinked dead account (pre-P52
+  bug fixed). UI: no-match cards' primary button creates; picker gains a
+  `__create__` sentinel.
+
 ## P51 — Payment chips, role landings, facility lockdown, payer types (2026-08-07)
 
 Six-item batch, no migrations. Full contracts in CLAUDE.md's P51 entry.

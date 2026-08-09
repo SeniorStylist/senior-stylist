@@ -163,15 +163,19 @@ apps). This is a multi-day, multi-step process; go phase by phase.
 
 Ops to make the QR-to-chair funnel live for a NEW facility:
 
-1. [ ] **Apply migrations 0032–0034 BEFORE deploy** (Supabase SQL Editor or psql):
+1. [ ] **Apply migrations 0032–0035 BEFORE deploy** (Supabase SQL Editor or psql):
        `drizzle/0032_p50_claim_details.sql`, `drizzle/0033_p50_signup_source.sql`,
-       `drizzle/0034_p50_portal_onboarded.sql`. All idempotent. 0034 matters most — its
-       backfill marks every EXISTING portal account as "already onboarded" so long-time
-       families never see the first-login setup wizard. (The app self-bootstraps the
-       columns if you forget, but NOT the backfill.)
-2. [ ] **Per new facility**: give it a `facilityCode` (F###), flip **Settings → Family
-       Portal → self-signup ON**, assign the stylist(s) with weekly availability rows —
-       availability is what drives request auto-assignment into the right stylist's queue.
+       `drizzle/0034_p50_portal_onboarded.sql`, `drizzle/0035_p52_signup_everywhere.sql`.
+       All idempotent. 0034 matters most — its backfill marks every EXISTING portal
+       account as "already onboarded" so long-time families never see the first-login
+       setup wizard. (The app self-bootstraps the columns if you forget, but NOT the
+       backfills.) **No psql handy? For 0035's part only**: Master Admin → Facilities →
+       "Turn on everywhere" does the same signup flip from the UI.
+2. [ ] **Per new facility**: give it a `facilityCode` (F###) and assign the stylist(s)
+       with weekly availability rows — availability is what drives request
+       auto-assignment into the right stylist's queue. **Self-signup is now ON by
+       default (P52)** — no toggle needed; Settings → Family Portal is only for turning
+       a facility OFF.
 3. [ ] **Print the QR poster** from Settings → Family Portal. No reprint needed for
        facilities that already have posters — the QR URL didn't change; the page behind
        it became the senior-friendly wizard.

@@ -157,7 +157,9 @@ Stylists don't manage the roster, but can add a brand-new resident while recordi
 Connecting a family:
 - On the resident's page, the Family Portal card has "Send Link" (emails the POA a sign-in link) and "Copy Link" (share it yourself). Both need the POA email on file.
 - Bulk: Settings → Family Portal shows a Portal Status panel — who's connected, who could be invited — with a one-tap "invite everyone".
-- Self-serve: print the facility's QR poster (Settings → Family Portal) — families scan it and sign up themselves. Signups matching the POA on file connect instantly; others go to your approval queue in Settings.
+- Self-serve: print the facility's QR poster (Settings → Family Portal) — families scan it and sign up themselves. Self-signup is ON for every facility by default (you can switch an individual facility off in Settings → Family Portal).
+- When a signup's typed resident name matches someone on file, the family sees an "is this them?" card (on-file name, room, and the family contact's initials) — confirming it plus matching the on-file family-contact name connects them instantly. Everything else lands in your approval queue in Settings.
+- Approving a request that matched nobody creates the resident for you (name, room, and family contact filled from the request) — one tap, no separate add-resident step.
 - First sign-in: a newly approved family's first email-link login walks them through a one-time, all-skippable setup — save a card, opt in to automatic payment, and pick a visit rhythm (weekly / every 2 weeks / monthly). The rhythm feeds your due-for-visit panel.
 
 What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family portal" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the daily log. There's an English/Spanish toggle and a large-print mode.
