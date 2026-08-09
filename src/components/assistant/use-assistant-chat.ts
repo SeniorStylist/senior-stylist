@@ -27,31 +27,117 @@ function sanitizeCards(v: unknown): AnswerCard[] | undefined {
   return cards.length > 0 ? cards : undefined
 }
 
-// P46 — conversation persistence: the thread survives reloads (incl. our own
-// switch_facility hard reload). Device-local like the read cache — cleared on
-// sign-out via clearAssistantChat() (chats can contain resident names).
-const CHAT_KEY = 'ss_assistant_chat'
+// R8 — separate chats (supersedes the P46 single forever-thread): every page
+// load starts a FRESH chat; finished threads land in a device-local history
+// (`ss_assistant_chats`) the user can reopen from the History view. The one
+// exception is our own switch_facility hard reload, which sets a one-shot
+// sessionStorage resume flag so the conversation continues. pendingAction /
+// guides / stream state are never persisted. Cleared on sign-out via
+// clearAssistantChat() (chats can contain resident names).
+const SESSIONS_KEY = 'ss_assistant_chats'
+const LEGACY_CHAT_KEY = 'ss_assistant_chat' // pre-R8 single thread — migrated
+const RESUME_KEY = 'ss_assistant_resume'
+const SESSIONS_MAX = 10
 const CHAT_MAX = 30
-function loadSavedChat(): ChatMsg[] {
+
+export interface ChatSession {
+  id: string
+  /** First user message, truncated — the History row label. */
+  title: string
+  /** Last-updated epoch ms. */
+  at: number
+  messages: ChatMsg[]
+}
+
+function sanitizeMsgs(v: unknown): ChatMsg[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .filter((m): m is ChatMsg => !!m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string')
+    .map((m) => ({ role: m.role, text: m.text, cards: sanitizeCards(m.cards) }))
+    .slice(-CHAT_MAX)
+}
+
+function loadSessions(): ChatSession[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(CHAT_KEY)
+    const raw = localStorage.getItem(SESSIONS_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed
-      .filter((m): m is ChatMsg => !!m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string')
-      .map((m) => ({ role: m.role, text: m.text, cards: sanitizeCards(m.cards) }))
-      .slice(-CHAT_MAX)
+      .filter((s): s is ChatSession => !!s && typeof s.id === 'string' && Array.isArray(s.messages))
+      .map((s) => ({
+        id: s.id,
+        title: typeof s.title === 'string' && s.title ? s.title : 'Chat',
+        at: typeof s.at === 'number' ? s.at : 0,
+        messages: sanitizeMsgs(s.messages),
+      }))
+      .filter((s) => s.messages.length > 0)
+      .slice(0, SESSIONS_MAX)
   } catch {
     return []
   }
 }
-/** Called from the sign-out teardown (offline-session) — never leave a chat
+
+function saveSessions(list: ChatSession[]): void {
+  try {
+    if (list.length === 0) localStorage.removeItem(SESSIONS_KEY)
+    else localStorage.setItem(SESSIONS_KEY, JSON.stringify(list.slice(0, SESSIONS_MAX)))
+  } catch {
+    /* private mode / quota — session-only */
+  }
+}
+
+function titleFrom(messages: ChatMsg[]): string {
+  const first = messages.find((m) => m.role === 'user')?.text.trim() || 'Chat'
+  return first.length > 48 ? `${first.slice(0, 48)}…` : first
+}
+
+function newSessionId(): string {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  }
+}
+
+/** One-time init: migrate the legacy pre-R8 thread into history, then either
+ * resume the session flagged before a switch_facility reload or start fresh.
+ * Idempotent (safe under StrictMode double-invoke): the resume flag is READ
+ * here and removed later in a mount effect. */
+function initChat(): { id: string; messages: ChatMsg[] } {
+  if (typeof window === 'undefined') return { id: 'ssr', messages: [] }
+  try {
+    const legacyRaw = localStorage.getItem(LEGACY_CHAT_KEY)
+    if (legacyRaw) {
+      localStorage.removeItem(LEGACY_CHAT_KEY)
+      const msgs = sanitizeMsgs(JSON.parse(legacyRaw))
+      if (msgs.length > 0) {
+        saveSessions([{ id: newSessionId(), title: titleFrom(msgs), at: Date.now(), messages: msgs }, ...loadSessions()])
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+  try {
+    const resumeId = sessionStorage.getItem(RESUME_KEY)
+    if (resumeId) {
+      const hit = loadSessions().find((s) => s.id === resumeId)
+      if (hit) return { id: hit.id, messages: hit.messages }
+    }
+  } catch {
+    /* best-effort */
+  }
+  return { id: newSessionId(), messages: [] }
+}
+
+/** Called from the sign-out teardown (offline-session) — never leave chats
  * with resident names behind on a shared device. */
 export function clearAssistantChat(): void {
   try {
-    localStorage.removeItem(CHAT_KEY)
+    localStorage.removeItem(LEGACY_CHAT_KEY)
+    localStorage.removeItem(SESSIONS_KEY)
+    sessionStorage.removeItem(RESUME_KEY)
   } catch {
     /* best-effort */
   }
@@ -92,7 +178,14 @@ const DONE_LABEL: Record<AssistantActionKind, string> = {
 
 export function useAssistantChat() {
   const { toast } = useToast()
-  const [messages, setMessages] = useState<ChatMsg[]>(loadSavedChat)
+  // R8 — fresh chat per page load; init also handles legacy migration + the
+  // switch_facility resume flag. Lazy initializer runs once per mount.
+  const [init] = useState(initChat)
+  const sessionIdRef = useRef(init.id)
+  const [messages, setMessages] = useState<ChatMsg[]>(init.messages)
+  // R8 — History view state (past chats list, loaded on open).
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
   // P46 — a failed turn renders an inline Retry bubble instead of toast-only.
   const [lastError, setLastError] = useState<{ text: string; message: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -124,15 +217,76 @@ export function useAssistantChat() {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [messages, pendingAction, sending, streamText])
 
-  // P46 — persist the thread (capped) so reloads/facility switches keep it.
+  // R8 — the resume flag is one-shot: consumed by initChat, removed here so
+  // the NEXT reload starts fresh again.
   useEffect(() => {
     try {
-      if (messages.length === 0) localStorage.removeItem(CHAT_KEY)
-      else localStorage.setItem(CHAT_KEY, JSON.stringify(messages.slice(-CHAT_MAX)))
+      sessionStorage.removeItem(RESUME_KEY)
     } catch {
-      /* private mode / quota — session-only */
+      /* best-effort */
+    }
+  }, [])
+
+  // R8 — upsert the current chat into the device-local history as it grows.
+  useEffect(() => {
+    try {
+      const rest = loadSessions().filter((s) => s.id !== sessionIdRef.current)
+      if (messages.length === 0) saveSessions(rest)
+      else {
+        saveSessions([
+          { id: sessionIdRef.current, title: titleFrom(messages), at: Date.now(), messages: messages.slice(-CHAT_MAX) },
+          ...rest,
+        ])
+      }
+    } catch {
+      /* best-effort */
     }
   }, [messages])
+
+  // R8 — refresh the past-chats list whenever the History view opens.
+  useEffect(() => {
+    if (historyOpen) setSessions(loadSessions())
+  }, [historyOpen])
+
+  /** R8 — start a fresh chat; the current thread is already saved in history. */
+  const newChat = () => {
+    abortRef.current?.abort()
+    sessionIdRef.current = newSessionId()
+    setMessages([])
+    setPendingAction(null)
+    setLastError(null)
+    setStreamText(null)
+    setStatusLabel(null)
+    setInput('')
+    setHistoryOpen(false)
+  }
+
+  /** R8 — reopen a past chat and continue it (same session id). */
+  const loadSession = (id: string) => {
+    const hit = loadSessions().find((s) => s.id === id)
+    if (!hit) return
+    abortRef.current?.abort()
+    sessionIdRef.current = hit.id
+    setMessages(hit.messages)
+    setPendingAction(null)
+    setLastError(null)
+    setStreamText(null)
+    setInput('')
+    setHistoryOpen(false)
+  }
+
+  /** R8 — remove a chat from history (resets the pane if it's the open one). */
+  const deleteSession = (id: string) => {
+    const rest = loadSessions().filter((s) => s.id !== id)
+    saveSessions(rest)
+    setSessions(rest)
+    if (id === sessionIdRef.current) {
+      sessionIdRef.current = newSessionId()
+      setMessages([])
+      setPendingAction(null)
+      setLastError(null)
+    }
+  }
 
   // P45 — run the guided walk via the tour runtime (real-data mode: no
   // tutorial cookie, no demo data — startGuidedWalk guards all of that).
@@ -298,6 +452,13 @@ export function useAssistantChat() {
       // client useState(initialProps) stale).
       if (a.kind === 'switch_facility') {
         toast.success('Switching…')
+        // R8 — one-shot resume flag so THIS conversation survives our own
+        // hard reload (a normal reload still starts a fresh chat).
+        try {
+          sessionStorage.setItem(RESUME_KEY, sessionIdRef.current)
+        } catch {
+          /* best-effort */
+        }
         window.location.reload()
         return
       }
@@ -359,6 +520,13 @@ export function useAssistantChat() {
     runAction,
     logRef,
     textareaRef,
+    // R8 — separate chats
+    historyOpen,
+    setHistoryOpen,
+    sessions,
+    newChat,
+    loadSession,
+    deleteSession,
   }
 }
 

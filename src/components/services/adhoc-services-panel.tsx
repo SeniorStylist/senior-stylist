@@ -79,7 +79,7 @@ export function AdhocServicesPanel() {
         <div className="px-5 pb-5">
           <p className="text-xs text-stone-500 mb-3">
             These were created while logging from scanned sheets. They&apos;re only visible on the
-            scan review and daily log — not to families or staff. Promote one to add it to the real
+            scan review and day log — not to families or staff. Promote one to add it to the real
             price list.
           </p>
           <ul className="space-y-2">

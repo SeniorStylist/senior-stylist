@@ -619,7 +619,7 @@ export function DashboardClient({
   }
 
   // Phase 25 — stylists finish "done + paid" on ONE screen: the mobile card
-  // carries the same unpaid -> paid -> waived cycle as the daily log
+  // carries the same unpaid -> paid -> waived cycle as the day log
   // (optimistic + snapshot rollback, offline-queueable).
   const handleCyclePayment = async (bookingId: string, current: string) => {
     const next = current === 'unpaid' ? 'paid' : current === 'paid' ? 'waived' : 'unpaid'
@@ -838,14 +838,14 @@ export function DashboardClient({
             })}
           </div>
 
-          {/* View full calendar + daily log (Phase 25 — finalize lives in the
+          {/* View full calendar + day log (Phase 25 — finalize lives in the
               log; make the day-close flow discoverable from the landing list) */}
           <div className="px-4 mt-4 space-y-2">
             <Link
               href="/log"
               className="block w-full py-3 text-center text-sm font-semibold text-white bg-[#8B2E4A] rounded-2xl shadow-[0_2px_6px_rgba(139,46,74,0.22)] active:scale-[0.98] active:opacity-90 transition-all duration-75"
             >
-              Open Daily Log →
+              Open Day Log →
             </Link>
             <button
               onClick={() => setStylistListMode(false)}

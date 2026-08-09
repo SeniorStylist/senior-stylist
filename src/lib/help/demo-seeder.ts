@@ -18,7 +18,7 @@ interface DemoIds {
 
 // Seeder is idempotent — safe to call on every tutorial launch.
 // viewerStylistId: when the tutorial user is a stylist, the today demo booking is
-// assigned to THEM (not Demo Sarah) so it shows in their self-filtered daily log
+// assigned to THEM (not Demo Sarah) so it shows in their self-filtered day log
 // and dashboard list. Falls back to Demo Sarah for non-stylist viewers.
 export async function seedFacilityDemoData(facilityId: string, viewerStylistId?: string | null): Promise<DemoIds> {
   const [existingResidents, existingServices, existingStylists] = await Promise.all([
@@ -189,7 +189,7 @@ export async function seedFacilityDemoData(facilityId: string, viewerStylistId?:
   const mrsSmithId = residentMap.get('Mrs. Margaret Smith')
   const sarahId = stylistMap.get('Demo Sarah')
   const washSetId = serviceMap.get('Wash & Set (Demo)')
-  // Assign to the viewer when they're a stylist so it shows in their daily log.
+  // Assign to the viewer when they're a stylist so it shows in their day log.
   const bookingStylistId = viewerStylistId || sarahId
   if (mrsSmithId && bookingStylistId && washSetId) {
     const facRow = await db.query.facilities.findFirst({

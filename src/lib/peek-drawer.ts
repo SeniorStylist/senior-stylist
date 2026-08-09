@@ -1,7 +1,7 @@
 // Phase 12W — Module-level handler ref for the global peek drawer.
 //
 // The drawer is mounted once in (protected)/layout.tsx. Any component
-// anywhere in the tree (daily log row, billing row, calendar event) can
+// anywhere in the tree (day log row, billing row, calendar event) can
 // call openPeek({...}) to slide it open without prop drilling. Same
 // pattern as tour-router.ts.
 

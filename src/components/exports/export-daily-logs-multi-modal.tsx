@@ -115,7 +115,7 @@ export function ExportDailyLogsMultiModal({
   const body = (
     <div className="flex flex-col gap-4 p-5">
       <p className="text-sm text-stone-600">
-        Download all completed daily log entries for the selected facilities in the chosen date range as an Excel file.
+        Download all completed day log entries for the selected facilities in the chosen date range as an Excel file.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <Input
@@ -225,14 +225,14 @@ export function ExportDailyLogsMultiModal({
 
   if (isMobile) {
     return (
-      <BottomSheet isOpen={open} onClose={onClose} title="Export Daily Logs" footer={footer}>
+      <BottomSheet isOpen={open} onClose={onClose} title="Export Day Logs" footer={footer}>
         {body}
       </BottomSheet>
     )
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Export Daily Logs" className="max-w-lg">
+    <Modal open={open} onClose={onClose} title="Export Day Logs" className="max-w-lg">
       {body}
       {footer}
     </Modal>

@@ -187,7 +187,7 @@ async function p41Checks() {
   check('grounding digest under budget (<3.5KB)', digest.length < 3500)
   check('grounding digest highlights the caller role', digest.includes('YOU are helping') && digest.includes('Bookkeeper'))
   check('grounding digest carries the money rules', digest.includes('COMPLETED visits only') && digest.includes('never facility revenue') && digest.includes('show the math'))
-  check('grounding digest covers all roles + pages', ['Master admin', 'Front desk', 'Stylist:', 'Daily Log', 'Payroll'].every((s) => digest.includes(s)))
+  check('grounding digest covers all roles + pages', ['Master admin', 'Front desk', 'Stylist:', 'Day Log', 'Payroll'].every((s) => digest.includes(s)))
 
   const createSignTool = ALL_TOOLS.find((t) => t.name === 'create_sign')!
   const bad = await createSignTool.execute(baseCtx, { template: 'evil-template' })

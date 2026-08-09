@@ -40,6 +40,17 @@ export function chipsForPage(pathname: string | null): string[] {
   return hit ? hit[1] : []
 }
 
+// R8 — History-row timestamp. Browser-local on purpose: chat history is
+// device metadata, not booking data (the facility-tz rule doesn't apply).
+function formatWhen(at: number): string {
+  if (!at) return ''
+  const d = new Date(at)
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay
+    ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 // P42 — created documents (signs, statements) arrive as same-origin relative
 // paths; render ONLY allowlisted app paths as tappable links (app-links.ts).
 function renderModelText(text: string) {
@@ -80,6 +91,7 @@ export function AssistantChat({
   const {
     messages, input, setInput, sending, pendingAction, setPendingAction,
     confirming, expired, model, setModel, statusLabel, streamText, lastError, send, stop, runAction, logRef, textareaRef,
+    historyOpen, setHistoryOpen, sessions, newChat, loadSession, deleteSession,
   } = chat
 
   // P46 — page-aware chips merged ahead of role chips; deduped; the row
@@ -111,6 +123,68 @@ export function AssistantChat({
 
   return (
     <div className="flex flex-col" style={heightStyle}>
+      {/* R8 — chats header: past-chat history + fresh chat */}
+      <div className="shrink-0 flex items-center justify-between px-3 pt-2 -mb-1">
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(!historyOpen)}
+          aria-expanded={historyOpen}
+          className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-stone-400 hover:text-[#8B2E4A] hover:bg-stone-50 transition-colors"
+        >
+          {historyOpen ? (
+            '← Back to chat'
+          ) : (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              Past chats
+            </>
+          )}
+        </button>
+        {!historyOpen && messages.length > 0 && (
+          <button
+            type="button"
+            onClick={newChat}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold text-[#8B2E4A] bg-[#F9EFF2] border border-[#E8CDD5] hover:bg-[#F2E0E6] transition-colors"
+          >
+            ＋ New chat
+          </button>
+        )}
+      </div>
+
+      {historyOpen ? (
+        /* R8 — past chats list (device-local; tap to reopen and continue) */
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-2 space-y-0.5">
+          {sessions.length === 0 && <p className="text-sm text-stone-400 px-1.5 pt-2">No past chats yet.</p>}
+          {sessions.map((s) => (
+            <div key={s.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => loadSession(s.id)}
+                className="flex-1 min-w-0 text-left rounded-xl px-3 py-2.5 hover:bg-stone-50 transition-colors"
+              >
+                <p className="text-sm text-stone-800 truncate">{s.title}</p>
+                <p className="text-[10.5px] text-stone-400">{formatWhen(s.at)}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteSession(s.id)}
+                aria-label="Delete chat"
+                title="Delete chat"
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-stone-300 hover:text-rose-600 hover:bg-stone-50 transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+      <>
       {/* Chat log */}
       <div ref={logRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-2.5">
         {messages.length === 0 && (
@@ -331,6 +405,8 @@ export function AssistantChat({
           </p>
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

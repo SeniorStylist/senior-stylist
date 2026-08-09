@@ -149,22 +149,22 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   // today's-bookings list on mobile). The catalog filter hides the wrong-platform
   // variant. All other stylist tours share UI across platforms.
   { id: 'stylist-getting-started-mobile', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your daily appointment list, log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started-mobile', platform: 'mobile' },
-  { id: 'stylist-getting-started-desktop', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your calendar, daily log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started-desktop', platform: 'desktop' },
+  { id: 'stylist-getting-started-desktop', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation: your calendar, day log, and My Account page.', estMinutes: 2, icon: 'KeyRound', roles: ['stylist'], tourId: 'stylist-getting-started-desktop', platform: 'desktop' },
   { id: 'stylist-calendar-mobile', category: 'Scheduling', title: 'Your Schedule', blurb: 'Read your daily list, tap appointments to mark them done, and book new ones.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar-mobile', platform: 'mobile' },
   { id: 'stylist-calendar-desktop', category: 'Scheduling', title: 'Your Calendar', blurb: 'Read the weekly grid, click appointments to edit, and create new bookings.', estMinutes: 3, icon: 'Calendar', roles: ['stylist'], tourId: 'stylist-calendar-desktop', platform: 'desktop' },
-  { id: 'stylist-daily-log', category: 'Daily Log', title: 'Daily Log', blurb: 'Record services, add walk-ins, and finalize your log at end of shift.', estMinutes: 3, icon: 'FileText', roles: ['stylist'], tourId: 'stylist-daily-log' },
+  { id: 'stylist-daily-log', category: 'Day Log', title: 'Day Log', blurb: 'Record services, add walk-ins, and finalize your log at end of shift.', estMinutes: 3, icon: 'FileText', roles: ['stylist'], tourId: 'stylist-daily-log' },
   { id: 'stylist-checkin', category: 'Scheduling', title: "I'm Here Check-In", blurb: "Tap when you arrive. If you're running late, your schedule adjusts automatically.", estMinutes: 2, icon: 'Clock', roles: ['stylist'], tourId: 'stylist-checkin' },
   { id: 'stylist-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Find, edit, and add residents at your facility.', estMinutes: 3, icon: 'Users', roles: ['stylist'], tourId: 'stylist-residents' },
-  { id: 'stylist-finalize-day', category: 'Daily Log', title: 'Finalizing the Day', blurb: 'Step-by-step guide to reviewing and locking the daily log.', estMinutes: 2, icon: 'CheckCircle2', roles: ['stylist'], tourId: 'stylist-finalize-day' },
+  { id: 'stylist-finalize-day', category: 'Day Log', title: 'Finalizing the Day', blurb: 'Step-by-step guide to reviewing and locking the day log.', estMinutes: 2, icon: 'CheckCircle2', roles: ['stylist'], tourId: 'stylist-finalize-day' },
   { id: 'stylist-my-account', category: 'Account', title: 'My Account', blurb: 'Manage your schedule, upload compliance documents, and request time off.', estMinutes: 3, icon: 'UserCog', roles: ['stylist'], tourId: 'stylist-my-account' },
   { id: 'stylist-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet Queue', blurb: 'Pick up auto-assigned requests, pick a time, or drag them onto the calendar.', estMinutes: 2, icon: 'ClipboardList', roles: ['stylist'], tourId: 'stylist-signup-sheet' },
 
   // FACILITY STAFF
-  { id: 'staff-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation to your calendar, residents, and daily log.', estMinutes: 2, icon: 'KeyRound', roles: ['facility_staff'], tourId: 'staff-getting-started' },
+  { id: 'staff-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'A quick orientation to your calendar, residents, and day log.', estMinutes: 2, icon: 'KeyRound', roles: ['facility_staff'], tourId: 'staff-getting-started' },
   { id: 'facility-staff-scheduling', category: 'Scheduling', title: 'Scheduling', blurb: 'Book appointments for residents from the calendar.', estMinutes: 3, icon: 'Calendar', roles: ['facility_staff'], tourId: 'facility-staff-scheduling' },
   { id: 'facility-staff-residents', category: 'Residents', title: 'Resident List', blurb: 'Find, add, and update resident profiles.', estMinutes: 3, icon: 'Users', roles: ['facility_staff'], tourId: 'facility-staff-residents' },
-  { id: 'staff-daily-log-readonly', category: 'Daily Log', title: 'Daily Log (Read-Only)', blurb: 'See what was done today. View-only.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: 'staff-daily-log-readonly' },
-  { id: 'staff-daily-log', category: 'Daily Log', title: 'The Daily Log', blurb: 'Understand what the daily log is and how to read it.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: 'staff-daily-log' },
+  { id: 'staff-daily-log-readonly', category: 'Day Log', title: 'Day Log (Read-Only)', blurb: 'See what was done today. View-only.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: 'staff-daily-log-readonly' },
+  { id: 'staff-daily-log', category: 'Day Log', title: 'The Day Log', blurb: 'Understand what the day log is and how to read it.', estMinutes: 2, icon: 'FileText', roles: ['facility_staff'], tourId: 'staff-daily-log' },
   { id: 'facility-staff-signup-sheet', category: 'Scheduling', title: 'Sign-Up Sheet', blurb: 'Log resident requests — the right stylist gets auto-assigned based on the preferred date.', estMinutes: 2, icon: 'ClipboardList', roles: ['facility_staff'], tourId: 'facility-staff-signup-sheet' },
 
   // ADMIN
@@ -186,17 +186,17 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-payments-cof', category: 'Billing', title: 'Cards on File & Autopay', blurb: 'Save cards securely, turn on automatic payment with family notification, and refund mistakes.', estMinutes: 2, icon: 'CreditCard', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-payments-cof', platform: 'desktop' },
   { id: 'admin-signage', category: 'Getting Started', title: 'Salon Signage', blurb: 'Print salon-day posters, price lists, and holiday signs branded for your facility.', estMinutes: 1, icon: 'PenLine', roles: ['admin', 'super_admin', 'facility_staff'], tourId: 'admin-signage', platform: 'desktop' },
   { id: 'admin-coverage-approval', category: 'Scheduling', title: 'Time-Off Approval', blurb: 'Approve or deny stylist time off, then pick a substitute in the same flow.', estMinutes: 2, icon: 'Clock', roles: ['admin', 'super_admin'], tourId: 'admin-coverage-approval', platform: 'desktop' },
-  { id: 'admin-photos', category: 'Residents', title: 'Booking Photos & Style Gallery', blurb: 'Capture finished styles from the daily log and share favorites with families.', estMinutes: 2, icon: 'HeartHandshake', roles: ['admin', 'super_admin', 'facility_staff', 'stylist'], tourId: 'admin-photos', platform: 'both' },
+  { id: 'admin-photos', category: 'Residents', title: 'Booking Photos & Style Gallery', blurb: 'Capture finished styles from the day log and share favorites with families.', estMinutes: 2, icon: 'HeartHandshake', roles: ['admin', 'super_admin', 'facility_staff', 'stylist'], tourId: 'admin-photos', platform: 'both' },
   { id: 'admin-scheduling-tools', category: 'Scheduling', title: 'Scheduling Power Tools', blurb: 'Copy a whole salon day, print the week, and fill slots with overdue residents.', estMinutes: 2, icon: 'Calendar', roles: ['admin', 'super_admin', 'facility_staff'], tourId: 'admin-scheduling-tools', platform: 'desktop' },
 
   // BOOKKEEPER
-  { id: 'bookkeeper-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Overview of the Daily Log, Billing, and Payroll — your three main areas.', estMinutes: 3, icon: 'KeyRound', roles: ['bookkeeper'], tourId: 'bookkeeper-getting-started', platform: 'both' },
-  { id: 'bookkeeper-scan-logs', category: 'Daily Log', title: 'Scanning Daily Logs', blurb: 'Scan paper log sheets with OCR, review extracted entries, and import.', estMinutes: 5, icon: 'ScanLine', roles: ['bookkeeper'], tourId: 'bookkeeper-scan-logs' },
-  { id: 'bookkeeper-manual-entry', category: 'Daily Log', title: 'Manual Entry', blurb: 'Enter paper log sheet services manually when scanning isn\'t an option.', estMinutes: 4, icon: 'PenLine', roles: ['bookkeeper'], tourId: 'bookkeeper-manual-entry' },
+  { id: 'bookkeeper-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Overview of the Day Log, Billing, and Payroll — your three main areas.', estMinutes: 3, icon: 'KeyRound', roles: ['bookkeeper'], tourId: 'bookkeeper-getting-started', platform: 'both' },
+  { id: 'bookkeeper-scan-logs', category: 'Day Log', title: 'Scanning Day Logs', blurb: 'Scan paper log sheets with OCR, review extracted entries, and import.', estMinutes: 5, icon: 'ScanLine', roles: ['bookkeeper'], tourId: 'bookkeeper-scan-logs' },
+  { id: 'bookkeeper-manual-entry', category: 'Day Log', title: 'Manual Entry', blurb: 'Enter paper log sheet services manually when scanning isn\'t an option.', estMinutes: 4, icon: 'PenLine', roles: ['bookkeeper'], tourId: 'bookkeeper-manual-entry' },
   { id: 'bookkeeper-duplicates', category: 'Residents', title: 'Duplicate Resolution', blurb: 'Find and merge duplicate residents created by scanning errors.', estMinutes: 3, icon: 'GitMerge', roles: ['bookkeeper'], tourId: 'bookkeeper-duplicates' },
   { id: 'bookkeeper-billing-dashboard', category: 'Billing', title: 'Billing Dashboard', blurb: 'Review outstanding balances, filter invoices, and send monthly statements.', estMinutes: 4, icon: 'CreditCard', roles: ['bookkeeper'], tourId: 'bookkeeper-billing-dashboard', platform: 'desktop' },
   { id: 'bookkeeper-payroll', category: 'Payroll', title: 'Payroll & Pay Periods', blurb: 'Review pay periods, check stylist earnings, and mark periods as paid.', estMinutes: 3, icon: 'Wallet', roles: ['bookkeeper'], tourId: 'bookkeeper-payroll', platform: 'both' },
-  { id: 'bookkeeper-export-logs', category: 'Reports', title: 'Export Daily Logs to Excel', blurb: 'Download a styled spreadsheet matching your accounting format.', estMinutes: 1, icon: 'FileSpreadsheet', roles: ['bookkeeper', 'admin', 'super_admin'], tourId: 'bookkeeper-export-logs' },
+  { id: 'bookkeeper-export-logs', category: 'Reports', title: 'Export Day Logs to Excel', blurb: 'Download a styled spreadsheet matching your accounting format.', estMinutes: 1, icon: 'FileSpreadsheet', roles: ['bookkeeper', 'admin', 'super_admin'], tourId: 'bookkeeper-export-logs' },
   { id: 'bookkeeper-quickbooks', category: 'Billing', title: 'QuickBooks Data', blurb: 'Import QB data and read balances.', estMinutes: 4, icon: 'Database', roles: ['bookkeeper'], tourId: 'bookkeeper-quickbooks', platform: 'desktop' },
   { id: 'bookkeeper-financial-reports', category: 'Reports', title: 'Financial Reports', blurb: 'Run and export reports for accounting.', estMinutes: 3, icon: 'FileSpreadsheet', roles: ['bookkeeper'], tourId: 'bookkeeper-financial-reports', platform: 'both' },
 
@@ -217,7 +217,7 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   // mobile-reachable screens; master-only screens point to the desktop site.
   { id: 'master-getting-started-mobile', category: 'Getting Started', title: 'Getting Started', blurb: 'A tour of everything you can do from your phone.', estMinutes: 3, icon: 'KeyRound', roles: ['admin', 'super_admin'], tourId: 'master-getting-started-mobile', masterOnly: true, platform: 'mobile' },
   { id: 'master-calendar-mobile', category: 'Scheduling', title: 'Calendar', blurb: "Read today's schedule and quick-book on the go.", estMinutes: 2, icon: 'Calendar', roles: ['admin', 'super_admin'], tourId: 'master-calendar-mobile', masterOnly: true, platform: 'mobile' },
-  { id: 'master-daily-log-mobile', category: 'Daily Log', title: 'Daily Log', blurb: 'Review what was done today and export to Excel.', estMinutes: 2, icon: 'FileText', roles: ['admin', 'super_admin'], tourId: 'master-daily-log-mobile', masterOnly: true, platform: 'mobile' },
+  { id: 'master-daily-log-mobile', category: 'Day Log', title: 'Day Log', blurb: 'Review what was done today and export to Excel.', estMinutes: 2, icon: 'FileText', roles: ['admin', 'super_admin'], tourId: 'master-daily-log-mobile', masterOnly: true, platform: 'mobile' },
   { id: 'master-residents-mobile', category: 'Residents', title: 'Residents', blurb: 'Find and add residents from your phone.', estMinutes: 2, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'master-residents-mobile', masterOnly: true, platform: 'mobile' },
   { id: 'master-analytics-mobile', category: 'Analytics', title: 'Analytics', blurb: 'Check revenue and stylist performance on the go.', estMinutes: 2, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'master-analytics-mobile', masterOnly: true, platform: 'mobile' },
   { id: 'master-payroll-mobile', category: 'Payroll', title: 'Payroll', blurb: 'Review pay periods and mark them paid.', estMinutes: 2, icon: 'Wallet', roles: ['admin', 'super_admin'], tourId: 'master-payroll-mobile', masterOnly: true, platform: 'mobile' },
@@ -233,7 +233,7 @@ export const ONBOARDING_CHECKLIST: Record<string, { tourId: string; label: strin
   stylist: [
     { tourId: 'stylist-getting-started', label: 'Learn the basics' },
     { tourId: 'stylist-calendar', label: 'Understand your calendar' },
-    { tourId: 'stylist-daily-log', label: 'Complete your first daily log' },
+    { tourId: 'stylist-daily-log', label: 'Complete your first day log' },
     { tourId: 'stylist-checkin', label: "Try the I'm Here check-in" },
     { tourId: 'stylist-my-account', label: 'Set up your account' },
   ],
@@ -274,16 +274,16 @@ const NAV_MY_ACCOUNT = '[data-tour="nav-my-account"]'
 export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   // Phase 12Y — Stylist Getting Started: mobile + desktop variants. The mobile
   // version targets the today's-bookings list; the desktop version targets the
-  // FullCalendar grid. Both share the same Daily Log + My Account flow.
+  // FullCalendar grid. Both share the same Day Log + My Account flow.
   'stylist-getting-started-mobile': {
     id: 'stylist-getting-started-mobile',
     title: 'Getting Started',
     steps: [
-      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'A quick tour of your daily list, Daily Log, and My Account.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'A quick tour of your daily list, Day Log, and My Account.' },
       { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Open your schedule', description: 'The Calendar tab shows today\'s appointments.', actionHint: 'Tap Calendar to continue.' },
       { route: '/dashboard', element: '[data-tour="stylist-mobile-booking-list"]', isAction: false, title: "Today's appointments", description: 'Your bookings for today. Each card shows the time, resident, and service.' },
-      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'Record and finalize your work here at the end of each day.', actionHint: 'Tap Daily Log to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'Daily Log', description: 'Each row is an appointment. Review them at day\'s end and tap Finalize Day.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'Record and finalize your work here at the end of each day.', actionHint: 'Tap Day Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Day Log', description: 'Each row is an appointment. Review them at day\'s end and tap Finalize Day.' },
       { route: '/log', element: NAV_MY_ACCOUNT, isAction: true, title: 'Open My Account', description: 'Manage your schedule, upload documents, and request time off here.', actionHint: 'Tap My Account to continue.' },
       { route: '/my-account', element: '', isAction: false, title: "You're ready", description: 'That\'s the overview. Revisit any tour from the Help section anytime.' },
     ],
@@ -292,11 +292,11 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-getting-started-desktop',
     title: 'Getting Started',
     steps: [
-      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'The three things you\'ll use every day: Calendar, Daily Log, and My Account.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'The three things you\'ll use every day: Calendar, Day Log, and My Account.' },
       { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Open your Calendar', description: 'Your home base for seeing your schedule and managing appointments.', actionHint: 'Click Calendar to continue.' },
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Your weekly grid', description: 'Your week at a glance. Each colored block is a booked appointment.' },
-      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'Record and finalize your work here at the end of each day.', actionHint: 'Click Daily Log to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'Daily Log', description: 'Each row is an appointment. Review them at day\'s end and click Finalize Day.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'Record and finalize your work here at the end of each day.', actionHint: 'Click Day Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Day Log', description: 'Each row is an appointment. Review them at day\'s end and click Finalize Day.' },
       { route: '/log', element: NAV_MY_ACCOUNT, isAction: true, title: 'Open My Account', description: 'Manage your schedule, upload documents, and request time off here.', actionHint: 'Click My Account to continue.' },
       { route: '/my-account', element: '', isAction: false, title: "You're ready", description: 'That\'s the overview. Revisit any tour from the Help section anytime.' },
     ],
@@ -311,7 +311,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: '[data-tour="stylist-mobile-booking-list"]', isAction: false, title: "Today's appointments", description: 'Your schedule for today, sorted by time.' },
       { route: '/dashboard', element: '[data-tour="stylist-mobile-booking-card"]', isAction: false, title: 'Each card', description: 'Shows the time, resident, and service. Tap the green check to mark it done.' },
       { route: '/dashboard', element: '', isAction: false, title: 'New bookings', description: 'Tap the burgundy + button at the bottom-right to pick a resident, service, and time.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'For a resident who arrives without a booking, use Add Walk-in in the Daily Log.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'For a resident who arrives without a booking, use Add Walk-in in the Day Log.' },
     ],
   },
   'stylist-calendar-desktop': {
@@ -322,17 +322,17 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: '[data-tour="calendar-today-btn"]', isAction: false, title: 'Today button', description: 'Jump back to the current date anytime.' },
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Existing appointments', description: 'Each colored block is a booking. Click one to change the service, time, or notes.' },
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'Create a booking', description: 'Click any empty area to pick the resident, service, date, and time, then save.' },
-      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'A resident arrives without a booking? Add a walk-in from the Daily Log.' },
+      { route: '/dashboard', element: '', isAction: false, title: 'Walk-ins', description: 'A resident arrives without a booking? Add a walk-in from the Day Log.' },
     ],
   },
 
   // 3
   'stylist-daily-log': {
     id: 'stylist-daily-log',
-    title: 'Daily Log',
+    title: 'Day Log',
     steps: [
-      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'Head to your Daily Log.', actionHint: 'Tap Daily Log to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'What the Daily Log is', description: "Today's appointments from your calendar. Review and finalize them at the end of your shift." },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'Head to your Day Log.', actionHint: 'Tap Day Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'What the Day Log is', description: "Today's appointments from your calendar. Review and finalize them at the end of your shift." },
       { route: '/log', element: '', isAction: false, title: 'Each entry', description: 'Each row shows the resident, service, and price. Tap a row to edit the price or add a note.' },
       { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'Log a resident who arrived without a booking.', actionHint: 'Tap Add Walk-in — nothing is saved for real.' },
       { route: '/log', element: '', isAction: false, title: 'Walk-in form', description: 'Search the resident by name, add them if new, then choose the service and price.' },
@@ -359,7 +359,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'stylist-finalize-day',
     title: 'Finalizing the Day',
     steps: [
-      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'Walk through finalizing your day.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/dashboard', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'Walk through finalizing your day.', actionHint: 'Tap Day Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Check entries', description: 'Confirm every entry has the right service and price. Tap a row to fix it.' },
       { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: false, title: 'Check for walk-ins', description: 'Anyone who came in without a booking must be added before you finalize.', mobileDescription: 'Add all walk-ins before finalizing.' },
       { route: '/log', element: '[data-tour="daily-log-finalize-button"]', isAction: true, title: 'Finalize the day', description: 'Locks and submits the log when everything looks right.', actionHint: 'Tap Finalize Day — this is a demo, your real log is safe.' },
@@ -387,12 +387,12 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'staff-getting-started',
     title: 'Getting Started',
     steps: [
-      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'As facility staff, you book appointments for residents and keep the resident list current.', mobileDescription: 'A quick tour of your Calendar, Residents, and Daily Log.' },
+      { route: '/help', element: '', isAction: false, title: 'Welcome', description: 'As facility staff, you book appointments for residents and keep the resident list current.', mobileDescription: 'A quick tour of your Calendar, Residents, and Day Log.' },
       { route: '/help', element: NAV_CALENDAR, isAction: true, title: 'Open your Calendar', description: 'Shows every stylist\'s schedule and open time slots for booking.', actionHint: 'Tap Calendar to continue.' },
       { route: '/dashboard', element: '[data-tour="calendar-time-grid"]', isAction: false, title: 'All stylists, all slots', description: 'Colored blocks are booked; empty areas are open slots.', mobileDescription: 'Empty slots are open for booking. Use the arrows to switch days.' },
       { route: '/dashboard', element: NAV_RESIDENTS, isAction: true, title: 'Open Residents', description: 'Manage resident profiles — names, room numbers, and contact info.', actionHint: 'Tap Residents to continue.' },
       { route: '/residents', element: '[data-tour="residents-table"]', isAction: false, title: 'Resident list', description: 'Every resident at your facility. Tap any name to open their profile.', mobileDescription: 'Tap any resident\'s name to open their profile and make updates.' },
-      { route: '/residents', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'A read-only view of the services stylists recorded each day.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/residents', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'A read-only view of the services stylists recorded each day.', actionHint: 'Tap Day Log to continue.' },
       { route: '/log', element: '', isAction: false, title: "You're all set", description: 'That covers the basics. Revisit any tour from the Help section anytime.' },
     ],
   },
@@ -429,10 +429,10 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   // 9
   'staff-daily-log': {
     id: 'staff-daily-log',
-    title: 'The Daily Log',
+    title: 'The Day Log',
     steps: [
-      { route: '/help', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'Take a look at the Daily Log.', actionHint: 'Tap Daily Log to continue.' },
-      { route: '/log', element: '', isAction: false, title: 'What the Daily Log is', description: 'Every service performed each day, recorded by stylists. Read-only for you.' },
+      { route: '/help', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'Take a look at the Day Log.', actionHint: 'Tap Day Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'What the Day Log is', description: 'Every service performed each day, recorded by stylists. Read-only for you.' },
       { route: '/log', element: '', isAction: false, title: 'Reading the log', description: 'Each row is one appointment — resident, service, and price — organized by date.', mobileDescription: 'Each row is one appointment — resident, service, and price. Read-only for you.' },
       { route: '/log', element: '', isAction: false, title: "That's it", description: 'Reference only for facility staff. Spot an error? Let your admin make corrections.' },
     ],
@@ -490,7 +490,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/settings', element: '', isAction: false, title: 'Step 1 — Facility Settings', description: 'Confirm your facility name, time zone, and working hours. These drive how bookings display and when slots open.', mobileDescription: 'Confirm your facility name, time zone, and working hours in Settings.' },
       { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: false, title: 'Step 2 — Add Residents', description: 'Add residents with a name and room number. Family contact info comes later for portal access.', mobileDescription: 'Add residents from the Residents page. Each needs a name and room number.' },
       { route: '/dashboard', element: NAV_CALENDAR, isAction: false, title: 'Step 3 — Your Calendar', description: 'Your scheduling hub. Bookings are created here and auto-assigned to stylists by availability.', mobileDescription: 'The Calendar is your scheduling hub for all bookings.' },
-      { route: '/log', element: NAV_DAILY_LOG, isAction: false, title: 'Step 4 — The Daily Log', description: 'Tracks every appointment, completion, and note. It\'s also where bookkeepers scan checks.', mobileDescription: 'The Daily Log tracks appointments, completions, and notes.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: false, title: 'Step 4 — The Day Log', description: 'Tracks every appointment, completion, and note. It\'s also where bookkeepers scan checks.', mobileDescription: 'The Day Log tracks appointments, completions, and notes.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Step 5 — Invite Your Team', description: 'Invite facility staff and bookkeepers from Settings → Team. Your Franchise Admin manages stylists.', mobileDescription: 'Invite staff and bookkeepers from Settings → Team. Franchise Admin manages stylists.' },
       { route: '/dashboard', element: '', isAction: false, title: "You're ready", description: 'That\'s the core workflow. The Help Center covers billing, analytics, and the family portal.', mobileDescription: 'The Help Center covers billing, analytics, and the family portal.' },
     ],
@@ -598,13 +598,13 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'bookkeeper-getting-started',
     title: 'Getting Started as a Bookkeeper',
     steps: [
-      { route: '/log', element: '', isAction: false, title: 'Welcome, Bookkeeper', description: 'Your job: get daily log sheets into the system and send invoices each month. Here\'s where it all lives.', mobileDescription: 'Your job: get log sheets in and send invoices monthly.' },
-      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Daily Log — home base', description: 'Where you scan or manually enter paper log sheets from stylists.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: '', isAction: false, title: 'Welcome, Bookkeeper', description: 'Your job: get day log sheets into the system and send invoices each month. Here\'s where it all lives.', mobileDescription: 'Your job: get log sheets in and send invoices monthly.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Day Log — home base', description: 'Where you scan or manually enter paper log sheets from stylists.', actionHint: 'Tap Day Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Two ways to enter logs', description: 'Scan a sheet with OCR (fastest) or enter services manually. Both record bookings.', mobileDescription: 'Scan sheets with OCR or enter services manually. Both work.' },
       { route: '/log', element: NAV_BILLING, isAction: true, title: 'Open Billing', description: 'Review invoices, check balances, and send statements each month.', actionHint: 'Tap Billing to continue.' },
       { route: '/billing', element: '[data-tour="billing-outstanding"]', isAction: false, title: 'Outstanding balances', description: 'What\'s owed across facilities. Green is caught up; amber means unpaid invoices need attention.', mobileDescription: 'Amber means unpaid invoices need attention. Green is caught up.' },
       { route: '/billing', element: NAV_PAYROLL, isAction: true, title: 'Open Payroll', description: 'Review pay periods per stylist and mark them paid once processed.', actionHint: 'Tap Payroll to continue.' },
-      { route: '/payroll', element: '', isAction: false, title: "You're all set", description: 'Daily Log, Billing, and Payroll are your three areas. The Help section covers each in depth.' },
+      { route: '/payroll', element: '', isAction: false, title: "You're all set", description: 'Day Log, Billing, and Payroll are your three areas. The Help section covers each in depth.' },
     ],
   },
 
@@ -625,9 +625,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   // 16
   'bookkeeper-scan-logs': {
     id: 'bookkeeper-scan-logs',
-    title: 'Scanning Daily Logs',
+    title: 'Scanning Day Logs',
     steps: [
-      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'Start here when a paper log sheet arrives.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'Start here when a paper log sheet arrives.', actionHint: 'Tap Day Log to continue.' },
       { route: '/log', element: '', isAction: false, title: "What you're scanning", description: 'A paper record of services a stylist performed. Getting it into the system drives correct invoices.' },
       { route: '/log', element: '[data-tour="daily-log-scan-sheet"]', isAction: true, title: 'Open the scanner', description: 'Opens the OCR tool to upload a photo or PDF of the sheet.', actionHint: 'Tap Scan log sheet — no real data changes.' },
       { route: '/log', element: '[data-tour="ocr-upload-area"]', isAction: false, title: 'Upload the sheet', description: 'Upload a flat, well-lit photo or PDF. The scanner reads names, services, and prices automatically.', mobileDescription: 'Upload a clear photo or PDF. Flat, well-lit, no shadows.' },
@@ -636,7 +636,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/log', element: '', isAction: false, title: 'Fix a misread entry', description: 'Tap a row to fix the name, service, or price. Fix errors before importing — it\'s harder after.', mobileDescription: 'Tap a row to fix name, service, or price. Fix before importing.' },
       { route: '/log', element: '', isAction: false, title: 'Resident not found?', description: 'A name that matches no resident shows a warning. Fix the spelling or add the resident before importing.', mobileDescription: 'Unresolved residents block import. Fix spelling or add first.' },
       { route: '/log', element: '', isAction: false, title: 'Import when ready', description: 'Import creates the bookings and they appear on invoices. Double-check first — it can\'t be undone.', mobileDescription: 'All rows correct? Tap Import — it can\'t be undone.' },
-      { route: '/log', element: '', isAction: false, title: 'After importing', description: 'Confirm entries appear correctly in the daily log. Something off? Your admin can correct it.' },
+      { route: '/log', element: '', isAction: false, title: 'After importing', description: 'Confirm entries appear correctly in the day log. Something off? Your admin can correct it.' },
     ],
   },
 
@@ -645,7 +645,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'bookkeeper-manual-entry',
     title: 'Manual Log Entry',
     steps: [
-      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Daily Log', description: 'When a sheet is too messy to scan, enter services by hand.', actionHint: 'Tap Daily Log to continue.' },
+      { route: '/log', element: NAV_DAILY_LOG, isAction: true, title: 'Open the Day Log', description: 'When a sheet is too messy to scan, enter services by hand.', actionHint: 'Tap Day Log to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Manual entry', description: 'Add each service from the sheet as a walk-in. Slower than scanning, but full control.', mobileDescription: 'Add each service from the sheet one at a time as walk-ins.' },
       { route: '/log', element: '[data-tour="daily-log-add-walkin"]', isAction: true, title: 'Add a walk-in', description: 'Add one walk-in per service on the sheet.', actionHint: 'Tap Add Walk-in to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Fill in the entry', description: 'Search the resident (add if new), pick the service, and enter the price as written.' },
@@ -688,9 +688,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   // 18b — Phase 12Z
   'bookkeeper-export-logs': {
     id: 'bookkeeper-export-logs',
-    title: 'Export Daily Logs to Excel',
+    title: 'Export Day Logs to Excel',
     steps: [
-      { route: '/log', element: '', isAction: false, title: 'Excel export for accounting', description: 'Download the daily log as a styled Excel file — facility code, stylist code, services, totals, tips, payment type.', mobileDescription: 'Download daily logs as Excel in the accounting format.' },
+      { route: '/log', element: '', isAction: false, title: 'Excel export for accounting', description: 'Download the day log as a styled Excel file — facility code, stylist code, services, totals, tips, payment type.', mobileDescription: 'Download day logs as Excel in the accounting format.' },
       { route: '/log', element: '[data-tour="log-export-excel"]', isAction: true, title: 'Open the exporter', description: 'Opens the date-range picker. The button sits by the date arrows in the header.', actionHint: 'Tap Export to continue.' },
       { route: '/log', element: '', isAction: false, title: 'Pick a range and download', description: 'Choose dates (defaults to month-to-date) and Export. Only completed bookings download. Reports exports across facilities.', mobileDescription: 'Pick a date range, tap Export. Only completed bookings.' },
     ],

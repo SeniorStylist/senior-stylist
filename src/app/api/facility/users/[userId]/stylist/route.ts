@@ -9,7 +9,7 @@ import { facilityUsers, profiles, stylists, stylistFacilityAssignments } from '@
 // Admin-assigns (or unlinks) the stylist directory record for a team member's
 // login. Mirrors PUT /api/profile (self-link) but targets an arbitrary userId
 // in the admin's facility. The link lives on profiles.stylist_id and drives the
-// stylist-scoped daily log / check-in / export views.
+// stylist-scoped day log / check-in / export views.
 const bodySchema = z.object({
   stylistId: z.string().uuid().nullable(),
 })

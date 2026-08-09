@@ -38,7 +38,7 @@ export async function PUT(
     if (facilityUser.role === 'stylist') {
       const ownStylistId = await getEffectiveStylistId(user.id)
       if (!ownStylistId || ownStylistId !== existing.stylistId) {
-        return Response.json({ error: 'You can only update your own daily log.' }, { status: 403 })
+        return Response.json({ error: 'You can only update your own day log.' }, { status: 403 })
       }
     }
 

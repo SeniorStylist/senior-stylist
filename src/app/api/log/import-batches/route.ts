@@ -66,7 +66,7 @@ export async function GET() {
         .from(profiles)
         .where(inArray(profiles.id, uploaderIds)),
       // One GROUP BY for all batches (max:1 pool — never per-batch counts).
-      // Active bookings = what exports/daily log actually show; a non-rolled-back
+      // Active bookings = what exports/day log actually show; a non-rolled-back
       // batch with 0 active bookings is the "sheet missing from export" diagnostic.
       db
         .select({ importBatchId: bookings.importBatchId, n: sql<number>`count(*)` })

@@ -274,7 +274,7 @@ export async function GET(request: NextRequest) {
     }
 
     const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet('Daily Log')
+    const ws = wb.addWorksheet('Day Log')
     ws.columns = COLUMN_DEFS.map((c) => ({ key: c.key, width: c.width }))
 
     const headerRow = ws.addRow(HEADERS)

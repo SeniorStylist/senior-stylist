@@ -65,7 +65,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       },
       {
         href: '/log',
-        label: 'Daily Log',
+        label: 'Day Log',
         roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'],
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -232,6 +232,10 @@ const ROLE_NAV_LAYOUT: Partial<Record<NavRole, { label: string; hrefs: string[] 
   bookkeeper: [
     { label: 'Daily Work', hrefs: ['/log'] },
     { label: 'Money', hrefs: ['/billing', '/analytics', '/payroll'] },
+    // Round 6 manage-tier surfaces — the P51 reorder accidentally dropped these
+    // (the layout override REPLACES the registry groups, so an href missing
+    // here hides the page even though item.roles allows it).
+    { label: 'Salon', hrefs: ['/stylists', '/services'] },
   ],
 }
 

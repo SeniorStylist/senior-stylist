@@ -54,7 +54,7 @@ export function NativeBridge() {
         cleanups.push(() => back.remove())
 
         // Refresh server components when the app returns to the foreground so data
-        // (calendar, daily log, balances) isn't stale after a long background.
+        // (calendar, day log, balances) isn't stale after a long background.
         // F6: also replay any offline-queued writes before the refresh lands.
         const state = await App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) {

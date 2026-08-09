@@ -114,7 +114,7 @@ const getCachedMembershipData = unstable_cache(fetchMembershipData, ['layout-mem
 async function fetchLayoutData(userId: string): Promise<LayoutData> {
   // Phase 18 hotfix — self-heal the facilities.monthly_report_enabled column
   // (drizzle/0024). Full-row facilities selects (this relation include, the
-  // dashboard, the daily log) throw "column does not exist" when the code
+  // dashboard, the day log) throw "column does not exist" when the code
   // deploys before the migration is applied; this makes deploys order-proof.
   // Module-guarded in monthly-report-ddl.ts — one round-trip per instance.
   await ensureMonthlyReportSchema().catch(() => {})

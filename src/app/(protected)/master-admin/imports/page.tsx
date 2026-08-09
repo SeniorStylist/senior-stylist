@@ -18,7 +18,7 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
   {
     sourceType: 'multi_service_log',
     title: 'Multi-Facility Log Import',
-    description: "Import one XLSX containing every facility's daily log. Auto-creates missing facilities, stylists, and residents; links services by name.",
+    description: "Import one XLSX containing every facility's day log. Auto-creates missing facilities, stylists, and residents; links services by name.",
     format: 'XLSX',
     href: '/master-admin/imports/multi-log',
     category: 'Service History',

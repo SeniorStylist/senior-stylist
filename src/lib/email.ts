@@ -902,7 +902,7 @@ export function buildQBSyncFailureEmailHtml(params: {
 
 /**
  * P48 — an unlinked stylist asked to be connected to their stylist record.
- * Until an admin links them, their daily log is view-only and they cannot
+ * Until an admin links them, their day log is view-only and they cannot
  * scan a log sheet at all, so this needs to reach a human quickly.
  */
 export function buildStylistLinkRequestEmailHtml(params: {
@@ -922,7 +922,7 @@ export function buildStylistLinkRequestEmailHtml(params: {
         <strong>${escHtml(stylistName)}</strong> (${escHtml(stylistEmail)}) is signed in, but their login isn't connected to a stylist record yet.
       </p>
       <div style="background:#FFFBEB;border-left:4px solid #B45309;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
-        <p style="margin:0;font-size:13px;color:#92400E;line-height:1.6;">Until they're linked, their daily log is view-only — they can't scan a log sheet or add a walk-in.</p>
+        <p style="margin:0;font-size:13px;color:#92400E;line-height:1.6;">Until they're linked, their day log is view-only — they can't scan a log sheet or add a walk-in.</p>
       </div>
       <p style="margin:0 0 20px;font-size:13px;color:#57534E;line-height:1.6;">
         Fix: open <strong>Settings &rarr; Team</strong>, find their row, and choose <strong>Assign stylist</strong>. It takes a few seconds.

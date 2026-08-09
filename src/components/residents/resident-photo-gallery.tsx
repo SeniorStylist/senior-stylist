@@ -136,7 +136,7 @@ export function ResidentPhotoGallery({ residentId, canManage }: { residentId: st
           )}
           {loading && <p className="text-sm text-stone-400 py-3">Loading…</p>}
           {!loading && photos.length === 0 && (
-            <p className="text-sm text-stone-400 py-3">No photos yet — stylists can add them from the daily log after an appointment.</p>
+            <p className="text-sm text-stone-400 py-3">No photos yet — stylists can add them from the day log after an appointment.</p>
           )}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {photos.map((p) => (

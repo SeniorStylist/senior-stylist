@@ -11,10 +11,10 @@ export interface PaletteRoute {
 }
 
 export const PALETTE_ROUTES: PaletteRoute[] = [
-  // P47 — stylist rows match the sidebar nav (Calendar / Daily Log / My Account).
+  // P47 — stylist rows match the sidebar nav (Calendar / Day Log / My Account).
   { id: 'dashboard', label: 'Calendar', description: 'View and manage appointments', route: '/dashboard', icon: 'Calendar', roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist'] },
   { id: 'residents', label: 'Residents', description: 'Manage resident profiles', route: '/residents', icon: 'Users', roles: ['admin', 'facility_staff'] },
-  { id: 'daily-log', label: 'Daily Log', description: 'View and edit the daily log', route: '/log', icon: 'FileText', roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist'] },
+  { id: 'daily-log', label: 'Day Log', description: 'View and edit the day log', route: '/log', icon: 'FileText', roles: ['admin', 'facility_staff', 'bookkeeper', 'stylist'] },
   { id: 'my-account', label: 'My Account', description: 'Your schedule, earnings, and documents', route: '/my-account', icon: 'Wallet', roles: ['stylist'] },
   { id: 'stylists', label: 'Stylists', description: 'Stylist roster', route: '/stylists', icon: 'Scissors', roles: ['admin', 'bookkeeper'] },
   { id: 'billing', label: 'Billing', description: 'Invoices, payments, and statements', route: '/billing', icon: 'CreditCard', roles: ['admin', 'bookkeeper'] },

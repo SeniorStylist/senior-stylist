@@ -3100,8 +3100,15 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   `{type:'error', error}`. Pre-stream failures stay plain JSON non-200.
   `runAssistant` gained `onEvent`. Body gained `model` (P42) + `page`
   (validated pathname → ctx.page → "They are currently looking at…").
-- **Client**: chat persisted in localStorage `ss_assistant_chat` (last 30,
-  cleared by `clearOfflineOnLogout` — PHI rule), Stop (AbortController) +
+- **Client**: chat persistence (R8 2026-08-09 — supersedes the P46 single
+  `ss_assistant_chat` thread): every page load starts a FRESH chat; threads
+  land in device-local `ss_assistant_chats` (10 sessions × 30 msgs, newest
+  first) with a "Past chats" history + "＋ New chat" header in the shared
+  `AssistantChat` UI. Legacy key migrates into history on first init. One-shot
+  `sessionStorage['ss_assistant_resume']` keeps the conversation across the
+  assistant's own switch_facility hard reload; SPA route changes never reset
+  (guided walks navigate mid-conversation). Both keys + flag cleared by
+  `clearOfflineOnLogout` — PHI rule. Stop (AbortController) +
   inline Retry bubble; chips = `chipsForPage(pathname)` (CHIPS_BY_ROUTE,
   longest-prefix-first) layered ahead of role chips, persistent above the
   composer; "☀️ My morning brief" canned prompt.

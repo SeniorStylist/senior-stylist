@@ -353,7 +353,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         selector: '[data-tour="daily-log-entry-row"]',
         route: '/log',
         title: 'Click a resident name',
-        description: 'Every resident name in the daily log is a link — click it to open a quick profile peek.',
+        description: 'Every resident name in the day log is a link — click it to open a quick profile peek.',
       },
       {
         type: 'click',
@@ -364,7 +364,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
       },
     ],
     learnings: [
-      'Found the peek trigger in the daily log',
+      'Found the peek trigger in the day log',
       'Opened a resident profile without navigating away',
       'Can also peek from billing and dashboard',
     ],

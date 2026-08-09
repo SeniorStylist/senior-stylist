@@ -68,7 +68,7 @@ export async function POST() {
     await notifyFacilityAdmins(facilityUser.facilityId, {
       type: 'stylist_link_request',
       title: 'Link a stylist account',
-      body: `${who} needs their login linked to a stylist record — their daily log is view-only until then.`,
+      body: `${who} needs their login linked to a stylist record — their day log is view-only until then.`,
       url: '/settings?section=team',
     })
 

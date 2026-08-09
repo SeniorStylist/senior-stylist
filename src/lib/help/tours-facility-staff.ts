@@ -253,8 +253,8 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
       {
         type: 'click',
         selector: '[data-tour="nav-daily-log"]',
-        title: 'Open the Daily Log',
-        description: 'See the day unfold. Click Daily Log.',
+        title: 'Open the Day Log',
+        description: 'See the day unfold. Click Day Log.',
         placement: 'right',
       },
       {
@@ -274,14 +274,14 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
     learnings: [
       'Take requests and book appointments',
       'Look up and update residents',
-      'Review the daily log',
+      'Review the day log',
     ],
   },
 
   {
     id: 'scripted-staff-daily-log',
-    title: 'The Daily Log',
-    scenarioSummary: "Read today's appointments in the daily log",
+    title: 'The Day Log',
+    scenarioSummary: "Read today's appointments in the day log",
     platform: 'desktop',
     role: 'facility_staff',
     steps: [
@@ -312,7 +312,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
       },
     ],
     learnings: [
-      "Read today's daily log",
+      "Read today's day log",
       'Understood payment status',
       'Peeked at a resident profile',
       'Learned about finalization',
@@ -321,7 +321,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
 
   {
     id: 'scripted-staff-daily-log-readonly',
-    title: 'Daily Log (Read-Only)',
+    title: 'Day Log (Read-Only)',
     scenarioSummary: "Monitor today's services as facility staff",
     platform: 'desktop',
     role: 'facility_staff',
@@ -347,7 +347,7 @@ export const FACILITY_STAFF_TOURS: ScriptedTour[] = [
       },
     ],
     learnings: [
-      'Monitored the daily log as facility staff',
+      'Monitored the day log as facility staff',
       'Peeked at a resident profile',
       'Understood the finalization step',
     ],
