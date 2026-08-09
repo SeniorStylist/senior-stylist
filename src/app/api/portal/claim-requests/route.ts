@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
         residentId: true,
         matchType: true,
         matchConfidence: true,
+        familyConfirmed: true, // P52 — the family tapped "Yes" on the match card
         status: true,
         reviewedAt: true,
         notes: true,

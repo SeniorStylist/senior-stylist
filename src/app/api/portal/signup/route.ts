@@ -14,6 +14,7 @@ import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimPendingEmailHtml } from '@/lib/email'
 import { fuzzyScore } from '@/lib/fuzzy'
+import { matchResidentForSignup } from '@/lib/signup-match'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,10 @@ const signupSchema = z.object({
   residentName: z.string().min(2).max(200).optional().nullable(),
   roomNumber: z.string().max(50).optional().nullable(),
   relationship: z.enum(['self', 'spouse', 'child', 'poa', 'other']).optional().nullable(),
+  // P52 — the family tapped "Yes — that's them" on the match confirm card.
+  // Client-asserted: the server re-derives the match + POA-name agreement
+  // before it grants anything (tier 1.5 below).
+  familyConfirmed: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest) {
   const parsed = signupSchema.safeParse(body)
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
-  const { email, fullName, facilityCode, phone, dateOfBirth, residentName, roomNumber, relationship } = parsed.data
+  const { email, fullName, facilityCode, phone, dateOfBirth, residentName, roomNumber, relationship, familyConfirmed } = parsed.data
   const normalizedEmail = email.toLowerCase().trim()
 
   await ensurePortalClaimsSchema()
@@ -120,19 +125,39 @@ export async function POST(request: NextRequest) {
     columns: { id: true, name: true, poaName: true, roomNumber: true },
   })
 
-  const normRoom = (v: string | null | undefined) => (v ?? '').trim().toLowerCase().replace(/^#/, '')
   const claimedResidentName = residentName?.trim() ?? ''
-  const claimedRoom = normRoom(roomNumber)
 
-  let bestMatch: { resident: (typeof facilityResidents)[0]; score: number; type: 'resident_room' | 'name' } | null = null
-  if (claimedResidentName.length >= 2) {
-    for (const r of facilityResidents) {
-      const score = fuzzyScore(claimedResidentName, r.name)
-      if (score > (bestMatch?.score ?? 0.74)) {
-        bestMatch = { resident: r, score, type: 'resident_room' }
-      }
-    }
+  // P52 — the shared matcher (src/lib/signup-match.ts) is the SINGLE source of
+  // truth; the preview endpoint calls the same function, so what the family
+  // confirmed is exactly what we re-derive here.
+  const m = matchResidentForSignup(facilityResidents, claimedResidentName, roomNumber)
+
+  // Tier 1.5 — instant link: the family confirmed the match card AND their own
+  // typed name agrees with the resident's on-file POA/family-contact name.
+  // Room numbers are door-visible; the POA name is not — reproducing it plus
+  // the confirmation is treated like knowing the family relationship.
+  if (familyConfirmed && m?.confident && m.resident.poaName && fuzzyScore(fullName, m.resident.poaName) >= 0.8) {
+    const portalAccountId = await autoApprove({
+      email: normalizedEmail,
+      fullName,
+      phone: phone ?? null,
+      dateOfBirth: dateOfBirth ?? null,
+      facilityId: facility.id,
+      facilityCode: facility.facilityCode ?? facilityCode,
+      facilityName: facility.name,
+      matchedResidents: [{ id: m.resident.id, name: m.resident.name, roomNumber: m.resident.roomNumber }],
+      matchType: 'resident_confirmed',
+      matchConfidence: 'high',
+      familyConfirmed: true,
+    })
+    await issueWelcomeCoupon(facility.id, portalAccountId, m.resident.id).catch(() => {})
+    return Response.json({ status: 'auto_approved' })
   }
+
+  // Legacy fallback when the resident name matched nothing: the applicant's
+  // own name vs residents.poaName.
+  let bestMatch: { resident: (typeof facilityResidents)[0]; score: number; type: 'resident_room' | 'name' } | null =
+    m ? { resident: m.resident, score: m.score, type: 'resident_room' } : null
   if (!bestMatch) {
     for (const r of facilityResidents) {
       if (!r.poaName) continue
@@ -143,18 +168,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Name-based matches NEVER auto-approve — only an exact POA-email match (handled
-  // above) does. Room numbers are visible on doors, so even resident-name+room is
-  // NOT proof of a real family connection; it just makes the admin's review a
-  // one-click confirm instead of a full-roster hunt. A stranger who knows a name
-  // must always pass a human.
-  const roomAgrees =
-    bestMatch?.type === 'resident_room' && claimedRoom !== '' && normRoom(bestMatch.resident.roomNumber) === claimedRoom
-  const confidence = bestMatch
-    ? bestMatch.type === 'resident_room'
-      ? (bestMatch.score >= 0.85 && roomAgrees) ? 'high' : bestMatch.score >= 0.75 ? 'medium' : 'low'
-      : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
-    : null
+  // Name-based matches NEVER auto-approve — only an exact POA-email match or
+  // tier 1.5 (family-confirmed + POA-name agreement, above) does. Room numbers
+  // are visible on doors, so even resident-name+room is NOT proof of a real
+  // family connection; it just makes the admin's review a one-click confirm
+  // instead of a full-roster hunt. A stranger who knows a name must always
+  // pass a human.
+  const roomAgrees = m?.roomAgrees ?? false
+  // Family-confirmed confident matches surface as 'high' with the resident
+  // pre-picked so the admin card is a true one-tap confirm.
+  const confidence = familyConfirmed && m?.confident
+    ? 'high'
+    : bestMatch
+      ? bestMatch.type === 'resident_room'
+        ? (bestMatch.score >= 0.85 && roomAgrees) ? 'high' : bestMatch.score >= 0.75 ? 'medium' : 'low'
+        : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
+      : null
 
   await db.insert(portalClaimRequests).values({
     facilityId: facility.id,
@@ -169,6 +198,7 @@ export async function POST(request: NextRequest) {
     residentId: bestMatch?.resident.id ?? null,
     matchType: bestMatch?.type ?? null,
     matchConfidence: confidence,
+    familyConfirmed: familyConfirmed && !!m ? true : null,
     status: 'pending_review',
   })
 
@@ -216,8 +246,9 @@ async function autoApprove(opts: {
   matchedResidents: Array<{ id: string; name: string; roomNumber: string | null }>
   matchType: string
   matchConfidence: string
+  familyConfirmed?: boolean
 }): Promise<string> {
-  const { email, fullName, phone, dateOfBirth, facilityId, facilityCode, facilityName, matchedResidents, matchType, matchConfidence } = opts
+  const { email, fullName, phone, dateOfBirth, facilityId, facilityCode, facilityName, matchedResidents, matchType, matchConfidence, familyConfirmed } = opts
 
   // Upsert portal account
   const existing = await db.query.portalAccounts.findFirst({
@@ -269,6 +300,7 @@ async function autoApprove(opts: {
     residentId: matchedResidents[0]?.id ?? null,
     matchType,
     matchConfidence,
+    familyConfirmed: familyConfirmed ?? null,
     status: 'auto_approved',
   }).catch(() => {})
 

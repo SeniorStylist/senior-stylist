@@ -14,6 +14,8 @@ interface ClaimRequest {
   dateOfBirth: string | null
   matchType: string | null
   matchConfidence: string | null
+  /** P52 — the family tapped "Yes — that's them" on the signup match card. */
+  familyConfirmed?: boolean | null
   /** Auto-matched roster resident (may be null). */
   residentName: string | null
   residentRoom: string | null
@@ -322,6 +324,11 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                         <p className="text-xs font-medium text-stone-700">Closest match: {c.residentName}</p>
                         {c.residentRoom && <p className="text-[10px] text-stone-500">Rm {c.residentRoom}</p>}
                         {confidenceBadge(c.matchConfidence)}
+                        {c.familyConfirmed && (
+                          <span className="mt-1 inline-block text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                            ✓ Family confirmed the match
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <span className="text-[10px] font-semibold text-stone-500 bg-stone-100 rounded-full px-2 py-0.5">

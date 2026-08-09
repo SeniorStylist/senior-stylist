@@ -44,7 +44,8 @@ export default async function SettingsPage() {
             columns: {
               id: true, email: true, fullName: true, phone: true, dateOfBirth: true,
               residentName: true, roomNumber: true, relationship: true,
-              matchType: true, matchConfidence: true, residentId: true, createdAt: true,
+              matchType: true, matchConfidence: true, familyConfirmed: true,
+              residentId: true, createdAt: true,
             },
           }),
         )
