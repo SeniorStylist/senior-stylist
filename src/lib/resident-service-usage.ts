@@ -5,7 +5,7 @@ import { unstable_cache } from 'next/cache'
 
 // P31 — this GROUP BY scans every non-cancelled booking at the facility and
 // used to run UNCACHED and sequentially after the page Promise.all on both
-// hot pages (dashboard + daily log). Cached 5 min under the 'bookings' tag
+// hot pages (dashboard + day log). Cached 5 min under the 'bookings' tag
 // (every booking mutation already busts it). The cached value is a JSON-plain
 // pairs array — NEVER return a Map from unstable_cache (P26 rule: warm hits
 // are JSON round-tripped, which silently turns a Map into {}).

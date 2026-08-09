@@ -306,7 +306,7 @@ export function LogSheetsModal({ open, onClose, role, isMasterAdmin, facilities:
                       </p>
                       {isRolledBack && (
                         <p className="text-xs text-amber-700 mt-1">
-                          Rolled back — these bookings are not in the daily log or exports.
+                          Rolled back — these bookings are not in the day log or exports.
                           Re-scan or re-import the sheet to restore them.
                         </p>
                       )}

@@ -142,7 +142,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     { role: 'bookkeeper', label: 'Bookkeeper View', desc: 'Cross-facility billing, payments, payroll; read-only residents/log' },
     { role: 'admin', label: 'Facility Admin View', desc: 'Full admin of one facility — residents, billing, settings, reports' },
     { role: 'facility_staff', label: 'Facility Staff View', desc: 'Front desk — scheduling, residents, services, sign-up sheet; no billing/payroll' },
-    { role: 'stylist', label: 'Stylist View', desc: 'Calendar + daily log only; no residents or billing' },
+    { role: 'stylist', label: 'Stylist View', desc: 'Calendar + day log only; no residents or billing' },
     { role: 'portal', label: 'Family Portal (demo)', desc: 'Log in as a fake POA with demo data — no magic link needed' },
     { role: 'signup', label: 'Family Sign-Up Wizard (preview)', desc: 'Open the QR-code signup wizard even when self-signup is off — submissions stay disabled' },
   ]

@@ -1,7 +1,7 @@
 // P41 — the assistant's help knowledge base. Hand-authored, server-only:
 // the explain_feature tool keyword-matches these guides and returns the body
 // verbatim so the model can walk users through real workflows in detail
-// (the pre-P41 assistant could only say "that's on the Daily Log page").
+// (the pre-P41 assistant could only say "that's on the Day Log page").
 //
 // Authoring rules:
 // - USER-facing language only: page names, button labels, what they'll see.
@@ -27,9 +27,9 @@ export interface HelpGuide {
 export const HELP_GUIDES: HelpGuide[] = [
   {
     id: 'daily-log',
-    title: 'Daily Log — recording and reviewing a day',
+    title: 'Day Log — recording and reviewing a day',
     keywords: ['log', 'day', 'record', 'daily', 'sheet', 'visits', 'finalize', 'notes', 'done', 'no show', 'paid'],
-    body: `The Daily Log (the "Log" tab) is the running record of one day at one facility.
+    body: `The Day Log (the "Log" tab) is the running record of one day at one facility.
 
 What's on it:
 - Every appointment for the selected date, grouped by stylist. Use the ‹ › arrows next to the date to move between days.
@@ -53,7 +53,7 @@ Other tools in the header: Email (send the formatted day log to any address), Ex
     body: `You can photograph a handwritten log sheet and the app reads it into real bookings.
 
 Steps:
-1. On the Daily Log page, tap the scan button (camera icon).
+1. On the Day Log page, tap the scan button (camera icon).
 2. Bookkeepers and the master admin first pick which facility the sheets belong to — the "Scanning sheets for facility" selector at the top. A brand-new facility can be created right there ("➕ New facility…" with a name and F-code). Get this right: the sheet's residents are matched against THAT facility's roster. (The app also reads the facility name printed on the sheet and warns you if it doesn't match, with a one-tap "Switch to…" fix.)
 3. Take photos or upload images of each sheet (multiple pages fine). The scanner reads resident names, rooms, services, prices, tips, and the stylist from the header.
 4. Review screen: every row shows what was read. Matched residents/services are picked automatically; unmatched ones show "Will create new". You can fix any field, uncheck rows you don't want, set the payment type, and enter a mail subject per sheet.
@@ -67,9 +67,9 @@ Made a mistake? The day's log shows an "Undo & edit" banner for scanned imports 
     id: 'walk-in',
     title: 'Walk-in appointments',
     keywords: ['walkin', 'walk', 'unscheduled', 'drop in', 'add visit', 'quick add'],
-    body: `A walk-in is a service performed without a prior appointment — record it on the Daily Log.
+    body: `A walk-in is a service performed without a prior appointment — record it on the Day Log.
 
-1. Open the Daily Log for the right day and tap "Add Walk-in".
+1. Open the Day Log for the right day and tap "Add Walk-in".
 2. Resident: start typing the name. Pick a match, or if they're new, use "Create & Select" — enter the name and room and the resident is added to the facility with the booking in one step.
 3. Service: pick from the list, or choose "➕ New service…" and type the name and price (useful when the catalog is missing something like "S/B Dry $45").
 4. Save. The visit appears on the log as completed, ready for payment status.
@@ -160,7 +160,7 @@ Connecting a family:
 - Self-serve: print the facility's QR poster (Settings → Family Portal) — families scan it and sign up themselves. Signups matching the POA on file connect instantly; others go to your approval queue in Settings.
 - First sign-in: a newly approved family's first email-link login walks them through a one-time, all-skippable setup — save a card, opt in to automatic payment, and pick a visit rhythm (weekly / every 2 weeks / monthly). The rhythm feeds your due-for-visit panel.
 
-What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family portal" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the daily log. There's an English/Spanish toggle and a large-print mode.
+What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family portal" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the day log. There's an English/Spanish toggle and a large-print mode.
 
 Welcome coupons and per-facility toggles live in Settings → Family Portal.`,
   },
@@ -296,10 +296,10 @@ Role visibility: admins see everything; front desk sees General (read-only); boo
 - Admin (facility): runs their facility's day-to-day — scheduling, residents, sign-up sheet, billing (their facility's own bill and revenue-share), analytics reports, signage, settings and team logins, time-off approvals. The stylist roster is view-only (names, colors, schedules — no pay, commission, or personal details), services are view-only, and payroll isn't visible: stylist and catalog management belong to the franchise admin or bookkeeper.
 - Front desk (facility staff): scheduling, residents, sign-up sheet, signage; services view-only — no money pages (billing/payroll/analytics).
 - Bookkeeper: billing, payroll, analytics, log scanning and corrections across EVERY facility — and they manage stylists (commissions, compliance, hours), the service catalog, and applicants. Read-only on residents and no scheduling changes (they can add walk-ins and fix imported log data).
-- Stylist: their own world only — their calendar, their daily log rows, their earnings, their profile/hours/time off. They can scan their own log sheets and add walk-ins (including brand-new residents).
+- Stylist: their own world only — their calendar, their day log rows, their earnings, their profile/hours/time off. They can scan their own log sheets and add walk-ins (including brand-new residents).
 - Family (portal): their own resident(s) only, via the Family Portal — no staff app access.
 
-Where each role lands at sign-in: master → Master Admin, franchise admin → Franchise dashboard, facility admin → Analytics (reports), bookkeeper → Daily Log, front desk and stylists → Calendar. Every page in your sidebar stays one tap away regardless.
+Where each role lands at sign-in: master → Master Admin, franchise admin → Franchise dashboard, facility admin → Analytics (reports), bookkeeper → Day Log, front desk and stylists → Calendar. Every page in your sidebar stays one tap away regardless.
 
 Your assistant follows the same rules automatically: it can only see and change what YOU can.`,
   },
@@ -317,15 +317,15 @@ How numbers are counted (consistent app-wide):
 
 The "Ask me anything" card at the top answers questions directly from your real numbers — "what was our best service last month?", "who owes us the most?" — and can drill into any facility for the master admin.
 
-Exports: the Export button produces the bookkeeper-format Excel of daily logs for any facility set and date range. The master admin also gets network-wide reports on the Master Admin page.`,
+Exports: the Export button produces the bookkeeper-format Excel of day logs for any facility set and date range. The master admin also gets network-wide reports on the Master Admin page.`,
   },
   {
     id: 'exports',
-    title: 'Excel exports of daily logs',
+    title: 'Excel exports of day logs',
     keywords: ['export', 'excel', 'xlsx', 'spreadsheet', 'download', 'bookkeeping format'],
-    body: `The app exports daily logs as a styled Excel file in the bookkeeper's format (No., Mail Subject, dates, facility, stylist, client, room, services, amount, notes, tips, payment type).
+    body: `The app exports day logs as a styled Excel file in the bookkeeper's format (No., Mail Subject, dates, facility, stylist, client, room, services, amount, notes, tips, payment type).
 
-From the Daily Log: the Export button exports the current facility for a date range.
+From the Day Log: the Export button exports the current facility for a date range.
 From Analytics: the Export button lets you pick MULTIPLE facilities (or "all") plus the date range — bookkeepers and the master admin see every facility in the list.
 
 Only completed visits export. "Invoice" in the Payment Type column means the visit is on the open balance; Cash/Check/Card/ACH mean paid directly. On phones and the native app the file opens in the share sheet; on desktop it downloads.`,
@@ -376,7 +376,7 @@ Pick a template, edit the text, watch the live preview, then "Print / Save PDF" 
     keywords: ['offline', 'no internet', 'no signal', 'connection', 'sync', 'saved copy'],
     body: `The app keeps working when the connection drops — common inside senior living buildings.
 
-- Pages you've visited stay available; the daily log and calendar show the last saved copy with an "Offline — showing saved copy" pill.
+- Pages you've visited stay available; the day log and calendar show the last saved copy with an "Offline — showing saved copy" pill.
 - Most day-to-day actions QUEUE while offline: marking visits done/paid, edits, walk-ins, check-in, sign-up requests, photos. You'll see "Saved on this device" — everything syncs automatically when the signal returns, and the banner shows how many changes are waiting.
 - Payments are never taken or queued offline, by design.
 - If you open the app with no connection at all, the offline hub shows today's cached schedule and the resident roster.

@@ -422,7 +422,7 @@ export interface CoverageRequest {
 
 // Phase 11K — Payment reconciliation
 // `logEntryId` actually holds a `bookings.id` — kept named "logEntryId" because
-// per-resident service evidence lives on the booking row that appears in the daily log.
+// per-resident service evidence lives on the booking row that appears in the day log.
 export type ReconciliationStatus = 'unreconciled' | 'reconciled' | 'partial' | 'flagged'
 export type ReconciliationConfidence = 'high' | 'medium' | 'unmatched'
 

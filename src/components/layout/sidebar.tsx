@@ -65,7 +65,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       },
       {
         href: '/log',
-        label: 'Daily Log',
+        label: 'Day Log',
         roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'],
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

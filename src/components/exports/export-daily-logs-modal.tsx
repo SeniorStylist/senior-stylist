@@ -68,7 +68,7 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
   const body = (
     <div className="flex flex-col gap-4 p-5">
       <p className="text-sm text-stone-600">
-        Download all completed daily log entries for{' '}
+        Download all completed day log entries for{' '}
         <span className="font-semibold text-stone-900">{facilityName}</span> in the selected range as an Excel file.
       </p>
       <div className="grid grid-cols-2 gap-3">
@@ -115,14 +115,14 @@ export function ExportDailyLogsModal({ open, onClose, facilityId, facilityName }
 
   if (isMobile) {
     return (
-      <BottomSheet isOpen={open} onClose={onClose} title="Export Daily Log" footer={footer}>
+      <BottomSheet isOpen={open} onClose={onClose} title="Export Day Log" footer={footer}>
         {body}
       </BottomSheet>
     )
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Export Daily Log">
+    <Modal open={open} onClose={onClose} title="Export Day Log">
       {body}
       {footer}
     </Modal>

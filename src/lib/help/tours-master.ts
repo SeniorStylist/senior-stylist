@@ -417,7 +417,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
       {
         type: 'click',
         selector: '[data-tour="nav-daily-log"]',
-        title: 'Tap Daily Log',
+        title: 'Tap Day Log',
         description: 'Every service performed today. Tap it to take a look.',
         placement: 'top',
       },
@@ -518,7 +518,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
   },
   {
     id: 'scripted-master-daily-log-mobile',
-    title: 'Daily Log',
+    title: 'Day Log',
     scenarioSummary: 'Review what was done today',
     platform: 'mobile',
     role: 'super_admin',
@@ -527,7 +527,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '[data-tour="nav-daily-log"]',
         route: '/log',
-        title: 'Daily Log',
+        title: 'Day Log',
         description: 'Every completed service for the day, by stylist.',
         placement: 'top',
       },
@@ -547,7 +547,7 @@ export const MASTER_TOURS: ScriptedTour[] = [
       },
     ],
     learnings: [
-      'Read the daily log on mobile',
+      'Read the day log on mobile',
       'Understand a log entry',
       'Export logs to Excel',
     ],

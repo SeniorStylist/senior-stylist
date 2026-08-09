@@ -33,7 +33,7 @@ import type { Resident, Stylist, Service } from '@/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { useToast } from '@/components/ui/toast'
 // Phase 25 — the OCR review modal (1500+ LOC) and sheets-history modal only
-// open on demand; keep them out of the daily log's initial bundle.
+// open on demand; keep them out of the day log's initial bundle.
 const OcrImportModal = dynamic(
   () => import('./ocr-import-modal').then((m) => m.OcrImportModal),
   { ssr: false },
@@ -168,7 +168,7 @@ function formatLogDate(dateStr: string, tz: string): string {
 // Pull a human-readable message out of an API error response. Handles a plain
 // string `error`, a Zod `flatten()` object ({ fieldErrors, formErrors }), and the
 // `{ error: { fieldErrors, formErrors } }` shape the booking PUT returns on 422 —
-// so the daily log shows the real reason instead of a generic "Update failed".
+// so the day log shows the real reason instead of a generic "Update failed".
 function firstErrorMessage(json: unknown): string | null {
   if (!json || typeof json !== 'object') return null
   const err = (json as { error?: unknown }).error
@@ -1131,7 +1131,7 @@ export function LogClient({
             )}
             <HelpTip
               tourId="stylist-daily-log"
-              label="Daily Log"
+              label="Day Log"
               description="Each row is one appointment. Edit price/notes inline, add walk-ins, then finalize the day to lock entries."
             />
           </div>
@@ -2578,7 +2578,7 @@ function ExportIcon() {
     </svg>
   )
 }
-// Phase 23 — in-place facility switcher for the daily log (bookkeeper/master).
+// Phase 23 — in-place facility switcher for the day log (bookkeeper/master).
 // Search by name or F-code (house rule); picking POSTs /api/facilities/select
 // then HARD-reloads so every server-seeded list re-renders under the new
 // facility (soft refresh does not re-run useState initializers).

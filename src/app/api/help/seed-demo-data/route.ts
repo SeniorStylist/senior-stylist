@@ -23,7 +23,7 @@ export async function POST() {
 
   try {
     // If the viewer is a stylist, the demo booking is assigned to them so it
-    // appears in their self-filtered daily log / dashboard. Effective identity
+    // appears in their self-filtered day log / dashboard. Effective identity
     // (not raw profiles.stylistId) so master-impersonated tours match the
     // log/dashboard scope filters.
     const viewerStylistId = await getEffectiveStylistId(user.id)

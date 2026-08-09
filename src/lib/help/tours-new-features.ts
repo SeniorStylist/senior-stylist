@@ -240,7 +240,7 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '',
         route: '/log',
-        title: 'Snap it on the daily log',
+        title: 'Snap it on the day log',
         description: 'After marking an appointment Done, the camera button saves a photo of the finished style — with an optional caption.',
       },
       {

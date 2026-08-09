@@ -497,12 +497,12 @@ export function TeamSection({
                 <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', roleBadgeClass(cu.role))}>
                   {roleBadgeLabel(cu.role)}
                 </span>
-                {/* P48 — an unlinked stylist login is view-only on the daily log
+                {/* P48 — an unlinked stylist login is view-only on the day log
                     and can't scan a sheet at all, which reads to them as "the
                     app is broken". Flag it here, where the fix lives. */}
                 {cu.role === 'stylist' && !cu.stylistId && (
                   <span
-                    title="This login isn't connected to a stylist record — their daily log is view-only until you assign one."
+                    title="This login isn't connected to a stylist record — their day log is view-only until you assign one."
                     className="shrink-0 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
                   >
                     Not linked

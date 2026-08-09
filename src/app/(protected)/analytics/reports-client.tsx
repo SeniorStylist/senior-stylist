@@ -241,7 +241,7 @@ export function ReportsClient({
               type="button"
               onClick={() => setShowExportModal(true)}
               data-tour="analytics-export-excel"
-              title="Export Daily Logs to Excel"
+              title="Export Day Logs to Excel"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-[#8B2E4A] hover:border-[#C4687A] hover:bg-[#F9EFF2]/40 transition-colors text-xs font-semibold"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

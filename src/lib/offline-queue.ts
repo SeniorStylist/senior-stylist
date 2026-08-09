@@ -8,7 +8,7 @@
 // DOCUMENTED TRADEOFF: if a request reached the server but the response was lost,
 // the replay duplicates the write. Booking-field PUTs and check-in are naturally
 // idempotent-ish; walk-in POST is the real duplicate risk — accepted for v1 (the
-// stylist sees a "saved offline" toast and the daily log after sync).
+// stylist sees a "saved offline" toast and the day log after sync).
 // PAYMENTS ARE NEVER QUEUED — do not route any /api/payments/* call through this.
 
 export type QueueableResult = Response | { queued: true }

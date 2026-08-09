@@ -30,7 +30,7 @@ const BOOKING_MODAL_OPENERS = ['dashboard-new-booking-fab', 'calendar-time-grid'
 export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   // ── Global navigation (sidebar + mobile bottom bar — resolver picks) ──
   'nav-calendar': { route: '*', label: 'Calendar tab', kind: 'nav' },
-  'nav-daily-log': { route: '*', label: 'Daily Log tab', kind: 'nav' },
+  'nav-daily-log': { route: '*', label: 'Day Log tab', kind: 'nav' },
   'nav-residents': { route: '*', label: 'Residents tab', kind: 'nav' },
   'nav-billing': { route: '*', label: 'Billing (sidebar)', kind: 'nav', desktopOnly: true },
   'nav-analytics': { route: '*', label: 'Analytics tab', kind: 'nav' },
@@ -66,7 +66,7 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'booking-modal-date': { route: '/dashboard', label: 'date & time field', kind: 'input', requires: BOOKING_MODAL_OPENERS },
   'booking-modal-submit': { route: '/dashboard', label: 'Book Appointment button', kind: 'button', requires: BOOKING_MODAL_OPENERS },
 
-  // ── /log (Daily Log) ──
+  // ── /log (Day Log) ──
   'daily-log-scan-sheet': { route: '/log', label: 'Scan log sheet (camera) button', kind: 'button' },
   'daily-log-add-walkin': { route: '/log', label: 'Add Walk-in button', kind: 'button' },
   'log-export-excel': { route: '/log', label: 'Export (Excel) button', kind: 'button' },

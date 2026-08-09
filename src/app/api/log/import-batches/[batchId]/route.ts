@@ -135,7 +135,7 @@ export async function PUT(
       // Moving a batch must ALSO re-point each booking's resident + services to
       // records in the target facility — flipping only bookings.facility_id leaves
       // bookings referencing residents/services that live in the source facility,
-      // which breaks facility scoping everywhere (daily log, billing, exports).
+      // which breaks facility scoping everywhere (day log, billing, exports).
       await db.transaction(async (tx) => {
         const batchBookings = await tx
           .select({

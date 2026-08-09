@@ -12,7 +12,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'The Right View for Every Role',
     items: [
       'Payment at a glance: a small green card icon by a resident\'s name means they have a card on file, a blue coin means salon credit — you\'ll see them when booking, on daily-log rows, in the sign-up sheet, and in quick profiles. No icon = sort out payment at the chair',
-      'Every role now lands on its best page at sign-in: facility admins open straight to their reports, franchise owners to the Franchise dashboard, bookkeepers to the Daily Log — and the sidebar is reordered most-important-first per role, with a slimmer bottom section so there\'s more room to see your pages',
+      'Every role now lands on its best page at sign-in: facility admins open straight to their reports, franchise owners to the Franchise dashboard, bookkeepers to the Day Log — and the sidebar is reordered most-important-first per role, with a slimmer bottom section so there\'s more room to see your pages',
       'A real permissions cleanup: facilities can no longer see stylist commissions, pay, or personal details — the stylist list is now a simple roster (names, colors, schedule days), the directory and payroll are franchise/bookkeeper-side, and services are view-only for facility staff (bookkeepers and franchise owners manage the catalog). Franchise owners keep everything',
       'The billing page shows how each facility splits: how many residents are facility-billed vs individual payers, with each side\'s open balance. Set it per resident with the new Payment Type field (individual card/cash/check, facility-billed, or salon credit) — deeper per-type math comes next',
       'The assistant now talks like a personal assistant, not "AI" — the button says "Ask me anything" everywhere',
@@ -96,7 +96,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'No more frozen "Thinking…" — the assistant now narrates as it works: "Checking the schedule…", "Crunching the numbers…", "Building your walkthrough…" swap live while it runs',
       'It never forgets your chat: the conversation survives page reloads and facility switches, and there\'s now a Stop button plus one-tap Retry when something fails',
-      'The suggestion chips adapt to where you are — on the Daily Log you\'ll see "Help me scan a sheet", on Billing "Who owes the most?" — and they stay visible while you chat',
+      'The suggestion chips adapt to where you are — on the Day Log you\'ll see "Help me scan a sheet", on Billing "Who owes the most?" — and they stay visible while you chat',
       'New "☀️ My morning brief" chip: today\'s schedule, anything unpaid, and who\'s due for a visit in one tight summary',
       'Ask "who\'s due for a visit?" or "who has open time today?" — the assistant now finds residents overdue by their own visit rhythm and open gaps in stylists\' days, and offers to book them together',
       'Rate any answer 👍/👎 — feedback goes straight to the owner so the assistant keeps getting better; and a new "Meet your AI assistant" tour lives in the Help Center',
@@ -199,7 +199,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-21',
     title: 'Stylists Unblocked & Feedback Replies',
     items: [
-      'Stylists can now photograph and scan their own log sheet from the Daily Log — every imported visit lands under their own name automatically',
+      'Stylists can now photograph and scan their own log sheet from the Day Log — every imported visit lands under their own name automatically',
       'Walk-ins fixed for stylists: adding a brand-new resident works again, and a new "➕ New service" option lets you add a missing service with its price right in the form',
       'Feedback is now a two-way street: the team can reply to your notes, you get a notification (and email), and replies live on the new My Feedback page',
     ],
@@ -211,7 +211,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Print a QR sign-up poster for your facility — families scan it and land on YOUR facility\'s sign-up, no choosing, no confusion',
       'New Portal Status panel: see who\'s connected, who can be invited, and invite every family with one tap',
-      'Families can now add care preferences: style notes, allergies (shown to the stylist on the daily log), a preferred stylist, visit rhythm, and reminder choices',
+      'Families can now add care preferences: style notes, allergies (shown to the stylist on the day log), a preferred stylist, visit rhythm, and reminder choices',
       'Merging duplicate residents now carries EVERYTHING to the kept resident — portal access, saved cards, billing history, photos — and the merge screen shows POA/Portal/Card badges with clear warnings first',
       'Apple Pay and Google Pay at the chair (after a one-time Stripe setting), plus "Make main card" on saved cards',
       'Link any family email to a resident directly from their page — existing accounts connect instantly',
@@ -233,7 +233,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Accurate Earnings',
     items: [
       'Revenue now counts only COMPLETED visits — scheduled or cancelled appointments no longer inflate Analytics, dashboard tiles, totals, or exports',
-      'Days now roll over on your facility\'s clock: an 8pm appointment shows on the right day in the daily log and analytics, and the log no longer flips to tomorrow at 8pm Eastern',
+      'Days now roll over on your facility\'s clock: an 8pm appointment shows on the right day in the day log and analytics, and the log no longer flips to tomorrow at 8pm Eastern',
       'Cancelling an appointment now removes it from Google Calendar and warns you when it was already marked paid',
       'Cancels and deletes made on spotty wifi sync automatically when you\'re back online',
     ],
@@ -255,8 +255,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-07-14',
     title: 'Stylist Privacy & Day-Log Fixes',
     items: [
-      'Stylists now see only their own appointments and daily log — walk-ins are locked to the signed-in stylist everywhere, including on the server',
-      'Fixed the mobile daily log: Done / No-show always respond (and tell you why if something fails), and the cramped service/price row is redesigned',
+      'Stylists now see only their own appointments and day log — walk-ins are locked to the signed-in stylist everywhere, including on the server',
+      'Fixed the mobile day log: Done / No-show always respond (and tell you why if something fails), and the cramped service/price row is redesigned',
       'Delete an appointment by swiping its row or from the Edit form — with a confirm step',
       'Settings → Team: the Assign-stylist list now scrolls properly, and "Disconnect stylist" lets you unlink a login when someone switches emails',
       'Master admin can preview as a specific real stylist from the Debug tab — the preview now behaves exactly like that stylist\'s account',
@@ -296,7 +296,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Dashboard loads with one combined data request instead of seven separate ones',
       'Fonts now load from our own servers — no more waiting on Google Fonts',
       'Big screens (reports, booking form, scan review) download only when you open them',
-      'Stylists can mark a visit done AND paid right on the home screen, with a one-tap jump to the Daily Log',
+      'Stylists can mark a visit done AND paid right on the home screen, with a one-tap jump to the Day Log',
     ],
   },
   {
@@ -315,7 +315,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'Fixed "Invalid input" blocking every daily-log edit (date, stylist, service, room, amount, tips)',
       'Switching facilities now actually switches the whole page, not just the label',
-      'New facility picker right in the Daily Log header — search by name or F-code',
+      'New facility picker right in the Day Log header — search by name or F-code',
       'After an app update, open tabs refresh themselves instead of showing a chunk error',
     ],
   },
@@ -357,7 +357,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Mobile Comfort Pass & Offline Mode',
     items: [
       'Customize your bottom tabs — pick your 5 most-used, everything else lives under More',
-      'Works offline: your schedule and daily log show the last saved copy, and edits sync when wifi returns',
+      'Works offline: your schedule and day log show the last saved copy, and edits sync when wifi returns',
       'Offline banner shows pending changes and confirms when everything synced',
       'Bigger, easier tap targets across the app; dialogs open as bottom sheets on phones',
       'Fixed overlapping buttons and cramped headers on small screens',
@@ -372,7 +372,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       '"Due for a visit" panel suggests residents based on their own visit rhythm',
       'Copy an entire salon day to a new date; print a weekly schedule',
       'Facility health score on Master Admin; invoice aging strip on Billing',
-      'Booking style photos — snap from the daily log, share to the family portal',
+      'Booking style photos — snap from the day log, share to the family portal',
       'Stylists see a room-to-room route strip and a monthly earnings forecast',
       'Monthly statement email automation and appointment-reminder texts for families',
       'Prepay packages on the family portal (e.g. 3 × Wash & Set)',
@@ -395,7 +395,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-06-22',
     title: 'Log Sheet History & Payment Types',
     items: [
-      'Bookkeepers can now view, rename, move, and roll back imported OCR log sheets from the Daily Log page',
+      'Bookkeepers can now view, rename, move, and roll back imported OCR log sheets from the Day Log page',
       'Payment type now supports free-text (Cash, Check, Card, ACH, or custom) on all booking edits',
       'Bookkeeper log editing expanded: tips, payment method, date, resident, service, and delete',
     ],
@@ -463,7 +463,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Import service log XLSX files directly into bookings with fuzzy facility/service matching',
       'Reconciliation queue for bookings that need a service linked',
       'Batch rollback of an entire import with one click',
-      'Historical bookings show an "H" badge in the calendar and daily log',
+      'Historical bookings show an "H" badge in the calendar and day log',
     ],
   },
 ]

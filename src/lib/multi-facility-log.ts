@@ -1,7 +1,7 @@
 /**
  * Multi-facility service-log parser.
  *
- * The bookkeepers send one workbook containing EVERY facility's daily log
+ * The bookkeepers send one workbook containing EVERY facility's day log
  * (each row carries its own `F### - Name` facility cell and `ST### - Name`
  * stylist cell), across one or more tabs. This module parses that workbook in
  * the browser and groups the rows by facility code so the client can POST one

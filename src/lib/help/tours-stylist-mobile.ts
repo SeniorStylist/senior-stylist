@@ -25,8 +25,8 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
       {
         type: 'click',
         selector: '[data-tour="nav-daily-log"]',
-        title: 'Tap Daily Log',
-        description: 'After each visit you confirm it here. Tap Daily Log to see it.',
+        title: 'Tap Day Log',
+        description: 'After each visit you confirm it here. Tap Day Log to see it.',
         placement: 'top',
       },
       {
@@ -127,7 +127,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
 
   {
     id: 'scripted-stylist-daily-log-mobile',
-    title: 'Daily Log',
+    title: 'Day Log',
     scenarioSummary: 'Mark Mrs. Smith as paid and finalize the day',
     platform: 'mobile',
     role: 'stylist',
@@ -136,7 +136,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '[data-tour="daily-log-entry-row"]',
         route: '/log',
-        title: 'Your Daily Log',
+        title: 'Your Day Log',
         description: "Mrs. Smith's appointment is here. Confirm visits and mark payment after each one.",
       },
       {
@@ -162,7 +162,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
       },
     ],
     learnings: [
-      'Found the appointment in the Daily Log',
+      'Found the appointment in the Day Log',
       'Marked payment as paid',
       'Finalized the day',
     ],
@@ -206,7 +206,7 @@ export const STYLIST_MOBILE_TOURS: ScriptedTour[] = [
   {
     id: 'scripted-stylist-finalize-day-mobile',
     title: 'Finalize Your Day',
-    scenarioSummary: 'Close out the daily log',
+    scenarioSummary: 'Close out the day log',
     platform: 'mobile',
     role: 'stylist',
     steps: [

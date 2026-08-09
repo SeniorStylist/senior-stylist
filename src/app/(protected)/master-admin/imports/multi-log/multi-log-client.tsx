@@ -277,7 +277,7 @@ export function MultiLogClient() {
               Multi-Facility Log Import
             </h1>
             <p className="text-sm text-stone-500 mb-8">
-              Upload one bookkeeper XLSX containing <span className="font-medium text-stone-700">every facility&apos;s</span> daily log.
+              Upload one bookkeeper XLSX containing <span className="font-medium text-stone-700">every facility&apos;s</span> day log.
               We&apos;ll group rows by facility code, auto-create any missing facilities and stylists, create new residents,
               and link services by name. Services are never created — unmatched lines import as historical records flagged for review.
             </p>

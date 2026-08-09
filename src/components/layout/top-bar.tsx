@@ -19,7 +19,7 @@ interface TopBarProps {
 const TABS: { href: string; label: string; roles: NavRole[] }[] = [
   { href: '/dashboard', label: 'Calendar', roles: ['admin', 'facility_staff', 'stylist'] },
   { href: '/residents', label: 'Residents', roles: ['admin', 'facility_staff'] },
-  { href: '/log', label: 'Daily Log', roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'] },
+  { href: '/log', label: 'Day Log', roles: ['admin', 'facility_staff', 'stylist', 'bookkeeper'] },
 ]
 
 export function TopBar({ facilityName, facilityCode, role = 'admin', changelogLastReadAt = null }: TopBarProps) {
