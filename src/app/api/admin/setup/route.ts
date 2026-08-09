@@ -61,6 +61,7 @@ export async function POST() {
       .values({
         name: 'Sunrise Senior Living',
         timezone: 'America/New_York',
+        portalSelfSignupEnabled: true, // P52 — signup on by default; explicit while prod's column default is still false (0035 pending)
       })
       .returning()
 

@@ -102,6 +102,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
   const [assignCommission, setAssignCommission] = useState<Record<string, string>>({})
   const [actioningRequestId, setActioningRequestId] = useState<string | null>(null)
   const [requestToast, setRequestToast] = useState<string | null>(null)
+  const [signupAllBusy, setSignupAllBusy] = useState(false)
 
   const handleRequestAction = async (id: string, action: 'approve' | 'deny') => {
     setActioningRequestId(id)
@@ -420,6 +421,34 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
       setEditError('Failed to save changes')
     } finally {
       setEditSaving(false)
+    }
+  }
+
+  // P52 — one-click "family signup ON everywhere" (the no-psql path for 0035's backfill)
+  const handleSignupAll = async () => {
+    if (!confirm('Turn ON family self-signup at every active facility? Individual facilities can still be switched off in their Settings.')) return
+    setSignupAllBusy(true)
+    try {
+      const res = await fetch('/api/super-admin/portal-signup-all', { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRequestToast(typeof j.error === 'string' ? j.error : 'Could not update facilities — try again')
+        setTimeout(() => setRequestToast(null), 4000)
+        return
+      }
+      const n = j.data?.enabled ?? 0
+      setRequestToast(
+        n > 0
+          ? `Family signup is now on at ${n} ${n === 1 ? 'facility' : 'facilities'}`
+          : 'Family signup was already on everywhere'
+      )
+      setTimeout(() => setRequestToast(null), 4000)
+      router.refresh()
+    } catch {
+      setRequestToast('Network error — try again')
+      setTimeout(() => setRequestToast(null), 4000)
+    } finally {
+      setSignupAllBusy(false)
     }
   }
 
@@ -864,6 +893,24 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
             <button type="button" aria-label="Dismiss error" onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600 ml-4 shrink-0">✕</button>
           </div>
         )}
+
+        {/* P52 — bulk family-signup switch (production backfill without psql) */}
+        <div className="mb-4 bg-white rounded-2xl border border-stone-200 px-4 py-3 shadow-[var(--shadow-sm)] flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-stone-800">Family sign-up QR posters</p>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Make every QR poster work — turn on family self-signup at all active facilities.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignupAll}
+            disabled={signupAllBusy}
+            className="shrink-0 px-4 py-2 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#7A2841] transition-colors disabled:opacity-60"
+          >
+            {signupAllBusy ? 'Turning on…' : 'Turn on everywhere'}
+          </button>
+        </div>
 
         {/* Facility Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour="master-facility-list">

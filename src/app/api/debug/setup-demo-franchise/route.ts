@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
             facilityCode: d.code,
             timezone: 'America/New_York',
             isDemo: true,
+            portalSelfSignupEnabled: true, // P52 — signup on by default; explicit while prod's column default is still false (0035 pending)
             active: true,
             qbOutstandingBalanceCents: d.outstandingCents,
           })

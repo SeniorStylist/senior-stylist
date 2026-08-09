@@ -171,7 +171,7 @@ export async function POST(request: Request) {
         const contactEmail = (row['Email'] ?? row['email'] ?? '').trim() || null
         const addressParts = [street, city, state, zip].filter(Boolean)
         const address = addressParts.length > 0 ? addressParts.join(', ') : null
-        return { name, address, phone, contactEmail, qbCustomerId: qbId, facilityCode: qbId, active: true }
+        return { name, address, phone, contactEmail, qbCustomerId: qbId, facilityCode: qbId, active: true, portalSelfSignupEnabled: true /* P52 */ }
       })
 
       const inserted = await db.insert(facilities).values(values).returning({ id: facilities.id })

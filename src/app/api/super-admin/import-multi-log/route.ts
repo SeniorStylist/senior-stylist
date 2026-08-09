@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       const freshCode = nextFacilityCode(allCodes.map((f) => f.facilityCode))
       const [created] = await db
         .insert(facilities)
-        .values({ name: facilityName, facilityCode: freshCode, paymentType: paymentTypeHint })
+        .values({ name: facilityName, facilityCode: freshCode, paymentType: paymentTypeHint, portalSelfSignupEnabled: true /* P52 */ })
         .returning({ id: facilities.id, name: facilities.name, timezone: facilities.timezone })
       facility = created
       result.facilityCreated = true
@@ -171,7 +171,7 @@ export async function POST(request: Request) {
       } else {
         const [created] = await db
           .insert(facilities)
-          .values({ name: facilityName, facilityCode, paymentType: paymentTypeHint })
+          .values({ name: facilityName, facilityCode, paymentType: paymentTypeHint, portalSelfSignupEnabled: true /* P52 */ })
           .returning({ id: facilities.id, name: facilities.name, timezone: facilities.timezone })
         facility = created
         result.facilityCreated = true

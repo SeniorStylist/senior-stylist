@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
         address: address ?? null,
         phone: phone ?? null,
         timezone: timezone ?? 'America/New_York',
+        portalSelfSignupEnabled: true, // P52 — signup on by default; explicit while prod's column default is still false (0035 pending)
         ...(facilityCode ? { facilityCode } : {}),
         isDemo,
       })

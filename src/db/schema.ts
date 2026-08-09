@@ -69,7 +69,9 @@ export const facilities = pgTable('facilities', {
   active: boolean('active').default(true).notNull(),
   isDemo: boolean('is_demo').notNull().default(false),
   // Phase 14A: family portal self-signup + coupon settings
-  portalSelfSignupEnabled: boolean('portal_self_signup_enabled').default(false).notNull(),
+  // P52 — ON by default (drizzle/0035): every QR poster works out of the box;
+  // the per-facility OFF switch lives in Settings → Family Portal.
+  portalSelfSignupEnabled: boolean('portal_self_signup_enabled').default(true).notNull(),
   portalCouponsEnabled: boolean('portal_coupons_enabled').default(false).notNull(),
   portalWelcomeCouponEnabled: boolean('portal_welcome_coupon_enabled').default(false).notNull(),
   portalWelcomeCouponType: text('portal_welcome_coupon_type'), // 'percent' | 'fixed'
@@ -976,8 +978,11 @@ export const portalClaimRequests = pgTable('portal_claim_requests', {
   residentName: text('resident_name'),
   roomNumber: text('room_number'),
   relationship: text('relationship'),
+  // P52 — the family tapped "Yes — that's them" on the match card
+  // (drizzle/0035, self-bootstrapped by portal-claims-ddl.ts)
+  familyConfirmed: boolean('family_confirmed'),
   residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
-  // 'email' | 'name' | 'resident_room' | null
+  // 'email' | 'name' | 'resident_room' | 'resident_confirmed' | null
   matchType: text('match_type'),
   // 'high' | 'medium' | 'low' | null
   matchConfidence: text('match_confidence'),
