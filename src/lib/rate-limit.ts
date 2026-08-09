@@ -46,6 +46,7 @@ type Bucket =
   | 'assistantMemory'
   | 'portalBulkInvite'
   | 'portalSignup'
+  | 'portalSignupMatch'
   | 'paymentSetup'
   | 'paymentCollect'
   | 'notifications'
@@ -101,6 +102,8 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
 
   portalBulkInvite: { tokens: 5, window: '1 h' },
   portalSignup: { tokens: 5, window: '1 h' },
+  // P52 — signup match preview; 3× headroom over the signup POST for retypes.
+  portalSignupMatch: { tokens: 15, window: '1 h' },
   paymentSetup: { tokens: 20, window: '1 h' },
   paymentCollect: { tokens: 60, window: '1 h' },
   notifications: { tokens: 120, window: '1 m' },
