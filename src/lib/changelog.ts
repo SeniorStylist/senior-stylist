@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.2',
+    date: '2026-08-09',
+    title: 'Day Log + Separate Assistant Chats',
+    items: [
+      'The Daily Log is now simply the "Day Log" everywhere — sidebar, tabs, tutorials, exports, and emails. Same page, same features, shorter name',
+      'Your assistant starts a fresh chat every time you open the app — no more old questions hanging around. Tap "Past chats" at the top of the chat window to reopen an earlier conversation, or "＋ New chat" to start over mid-conversation',
+      'Past chats stay on your device only (the last 10) and are cleared when you sign out',
+    ],
+  },
+  {
     version: '6.1',
     date: '2026-08-07',
     title: 'The Right View for Every Role',
