@@ -21,10 +21,14 @@ export function clearPageCache(): void {
 
 export function clearOfflineOnLogout(): void {
   clearReadCache()
-  // P46 — the assistant chat persists to localStorage and can contain
-  // resident names; same shared-device rule as the read cache.
+  // P46/R8 — assistant chats persist to localStorage and can contain
+  // resident names; same shared-device rule as the read cache. Keys must
+  // match use-assistant-chat.ts (legacy single thread + R8 sessions store
+  // + the one-shot switch_facility resume flag).
   try {
     localStorage.removeItem('ss_assistant_chat')
+    localStorage.removeItem('ss_assistant_chats')
+    sessionStorage.removeItem('ss_assistant_resume')
   } catch {
     /* best-effort */
   }

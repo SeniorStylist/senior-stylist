@@ -407,6 +407,8 @@ Data answers come with visual cards — mini tables and tiles under the reply (t
 
 It speaks plain English (typos fine), understands relative times in your facility's timezone, and if a name is close-but-not-quite it asks "did you mean…?". Voice: tap the mic, or use your keyboard's mic key in the app.
 
+Every visit starts a fresh chat. Tap "Past chats" at the top of the chat window to reopen an earlier conversation and continue it, or "＋ New chat" to start over mid-conversation. Past chats live only on your device and are cleared when you sign out.
+
 It can never do more than your role allows, and it never touches payments, refunds, or bulk sends.`,
   },
 ]
