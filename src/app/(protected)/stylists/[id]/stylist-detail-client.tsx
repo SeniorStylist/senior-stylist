@@ -722,16 +722,15 @@ export function StylistDetailClient({
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide block mb-1.5">
                 Stylist code
               </label>
-              {isMasterAdmin ? (
-                <input
-                  value={stylistCode}
-                  onChange={(e) => setStylistCode(e.target.value.toUpperCase())}
-                  placeholder="ST###"
-                  className="w-32 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
-                />
-              ) : (
-                <span className="text-sm font-mono text-stone-700">{stylist.stylistCode}</span>
-              )}
+              {/* R9 (Josh 2026-08-11): code edits opened to the manage tier —
+                  this page is manage-tier-only since P51, so everyone here may
+                  edit. Clashes come back as a 409 from the unique index. */}
+              <input
+                value={stylistCode}
+                onChange={(e) => setStylistCode(e.target.value.toUpperCase())}
+                placeholder="ST###"
+                className="w-32 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+              />
             </div>
 
             {/* Facility moves are admin-only — the PUT whitelist drops facilityId

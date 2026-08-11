@@ -112,11 +112,12 @@ export async function PUT(
     // "bookkeepers should have a lot of permissions" — supersedes Round 6's
     // name/color-only grant). Master-only fields are still SILENT-DROPPED,
     // never 403'd: the stylist-detail client always PUTs the full body, so
-    // rejecting a disallowed field would break every bookkeeper save. This
-    // drops stylistCode BEFORE the master-only check below so bookkeepers
-    // never trip it.
+    // rejecting a disallowed field would break every bookkeeper save.
+    // R9 (Josh 2026-08-11): stylistCode edits opened to the manage tier —
+    // bookkeepers own the ST-code system in their accounting sheets; the
+    // unique index + 409 below guard clashes. franchiseId stays master-only.
     if (!master && facilityUser!.role === 'bookkeeper') {
-      const MASTER_ONLY = new Set(['stylistCode', 'franchiseId'])
+      const MASTER_ONLY = new Set(['franchiseId'])
       for (const key of Object.keys(parsed.data) as Array<keyof typeof parsed.data>) {
         if (MASTER_ONLY.has(key as string)) delete parsed.data[key]
       }
@@ -126,11 +127,6 @@ export async function PUT(
     // stylistCode; a code inside the name double-prefixes export labels.
     if (parsed.data.name) {
       parsed.data.name = splitStylistCell(parsed.data.name).stylistName
-    }
-
-    // stylist_code edits: master admin only
-    if (parsed.data.stylistCode && !master) {
-      return Response.json({ error: 'Only master admin can change stylist_code' }, { status: 403 })
     }
 
     const franchise = master ? null : await getUserFranchise(user.id)
