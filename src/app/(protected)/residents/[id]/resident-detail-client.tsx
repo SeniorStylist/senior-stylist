@@ -68,7 +68,9 @@ const STATUS_LABELS: Record<string, string> = {
 export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin', facilityTimezone = 'America/New_York', facilityCode = null }: ResidentDetailClientProps) {
   const router = useRouter()
   const isAdmin = role === 'admin' || role === 'super_admin'
-  const canEdit = isAdmin || role === 'facility_staff'
+  // R9 (Josh 2026-08-11): bookkeepers get the full resident edit form —
+  // fixing OCR-misread names/rooms is their cleanup domain.
+  const canEdit = isAdmin || role === 'facility_staff' || role === 'bookkeeper'
   const { toast } = useToast()
   const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
   const [resident, setResident] = useState(initialResident)

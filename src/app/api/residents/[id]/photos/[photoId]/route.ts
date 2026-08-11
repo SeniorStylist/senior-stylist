@@ -16,7 +16,13 @@ export const dynamic = 'force-dynamic'
 async function authorize(userId: string, residentId: string) {
   const facilityUser = await getUserFacility(userId)
   if (!facilityUser) return null
-  if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) return null
+  // R9 — bookkeepers have full resident edit (Josh 2026-08-11)
+  if (
+    !isAdminOrAbove(facilityUser.role) &&
+    !isFacilityStaff(facilityUser.role) &&
+    facilityUser.role !== 'bookkeeper'
+  )
+    return null
   const resident = await db.query.residents.findFirst({
     where: and(eq(residents.id, residentId), eq(residents.facilityId, facilityUser.facilityId)),
     columns: { id: true },

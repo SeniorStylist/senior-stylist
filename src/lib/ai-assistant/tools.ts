@@ -2276,11 +2276,12 @@ const createResident: AssistantTool = {
 const updateResident: AssistantTool = {
   name: 'update_resident',
   description:
-    "Propose updating a resident's details: room, phone, POA (family) contact name/phone/email, date of birth, or internal note. Confirmed on screen first.",
+    "Propose updating a resident's details: corrected name (fix a misspelling), room, phone, POA (family) contact name/phone/email, date of birth, or internal note. Confirmed on screen first.",
   parameters: {
     type: 'OBJECT',
     properties: {
-      residentName: { type: 'STRING' },
+      residentName: { type: 'STRING', description: 'CURRENT name on file — the lookup key.' },
+      newName: { type: 'STRING', description: 'Corrected resident name (rename — e.g. fixing a scanner misread).' },
       roomNumber: { type: 'STRING' },
       phone: { type: 'STRING' },
       poaName: { type: 'STRING', description: 'Family/POA contact name.' },
@@ -2292,7 +2293,8 @@ const updateResident: AssistantTool = {
     required: ['residentName'],
   },
   kind: 'write',
-  roles: ['admin', 'facility_staff', 'master'],
+  // R9 (Josh 2026-08-11): bookkeeper added — full resident edit (OCR cleanup).
+  roles: ['admin', 'facility_staff', 'bookkeeper', 'master'],
   needsFacility: true,
   async execute(ctx, args) {
     const resolved = await resolveResidentStrict(ctx, args.residentName)
@@ -2302,6 +2304,8 @@ const updateResident: AssistantTool = {
     const body: Record<string, unknown> = {}
     const changes: string[] = []
     const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
+    const newName = str(args.newName, 200)
+    if (newName && newName !== resident.name) { body.name = newName; changes.push(`Name → ${newName}`) }
     const room = str(args.roomNumber, 50)
     if (room) { body.roomNumber = room; changes.push(`Room → ${room}`) }
     const phone = str(args.phone, 50)

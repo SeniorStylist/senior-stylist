@@ -123,11 +123,12 @@ console.log('\n[1] Role filtering (toolsForCtx)')
         'reply_to_feedback', 'get_resident_ledger', 'get_payroll_summary'].every((n) => !staff.includes(n)))
 
   // P51 — bookkeeper is manage-tier: gains stylist + service management on top
-  // of appointment corrections; still no resident/scheduling-adjacent writes.
-  check('bookkeeper writes: corrections + manage-tier stylist/service tools',
+  // of appointment corrections. R9 (Josh 2026-08-11): update_resident added —
+  // full resident edit (OCR-misread names/rooms are their cleanup domain).
+  check('bookkeeper writes: corrections + manage-tier stylist/service tools + resident edit',
     ['update_appointment', 'create_service', 'book_appointment', 'cancel_appointment',
-     'update_service', 'update_stylist', 'set_stylist_hours'].every((n) => bookkeeper.includes(n))
-    && ['create_resident', 'update_resident', 'add_time_off', 'decide_time_off',
+     'update_service', 'update_stylist', 'set_stylist_hours', 'update_resident'].every((n) => bookkeeper.includes(n))
+    && ['create_resident', 'add_time_off', 'decide_time_off',
         'add_to_waitlist', 'add_signup_entry', 'reply_to_feedback',
         'send_receipt'].every((n) => !bookkeeper.includes(n)))
 
@@ -787,7 +788,9 @@ async function main() {
     check('foreign path rejected', !actionAllowed({ ...canonical.book, request: { ...canonical.book.request, path: '/api/facilities' } }))
     check('path traversal rejected', !actionAllowed({ ...canonical.cancel, request: { ...canonical.cancel.request, path: `/api/bookings/${UUID}/../../facility` } }))
     check('smuggled body key rejected (reschedule + priceCents)', !actionAllowed({ ...canonical.reschedule, request: { ...canonical.reschedule.request, body: { startTime: 'x', priceCents: 0 } } }))
-    check('smuggled body key rejected (update_resident + name)', !actionAllowed({ ...canonical.update_resident, request: { ...canonical.update_resident.request, body: { roomNumber: '14', name: 'Renamed' } } }))
+    // R9: 'name' is a LEGIT update_resident key now (rename) — 'active' is the
+    // forbidden exemplar (deactivation must never come from a model proposal).
+    check('smuggled body key rejected (update_resident + active)', !actionAllowed({ ...canonical.update_resident, request: { ...canonical.update_resident.request, body: { roomNumber: '14', active: false } } }))
     check('smuggled body key rejected (update_stylist + commission path abuse)', !actionAllowed({ ...canonical.update_stylist, request: { ...canonical.update_stylist.request, body: { commissionPercent: 50, email: 'x@y.z' } } }))
     check('non-uuid id rejected', !actionAllowed({ ...canonical.update_service, request: { ...canonical.update_service.request, path: '/api/services/bulk-update' } }))
     check('unknown kind rejected', !actionAllowed({ ...canonical.book, kind: 'delete_everything' as AssistantActionKind }))

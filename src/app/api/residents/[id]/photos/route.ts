@@ -36,7 +36,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     const { facilityId, role } = facilityUser
-    const isStaff = isAdminOrAbove(role) || isFacilityStaff(role)
+    // R9 — bookkeepers have full resident edit (Josh 2026-08-11)
+    const isStaff = isAdminOrAbove(role) || isFacilityStaff(role) || role === 'bookkeeper'
     if (!isStaff && role !== 'stylist') return Response.json({ error: 'Forbidden' }, { status: 403 })
 
     const rl = await checkRateLimit('residentPhotos', `u:${user.id}`)

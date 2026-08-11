@@ -35,6 +35,10 @@ export const bookingUpdateSchema = z.object({
   // Room # is a RESIDENT field, not a booking column — applied to the booking's
   // resident record (residents change rooms; the log sheet is the source of truth).
   roomNumber: z.string().max(50).nullable().optional(),
+  // R9 — resident NAME correction (fix OCR misreads right from the Day Log edit
+  // form). Same resident-field pattern as roomNumber; never nullable — a name
+  // can be corrected but not blanked.
+  residentName: z.string().min(1).max(200).optional(),
 })
 
 /** Type client payloads with this so drift from the schema fails `tsc`. */

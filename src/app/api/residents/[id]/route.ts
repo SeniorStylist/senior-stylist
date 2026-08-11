@@ -82,7 +82,13 @@ export async function PUT(
     const facilityUser = master ? null : await getUserFacility(user.id)
     if (!master) {
       if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-      if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role)) {
+      // R9 (Josh 2026-08-11): bookkeepers get FULL resident edit — OCR-misread
+      // names/rooms are their cleanup domain (same rationale as merge/delete).
+      if (
+        !isAdminOrAbove(facilityUser.role) &&
+        !isFacilityStaff(facilityUser.role) &&
+        facilityUser.role !== 'bookkeeper'
+      ) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
