@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.4',
+    date: '2026-08-11',
+    title: 'Fix It Where You See It',
+    items: [
+      'Misspelled resident name from a scanned sheet? Fix it right in the Day Log edit form — the new "Resident Name (fix spelling)" field updates the resident everywhere. Bookkeepers also get the full resident edit form on the resident\'s page now',
+      'Bookkeepers and franchise admins can edit stylist codes (ST###) directly on the stylist\'s page — a code that\'s already taken is rejected with a clear message',
+      'Your assistant learned both tricks too: "fix the spelling of Mrs. Smith\'s name to Adele Cohen" proposes the change and asks you to confirm',
+    ],
+  },
+  {
     version: '6.3',
     // Dated a day after 6.2 (same-day releases from two streams) — dates must
     // be STRICTLY increasing or readers of 6.2 never see the unread dot.
