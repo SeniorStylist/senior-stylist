@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { db } from '@/db'
-import { bookings, residents, stylists } from '@/db/schema'
+import { bookings, facilities, residents, stylists } from '@/db/schema'
 import { and, asc, eq, gte, inArray } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { getPortalT } from '@/lib/portal-i18n-server'
@@ -10,8 +10,10 @@ import { PortalOfflineSnapshot } from '@/components/portal/portal-offline-snapsh
 
 export const dynamic = 'force-dynamic'
 
-function formatDateTime(d: Date, locale: string) {
+// P53 — tz passed explicitly (server tz = UTC on Vercel disagreed with emails)
+function formatDateTime(d: Date, locale: string, tz: string) {
   return new Intl.DateTimeFormat(locale, {
+    timeZone: tz,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -41,6 +43,13 @@ export default async function FamilyHomePage({
     where: eq(residents.id, selected.residentId),
     columns: { id: true, name: true, qbOutstandingBalanceCents: true },
   })
+
+  // P53 — facility tz for display
+  const facilityTzRow = await db.query.facilities.findFirst({
+    where: eq(facilities.id, selected.facilityId),
+    columns: { timezone: true },
+  })
+  const facilityTz = facilityTzRow?.timezone ?? 'America/New_York'
 
   const upcoming = await db
     .select({
@@ -152,7 +161,7 @@ export default async function FamilyHomePage({
               return (
                 <li key={b.id} className="flex items-start justify-between gap-3 py-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale)}</p>
+                    <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale, facilityTz)}</p>
                     <p className="text-[12px] text-stone-500 mt-0.5 truncate">
                       {services} · {stylistName}
                     </p>

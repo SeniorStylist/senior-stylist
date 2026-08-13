@@ -371,11 +371,21 @@ export function MobileNav({ role = 'admin', userId, isMaster = false, isFranchis
             moreActive ? 'text-[#8B2E4A]' : 'text-stone-400'
           )}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
-            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
-            <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
-          </svg>
+          <span className="relative">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+              <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+            </svg>
+            {/* P53 — pending-request count dot when Sign-Up Sheet lives in the
+                More sheet (admin defaults) — otherwise requests were invisible
+                on phones. Badge self-fetches + role-gates. */}
+            {overflowItems.some((i) => i.href === '/signup-sheet') && (
+              <span className="absolute -top-1.5 -right-2.5">
+                <PendingSignupBadge role={role} mount="staff" />
+              </span>
+            )}
+          </span>
           <span className="max-w-full truncate">More</span>
           {moreActive && <span className="w-1 h-1 rounded-full bg-[#8B2E4A] mt-0.5 animate-in zoom-in-50 fade-in duration-200" />}
         </button>
@@ -408,6 +418,12 @@ export function MobileNav({ role = 'admin', userId, isMaster = false, isFranchis
                   >
                     <span className={isActive(item.href) ? 'text-[#8B2E4A]' : 'text-stone-400'}>{item.icon}</span>
                     <span className="text-sm font-medium">{item.label}</span>
+                    {/* P53 — admins never saw pending family requests on a phone:
+                        the badge only rendered on pinned tabs and /signup-sheet
+                        isn't in the admin defaults. */}
+                    {item.href === '/signup-sheet' && (
+                      <PendingSignupBadge role={role} mount="staff" />
+                    )}
                   </button>
                 ))}
               </div>

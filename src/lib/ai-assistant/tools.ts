@@ -306,8 +306,8 @@ const expiry = () => new Date(Date.now() + 10 * 60_000).toISOString()
 // Windows are the stylist's weekly hours ('HH:MM' facility-local). Candidate
 // starts step every 30min inside the window; each is converted to a real UTC
 // instant via fromDateTimeLocalInTz (DST-safe) and checked against busy
-// intervals. NOTE: this deliberately does the window check in FACILITY time —
-// resolveAvailableStylists' UTC-window quirk is not replicated here.
+// intervals. The window check is in FACILITY time — and since P53,
+// resolveAvailableStylists finally does the same (its UTC-window quirk is fixed).
 
 export interface SlotWindow {
   dayOfWeek: number // 0-6, Sun=0

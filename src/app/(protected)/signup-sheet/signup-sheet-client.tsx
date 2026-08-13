@@ -309,10 +309,21 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
                   </div>
                   <p className="text-[12.5px] text-stone-600 mt-0.5">{entry.serviceName}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    {/* P53 — portal provenance + date RANGE (were panel-only:
+                        staff triaging on this page couldn't tell a family
+                        request from a staff-entered one) */}
+                    {entry.source === 'portal' && (
+                      <span className="text-[10.5px] font-semibold bg-[#F9EFF2] text-[#8B2E4A] rounded-full px-2 py-0.5">
+                        From family portal
+                      </span>
+                    )}
                     {entry.preferredDate && (
                       <span className="inline-flex items-center gap-1 text-[11px] bg-stone-100 text-stone-600 rounded-full px-2 py-0.5">
                         <Calendar size={11} />
                         {formatDateChip(entry.preferredDate, facilityTimezone)}
+                        {entry.preferredDateTo && entry.preferredDateTo !== entry.preferredDate && (
+                          <span>– {formatDateChip(entry.preferredDateTo, facilityTimezone)}</span>
+                        )}
                       </span>
                     )}
                     {entry.assignedStylist && (

@@ -70,6 +70,13 @@ export const PORTAL_STRINGS = {
   'appts.title': { en: 'Appointments', es: 'Citas' },
   'appts.for': { en: 'For {name}', es: 'Para {name}' },
   'appts.upcoming': { en: 'Upcoming', es: 'Próximas' },
+  // P53 — pending sign-up requests shown before conversion
+  'appts.requestedTitle': { en: 'Requested', es: 'Solicitadas' },
+  'appts.requestedWaiting': {
+    en: 'Waiting for the salon to pick a time — you’ll get an email when it’s scheduled.',
+    es: 'Esperando a que el salón elija una hora — recibirá un correo cuando esté programada.',
+  },
+  'appts.requestedFor': { en: 'Preferred', es: 'Preferida' },
   'appts.noUpcoming': { en: 'No upcoming appointments.', es: 'No hay citas próximas.' },
   'appts.past6Months': { en: 'Past 6 months', es: 'Últimos 6 meses' },
   'appts.noPast': { en: 'No completed appointments in the past 6 months.', es: 'No hay citas completadas en los últimos 6 meses.' },

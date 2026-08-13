@@ -1,8 +1,8 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { residents, services, stylists } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { residents, services, stylists, stylistFacilityAssignments } from '@/db/schema'
+import { and, asc, eq, isNotNull, or } from 'drizzle-orm'
 import { getUserFacility, isFacilityScheduleLocked } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { getPaymentCoverageMap } from '@/lib/payment-signals'
@@ -41,14 +41,30 @@ export default async function SignupSheetPage() {
       ),
       orderBy: (t, { asc }) => [asc(t.name)],
     }),
-    db.query.stylists.findMany({
-      where: and(
-        eq(stylists.facilityId, facilityUser.facilityId),
-        eq(stylists.active, true),
-        eq(stylists.isDemo, tutorialMode), // is_demo filter — Phase 13
-      ),
-      orderBy: (t, { asc }) => [asc(t.name)],
-    }),
+    // P53/P33 roster rule — home rows PLUS active assignment-linked rows:
+    // assignment-shared stylists (franchise pool) were unpickable here.
+    db
+      .select({ id: stylists.id, name: stylists.name, color: stylists.color })
+      .from(stylists)
+      .leftJoin(
+        stylistFacilityAssignments,
+        and(
+          eq(stylistFacilityAssignments.stylistId, stylists.id),
+          eq(stylistFacilityAssignments.facilityId, facilityUser.facilityId),
+          eq(stylistFacilityAssignments.active, true),
+        ),
+      )
+      .where(
+        and(
+          or(
+            eq(stylists.facilityId, facilityUser.facilityId),
+            isNotNull(stylistFacilityAssignments.stylistId),
+          ),
+          eq(stylists.active, true),
+          eq(stylists.isDemo, tutorialMode), // is_demo filter — Phase 13
+        ),
+      )
+      .orderBy(asc(stylists.name)),
     // P51 — card-on-file / salon-credit booleans per resident
     getPaymentCoverageMap(facilityUser.facilityId),
   ])

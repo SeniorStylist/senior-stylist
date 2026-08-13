@@ -1,22 +1,30 @@
 import { db } from '@/db'
-import { bookings, residentPhotos, stylists } from '@/db/schema'
+import { bookings, facilities, residentPhotos, signupSheetEntries, stylists } from '@/db/schema'
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { createStorageClient, RESIDENT_PHOTOS_BUCKET } from '@/lib/supabase/storage'
 import { ensureResidentPhotosSchema } from '@/lib/resident-photos-ddl'
+import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { getPortalT } from '@/lib/portal-i18n-server'
 import { portalLocale } from '@/lib/portal-i18n'
 
 export const dynamic = 'force-dynamic'
 
-function formatDateTime(d: Date, locale: string) {
+// P53 — tz passed explicitly: server-tz formatting (UTC on Vercel) disagreed
+// with the confirmation email (which formats in facility tz).
+function formatDateTime(d: Date, locale: string, tz: string) {
   return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: tz,
   }).format(d)
+}
+
+function formatDateOnly(d: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(d + 'T12:00:00Z'))
 }
 
 export default async function AppointmentsPage({
@@ -39,7 +47,7 @@ export default async function AppointmentsPage({
   const sixMonthsAgo = new Date(now)
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
-  const [upcoming, past] = await Promise.all([
+  const [upcoming, past, facilityRow, pendingRequests] = await Promise.all([
     db
       .select({
         id: bookings.id,
@@ -76,7 +84,30 @@ export default async function AppointmentsPage({
         ),
       )
       .orderBy(desc(bookings.startTime)),
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, selected.facilityId),
+      columns: { timezone: true },
+    }),
+    // P53 — pending sign-up requests: a submitted request used to be
+    // INVISIBLE here until the stylist converted it (families re-submitted).
+    ensureSignupSheetSchema()
+      .then(() =>
+        db
+          .select({
+            id: signupSheetEntries.id,
+            serviceName: signupSheetEntries.serviceName,
+            preferredDate: signupSheetEntries.preferredDate,
+            preferredDateTo: signupSheetEntries.preferredDateTo,
+            notes: signupSheetEntries.notes,
+          })
+          .from(signupSheetEntries)
+          .where(and(eq(signupSheetEntries.residentId, selected.residentId), eq(signupSheetEntries.status, 'pending')))
+          .orderBy(desc(signupSheetEntries.createdAt))
+          .limit(10),
+      )
+      .catch(() => [] as Array<{ id: string; serviceName: string; preferredDate: string | null; preferredDateTo: string | null; notes: string | null }>),
   ])
+  const facilityTz = facilityRow?.timezone ?? 'America/New_York'
 
   const stylistIds = Array.from(
     new Set([...upcoming, ...past].map((b) => b.stylistId).filter(Boolean) as string[]),
@@ -134,6 +165,35 @@ export default async function AppointmentsPage({
         <p className="text-sm text-stone-500 mt-1">{t('appts.for', { name: selected.residentName })}</p>
       </header>
 
+      {/* P53 — pending requests: visible the moment the family submits, so a
+          "did it go through?" gap no longer causes duplicate requests. */}
+      {pendingRequests.length > 0 && (
+        <section className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
+          <h2 className="text-sm font-semibold text-amber-900 mb-1">{t('appts.requestedTitle')}</h2>
+          <p className="text-xs text-amber-800/80 mb-3">{t('appts.requestedWaiting')}</p>
+          <ul className="flex flex-col divide-y divide-amber-100">
+            {pendingRequests.map((r) => (
+              <li key={r.id} className="py-2.5">
+                <p className="text-[13.5px] font-semibold text-stone-900">{r.serviceName}</p>
+                {(r.preferredDate || r.notes) && (
+                  <p className="text-[12px] text-stone-600 mt-0.5">
+                    {r.preferredDate && (
+                      <>
+                        {t('appts.requestedFor')}{' '}
+                        {formatDateOnly(r.preferredDate, locale)}
+                        {r.preferredDateTo && r.preferredDateTo !== r.preferredDate && <> – {formatDateOnly(r.preferredDateTo, locale)}</>}
+                      </>
+                    )}
+                    {r.preferredDate && r.notes && ' · '}
+                    {r.notes && <span className="italic">{r.notes}</span>}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
         <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('appts.upcoming')}</h2>
         {upcoming.length === 0 ? (
@@ -148,7 +208,7 @@ export default async function AppointmentsPage({
                 <li key={b.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale)}</p>
+                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale, facilityTz)}</p>
                       <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
                       {b.portalNotes && (
                         <p className="text-[11.5px] text-stone-400 mt-1 italic">&ldquo;{b.portalNotes}&rdquo;</p>
@@ -185,7 +245,7 @@ export default async function AppointmentsPage({
                 <li key={b.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale)}</p>
+                      <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale, facilityTz)}</p>
                       <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
                     </div>
                     <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-emerald-50 text-emerald-700 shrink-0">

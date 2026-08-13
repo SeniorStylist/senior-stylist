@@ -5,22 +5,32 @@ import {
   stylistFacilityAssignments,
   coverageRequests,
   bookings,
+  facilities,
 } from '@/db/schema'
 import { and, eq, inArray, gte, lte, lt, gt, ne, isNotNull } from 'drizzle-orm'
+import { getLocalParts } from '@/lib/time'
 
 export interface AvailableStylist {
   id: string
   name: string
 }
 
-function hhmm(d: Date): string {
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+// P53 — availability windows are typed as FACILITY-LOCAL wall-clock in the
+// hours editor; the old getUTC* derivation compared UTC wall-clock against
+// them (an ET facility's 2pm slot evaluated as 18:00 and fell outside a
+// 09:00–17:00 window; Sunday evenings evaluated as Monday). Everything is
+// derived in the facility timezone now.
+const WEEKDAY_TO_DOW: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
 }
 
-function dateStr(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(
-    d.getUTCDate(),
-  ).padStart(2, '0')}`
+function localSlotParts(d: Date, tz: string): { hhmm: string; dateStr: string; dow: number } {
+  const p = getLocalParts(d, tz)
+  return {
+    hhmm: `${String(p.hours).padStart(2, '0')}:${String(p.minutes).padStart(2, '0')}`,
+    dateStr: `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`,
+    dow: WEEKDAY_TO_DOW[p.weekday] ?? 0,
+  }
 }
 
 /**
@@ -39,12 +49,26 @@ export async function resolveAvailableStylists(opts: {
   // so the sandbox booking never touches a real stylist. Defaults false
   // (real-only) so demo stylists never leak into real previews / portal.
   demoOnly?: boolean
+  /** P53 — facility IANA timezone; fetched when omitted (pass it to save a query). */
+  timezone?: string
 }): Promise<AvailableStylist[]> {
   const { facilityId, startTime, endTime, demoOnly = false } = opts
-  const dow = startTime.getUTCDay()
-  const startHM = hhmm(startTime)
-  const endHM = hhmm(endTime)
-  const date = dateStr(startTime)
+  let tz = opts.timezone
+  if (!tz) {
+    const fac = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { timezone: true },
+    })
+    tz = fac?.timezone ?? 'America/New_York'
+  }
+  const startParts = localSlotParts(startTime, tz)
+  const endParts = localSlotParts(endTime, tz)
+  const dow = startParts.dow
+  const startHM = startParts.hhmm
+  // A slot ending exactly at local midnight (rare) would read "00:00" and fail
+  // every window — clamp to the end of the start's day.
+  const endHM = endParts.dateStr === startParts.dateStr ? endParts.hhmm : '23:59'
+  const date = startParts.dateStr
 
   const facStylists = await db
     .select({ id: stylists.id, name: stylists.name })
