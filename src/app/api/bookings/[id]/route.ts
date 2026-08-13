@@ -125,7 +125,7 @@ export async function PUT(
       const BOOKKEEPER_ALLOWED = new Set([
         'residentId', 'serviceId', 'serviceIds', 'addonServiceIds', 'addonChecked',
         'priceCents', 'paymentStatus', 'paymentMethod', 'notes', 'tipCents',
-        'selectedQuantity', 'selectedOption', 'roomNumber',
+        'selectedQuantity', 'selectedOption', 'roomNumber', 'residentName',
         'startTime', // allow date correction after log sheet import
         'stylistId', // allow stylist correction after log sheet import (validated against facility below)
       ])
@@ -372,6 +372,21 @@ export async function PUT(
       await db
         .update(residents)
         .set({ roomNumber: updates.roomNumber?.trim() || null })
+        .where(and(eq(residents.id, targetResidentId), eq(residents.facilityId, facilityId)))
+    }
+
+    // R9 — resident NAME correction (OCR misreads), same pattern as room above.
+    // The client only sends this when the resident was NOT re-pointed, but keep
+    // the effective-resident target for safety either way.
+    if (
+      updates.residentName !== undefined &&
+      updates.residentName.trim() &&
+      (master || (facilityUser && (isAdminOrAbove(facilityUser.role) || isFacilityStaff(facilityUser.role) || facilityUser.role === 'bookkeeper')))
+    ) {
+      const targetResidentId = updates.residentId ?? existing.residentId
+      await db
+        .update(residents)
+        .set({ name: updates.residentName.trim() })
         .where(and(eq(residents.id, targetResidentId), eq(residents.facilityId, facilityId)))
     }
 

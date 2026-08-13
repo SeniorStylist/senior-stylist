@@ -38,7 +38,7 @@ What's on it:
 Recording work:
 - Tap "Done" on a row when the service is finished, or "No-show" if the resident didn't come. These update instantly.
 - Tap the payment chip to cycle unpaid → paid → waived. "$ due" (amber) means unpaid; "✓ paid" (green) means settled.
-- Tap a row to open the edit form: change the service (or add a brand-new one with "➕ New service"), price, tips, notes, payment type, date, room number, and (admin/bookkeeper) the stylist.
+- Tap a row to open the edit form: change the service (or add a brand-new one with "➕ New service"), price, tips, notes, payment type, date, room number, the resident's name spelling (fix scanner misreads in place), and (admin/bookkeeper) the stylist.
 - "Add Walk-in" records a service that wasn't scheduled — pick or create the resident, choose the service, done.
 - The camera button on a completed row saves a style photo to the resident's gallery (optionally shared with the family).
 
@@ -141,11 +141,11 @@ The resident's page holds: contact info and POA (family) details, date of birth 
 
 Duplicates: scanning and imports sometimes create doubles. The "Duplicates" button (admins and bookkeepers) finds likely pairs and merges them — the kept resident inherits EVERYTHING: bookings, billing history, portal access, saved cards, photos. The merge screen shows warnings before anything happens.
 
-Room changes: just edit the room field — or fix it right on a daily-log row or scan review; the resident record updates.
+Name and room fixes: edit them on the resident's page, or right on a Day Log row's edit form ("Resident Name (fix spelling)" + Room #) — handy when the scanner misread a handwritten name. The resident record updates either way.
 
 No hard deletes: removing a resident deactivates them (history is preserved).
 
-Stylists don't manage the roster, but can add a brand-new resident while recording a walk-in. The assistant can add residents, update rooms/phones/POA contacts, and answer "when was Mrs. Smith's last visit?"`,
+Who can edit: admins, front desk, and bookkeepers (bookkeepers gained the full edit form — cleaning up scanner-created records is their domain). Stylists don't manage the roster, but can add a brand-new resident while recording a walk-in. The assistant can add residents, fix names, update rooms/phones/POA contacts, and answer "when was Mrs. Smith's last visit?"`,
   },
   {
     id: 'family-portal',
@@ -241,7 +241,7 @@ A stylist's own earnings (visits, revenue, estimated commission, month pace) liv
     roles: ['admin', 'facility_staff', 'bookkeeper', 'master'],
     body: `The Stylists tab lists everyone who works at the facility; each stylist's page is their full record.
 
-Adding and renaming: "+ Add stylist" on the Stylists page takes a name and an optional code (e.g. ST825) — the code is kept if it's free. Bookkeepers can add and rename stylists too (open the stylist, edit the name, Save); typing a code during a log-sheet scan ("ST825 - Paula Jones") also creates or matches the stylist automatically. Commission, status, and codes on existing stylists stay with admins/master.
+Adding and renaming: "+ Add stylist" on the Stylists page takes a name and an optional code (e.g. ST825) — the code is kept if it's free. Bookkeepers can add and rename stylists too (open the stylist, edit the name, Save); typing a code during a log-sheet scan ("ST825 - Paula Jones") also creates or matches the stylist automatically. The stylist code itself is editable right on the stylist's page (franchise admins and bookkeepers included) — a code already in use is rejected with a clear message. Commission and status on existing stylists stay with admins/master.
 
 Weekly hours: the stylist page has an hours editor — set which days and times they work. These hours drive auto-assignment, open-slot search, and the sign-up sheet. Stylists edit their own on My Account; admins, franchise admins, and the master admin can edit anyone's. (Or tell the assistant: "set Senait's hours Monday to Friday 9 to 5" — unlisted days become days off, and it restates the whole week before you confirm.)
 

@@ -7,7 +7,9 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '6.4',
+    // R9 shipped as 6.4 first (2026-08-11); P53 renumbered to 6.5 — dates must
+    // be STRICTLY increasing or readers of 6.4 never see the unread dot.
+    version: '6.5',
     date: '2026-08-13',
     title: 'Onboarding-Ready — The Full Funnel, Hardened',
     items: [
@@ -18,6 +20,16 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Families now see their pending requests in the portal ("waiting for the salon to pick a time"), their salon credit ("$X available — the salon will apply it") so nobody pays twice, and appointment times in the facility\'s timezone',
       'Payments integrity: portal payments always run on the Senior Stylist platform account (a facility-entered Stripe key used to silently break payment recording), demo invoices can never absorb real money, and facility balances update the moment a family pays online',
       'Owner: the Debug tab\'s signup preview is now a true DRY RUN — the whole wizard including the confirmation screen, with nothing created and no emails sent (the old preview button opened the live wizard). Plus a new-facility runbook: docs/new-facility-runbook.md',
+    ],
+  },
+  {
+    version: '6.4',
+    date: '2026-08-11',
+    title: 'Fix It Where You See It',
+    items: [
+      'Misspelled resident name from a scanned sheet? Fix it right in the Day Log edit form — the new "Resident Name (fix spelling)" field updates the resident everywhere. Bookkeepers also get the full resident edit form on the resident\'s page now',
+      'Bookkeepers and franchise admins can edit stylist codes (ST###) directly on the stylist\'s page — a code that\'s already taken is rejected with a clear message',
+      'Your assistant learned both tricks too: "fix the spelling of Mrs. Smith\'s name to Adele Cohen" proposes the change and asks you to confirm',
     ],
   },
   {

@@ -375,6 +375,16 @@ export function LogClient({
         body.roomNumber = editRoomNumber.trim() || null
       }
 
+      // R9 — resident NAME correction (fix OCR misreads) — applied to the
+      // resident record like Room #. Skip when the resident is being swapped.
+      if (
+        !body.residentId &&
+        editResidentName.trim() &&
+        editResidentName.trim() !== (booking?.resident.name ?? '')
+      ) {
+        body.residentName = editResidentName.trim()
+      }
+
       const res = await queueableFetch('Booking edit', `/api/bookings/${editingBookingId}`, {
         method: 'PUT',
         body,
@@ -409,6 +419,9 @@ export function LogClient({
             if ('roomNumber' in body) {
               merged.resident = { ...merged.resident, roomNumber: body.roomNumber as string | null }
             }
+            if (body.residentName) {
+              merged.resident = { ...merged.resident, name: body.residentName }
+            }
             return merged
           }))
         }
@@ -426,9 +439,13 @@ export function LogClient({
           setBookings((prev) => prev.map((b) => {
             if (b.id !== editingBookingId) return b
             const merged = { ...b, ...json.data }
-            // Room # lives on the resident record, not the booking — patch it locally.
+            // Room # / resident name live on the resident record, not the
+            // booking — patch them locally.
             if ('roomNumber' in body) {
               merged.resident = { ...merged.resident, roomNumber: body.roomNumber as string | null }
+            }
+            if (body.residentName) {
+              merged.resident = { ...merged.resident, name: body.residentName }
             }
             return merged
           }))
@@ -1930,6 +1947,21 @@ export function LogClient({
                                 ))}
                               </select>
                             </div>
+                            {/* R9 — resident NAME correction (fix OCR misreads) — writes to
+                                the resident record like Room #. Hidden while re-pointing to a
+                                different resident (the rename would land on the new one). */}
+                            {editResidentId === booking.resident.id && (
+                              <div>
+                                <label className="text-[10px] text-stone-400 uppercase tracking-wide">Resident Name (fix spelling)</label>
+                                <input
+                                  type="text"
+                                  value={editResidentName}
+                                  onChange={(e) => setEditResidentName(e.target.value)}
+                                  placeholder="Resident name"
+                                  className="mt-0.5 w-full bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-sm text-stone-900 focus:outline-none focus:border-[#8B2E4A] focus:ring-1 focus:ring-[#8B2E4A]/20"
+                                />
+                              </div>
+                            )}
                             {/* Room # — writes to the resident record (residents change rooms) */}
                             <div>
                               <label className="text-[10px] text-stone-400 uppercase tracking-wide">Room #</label>

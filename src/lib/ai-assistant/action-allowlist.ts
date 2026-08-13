@@ -83,7 +83,8 @@ export const ACTION_RULES: Record<AssistantActionKind, ActionRule> = {
   update_resident: {
     method: 'PUT',
     pathRe: new RegExp(`^/api/residents/${UUID}$`, 'i'),
-    bodyKeys: ['roomNumber', 'phone', 'poaName', 'poaPhone', 'poaEmail', 'dateOfBirth', 'notes'],
+    // R9 — 'name' added: rename (OCR-misread fixes) rides the same closed set.
+    bodyKeys: ['name', 'roomNumber', 'phone', 'poaName', 'poaPhone', 'poaEmail', 'dateOfBirth', 'notes'],
   },
   set_stylist_hours: {
     method: 'PUT',

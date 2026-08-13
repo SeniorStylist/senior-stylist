@@ -27,7 +27,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin' && facilityUser.role !== 'facility_staff') {
+    // R9 — bookkeepers have full resident edit (Josh 2026-08-11)
+    if (
+      facilityUser.role !== 'admin' &&
+      facilityUser.role !== 'facility_staff' &&
+      facilityUser.role !== 'bookkeeper'
+    ) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -91,7 +96,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (facilityUser.role !== 'admin' && facilityUser.role !== 'facility_staff') {
+    // R9 — bookkeepers have full resident edit (Josh 2026-08-11)
+    if (
+      facilityUser.role !== 'admin' &&
+      facilityUser.role !== 'facility_staff' &&
+      facilityUser.role !== 'bookkeeper'
+    ) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
