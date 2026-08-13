@@ -444,6 +444,15 @@ export const PORTAL_STRINGS = {
     en: 'A lot of families are signing up right now — please wait a few minutes and try again.',
     es: 'Muchas familias se están registrando en este momento — espere unos minutos e inténtelo de nuevo.',
   },
+  // P53 — master-only dry-run mode (Debug tab)
+  'signup.preview.banner': {
+    en: 'Preview — nothing will be created. The wizard runs all the real checks, but no accounts, residents, or emails are made.',
+    es: 'Vista previa — no se creará nada. El asistente ejecuta todas las verificaciones reales, pero no se crean cuentas, residentes ni correos.',
+  },
+  'signup.preview.done': {
+    en: 'Preview — nothing was created.',
+    es: 'Vista previa — no se creó nada.',
+  },
   'signup.disabledFacility': {
     en: "Online sign-up isn't set up at {facility} yet. Please ask at the front desk — they can send you an invitation.",
     es: 'El registro en línea aún no está disponible en {facility}. Pregunte en la recepción — pueden enviarle una invitación.',

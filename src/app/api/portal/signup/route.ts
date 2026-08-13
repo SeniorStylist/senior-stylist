@@ -35,6 +35,11 @@ const signupSchema = z.object({
   // Client-asserted: the server re-derives the match + POA-name agreement
   // before it grants anything (tier 1.5 below).
   familyConfirmed: z.boolean().optional(),
+  // P53 — master-only DRY RUN (Debug tab): the full pipeline runs — facility
+  // lookup, 409 check, matching, tier decisions — but EVERY side effect is
+  // skipped (no accounts/claims/residents/coupons/emails/bells). Verified
+  // against the caller's Supabase session server-side; 403 for anyone else.
+  preview: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -51,6 +56,27 @@ export async function POST(request: NextRequest) {
   const { email, fullName, facilityCode, phone, dateOfBirth, residentName, roomNumber, relationship, familyConfirmed } = parsed.data
   const normalizedEmail = email.toLowerCase().trim()
 
+  // P53 — DRY RUN: verify the caller's Supabase session is the MASTER before
+  // anything else (client-asserted flag, server-verified — the familyConfirmed
+  // doctrine). Guards below thread through the SINGLE real pipeline so preview
+  // logic can never diverge from production.
+  const preview = parsed.data.preview === true
+  if (preview) {
+    const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+    let masterOk = false
+    try {
+      const { createClient } = await import('@/lib/supabase/server')
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      masterOk = !!su && user?.email === su
+    } catch {
+      masterOk = false
+    }
+    if (!masterOk) {
+      return Response.json({ error: 'Preview is only available to the master admin.' }, { status: 403 })
+    }
+  }
+
   await ensurePortalClaimsSchema()
 
   // P53 — case-insensitive + demo-facility-excluded lookup (shared helper).
@@ -64,7 +90,8 @@ export async function POST(request: NextRequest) {
     },
   })
   if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
-  if (!facility.portalSelfSignupEnabled) {
+  // Preview skips the flag 403 so a flag-off facility is still dry-runnable.
+  if (!facility.portalSelfSignupEnabled && !preview) {
     return Response.json({ error: 'Self-signup is not available for this facility.' }, { status: 403 })
   }
 
@@ -103,6 +130,7 @@ export async function POST(request: NextRequest) {
   })
 
   if (emailMatches.length > 0) {
+    if (preview) return Response.json({ status: 'auto_approved', preview: true }) // dry run: no writes
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -147,6 +175,7 @@ export async function POST(request: NextRequest) {
   // fuzzyScore>=0.8 was defeated by its substring rule (a lone surname
   // contained in the POA name scored 0.85 and instant-approved a stranger).
   if (familyConfirmed && m?.confident && m.resident.poaName && nameAgreement(fullName, m.resident.poaName)) {
+    if (preview) return Response.json({ status: 'auto_approved', preview: true }) // dry run: no writes
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -220,6 +249,11 @@ export async function POST(request: NextRequest) {
     familyConfirmed: familyConfirmed && m?.confident ? true : null,
     status: 'pending_review' as const,
   }
+
+  // P53 — DRY RUN exit: the full match + confidence derivation ran above;
+  // stop before ANY write (claim insert/dedup-update, admin email + bell,
+  // applicant email).
+  if (preview) return Response.json({ status: 'pending', preview: true })
 
   // P53 — dedup: an anxious double-submit used to create TWO pending cards
   // (and two "Create as new resident" buttons → duplicate residents). Update

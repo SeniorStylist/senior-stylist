@@ -144,7 +144,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     { role: 'facility_staff', label: 'Facility Staff View', desc: 'Front desk — scheduling, residents, services, sign-up sheet; no billing/payroll' },
     { role: 'stylist', label: 'Stylist View', desc: 'Calendar + day log only; no residents or billing' },
     { role: 'portal', label: 'Family Portal (demo)', desc: 'Log in as a fake POA with demo data — no magic link needed' },
-    { role: 'signup', label: 'Family Sign-Up Wizard (preview)', desc: 'Open the QR-code signup wizard even when self-signup is off — submissions stay disabled' },
+    { role: 'signup', label: 'Family Sign-Up Wizard (dry run)', desc: 'Run the FULL signup wizard — matching, confirm card, and the real confirmation screen — but nothing is created (no accounts, no residents, no emails)' },
   ]
 
   return (
@@ -223,10 +223,11 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
               onClick={() => {
                 if (role === 'portal') handleOpenPortal()
                 else if (role === 'signup') {
-                  // P51 — no session swap needed: the signup page grants the
-                  // master a server-side preview even when self-signup is off.
+                  // P53 — ?preview=1: the signup page + POST verify the master
+                  // session server-side and run the whole pipeline with every
+                  // write skipped. Works whether self-signup is on or off.
                   if (selected?.facilityCode) {
-                    window.open(`/family/${encodeURIComponent(selected.facilityCode)}/signup`, '_blank')
+                    window.open(`/family/${encodeURIComponent(selected.facilityCode)}/signup?preview=1`, '_blank')
                   }
                 } else handleImpersonate(role)
               }}

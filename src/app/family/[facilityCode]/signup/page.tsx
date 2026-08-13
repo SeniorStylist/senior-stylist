@@ -8,10 +8,13 @@ export const dynamic = 'force-dynamic'
 
 export default async function SignupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ facilityCode: string }>
+  searchParams: Promise<{ preview?: string }>
 }) {
   const { facilityCode } = await params
+  const { preview } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
 
   const facility = await db.query.facilities.findFirst({
@@ -21,44 +24,46 @@ export default async function SignupPage({
 
   if (!facility) notFound()
   const { lang, t } = await getPortalT()
-  let masterPreview = false
-  if (!facility.portalSelfSignupEnabled) {
-    // P51 — master-only PREVIEW of the wizard when self-signup is off (the
-    // Debug tab's "Family Sign-Up Wizard (preview)" row). The email comes from
-    // the authenticated Supabase session server-side — nothing client-supplied.
-    // POST /api/portal/signup keeps its own 403 when the flag is off, so
-    // submissions stay disabled either way.
-    try {
-      const { getAuthUser } = await import('@/lib/supabase/server')
-      const user = await getAuthUser()
-      masterPreview =
-        !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
-        user?.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-    } catch {
-      masterPreview = false
-    }
-    if (!masterPreview) {
-      return (
-        <div className="page-enter flex flex-col gap-4 mt-6">
-          <header>
-            <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
-              {t('login.title')}
-            </h1>
-          </header>
-          <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-base">
-            {t('signup.disabledFacility', { facility: facility.name })}
-          </div>
+
+  // P53 — DRY-RUN MODE (the Debug tab's "Family Sign-Up Wizard (dry run)"):
+  // the master runs the FULL wizard — matching, confirm card, submission,
+  // real-looking confirmation screen — but the POST's preview branch writes
+  // NOTHING (no resident, no POA account, no claim, no emails/bells).
+  // The email comes from the authenticated Supabase session server-side —
+  // never client-supplied; a non-master's ?preview=1 is silently ignored.
+  // The legacy flag-off master preview unifies into the same mode.
+  let isMaster = false
+  try {
+    const { getAuthUser } = await import('@/lib/supabase/server')
+    const user = await getAuthUser()
+    isMaster =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
+      user?.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  } catch {
+    isMaster = false
+  }
+  const previewMode = isMaster && (preview === '1' || !facility.portalSelfSignupEnabled)
+
+  if (!facility.portalSelfSignupEnabled && !previewMode) {
+    return (
+      <div className="page-enter flex flex-col gap-4 mt-6">
+        <header>
+          <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
+            {t('login.title')}
+          </h1>
+        </header>
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center text-stone-600 text-base">
+          {t('signup.disabledFacility', { facility: facility.name })}
         </div>
-      )
-    }
+      </div>
+    )
   }
 
   return (
     <div className="page-enter flex flex-col gap-4 mt-6">
-      {masterPreview && (
+      {previewMode && (
         <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-          ⚠ Preview mode — self-signup is OFF for this facility. Families can&apos;t see this page,
-          and submissions are disabled.
+          {t('signup.preview.banner')}
         </div>
       )}
       <header>
@@ -67,7 +72,12 @@ export default async function SignupPage({
         </h1>
         <p className="text-sm text-stone-500 mt-1">{t('signup.subtitle', { facility: facility.name })}</p>
       </header>
-      <SignupClient facilityCode={facility.facilityCode ?? decoded} facilityName={facility.name} lang={lang} />
+      <SignupClient
+        facilityCode={facility.facilityCode ?? decoded}
+        facilityName={facility.name}
+        lang={lang}
+        previewMode={previewMode}
+      />
     </div>
   )
 }
