@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities, residents, stylists, services, profiles, stylistFacilityAssignments } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLocked } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and, lt, gt, or, ne, gte, count, desc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
@@ -134,6 +134,15 @@ export async function PUT(
           delete updates[key]
         }
       }
+    }
+
+    // P53 — FACILITY SCHEDULING LOCKOUT (silent-drop, the bookkeeper-whitelist
+    // precedent): facility admin + front desk keep cancel + Done/No-show +
+    // every non-time detail, but date/time moves and stylist reassignment are
+    // the stylist's — a facility reschedule goes through the Sign-Up Sheet.
+    if (isFacilityScheduleLocked(facilityUser, master)) {
+      delete updates.startTime
+      delete updates.stylistId
     }
 
     // Handle cancel-future for recurring bookings

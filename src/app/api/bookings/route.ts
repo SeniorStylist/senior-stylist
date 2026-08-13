@@ -9,7 +9,7 @@ import {
   services,
   stylistFacilityAssignments,
 } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLocked, SCHEDULE_LOCKED_MESSAGE } from '@/lib/get-facility-id'
 import { eq, and, gte, lte, lt, gt, or, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
@@ -121,6 +121,14 @@ export async function POST(request: NextRequest) {
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    // P53 — FACILITY SCHEDULING LOCKOUT: facility admin + front desk never
+    // place time slots (requests go through the Sign-Up Sheet; the stylist
+    // converts). ONE carve-out: the day-log walk-in RECORD (source 'walk_in' —
+    // a record of service already performed, not schedule placement).
+    if (isFacilityScheduleLocked(facilityUser, master) && parsed.data.source !== 'walk_in') {
+      return Response.json({ error: SCHEDULE_LOCKED_MESSAGE }, { status: 403 })
     }
 
     // P41 — master may target ANY active facility via body facilityId (the
@@ -382,6 +390,9 @@ export async function POST(request: NextRequest) {
         addonServiceIds: addonServiceIdsInput.length > 0 ? addonServiceIdsInput : null,
         status: 'scheduled',
         tipCents: parsed.data.tipCents ?? null,
+        // P53 — stamp the walk-in provenance when the client declares it
+        // (drives the lockout carve-out; also good data hygiene).
+        ...(parsed.data.source === 'walk_in' ? { source: 'walk_in' } : {}),
         isDemo,
       })
       .returning()

@@ -980,6 +980,9 @@ export function LogClient({
           stylistId: wiStylistId,
           startTime: startTime.toISOString(),
           notes: 'Walk-in',
+          // P53 — declares the walk-in carve-out under the facility scheduling
+          // lockout (a record of service performed, not schedule placement).
+          source: 'walk_in',
           ...(wiAddonServiceIds.length > 0 ? { addonServiceIds: wiAddonServiceIds } : {}),
         } satisfies BookingCreateInput,
       })

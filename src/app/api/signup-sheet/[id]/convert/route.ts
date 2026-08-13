@@ -9,7 +9,7 @@ import {
   stylistFacilityAssignments,
   stylists,
 } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLocked, SCHEDULE_LOCKED_MESSAGE } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { and, eq, gt, inArray, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
@@ -50,6 +50,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!isAdminOrAbove(role) && !isFacilityStaff(role) && role !== 'stylist') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    // P53 — facility scheduling lockout: only the STYLIST (plus franchise/
+    // master via manage tier) converts a request into a real time slot.
+    if (isFacilityScheduleLocked(facilityUser)) {
+      return Response.json({ error: SCHEDULE_LOCKED_MESSAGE }, { status: 403 })
     }
 
     const { id } = await params

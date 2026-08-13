@@ -32,6 +32,10 @@ export const bookingCreateSchema = z.object({
   addonChecked: z.boolean().optional(),
   addonServiceIds: z.array(z.string().uuid()).optional().default([]),
   tipCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  // P53 — the day-log walk-in RECORD (service already performed). This is the
+  // one booking-create shape facility admin + front desk may still send under
+  // the facility scheduling lockout; it also stamps bookings.source.
+  source: z.enum(['walk_in']).optional(),
 }).refine((d) => d.serviceId || (d.serviceIds && d.serviceIds.length > 0), {
   message: 'serviceId or serviceIds is required',
 }).refine((d) => !!d.residentId !== !!d.newResident, {

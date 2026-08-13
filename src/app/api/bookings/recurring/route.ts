@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { bookings, services, stylists, stylistFacilityAssignments } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLocked, SCHEDULE_LOCKED_MESSAGE } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { createClient } from '@/lib/supabase/server'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 403 })
     if (!isAdminOrAbove(facilityUser.role) && !isFacilityStaff(facilityUser.role) && facilityUser.role !== 'stylist') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    // P53 — facility scheduling lockout: recurring series are schedule placement.
+    if (isFacilityScheduleLocked(facilityUser)) {
+      return Response.json({ error: SCHEDULE_LOCKED_MESSAGE }, { status: 403 })
     }
 
     const body = await request.json()

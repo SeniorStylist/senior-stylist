@@ -6,7 +6,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { bookings, facilities } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLocked, SCHEDULE_LOCKED_MESSAGE } from '@/lib/get-facility-id'
 import { and, eq, gt, gte, inArray, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
     const { facilityId, role } = facilityUser
     if (!isAdminOrAbove(role) && !isFacilityStaff(role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    // P53 — facility scheduling lockout: copying a day places new time slots.
+    if (isFacilityScheduleLocked(facilityUser)) {
+      return Response.json({ error: SCHEDULE_LOCKED_MESSAGE }, { status: 403 })
     }
 
     const rl = await checkRateLimit('copyDay', `u:${user.id}`)

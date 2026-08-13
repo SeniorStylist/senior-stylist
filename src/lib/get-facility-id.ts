@@ -94,6 +94,24 @@ export function canAccessPayrollFu(fu: FuLike, isMaster = false): boolean {
 }
 
 /**
+ * P53 — FACILITY SCHEDULING LOCKOUT (Josh 2026-08-13, supersedes the P39
+ * supervisor line for facility roles): facility admin + front desk never
+ * place time slots. Everything they enter goes through the Sign-Up Sheet;
+ * ONLY the stylist (plus master / franchise admin / bookkeeper) converts a
+ * request into a real time slot. They keep: viewing the calendar, cancelling,
+ * editing non-time booking details, and recording day-log walk-ins.
+ * Uses rawRole so franchise admins (normalized to 'admin') are never caught.
+ */
+export function isFacilityScheduleLocked(fu: FuLike, isMaster = false): boolean {
+  if (isManageTier(fu, isMaster)) return false
+  return fu?.role === 'admin' || fu?.role === 'facility_staff'
+}
+
+/** The lockout's human 403 — one string everywhere so the UI reads consistent. */
+export const SCHEDULE_LOCKED_MESSAGE =
+  'Time slots are placed by the stylist — add this to the Sign-Up Sheet instead.'
+
+/**
  * Returns the facilityUser row for the current user, respecting the
  * `selected_facility_id` cookie for multi-facility accounts.
  * Falls back to the first facility if no cookie is set or if the

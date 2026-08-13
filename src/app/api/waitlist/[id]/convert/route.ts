@@ -13,7 +13,7 @@ import {
   stylists,
   waitlistEntries,
 } from '@/db/schema'
-import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
+import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLocked, SCHEDULE_LOCKED_MESSAGE } from '@/lib/get-facility-id'
 import { and, eq, gt, inArray, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -51,6 +51,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!isAdminOrAbove(role) && !isFacilityStaff(role)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    // P53 — facility scheduling lockout: converting a waitlist entry books a slot.
+    if (isFacilityScheduleLocked(facilityUser)) {
+      return Response.json({ error: SCHEDULE_LOCKED_MESSAGE }, { status: 403 })
     }
 
     await ensureWaitlistSchema()
