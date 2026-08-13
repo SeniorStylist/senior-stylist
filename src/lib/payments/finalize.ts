@@ -73,9 +73,10 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
     recorded = true
 
     // FIFO-apply to open invoices (specific invoiceIds first, else any open).
+    // P53 — is_demo filter: real money must never retire seed/demo invoices.
     const where = invoiceIds.length
-      ? and(eq(qbInvoices.residentId, residentId), inArray(qbInvoices.id, invoiceIds), gt(qbInvoices.openBalanceCents, 0))
-      : and(eq(qbInvoices.residentId, residentId), gt(qbInvoices.openBalanceCents, 0))
+      ? and(eq(qbInvoices.residentId, residentId), inArray(qbInvoices.id, invoiceIds), gt(qbInvoices.openBalanceCents, 0), eq(qbInvoices.isDemo, false))
+      : and(eq(qbInvoices.residentId, residentId), gt(qbInvoices.openBalanceCents, 0), eq(qbInvoices.isDemo, false))
     const open = await tx
       .select({ id: qbInvoices.id, openBalanceCents: qbInvoices.openBalanceCents })
       .from(qbInvoices)

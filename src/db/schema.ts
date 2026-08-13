@@ -756,9 +756,15 @@ export const qbUnappliedCredits = pgTable('qb_unapplied_credits', {
   appliedDetail: jsonb('applied_detail').$type<
     Array<{ invoiceId: string; invoiceNum: string; invoiceDate: string; amountCents: number }>
   >(),
+  // P53 — credit-banking idempotency: partial unique index lets the webhook
+  // insert-first against Stripe's at-least-once delivery (drizzle/0036).
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
   facilityIdx: index('qb_unapplied_credits_facility_idx').on(t.facilityId),
+  stripePiUnique: uniqueIndex('qb_unapplied_credits_stripe_pi_unique')
+    .on(t.stripePaymentIntentId)
+    .where(sql`stripe_payment_intent_id IS NOT NULL`),
 }))
 
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {

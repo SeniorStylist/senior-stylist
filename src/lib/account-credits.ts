@@ -18,7 +18,14 @@ export async function createAccountCredit(opts: {
   source: CreditSource
   num?: string | null
   txnDate?: string // YYYY-MM-DD; defaults to today (UTC date)
-}): Promise<string> {
+  /**
+   * P53 — Stripe PI id for webhook-banked credits. Insert-first against the
+   * qb_unapplied_credits_stripe_pi_unique partial index: Stripe delivers
+   * checkout.session.completed at-least-once, and the old read-then-write
+   * dedup could bank the same prepay/gift twice under a race.
+   */
+  stripePaymentIntentId?: string | null
+}): Promise<string | null> {
   await ensureUnappliedSchema()
 
   // qb_customer_id is NOT NULL. Use the resident's QB id when present, else a
@@ -30,7 +37,7 @@ export async function createAccountCredit(opts: {
   const qbCustomerId = resident?.qbCustomerId ?? `RES-${opts.residentId.slice(0, 8)}`
   const txnDate = opts.txnDate ?? new Date().toISOString().slice(0, 10)
 
-  const [row] = await db
+  const inserted = await db
     .insert(qbUnappliedCredits)
     .values({
       facilityId: opts.facilityId,
@@ -42,8 +49,11 @@ export async function createAccountCredit(opts: {
       amountCents: opts.amountCents,
       openBalanceCents: opts.amountCents,
       appliedCents: 0,
+      stripePaymentIntentId: opts.stripePaymentIntentId ?? null,
     })
+    .onConflictDoNothing()
     .returning({ id: qbUnappliedCredits.id })
 
-  return row.id
+  // null = duplicate delivery (PI already banked) — caller treats as a no-op.
+  return inserted[0]?.id ?? null
 }

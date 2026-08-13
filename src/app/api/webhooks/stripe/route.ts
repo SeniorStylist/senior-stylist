@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildBookingReceiptHtml } from '@/lib/email'
 import { sendSms, buildReceiptSms } from '@/lib/sms'
+import { recomputeFacilityBalances } from '@/lib/unapplied-apply'
 
 export async function POST(request: NextRequest) {
   try {
@@ -152,7 +153,9 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
         openBalanceCents: qbInvoices.openBalanceCents,
       })
       .from(qbInvoices)
-      .where(and(eq(qbInvoices.residentId, residentId), gt(qbInvoices.openBalanceCents, 0)))
+      // P53 — is_demo filter: a facility carrying seed/demo invoices had REAL
+      // family money retiring demo rows while the real invoice stayed open.
+      .where(and(eq(qbInvoices.residentId, residentId), gt(qbInvoices.openBalanceCents, 0), eq(qbInvoices.isDemo, false)))
       .orderBy(asc(qbInvoices.invoiceDate), asc(qbInvoices.createdAt))
 
     let remaining = amountCents
@@ -202,13 +205,10 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
       })
     }
 
-    await tx
-      .update(residents)
-      .set({
-        qbOutstandingBalanceCents: sql`(SELECT COALESCE(SUM(open_balance_cents), 0) FROM qb_invoices WHERE resident_id = ${residentId} AND open_balance_cents > 0)`,
-        updatedAt: now,
-      })
-      .where(eq(residents.id, residentId))
+    // P53 — shared recompute: the old inline subquery skipped the is_demo
+    // filter AND never touched facilities.qb_outstanding_balance_cents, so
+    // facility A/R silently overstated by the sum of all portal payments.
+    await recomputeFacilityBalances(tx, [facilityId])
   })
 
   revalidateTag('billing', {})
@@ -231,8 +231,11 @@ async function handlePortalCredit(session: StripeCheckoutSession, source: 'Prepa
     return
   }
 
-  // Idempotency: the PI id is embedded in the credit's `num` — a duplicate
-  // checkout.session.completed delivery must not bank the credit twice.
+  // Idempotency (P53): insert-first against the stripe_payment_intent_id
+  // partial unique index inside createAccountCredit — the old read-then-write
+  // LIKE scan could bank the same credit twice under Stripe's at-least-once
+  // delivery. The LIKE scan is kept ONLY as a fast-path for legacy rows banked
+  // before the column existed (their PI lives embedded in `num`).
   if (stripePaymentIntentId) {
     const { ensureUnappliedSchema } = await import('@/lib/unapplied-ddl')
     await ensureUnappliedSchema()
@@ -249,13 +252,15 @@ async function handlePortalCredit(session: StripeCheckoutSession, source: 'Prepa
   const { createAccountCredit } = await import('@/lib/account-credits')
   const numParts = [source === 'Gift' && md.gifterName ? `Gift from ${md.gifterName}` : null, stripePaymentIntentId]
     .filter(Boolean)
-  await createAccountCredit({
+  const creditId = await createAccountCredit({
     facilityId,
     residentId,
     amountCents,
     source,
     num: numParts.join(' · ') || null,
+    stripePaymentIntentId,
   })
+  if (!creditId) return // duplicate delivery — already banked
 
   revalidateTag('billing', {})
 }

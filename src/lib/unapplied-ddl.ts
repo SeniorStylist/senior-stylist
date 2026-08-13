@@ -1,7 +1,8 @@
 // Self-bootstrapping DDL for qb_unapplied_credits. The dev environment has no DB
 // credentials for psql, so the routes that touch this table apply the idempotent
-// DDL once per lambda instance. Keep in sync with drizzle/0008_qb_unapplied_credits.sql
-// and drizzle/0009_unapplied_apply.sql.
+// DDL once per lambda instance. Keep in sync with drizzle/0008_qb_unapplied_credits.sql,
+// drizzle/0009_unapplied_apply.sql and drizzle/0036_p53_payments_integrity.sql
+// (0036's residents.portal_token backfill is migration-only, NOT bootstrapped).
 
 import { db } from '@/db'
 import { sql } from 'drizzle-orm'
@@ -33,5 +34,10 @@ export async function ensureUnappliedSchema(): Promise<void> {
   await db.execute(sql`ALTER TABLE qb_unapplied_credits ADD COLUMN IF NOT EXISTS applied_at timestamptz`)
   await db.execute(sql`ALTER TABLE qb_unapplied_credits ADD COLUMN IF NOT EXISTS applied_by uuid`)
   await db.execute(sql`ALTER TABLE qb_unapplied_credits ADD COLUMN IF NOT EXISTS applied_detail jsonb`)
+  // 0036 — P53 credit-banking idempotency (insert-first against this index)
+  await db.execute(sql`ALTER TABLE qb_unapplied_credits ADD COLUMN IF NOT EXISTS stripe_payment_intent_id text`)
+  await db.execute(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS qb_unapplied_credits_stripe_pi_unique ON qb_unapplied_credits (stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL`,
+  )
   ddlEnsured = true
 }
