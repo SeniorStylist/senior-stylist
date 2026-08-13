@@ -3122,6 +3122,35 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P53 — Onboarding-funnel hardening + facility scheduling lockout + dry-run signup (2026-08-13)
+
+Full contracts in CLAUDE.md's P53 entry; ops in docs/new-facility-runbook.md.
+Migration drizzle/0036 (credit-idempotency PI column/index + portal_token
+backfill).
+
+- **Facility scheduling lockout (owner decision)**: facility admin + front
+  desk never place time slots — Sign-Up Sheet requests only; the stylist
+  (plus manage tier + master) converts. isFacilityScheduleLocked() enforced
+  on bookings POST (walk-in `source:'walk_in'` carve-out), recurring,
+  copy-day, both converts, PUT (drops startTime/stylistId); UI create entry
+  points open the Sign-Up Sheet; assistant excludeFacilityLocked tool flag;
+  tours/help-kb/grounding rewritten.
+- **Strict signup matcher**: strictNameScore (no whole-string substring),
+  nameAgreement tier 1.5 (≥2 words, first+last), per-candidate room ranking,
+  ambiguity fail-closed; gift resolution strict + masked.
+- **Dry-run signup**: ?preview=1 page + preview:true POST, both master-
+  verified server-side; full pipeline, every write/send guarded.
+- **Payments**: platform-key-only portal checkout; paymentsBlocked() live
+  gate; demo-FIFO filters; shared recompute on portal payments; insert-first
+  credit banking; visible salon credit on the portal.
+- **Signup robustness**: case-insensitive facility codes (helper + middleware
+  308), active-join 409 guard, claim dedup, portalToken on claim-created
+  residents, fill-if-null profile, atomic magic links + 10-min grace,
+  firstErrorMessage extraction, lobby rate limits.
+- **Scheduling**: resolveAvailableStylists facility-tz fix; preferred-date +
+  notes + defaultStylistId conversion; portal tz display + Requested section;
+  admin mobile badge; /signup-sheet P33 roster + chips.
+
 ## P52 — QR signup works everywhere + family-facing resident matchup (2026-08-09)
 
 Migration `drizzle/0035_p52_signup_everywhere.sql` (flag default → true +

@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.4',
+    date: '2026-08-13',
+    title: 'Onboarding-Ready — The Full Funnel, Hardened',
+    items: [
+      'Big scheduling change: facility admins and front desk now send appointment REQUESTS through the Sign-Up Sheet — only the stylist places the actual time slot. Clicking the calendar or the + button opens the request form; facility roles keep full calendar view, cancelling, and detail edits (service, price, notes, payment)',
+      'The stylist\'s convert flow got smarter: requests open on the family\'s preferred date, their notes ("Mom likes it short") finally carry into the booking, and a brand-new facility with no hours entered no longer blocks the stylist from scheduling',
+      'Fixed a long-standing availability bug: afternoon slots showed "no stylist available" and Sunday evenings counted as Monday because hours were checked against the wrong clock. Auto-assignment now uses the facility\'s own timezone',
+      'Signup security hardened: the instant-connect check can no longer be passed with just a last name, look-alike resident names can\'t link a family to the wrong person, and lowercase QR links no longer 404',
+      'Families now see their pending requests in the portal ("waiting for the salon to pick a time"), their salon credit ("$X available — the salon will apply it") so nobody pays twice, and appointment times in the facility\'s timezone',
+      'Payments integrity: portal payments always run on the Senior Stylist platform account (a facility-entered Stripe key used to silently break payment recording), demo invoices can never absorb real money, and facility balances update the moment a family pays online',
+      'Owner: the Debug tab\'s signup preview is now a true DRY RUN — the whole wizard including the confirmation screen, with nothing created and no emails sent (the old preview button opened the live wizard). Plus a new-facility runbook: docs/new-facility-runbook.md',
+    ],
+  },
+  {
     version: '6.3',
     // Dated a day after 6.2 (same-day releases from two streams) — dates must
     // be STRICTLY increasing or readers of 6.2 never see the unread dot.
