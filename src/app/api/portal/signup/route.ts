@@ -13,8 +13,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimPendingEmailHtml } from '@/lib/email'
-import { fuzzyScore } from '@/lib/fuzzy'
-import { matchResidentForSignup } from '@/lib/signup-match'
+import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
@@ -136,7 +135,10 @@ export async function POST(request: NextRequest) {
   // typed name agrees with the resident's on-file POA/family-contact name.
   // Room numbers are door-visible; the POA name is not — reproducing it plus
   // the confirmation is treated like knowing the family relationship.
-  if (familyConfirmed && m?.confident && m.resident.poaName && fuzzyScore(fullName, m.resident.poaName) >= 0.8) {
+  // P53: nameAgreement (both names ≥2 words, first+last agree) — the old
+  // fuzzyScore>=0.8 was defeated by its substring rule (a lone surname
+  // contained in the POA name scored 0.85 and instant-approved a stranger).
+  if (familyConfirmed && m?.confident && m.resident.poaName && nameAgreement(fullName, m.resident.poaName)) {
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -155,13 +157,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Legacy fallback when the resident name matched nothing: the applicant's
-  // own name vs residents.poaName.
+  // own name vs residents.poaName. P53: strictNameScore (no substring
+  // inflation of the admin confidence chip).
   let bestMatch: { resident: (typeof facilityResidents)[0]; score: number; type: 'resident_room' | 'name' } | null =
     m ? { resident: m.resident, score: m.score, type: 'resident_room' } : null
   if (!bestMatch) {
     for (const r of facilityResidents) {
       if (!r.poaName) continue
-      const score = fuzzyScore(fullName, r.poaName)
+      const score = strictNameScore(fullName, r.poaName)
       if (score > (bestMatch?.score ?? 0.59)) {
         bestMatch = { resident: r, score, type: 'name' }
       }
@@ -175,15 +178,21 @@ export async function POST(request: NextRequest) {
   // instead of a full-roster hunt. A stranger who knows a name must always
   // pass a human.
   const roomAgrees = m?.roomAgrees ?? false
+  // P53 — an AMBIGUOUS match (exact top-score tie between different residents)
+  // never stamps a residentId: the admin card's one-click Approve would link
+  // whichever row the DB returned first. The admin picks from the full roster.
+  const ambiguous = m?.ambiguous ?? false
   // Family-confirmed confident matches surface as 'high' with the resident
   // pre-picked so the admin card is a true one-tap confirm.
   const confidence = familyConfirmed && m?.confident
     ? 'high'
-    : bestMatch
-      ? bestMatch.type === 'resident_room'
-        ? (bestMatch.score >= 0.85 && roomAgrees) ? 'high' : bestMatch.score >= 0.75 ? 'medium' : 'low'
-        : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
-      : null
+    : ambiguous
+      ? 'low'
+      : bestMatch
+        ? bestMatch.type === 'resident_room'
+          ? (bestMatch.score >= 0.85 && roomAgrees) ? 'high' : bestMatch.score >= 0.75 ? 'medium' : 'low'
+          : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
+        : null
 
   await db.insert(portalClaimRequests).values({
     facilityId: facility.id,
@@ -195,10 +204,12 @@ export async function POST(request: NextRequest) {
     residentName: claimedResidentName || null,
     roomNumber: roomNumber?.trim() || null,
     relationship: relationship ?? null,
-    residentId: bestMatch?.resident.id ?? null,
-    matchType: bestMatch?.type ?? null,
+    residentId: ambiguous ? null : bestMatch?.resident.id ?? null,
+    matchType: ambiguous ? null : bestMatch?.type ?? null,
     matchConfidence: confidence,
-    familyConfirmed: familyConfirmed && !!m ? true : null,
+    // P53 — record the family's confirmation only when the server's own match
+    // was confident; the badge must never over-claim.
+    familyConfirmed: familyConfirmed && m?.confident ? true : null,
     status: 'pending_review',
   })
 

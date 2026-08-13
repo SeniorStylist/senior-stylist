@@ -5,7 +5,8 @@ import { facilities, residents } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getPortalSession } from '@/lib/portal-auth'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { fuzzyScore } from '@/lib/fuzzy'
+import { strictNameScore } from '@/lib/signup-match'
+import { maskName } from '@/lib/name-mask'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,8 +38,15 @@ export async function POST(request: NextRequest) {
     const facilityId = myResident.facilityId
 
     // Resolve the recipient by name (+ room) WITHOUT exposing the roster.
+    // P53: strictNameScore (no whole-string substring shortcut — fuzzyScore's
+    // containment rule let a bare first name or 2-letter fragment score 0.85
+    // and disclose the full legal name of whoever is in a guessed room).
     const all = await db.query.residents.findMany({
-      where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
+      where: and(
+        eq(residents.facilityId, facilityId),
+        eq(residents.active, true),
+        eq(residents.isDemo, false),
+      ),
       columns: { id: true, name: true, roomNumber: true },
     })
     let pool = all
@@ -48,7 +56,7 @@ export async function POST(request: NextRequest) {
       if (byRoom.length) pool = byRoom
     }
     const scored = pool
-      .map((r) => ({ r, score: fuzzyScore(r.name, recipientName) }))
+      .map((r) => ({ r, score: strictNameScore(r.name, recipientName) }))
       .sort((a, b) => b.score - a.score)
     const best = scored[0]
     const second = scored[1]
@@ -84,7 +92,9 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             unit_amount: amountCents,
-            product_data: { name: `Gift credit for ${recipient.name}` },
+            // P53 — the TYPED name, not the on-file spelling (the Checkout page
+            // is shown to the payer; the roster name stays server-side in metadata).
+            product_data: { name: `Gift credit for ${recipientName}` },
           },
           quantity: 1,
         },
@@ -103,7 +113,9 @@ export async function POST(request: NextRequest) {
       customer_email: session.email,
     })
 
-    return Response.json({ data: { checkoutUrl: checkoutSession.url, recipientName: recipient.name } })
+    // P53 — never echo the on-file spelling back to the gifter: masked initials
+    // confirm the match without disclosing the roster name.
+    return Response.json({ data: { checkoutUrl: checkoutSession.url, recipientName: maskName(recipient.name) } })
   } catch (err) {
     console.error('POST /api/portal/gift/create-checkout error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
