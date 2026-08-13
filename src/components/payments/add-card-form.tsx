@@ -41,7 +41,12 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddC
           body: JSON.stringify({ residentId }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error || t('cards.setupFailed'))
+        if (!res.ok) {
+          // P53 — 501/503 = not configured / not turned on yet: show the
+          // TRANSLATED message instead of the raw English server string.
+          if (res.status === 501 || res.status === 503) throw new Error(t('cards.notConfigured'))
+          throw new Error(json.error || t('cards.setupFailed'))
+        }
         if (cancelled) return
         setClientSecret(json.data.clientSecret)
         setStripePromise(getStripePromise(json.data.publishableKey))

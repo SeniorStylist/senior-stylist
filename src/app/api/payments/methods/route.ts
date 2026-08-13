@@ -13,7 +13,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { authorizeResidentPayment } from '@/lib/payments/authorize'
 import { saveCardFromSetupIntent } from '@/lib/payments/methods'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
-import { getPlatformStripe } from '@/lib/payments/stripe-client'
+import { getPlatformStripe, paymentsBlocked } from '@/lib/payments/stripe-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +61,11 @@ export async function POST(request: NextRequest) {
 
     const rl = await checkRateLimit('paymentSetup', auth.actor.rateKey)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
+
+    // P53 — mirror the setup-intent gate: live key + flag off must not vault.
+    if (paymentsBlocked()) {
+      return Response.json({ error: 'Card payments are not turned on yet — please call the salon.' }, { status: 503 })
+    }
 
     const saved = await saveCardFromSetupIntent(parsed.data.setupIntentId, {
       residentId: auth.actor.residentId,

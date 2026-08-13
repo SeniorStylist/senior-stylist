@@ -52,17 +52,22 @@ export async function POST(request: NextRequest) {
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, resident.facilityId),
-      columns: { id: true, facilityCode: true, stripeSecretKey: true },
+      columns: { id: true, facilityCode: true },
     })
     if (!facility?.facilityCode) return Response.json({ error: 'Facility misconfigured' }, { status: 500 })
 
-    const stripeKey = facility.stripeSecretKey ?? process.env.STRIPE_SECRET_KEY
-    if (!stripeKey) {
+    // P53 — PLATFORM key ONLY. The old facility.stripeSecretKey fallback was a
+    // landmine: a checkout on the facility's own account produced webhook
+    // events our single platform signing secret 400s on — the family was
+    // charged and NOTHING was ever recorded. The facility field is legacy.
+    const { getPlatformStripe, paymentsBlocked } = await import('@/lib/payments/stripe-client')
+    const stripe = await getPlatformStripe()
+    if (!stripe) {
       return Response.json({ error: 'Online payment not configured for this facility' }, { status: 501 })
     }
-
-    const Stripe = (await import('stripe')).default
-    const stripe = new Stripe(stripeKey)
+    if (paymentsBlocked()) {
+      return Response.json({ error: 'Online payment is not turned on yet — please call the salon.' }, { status: 503 })
+    }
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
 
     const isPrepay = purpose === 'prepay'

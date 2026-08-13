@@ -461,7 +461,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
         <div>
           <h3 className="text-sm font-semibold text-stone-800 mb-1">Stripe</h3>
           <p className="text-xs text-stone-500">
-            Enter your Stripe keys to enable per-resident payment collection. These are stored securely and used for portal checkout sessions.
+            Legacy — family-portal payments always run through the Senior Stylist platform account now; a facility-level key is no longer used for checkout. Leave these blank unless support asks otherwise.
           </p>
         </div>
         <div>

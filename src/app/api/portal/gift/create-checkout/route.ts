@@ -73,15 +73,18 @@ export async function POST(request: NextRequest) {
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
-      columns: { id: true, facilityCode: true, stripeSecretKey: true },
+      columns: { id: true, facilityCode: true },
     })
     if (!facility?.facilityCode) return Response.json({ error: 'Facility misconfigured' }, { status: 500 })
 
-    const stripeKey = facility.stripeSecretKey ?? process.env.STRIPE_SECRET_KEY
-    if (!stripeKey) return Response.json({ error: 'Online payment not configured for this facility' }, { status: 501 })
-
-    const Stripe = (await import('stripe')).default
-    const stripe = new Stripe(stripeKey)
+    // P53 — platform key only (facility-key checkout produced webhook events
+    // our platform signing secret rejects — charged but never recorded).
+    const { getPlatformStripe, paymentsBlocked } = await import('@/lib/payments/stripe-client')
+    const stripe = await getPlatformStripe()
+    if (!stripe) return Response.json({ error: 'Online payment not configured for this facility' }, { status: 501 })
+    if (paymentsBlocked()) {
+      return Response.json({ error: 'Online payment is not turned on yet — please call the salon.' }, { status: 503 })
+    }
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
 
     const checkoutSession = await stripe.checkout.sessions.create({

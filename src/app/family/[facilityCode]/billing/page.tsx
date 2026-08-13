@@ -1,8 +1,9 @@
 import { db } from '@/db'
 import { facilities, qbInvoices, residents } from '@/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { getPortalLang } from '@/lib/portal-i18n-server'
+import { platformStripeKey, platformPublishableKey } from '@/lib/payments/stripe-client'
 import { BillingClient } from './billing-client'
 
 export const dynamic = 'force-dynamic'
@@ -22,14 +23,14 @@ export default async function BillingPage({
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
-  const [residentRow, facilityRow, invoices] = await Promise.all([
+  const [residentRow, facilityRow, invoices, creditRows] = await Promise.all([
     db.query.residents.findFirst({
       where: eq(residents.id, selected.residentId),
       columns: { id: true, name: true, qbOutstandingBalanceCents: true, autopayEnabled: true },
     }),
     db.query.facilities.findFirst({
       where: eq(facilities.id, selected.facilityId),
-      columns: { id: true, stripeSecretKey: true, contactEmail: true, phone: true },
+      columns: { id: true, contactEmail: true, phone: true },
     }),
     db
       .select({
@@ -41,13 +42,27 @@ export default async function BillingPage({
         status: qbInvoices.status,
       })
       .from(qbInvoices)
-      .where(and(eq(qbInvoices.residentId, selected.residentId)))
+      // P53 — is_demo filter: families saw seed/demo invoices in the list + statement
+      .where(and(eq(qbInvoices.residentId, selected.residentId), eq(qbInvoices.isDemo, false)))
       .orderBy(desc(qbInvoices.invoiceDate))
       .limit(24),
+    // P53 — visible salon credit: prepay/gift money used to be invisible here,
+    // so families paid the full balance again. Same SUM the autopay GET uses.
+    db
+      .execute(
+        sql`SELECT COALESCE(SUM(open_balance_cents - applied_cents), 0) AS c
+            FROM qb_unapplied_credits
+            WHERE resident_id = ${selected.residentId} AND (open_balance_cents - applied_cents) > 0`,
+      )
+      .then((rows) => Number((rows as unknown as Array<{ c: number | string }>)[0]?.c ?? 0) || 0)
+      .catch(() => 0),
   ])
 
   const outstanding = residentRow?.qbOutstandingBalanceCents ?? 0
-  const stripeAvailable = !!(facilityRow?.stripeSecretKey || process.env.STRIPE_SECRET_KEY)
+  // P53 — the card/checkout stack runs on the PLATFORM keys (welcome-page
+  // pattern); the facility key is legacy and no longer gates anything here.
+  const stripeAvailable = !!platformStripeKey()
+  const cardsConfigured = !!platformStripeKey() && !!platformPublishableKey()
 
   return (
     <BillingClient
@@ -58,6 +73,8 @@ export default async function BillingPage({
       outstandingCents={outstanding}
       autopayEnabled={residentRow?.autopayEnabled ?? false}
       stripeAvailable={stripeAvailable}
+      cardsConfigured={cardsConfigured}
+      availableCreditCents={creditRows}
       paymentSuccess={payment === 'success'}
       giftSuccess={gift === 'success'}
       facilityPhone={facilityRow?.phone ?? null}

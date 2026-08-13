@@ -27,6 +27,10 @@ interface Props {
   outstandingCents: number
   autopayEnabled?: boolean
   stripeAvailable: boolean
+  /** P53 — platform secret + publishable keys both set (card vaulting works). */
+  cardsConfigured?: boolean
+  /** P53 — unapplied salon credit (prepay/gift), display-only. */
+  availableCreditCents?: number
   paymentSuccess: boolean
   giftSuccess: boolean
   facilityPhone: string | null
@@ -47,6 +51,8 @@ export function BillingClient({
   outstandingCents,
   autopayEnabled = false,
   stripeAvailable,
+  cardsConfigured = true,
+  availableCreditCents = 0,
   paymentSuccess,
   giftSuccess,
   facilityPhone,
@@ -226,6 +232,13 @@ export function BillingClient({
         >
           {formatDollars(outstandingCents)}
         </p>
+        {/* P53 — prepay/gift credit was invisible here, so families paid the
+            full balance AGAIN. Display-only: the salon applies it manually. */}
+        {availableCreditCents > 0 && (
+          <p className="mt-2 text-sm font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+            {t('billing.creditAvailable', { amount: formatDollars(availableCreditCents) })}
+          </p>
+        )}
       </section>
 
       {showPay && (
@@ -332,11 +345,25 @@ export function BillingClient({
         </section>
       )}
 
-      {/* Card on file — save a card for automatic payment of services (COF). */}
-      <SavedCardsCard residentId={residentId} lang={lang} />
+      {/* Card on file — save a card for automatic payment of services (COF).
+          P53 — gated on the PLATFORM keys (these components use Stripe
+          Elements on the platform account; the old gate checked the legacy
+          facility checkout key and let the form 501 with a raw English error). */}
+      {cardsConfigured ? (
+        <>
+          <SavedCardsCard residentId={residentId} lang={lang} />
 
-      {/* P50 — family opts in to autopay themselves (consent email fires server-side). */}
-      <AutopayCard residentId={residentId} lang={lang} initialEnabled={autopayEnabled} />
+          {/* P50 — family opts in to autopay themselves (consent email fires server-side). */}
+          <AutopayCard residentId={residentId} lang={lang} initialEnabled={autopayEnabled} />
+        </>
+      ) : (
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
+          <h2 className="text-sm font-semibold text-stone-900 mb-1">{t('cards.title')}</h2>
+          <p className="text-sm text-stone-500">
+            {t('billing.cardsUnavailable', { phone: facilityPhone ?? '' })}
+          </p>
+        </section>
+      )}
 
       {stripeAvailable && (
         <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">

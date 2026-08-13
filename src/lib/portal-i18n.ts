@@ -112,6 +112,15 @@ export const PORTAL_STRINGS = {
   'billing.payWithCard': { en: 'Pay with card', es: 'Pagar con tarjeta' },
   'billing.payBarCta': { en: 'Pay {amount}', es: 'Pagar {amount}' },
   'billing.secureStripe': { en: 'Secure payment via Stripe.', es: 'Pago seguro a través de Stripe.' },
+  // P53 — visible salon credit + graceful cards-unavailable state
+  'billing.creditAvailable': {
+    en: 'Salon credit available: {amount} — the salon will apply it to your balance.',
+    es: 'Crédito de salón disponible: {amount} — el salón lo aplicará a su saldo.',
+  },
+  'billing.cardsUnavailable': {
+    en: "Card payments aren't set up yet — please call the salon at {phone} to arrange payment.",
+    es: 'Los pagos con tarjeta aún no están disponibles — llame al salón al {phone} para coordinar el pago.',
+  },
   'billing.addFundsTitle': { en: 'Add funds to account', es: 'Agregar fondos a la cuenta' },
   'billing.addFundsHint': {
     en: 'Prepay credit toward future services. The facility applies it to your invoices.',

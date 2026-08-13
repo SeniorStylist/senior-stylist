@@ -22,6 +22,17 @@ export function platformStripeKey(): string | null {
   return process.env.STRIPE_SECRET_KEY ?? null
 }
 
+/**
+ * P53 — true ONLY for the dangerous combination: a LIVE key with the flag
+ * still off. Before this, that state let families vault a real card and turn
+ * on autopay that then silently never charged (every collection returned
+ * not_configured). Test keys + flag off stay fully usable — that is the
+ * documented dev/test mode.
+ */
+export function paymentsBlocked(): boolean {
+  return (platformStripeKey()?.startsWith('sk_live_') ?? false) && !paymentsLiveEnabled()
+}
+
 /** The platform publishable key surfaced to the client for Stripe Elements. */
 export function platformPublishableKey(): string | null {
   return (

@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { residents, services, facilities, bookings } from '@/db/schema'
+import { residents, services, bookings } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -48,29 +48,25 @@ export async function POST(
       return Response.json({ error: 'Booking not found' }, { status: 404 })
     }
 
-    const [service, facility] = await Promise.all([
-      db.query.services.findFirst({
-        where: and(eq(services.id, serviceId), eq(services.facilityId, resident.facilityId)),
-        columns: { id: true, name: true, priceCents: true },
-      }),
-      db.query.facilities.findFirst({
-        where: eq(facilities.id, resident.facilityId),
-        columns: { id: true, stripeSecretKey: true },
-      }),
-    ])
+    const service = await db.query.services.findFirst({
+      where: and(eq(services.id, serviceId), eq(services.facilityId, resident.facilityId)),
+      columns: { id: true, name: true, priceCents: true },
+    })
 
     if (!service) {
       return Response.json({ error: 'Service not found' }, { status: 404 })
     }
 
-    const stripeKey = facility?.stripeSecretKey ?? process.env.STRIPE_SECRET_KEY
-    if (!stripeKey) {
+    // P53 — platform key only (facility-key checkout produced webhook events
+    // our platform signing secret rejects — charged but never recorded).
+    const { getPlatformStripe, paymentsBlocked } = await import('@/lib/payments/stripe-client')
+    const stripe = await getPlatformStripe()
+    if (!stripe) {
       return Response.json({ error: 'Stripe not configured' }, { status: 503 })
     }
-
-    // Dynamic import to keep stripe server-side only
-    const Stripe = (await import('stripe')).default
-    const stripe = new Stripe(stripeKey)
+    if (paymentsBlocked()) {
+      return Response.json({ error: 'Online payment is not turned on yet — please call the salon.' }, { status: 503 })
+    }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
 

@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { authorizeResidentPayment } from '@/lib/payments/authorize'
 import { ensureStripeCustomer } from '@/lib/payments/customer'
-import { getPlatformStripe, platformPublishableKey } from '@/lib/payments/stripe-client'
+import { getPlatformStripe, platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +29,11 @@ export async function POST(request: NextRequest) {
     const stripe = await getPlatformStripe()
     if (!stripe || !publishableKey) {
       return Response.json({ error: 'Card payments are not configured' }, { status: 501 })
+    }
+    // P53 — live key + flag off used to vault a REAL card whose autopay then
+    // silently never charged. Block loudly instead.
+    if (paymentsBlocked()) {
+      return Response.json({ error: 'Card payments are not turned on yet — please call the salon.' }, { status: 503 })
     }
 
     const customerId = await ensureStripeCustomer({

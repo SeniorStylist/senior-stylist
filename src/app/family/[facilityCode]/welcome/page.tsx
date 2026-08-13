@@ -20,6 +20,10 @@ export default async function WelcomePage({
   const { residentsAtFacility } = await requirePortalAuth(decoded)
   const { lang } = await getPortalT()
 
+  // TODO(P9, deferred 2026-08-13): only the FIRST resident is onboarded — a POA
+  // with two parents at one facility is never prompted for the second card
+  // (onboarding-complete stamps the account). Cards remain addable per resident
+  // from the Billing page, so this is a nudge gap, not a capability gap.
   const resident = residentsAtFacility[0]
   const stripeConfigured = !!platformStripeKey() && !!platformPublishableKey()
 
