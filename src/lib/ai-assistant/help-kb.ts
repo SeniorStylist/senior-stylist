@@ -90,15 +90,15 @@ Moving/cancelling: open the appointment and change the time, or cancel it. Cance
 
 Recurring: appointments can repeat weekly — cancelling can apply to just one visit or all future ones.
 
-Stylists see and manage only their own appointments; front desk and admins manage everyone's. The assistant can do all of this by voice or text: "book Mrs. Smith for a wash and set tomorrow at 10", "move her 2pm to 3", "put John in my next open slot" — every change asks you to confirm first.`,
+Who places time slots: STYLISTS (plus the franchise owner and bookkeeper). Facility admins and front desk don't book time slots directly — clicking the calendar or the + button opens the Sign-Up Sheet, where they log the request (resident, service, preferred date) and the stylist converts it into a real slot. Facility roles can still view the whole calendar, cancel appointments, and edit details like notes, service, price, and payment — just not the date/time or stylist. The assistant follows the same rules: stylists can say "book Mrs. Smith for a wash and set tomorrow at 10" or "move her 2pm to 3"; facility staff instead say "add a request for Mrs. Smith" — every change asks you to confirm first.`,
   },
   {
     id: 'signup-sheet',
     title: 'Sign-Up Sheet — appointment requests without a time',
     keywords: ['signup', 'sign up', 'request', 'intake', 'queue', 'pending', 'pick time'],
-    body: `The Sign-Up Sheet is a lightweight intake queue: front desk logs that a resident WANTS an appointment, without picking an exact time. Stylists convert requests into real bookings later.
+    body: `The Sign-Up Sheet is THE way facility staff schedule: front desk and facility admins log that a resident WANTS an appointment (with a preferred date), and the STYLIST converts it into a real time slot — facility roles never place time slots directly.
 
-Front desk / admin: open the Sign-Up Sheet from the dashboard, enter the resident (or create one inline), the service, an optional preferred date/time, and notes. The request is auto-assigned to the stylist scheduled for that day. A "Pending requests" section at the top shows everything facility-wide; the × cancels a request.
+Front desk / admin: open the Sign-Up Sheet from the dashboard (clicking the calendar or the + button opens it too), enter the resident (or create one inline), the service, an optional preferred date/time, and notes. The request is auto-assigned to the stylist scheduled for that day. A "Pending requests" section at the top shows everything facility-wide; the × cancels a request.
 
 Stylists: pending requests appear in an amber panel above your calendar, with a badge on the Calendar tab counting them. Tap "Pick time →" to open the booking form pre-filled, choose a slot, and the request becomes a real appointment. On desktop you can also drag a request card straight onto the calendar.
 

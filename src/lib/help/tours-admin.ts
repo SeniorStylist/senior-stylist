@@ -62,13 +62,13 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         selector: '[data-tour="calendar-time-grid"]',
         route: '/dashboard',
         title: 'Your facility calendar',
-        description: "Who's working today, coverage gaps, and every booking. Click any slot to create one. This is your daily home base.",
+        description: "Who's working today, coverage gaps, and every booking. Clicking a slot opens the Sign-Up Sheet — the stylist places the actual time. This is your daily home base.",
       },
       {
         type: 'highlight',
         selector: '[data-tour="signup-sheet-button"]',
-        title: 'Triage requests',
-        description: 'Resident requests land here. Assign them to a stylist or schedule manually.',
+        title: 'Send requests',
+        description: 'Resident requests land here. The assigned stylist converts each one into a real time slot.',
         placement: 'bottom',
       },
       {

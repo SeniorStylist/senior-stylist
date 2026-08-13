@@ -49,7 +49,10 @@ console.log('\n[1] Role filtering (toolsForCtx)')
 
   const admin = names(baseCtx)
   check('admin sees get_business_numbers', admin.includes('get_business_numbers'))
-  check('admin sees book/cancel/reschedule', ['book_appointment', 'cancel_appointment', 'reschedule_appointment'].every((n) => admin.includes(n)))
+  // P53 facility scheduling lockout — facility admin keeps cancel + signup
+  // requests but no longer places/moves time slots.
+  check('facility admin does NOT see book/reschedule (P53 lockout)', !admin.includes('book_appointment') && !admin.includes('reschedule_appointment'))
+  check('facility admin keeps cancel + add_signup_entry', admin.includes('cancel_appointment') && admin.includes('add_signup_entry'))
   check('admin does NOT see get_my_earnings', !admin.includes('get_my_earnings'))
   check('admin does NOT see get_facility_numbers', !admin.includes('get_facility_numbers'))
 
@@ -59,7 +62,7 @@ console.log('\n[1] Role filtering (toolsForCtx)')
 
   const staff = names({ ...baseCtx, role: 'facility_staff' })
   check('facility_staff has no money tools', !staff.includes('get_business_numbers'))
-  check('facility_staff can book', staff.includes('book_appointment'))
+  check('facility_staff does NOT book (P53 — requests instead)', !staff.includes('book_appointment') && staff.includes('add_signup_entry'))
 
   // P51 — bookkeepers are manage-tier (the route sets canManage for them)
   const bookkeeper = names({ ...baseCtx, role: 'bookkeeper', canManage: true })
@@ -67,6 +70,8 @@ console.log('\n[1] Role filtering (toolsForCtx)')
 
   // P51 — franchise admin: normalized role 'admin' + canManage (rawRole super_admin)
   const franchiseAdmin = names({ ...baseCtx, role: 'admin', canManage: true })
+  // P53 — the lockout must NOT catch franchise admins (canManage exempts them)
+  check('franchise admin still books/reschedules (lockout exempt)', franchiseAdmin.includes('book_appointment') && franchiseAdmin.includes('reschedule_appointment'))
 
   const viewer = names({ ...baseCtx, role: 'viewer' })
   check('viewer gets ZERO tools', viewer.length === 0)

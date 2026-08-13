@@ -109,6 +109,10 @@ export interface AssistantTool {
   /** P51 — manage-tier tools (stylist/service/payroll management) are filtered
    * out for non-manage callers in toolsForCtx. */
   requiresManage?: boolean
+  /** P53 — facility scheduling lockout: tools that PLACE time slots drop out
+   * for facility admin + front desk unless they're manage tier (franchise/
+   * bookkeeper). Stylists keep them (own bookings). */
+  excludeFacilityLocked?: boolean
   execute: (ctx: AssistantCtx, args: Record<string, unknown>) => Promise<ToolResult>
 }
 
@@ -1822,6 +1826,7 @@ const bookAppointment: AssistantTool = {
   kind: 'write',
   roles: WRITE_ROLES,
   needsFacility: true,
+  excludeFacilityLocked: true, // P53 — facility roles request via add_signup_entry
   async execute(ctx, args) {
     const guard = stylistWriteGuard(ctx)
     if (guard) return err(guard)
@@ -2045,6 +2050,7 @@ const rescheduleAppointment: AssistantTool = {
   kind: 'write',
   roles: WRITE_ROLES,
   needsFacility: true,
+  excludeFacilityLocked: true, // P53 — time moves are the stylist's; facility roles request via the Sign-Up Sheet
   async execute(ctx, args) {
     const guard = stylistWriteGuard(ctx)
     if (guard) return err(guard)
@@ -3034,6 +3040,14 @@ export function toolsForCtx(ctx: AssistantCtx): AssistantTool[] {
     if (!t.roles.includes(ctx.role)) return false
     // P51 — manage-tier tools drop out for non-manage callers (facility admin).
     if (t.requiresManage && ctx.role !== 'master' && !ctx.canManage) return false
+    // P53 — facility scheduling lockout: slot-placing tools drop out for
+    // facility admin + front desk (stylists + manage tier + master keep them),
+    // so the assistant never proposes what the API now 403s.
+    if (
+      t.excludeFacilityLocked &&
+      (ctx.role === 'admin' || ctx.role === 'facility_staff') &&
+      !ctx.canManage
+    ) return false
     // P41 — a facility-less MASTER keeps facility-scoped tools: the dispatch
     // layer resolves a facility per call from args.facilityName.
     if (t.needsFacility && !ctx.facilityId && ctx.role !== 'master') return false

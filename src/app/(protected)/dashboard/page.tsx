@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability, stylistCheckins, bookings } from '@/db/schema'
 import { eq, and, gte, lt, notInArray, inArray, asc, or } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
-import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists, isFacilityScheduleLocked } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { sanitizeStylists, sanitizeFacility, toClientJson, toRosterStylist } from '@/lib/sanitize'
@@ -331,6 +331,7 @@ export default async function DashboardPage() {
           checkinTodayBookings={todayBookingsForClient}
           paymentFlags={paymentFlags}
           canManageStylists={canManage}
+          scheduleLocked={isFacilityScheduleLocked(facilityUser, isMaster)}
         />
       </>
     )

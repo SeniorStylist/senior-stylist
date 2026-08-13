@@ -132,6 +132,9 @@ interface DashboardClientProps {
   // P51 lockdown — manage tier (master/franchise/bookkeeper): stylist panel
   // add/commission/click-through
   canManageStylists?: boolean
+  // P53 — facility scheduling lockout: facility admin + front desk never place
+  // time slots; every create entry point routes to the Sign-Up Sheet instead.
+  scheduleLocked?: boolean
 }
 
 function formatHHMM(t: string): string {
@@ -169,6 +172,7 @@ export function DashboardClient({
   checkinTodayBookings = [],
   paymentFlags = {},
   canManageStylists = false,
+  scheduleLocked = false,
 }: DashboardClientProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   // Phase 17 — set when the visible range was served from the offline read-cache
@@ -220,16 +224,22 @@ export function DashboardClient({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Handle `?new=1` from TopBar "New Booking" button — opens modal, strips param.
+  // Handle `?new=1` from TopBar "New Booking" button (and the N shortcut) —
+  // opens modal, strips param. P53: facility roles get the Sign-Up Sheet
+  // instead (they never place time slots).
   useEffect(() => {
     if (searchParams.get('new') === '1') {
-      setEditBookingId(null)
-      setModalStart(null)
-      setModalEnd(null)
-      setModalOpen(true)
+      if (scheduleLocked) {
+        setSignupSheetOpen(true)
+      } else {
+        setEditBookingId(null)
+        setModalStart(null)
+        setModalEnd(null)
+        setModalOpen(true)
+      }
       router.replace('/dashboard')
     }
-  }, [searchParams, router])
+  }, [searchParams, router, scheduleLocked])
 
   // Stylist mobile list mode
   const [stylistListMode, setStylistListMode] = useState(false)
@@ -457,7 +467,12 @@ export function DashboardClient({
   }, [facility.name, facility.timezone, toast])
 
   // Phase 16 G2 — "Book →" on a due-for-visit resident: prefilled booking modal
+  // (P53: facility roles open the Sign-Up Sheet instead — request, not slot)
   const handleBookDueResident = useCallback((r: DueResident) => {
+    if (scheduleLocked) {
+      setSignupSheetOpen(true)
+      return
+    }
     const start = new Date()
     const minutes = start.getMinutes()
     const add = minutes < 30 ? 30 - minutes : 60 - minutes
@@ -470,7 +485,7 @@ export function DashboardClient({
     setSchedulingEntryId(null)
     setWaitlistEntryIdForBooking(null)
     setModalOpen(true)
-  }, [])
+  }, [scheduleLocked])
 
   // Period stats (week + month)
   const [periodStats, setPeriodStats] = useState<{
@@ -534,6 +549,12 @@ export function DashboardClient({
 
 
   const openCreateModal = (start: Date, end: Date) => {
+    // P53 — facility scheduling lockout: slot-clicks and quick-create route to
+    // the Sign-Up Sheet (a REQUEST for the stylist), never the booking modal.
+    if (scheduleLocked) {
+      setSignupSheetOpen(true)
+      return
+    }
     setEditBookingId(null)
     setModalStart(start)
     setModalEnd(end)
@@ -879,6 +900,7 @@ export function DashboardClient({
           signupSheetEntryId={schedulingEntryId}
           stylists={userRole === 'stylist' ? undefined : stylists}
           paymentFlags={paymentFlags}
+          scheduleLocked={scheduleLocked}
         />
       </ErrorBoundary>
     )
@@ -1078,9 +1100,12 @@ export function DashboardClient({
                   />
                 </div>
               )}
-              {/* Phase 16 G8/G9 — scheduling power tools (admin + facility_staff) */}
+              {/* Phase 16 G8/G9 — scheduling power tools (admin + facility_staff)
+                  P53 — Copy day places new slots: hidden under the scheduling
+                  lockout (Print week stays — it's read-only). */}
               {(isAdmin || userRole === 'facility_staff') && (
                 <>
+                  {!scheduleLocked && (
                   <button
                     type="button"
                     data-tour="copy-day-button"
@@ -1094,6 +1119,7 @@ export function DashboardClient({
                     </svg>
                     <span className="hidden lg:inline">Copy day</span>
                   </button>
+                  )}
                   <button
                     type="button"
                     data-tour="print-week-button"
@@ -1269,7 +1295,7 @@ export function DashboardClient({
             )}
 
             <WaitlistPanel
-              onBook={handleBookWaitlistEntry}
+              onBook={scheduleLocked ? undefined : handleBookWaitlistEntry}
               onAdd={() => { setWaitlistPrefill({ residentId: null, serviceId: null }); setWaitlistModalOpen(true) }}
               reloadKey={waitlistReloadKey}
             />
@@ -1367,6 +1393,7 @@ export function DashboardClient({
         onAddToWaitlist={(isAdmin || userRole === 'facility_staff') ? handleAddToWaitlistFromBooking : null}
         stylists={userRole === 'stylist' ? undefined : stylists}
         paymentFlags={paymentFlags}
+        scheduleLocked={scheduleLocked}
       />
 
       {/* Phase 15 F4 — add-to-waitlist form (panel + booking-modal cancel flow) */}

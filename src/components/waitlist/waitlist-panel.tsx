@@ -31,7 +31,8 @@ export function WaitlistPanel({
   onAdd,
   reloadKey = 0,
 }: {
-  onBook: (entry: WaitlistEntry) => void
+  /** P53 — omitted for schedule-locked facility roles (Book hidden). */
+  onBook?: (entry: WaitlistEntry) => void
   onAdd: () => void
   reloadKey?: number
 }) {
@@ -115,12 +116,14 @@ export function WaitlistPanel({
                 {e.notes ? ` · ${e.notes}` : ''}
               </p>
             </div>
-            <button
-              onClick={() => onBook(e)}
-              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-3 py-2 rounded-full transition-colors"
-            >
-              Book →
-            </button>
+            {onBook && (
+              <button
+                onClick={() => onBook(e)}
+                className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-3 py-2 rounded-full transition-colors"
+              >
+                Book →
+              </button>
+            )}
             <button
               onClick={() => remove(e)}
               aria-label={`Remove ${e.residentName} from waitlist`}

@@ -59,6 +59,9 @@ interface BookingModalProps {
   stylists?: { id: string; name: string; color?: string | null }[]
   // P51 — card-on-file / salon-credit booleans per resident (typeahead chip)
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P53 — facility scheduling lockout: date/time is read-only in edit mode
+  // (the PUT silent-drops startTime for these roles anyway; this keeps the UI honest)
+  scheduleLocked?: boolean
 }
 
 interface PickedStylist {
@@ -96,6 +99,7 @@ export function BookingModal({
   onAddToWaitlist = null,
   stylists = undefined,
   paymentFlags = {},
+  scheduleLocked = false,
 }: BookingModalProps) {
   const [residentSearch, setResidentSearch] = useState('')
   const [residentDropdownOpen, setResidentDropdownOpen] = useState(false)
@@ -1208,9 +1212,14 @@ export function BookingModal({
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
             step="1800"
-            disabled={submitting}
+            disabled={submitting || (scheduleLocked && mode === 'edit')}
             className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all duration-150 disabled:opacity-60 min-h-[44px]"
           />
+          {scheduleLocked && mode === 'edit' && (
+            <p className="text-[11px] text-stone-400">
+              Time changes are made by the stylist — add a request to the Sign-Up Sheet to reschedule.
+            </p>
+          )}
         </div>
 
         {/* Notes */}

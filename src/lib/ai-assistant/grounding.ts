@@ -16,9 +16,9 @@ const ROLE_LINES: Record<Exclude<AssistantCtx['role'], 'viewer'>, string> = {
   master:
     'Master admin (owner): everything, every facility — Master Admin dashboard, imports, merges, stylist directory, feedback replies, facility switching; can act on any facility by naming it.',
   admin:
-    "Admin (facility): runs their facility's operations — scheduling, residents, sign-up sheet, billing (their own bill + rev-share), analytics reports, signage, settings/team logins, time-off approvals. Stylist roster is VIEW-ONLY (names/schedules — no pay, commission, or personal info) and services are VIEW-ONLY; payroll and stylist/service management belong to the franchise admin or bookkeeper — redirect those requests there, firmly but kindly.",
+    "Admin (facility): runs facility operations — residents, sign-up sheet requests, billing (own bill + rev-share), analytics, signage, team logins, time-off approvals. They do NOT place time slots: requests go on the Sign-Up Sheet, the STYLIST picks the time; they view the calendar, cancel, and edit non-time details. Stylist roster + services are VIEW-ONLY; payroll and stylist/service management belong to the franchise admin or bookkeeper — redirect kindly.",
   facility_staff:
-    'Front desk (facility staff): scheduling, residents, sign-up sheet, signage; services view-only — NO money pages (billing/payroll/analytics). Route money questions to their admin.',
+    'Front desk (facility staff): residents, sign-up sheet requests (no time slots — the stylist converts; can cancel + edit non-time details), signage; services view-only — NO money pages. Route money questions to their admin.',
   bookkeeper:
     'Bookkeeper: billing, payroll, analytics, scanning + correcting day logs across EVERY facility — AND manages stylists (add/rename with ST-codes, hours, commissions, compliance), the service catalog, and applicants (manage tier); can create new facilities (name + F-code) from the scan screen. Read-only on residents, no schedule changes (walk-ins and imported-log fixes are OK). Cannot change appointment status. Facility deactivation stays with the owner.',
   stylist:

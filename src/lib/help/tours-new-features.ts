@@ -264,19 +264,20 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
   },
 
   {
+    // P53 — rewritten for the facility scheduling lockout: copy-day is a
+    // franchise/master tool now; facility admins request via the Sign-Up Sheet.
     id: 'scripted-admin-scheduling-tools',
     title: 'Scheduling Power Tools',
-    scenarioSummary: 'Copy salon days, print the week, fill overdue visits',
+    scenarioSummary: 'Requests, overdue visits, and the printable week',
     platform: 'desktop',
     role: 'admin',
     steps: [
       {
         type: 'highlight',
-        selector: '[data-tour="copy-day-button"]',
+        selector: '',
         route: '/dashboard',
-        title: 'Copy a salon day',
-        description: 'Re-book everyone from a past day onto a new date at the same times. Conflicts are skipped, never double-booked.',
-        placement: 'bottom',
+        title: 'Requests, not time slots',
+        description: 'Time slots are placed by the stylist. Clicking the calendar or "Due for a visit" opens the Sign-Up Sheet — your request lands in the stylist’s queue.',
       },
       {
         type: 'highlight',
@@ -289,11 +290,11 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
         type: 'highlight',
         selector: '',
         title: 'Due for a visit',
-        description: 'The dashboard suggests residents who are overdue based on their own visit rhythm. Book → prefills their usual service.',
+        description: 'The dashboard suggests residents who are overdue based on their own visit rhythm. Book → opens a prefilled request.',
       },
     ],
     learnings: [
-      'Copy day re-books a whole salon day',
+      'Time slots are the stylist’s — you send requests',
       'Print week for the front desk or floor staff',
       'Due-for-a-visit fills quiet days with overdue residents',
     ],
@@ -342,13 +343,13 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
         selector: '',
         route: '/dashboard',
         title: 'Due for a visit',
-        description: 'The dashboard suggests residents who are overdue based on their own visit rhythm — one tap books them.',
+        description: 'The dashboard suggests residents who are overdue based on their own visit rhythm — one tap opens a prefilled request.',
       },
       {
         type: 'highlight',
-        selector: '[data-tour="copy-day-button"]',
-        title: 'Copy a salon day',
-        description: 'Re-book everyone from one day onto a new date at the same times — conflicts are skipped, never double-booked.',
+        selector: '',
+        title: 'Requests, not time slots',
+        description: 'Time slots are placed by the stylist — the + button and calendar taps open the Sign-Up Sheet, and your request lands in their queue.',
       },
       {
         type: 'highlight',
@@ -357,7 +358,7 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
         description: 'A printable weekly schedule for the front desk lives on the desktop dashboard.',
       },
     ],
-    learnings: ['Due-for-a-visit suggestions', 'Copy day', 'Printable week on desktop'],
+    learnings: ['Due-for-a-visit suggestions', 'Requests go to the stylist', 'Printable week on desktop'],
   },
 
   // P46 — the assistant finally gets its own tour (the anchor existed since

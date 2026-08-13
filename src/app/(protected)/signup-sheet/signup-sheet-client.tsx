@@ -19,6 +19,9 @@ interface Props {
   role: string
   // P51 — card-on-file / salon-credit booleans per resident
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P53 — facility scheduling lockout: locked roles see status + cancel only
+  // (the stylist converts requests to time slots; franchise admins keep it)
+  scheduleLocked?: boolean
 }
 
 function formatDateChip(dateStr: string, tz: string) {
@@ -29,7 +32,7 @@ function formatDateChip(dateStr: string, tz: string) {
   }
 }
 
-export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, stylists, role, paymentFlags = {} }: Props) {
+export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, stylists, role, paymentFlags = {}, scheduleLocked = false }: Props) {
   const router = useRouter()
   const { toast } = useToast()
 
@@ -321,12 +324,16 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <a
-                    href={`/dashboard?convertEntry=${entry.id}`}
-                    className="text-xs font-medium text-[#8B2E4A] hover:underline whitespace-nowrap"
-                  >
-                    Pick time →
-                  </a>
+                  {/* P53 — locked facility roles never pick times (the stylist
+                      converts); franchise admins keep the convert link */}
+                  {!scheduleLocked && (
+                    <a
+                      href={`/dashboard?convertEntry=${entry.id}`}
+                      className="text-xs font-medium text-[#8B2E4A] hover:underline whitespace-nowrap"
+                    >
+                      Pick time →
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleCancel(entry.id)}

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { residents, services, stylists } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isFacilityScheduleLocked } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { SignupSheetPageClient } from './signup-sheet-client'
@@ -64,6 +64,7 @@ export default async function SignupSheetPage() {
       stylists={JSON.parse(JSON.stringify(stylistsList))}
       role={facilityUser.role}
       paymentFlags={paymentFlags}
+      scheduleLocked={isFacilityScheduleLocked(facilityUser)}
     />
   )
 }
