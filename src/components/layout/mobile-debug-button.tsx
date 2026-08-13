@@ -78,6 +78,8 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
 
   if (!isMaster) return null
 
+  const selectedFacility = allFacilities.find((f) => f.id === selectedFacilityId) ?? null
+
   const handleImpersonate = async () => {
     const facility = allFacilities.find((f) => f.id === selectedFacilityId)
     if (!facility) return
@@ -202,6 +204,32 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
               )}
             </div>
           )}
+
+          {/* P53 — Family Sign-Up Wizard dry run on MOBILE (desktop-Debug-tab
+              parity): the full wizard incl. the real confirmation screen, with
+              nothing created and no emails. In-place navigation — window.open
+              is unreliable in the installed app; use the phone's back
+              gesture / browser back to return. Master-verified server-side. */}
+          <div>
+            <p className="text-xs font-semibold text-stone-500 mb-2">Family</p>
+            <button
+              type="button"
+              disabled={!selectedFacility?.facilityCode}
+              onClick={() => {
+                if (!selectedFacility?.facilityCode) return
+                window.location.href = `/family/${encodeURIComponent(selectedFacility.facilityCode)}/signup?preview=1`
+              }}
+              className="w-full py-3 rounded-xl text-sm font-semibold border transition-colors disabled:opacity-50"
+              style={{ backgroundColor: '#F9EFF2', color: '#8B2E4A', borderColor: 'rgba(139,46,74,0.25)' }}
+            >
+              Family Sign-Up Wizard (dry run)
+            </button>
+            <p className="text-[11px] text-stone-400 mt-1.5">
+              {selectedFacility?.facilityCode
+                ? 'Runs the full signup — matching, confirm card, confirmation screen — but nothing is created and no emails are sent. Use back to return.'
+                : 'Pick a facility with an F-code to run the signup dry run.'}
+            </p>
+          </div>
         </div>
       </BottomSheet>
     </>
