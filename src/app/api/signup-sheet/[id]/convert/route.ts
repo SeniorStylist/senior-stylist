@@ -74,6 +74,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { residentId, stylistId, startTime: startTimeStr, notes } = parsed.data
 
+    // P53 — the entry's resident is authoritative: converting under a
+    // different resident silently flipped the request to 'scheduled' while
+    // booking someone else. Staff should edit the request first.
+    if (entry.residentId && residentId !== entry.residentId) {
+      return Response.json(
+        { error: 'This request is for a different resident — edit the request first.' },
+        { status: 422 },
+      )
+    }
+
     // P30 — stylists may only convert sign-up entries into THEIR OWN bookings
     if (role === 'stylist') {
       const ownId = await getEffectiveStylistId(user.id)
@@ -188,7 +198,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           endTime,
           priceCents: finalPriceCents,
           durationMinutes: service.durationMinutes,
-          notes: notes ?? null,
+          // P53 — the family's/staff's request notes survive conversion even
+          // when the modal sends none ("Mom likes it short" used to vanish).
+          notes: (notes?.trim() || entry.notes) ?? null,
           selectedQuantity: parsed.data.selectedQuantity ?? null,
           selectedOption: parsed.data.selectedOption ?? null,
           addonTotalCents: finalAddonTotalCents,

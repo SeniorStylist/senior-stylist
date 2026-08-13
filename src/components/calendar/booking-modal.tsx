@@ -46,6 +46,12 @@ interface BookingModalProps {
   // scheduled in the same transaction.
   prefillResidentId?: string | null
   prefillServiceId?: string | null
+  // P53 — family/staff notes from a sign-up sheet entry (seeded into the notes
+  // field so "Mom likes it short" survives conversion; server also falls back)
+  prefillNotes?: string | null
+  // P53 — the viewer's own stylist id (stylist role): lets a stylist convert
+  // even when auto-assign finds nobody on schedule (server forces own id anyway)
+  defaultStylistId?: string | null
   signupSheetEntryId?: string | null
   // Phase 15 F4 — when set, the create POST routes through
   // /api/waitlist/[id]/convert so the waitlist entry flips to 'booked' atomically.
@@ -94,6 +100,8 @@ export function BookingModal({
   serviceCategoryOrder,
   prefillResidentId = null,
   prefillServiceId = null,
+  prefillNotes = null,
+  defaultStylistId = null,
   signupSheetEntryId = null,
   waitlistEntryId = null,
   onAddToWaitlist = null,
@@ -263,7 +271,7 @@ export function BookingModal({
       setSelectedServiceIds(prefillServiceId ? [prefillServiceId] : [''])
       setSelectedAddonServiceIds([])
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart, facilityTimezone) : '')
-      setNotes('')
+      setNotes(prefillNotes ?? '')
       // Create mode: clear tip; resident-default useEffect below will populate it
       setTipType('percentage')
       setTipValue('')
@@ -482,8 +490,10 @@ export function BookingModal({
     }
     // P38 — a manually picked stylist bypasses the availability hard-block:
     // admins can book someone who isn't on schedule (the server still runs
-    // its own facility + conflict checks).
-    if (mode === 'create' && !manualStylistId && !pickedStylist) {
+    // its own facility + conflict checks). P53 — defaultStylistId (a stylist
+    // converting their own request) also bypasses: with no availability rows
+    // entered yet, auto-assign finds nobody and the block stranded them.
+    if (mode === 'create' && !manualStylistId && !pickedStylist && !defaultStylistId) {
       setError('No stylist available for this date and time — pick a stylist to book anyway.')
       return
     }
@@ -526,7 +536,9 @@ export function BookingModal({
           ? { stylistId: manualStylistId }
           : pickedStylist?.id
             ? { stylistId: pickedStylist.id }
-            : {}),
+            : defaultStylistId
+              ? { stylistId: defaultStylistId } // P53 — stylist's own id (server re-verifies)
+              : {}),
         ...pricingFields,
       }
 
@@ -1428,8 +1440,10 @@ export function BookingModal({
   const submitDisabled =
     cancelling ||
     // P38 — a manual stylist pick bypasses the availability gate entirely.
+    // P53 — so does defaultStylistId (a stylist converting their own request).
     (mode === 'create' &&
       !manualStylistId &&
+      !defaultStylistId &&
       ((!!startTime &&
         selectedServiceIds.filter((id) => !!id).length > 0 &&
         (loadingStylists || (availableCount !== null && !pickedStylist)))))

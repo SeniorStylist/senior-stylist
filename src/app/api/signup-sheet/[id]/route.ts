@@ -11,7 +11,9 @@ import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 const patchSchema = z.object({
   status: z.enum(['pending', 'cancelled']).optional(),
   assignedToStylistId: z.string().uuid().nullable().optional(),
-  notes: z.string().max(500).nullable().optional(),
+  // P53 — 2000 matches the portal request-booking cap: family notes plus the
+  // appended "Also requested:" services 422'd on any staff edit at max(500).
+  notes: z.string().max(2000).nullable().optional(),
   requestedTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
 })
 

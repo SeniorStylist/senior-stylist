@@ -17,7 +17,7 @@ import { ServicesPanel } from '@/components/panels/services-panel'
 import { StylistsPanel } from '@/components/panels/stylists-panel'
 import { cn, formatCents, formatTime } from '@/lib/utils'
 import { downloadExportFile } from '@/lib/exports/download-export'
-import { formatDateInTz, getLocalParts } from '@/lib/time'
+import { formatDateInTz, getLocalParts, fromDateTimeLocalInTz } from '@/lib/time'
 import { buildCategoryPriority, sortCategoryGroups, sortServicesWithinCategory } from '@/lib/service-sort'
 import type { Resident, Stylist, Service, Facility, CoverageRequest } from '@/types'
 import { Spinner } from '@/components/ui'
@@ -194,6 +194,8 @@ export function DashboardClient({
   const [schedulingEntryId, setSchedulingEntryId] = useState<string | null>(null)
   const [prefillResidentId, setPrefillResidentId] = useState<string | null>(null)
   const [prefillServiceId, setPrefillServiceId] = useState<string | null>(null)
+  // P53 — family/staff notes carried from a sign-up entry into the convert modal
+  const [prefillNotes, setPrefillNotes] = useState<string | null>(null)
   // Phase 15 F4 — cancellation waitlist state
   const [waitlistEntryIdForBooking, setWaitlistEntryIdForBooking] = useState<string | null>(null)
   const [waitlistReloadKey, setWaitlistReloadKey] = useState(0)
@@ -239,6 +241,25 @@ export function DashboardClient({
       }
       router.replace('/dashboard')
     }
+    // P53 — "Pick time →" from the Sign-Up Sheet page (franchise admins /
+    // manage tier; the link is hidden for locked roles). Fetch the entry and
+    // open the convert modal — this param was previously read by NOTHING.
+    const convertId = searchParams.get('convertEntry')
+    if (convertId && !scheduleLocked) {
+      void (async () => {
+        try {
+          const res = await fetch('/api/signup-sheet?scope=all')
+          const j = await res.json().catch(() => ({}))
+          const entry = (j.data as SignupSheetEntryWithRelations[] | undefined)?.find((e) => e.id === convertId)
+          if (entry) handleScheduleSignupEntry(entry)
+          else toast.error('That request is no longer pending.')
+        } catch {
+          toast.error('Could not load the request — try again from the Sign-Up Sheet.')
+        }
+      })()
+      router.replace('/dashboard')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router, scheduleLocked])
 
   // Stylist mobile list mode
@@ -350,6 +371,7 @@ export function DashboardClient({
     setModalEnd(null)
     setPrefillResidentId(entry.residentId)
     setPrefillServiceId(entry.serviceId)
+    setPrefillNotes(entry.notes ?? null)
     setSchedulingEntryId(entry.id)
     if (entry.resident && !residents.some((r) => r.id === entry.resident!.id)) {
       setResidents((prev) => [...prev, entry.resident!])
@@ -358,15 +380,20 @@ export function DashboardClient({
   }, [pendingSignups, residents])
 
   const handleScheduleSignupEntry = useCallback((entry: SignupSheetEntryWithRelations) => {
-    // Build defaultStart from the entry's requested time, else "now" rounded forward.
-    let start = new Date()
-    if (entry.requestedTime) {
-      const [h, m] = entry.requestedTime.split(':').map(Number)
-      const today = new Date()
-      today.setHours(h, m, 0, 0)
-      start = today
+    // P53 — honor the family's/staff's PREFERRED DATE (previously ignored: the
+    // modal always opened on "today"), and build the default start in the
+    // FACILITY timezone (setHours on a bare Date used the staff device's tz).
+    let start: Date
+    const timeHHMM = entry.requestedTime ?? '10:00'
+    if (entry.preferredDate) {
+      start = fromDateTimeLocalInTz(`${entry.preferredDate}T${timeHHMM}`, facility.timezone)
+    } else if (entry.requestedTime) {
+      const p = getLocalParts(new Date(), facility.timezone)
+      const todayStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+      start = fromDateTimeLocalInTz(`${todayStr}T${timeHHMM}`, facility.timezone)
     } else {
-      // Round up to next half-hour
+      // Round up to next half-hour (an instant — tz-safe)
+      start = new Date()
       const minutes = start.getMinutes()
       const add = minutes < 30 ? 30 - minutes : 60 - minutes
       start.setMinutes(start.getMinutes() + add, 0, 0)
@@ -376,13 +403,14 @@ export function DashboardClient({
     setModalEnd(null)
     setPrefillResidentId(entry.residentId)
     setPrefillServiceId(entry.serviceId)
+    setPrefillNotes(entry.notes ?? null)
     setSchedulingEntryId(entry.id)
     // Make sure the resident is in the local list (panel may have created one inline)
     if (entry.resident && !residents.some((r) => r.id === entry.resident!.id)) {
       setResidents((prev) => [...prev, entry.resident!])
     }
     setModalOpen(true)
-  }, [residents])
+  }, [residents, facility.timezone])
 
   // Phase 15 F4 — "Book →" on a waitlist entry: open the booking modal prefilled;
   // the create POST routes through /api/waitlist/[id]/convert (mirrors the
@@ -592,6 +620,7 @@ export function DashboardClient({
     setModalEnd(null)
     setPrefillResidentId(null)
     setPrefillServiceId(null)
+    setPrefillNotes(null)
     setSchedulingEntryId(null)
     setWaitlistEntryIdForBooking(null)
   }
@@ -897,6 +926,8 @@ export function DashboardClient({
           serviceCategoryOrder={facility.serviceCategoryOrder}
           prefillResidentId={prefillResidentId}
           prefillServiceId={prefillServiceId}
+          prefillNotes={prefillNotes}
+          defaultStylistId={userRole === 'stylist' ? profileStylistId : null}
           signupSheetEntryId={schedulingEntryId}
           stylists={userRole === 'stylist' ? undefined : stylists}
           paymentFlags={paymentFlags}
@@ -1388,6 +1419,8 @@ export function DashboardClient({
         serviceCategoryOrder={facility.serviceCategoryOrder}
         prefillResidentId={prefillResidentId}
         prefillServiceId={prefillServiceId}
+        prefillNotes={prefillNotes}
+        defaultStylistId={userRole === 'stylist' ? profileStylistId : null}
         signupSheetEntryId={schedulingEntryId}
         waitlistEntryId={waitlistEntryIdForBooking}
         onAddToWaitlist={(isAdmin || userRole === 'facility_staff') ? handleAddToWaitlistFromBooking : null}
@@ -1433,6 +1466,7 @@ export function DashboardClient({
           role={userRole}
           onResidentCreated={(r) => setResidents((prev) => [...prev, r])}
           paymentFlags={paymentFlags}
+          onScheduleEntry={scheduleLocked ? undefined : (e) => { setSignupSheetOpen(false); handleScheduleSignupEntry(e) }}
         />
       )}
     </div>

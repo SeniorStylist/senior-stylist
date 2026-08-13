@@ -23,6 +23,9 @@ interface SignupSheetPanelProps {
   onResidentCreated?: (resident: Resident) => void
   // P51 — card-on-file / salon-credit booleans per resident (typeahead chip)
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P53 — passed only for manage-tier viewers (franchise admin): "Pick time →"
+  // on pending rows opens the convert modal. Locked facility roles omit it.
+  onScheduleEntry?: (entry: SignupSheetEntryWithRelations) => void
 }
 
 export function SignupSheetPanel({
@@ -37,6 +40,7 @@ export function SignupSheetPanel({
   role,
   onResidentCreated,
   paymentFlags = {},
+  onScheduleEntry,
 }: SignupSheetPanelProps) {
   const { toast } = useToast()
 
@@ -413,7 +417,7 @@ export function SignupSheetPanel({
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
           {/* Admin "Pending requests" section (cross-stylist view) */}
           {(role === 'admin' || role === 'super_admin' || role === 'facility_staff') && (
-            <AdminPendingSection facilityTimezone={facilityTimezone} />
+            <AdminPendingSection facilityTimezone={facilityTimezone} onSchedule={onScheduleEntry} />
           )}
 
           {/* Form */}
@@ -756,7 +760,11 @@ function formatHm(hhmm: string): string {
  * Phase 12S — admin/facility_staff cross-stylist view.
  * Fetches all pending entries for the facility via ?scope=all.
  */
-function AdminPendingSection({ facilityTimezone }: { facilityTimezone: string }) {
+function AdminPendingSection({ facilityTimezone, onSchedule }: {
+  facilityTimezone: string
+  /** P53 — manage-tier viewers (franchise admin) convert; locked roles get status + cancel only. */
+  onSchedule?: (entry: SignupSheetEntryWithRelations) => void
+}) {
   const { toast } = useToast()
   const [entries, setEntries] = useState<SignupSheetEntryWithRelations[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -841,6 +849,15 @@ function AdminPendingSection({ facilityTimezone }: { facilityTimezone: string })
                     <p className="text-[11.5px] text-stone-500 italic mt-1 truncate">{entry.notes}</p>
                   )}
                 </div>
+                {onSchedule && (
+                  <button
+                    type="button"
+                    onClick={() => onSchedule(entry)}
+                    className="shrink-0 text-xs font-semibold text-[#8B2E4A] bg-rose-50 hover:bg-[#8B2E4A] hover:text-white px-2.5 py-1.5 rounded-full transition-colors whitespace-nowrap"
+                  >
+                    Pick time →
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleCancel(entry.id)}
