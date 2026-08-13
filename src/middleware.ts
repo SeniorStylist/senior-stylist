@@ -20,6 +20,21 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/terms')
 
   if (skipSupabase) {
+    // P53 — canonicalize lowercase facility codes in /family/<code>/* URLs.
+    // QR scanner apps and mail clients lowercase URLs; codes are stored
+    // upper-case and compared exactly downstream. Purely mechanical (no DB):
+    // only the F-pattern is rewritten; exotic legacy codes fall through to the
+    // case-insensitive DB lookups in the family layout/pages.
+    if (pathname.startsWith('/family/')) {
+      const segments = pathname.split('/')
+      const code = decodeURIComponent(segments[2] ?? '')
+      if (/^f\d{2,5}$/i.test(code) && code !== code.toUpperCase()) {
+        const url = request.nextUrl.clone()
+        segments[2] = encodeURIComponent(code.toUpperCase())
+        url.pathname = segments.join('/')
+        return NextResponse.redirect(url, 308)
+      }
+    }
     return NextResponse.next({ request })
   }
 

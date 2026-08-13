@@ -14,6 +14,7 @@ import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimPendingEmailHtml } from '@/lib/email'
 import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
+import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 
 export const dynamic = 'force-dynamic'
@@ -52,8 +53,9 @@ export async function POST(request: NextRequest) {
 
   await ensurePortalClaimsSchema()
 
+  // P53 — case-insensitive + demo-facility-excluded lookup (shared helper).
   const facility = await db.query.facilities.findFirst({
-    where: and(eq(facilities.facilityCode, facilityCode), eq(facilities.active, true)),
+    where: activeFacilityByCodeWhere(facilityCode),
     columns: {
       id: true, name: true, facilityCode: true, contactEmail: true,
       portalSelfSignupEnabled: true,
@@ -66,18 +68,24 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Self-signup is not available for this facility.' }, { status: 403 })
   }
 
-  // Check if already linked to a resident at this facility
-  const existingAccount = await db.query.portalAccounts.findFirst({
-    where: eq(portalAccounts.email, normalizedEmail),
-    columns: { id: true },
-    with: {
-      accountResidents: {
-        where: eq(portalAccountResidents.facilityId, facility.id),
-        columns: { id: true },
-      },
-    },
-  })
-  if (existingAccount && (existingAccount as { accountResidents: {id:string}[] }).accountResidents?.length > 0) {
+  // Check if already linked to an ACTIVE resident at this facility.
+  // P53 — the active join matters: a discharged resident's stale link used to
+  // 409 here ("sign in instead") while login bounced with no_access — an
+  // unbreakable loop for re-admitted residents. Dead links don't count.
+  const activeLinks = await db
+    .select({ id: portalAccountResidents.id })
+    .from(portalAccountResidents)
+    .innerJoin(portalAccounts, eq(portalAccounts.id, portalAccountResidents.portalAccountId))
+    .innerJoin(residents, eq(residents.id, portalAccountResidents.residentId))
+    .where(
+      and(
+        eq(portalAccounts.email, normalizedEmail),
+        eq(portalAccountResidents.facilityId, facility.id),
+        eq(residents.active, true),
+      ),
+    )
+    .limit(1)
+  if (activeLinks.length > 0) {
     return Response.json({
       error: 'You already have portal access for this facility. Sign in instead.',
     }, { status: 409 })
@@ -194,7 +202,7 @@ export async function POST(request: NextRequest) {
           : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
         : null
 
-  await db.insert(portalClaimRequests).values({
+  const claimValues = {
     facilityId: facility.id,
     facilityCode: facility.facilityCode ?? facilityCode,
     email: normalizedEmail,
@@ -210,8 +218,26 @@ export async function POST(request: NextRequest) {
     // P53 — record the family's confirmation only when the server's own match
     // was confident; the badge must never over-claim.
     familyConfirmed: familyConfirmed && m?.confident ? true : null,
-    status: 'pending_review',
+    status: 'pending_review' as const,
+  }
+
+  // P53 — dedup: an anxious double-submit used to create TWO pending cards
+  // (and two "Create as new resident" buttons → duplicate residents). Update
+  // the existing pending claim in place and skip the duplicate notifications.
+  const existingClaim = await db.query.portalClaimRequests.findFirst({
+    where: and(
+      eq(portalClaimRequests.email, normalizedEmail),
+      eq(portalClaimRequests.facilityId, facility.id),
+      eq(portalClaimRequests.status, 'pending_review'),
+    ),
+    columns: { id: true },
   })
+  if (existingClaim) {
+    await db.update(portalClaimRequests).set(claimValues).where(eq(portalClaimRequests.id, existingClaim.id))
+    return Response.json({ status: 'pending' })
+  }
+
+  await db.insert(portalClaimRequests).values(claimValues)
 
   // Notify facility admin (fire-and-forget)
   const adminEmail = facility.contactEmail ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL

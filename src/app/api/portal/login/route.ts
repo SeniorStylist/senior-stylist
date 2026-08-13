@@ -14,7 +14,7 @@ import { z } from 'zod'
 const schema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(1).max(200),
-  facilityCode: z.string().min(2).max(20),
+  facilityCode: z.string().trim().min(1).max(50), // P53 — normalized bounds; lookup is case-insensitive
 })
 
 export async function POST(request: NextRequest) {

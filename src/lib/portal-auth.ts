@@ -65,8 +65,10 @@ async function upsertAccountByEmail(email: string): Promise<string> {
 }
 
 export async function linkResidentsForEmail(portalAccountId: string, email: string): Promise<void> {
+  // P53 — isDemo filter: the seeded demo-poa@example.com (or any shared
+  // address) must never fan demo residents into a real portal account.
   const matching = await db.query.residents.findMany({
-    where: and(eq(residents.poaEmail, email.toLowerCase()), eq(residents.active, true)),
+    where: and(eq(residents.poaEmail, email.toLowerCase()), eq(residents.active, true), eq(residents.isDemo, false)),
     columns: { id: true, facilityId: true },
   })
   if (matching.length === 0) return
@@ -199,7 +201,10 @@ export async function requirePortalAuth(facilityCode: string): Promise<{ session
   if (!session) {
     redirect(`/family/${encodeURIComponent(facilityCode)}/login`)
   }
-  const residentsAtFacility = session.residents.filter((r) => r.facilityCode === facilityCode)
+  // P53 — case-insensitive: the URL code may be lowercase (QR apps); the
+  // session carries the canonical stored code.
+  const codeUpper = facilityCode.toUpperCase()
+  const residentsAtFacility = session.residents.filter((r) => (r.facilityCode ?? '').toUpperCase() === codeUpper)
   if (residentsAtFacility.length === 0) {
     redirect(`/family/${encodeURIComponent(facilityCode)}/login?error=no_access`)
   }
@@ -221,7 +226,7 @@ export async function accountHasResidentAtFacilityCode(portalAccountId: string, 
     .select({ id: portalAccountResidents.id })
     .from(portalAccountResidents)
     .innerJoin(facilities, eq(facilities.id, portalAccountResidents.facilityId))
-    .where(and(eq(portalAccountResidents.portalAccountId, portalAccountId), eq(facilities.facilityCode, facilityCode)))
+    .where(and(eq(portalAccountResidents.portalAccountId, portalAccountId), sql`UPPER(${facilities.facilityCode}) = ${facilityCode.toUpperCase()}`))
     .limit(1)
   return rows.length > 0
 }

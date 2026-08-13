@@ -11,7 +11,7 @@ import { maskName } from '@/lib/name-mask'
 export const dynamic = 'force-dynamic'
 
 const schema = z.object({
-  facilityCode: z.string().min(1).max(40),
+  facilityCode: z.string().trim().min(1).max(50), // P53 — normalized bounds
   recipientName: z.string().trim().min(2).max(200),
   recipientRoom: z.string().trim().max(50).optional(),
   amountCents: z.number().int().min(50).max(10_000_000),

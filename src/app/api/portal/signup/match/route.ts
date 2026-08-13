@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { facilities, residents } from '@/db/schema'
+import { residents } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { matchResidentForSignup } from '@/lib/signup-match'
+import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { maskName } from '@/lib/name-mask'
 
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const facility = await db.query.facilities.findFirst({
-      where: and(eq(facilities.facilityCode, parsed.data.facilityCode), eq(facilities.active, true)),
+      where: activeFacilityByCodeWhere(parsed.data.facilityCode), // P53 — case-insensitive + demo-excluded
       columns: { id: true, portalSelfSignupEnabled: true },
     })
     if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })

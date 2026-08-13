@@ -4,13 +4,14 @@ import { createMagicLink } from '@/lib/portal-auth'
 import { buildPortalMagicLinkEmailHtml, sendEmail } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, eq } from 'drizzle-orm'
+import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 const schema = z.object({
   email: z.string().email().max(320),
-  facilityCode: z.string().min(2).max(20),
+  facilityCode: z.string().trim().min(1).max(50), // P53 — normalized with the other portal code schemas
 })
 
 export async function POST(request: NextRequest) {
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
     const facility = await db.query.facilities.findFirst({
-      where: eq(facilities.facilityCode, facilityCode),
+      where: activeFacilityByCodeWhere(facilityCode), // P53 — case-insensitive + demo-excluded
       columns: { id: true, name: true, facilityCode: true },
     })
 

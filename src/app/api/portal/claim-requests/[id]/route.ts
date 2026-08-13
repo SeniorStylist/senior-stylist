@@ -10,6 +10,7 @@ import {
   residents,
 } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
@@ -140,6 +141,10 @@ export async function PATCH(
           poaName: claim.relationship === 'self' ? null : claim.fullName,
           poaEmail: claim.email,
           poaPhone: claim.phone ?? null,
+          // P53 — every resident needs a portalToken: the POA booking-
+          // confirmation email (bookings POST) gates on it, so without this
+          // the QR-onboarded cohort silently never got confirmations.
+          portalToken: randomBytes(8).toString('hex'),
         })
         .returning({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
       resident = created
@@ -173,18 +178,21 @@ export async function PATCH(
     // Upsert portal account
     const existing = await db.query.portalAccounts.findFirst({
       where: eq(portalAccounts.email, claim.email),
-      columns: { id: true },
+      columns: { id: true, fullName: true, phone: true, dateOfBirth: true },
     })
 
     let portalAccountId: string
     if (existing) {
-      await db.update(portalAccounts)
-        .set({
-          fullName: claim.fullName || undefined,
-          phone: claim.phone ?? undefined,
-          ...(claim.dateOfBirth ? { dateOfBirth: claim.dateOfBirth } : {}),
-        })
-        .where(eq(portalAccounts.id, existing.id))
+      // P53 — fill-if-null only: a multi-facility family's profile must not be
+      // rewritten by whichever facility approved last.
+      const fills = {
+        ...(!existing.fullName && claim.fullName ? { fullName: claim.fullName } : {}),
+        ...(!existing.phone && claim.phone ? { phone: claim.phone } : {}),
+        ...(!existing.dateOfBirth && claim.dateOfBirth ? { dateOfBirth: claim.dateOfBirth } : {}),
+      }
+      if (Object.keys(fills).length > 0) {
+        await db.update(portalAccounts).set(fills).where(eq(portalAccounts.id, existing.id))
+      }
       portalAccountId = existing.id
     } else {
       const [created] = await db.insert(portalAccounts)

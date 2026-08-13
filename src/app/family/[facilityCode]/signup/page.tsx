@@ -1,6 +1,5 @@
 import { db } from '@/db'
-import { facilities } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { notFound } from 'next/navigation'
 import { SignupClient } from './signup-client'
 import { getPortalT } from '@/lib/portal-i18n-server'
@@ -16,7 +15,7 @@ export default async function SignupPage({
   const decoded = decodeURIComponent(facilityCode)
 
   const facility = await db.query.facilities.findFirst({
-    where: and(eq(facilities.facilityCode, decoded), eq(facilities.active, true)),
+    where: activeFacilityByCodeWhere(decoded), // P53 — case-insensitive + demo-excluded
     columns: { id: true, name: true, facilityCode: true, portalSelfSignupEnabled: true },
   })
 
@@ -68,7 +67,7 @@ export default async function SignupPage({
         </h1>
         <p className="text-sm text-stone-500 mt-1">{t('signup.subtitle', { facility: facility.name })}</p>
       </header>
-      <SignupClient facilityCode={decoded} facilityName={facility.name} lang={lang} />
+      <SignupClient facilityCode={facility.facilityCode ?? decoded} facilityName={facility.name} lang={lang} />
     </div>
   )
 }

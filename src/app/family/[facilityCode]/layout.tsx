@@ -2,8 +2,7 @@ import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { db } from '@/db'
-import { facilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { getPortalSession } from '@/lib/portal-auth'
 import { ToastProvider } from '@/components/ui/toast'
 import { PortalNav } from './portal-nav'
@@ -26,12 +25,16 @@ export default async function FamilyPortalLayout({
   params: Promise<{ facilityCode: string }>
 }) {
   const { facilityCode } = await params
-  const decoded = decodeURIComponent(facilityCode)
+  // P53 — case-insensitive: QR apps/mail clients lowercase URLs. Middleware
+  // canonicalizes F-pattern codes; the lookup + session compare tolerate any
+  // remaining case drift. Use the row's canonical code from here down.
+  const typed = decodeURIComponent(facilityCode)
 
   const facility = await db.query.facilities.findFirst({
-    where: eq(facilities.facilityCode, decoded),
+    where: activeFacilityByCodeWhere(typed),
     columns: { id: true, name: true, facilityCode: true },
   })
+  const decoded = facility?.facilityCode ?? typed
 
   const session = await getPortalSession()
   const residentsAtFacility = session?.residents.filter((r) => r.facilityCode === decoded) ?? []
