@@ -33,7 +33,12 @@ export function generateToken(bytes = 32): string {
   return randomBytes(bytes).toString('hex')
 }
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
+// P53 — function, not module-load const, and with the repo-standard production
+// fallback: an unset NEXT_PUBLIC_APP_URL used to mail families DEAD relative
+// links ("/family/F240/auth/verify?token=…" — unclickable).
+function appUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
+}
 
 export async function createMagicLink(
   email: string,
@@ -50,7 +55,7 @@ export async function createMagicLink(
     facilityCode,
     expiresAt,
   })
-  return `${APP_URL}/family/${encodeURIComponent(facilityCode)}/auth/verify?token=${token}`
+  return `${appUrl()}/family/${encodeURIComponent(facilityCode)}/auth/verify?token=${token}`
 }
 
 async function upsertAccountByEmail(email: string): Promise<string> {
@@ -84,11 +89,30 @@ export async function verifyMagicLink(
   token: string,
 ): Promise<{ portalAccountId: string; residentId: string | null; facilityCode: string; email: string } | null> {
   if (!token || token.length < 16) return null
-  const link = await db.query.portalMagicLinks.findFirst({
-    where: and(eq(portalMagicLinks.token, token), isNull(portalMagicLinks.usedAt), gt(portalMagicLinks.expiresAt, new Date())),
-  })
+  // P53 — atomic consume (UPDATE … WHERE used_at IS NULL RETURNING): the old
+  // read-then-update let two requests both succeed. Mail-security scanners
+  // (Microsoft Safe Links etc.) prefetch links on GET, which used to burn the
+  // family's one-time link before they ever clicked — so a token consumed
+  // within the last 10 minutes still verifies (the flow is idempotent: account
+  // upsert + onConflictDoNothing links are safe to re-run).
+  const consumed = await db
+    .update(portalMagicLinks)
+    .set({ usedAt: new Date() })
+    .where(and(eq(portalMagicLinks.token, token), isNull(portalMagicLinks.usedAt), gt(portalMagicLinks.expiresAt, new Date())))
+    .returning()
+  let link: (typeof consumed)[number] | null = consumed[0] ?? null
+  if (!link) {
+    const graceCutoff = new Date(Date.now() - 10 * 60 * 1000)
+    link =
+      (await db.query.portalMagicLinks.findFirst({
+        where: and(
+          eq(portalMagicLinks.token, token),
+          gt(portalMagicLinks.expiresAt, new Date()),
+          gt(portalMagicLinks.usedAt, graceCutoff),
+        ),
+      })) ?? null
+  }
   if (!link) return null
-  await db.update(portalMagicLinks).set({ usedAt: new Date() }).where(eq(portalMagicLinks.id, link.id))
   const portalAccountId = await upsertAccountByEmail(link.email)
   if (link.residentId) {
     const residentRow = await db.query.residents.findFirst({

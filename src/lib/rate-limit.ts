@@ -101,9 +101,11 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   assistantMemory: { tokens: 30, window: '1 h' }, // P44 — manage_memory + suggest_shared_learning
 
   portalBulkInvite: { tokens: 5, window: '1 h' },
-  portalSignup: { tokens: 5, window: '1 h' },
-  // P52 — signup match preview; 3× headroom over the signup POST for retypes.
-  portalSignupMatch: { tokens: 15, window: '1 h' },
+  // P53 — sized for a lobby sign-up EVENT behind one NAT/guest-wifi IP:
+  // the old 5/h locked out the 6th family in any rolling hour.
+  portalSignup: { tokens: 20, window: '1 h' },
+  // Signup match preview; 3× headroom over the signup POST for retypes.
+  portalSignupMatch: { tokens: 60, window: '1 h' },
   paymentSetup: { tokens: 20, window: '1 h' },
   paymentCollect: { tokens: 60, window: '1 h' },
   notifications: { tokens: 120, window: '1 m' },

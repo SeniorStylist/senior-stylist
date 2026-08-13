@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/toast'
+import { firstErrorMessage } from '@/lib/first-error'
 import type { PublicFacility } from '@/lib/sanitize'
 import { CouponManager } from '@/components/settings/coupon-manager'
 
@@ -107,7 +108,7 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
         router.refresh()
       } else {
         const j = await res.json().catch(() => ({}))
-        toast.error(j.error ?? 'Failed to save')
+        toast.error(firstErrorMessage(j) ?? 'Failed to save')
       }
     } catch {
       toast.error('Network error')
@@ -137,7 +138,7 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
         setClaims((prev) => prev.filter((c) => c.id !== id))
         toast.success(action === 'approve' ? 'Account approved — welcome email sent' : 'Request declined')
       } else {
-        toast.error(j.error ?? 'Failed to update request')
+        toast.error(firstErrorMessage(j) ?? 'Failed to update request')
       }
     } catch {
       toast.error('Network error')

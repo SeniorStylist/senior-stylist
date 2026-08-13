@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn, formatCents, formatTime } from '@/lib/utils'
+import { firstErrorMessage } from '@/lib/first-error'
 import { getLocalParts, fromDateTimeLocalInTz } from '@/lib/time'
 import { formatPricingLabel } from '@/lib/pricing'
 import { buildCategoryPriority } from '@/lib/service-sort'
@@ -165,23 +166,8 @@ function formatLogDate(dateStr: string, tz: string): string {
   })
 }
 
-// Pull a human-readable message out of an API error response. Handles a plain
-// string `error`, a Zod `flatten()` object ({ fieldErrors, formErrors }), and the
-// `{ error: { fieldErrors, formErrors } }` shape the booking PUT returns on 422 —
-// so the day log shows the real reason instead of a generic "Update failed".
-function firstErrorMessage(json: unknown): string | null {
-  if (!json || typeof json !== 'object') return null
-  const err = (json as { error?: unknown }).error
-  if (typeof err === 'string') return err
-  const obj = (err && typeof err === 'object' ? err : json) as {
-    fieldErrors?: Record<string, string[]>
-    formErrors?: string[]
-  }
-  const field = obj.fieldErrors && Object.values(obj.fieldErrors).flat().find(Boolean)
-  if (field) return field
-  const form = obj.formErrors?.find(Boolean)
-  return form ?? null
-}
+// firstErrorMessage moved to src/lib/first-error.ts (P53 — shared with the
+// signup wizard + portal-section, which crashed rendering flatten() objects).
 
 export function LogClient({
   initialDate,

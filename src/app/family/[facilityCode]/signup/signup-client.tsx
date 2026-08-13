@@ -20,6 +20,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
+import { firstErrorMessage } from '@/lib/first-error'
 
 interface Props {
   facilityCode: string
@@ -33,6 +34,10 @@ type Relationship = 'self' | 'spouse' | 'child' | 'poa' | 'other'
 // P52 — step IDs replace numeric indices; 'confirm' is present only when the
 // match preview found a confident resident (steps.length is 6 or 7).
 type StepId = 'who' | 'yourName' | 'resident' | 'confirm' | 'email' | 'phone' | 'review'
+
+// P53 — no-spaces email gate (the old /.+@.+\..+/ passed "john smith@gmail.com"
+// from a phone-keyboard space, which then 422'd server-side).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 type SignupMatchPreview = {
   residentName: string
@@ -152,7 +157,14 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
           setError(t('signup.alreadyAccess'))
           return
         }
-        setError(j.error ?? t('common.error'))
+        if (res.status === 429) {
+          // P53 — translated, not the raw "Too many requests" (lobby sign-up events)
+          setError(t('signup.tooMany'))
+          return
+        }
+        // P53 — firstErrorMessage: a Zod flatten() OBJECT rendered as a React
+        // child crashed the whole wizard and lost the typed data.
+        setError(firstErrorMessage(j) ?? t('common.error'))
         return
       }
       setPhase(j.status === 'auto_approved' ? 'auto_approved' : 'pending')
@@ -354,12 +366,12 @@ export function SignupClient({ facilityCode, facilityName, lang }: Props) {
               maxLength={320}
               aria-label={t('signup.step.email')}
               className={inputCls}
-              onKeyDown={(e) => { if (e.key === 'Enter' && /.+@.+\..+/.test(email.trim())) next() }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && EMAIL_RE.test(email.trim())) next() }}
             />
             <button
               type="button"
               onClick={next}
-              disabled={!/.+@.+\..+/.test(email.trim())}
+              disabled={!EMAIL_RE.test(email.trim())}
               className={primaryBtnCls}
             >
               {t('signup.nav.next')}

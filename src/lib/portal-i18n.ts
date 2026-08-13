@@ -424,6 +424,10 @@ export const PORTAL_STRINGS = {
   'signup.match.yes': { en: "Yes — that's them", es: 'Sí — es esa persona' },
   'signup.match.no': { en: 'No, someone else', es: 'No, es otra persona' },
   'signup.match.checking': { en: 'Checking…', es: 'Verificando…' },
+  'signup.tooMany': {
+    en: 'A lot of families are signing up right now — please wait a few minutes and try again.',
+    es: 'Muchas familias se están registrando en este momento — espere unos minutos e inténtelo de nuevo.',
+  },
   'signup.disabledFacility': {
     en: "Online sign-up isn't set up at {facility} yet. Please ask at the front desk — they can send you an invitation.",
     es: 'El registro en línea aún no está disponible en {facility}. Pregunte en la recepción — pueden enviarle una invitación.',
