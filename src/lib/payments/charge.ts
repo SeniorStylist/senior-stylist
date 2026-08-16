@@ -219,19 +219,34 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
   if (!resident) return { ok: false, code: 'invalid', reason: 'Resident not found', salonCents: 0 }
 
   // ── Safeguards (2026-07-07): never charge money that isn't due ─────────────
-  // Booking-driven collects (on-completion): re-check the bookings are STILL
-  // unpaid — a concurrent sweep/manual collect may already have settled them.
+  // Booking-driven collects (on-completion / finalize / OCR): re-check the
+  // bookings are STILL unpaid — a concurrent sweep/manual collect may already
+  // have settled them.
+  // P55 — SHRINK, don't just abort: the old check only bailed when ALL were
+  // paid, so a race that settled a subset still charged the caller's full
+  // amount. Now the set narrows to the surviving unpaid bookings and the
+  // amount is recomputed from their price+addons (never-overcharge bias —
+  // a caller-included tip is dropped only in the race case). The 'unpaid'
+  // equality also stops re-stamping 'waived' rows.
   if (opts.bookingIds?.length) {
     const stillUnpaid = await db
-      .select({ id: bookings.id })
+      .select({ id: bookings.id, priceCents: bookings.priceCents, addonTotalCents: bookings.addonTotalCents })
       .from(bookings)
       .where(and(
         inArray(bookings.id, opts.bookingIds),
         eq(bookings.active, true),
-        sql`${bookings.paymentStatus} IS DISTINCT FROM 'paid'`,
+        eq(bookings.paymentStatus, 'unpaid'),
       ))
     if (stillUnpaid.length === 0) {
       return { ok: false, code: 'invalid', reason: 'Already paid', salonCents: 0 }
+    }
+    if (stillUnpaid.length < opts.bookingIds.length) {
+      // price_cents only — never add tip_cents (revenue guard)
+      const survivingCents = stillUnpaid.reduce((s, b) => s + (b.priceCents ?? 0) + (b.addonTotalCents ?? 0), 0)
+      if (survivingCents <= 0) {
+        return { ok: false, code: 'invalid', reason: 'Nothing to collect', salonCents: 0 }
+      }
+      opts = { ...opts, bookingIds: stillUnpaid.map((b) => b.id), amountCents: survivingCents }
     }
   } else {
     // Balance-driven collects (sweep + "Collect now"): clamp to the CURRENT open

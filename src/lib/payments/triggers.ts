@@ -1,16 +1,34 @@
-// Auto-collect triggers for COF residents. Two entry points:
+// Auto-collect triggers for COF residents. Three entry points:
 //   - autoCollectOnCompletion(bookingId): fired (fire-and-forget) by the booking
 //     PUT route when a booking flips to 'completed' and the facility is in
 //     'on_completion' mode.
+//   - autoCollectOnFinalize(facilityId, stylistId, dateStr): P55 — fired
+//     (fire-and-forget) when a stylist finalizes the day log. Sweeps that
+//     stylist-day's completed unpaid bookings for autopay residents — the
+//     owners' "charges run when the log sheet is validated" decision, and the
+//     catch-all for rows the per-booking trigger never saw (OCR imports,
+//     bulk edits, walk-ins flipped completed by any path).
 //   - collectResidentBalance(residentId): used by the nightly autopay sweep cron.
-// Both attempt the charge engine and fall back to the failover pay-link.
+// All attempt the charge engine and fall back to the failover pay-link.
 
+import { createHash } from 'node:crypto'
 import { db } from '@/db'
 import { bookings, facilities, residents } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt } from 'drizzle-orm'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
+import { dayRangeInTimezone } from '@/lib/time'
 import { collectForResident, type CollectResult } from './charge'
 import { sendPaymentRequest } from './pay-link'
+
+/**
+ * P55 — stable fingerprint of a booking-id set for Stripe idempotency keys.
+ * Same set → same key (a retry dedupes at Stripe); a re-finalize that includes
+ * NEW bookings produces a different key, avoiding Stripe's same-key-with-
+ * different-params 400. Shared by the finalize sweep and the OCR charge route.
+ */
+export function bookingSetHash(bookingIds: string[]): string {
+  return createHash('sha256').update([...bookingIds].sort().join(',')).digest('hex').slice(0, 16)
+}
 
 export async function autoCollectOnCompletion(bookingId: string): Promise<void> {
   try {
@@ -72,6 +90,106 @@ export async function autoCollectOnCompletion(bookingId: string): Promise<void> 
   }
 }
 
+/**
+ * P55 — charge-on-finalize sweep. Called fire-and-forget when a day log is
+ * finalized: charges each autopay resident's completed UNPAID bookings for
+ * that stylist-day in one PaymentIntent per resident. Idempotent by design —
+ * the "paid stamp" (bookings.payment_status='paid', written in the same tx as
+ * the payment) plus the unpaid re-check in collectForResident mean an edited /
+ * unfinalized / re-finalized log can never double-charge; bookings inside the
+ * 10-minute autopay_attempted_at cooldown (e.g. just charged by the
+ * on-completion trigger, or declined moments ago) are skipped and picked up
+ * by a later re-finalize. Never throws.
+ */
+export async function autoCollectOnFinalize(facilityId: string, stylistId: string, dateStr: string): Promise<void> {
+  try {
+    await ensurePaymentsSchema()
+
+    const facility = await db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityId),
+      columns: { autopayMode: true, timezone: true, isDemo: true },
+    })
+    if (!facility || facility.isDemo || facility.autopayMode !== 'on_completion') return
+
+    const range = dayRangeInTimezone(dateStr, facility.timezone ?? 'America/New_York')
+    if (!range) return
+
+    const rows = await db
+      .select({
+        id: bookings.id,
+        residentId: bookings.residentId,
+        priceCents: bookings.priceCents,
+        addonTotalCents: bookings.addonTotalCents,
+        autopayAttemptedAt: bookings.autopayAttemptedAt,
+      })
+      .from(bookings)
+      .where(and(
+        eq(bookings.facilityId, facilityId),
+        eq(bookings.stylistId, stylistId),
+        eq(bookings.active, true),
+        eq(bookings.isDemo, false),
+        eq(bookings.status, 'completed'),
+        eq(bookings.paymentStatus, 'unpaid'),
+        gte(bookings.startTime, range.start),
+        lt(bookings.startTime, range.end),
+      ))
+    if (rows.length === 0) return
+
+    // Skip bookings inside the 10-min attempt cooldown (mirrors on-completion).
+    const cutoff = Date.now() - 10 * 60 * 1000
+    const eligible = rows.filter(
+      (b) => !b.autopayAttemptedAt || new Date(b.autopayAttemptedAt).getTime() < cutoff,
+    )
+    if (eligible.length === 0) return
+
+    // Group by resident; ONE batched residents load (max:1 pool — no per-row queries).
+    const byResident = new Map<string, typeof eligible>()
+    for (const b of eligible) {
+      const arr = byResident.get(b.residentId) ?? []
+      arr.push(b)
+      byResident.set(b.residentId, arr)
+    }
+    const residentRows = await db.query.residents.findMany({
+      where: and(
+        inArray(residents.id, Array.from(byResident.keys())),
+        eq(residents.active, true),
+        eq(residents.isDemo, false),
+        eq(residents.autopayEnabled, true), // owner decision: autopay opt-in only
+      ),
+      columns: { id: true },
+    })
+
+    // Sequential per resident (max:1 pool + sequential Stripe, like the sweep cron).
+    for (const r of residentRows) {
+      try {
+        const set = byResident.get(r.id) ?? []
+        const bookingIds = set.map((b) => b.id)
+        // price_cents only — never add tip_cents (revenue guard); tips stay
+        // manual via "Collect now" so rev-share math holds.
+        const amount = set.reduce((s, b) => s + (b.priceCents ?? 0) + (b.addonTotalCents ?? 0), 0)
+        if (amount <= 0 || bookingIds.length === 0) continue
+
+        // Stamp attempts BEFORE charging (the cooldown protection).
+        await db.update(bookings).set({ autopayAttemptedAt: new Date() }).where(inArray(bookings.id, bookingIds))
+
+        const result = await collectForResident({
+          residentId: r.id,
+          amountCents: amount,
+          bookingIds,
+          recordedVia: 'auto_charge',
+          idempotencyKey: `finalize:${r.id}:${dateStr}:${bookingSetHash(bookingIds)}`,
+        })
+        await handleFailover(result, r.id, amount, bookingIds, facilityId)
+      } catch (err) {
+        // One declined/broken resident must not stop the rest of the day.
+        console.error('[payments.autoCollectOnFinalize] resident charge failed:', err)
+      }
+    }
+  } catch (err) {
+    console.error('[payments.autoCollectOnFinalize] failed:', err)
+  }
+}
+
 /** Sweep helper: collect a resident's full outstanding balance (autopay-enabled only). */
 export async function collectResidentBalance(
   residentId: string,
@@ -95,20 +213,22 @@ export async function collectResidentBalance(
   return { attempted: true, result }
 }
 
-async function handleFailover(
+export async function handleFailover(
   result: CollectResult,
   residentId: string,
   amount: number,
-  bookingId: string | null,
+  bookingId: string | string[] | null,
   facilityId: string | null = null,
 ): Promise<void> {
   if (result.ok) return
   if (result.code === 'invalid') return
-  if (bookingId) {
+  // P55 — accepts a set too (finalize/OCR sweeps stamp the whole group).
+  const ids = bookingId == null ? [] : Array.isArray(bookingId) ? bookingId : [bookingId]
+  if (ids.length > 0) {
     await db
       .update(bookings)
       .set({ autopayAttemptedAt: new Date(), autopayLastError: result.reason })
-      .where(eq(bookings.id, bookingId))
+      .where(inArray(bookings.id, ids))
   }
   const uncollected = amount - result.salonCents
   await sendPaymentRequest({

@@ -65,6 +65,16 @@ export async function PUT(
       .where(and(eq(logEntries.id, id), eq(logEntries.facilityId, facilityId)))
       .returning()
 
+    // P55 — finalize fires the COF sweep (fire-and-forget): charges autopay
+    // residents' completed unpaid bookings for this stylist-day. Idempotent
+    // (paid stamp + unpaid re-check + cooldown), so re-finalize after an edit
+    // never double-charges.
+    if (parsed.data.finalized === true && !existing.finalized && !existing.isDemo) {
+      import('@/lib/payments/triggers')
+        .then(({ autoCollectOnFinalize }) => autoCollectOnFinalize(facilityId, existing.stylistId, existing.date))
+        .catch((err) => console.error('[log PUT] finalize sweep failed:', err))
+    }
+
     return Response.json({ data: updated })
   } catch (err) {
     console.error('PUT /api/log/[id] error:', err)

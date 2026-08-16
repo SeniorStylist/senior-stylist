@@ -140,9 +140,19 @@ export async function POST(request: NextRequest) {
         .where(eq(logEntries.id, existing.id))
         .returning()
 
+      // P55 — finalize fires the COF sweep (fire-and-forget, like GCal sync):
+      // charges autopay residents' completed unpaid bookings for this
+      // stylist-day. Idempotent (paid stamp + unpaid re-check + cooldown).
+      if (finalized && !existing.finalized && !existing.isDemo) {
+        import('@/lib/payments/triggers')
+          .then(({ autoCollectOnFinalize }) => autoCollectOnFinalize(facilityId, stylistId, date))
+          .catch((err) => console.error('[log POST] finalize sweep failed:', err))
+      }
+
       return Response.json({ data: updated })
     }
 
+    const entryIsDemo = isTutorialRequest(request)
     const [created] = await db
       .insert(logEntries)
       .values({
@@ -152,9 +162,16 @@ export async function POST(request: NextRequest) {
         notes: notes ?? null,
         finalized: finalized ?? false,
         finalizedAt: finalized ? new Date() : null,
-        isDemo: isTutorialRequest(request), // Phase 13 — tutorial-created log entry
+        isDemo: entryIsDemo, // Phase 13 — tutorial-created log entry
       })
       .returning()
+
+    // P55 — finalize-on-create fires the COF sweep too (see above).
+    if (finalized && !entryIsDemo) {
+      import('@/lib/payments/triggers')
+        .then(({ autoCollectOnFinalize }) => autoCollectOnFinalize(facilityId, stylistId, date))
+        .catch((err) => console.error('[log POST] finalize sweep failed:', err))
+    }
 
     return Response.json({ data: created }, { status: 201 })
   } catch (err) {
