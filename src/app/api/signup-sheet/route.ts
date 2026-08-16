@@ -128,10 +128,14 @@ export async function POST(request: NextRequest) {
       if (!assignment) return Response.json({ error: 'Stylist is not assigned to this facility' }, { status: 404 })
     }
 
-    // Phase 12S — auto-assign when caller didn't pick a stylist
+    // Phase 12S — auto-assign when caller didn't pick a stylist.
+    // P55 — demoOnly matches the entry's own is_demo: real entries must never
+    // be assigned to Demo Sarah (they'd vanish from every real stylist's queue).
     let assignedToStylistId = parsed.data.assignedToStylistId ?? null
     if (!assignedToStylistId) {
-      assignedToStylistId = await resolveAssignedStylist(facilityId, parsed.data.preferredDate ?? null)
+      assignedToStylistId = await resolveAssignedStylist(facilityId, parsed.data.preferredDate ?? null, db, {
+        demoOnly: isTutorialRequest(request),
+      })
     }
 
     const [created] = await db

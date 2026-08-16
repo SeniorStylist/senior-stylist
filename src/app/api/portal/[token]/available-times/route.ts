@@ -61,7 +61,8 @@ export async function GET(
           eq(stylistFacilityAssignments.active, true),
         ),
       )
-      .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
+      // P55 — never surface a demo stylist's availability to families
+      .where(and(eq(stylists.active, true), eq(stylists.status, 'active'), eq(stylists.isDemo, false)))
     if (!facStylists.length) {
       return Response.json({ data: { availableSlots: [], bookedSlots: [] } })
     }

@@ -17,13 +17,21 @@ type Db = typeof defaultDb
  *  2. Fallback (no preferredDate OR no day-of-week match) → most-recently-updated
  *     active stylist assigned to the facility.
  *  3. No candidates → null.
+ *
+ * P55 — opts.demoOnly (default false) mirrors resolveAvailableStylists: EVERY
+ * branch filters eq(stylists.isDemo, demoOnly). Without it, seeded "Demo Sarah"
+ * (active + Mon–Fri availability + fresh updatedAt) won BOTH the day-of-week
+ * and fallback paths for REAL entries — which then became invisible to every
+ * real stylist (the queue's own+unassigned filter). Real callers pass false
+ * (or isTutorialRequest); tutorial entries pass true so tours keep Demo Sarah.
  */
 export async function resolveAssignedStylist(
   facilityId: string,
   preferredDate: string | null,
   dbInstance: Db = defaultDb,
-  opts?: { preferredStylistId?: string | null },
+  opts?: { preferredStylistId?: string | null; demoOnly?: boolean },
 ): Promise<string | null> {
+  const demoOnly = opts?.demoOnly ?? false
   if (opts?.preferredStylistId) {
     const preferred = await dbInstance
       .select({ stylistId: stylists.id })
@@ -36,14 +44,21 @@ export async function resolveAssignedStylist(
           eq(stylistFacilityAssignments.active, true),
         ),
       )
-      .where(and(eq(stylists.id, opts.preferredStylistId), eq(stylists.active, true), eq(stylists.status, 'active')))
+      .where(
+        and(
+          eq(stylists.id, opts.preferredStylistId),
+          eq(stylists.active, true),
+          eq(stylists.status, 'active'),
+          eq(stylists.isDemo, demoOnly),
+        ),
+      )
       .limit(1)
     if (preferred[0]) return preferred[0].stylistId
   }
 
   if (preferredDate) {
     const [y, m, d] = preferredDate.split('-').map(Number)
-    if (!y || !m || !d) return resolveFallback(facilityId, dbInstance)
+    if (!y || !m || !d) return resolveFallback(facilityId, dbInstance, demoOnly)
     const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
 
     const candidates = await dbInstance
@@ -66,7 +81,7 @@ export async function resolveAssignedStylist(
           eq(stylistAvailability.active, true),
         ),
       )
-      .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
+      .where(and(eq(stylists.active, true), eq(stylists.status, 'active'), eq(stylists.isDemo, demoOnly)))
 
     if (candidates.length === 1) return candidates[0].stylistId
     if (candidates.length > 1) {
@@ -94,10 +109,10 @@ export async function resolveAssignedStylist(
     }
   }
 
-  return resolveFallback(facilityId, dbInstance)
+  return resolveFallback(facilityId, dbInstance, demoOnly)
 }
 
-async function resolveFallback(facilityId: string, dbInstance: Db): Promise<string | null> {
+async function resolveFallback(facilityId: string, dbInstance: Db, demoOnly: boolean): Promise<string | null> {
   const fallback = await dbInstance
     .select({ stylistId: stylists.id })
     .from(stylists)
@@ -109,7 +124,7 @@ async function resolveFallback(facilityId: string, dbInstance: Db): Promise<stri
         eq(stylistFacilityAssignments.active, true),
       ),
     )
-    .where(and(eq(stylists.active, true), eq(stylists.status, 'active')))
+    .where(and(eq(stylists.active, true), eq(stylists.status, 'active'), eq(stylists.isDemo, demoOnly)))
     .orderBy(desc(stylists.updatedAt))
     .limit(1)
 

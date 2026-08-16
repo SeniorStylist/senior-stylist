@@ -95,7 +95,9 @@ export async function POST(request: NextRequest) {
       residentRow.facilityId,
       preferredDateFrom ?? null,
       db,
-      { preferredStylistId: prefs?.preferredStylistId ?? null },
+      // P55 demoOnly:false — portal requests are always real entries; without
+      // it Demo Sarah could win and hide the request from every real stylist.
+      { preferredStylistId: prefs?.preferredStylistId ?? null, demoOnly: false },
     )
 
     // Multi-service policy: ONE entry per visit — the first service is the
