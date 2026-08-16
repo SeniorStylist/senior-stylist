@@ -28,7 +28,7 @@ import { PortalSection } from './sections/portal-section'
 
 interface ClaimRequest {
   id: string
-  email: string
+  email: string | null
   fullName: string
   phone: string | null
   dateOfBirth: string | null

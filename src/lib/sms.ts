@@ -64,6 +64,15 @@ export function buildReceiptSms(data: {
   )
 }
 
+// P55 — phone-only signup welcome (no email = no magic link; the account works
+// with phone + password, and the salon has their number for confirmations).
+export function buildSignupWelcomeSms(data: { facilityName: string; residentName: string }): string {
+  return (
+    `${data.facilityName}: you're signed up for ${data.residentName}'s salon account. ` +
+    `We'll text you about visits. Sign in any time with your phone number and password.`
+  )
+}
+
 // Payments (COF) — failover pay-link SMS. The link is a portal magic-link.
 export function buildPaymentRequestSms(data: {
   facilityName: string

@@ -7,10 +7,14 @@ import {
   portalClaimRequests,
   residents,
 } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { createMagicLink, createPortalSession, setPortalSessionCookie } from '@/lib/portal-auth'
+import { hashPassword } from '@/lib/portal-password'
+import { normalizePhoneDigits } from '@/lib/phone'
+import { ensurePortalIdentitySchema } from '@/lib/portal-identity-ddl'
+import { sendSms, buildSignupWelcomeSms } from '@/lib/sms'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { mintSignupCardToken } from '@/lib/signup-card-token'
 import { platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
@@ -23,11 +27,16 @@ import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 export const dynamic = 'force-dynamic'
 
 const signupSchema = z.object({
-  email: z.string().email().max(320),
+  // P55 — email OR phone, at least one (owner decision: "the username will
+  // either be the email or the phone number"). The refine below enforces it.
+  email: z.string().email().max(320).optional().nullable(),
   fullName: z.string().min(2).max(200),
   facilityCode: z.string().min(1).max(50),
-  // P54 — phone is MANDATORY (owner decision, Fitzgerald meeting)
-  phone: z.string().min(7).max(30),
+  phone: z.string().min(7).max(30).optional().nullable(),
+  // P55 — password created in the wizard. Required client-side; optional here
+  // so a stale cached wizard doesn't hard-fail (accounts without one keep the
+  // email-link sign-in).
+  password: z.string().min(8).max(200).optional(),
   // Accepted for back-compat; the P50 wizard no longer sends it (unused PII).
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   // P50 — the wizard asks WHO the resident is, which turns admin review from
@@ -44,6 +53,9 @@ const signupSchema = z.object({
   // skipped (no accounts/claims/residents/coupons/emails/bells). Verified
   // against the caller's Supabase session server-side; 403 for anyone else.
   preview: z.boolean().optional(),
+}).refine((d) => !!d.email || !!(d.phone && d.phone.replace(/\D/g, '').length >= 7), {
+  message: 'Provide an email or a phone number',
+  path: ['email'],
 })
 
 export async function POST(request: NextRequest) {
@@ -57,8 +69,12 @@ export async function POST(request: NextRequest) {
   const parsed = signupSchema.safeParse(body)
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
-  const { email, fullName, facilityCode, phone, dateOfBirth, residentName, roomNumber, relationship, familyConfirmed } = parsed.data
-  const normalizedEmail = email.toLowerCase().trim()
+  const { email, fullName, facilityCode, phone, dateOfBirth, residentName, roomNumber, relationship, familyConfirmed, password } = parsed.data
+  // P55 — email may be null (phone-only signups). Every downstream email use
+  // is guarded; the phone digits key drives the phone-identity paths.
+  const normalizedEmail = email ? email.toLowerCase().trim() : null
+  const phoneDigits = normalizePhoneDigits(phone)
+  const contact: 'email' | 'phone' = normalizedEmail ? 'email' : 'phone'
 
   // P53 — DRY RUN: verify the caller's Supabase session is the MASTER before
   // anything else (client-asserted flag, server-verified — the familyConfirmed
@@ -82,6 +98,8 @@ export async function POST(request: NextRequest) {
   }
 
   await ensurePortalClaimsSchema()
+  // P55 — nullable emails + phone unique index + claims.password_hash
+  await ensurePortalIdentitySchema()
 
   // P54 — the wizard shows a card page after the review step whenever the
   // platform Stripe keys are configured AND live charging isn't blocked.
@@ -103,10 +121,17 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Self-signup is not available for this facility.' }, { status: 403 })
   }
 
-  // Check if already linked to an ACTIVE resident at this facility.
+  // Check if already linked to an ACTIVE resident at this facility — by email
+  // AND/OR phone (P55: either one is a login identity now).
   // P53 — the active join matters: a discharged resident's stale link used to
   // 409 here ("sign in instead") while login bounced with no_access — an
   // unbreakable loop for re-admitted residents. Dead links don't count.
+  const identityMatches = [
+    ...(normalizedEmail ? [eq(portalAccounts.email, normalizedEmail)] : []),
+    ...(phoneDigits.length >= 7
+      ? [sql`regexp_replace(COALESCE(${portalAccounts.phone}, ''), '\\D', '', 'g') = ${phoneDigits}`]
+      : []),
+  ]
   const activeLinks = await db
     .select({ id: portalAccountResidents.id })
     .from(portalAccountResidents)
@@ -114,7 +139,7 @@ export async function POST(request: NextRequest) {
     .innerJoin(residents, eq(residents.id, portalAccountResidents.residentId))
     .where(
       and(
-        eq(portalAccounts.email, normalizedEmail),
+        or(...identityMatches),
         eq(portalAccountResidents.facilityId, facility.id),
         eq(residents.active, true),
       ),
@@ -126,19 +151,46 @@ export async function POST(request: NextRequest) {
     }, { status: 409 })
   }
 
-  // 1. Try email match: resident.poaEmail = this email at this facility
-  const emailMatches = await db.query.residents.findMany({
-    where: and(
-      eq(residents.facilityId, facility.id),
-      eq(residents.poaEmail, normalizedEmail),
-      eq(residents.active, true),
-      eq(residents.isDemo, false),
-    ),
-    columns: { id: true, name: true, roomNumber: true },
-  })
+  // P55 — hash the wizard password once (skipped in dry runs; PBKDF2 is CPU).
+  // WHERE it lands follows the password application rule: applied to the
+  // account immediately only when the signup auto-creates a brand-new
+  // resident; for MATCHED signups it's HELD on the claim row and activated on
+  // the first VERIFIED entry (magic link / SMS code) — typed knowledge of a
+  // poaEmail/poaPhone must never grant instant access to an existing
+  // resident's account.
+  const wizardPasswordHash = !preview && password ? await hashPassword(password) : null
 
-  if (emailMatches.length > 0) {
-    if (preview) return Response.json({ status: 'auto_approved', preview: true, paymentsEnabled }) // dry run: no writes
+  // 1. Tier-1 identity matches: resident.poaEmail = this email, or
+  //    resident.poaPhone = this phone (digits-normalized), at this facility.
+  //    Same evidence class — the contact the facility already has on file.
+  let tier1Matches: Array<{ id: string; name: string; roomNumber: string | null }> = []
+  let tier1Type: 'email' | 'phone' = 'email'
+  if (normalizedEmail) {
+    tier1Matches = await db.query.residents.findMany({
+      where: and(
+        eq(residents.facilityId, facility.id),
+        eq(residents.poaEmail, normalizedEmail),
+        eq(residents.active, true),
+        eq(residents.isDemo, false),
+      ),
+      columns: { id: true, name: true, roomNumber: true },
+    })
+  }
+  if (tier1Matches.length === 0 && phoneDigits.length >= 7) {
+    tier1Matches = await db.query.residents.findMany({
+      where: and(
+        eq(residents.facilityId, facility.id),
+        sql`regexp_replace(COALESCE(${residents.poaPhone}, ''), '\\D', '', 'g') = ${phoneDigits}`,
+        eq(residents.active, true),
+        eq(residents.isDemo, false),
+      ),
+      columns: { id: true, name: true, roomNumber: true },
+    })
+    if (tier1Matches.length > 0) tier1Type = 'phone'
+  }
+
+  if (tier1Matches.length > 0) {
+    if (preview) return Response.json({ status: 'auto_approved', preview: true, paymentsEnabled, contact }) // dry run: no writes
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -147,14 +199,15 @@ export async function POST(request: NextRequest) {
       facilityId: facility.id,
       facilityCode: facility.facilityCode ?? facilityCode,
       facilityName: facility.name,
-      matchedResidents: emailMatches,
-      matchType: 'email',
+      matchedResidents: tier1Matches,
+      matchType: tier1Type,
       matchConfidence: 'high',
+      heldPasswordHash: wizardPasswordHash,
     })
-    await issueWelcomeCoupon(facility.id, portalAccountId, emailMatches[0]?.id ?? null).catch(() => {})
+    await issueWelcomeCoupon(facility.id, portalAccountId, tier1Matches[0]?.id ?? null).catch(() => {})
     // P54 — payment step: matched signups get a 30-min single-use card token
-    // (never a session — the magic link stays the email verification).
-    const primaryResident = emailMatches[0] ?? null
+    // (never a session — verified entry stays the identity check).
+    const primaryResident = tier1Matches[0] ?? null
     const cardToken = paymentsEnabled && primaryResident
       ? await mintSignupCardToken({ residentId: primaryResident.id, facilityId: facility.id, portalAccountId }).catch(() => null)
       : null
@@ -163,6 +216,7 @@ export async function POST(request: NextRequest) {
       paymentsEnabled: paymentsEnabled && !!cardToken,
       residentId: primaryResident?.id ?? null,
       cardToken,
+      contact,
     })
   }
 
@@ -194,7 +248,7 @@ export async function POST(request: NextRequest) {
   // fuzzyScore>=0.8 was defeated by its substring rule (a lone surname
   // contained in the POA name scored 0.85 and instant-approved a stranger).
   if (familyConfirmed && m?.confident && m.resident.poaName && nameAgreement(fullName, m.resident.poaName)) {
-    if (preview) return Response.json({ status: 'auto_approved', preview: true, paymentsEnabled }) // dry run: no writes
+    if (preview) return Response.json({ status: 'auto_approved', preview: true, paymentsEnabled, contact }) // dry run: no writes
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -207,9 +261,10 @@ export async function POST(request: NextRequest) {
       matchType: 'resident_confirmed',
       matchConfidence: 'high',
       familyConfirmed: true,
+      heldPasswordHash: wizardPasswordHash,
     })
     await issueWelcomeCoupon(facility.id, portalAccountId, m.resident.id).catch(() => {})
-    // P54 — payment step token (see the email-match branch above).
+    // P54 — payment step token (see the tier-1 branch above).
     const cardToken = paymentsEnabled
       ? await mintSignupCardToken({ residentId: m.resident.id, facilityId: facility.id, portalAccountId }).catch(() => null)
       : null
@@ -218,6 +273,7 @@ export async function POST(request: NextRequest) {
       paymentsEnabled: paymentsEnabled && !!cardToken,
       residentId: m.resident.id,
       cardToken,
+      contact,
     })
   }
 
@@ -269,7 +325,7 @@ export async function POST(request: NextRequest) {
 
   // P53 dry-run exit: the full match + confidence derivation ran above; stop
   // before ANY write (resident/account/claim/coupon/emails/bells).
-  if (preview) return Response.json({ status: 'created', preview: true, paymentsEnabled })
+  if (preview) return Response.json({ status: 'created', preview: true, paymentsEnabled, contact })
 
   // Idempotency: the submit button disables in flight and a later re-POST hits
   // the top-of-route 409, but a racing double-tap could slip both requests past
@@ -281,13 +337,13 @@ export async function POST(request: NextRequest) {
     .innerJoin(residents, eq(residents.id, portalAccountResidents.residentId))
     .where(
       and(
-        eq(portalAccounts.email, normalizedEmail),
+        or(...identityMatches),
         eq(portalAccountResidents.facilityId, facility.id),
         eq(residents.active, true),
       ),
     )
     .limit(1)
-  if (linkRecheck.length > 0) return Response.json({ status: 'created', paymentsEnabled: false })
+  if (linkRecheck.length > 0) return Response.json({ status: 'created', paymentsEnabled: false, contact })
 
   // Create the resident from what the family told us (same shape as the
   // admin approve-createResident branch): portalToken so booking-confirmation
@@ -312,6 +368,9 @@ export async function POST(request: NextRequest) {
     dateOfBirth: dateOfBirth ?? null,
     facilityId: facility.id,
     residentIds: [newResident.id],
+    // Password application rule: auto-CREATED resident → the wizard password
+    // is applied immediately (nothing pre-existing to take over).
+    passwordHash: wizardPasswordHash,
   })
 
   // Review-queue row — NOT best-effort: this IS the admin's keep-or-merge card.
@@ -342,7 +401,7 @@ export async function POST(request: NextRequest) {
     sendEmail({
       to: adminEmail,
       subject: `New family account — ${facility.name}`,
-      html: buildClaimRequestEmailHtml({ fullName, email: normalizedEmail, facilityName: facility.name, settingsUrl, residentName: newResident.name }),
+      html: buildClaimRequestEmailHtml({ fullName, email: normalizedEmail ?? phone ?? '', facilityName: facility.name, settingsUrl, residentName: newResident.name }),
     }).catch(() => {})
   }
 
@@ -357,12 +416,19 @@ export async function POST(request: NextRequest) {
   ).catch(() => {})
 
   // Magic link — AWAITED (the family's sign-in path; user-initiated send).
-  const magicLink = await createMagicLink(normalizedEmail, newResident.id, facility.facilityCode ?? facilityCode)
-  await sendEmail({
-    to: normalizedEmail,
-    subject: `Welcome to the ${facility.name} Family Portal`,
-    html: buildPortalMagicLinkEmailHtml({ residentNames: [newResident.name], facilityName: facility.name, link: magicLink, expiresInHours: 72 }),
-  })
+  // P55 — phone-only signups have no inbox: they get a welcome SMS instead
+  // (Twilio-gated no-op until the number is live) and sign in with
+  // phone + password.
+  if (normalizedEmail) {
+    const magicLink = await createMagicLink(normalizedEmail, newResident.id, facility.facilityCode ?? facilityCode)
+    await sendEmail({
+      to: normalizedEmail,
+      subject: `Welcome to the ${facility.name} Family Portal`,
+      html: buildPortalMagicLinkEmailHtml({ residentNames: [newResident.name], facilityName: facility.name, link: magicLink, expiresInHours: 72 }),
+    })
+  } else if (phone) {
+    sendSms(phone, buildSignupWelcomeSms({ facilityName: facility.name, residentName: newResident.name })).catch(() => {})
+  }
 
   // P54 — AUTO-CREATED signups get a real portal session so the payment step
   // (and "Go to my account") work immediately. 7 days, not 30 — this session
@@ -375,51 +441,79 @@ export async function POST(request: NextRequest) {
     console.error('[portal signup] session mint failed (magic link still works):', err)
   }
 
-  return Response.json({ status: 'created', paymentsEnabled, residentId: newResident.id })
+  return Response.json({ status: 'created', paymentsEnabled, residentId: newResident.id, contact })
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // P54 — the account-upsert + resident-link core, shared by autoApprove (matched
 // residents) and the uniform-model auto-create branch (brand-new resident).
+// P55 — identity is email OR phone: the lookup keys on whichever exists, and
+// an optional passwordHash is written per the password application rule
+// (callers pass it ONLY on the auto-created path; matched signups hold theirs
+// on the claim row until a verified entry).
 async function upsertAccountAndLink(opts: {
-  email: string
+  email: string | null
   fullName: string
   phone: string | null
   dateOfBirth: string | null
   facilityId: string
   residentIds: string[]
+  passwordHash?: string | null
 }): Promise<string> {
-  const { email, fullName, phone, dateOfBirth, facilityId, residentIds } = opts
+  const { email, fullName, phone, dateOfBirth, facilityId, residentIds, passwordHash } = opts
+  const digits = normalizePhoneDigits(phone)
 
-  const existing = await db.query.portalAccounts.findFirst({
-    where: eq(portalAccounts.email, email),
-    columns: { id: true },
-  })
+  const existing = email
+    ? await db.query.portalAccounts.findFirst({
+        where: eq(portalAccounts.email, email),
+        columns: { id: true, passwordHash: true },
+      })
+    : digits.length >= 7
+      ? await db.query.portalAccounts.findFirst({
+          where: sql`regexp_replace(COALESCE(${portalAccounts.phone}, ''), '\D', '', 'g') = ${digits}`,
+          columns: { id: true, passwordHash: true },
+        })
+      : undefined
 
   let portalAccountId: string
   if (existing) {
-    // Update profile info if provided
+    // Update profile info if provided. A password NEVER overwrites one the
+    // account already has.
     await db
       .update(portalAccounts)
       .set({
         fullName: fullName || undefined,
         phone: phone ?? undefined,
         ...(dateOfBirth ? { dateOfBirth } : {}),
+        ...(passwordHash && !existing.passwordHash ? { passwordHash } : {}),
       })
       .where(eq(portalAccounts.id, existing.id))
     portalAccountId = existing.id
   } else {
-    const [created] = await db
-      .insert(portalAccounts)
-      .values({
-        email,
-        fullName,
-        phone,
-        dateOfBirth: dateOfBirth ?? null,
-      })
-      .returning({ id: portalAccounts.id })
-    portalAccountId = created.id
+    // The phone carries a digits-normalized UNIQUE index: if this phone
+    // already belongs to a DIFFERENT account (e.g. an email signup reusing a
+    // family member's number), insert without it rather than failing the
+    // whole signup — the phone stays with its original account.
+    const baseValues = {
+      email,
+      fullName,
+      phone,
+      dateOfBirth: dateOfBirth ?? null,
+      passwordHash: passwordHash ?? null,
+    }
+    let created: { id: string } | undefined
+    try {
+      ;[created] = await db.insert(portalAccounts).values(baseValues).returning({ id: portalAccounts.id })
+    } catch (err) {
+      if (!phone) throw err
+      console.warn('[portal signup] phone already on another account — inserting without it:', err)
+      ;[created] = await db
+        .insert(portalAccounts)
+        .values({ ...baseValues, phone: null })
+        .returning({ id: portalAccounts.id })
+    }
+    portalAccountId = created!.id
   }
 
   for (const residentId of residentIds) {
@@ -433,7 +527,7 @@ async function upsertAccountAndLink(opts: {
 }
 
 async function autoApprove(opts: {
-  email: string
+  email: string | null
   fullName: string
   phone: string | null
   dateOfBirth: string | null
@@ -444,8 +538,10 @@ async function autoApprove(opts: {
   matchType: string
   matchConfidence: string
   familyConfirmed?: boolean
+  /** P55 — held on the CLAIM (password application rule), never the account. */
+  heldPasswordHash?: string | null
 }): Promise<string> {
-  const { email, fullName, phone, dateOfBirth, facilityId, facilityCode, facilityName, matchedResidents, matchType, matchConfidence, familyConfirmed } = opts
+  const { email, fullName, phone, dateOfBirth, facilityId, facilityCode, facilityName, matchedResidents, matchType, matchConfidence, familyConfirmed, heldPasswordHash } = opts
 
   const portalAccountId = await upsertAccountAndLink({
     email,
@@ -454,9 +550,10 @@ async function autoApprove(opts: {
     dateOfBirth,
     facilityId,
     residentIds: matchedResidents.map((r) => r.id),
+    // MATCHED signups: password is held on the claim, NOT applied here.
   })
 
-  // Audit record
+  // Audit record — carries the held password hash (applied on verified entry).
   await db.insert(portalClaimRequests).values({
     facilityId,
     facilityCode,
@@ -468,17 +565,41 @@ async function autoApprove(opts: {
     matchType,
     matchConfidence,
     familyConfirmed: familyConfirmed ?? null,
+    passwordHash: heldPasswordHash ?? null,
     status: 'auto_approved',
   }).catch(() => {})
 
-  // Send magic link email — AWAITED (user-initiated "send" path)
-  const magicLink = await createMagicLink(email, matchedResidents[0]?.id ?? null, facilityCode)
+  // P55 — fill the matched residents' poaPhone only-when-NULL so a phone-only
+  // family is actually reachable by SMS afterward (never overwrite an
+  // existing number).
+  const digits = normalizePhoneDigits(phone)
+  if (phone && digits.length >= 7) {
+    await db
+      .update(residents)
+      .set({ poaPhone: phone })
+      .where(
+        and(
+          inArray(residents.id, matchedResidents.map((r) => r.id)),
+          sql`${residents.poaPhone} IS NULL`,
+        ),
+      )
+      .catch(() => {})
+  }
+
   const residentNames = matchedResidents.map((r) => r.name)
-  await sendEmail({
-    to: email,
-    subject: `Welcome to the ${facilityName} Family Portal`,
-    html: buildPortalMagicLinkEmailHtml({ residentNames, facilityName, link: magicLink, expiresInHours: 72 }),
-  })
+  if (email) {
+    // Send magic link email — AWAITED (user-initiated "send" path)
+    const magicLink = await createMagicLink(email, matchedResidents[0]?.id ?? null, facilityCode)
+    await sendEmail({
+      to: email,
+      subject: `Welcome to the ${facilityName} Family Portal`,
+      html: buildPortalMagicLinkEmailHtml({ residentNames, facilityName, link: magicLink, expiresInHours: 72 }),
+    })
+  } else if (phone) {
+    // Phone-only: welcome SMS (Twilio-gated no-op). Account access arrives via
+    // phone+password (activated on verified entry) or the SMS-code login.
+    sendSms(phone, buildSignupWelcomeSms({ facilityName, residentName: residentNames[0] ?? 'your resident' })).catch(() => {})
+  }
 
   return portalAccountId
 }

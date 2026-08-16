@@ -400,16 +400,44 @@ export const PORTAL_STRINGS = {
     en: "It's okay if you're not sure — you can leave this blank.",
     es: 'No pasa nada si no está seguro — puede dejarlo en blanco.',
   },
-  'signup.step.email': { en: 'What is your email address?', es: '¿Cuál es su correo electrónico?' },
-  'signup.step.emailHint': {
-    en: "We'll send your sign-in link here. No passwords to remember.",
-    es: 'Le enviaremos su enlace de acceso aquí. Sin contraseñas que recordar.',
+  // P55 — one contact screen: email OR phone, at least one (owner decision)
+  'signup.step.contact': { en: 'How can we reach you?', es: '¿Cómo podemos contactarle?' },
+  'signup.step.contactHint': {
+    en: 'Give us at least one — both is even better.',
+    es: 'Déjenos al menos uno — los dos es aún mejor.',
   },
-  'signup.step.phone': { en: 'What is your phone number?', es: '¿Cuál es su número de teléfono?' },
-  'signup.step.phoneHint': {
-    en: 'So the salon can reach you about appointments.',
-    es: 'Para que el salón pueda contactarle sobre las citas.',
+  'signup.step.contactEmailLabel': { en: 'Email address', es: 'Correo electrónico' },
+  'signup.step.contactPhoneLabel': { en: 'Phone number', es: 'Número de teléfono' },
+  'signup.step.contactError': {
+    en: 'Please give us an email or a phone number.',
+    es: 'Por favor déjenos un correo o un número de teléfono.',
   },
+  'signup.step.contactEmailInvalid': {
+    en: "That email doesn't look complete.",
+    es: 'Ese correo no parece completo.',
+  },
+  'signup.step.contactPhoneInvalid': {
+    en: "That phone number doesn't look complete.",
+    es: 'Ese número no parece completo.',
+  },
+  // P55 — password created in the wizard (owner decision)
+  'signup.step.password': { en: 'Choose a password', es: 'Elija una contraseña' },
+  'signup.step.passwordHint': {
+    en: "You'll sign in with your email or phone number plus this password.",
+    es: 'Iniciará sesión con su correo o teléfono más esta contraseña.',
+  },
+  'password.label': { en: 'Password', es: 'Contraseña' },
+  'password.placeholder': { en: 'At least 8 characters', es: 'Mínimo 8 caracteres' },
+  'password.confirmLabel': { en: 'Confirm password', es: 'Confirme la contraseña' },
+  'password.confirmPlaceholder': { en: 'Type it again', es: 'Escríbala otra vez' },
+  'password.show': { en: 'Show password', es: 'Mostrar contraseña' },
+  'password.hide': { en: 'Hide password', es: 'Ocultar contraseña' },
+  'password.tooShort': { en: 'At least 8 characters, please', es: 'Mínimo 8 caracteres, por favor' },
+  'password.weak': { en: 'Weak password', es: 'Contraseña débil' },
+  'password.medium': { en: 'Medium password', es: 'Contraseña media' },
+  'password.strong': { en: 'Strong password', es: 'Contraseña fuerte' },
+  'password.match': { en: 'Passwords match', es: 'Las contraseñas coinciden' },
+  'password.noMatch': { en: "Passwords don't match yet", es: 'Las contraseñas aún no coinciden' },
   'signup.nav.back': { en: '← Back', es: '← Atrás' },
   'signup.nav.next': { en: 'Next', es: 'Siguiente' },
   'signup.review.title': { en: 'Does this look right?', es: '¿Está todo correcto?' },
@@ -434,6 +462,16 @@ export const PORTAL_STRINGS = {
     es: 'Vista previa — la tarjeta se omite en la prueba.',
   },
   'signup.done.goToAccount': { en: 'Go to my account', es: 'Ir a mi cuenta' },
+  // P55 — phone-only done screens (no email = no sign-in link to mention)
+  'signup.foundAccountPhone': {
+    en: "You're all set — the salon has your number and will text you about visits.",
+    es: 'Todo listo — el salón tiene su número y le enviará mensajes sobre las visitas.',
+  },
+  'signup.createdPhone.title': { en: "You're signed up", es: 'Ya está registrado' },
+  'signup.createdPhone.body': {
+    en: 'The salon has your number. Sign in any time with your phone number and password.',
+    es: 'El salón tiene su número. Inicie sesión cuando quiera con su teléfono y contraseña.',
+  },
   'signup.progress': { en: 'Step {step} of {total}', es: 'Paso {step} de {total}' },
   // P52 — "is this them?" match confirmation step
   'signup.match.title': { en: 'We found them — is this right?', es: 'Los encontramos — ¿es correcto?' },

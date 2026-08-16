@@ -22,6 +22,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 import { firstErrorMessage } from '@/lib/first-error'
+import { PasswordFields } from '@/components/portal/password-fields'
 
 // Stripe.js stays out of the wizard bundle until the payment step renders.
 const AddCardForm = dynamic(
@@ -54,8 +55,11 @@ type Phase = 'wizard' | 'payment' | 'auto_approved' | 'created'
 type Relationship = 'self' | 'spouse' | 'child' | 'poa' | 'other'
 
 // P52 — step IDs replace numeric indices; 'confirm' is present only when the
-// match preview found a confident resident (steps.length is 6 or 7).
-type StepId = 'who' | 'yourName' | 'resident' | 'confirm' | 'email' | 'phone' | 'review'
+// match preview found a confident resident.
+// P55 — 'email'+'phone' merged into ONE 'contact' screen (email OR phone, at
+// least one — owner decision), and 'password' is a required step (username =
+// email or phone, password = the password).
+type StepId = 'who' | 'yourName' | 'resident' | 'confirm' | 'contact' | 'password' | 'review'
 
 // P53 — no-spaces email gate (the old /.+@.+\..+/ passed "john smith@gmail.com"
 // from a phone-keyboard space, which then 422'd server-side).
@@ -83,6 +87,9 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
   const [cardResidentId, setCardResidentId] = useState<string | null>(null)
   const [cardToken, setCardToken] = useState<string | null>(null)
   const [cardSetupFailed, setCardSetupFailed] = useState(false)
+  // P55 — which contact channel the account uses; keys the done-screen copy
+  // (phone-only signups have no "check your email" to mention).
+  const [doneContact, setDoneContact] = useState<'email' | 'phone'>('email')
 
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [fullName, setFullName] = useState('')
@@ -90,6 +97,9 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
   const [roomNumber, setRoomNumber] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  // P55 — password created in the wizard (strength meter + confirm + show/hide)
+  const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
 
   // P52 — "is this them?" preview. The server re-derives the match on submit;
   // this state only drives the confirm card + the familyConfirmed flag.
@@ -102,8 +112,8 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
   const isSelf = relationship === 'self'
 
   const steps: StepId[] = match
-    ? ['who', 'yourName', 'resident', 'confirm', 'email', 'phone', 'review']
-    : ['who', 'yourName', 'resident', 'email', 'phone', 'review']
+    ? ['who', 'yourName', 'resident', 'confirm', 'contact', 'password', 'review']
+    : ['who', 'yourName', 'resident', 'contact', 'password', 'review']
   const stepIndex = Math.max(0, steps.indexOf(stepId))
 
   const goTo = (id: StepId) => {
@@ -158,7 +168,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
     }
     setMatch(m)
     setFamilyConfirmed(false)
-    setStepId(m ? 'confirm' : 'email')
+    setStepId(m ? 'confirm' : 'contact')
   }
 
   const handleSubmit = async () => {
@@ -170,10 +180,12 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
+          // P55 — email OR phone (at least one, enforced by the contact step)
+          email: email.trim() ? email.trim().toLowerCase() : null,
           fullName: fullName.trim(),
           facilityCode,
           phone: phone.trim() || null,
+          password: password.length >= 8 && password === passwordConfirm ? password : undefined,
           residentName: (isSelf ? fullName : residentName).trim(),
           roomNumber: roomNumber.trim() || null,
           relationship: relationship ?? undefined,
@@ -199,6 +211,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
         return
       }
       const finalPhase: 'auto_approved' | 'created' = j.status === 'auto_approved' ? 'auto_approved' : 'created'
+      setDoneContact(j.contact === 'phone' ? 'phone' : 'email')
       // P54 — the card page. Real runs need a resident + (for matched signups)
       // the card token; the dry run shows the step's copy with entry skipped.
       const canTakeCard = previewMode
@@ -277,8 +290,11 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
           </svg>
         </div>
         <p className="text-lg font-semibold text-stone-800">{t('signup.welcome', { facility: facilityName })}</p>
-        <p className="text-base text-stone-500 mt-2">{t('signup.foundAccount', { email })}</p>
-        <p className="text-sm text-stone-500 mt-2">{t('signup.linkExpirySpam')}</p>
+        {/* P55 — phone-only signups have no inbox: no "link on its way" copy */}
+        <p className="text-base text-stone-500 mt-2">
+          {doneContact === 'phone' ? t('signup.foundAccountPhone') : t('signup.foundAccount', { email })}
+        </p>
+        {doneContact === 'email' && <p className="text-sm text-stone-500 mt-2">{t('signup.linkExpirySpam')}</p>}
         {previewMode && (
           <p className="mt-3 text-sm font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             {t('signup.preview.done')}
@@ -301,9 +317,13 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p className="text-lg font-semibold text-stone-800">{t('signup.created.title')}</p>
-        <p className="text-base text-stone-500 mt-2">{t('signup.created.body')}</p>
-        <p className="text-sm text-stone-500 mt-2">{t('signup.linkExpirySpam')}</p>
+        <p className="text-lg font-semibold text-stone-800">
+          {doneContact === 'phone' ? t('signup.createdPhone.title') : t('signup.created.title')}
+        </p>
+        <p className="text-base text-stone-500 mt-2">
+          {doneContact === 'phone' ? t('signup.createdPhone.body') : t('signup.created.body')}
+        </p>
+        {doneContact === 'email' && <p className="text-sm text-stone-500 mt-2">{t('signup.linkExpirySpam')}</p>}
         {previewMode && (
           <p className="mt-3 text-sm font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             {t('signup.preview.done')}
@@ -442,14 +462,14 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
               </div>
               <button
                 type="button"
-                onClick={() => { setFamilyConfirmed(true); goTo('email') }}
+                onClick={() => { setFamilyConfirmed(true); goTo('contact') }}
                 className={primaryBtnCls}
               >
                 {t('signup.match.yes')}
               </button>
               <button
                 type="button"
-                onClick={() => { setFamilyConfirmed(false); setMatch(null); goTo('email') }}
+                onClick={() => { setFamilyConfirmed(false); setMatch(null); goTo('contact') }}
                 className="portal-cta-cap w-full min-h-[52px] rounded-2xl border-2 border-stone-200 bg-white text-stone-700 font-semibold hover:bg-stone-50 active:scale-[0.98] transition-all"
               >
                 {t('signup.match.no')}
@@ -457,54 +477,84 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
             </StepInput>
           </div>
         )
-      case 'email':
+      case 'contact': {
+        // P55 — ONE screen, email OR phone, at least one (owner decision:
+        // "we need either your phone number or your email… encourage both").
+        const emailOk = EMAIL_RE.test(email.trim())
+        const phoneOk = phone.replace(/\D/g, '').length >= 7
+        const contactValid = (emailOk || phoneOk) && (!email.trim() || emailOk) && (!phone.trim() || phoneOk)
         return (
-          <StepInput title={t('signup.step.email')} hint={t('signup.step.emailHint')}>
-            <input
-              id="email"
-              type="email"
-              autoFocus
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              maxLength={320}
-              aria-label={t('signup.step.email')}
-              className={inputCls}
-              onKeyDown={(e) => { if (e.key === 'Enter' && EMAIL_RE.test(email.trim())) next() }}
-            />
+          <StepInput title={t('signup.step.contact')} hint={t('signup.step.contactHint')}>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-base font-medium text-stone-600" htmlFor="email">
+                {t('signup.step.contactEmailLabel')}
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoFocus
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                maxLength={320}
+                aria-label={t('signup.step.contactEmailLabel')}
+                className={inputCls}
+              />
+              {email.trim() && !emailOk && (
+                <p className="text-sm text-amber-700">{t('signup.step.contactEmailInvalid')}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-base font-medium text-stone-600" htmlFor="phone">
+                {t('signup.step.contactPhoneLabel')}
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(555) 123-4567"
+                maxLength={30}
+                aria-label={t('signup.step.contactPhoneLabel')}
+                className={inputCls}
+                onKeyDown={(e) => { if (e.key === 'Enter' && contactValid) next() }}
+              />
+              {phone.trim() && !phoneOk && (
+                <p className="text-sm text-amber-700">{t('signup.step.contactPhoneInvalid')}</p>
+              )}
+            </div>
+            {!email.trim() && !phone.trim() && (
+              <p className="text-sm text-stone-500 text-center">{t('signup.step.contactError')}</p>
+            )}
             <button
               type="button"
               onClick={next}
-              disabled={!EMAIL_RE.test(email.trim())}
+              disabled={!contactValid}
               className={primaryBtnCls}
             >
               {t('signup.nav.next')}
             </button>
           </StepInput>
         )
-      case 'phone':
-        // P54 — phone is MANDATORY (owner decision): no skip, Next gates on
-        // at least 7 digits.
+      }
+      case 'password':
+        // P55 — required password (owner decision): sign in with email or
+        // phone + this password. Meter + confirm + show/hide per the spec.
         return (
-          <StepInput title={t('signup.step.phone')} hint={t('signup.step.phoneHint')}>
-            <input
-              id="phone"
-              type="tel"
-              autoFocus
-              autoComplete="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(555) 123-4567"
-              maxLength={30}
-              aria-label={t('signup.step.phone')}
-              className={inputCls}
-              onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 7) next() }}
+          <StepInput title={t('signup.step.password')} hint={t('signup.step.passwordHint')}>
+            <PasswordFields
+              password={password}
+              confirm={passwordConfirm}
+              onPasswordChange={setPassword}
+              onConfirmChange={setPasswordConfirm}
+              lang={lang}
             />
             <button
               type="button"
               onClick={next}
-              disabled={phone.replace(/\D/g, '').length < 7}
+              disabled={password.length < 8 || password !== passwordConfirm}
               className={primaryBtnCls}
             >
               {t('signup.nav.next')}
@@ -516,8 +566,8 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
           [t('signup.review.you'), fullName, 'yourName'],
           ...(!isSelf ? ([[t('signup.review.resident'), residentName, 'resident']] as Array<[string, string, StepId]>) : []),
           ...(roomNumber.trim() ? ([[t('signup.review.room'), roomNumber, 'resident']] as Array<[string, string, StepId]>) : []),
-          [t('signup.review.email'), email, 'email'],
-          ...(phone.trim() ? ([[t('signup.review.phone'), phone, 'phone']] as Array<[string, string, StepId]>) : []),
+          ...(email.trim() ? ([[t('signup.review.email'), email, 'contact']] as Array<[string, string, StepId]>) : []),
+          ...(phone.trim() ? ([[t('signup.review.phone'), phone, 'contact']] as Array<[string, string, StepId]>) : []),
         ]
         return (
           <div className="flex flex-col gap-4">

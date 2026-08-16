@@ -10,7 +10,8 @@ import { CouponManager } from '@/components/settings/coupon-manager'
 
 interface ClaimRequest {
   id: string
-  email: string
+  /** P55 — null for phone-only signups. */
+  email: string | null
   fullName: string
   phone: string | null
   dateOfBirth: string | null
@@ -406,7 +407,7 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-stone-500">{c.email}</p>
+                    <p className="text-xs text-stone-500">{c.email ?? c.phone ?? '—'}</p>
                     {c.phone && <p className="text-xs text-stone-400">{c.phone}</p>}
                     <p className="text-[10px] text-stone-400 mt-1">Created {formatDate(c.createdAt)}</p>
                   </div>
@@ -504,7 +505,7 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-stone-500">{c.email}</p>
+                    <p className="text-xs text-stone-500">{c.email ?? c.phone ?? '—'}</p>
                     {c.phone && <p className="text-xs text-stone-400">{c.phone}</p>}
                     {/* P50 — what the applicant told us about the resident */}
                     {c.claimedResidentName && (
