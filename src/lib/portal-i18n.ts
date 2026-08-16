@@ -366,12 +366,11 @@ export const PORTAL_STRINGS = {
     es: 'El enlace vence en 72 horas. Revise su carpeta de spam si no lo ve.',
   },
   'signup.goToSignIn': { en: 'Go to sign-in page', es: 'Ir a la página de acceso' },
-  'signup.pendingTitle': { en: 'Request received', es: 'Solicitud recibida' },
-  'signup.pendingBody': {
-    en: "We couldn't automatically match your name to a resident. The facility team will review your request and send you an email when access is granted.",
-    es: 'No pudimos vincular automáticamente su nombre con un residente. El equipo del centro revisará su solicitud y le enviará un correo cuando se otorgue el acceso.',
+  'signup.created.title': { en: 'Your account is ready', es: 'Su cuenta está lista' },
+  'signup.created.body': {
+    en: 'We set up the salon account. Check your email for a sign-in link.',
+    es: 'Configuramos la cuenta del salón. Revise su correo para el enlace de acceso.',
   },
-  'signup.pendingEta': { en: 'This usually takes 1–2 business days.', es: 'Esto suele tardar de 1 a 2 días hábiles.' },
   'signup.alreadyAccess': {
     en: 'You already have portal access. Sign in instead.',
     es: 'Ya tiene acceso al portal. Inicie sesión.',

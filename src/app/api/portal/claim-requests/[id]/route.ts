@@ -31,6 +31,13 @@ const patchSchema = z.discriminatedUnion('action', [
     action: z.literal('reject'),
     notes: z.string().max(2000).optional().nullable(),
   }),
+  // P54 — uniform account model: acknowledge an auto-created resident as
+  // genuinely new (the merge path runs POST /api/residents/merge first,
+  // then keep). Valid ONLY for status 'auto_created'.
+  z.object({
+    action: z.literal('keep'),
+    notes: z.string().max(2000).optional().nullable(),
+  }),
 ])
 
 export async function PATCH(
@@ -70,11 +77,28 @@ export async function PATCH(
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (claim.status !== 'pending_review') {
+    const { action, notes } = parsed.data
+
+    // P54 — 'keep' reviews auto_created claims; approve/reject review the
+    // legacy pending_review queue. Anything else is already settled.
+    const reviewableStatus = action === 'keep' ? 'auto_created' : 'pending_review'
+    if (claim.status !== reviewableStatus) {
       return Response.json({ error: 'Claim already reviewed' }, { status: 409 })
     }
 
-    const { action, notes } = parsed.data
+    if (action === 'keep') {
+      // The account + resident are already live (created at signup time) —
+      // keep is a pure acknowledgment. No email, no linking, no coupon.
+      await db.update(portalClaimRequests)
+        .set({
+          status: 'approved',
+          reviewedBy: user.id,
+          reviewedAt: new Date(),
+          notes: notes ?? null,
+        })
+        .where(eq(portalClaimRequests.id, id))
+      return Response.json({ data: { status: 'approved' } })
+    }
 
     if (action === 'reject') {
       await db.update(portalClaimRequests)

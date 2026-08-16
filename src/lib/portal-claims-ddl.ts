@@ -26,6 +26,8 @@ export async function ensurePortalClaimsSchema(): Promise<void> {
     await db.execute(sql`ALTER TABLE portal_claim_requests ADD COLUMN IF NOT EXISTS room_number text;`)
     await db.execute(sql`ALTER TABLE portal_claim_requests ADD COLUMN IF NOT EXISTS relationship text;`)
     await db.execute(sql`ALTER TABLE portal_claim_requests ADD COLUMN IF NOT EXISTS family_confirmed boolean;`)
+    // 0037 — P54 uniform account model: near-miss suggestion for one-tap merge
+    await db.execute(sql`ALTER TABLE portal_claim_requests ADD COLUMN IF NOT EXISTS merge_suggestion_resident_id uuid REFERENCES residents(id) ON DELETE SET NULL;`)
     await db.execute(sql`ALTER TABLE portal_accounts ADD COLUMN IF NOT EXISTS onboarded_at timestamptz;`)
   } catch {
     _ensured = false

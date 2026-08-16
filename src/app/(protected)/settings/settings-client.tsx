@@ -34,12 +34,18 @@ interface ClaimRequest {
   dateOfBirth: string | null
   matchType: string | null
   matchConfidence: string | null
+  residentId?: string | null
   residentName: string | null
   residentRoom: string | null
   // P50 — what the applicant typed in the signup wizard
   claimedResidentName: string | null
   claimedRoom: string | null
   relationship: string | null
+  // P54 — uniform account model: auto_created claims + merge suggestion
+  status?: string
+  mergeSuggestionResidentId?: string | null
+  mergeSuggestionName?: string | null
+  mergeSuggestionRoom?: string | null
   createdAt: string
 }
 

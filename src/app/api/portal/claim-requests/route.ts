@@ -28,9 +28,13 @@ export async function GET(request: NextRequest) {
       ? (url.searchParams.get('facilityId') ?? null)
       : facilityUser!.facilityId
 
+    // P54 — the default review queue is BOTH needs-attention states: legacy
+    // pending_review claims AND auto_created ones (uniform account model —
+    // resident already live, admin decides keep-or-merge).
+    const statuses = status === 'pending_review' ? ['pending_review', 'auto_created'] : [status]
     const where = facilityId
-      ? and(eq(portalClaimRequests.facilityId, facilityId), eq(portalClaimRequests.status, status))
-      : eq(portalClaimRequests.status, status)
+      ? and(eq(portalClaimRequests.facilityId, facilityId), inArray(portalClaimRequests.status, statuses))
+      : inArray(portalClaimRequests.status, statuses)
 
     const rows = await db.query.portalClaimRequests.findMany({
       where,
@@ -51,6 +55,7 @@ export async function GET(request: NextRequest) {
         matchType: true,
         matchConfidence: true,
         familyConfirmed: true, // P52 — the family tapped "Yes" on the match card
+        mergeSuggestionResidentId: true, // P54 — near-miss for one-tap merge
         status: true,
         reviewedAt: true,
         notes: true,
@@ -58,8 +63,11 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Enrich with resident name for display
-    const residentIds = rows.map((r) => r.residentId).filter((id): id is string => id !== null)
+    // Enrich with resident name for display (linked resident + P54 merge suggestion)
+    const residentIds = [
+      ...rows.map((r) => r.residentId),
+      ...rows.map((r) => r.mergeSuggestionResidentId),
+    ].filter((id): id is string => id !== null)
     const residentMap = new Map<string, { name: string; roomNumber: string | null }>()
     if (residentIds.length > 0) {
       const residentRows = await db.query.residents.findMany({
@@ -77,6 +85,12 @@ export async function GET(request: NextRequest) {
       claimedRoom: r.roomNumber ?? null,
       residentName: r.residentId ? (residentMap.get(r.residentId)?.name ?? null) : null,
       residentRoom: r.residentId ? (residentMap.get(r.residentId)?.roomNumber ?? null) : null,
+      mergeSuggestionName: r.mergeSuggestionResidentId
+        ? (residentMap.get(r.mergeSuggestionResidentId)?.name ?? null)
+        : null,
+      mergeSuggestionRoom: r.mergeSuggestionResidentId
+        ? (residentMap.get(r.mergeSuggestionResidentId)?.roomNumber ?? null)
+        : null,
     }))
 
     return Response.json({ data })

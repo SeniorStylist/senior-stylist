@@ -34,7 +34,9 @@ interface Props {
   previewMode?: boolean
 }
 
-type Phase = 'wizard' | 'auto_approved' | 'pending'
+// P54 — no 'pending' phase anymore: unsure signups auto-create a resident
+// ('created') and the admin keep-or-merges afterward. Every path succeeds.
+type Phase = 'wizard' | 'auto_approved' | 'created'
 type Relationship = 'self' | 'spouse' | 'child' | 'poa' | 'other'
 
 // P52 — step IDs replace numeric indices; 'confirm' is present only when the
@@ -174,7 +176,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
         setError(firstErrorMessage(j) ?? t('common.error'))
         return
       }
-      setPhase(j.status === 'auto_approved' ? 'auto_approved' : 'pending')
+      setPhase(j.status === 'auto_approved' ? 'auto_approved' : 'created')
     } catch {
       setError(t('common.networkError'))
     } finally {
@@ -205,19 +207,19 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
     )
   }
 
-  if (phase === 'pending') {
+  // P54 — the uniform model: unsure signups create the account on the spot
+  // (no more "we'll review your request" dead end).
+  if (phase === 'created') {
     return (
       <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center">
-        <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
+        <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p className="text-lg font-semibold text-stone-800">{t('signup.pendingTitle')}</p>
-        <p className="text-base text-stone-500 mt-2">{t('signup.pendingBody')}</p>
-        <p className="text-sm text-stone-500 mt-3">{t('signup.pendingEta')}</p>
+        <p className="text-lg font-semibold text-stone-800">{t('signup.created.title')}</p>
+        <p className="text-base text-stone-500 mt-2">{t('signup.created.body')}</p>
+        <p className="text-sm text-stone-500 mt-2">{t('signup.linkExpirySpam')}</p>
         {previewMode && (
           <p className="mt-3 text-sm font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             {t('signup.preview.done')}

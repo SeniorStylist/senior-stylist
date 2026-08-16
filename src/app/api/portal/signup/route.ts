@@ -12,7 +12,8 @@ import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { createMagicLink } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
-import { sendEmail, buildPortalMagicLinkEmailHtml, buildClaimPendingEmailHtml } from '@/lib/email'
+import { randomBytes } from 'node:crypto'
+import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
 import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
 import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
@@ -232,7 +233,63 @@ export async function POST(request: NextRequest) {
           : bestMatch.score >= 0.80 ? 'high' : bestMatch.score >= 0.65 ? 'medium' : 'low'
         : null
 
-  const claimValues = {
+  // ── P54 UNIFORM ACCOUNT MODEL (Josh, Fitzgerald meeting) ──────────────────
+  // No pending dead-end: when the match is NOT confident, create a brand-new
+  // resident RIGHT NOW (the applicant becomes the POA/contact), link the
+  // account, and the family proceeds like everyone else. The admin reviews
+  // keep-or-merge afterward (near-miss candidate stored as
+  // mergeSuggestionResidentId for one-tap merge; ambiguous ties never
+  // pre-pick — P53 doctrine).
+
+  // P53 dry-run exit: the full match + confidence derivation ran above; stop
+  // before ANY write (resident/account/claim/coupon/emails/bells).
+  if (preview) return Response.json({ status: 'created', preview: true })
+
+  // Idempotency: the submit button disables in flight and a later re-POST hits
+  // the top-of-route 409, but a racing double-tap could slip both requests past
+  // it — re-check the active-link guard just before creating a resident.
+  const linkRecheck = await db
+    .select({ id: portalAccountResidents.id })
+    .from(portalAccountResidents)
+    .innerJoin(portalAccounts, eq(portalAccounts.id, portalAccountResidents.portalAccountId))
+    .innerJoin(residents, eq(residents.id, portalAccountResidents.residentId))
+    .where(
+      and(
+        eq(portalAccounts.email, normalizedEmail),
+        eq(portalAccountResidents.facilityId, facility.id),
+        eq(residents.active, true),
+      ),
+    )
+    .limit(1)
+  if (linkRecheck.length > 0) return Response.json({ status: 'created' })
+
+  // Create the resident from what the family told us (same shape as the
+  // admin approve-createResident branch): portalToken so booking-confirmation
+  // emails work; poaEmail is the portal login identity.
+  const [newResident] = await db
+    .insert(residents)
+    .values({
+      facilityId: facility.id,
+      name: (claimedResidentName || fullName).trim(),
+      roomNumber: roomNumber?.trim() || null,
+      poaName: relationship === 'self' ? null : fullName,
+      poaEmail: normalizedEmail,
+      poaPhone: phone ?? null,
+      portalToken: randomBytes(8).toString('hex'),
+    })
+    .returning({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
+
+  const portalAccountId = await upsertAccountAndLink({
+    email: normalizedEmail,
+    fullName,
+    phone: phone ?? null,
+    dateOfBirth: dateOfBirth ?? null,
+    facilityId: facility.id,
+    residentIds: [newResident.id],
+  })
+
+  // Review-queue row — NOT best-effort: this IS the admin's keep-or-merge card.
+  await db.insert(portalClaimRequests).values({
     facilityId: facility.id,
     facilityCode: facility.facilityCode ?? facilityCode,
     email: normalizedEmail,
@@ -242,46 +299,24 @@ export async function POST(request: NextRequest) {
     residentName: claimedResidentName || null,
     roomNumber: roomNumber?.trim() || null,
     relationship: relationship ?? null,
-    residentId: ambiguous ? null : bestMatch?.resident.id ?? null,
+    residentId: newResident.id,
+    mergeSuggestionResidentId: ambiguous ? null : bestMatch?.resident.id ?? null,
     matchType: ambiguous ? null : bestMatch?.type ?? null,
     matchConfidence: confidence,
-    // P53 — record the family's confirmation only when the server's own match
-    // was confident; the badge must never over-claim.
     familyConfirmed: familyConfirmed && m?.confident ? true : null,
-    status: 'pending_review' as const,
-  }
-
-  // P53 — DRY RUN exit: the full match + confidence derivation ran above;
-  // stop before ANY write (claim insert/dedup-update, admin email + bell,
-  // applicant email).
-  if (preview) return Response.json({ status: 'pending', preview: true })
-
-  // P53 — dedup: an anxious double-submit used to create TWO pending cards
-  // (and two "Create as new resident" buttons → duplicate residents). Update
-  // the existing pending claim in place and skip the duplicate notifications.
-  const existingClaim = await db.query.portalClaimRequests.findFirst({
-    where: and(
-      eq(portalClaimRequests.email, normalizedEmail),
-      eq(portalClaimRequests.facilityId, facility.id),
-      eq(portalClaimRequests.status, 'pending_review'),
-    ),
-    columns: { id: true },
+    status: 'auto_created',
   })
-  if (existingClaim) {
-    await db.update(portalClaimRequests).set(claimValues).where(eq(portalClaimRequests.id, existingClaim.id))
-    return Response.json({ status: 'pending' })
-  }
 
-  await db.insert(portalClaimRequests).values(claimValues)
+  await issueWelcomeCoupon(facility.id, portalAccountId, newResident.id).catch(() => {})
 
-  // Notify facility admin (fire-and-forget)
+  // Notify facility admin (fire-and-forget) — reworded for the new model.
   const adminEmail = facility.contactEmail ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL
   if (adminEmail) {
     const settingsUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/settings?section=portal`
     sendEmail({
       to: adminEmail,
-      subject: `New Family Portal account request — ${facility.name}`,
-      html: buildClaimRequestEmailHtml({ fullName, email: normalizedEmail, facilityName: facility.name, settingsUrl }),
+      subject: `New family account — ${facility.name}`,
+      html: buildClaimRequestEmailHtml({ fullName, email: normalizedEmail, facilityName: facility.name, settingsUrl, residentName: newResident.name }),
     }).catch(() => {})
   }
 
@@ -289,40 +324,37 @@ export async function POST(request: NextRequest) {
   import('@/lib/notify').then(({ notifyFacilityAdmins }) =>
     notifyFacilityAdmins(facility.id, {
       type: 'portal_claim',
-      title: 'New Family Portal request',
-      body: `${fullName} asked for portal access${claimedResidentName ? ` for ${claimedResidentName}` : ''} — review it in Settings.`,
+      title: 'New family account created',
+      body: `${fullName} signed up — a new resident "${newResident.name}" was created. Review or merge it in Settings.`,
       url: '/settings?section=portal',
     }),
   ).catch(() => {})
 
-  // P50 — the applicant gets a real confirmation instead of silence.
-  sendEmail({
+  // Magic link — AWAITED (the family's sign-in path; user-initiated send).
+  const magicLink = await createMagicLink(normalizedEmail, newResident.id, facility.facilityCode ?? facilityCode)
+  await sendEmail({
     to: normalizedEmail,
-    subject: `We received your request — ${facility.name} Family Portal`,
-    html: buildClaimPendingEmailHtml({ fullName, facilityName: facility.name }),
-  }).catch(() => {})
+    subject: `Welcome to the ${facility.name} Family Portal`,
+    html: buildPortalMagicLinkEmailHtml({ residentNames: [newResident.name], facilityName: facility.name, link: magicLink, expiresInHours: 72 }),
+  })
 
-  return Response.json({ status: 'pending' })
+  return Response.json({ status: 'created' })
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-async function autoApprove(opts: {
+// P54 — the account-upsert + resident-link core, shared by autoApprove (matched
+// residents) and the uniform-model auto-create branch (brand-new resident).
+async function upsertAccountAndLink(opts: {
   email: string
   fullName: string
   phone: string | null
   dateOfBirth: string | null
   facilityId: string
-  facilityCode: string
-  facilityName: string
-  matchedResidents: Array<{ id: string; name: string; roomNumber: string | null }>
-  matchType: string
-  matchConfidence: string
-  familyConfirmed?: boolean
+  residentIds: string[]
 }): Promise<string> {
-  const { email, fullName, phone, dateOfBirth, facilityId, facilityCode, facilityName, matchedResidents, matchType, matchConfidence, familyConfirmed } = opts
+  const { email, fullName, phone, dateOfBirth, facilityId, residentIds } = opts
 
-  // Upsert portal account
   const existing = await db.query.portalAccounts.findFirst({
     where: eq(portalAccounts.email, email),
     columns: { id: true },
@@ -353,13 +385,39 @@ async function autoApprove(opts: {
     portalAccountId = created.id
   }
 
-  // Link residents
-  for (const r of matchedResidents) {
+  for (const residentId of residentIds) {
     await db
       .insert(portalAccountResidents)
-      .values({ portalAccountId, residentId: r.id, facilityId })
+      .values({ portalAccountId, residentId, facilityId })
       .onConflictDoNothing()
   }
+
+  return portalAccountId
+}
+
+async function autoApprove(opts: {
+  email: string
+  fullName: string
+  phone: string | null
+  dateOfBirth: string | null
+  facilityId: string
+  facilityCode: string
+  facilityName: string
+  matchedResidents: Array<{ id: string; name: string; roomNumber: string | null }>
+  matchType: string
+  matchConfidence: string
+  familyConfirmed?: boolean
+}): Promise<string> {
+  const { email, fullName, phone, dateOfBirth, facilityId, facilityCode, facilityName, matchedResidents, matchType, matchConfidence, familyConfirmed } = opts
+
+  const portalAccountId = await upsertAccountAndLink({
+    email,
+    fullName,
+    phone,
+    dateOfBirth,
+    facilityId,
+    residentIds: matchedResidents.map((r) => r.id),
+  })
 
   // Audit record
   await db.insert(portalClaimRequests).values({
@@ -388,31 +446,36 @@ async function autoApprove(opts: {
   return portalAccountId
 }
 
+// P54 — reworded for the uniform model: the signup already CREATED a resident;
+// the admin's job is keep-or-merge, not approve-or-reject.
 function buildClaimRequestEmailHtml(params: {
   fullName: string
   email: string
   facilityName: string
   settingsUrl: string
+  residentName: string
 }): string {
-  const { fullName, email, facilityName, settingsUrl } = params
+  const { fullName, email, facilityName, settingsUrl, residentName } = params
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
     <div style="background:#8B2E4A;padding:24px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:18px;font-weight:700;">New Family Portal Request</h1>
+      <h1 style="margin:0;color:#fff;font-size:18px;font-weight:700;">New Family Account</h1>
       <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">${facilityName}</p>
     </div>
     <div style="padding:28px 32px;">
       <p style="margin:0 0 16px;color:#1C1917;font-size:15px;line-height:1.6;">
-        <strong>${fullName}</strong> (${email}) has requested Family Portal access and couldn't be automatically matched to a resident.
+        <strong>${fullName}</strong> (${email}) signed up and a new resident record
+        &ldquo;<strong>${residentName}</strong>&rdquo; was created for them.
       </p>
       <p style="margin:0 0 24px;color:#57534E;font-size:14px;line-height:1.5;">
-        Review and approve or reject this request in Settings → Family Portal.
+        If this resident already exists under a different spelling, merge the two in
+        Settings → Family Portal — otherwise keep it and you're done.
       </p>
       <p style="margin:0;">
-        <a href="${settingsUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;">Review Request</a>
+        <a href="${settingsUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;">Review New Account</a>
       </p>
     </div>
   </div>

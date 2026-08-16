@@ -988,6 +988,9 @@ export const portalClaimRequests = pgTable('portal_claim_requests', {
   // (drizzle/0035, self-bootstrapped by portal-claims-ddl.ts)
   familyConfirmed: boolean('family_confirmed'),
   residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  // P54 — for status 'auto_created': the near-miss best-match resident so the
+  // admin review card can offer one-tap merge (never set when ambiguous).
+  mergeSuggestionResidentId: uuid('merge_suggestion_resident_id').references(() => residents.id, { onDelete: 'set null' }),
   // 'email' | 'name' | 'resident_room' | 'resident_confirmed' | null
   matchType: text('match_type'),
   // 'high' | 'medium' | 'low' | null

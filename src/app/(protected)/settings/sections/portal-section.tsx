@@ -17,13 +17,20 @@ interface ClaimRequest {
   matchConfidence: string | null
   /** P52 — the family tapped "Yes — that's them" on the signup match card. */
   familyConfirmed?: boolean | null
-  /** Auto-matched roster resident (may be null). */
+  /** Linked/auto-matched roster resident (may be null). */
+  residentId?: string | null
   residentName: string | null
   residentRoom: string | null
   /** P50 — what the applicant typed in the wizard. */
   claimedResidentName: string | null
   claimedRoom: string | null
   relationship: string | null
+  /** P54 — 'pending_review' (legacy queue) | 'auto_created' (uniform model). */
+  status?: string
+  /** P54 — near-miss candidate for one-tap merge on auto_created claims. */
+  mergeSuggestionResidentId?: string | null
+  mergeSuggestionName?: string | null
+  mergeSuggestionRoom?: string | null
   createdAt: string
 }
 
@@ -73,6 +80,9 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
   const [residentOptions, setResidentOptions] = useState<Array<{ id: string; name: string; roomNumber: string | null }> | null>(null)
   const [overrideFor, setOverrideFor] = useState<Record<string, string>>({})
   const [pickerOpenFor, setPickerOpenFor] = useState<string | null>(null)
+  // P54 — auto_created cards: "merge into a different resident" picker state.
+  const [mergePickerFor, setMergePickerFor] = useState<string | null>(null)
+  const [mergeTargetFor, setMergeTargetFor] = useState<Record<string, string>>({})
 
   const loadResidentOptions = async () => {
     if (residentOptions) return
@@ -147,6 +157,74 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
     }
   }
 
+  // P54 — uniform account model: the resident + account are already live;
+  // "Keep" just acknowledges the card.
+  const handleKeep = async (id: string) => {
+    setReviewingId(id)
+    try {
+      const res = await fetch(`/api/portal/claim-requests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'keep' }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setClaims((prev) => prev.filter((c) => c.id !== id))
+        toast.success('Kept as a new resident')
+      } else {
+        toast.error(firstErrorMessage(j) ?? 'Failed to update request')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setReviewingId(null)
+    }
+  }
+
+  // P54 — merge the auto-created resident INTO an existing one (full P36
+  // sweep: portal links, cards where possible, billing history follow the
+  // survivor), then mark the claim reviewed via 'keep'.
+  const handleMerge = async (c: ClaimRequest, targetId: string, targetName: string) => {
+    if (!c.residentId) return
+    setReviewingId(c.id)
+    try {
+      const res = await fetch('/api/residents/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keepId: targetId, mergeId: c.residentId }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(firstErrorMessage(j) ?? 'Merge failed')
+        return
+      }
+      // Warn LOUDLY when the survivor already had a Stripe customer — the
+      // signup card stays behind and the family must re-add it (error variant
+      // is persistent, success auto-dismisses).
+      if ((j.data?.cardsLeftBehind ?? 0) > 0) {
+        toast.error("Merged — but the family's saved card couldn't move with them. Ask them to re-add it from the portal's Billing page.")
+      }
+      const patch = await fetch(`/api/portal/claim-requests/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'keep', notes: `Merged into ${targetName}` }),
+      })
+      if (patch.ok) {
+        setClaims((prev) => prev.filter((x) => x.id !== c.id))
+        toast.success(`Merged into ${targetName}`)
+      } else {
+        // Merge succeeded but the claim ack failed — drop the card anyway so
+        // the admin doesn't re-run the merge; the claim stays reviewable.
+        toast.error('Merged, but the request card could not be marked reviewed. Refresh the page.')
+      }
+      router.refresh()
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setReviewingId(null)
+    }
+  }
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
@@ -163,6 +241,11 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
       </span>
     )
   }
+
+  // P54 — two review lanes: auto_created (account already live, keep-or-merge)
+  // and the legacy pending_review queue (pre-deploy claims still in flight).
+  const autoCreatedClaims = claims.filter((c) => c.status === 'auto_created')
+  const pendingClaims = claims.filter((c) => c.status !== 'auto_created')
 
   return (
     <div className="space-y-5">
@@ -296,14 +379,119 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
       {/* P36 — Portal status: coverage counts, bulk invites, printable QR poster */}
       <PortalStatusCard facilityName={facility.name} facilityCode={f.facilityCode ?? null} />
 
-      {/* Pending claim requests */}
-      {claims.length > 0 && (
+      {/* P54 — new family accounts (auto-created resident, keep-or-merge) */}
+      {autoCreatedClaims.length > 0 && (
         <div className="mt-2">
           <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
-            Pending Access Requests ({claims.length})
+            New Family Accounts to Review ({autoCreatedClaims.length})
           </h3>
           <div className="space-y-3">
-            {claims.map((c) => (
+            {autoCreatedClaims.map((c) => (
+              <div key={c.id} className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
+                <p className="text-[11px] font-semibold text-sky-700 uppercase tracking-wide mb-2">
+                  New resident created from a family signup
+                </p>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <p className="text-sm font-semibold text-stone-800">
+                      {c.residentName ?? c.claimedResidentName ?? c.fullName}
+                      {c.residentRoom && <span className="ml-1.5 text-xs font-normal text-stone-500">Rm {c.residentRoom}</span>}
+                    </p>
+                    <p className="text-xs text-stone-600 mt-1">
+                      Signed up by <span className="font-medium">{c.fullName}</span>
+                      {c.relationship && (
+                        <span className="ml-1.5 text-[10px] font-medium text-stone-500 bg-stone-100 rounded-full px-2 py-0.5">
+                          {RELATIONSHIP_LABEL[c.relationship] ?? c.relationship}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-stone-500">{c.email}</p>
+                    {c.phone && <p className="text-xs text-stone-400">{c.phone}</p>}
+                    <p className="text-[10px] text-stone-400 mt-1">Created {formatDate(c.createdAt)}</p>
+                  </div>
+                  {c.mergeSuggestionName && (
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-medium text-amber-700">Possible duplicate:</p>
+                      <p className="text-xs font-semibold text-stone-700">{c.mergeSuggestionName}</p>
+                      {c.mergeSuggestionRoom && <p className="text-[10px] text-stone-500">Rm {c.mergeSuggestionRoom}</p>}
+                      {confidenceBadge(c.matchConfidence)}
+                    </div>
+                  )}
+                </div>
+                {/* Merge target picker (full roster) */}
+                {mergePickerFor === c.id && (
+                  <div className="mb-2 flex gap-2">
+                    <select
+                      value={mergeTargetFor[c.id] ?? ''}
+                      onChange={(e) => setMergeTargetFor((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                      className="flex-1 px-3 py-2 text-xs border border-stone-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20"
+                    >
+                      <option value="">Pick the existing resident to merge into…</option>
+                      {(residentOptions ?? [])
+                        .filter((r) => r.id !== c.residentId)
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}{r.roomNumber ? ` · Rm ${r.roomNumber}` : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={reviewingId === c.id || !mergeTargetFor[c.id]}
+                      onClick={() => {
+                        const target = (residentOptions ?? []).find((r) => r.id === mergeTargetFor[c.id])
+                        if (target) void handleMerge(c, target.id, target.name)
+                      }}
+                      className="text-xs font-semibold bg-amber-600 text-white rounded-xl px-4 py-2 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                    >
+                      {reviewingId === c.id ? 'Merging…' : 'Merge'}
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={reviewingId === c.id}
+                    onClick={() => handleKeep(c.id)}
+                    className="flex-1 min-w-[45%] text-xs font-semibold bg-[#8B2E4A] text-white rounded-xl py-2 hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {reviewingId === c.id ? 'Saving…' : '✓ Keep as new resident'}
+                  </button>
+                  {c.mergeSuggestionResidentId && c.mergeSuggestionName ? (
+                    <button
+                      type="button"
+                      disabled={reviewingId === c.id}
+                      onClick={() => handleMerge(c, c.mergeSuggestionResidentId!, c.mergeSuggestionName!)}
+                      className="flex-1 min-w-[45%] text-xs font-semibold bg-white text-amber-700 border border-amber-300 rounded-xl py-2 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {reviewingId === c.id ? 'Merging…' : `Merge into ${c.mergeSuggestionName}`}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMergePickerFor(mergePickerFor === c.id ? null : c.id)
+                      void loadResidentOptions()
+                    }}
+                    className="w-full text-[11px] font-medium text-stone-500 hover:text-[#8B2E4A] hover:underline text-center"
+                  >
+                    {mergePickerFor === c.id ? 'Cancel merge' : 'Merge into a different resident…'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending claim requests */}
+      {pendingClaims.length > 0 && (
+        <div className="mt-2">
+          <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">
+            Pending Access Requests ({pendingClaims.length})
+          </h3>
+          <div className="space-y-3">
+            {pendingClaims.map((c) => (
               <div key={c.id} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div>

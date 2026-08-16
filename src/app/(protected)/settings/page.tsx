@@ -36,16 +36,19 @@ export default async function SettingsPage() {
         // guarded, once per instance — the P19 hot-path ensure pattern).
         ensurePortalClaimsSchema().then(() =>
           db.query.portalClaimRequests.findMany({
+            // P54 — the review queue is legacy pending_review claims PLUS
+            // auto_created ones (uniform account model: keep-or-merge).
             where: and(
               eq(portalClaimRequests.facilityId, facilityUser.facilityId),
-              eq(portalClaimRequests.status, 'pending_review'),
+              inArray(portalClaimRequests.status, ['pending_review', 'auto_created']),
             ),
             orderBy: (t, { desc }) => [desc(t.createdAt)],
             columns: {
               id: true, email: true, fullName: true, phone: true, dateOfBirth: true,
               residentName: true, roomNumber: true, relationship: true,
               matchType: true, matchConfidence: true, familyConfirmed: true,
-              residentId: true, createdAt: true,
+              residentId: true, mergeSuggestionResidentId: true, status: true,
+              createdAt: true,
             },
           }),
         )
@@ -54,8 +57,11 @@ export default async function SettingsPage() {
 
   if (!facility) redirect('/dashboard')
 
-  // Enrich claim requests with resident names
-  const claimResidentIds = rawClaims.map((c) => c.residentId).filter((id): id is string => id !== null)
+  // Enrich claim requests with resident names (linked + P54 merge suggestion)
+  const claimResidentIds = [
+    ...rawClaims.map((c) => c.residentId),
+    ...rawClaims.map((c) => c.mergeSuggestionResidentId),
+  ].filter((id): id is string => id !== null)
   const claimResidentMap = new Map<string, { name: string; roomNumber: string | null }>()
   if (claimResidentIds.length > 0) {
     const claimResidents = await db.query.residents.findMany({
@@ -74,6 +80,12 @@ export default async function SettingsPage() {
     relationship: c.relationship ?? null,
     residentName: c.residentId ? (claimResidentMap.get(c.residentId)?.name ?? null) : null,
     residentRoom: c.residentId ? (claimResidentMap.get(c.residentId)?.roomNumber ?? null) : null,
+    mergeSuggestionName: c.mergeSuggestionResidentId
+      ? (claimResidentMap.get(c.mergeSuggestionResidentId)?.name ?? null)
+      : null,
+    mergeSuggestionRoom: c.mergeSuggestionResidentId
+      ? (claimResidentMap.get(c.mergeSuggestionResidentId)?.roomNumber ?? null)
+      : null,
   }))
 
   // Fetch last_sign_in_at from auth.users for status indicators
