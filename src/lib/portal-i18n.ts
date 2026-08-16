@@ -229,6 +229,15 @@ export const PORTAL_STRINGS = {
     en: 'Pick both a start and end date, or choose Anytime.',
     es: 'Elija fecha de inicio y de fin, o seleccione Cualquier fecha.',
   },
+  // P55 — working-day guidance (days = localized weekday names)
+  'request.workingDaysHint': {
+    en: 'The stylist comes on {days}.',
+    es: 'La estilista viene los {days}.',
+  },
+  'request.notWorkingDay': {
+    en: "The stylist isn't there on those dates — the stylist comes on {days}. Please pick dates that include one of those days.",
+    es: 'La estilista no está esos días — la estilista viene los {days}. Elija fechas que incluyan uno de esos días.',
+  },
   'request.submitFailed': {
     en: 'Could not submit request. Please try again.',
     es: 'No se pudo enviar la solicitud. Inténtelo de nuevo.',

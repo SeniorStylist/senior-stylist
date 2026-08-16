@@ -18,6 +18,8 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { buildPortalRequestEmailHtml, buildRequestReceivedEmailHtml, sendEmail } from '@/lib/email'
 import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
+import { getFacilityWorkingDows } from '@/lib/facility-working-days'
+import { formatWorkingDayNames, rangeHasWorkingDow } from '@/lib/working-days'
 import { and, eq, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
@@ -69,6 +71,20 @@ export async function POST(request: NextRequest) {
     })
     if (svcRows.length !== serviceIds.length) {
       return Response.json({ error: 'One or more services not available' }, { status: 422 })
+    }
+
+    // P55 — soft-validate the date window against real stylist working days
+    // (only when availability data exists; empty = no restriction).
+    if (preferredDateFrom && preferredDateTo) {
+      const workingDows = await getFacilityWorkingDows(residentRow.facilityId)
+      if (!rangeHasWorkingDow(preferredDateFrom, preferredDateTo, workingDows)) {
+        return Response.json(
+          {
+            error: `The stylist isn't there on those dates — the stylist comes on ${formatWorkingDayNames(workingDows, 'en-US')}. Please pick dates that include one of those days.`,
+          },
+          { status: 422 },
+        )
+      }
     }
     const orderedSvcs = serviceIds
       .map((id) => svcRows.find((s) => s.id === id))

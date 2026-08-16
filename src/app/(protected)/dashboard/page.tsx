@@ -10,6 +10,7 @@ import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { sanitizeStylists, sanitizeFacility, toClientJson, toRosterStylist } from '@/lib/sanitize'
 import { getMostUsedServiceIds } from '@/lib/resident-service-usage'
 import { getPaymentCoverageMap } from '@/lib/payment-signals'
+import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
 
@@ -110,7 +111,7 @@ export default async function DashboardPage() {
     // tutorial's seeded resident/service/booking appear in the booking modal etc.
     const tutorialMode = await isTutorialModeActive()
 
-    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings, mostUsedMap, paymentFlags] = await Promise.all([
+    const [residentsList, stylistsList, servicesList, pendingRequests, openCoverageRequests, working, todayCheckin, todayStylistBookings, mostUsedMap, paymentFlags, workingDows] = await Promise.all([
       db.query.residents.findMany({
         where: and(
           eq(residents.facilityId, facilityUser.facilityId),
@@ -275,6 +276,8 @@ export default async function DashboardPage() {
       getMostUsedServiceIds(facilityUser.facilityId),
       // P51 — card-on-file / salon-credit booleans per resident (self-guarding → {})
       getPaymentCoverageMap(facilityUser.facilityId),
+      // P55 — working days-of-week (drives the sign-up sheet preferred-date hint)
+      getFacilityWorkingDows(facilityUser.facilityId),
     ])
 
     if (!facility) redirect('/login')
@@ -330,6 +333,7 @@ export default async function DashboardPage() {
           alreadyCheckedIn={!!todayCheckin}
           checkinTodayBookings={todayBookingsForClient}
           paymentFlags={paymentFlags}
+          workingDows={workingDows}
           canManageStylists={canManage}
           scheduleLocked={isFacilityScheduleLocked(facilityUser, isMaster)}
         />

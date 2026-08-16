@@ -6,6 +6,7 @@ import { and, asc, eq, isNotNull, or } from 'drizzle-orm'
 import { getUserFacility, isFacilityScheduleLocked } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { getPaymentCoverageMap } from '@/lib/payment-signals'
+import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 import { SignupSheetPageClient } from './signup-sheet-client'
 
 export default async function SignupSheetPage() {
@@ -20,7 +21,7 @@ export default async function SignupSheetPage() {
 
   const tutorialMode = await isTutorialModeActive()
 
-  const [facility, residentsList, servicesList, stylistsList, paymentFlags] = await Promise.all([
+  const [facility, residentsList, servicesList, stylistsList, paymentFlags, workingDows] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
     }),
@@ -67,6 +68,8 @@ export default async function SignupSheetPage() {
       .orderBy(asc(stylists.name)),
     // P51 — card-on-file / salon-credit booleans per resident
     getPaymentCoverageMap(facilityUser.facilityId),
+    // P55 — working days-of-week (drives the preferred-date hint)
+    getFacilityWorkingDows(facilityUser.facilityId),
   ])
 
   if (!facility) redirect('/dashboard')
@@ -80,6 +83,7 @@ export default async function SignupSheetPage() {
       stylists={JSON.parse(JSON.stringify(stylistsList))}
       role={facilityUser.role}
       paymentFlags={paymentFlags}
+      workingDows={workingDows}
       scheduleLocked={isFacilityScheduleLocked(facilityUser)}
     />
   )

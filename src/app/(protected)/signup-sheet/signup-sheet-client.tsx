@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast'
 import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { formatDateInTz } from '@/lib/time'
+import { formatWorkingDayNames, isWorkingDateStr } from '@/lib/working-days'
 
 interface Props {
   facilityId: string
@@ -19,6 +20,8 @@ interface Props {
   role: string
   // P51 — card-on-file / salon-credit booleans per resident
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P55 — days of week a real stylist works here (empty = no data → no restriction)
+  workingDows?: number[]
   // P53 — facility scheduling lockout: locked roles see status + cancel only
   // (the stylist converts requests to time slots; franchise admins keep it)
   scheduleLocked?: boolean
@@ -34,7 +37,7 @@ function formatDateChip(dateStr: string, tz: string) {
 
 // P54 — `stylists` prop kept in Props (SSR still passes it) but no longer
 // destructured: the assign-to-stylist dropdown is gone (day-based auto-assign).
-export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, role, paymentFlags = {}, scheduleLocked = false }: Props) {
+export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, role, paymentFlags = {}, workingDows = [], scheduleLocked = false }: Props) {
   const router = useRouter()
   const { toast } = useToast()
 
@@ -270,7 +273,9 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
     }
   }
 
-  const canSubmit = !!(selectedResidentId || residentSearch.trim()) && !submitting
+  // P55 — a preferred date on a day no stylist works is a dead-end request
+  const preferredDateOffDay = !!preferredDate && !isWorkingDateStr(preferredDate, workingDows)
+  const canSubmit = !!(selectedResidentId || residentSearch.trim()) && !submitting && !preferredDateOffDay
 
   return (
     <div className="page-enter max-w-3xl mx-auto px-4 py-8 space-y-6" data-tour="signup-sheet-page">
@@ -593,6 +598,14 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
             data-tour="signup-sheet-preferred-date"
             className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] transition-all"
           />
+          {/* P55 — no stylist works that day: block, don't queue a dead-end */}
+          {preferredDateOffDay ? (
+            <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+              No stylist works here that day — stylists come on {formatWorkingDayNames(workingDows, 'en-US')}.
+            </p>
+          ) : workingDows.length > 0 ? (
+            <p className="mt-1 text-[11px] text-stone-400">Stylist days: {formatWorkingDayNames(workingDows, 'en-US')}</p>
+          ) : null}
         </div>
 
         {/* Notes */}

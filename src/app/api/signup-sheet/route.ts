@@ -13,6 +13,8 @@ import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { facilities } from '@/db/schema'
 import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
+import { getFacilityWorkingDows } from '@/lib/facility-working-days'
+import { formatWorkingDayNames, isWorkingDateStr } from '@/lib/working-days'
 
 const createSchema = z.object({
   // P41 — master admin only: target ANY active facility. IGNORED otherwise.
@@ -129,6 +131,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Phase 12S — auto-assign when caller didn't pick a stylist.
+    // P55 — soft-validate the preferred date against real stylist working days
+    // (only when availability data exists; tutorial entries are exempt — the
+    // scripted tour types {{tomorrow}}, which may not be a real working day).
+    if (parsed.data.preferredDate && !isTutorialRequest(request)) {
+      const workingDows = await getFacilityWorkingDows(facilityId)
+      if (!isWorkingDateStr(parsed.data.preferredDate, workingDows)) {
+        return Response.json(
+          { error: `No stylist works there that day — stylists come on ${formatWorkingDayNames(workingDows, 'en-US')}.` },
+          { status: 422 },
+        )
+      }
+    }
+
     // P55 — demoOnly matches the entry's own is_demo: real entries must never
     // be assigned to Demo Sarah (they'd vanish from every real stylist's queue).
     let assignedToStylistId = parsed.data.assignedToStylistId ?? null

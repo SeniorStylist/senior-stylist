@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/toast'
 import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { queueableFetch, isQueued } from '@/lib/offline-queue'
 import { formatDateChip, formatMoney } from '@/lib/format'
+import { formatWorkingDayNames, isWorkingDateStr } from '@/lib/working-days'
 
 interface SignupSheetPanelProps {
   open: boolean
@@ -23,6 +24,8 @@ interface SignupSheetPanelProps {
   onResidentCreated?: (resident: Resident) => void
   // P51 — card-on-file / salon-credit booleans per resident (typeahead chip)
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P55 — days of week a real stylist works here (empty = no data → no restriction)
+  workingDows?: number[]
   // P53 — passed only for manage-tier viewers (franchise admin): "Pick time →"
   // on pending rows opens the convert modal. Locked facility roles omit it.
   onScheduleEntry?: (entry: SignupSheetEntryWithRelations) => void
@@ -40,6 +43,7 @@ export function SignupSheetPanel({
   role,
   onResidentCreated,
   paymentFlags = {},
+  workingDows = [],
   onScheduleEntry,
 }: SignupSheetPanelProps) {
   const { toast } = useToast()
@@ -212,7 +216,9 @@ export function SignupSheetPanel({
     setServiceDropdownOpen(false)
   }
 
-  const canSubmit = !!selectedResidentId && !!selectedServiceId && !submitting
+  // P55 — a preferred date on a day no stylist works is a dead-end request
+  const preferredDateOffDay = !!preferredDate && !isWorkingDateStr(preferredDate, workingDows)
+  const canSubmit = !!selectedResidentId && !!selectedServiceId && !submitting && !preferredDateOffDay
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -661,6 +667,14 @@ export function SignupSheetPanel({
                 onChange={(e) => setPreferredDate(e.target.value)}
                 className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
               />
+              {/* P55 — no stylist works that day: block, don't queue a dead-end */}
+              {preferredDateOffDay ? (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                  No stylist works here that day — stylists come on {formatWorkingDayNames(workingDows, 'en-US')}.
+                </p>
+              ) : workingDows.length > 0 ? (
+                <p className="text-[11px] text-stone-400">Stylist days: {formatWorkingDayNames(workingDows, 'en-US')}</p>
+              ) : null}
             </div>
 
             {/* Preferred time — P54: the stylist dropdown is GONE (owner

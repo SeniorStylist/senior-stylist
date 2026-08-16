@@ -129,6 +129,8 @@ interface DashboardClientProps {
   checkinTodayBookings?: TodayBooking[]
   // P51 — card-on-file / salon-credit booleans per resident
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P55 — days of week a real stylist works here (empty = no data, no restriction)
+  workingDows?: number[]
   // P51 lockdown — manage tier (master/franchise/bookkeeper): stylist panel
   // add/commission/click-through
   canManageStylists?: boolean
@@ -171,6 +173,7 @@ export function DashboardClient({
   alreadyCheckedIn = false,
   checkinTodayBookings = [],
   paymentFlags = {},
+  workingDows = [],
   canManageStylists = false,
   scheduleLocked = false,
 }: DashboardClientProps) {
@@ -1475,6 +1478,7 @@ export function DashboardClient({
           role={userRole}
           onResidentCreated={(r) => setResidents((prev) => [...prev, r])}
           paymentFlags={paymentFlags}
+          workingDows={workingDows}
           onScheduleEntry={scheduleLocked ? undefined : (e) => { setSignupSheetOpen(false); handleScheduleSignupEntry(e) }}
         />
       )}

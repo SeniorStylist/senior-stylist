@@ -9,6 +9,7 @@ import {
 } from '@/lib/service-sort'
 import { RequestClient } from './request-client'
 import { getPortalT } from '@/lib/portal-i18n-server'
+import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,27 +28,30 @@ export default async function RequestServicePage({
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
-  const facility = await db.query.facilities.findFirst({
-    where: eq(facilities.id, selected.facilityId),
-    columns: { id: true, serviceCategoryOrder: true },
-  })
-
-  const allServices = await db
-    .select({
-      id: services.id,
-      name: services.name,
-      description: services.description,
-      priceCents: services.priceCents,
-      durationMinutes: services.durationMinutes,
-      category: services.category,
-      pricingType: services.pricingType,
-      addonAmountCents: services.addonAmountCents,
-      pricingTiers: services.pricingTiers,
-      pricingOptions: services.pricingOptions,
-    })
-    .from(services)
-    .where(and(eq(services.facilityId, selected.facilityId), eq(services.active, true), eq(services.source, 'price_list')))
-    .orderBy(asc(services.name))
+  const [facility, allServices, workingDows] = await Promise.all([
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, selected.facilityId),
+      columns: { id: true, serviceCategoryOrder: true },
+    }),
+    db
+      .select({
+        id: services.id,
+        name: services.name,
+        description: services.description,
+        priceCents: services.priceCents,
+        durationMinutes: services.durationMinutes,
+        category: services.category,
+        pricingType: services.pricingType,
+        addonAmountCents: services.addonAmountCents,
+        pricingTiers: services.pricingTiers,
+        pricingOptions: services.pricingOptions,
+      })
+      .from(services)
+      .where(and(eq(services.facilityId, selected.facilityId), eq(services.active, true), eq(services.source, 'price_list')))
+      .orderBy(asc(services.name)),
+    // P55 — days a real stylist works here (empty = no restriction)
+    getFacilityWorkingDows(selected.facilityId),
+  ])
 
   const grouped = new Map<string, typeof allServices>()
   for (const s of allServices) {
@@ -84,6 +88,7 @@ export default async function RequestServicePage({
           category: cat,
           services: items.map((s) => ({ id: s.id, name: s.name })),
         }))}
+        workingDows={workingDows}
       />
     </div>
   )
