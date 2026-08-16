@@ -18,6 +18,7 @@ import { createStylistCalendarEvent } from '@/lib/google-calendar/oauth-client'
 import { Resend } from 'resend'
 import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
+import { formatMoney } from '@/lib/format'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { toClientJson } from '@/lib/sanitize'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
@@ -511,7 +512,7 @@ export async function POST(request: NextRequest) {
           timeZone: tz,
         })
         const priceStr = resolvedPrice
-          ? `$${(resolvedPrice / 100).toFixed(2)}`
+          ? formatMoney(resolvedPrice)
           : 'N/A'
 
         await resend.emails.send({
@@ -565,7 +566,7 @@ export async function POST(request: NextRequest) {
       const tz = facility?.timezone ?? 'America/New_York'
       const poaDateStr = startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz })
       const poaTimeStr = startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz })
-      const poaPriceStr = resolvedPrice ? `$${(resolvedPrice / 100).toFixed(2)}` : 'N/A'
+      const poaPriceStr = resolvedPrice ? formatMoney(resolvedPrice) : 'N/A'
       const poaHtml = buildBookingConfirmationEmailHtml({
         residentName: data.resident.name,
         serviceName: data.service?.name ?? service.name,

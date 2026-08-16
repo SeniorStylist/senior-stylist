@@ -207,7 +207,7 @@ export function ReportsTab() {
               <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis
-                  tickFormatter={(v: number) => `$${(v / 100).toFixed(0)}`}
+                  tickFormatter={(v: number) => formatCents(v)}
                   width={64}
                   tick={{ fontSize: 11 }}
                   axisLine={false}

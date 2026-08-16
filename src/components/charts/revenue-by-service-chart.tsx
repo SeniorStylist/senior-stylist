@@ -7,6 +7,7 @@
 // per-export dynamic() calls — barrel resolution breaks (commit 6d2c300).
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { formatMoney } from '@/lib/format'
 
 const BAR_COLORS = ['#8B2E4A', '#C4687A', '#0a8f94', '#18b5a4', '#067073', '#1fc4b0']
 
@@ -32,14 +33,14 @@ export default function RevenueByServiceChart({ data }: { data: RevenueChartDatu
           />
           <YAxis
             tick={{ fontSize: 11, fill: '#78716C' }}
-            tickFormatter={(v: number) => `$${v}`}
+            tickFormatter={(v: number) => formatMoney(Math.round(v * 100))}
             axisLine={false}
             tickLine={false}
             width={52}
           />
           <Tooltip
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Revenue']}
+            formatter={(value: any) => [formatMoney(Math.round(Number(value) * 100)), 'Revenue']}
             contentStyle={{
               fontSize: 12,
               borderRadius: 8,

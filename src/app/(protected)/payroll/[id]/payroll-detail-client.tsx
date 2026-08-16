@@ -179,7 +179,7 @@ export function PayrollDetailClient({
           (s, i) => s + i.qbBalance,
           0,
         )
-        showQbToast('ok', `QBO checked — outstanding balance $${outstanding.toFixed(2)}`)
+        showQbToast('ok', `QBO checked — outstanding balance ${formatDollars(Math.round(outstanding * 100))}`)
       }
     } finally {
       setQbStatusPolling(false)

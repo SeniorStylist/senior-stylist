@@ -536,7 +536,7 @@ async function main() {
     })
     check('moneyPackCards(facility): stats + top-balances table with entity',
       money.length === 2 && money[0].kind === 'stats'
-      && money[0].stats[0].value === '$1,234.56'
+      && money[0].stats[0].value === '1,234.56' // P54 money style — no "$"
       && money[1].kind === 'table' && money[1].rows[0][0].entity?.id === RID && money[1].rows[1][0].entity === undefined)
     const net = moneyPackCards({
       scope: 'network',

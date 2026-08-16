@@ -6,7 +6,7 @@ import type { Resident, Service, SignupSheetEntryWithRelations, Stylist } from '
 import { useToast } from '@/components/ui/toast'
 import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 import { queueableFetch, isQueued } from '@/lib/offline-queue'
-import { formatDateChip } from '@/lib/format'
+import { formatDateChip, formatMoney } from '@/lib/format'
 
 interface SignupSheetPanelProps {
   open: boolean
@@ -599,7 +599,7 @@ export function SignupSheetPanel({
                       className="w-full text-left px-3.5 py-2.5 text-sm hover:bg-stone-50 border-b border-stone-50 last:border-0"
                     >
                       <span className="font-medium text-stone-900">{s.name}</span>
-                      {s.priceCents > 0 && <span className="text-stone-400 ml-2 text-xs">${(s.priceCents / 100).toFixed(2)}</span>}
+                      {s.priceCents > 0 && <span className="text-stone-400 ml-2 text-xs">{formatMoney(s.priceCents)}</span>}
                     </button>
                   ))}
                 </div>

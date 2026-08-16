@@ -12,6 +12,7 @@ import { and, eq, gt } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
 import { collectResidentBalance } from '@/lib/payments/triggers'
+import { formatMoney } from '@/lib/format'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
         await notifyFacilityAdmins(facility.id, {
           type: 'autopay_summary',
           title: 'Autopay ran overnight',
-          body: `Collected $${(facilityCollectedCents / 100).toFixed(2)} from ${facilityAttempted - facilityFailed} resident${facilityAttempted - facilityFailed === 1 ? '' : 's'}${facilityFailed > 0 ? ` · ${facilityFailed} failed (payment links sent)` : ''}`,
+          body: `Collected ${formatMoney(facilityCollectedCents)} from ${facilityAttempted - facilityFailed} resident${facilityAttempted - facilityFailed === 1 ? '' : 's'}${facilityFailed > 0 ? ` · ${facilityFailed} failed (payment links sent)` : ''}`,
           url: '/billing',
         })
       }

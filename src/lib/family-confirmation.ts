@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { getFamilyRecipients } from '@/lib/portal-recipients'
 import { formatDateInTz, formatTimeInTz } from '@/lib/time'
+import { formatMoney } from '@/lib/format'
 
 export async function sendFamilyBookingConfirmation(bookingId: string): Promise<void> {
   try {
@@ -45,7 +46,7 @@ export async function sendFamilyBookingConfirmation(bookingId: string): Promise<
       stylistName: booking.stylist?.name ?? 'Your stylist',
       dateStr: formatDateInTz(booking.startTime, tz, { weekday: 'long', month: 'long', day: 'numeric' }),
       timeStr: formatTimeInTz(booking.startTime, tz),
-      priceStr: `$${(priceCents / 100).toFixed(2)}`,
+      priceStr: formatMoney(priceCents),
       facilityName: facility?.name ?? 'Senior Stylist',
       portalUrl,
       bookedBy: 'request',

@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useToast } from '@/components/ui/toast'
 import { PageHeader } from '@/components/ui/page-header'
 import { Plug } from 'lucide-react'
+import { formatMoney } from '@/lib/format'
 
 export interface QbFacilityRow {
   id: string
@@ -66,8 +67,7 @@ const CHIP: Record<Health, { label: string; cls: string; title: string }> = {
   },
 }
 
-const money = (cents: number) =>
-  (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+const money = (cents: number) => formatMoney(cents) // P54 money style
 
 function ago(iso: string | null): string {
   if (!iso) return 'Never'

@@ -7,6 +7,7 @@ import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
 import { resolvePrice } from '@/lib/pricing'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal-assignment'
+import { formatMoney } from '@/lib/format'
 
 const bookSchema = z
   .object({
@@ -178,7 +179,7 @@ export async function POST(
         stylistName: stylist?.name ?? 'Stylist',
         dateStr: poaDateStr,
         timeStr: poaTimeStr,
-        priceStr: `$${(totalPriceCents / 100).toFixed(2)}`,
+        priceStr: formatMoney(totalPriceCents),
         facilityName: facility?.name ?? 'Senior Stylist',
         portalUrl,
         bookedBy: 'portal',

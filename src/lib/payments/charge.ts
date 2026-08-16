@@ -19,6 +19,7 @@ import { bookings, facilities, qbInvoices, qbPayments, qbUnappliedCredits, resid
 import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { calculateRevShare } from '@/lib/rev-share'
+import { formatMoney } from '@/lib/format'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
 import { getPlatformStripe, platformStripeKey, paymentsLiveEnabled } from './stripe-client'
 
@@ -300,7 +301,7 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
     return {
       ok: false,
       code: 'over_limit',
-      reason: `Balance ($${(remaining / 100).toFixed(2)}) is above the automatic-charge limit`,
+      reason: `Balance (${formatMoney(remaining)}) is above the automatic-charge limit`,
       salonCents,
     }
   }

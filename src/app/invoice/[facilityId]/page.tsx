@@ -5,9 +5,11 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { PrintButton } from './print-button'
+import { formatMoney } from '@/lib/format'
 
+// P54 money style: "110" / "48.50", no "$".
 function formatCentsDisplay(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`
+  return formatMoney(cents)
 }
 
 export default async function InvoicePage({

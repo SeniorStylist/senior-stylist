@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { formatMoney } from '@/lib/format'
 
 // Lazy init — the Resend constructor THROWS when the key is missing, which
 // would crash any route importing this module in keyless environments.
@@ -149,9 +150,9 @@ export function buildComplianceAlertEmailHtml(params: {
 </html>`.trim()
 }
 
+// P54 money style ("110" / "48.50", no "$"); Intl carries the minus sign.
 function fmtCents(cents: number): string {
-  const sign = cents < 0 ? '-' : ''
-  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`
+  return formatMoney(cents)
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -1081,7 +1082,7 @@ export function buildBookingReceiptHtml(params: {
     tipCents,
     paymentType,
   } = params
-  const dollars = (c: number) => `$${(c / 100).toFixed(2)}`
+  const dollars = (c: number) => formatMoney(c)
   const tip = tipCents != null && tipCents > 0 ? tipCents : null
   const total = priceCents + (tip ?? 0)
   const paymentLabel = paymentType ? paymentType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null
@@ -1226,7 +1227,7 @@ export function buildWeeklyDigestEmailHtml(params: {
   facilities: WeeklyFacilitySummary[]
 }): string {
   const { weekLabel, facilities } = params
-  const dollars = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const dollars = (cents: number) => formatMoney(cents)
   const totals = facilities.reduce(
     (acc, f) => ({
       completed: acc.completed + f.completedCount,

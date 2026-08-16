@@ -87,9 +87,10 @@ export function isAnswerCard(v: unknown): v is AnswerCard {
   return false
 }
 
-/** cents → "$1,234.56" (display formatting only — never re-derives sums). */
+/** cents → "1,234.56" (P54 money style; display only — never re-derives sums). */
+import { formatMoney } from '@/lib/format'
 function fmtCents(cents: number): string {
-  return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+  return formatMoney(cents)
 }
 
 const cell = (text: string, entity?: CardEntity): CardCell => (entity ? { text, entity } : { text })

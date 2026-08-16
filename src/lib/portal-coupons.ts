@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/format'
 import { db } from '@/db'
 import {
   facilities,
@@ -139,10 +140,10 @@ export async function getPortalCoupons(
     }))
 }
 
-/** Format a coupon's discount for display (e.g. "$10 off" or "15% off"). */
+/** Format a coupon's discount for display (P54 style: "10 off" or "15% off"). */
 export function formatCouponDiscount(discountType: string, discountValue: number): string {
   if (discountType === 'fixed') {
-    return `$${(discountValue / 100).toFixed(2)} off`
+    return `${formatMoney(discountValue)} off`
   }
   return `${discountValue}% off`
 }

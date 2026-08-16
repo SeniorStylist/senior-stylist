@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useToast } from '@/components/ui/toast'
+import { formatMoney } from '@/lib/format'
 
 interface Coupon {
   id: string
@@ -28,7 +29,7 @@ interface Recipient {
 const TYPES = ['manual', 'welcome', 'birthday', 'referral', 'loyalty'] as const
 
 function discountLabel(t: string, v: number): string {
-  return t === 'fixed' ? `$${(v / 100).toFixed(2)} off` : `${v}% off`
+  return t === 'fixed' ? `${formatMoney(v)} off` : `${v}% off`
 }
 
 export function CouponManager() {

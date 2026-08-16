@@ -4,12 +4,9 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs)
 }
 
-export function formatCents(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(cents / 100)
-}
+// P54 — alias of the canonical formatMoney ("110" / "48.50", no "$"): the
+// owner-locked customer-visible money style. See src/lib/format.ts.
+export { formatMoney as formatCents } from '@/lib/format'
 
 export function dollarsToCents(dollars: number | string): number {
   return Math.round(parseFloat(String(dollars)) * 100)

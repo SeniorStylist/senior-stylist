@@ -34,8 +34,10 @@ const METHODS: { value: string; label: string }[] = [
 ]
 
 
+// P54 money style: "110" / "48.50", no "$".
+import { formatMoney } from '@/lib/format'
 function dollars(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
+  return formatMoney(cents)
 }
 
 export function CofPanel({

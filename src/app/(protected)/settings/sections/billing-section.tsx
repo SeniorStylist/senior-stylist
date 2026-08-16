@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { formatMoney } from '@/lib/format'
 import type { PublicFacility } from '@/lib/sanitize'
 import { HelpTip } from '@/components/ui/help-tip'
 
@@ -607,7 +608,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
                 At {revSharePct}% revenue share ({effectiveRevShare === 'we_deduct' ? 'we deduct' : 'facility deducts'}):
               </div>
               <div className="text-stone-500">
-                On a $10,000 payment → ${(10000 * (100 - revSharePct) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to Senior Stylist, ${(10000 * revSharePct / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to facility
+                On a 10,000 payment → {formatMoney(Math.round(10000 * (100 - revSharePct)))} to Senior Stylist, {formatMoney(Math.round(10000 * revSharePct))} to facility
               </div>
             </div>
           ) : (

@@ -8,6 +8,7 @@
  */
 
 import twilio from 'twilio'
+import { formatMoney } from '@/lib/format'
 
 let cachedClient: ReturnType<typeof twilio> | null = null
 
@@ -53,12 +54,12 @@ export function buildReceiptSms(data: {
 }): string {
   const tipPart =
     data.tipCents != null && data.tipCents > 0
-      ? ` + Tip $${(data.tipCents / 100).toFixed(2)}`
+      ? ` + Tip ${formatMoney(data.tipCents)}`
       : ''
   const totalCents = (data.priceCents ?? 0) + (data.tipCents ?? 0)
   return (
     `Senior Stylist receipt: ${data.serviceName} with ${data.stylistName} on ${data.serviceDate}. ` +
-    `Service $${(data.priceCents / 100).toFixed(2)}${tipPart} = Total $${(totalCents / 100).toFixed(2)}. ` +
+    `Service ${formatMoney(data.priceCents)}${tipPart} = Total ${formatMoney(totalCents)}. ` +
     `Thank you! -${data.facilityName}`
   )
 }
@@ -71,7 +72,7 @@ export function buildPaymentRequestSms(data: {
   payUrl: string
 }): string {
   return (
-    `${data.facilityName}: a balance of $${(data.outstandingCents / 100).toFixed(2)} is due for ${data.residentName}'s salon services. ` +
+    `${data.facilityName}: a balance of ${formatMoney(data.outstandingCents)} is due for ${data.residentName}'s salon services. ` +
     `Pay securely here: ${data.payUrl}`
   )
 }

@@ -124,8 +124,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const DATETIME_LOCAL_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// P54 — customer-visible money style: "110" / "48.50", no "$", no ".00".
+import { formatMoney } from '@/lib/format'
 function money(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
+  return formatMoney(cents)
 }
 
 function whenLabel(d: Date, tz: string): string {

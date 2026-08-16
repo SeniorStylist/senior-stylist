@@ -46,8 +46,10 @@ interface MatchProposal {
   invoices: { id: string; invoiceNum: string; invoiceDate: string; openBalanceCents: number }[]
 }
 
+// P54 money style: "110" / "48.50", no "$".
+import { formatMoney } from '@/lib/format'
 function dollars(cents: number): string {
-  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatMoney(cents)
 }
 
 function formatDate(iso: string): string {

@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { formatMoney } from '@/lib/format'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { isPerUnitService, makePerUnitTiers } from '@/lib/pricing'
 import { parsePriceSheetFile, SUPPORTED_EXTS, type ParsedPriceRow, type ParseResult } from '@/lib/services-import-parse'
@@ -39,7 +40,7 @@ interface SheetFile {
   expanded: boolean
 }
 
-const dollars = (c: number) => `$${(c / 100).toFixed(2)}`
+const dollars = (c: number) => formatMoney(c) // P54 money style
 
 // The dollar amount that represents a row/service's price regardless of type.
 function rowAmount(r: { pricingType?: string | null; priceCents: number; addonAmountCents?: number | null; pricingTiers?: Array<{ unitPriceCents: number }> | null; pricingOptions?: Array<{ priceCents: number }> | null }): number {

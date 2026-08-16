@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/toast'
+import { formatMoney } from '@/lib/format'
 import { firstErrorMessage } from '@/lib/first-error'
 import type { PublicFacility } from '@/lib/sanitize'
 import { CouponManager } from '@/components/settings/coupon-manager'
@@ -352,7 +353,7 @@ export function PortalSection({ facility, claimRequests: initialClaims }: Props)
                     New portal members will receive a{' '}
                     <span className="font-semibold text-stone-700">
                       {welcomeCouponType === 'fixed'
-                        ? `$${parseFloat(welcomeCouponValue || '0').toFixed(2)} off`
+                        ? `${formatMoney(Math.round(parseFloat(welcomeCouponValue || '0') * 100))} off`
                         : `${welcomeCouponValue}% off`}
                     </span>{' '}
                     welcome discount. Senior Stylist absorbs the cost.

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { DefaultTipPicker, type DefaultTipValue } from '@/components/residents/default-tip-picker'
 import { usePortalT, portalLocale, type PortalLang, type PortalT } from '@/lib/portal-i18n'
+import { formatMoney } from '@/lib/format'
 
 interface ResidentRow {
   id: string
@@ -33,7 +34,7 @@ interface CouponInfo {
 }
 
 function formatCouponDiscount(discountType: string, discountValue: number, t: PortalT): string {
-  if (discountType === 'fixed') return t('profile.amountOff', { amount: `$${(discountValue / 100).toFixed(2)}` })
+  if (discountType === 'fixed') return t('profile.amountOff', { amount: formatMoney(discountValue) })
   return t('profile.percentOff', { value: discountValue })
 }
 

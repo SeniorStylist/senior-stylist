@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getStripePromise } from './stripe-browser'
+import { formatMoney } from '@/lib/format'
 import { tapToPayAvailable, initTerminal, connectLocalReader, collectTerminalPayment } from '@/lib/tap-to-pay'
 
 interface TakePaymentModalProps {
@@ -152,7 +153,7 @@ export function TakePaymentModal(props: TakePaymentModalProps) {
             options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#8B2E4A' } } }}
           >
             <PayFields
-              amountLabel={`$${(Math.round(parseFloat(amount) * 100) / 100).toFixed(2)}`}
+              amountLabel={formatMoney(Math.round(parseFloat(amount) * 100))}
               paymentIntentId={paymentIntentId!}
               onPaid={() => {
                 toast.success('Payment collected')

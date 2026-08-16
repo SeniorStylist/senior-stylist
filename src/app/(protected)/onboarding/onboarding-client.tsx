@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { formatMoney } from '@/lib/format'
 // papaparse + xlsx are dynamic-imported inside the parse functions — top-level
 // imports inflate the onboarding route bundle for every visitor (CLAUDE.md rule).
 
@@ -733,7 +734,7 @@ export default function OnboardingClient() {
                                 </span>
                               )}
                               <span className="text-sm text-stone-500 shrink-0">
-                                {row.pricingType === 'addon' ? `+$${((row.addonAmountCents ?? 0) / 100).toFixed(2)}` : `$${(row.priceCents / 100).toFixed(2)}`}
+                                {row.pricingType === 'addon' ? `+${formatMoney(row.addonAmountCents ?? 0)}` : formatMoney(row.priceCents)}
                               </span>
                             </div>
                           ))}

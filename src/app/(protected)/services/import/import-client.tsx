@@ -4,11 +4,12 @@ import { useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { formatMoney } from '@/lib/format'
 import { fuzzyBestMatch, fuzzyScore } from '@/lib/fuzzy'
 import { isPerUnitService, makePerUnitTiers } from '@/lib/pricing'
 import { parsePriceSheetFile, parsePriceToCents } from '@/lib/services-import-parse'
 
-const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
+const dollars = (cents: number) => formatMoney(cents) // P54 money style
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1062,9 +1063,9 @@ export function ImportClient({ initialMode = 'add' }: { initialMode?: Mode }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-stone-900 truncate">{dup.parsedService.name}</p>
                     <p className="text-xs text-stone-400 mt-0.5">
-                      Existing: ${(dup.existingService.priceCents / 100).toFixed(2)}
+                      Existing: {dollars(dup.existingService.priceCents)}
                       {' '}&rarr;{' '}
-                      New: ${(dup.parsedService.priceCents / 100).toFixed(2)}
+                      New: {dollars(dup.parsedService.priceCents)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">

@@ -289,7 +289,7 @@ export function BillingClient({
             >
               {submitting
                 ? t('common.loading')
-                : t('billing.payBarCta', { amount: `$${(Number.parseFloat(amountInput) || outstandingCents / 100).toFixed(2)}` })}
+                : t('billing.payBarCta', { amount: formatDollars(Math.round((Number.parseFloat(amountInput) || outstandingCents / 100) * 100)) })}
             </button>
           </div>
         </>
@@ -312,7 +312,7 @@ export function BillingClient({
                     className="rounded-xl border border-stone-200 hover:border-[#8B2E4A]/50 hover:bg-[#F9EFF2] px-3 py-3 text-left transition-colors disabled:opacity-60"
                   >
                     <p className="text-sm font-semibold text-stone-900">{count} × {svc.name}</p>
-                    <p className="text-xs text-stone-500 mt-0.5">{t('billing.packageCredit', { amount: `$${((svc.priceCents * count) / 100).toFixed(2)}` })}</p>
+                    <p className="text-xs text-stone-500 mt-0.5">{t('billing.packageCredit', { amount: formatDollars(svc.priceCents * count) })}</p>
                   </button>
                 ))}
               </div>
