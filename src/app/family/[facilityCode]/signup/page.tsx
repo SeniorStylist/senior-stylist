@@ -66,11 +66,20 @@ export default async function SignupPage({
           {t('signup.preview.banner')}
         </div>
       )}
+      {/* P54 — owner-locked branding: a persistent facility banner across every
+          wizard step (this lives in the RSC above the client, so it never
+          changes as the family moves through the questions). The marketing
+          subtitle is GONE — the page reads: facility → Create Account → wizard. */}
       <header>
-        <h1 className="text-2xl text-stone-900" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8B2E4A]">
+          {t('signup.facilityEyebrow')}
+        </p>
+        <p className="text-3xl text-stone-900 leading-tight mt-0.5" style={{ fontFamily: 'DM Serif Display, serif', fontWeight: 400 }}>
+          {facility.name}
+        </p>
+        <h1 className="text-lg font-semibold text-stone-600 mt-1.5">
           {t('signup.title')}
         </h1>
-        <p className="text-sm text-stone-500 mt-1">{t('signup.subtitle', { facility: facility.name })}</p>
       </header>
       <SignupClient
         facilityCode={facility.facilityCode ?? decoded}

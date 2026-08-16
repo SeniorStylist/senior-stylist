@@ -343,18 +343,12 @@ export const PORTAL_STRINGS = {
 
   // ---- signup ----
   'signup.title': { en: 'Create Account', es: 'Crear cuenta' },
-  'signup.subtitle': {
-    en: "Sign up to view appointments, request service, and manage your loved one's care at {facility}.",
-    es: 'Regístrese para ver citas, solicitar servicios y gestionar el cuidado de su ser querido en {facility}.',
-  },
+  // P54 — the persistent facility banner's small-caps eyebrow
+  'signup.facilityEyebrow': { en: 'Salon Account', es: 'Cuenta del salón' },
   'signup.fullName': { en: 'Your full name', es: 'Su nombre completo' },
   'signup.fullNameHint': {
     en: 'Enter the name the facility has on file for you (POA/guardian).',
     es: 'Ingrese el nombre que el centro tiene registrado para usted (apoderado/tutor).',
-  },
-  'signup.valueStrip': {
-    en: 'See upcoming appointments, pay the balance, and view style photos — all in one place.',
-    es: 'Vea las próximas citas, pague el saldo y vea fotos de peinados — todo en un solo lugar.',
   },
   'signup.phone': { en: 'Phone number', es: 'Número de teléfono' },
   'signup.dob': { en: 'Date of birth', es: 'Fecha de nacimiento' },
@@ -384,10 +378,10 @@ export const PORTAL_STRINGS = {
   },
   'signup.signIn': { en: 'Sign in →', es: 'Iniciar sesión →' },
   // P50 — senior-first one-question-per-screen wizard
-  'signup.step.whoTitle': { en: 'Who is this account for?', es: '¿Para quién es esta cuenta?' },
-  'signup.step.whoSelf': { en: 'I live at {facility}', es: 'Yo vivo en {facility}' },
-  'signup.step.whoFamily': { en: "I'm family or a helper", es: 'Soy familiar o ayudante' },
-  'signup.role.title': { en: 'What is your relationship?', es: '¿Cuál es su relación?' },
+  // P54 — owner-locked copy (Fitzgerald meeting)
+  'signup.step.whoTitle': { en: 'Account Info', es: 'Información de la cuenta' },
+  'signup.step.whoSelf': { en: "I'm a resident at {facility}", es: 'Soy residente en {facility}' },
+  'signup.step.whoFamily': { en: "I'm a family member or helper", es: 'Soy familiar o ayudante' },
   'signup.role.spouse': { en: 'Spouse or partner', es: 'Cónyuge o pareja' },
   'signup.role.child': { en: 'Son or daughter', es: 'Hijo o hija' },
   'signup.role.poa': { en: 'Power of attorney', es: 'Apoderado legal' },
@@ -411,12 +405,11 @@ export const PORTAL_STRINGS = {
   },
   'signup.step.phone': { en: 'What is your phone number?', es: '¿Cuál es su número de teléfono?' },
   'signup.step.phoneHint': {
-    en: 'Optional — so the salon can reach you about appointments.',
-    es: 'Opcional — para que el salón pueda contactarle sobre las citas.',
+    en: 'So the salon can reach you about appointments.',
+    es: 'Para que el salón pueda contactarle sobre las citas.',
   },
   'signup.nav.back': { en: '← Back', es: '← Atrás' },
   'signup.nav.next': { en: 'Next', es: 'Siguiente' },
-  'signup.nav.skip': { en: 'Skip this', es: 'Omitir' },
   'signup.review.title': { en: 'Does this look right?', es: '¿Está todo correcto?' },
   'signup.review.you': { en: 'Your name', es: 'Su nombre' },
   'signup.review.resident': { en: 'Resident', es: 'Residente' },

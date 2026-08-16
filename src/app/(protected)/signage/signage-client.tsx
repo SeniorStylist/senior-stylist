@@ -36,7 +36,8 @@ const TEMPLATES: Template[] = [
   { id: 'welcome', name: 'Welcome', category: 'General', accent: '#6B21A8', title: 'Welcome!', subtitle: '', dateLine: '', body: 'We’re so glad you’re here.', footer: '' },
   // P51 — QR poster for the family self-signup wizard (needs a facility code;
   // the button hides without one). Kept in General to avoid a new category.
-  { id: 'family-signup', name: 'Family Sign-Up', category: 'General', accent: '#8B2E4A', title: 'Family Portal', subtitle: 'Book & pay online for your loved one', dateLine: '', body: 'Scan the code with your phone camera\nto create your family account', footer: 'Questions? Ask at the front desk' },
+  // P54 — owner-locked signage copy: "Create an Account", not "Family Portal"
+  { id: 'family-signup', name: 'Family Sign-Up', category: 'General', accent: '#8B2E4A', title: 'Create an Account', subtitle: 'For residents & family', dateLine: '', body: 'Scan the code with your phone camera\nto create your account', footer: 'Questions? Ask at the front desk' },
   { id: 'holiday-hours', name: 'Holiday Hours', category: 'Holiday', accent: '#B91C1C', title: 'Holiday Hours', subtitle: '', dateLine: '', body: 'Closed Dec 24–25\nOpen Dec 26 · 9am–4pm', footer: 'Happy Holidays from all of us' },
   { id: 'closed-holiday', name: 'Closed for Holiday', category: 'Holiday', accent: '#B7791F', title: 'Closed Today', subtitle: 'Happy Holidays!', dateLine: '', body: 'The salon will reopen tomorrow.', footer: '' },
   { id: 'happy-holidays', name: 'Happy Holidays', category: 'Holiday', accent: '#0F766E', title: 'Happy Holidays!', subtitle: 'From the salon team', dateLine: '', body: 'Wishing you joy this season', footer: '' },

@@ -247,7 +247,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
             >
               {t('signup.step.whoSelf', { facility: facilityName })}
             </button>
-            <p className="text-center text-base text-stone-500 -my-1">{t('signup.step.whoFamily')}:</p>
+            <p className="text-center text-base text-stone-500 -my-1">{t('signup.step.whoFamily')}</p>
             {(['spouse', 'child', 'poa', 'other'] as const).map((r) => (
               <button
                 key={r}
@@ -396,6 +396,8 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
           </StepInput>
         )
       case 'phone':
+        // P54 — phone is MANDATORY (owner decision): no skip, Next gates on
+        // at least 7 digits.
         return (
           <StepInput title={t('signup.step.phone')} hint={t('signup.step.phoneHint')}>
             <input
@@ -409,9 +411,15 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
               maxLength={30}
               aria-label={t('signup.step.phone')}
               className={inputCls}
+              onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 7) next() }}
             />
-            <button type="button" onClick={next} className={primaryBtnCls}>
-              {phone.trim() ? t('signup.nav.next') : t('signup.nav.skip')}
+            <button
+              type="button"
+              onClick={next}
+              disabled={phone.replace(/\D/g, '').length < 7}
+              className={primaryBtnCls}
+            >
+              {t('signup.nav.next')}
             </button>
           </StepInput>
         )
@@ -456,13 +464,8 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
 
   return (
     <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] overflow-hidden">
-      {/* P26 — say what the portal gives them BEFORE asking for their details */}
-      {stepId === 'who' && (
-        <div className="bg-[#F9EFF2] px-5 py-3 border-b border-rose-100">
-          <p className="text-base text-[#8B2E4A]">{t('signup.valueStrip')}</p>
-        </div>
-      )}
-
+      {/* P54 — the P26 value strip is GONE (owner decision: the page should
+          just read facility → Create Account → wizard, no marketing copy). */}
       <div className="p-5 flex flex-col gap-5">
         {/* Progress: dots + step label */}
         <div className="flex items-center justify-between">
