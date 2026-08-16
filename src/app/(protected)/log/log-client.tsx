@@ -515,6 +515,10 @@ export function LogClient({
   const [wiCreateOpen, setWiCreateOpen] = useState(false)
   const [wiCreateName, setWiCreateName] = useState('')
   const [wiCreateRoom, setWiCreateRoom] = useState('')
+  // P54 — walk-in quick-create captures family contact at the chair; an email
+  // triggers the automatic "finish your account" portal invite server-side.
+  const [wiCreateEmail, setWiCreateEmail] = useState('')
+  const [wiCreatePhone, setWiCreatePhone] = useState('')
   const [wiCreating, setWiCreating] = useState(false)
   const [wiCreateError, setWiCreateError] = useState<string | null>(null)
   const [localNewResidents, setLocalNewResidents] = useState<Resident[]>([])
@@ -991,7 +995,16 @@ export function LogClient({
         method: 'POST',
         body: {
           ...(pendingResident
-            ? { newResident: { name: pendingResident.name, roomNumber: pendingResident.roomNumber ?? undefined } }
+            ? {
+                newResident: {
+                  name: pendingResident.name,
+                  roomNumber: pendingResident.roomNumber ?? undefined,
+                  // P54 — family contact rides into the atomic create; an email
+                  // triggers the server-side "finish your account" invite.
+                  email: pendingResident.poaEmail ?? undefined,
+                  phone: pendingResident.poaPhone ?? undefined,
+                },
+              }
             : { residentId: wiResidentId }),
           serviceId: serviceIdToUse,
           stylistId: wiStylistId,
@@ -1389,6 +1402,29 @@ export function LogClient({
                       aria-label="Room number (optional)" placeholder="Room number (optional)"
                       className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
                     />
+                    {/* P54 — family contact: an email auto-sends the "finish
+                        your account" portal invite once the walk-in saves. */}
+                    <input
+                      tabIndex={0}
+                      type="email"
+                      value={wiCreateEmail}
+                      onChange={(e) => setWiCreateEmail(e.target.value)}
+                      aria-label="Family email (optional)" placeholder="Family email (optional)"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+                    />
+                    <input
+                      tabIndex={0}
+                      type="tel"
+                      value={wiCreatePhone}
+                      onChange={(e) => setWiCreatePhone(e.target.value)}
+                      aria-label="Family phone (optional)" placeholder="Family phone (optional)"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20 transition-all"
+                    />
+                    {wiCreateEmail.trim() && (
+                      <p className="text-[11px] text-stone-400 leading-snug">
+                        We&apos;ll email the family a link to finish setting up their account.
+                      </p>
+                    )}
                     <div className="flex gap-2 pt-1">
                       <button
                         type="button"
@@ -1408,10 +1444,14 @@ export function LogClient({
                           // atomically with the walk-in, server-deduped) — the same
                           // path the offline fallback below already uses.
                           if (role === 'stylist') {
+                            // P54 — email/phone ride the pending resident into the
+                            // booking POST's newResident branch (invite server-side).
                             const pending = {
                               id: `offline-new-${Date.now()}`,
                               name: wiCreateName.trim(),
                               roomNumber: wiCreateRoom.trim() || null,
+                              poaEmail: wiCreateEmail.trim() || null,
+                              poaPhone: wiCreatePhone.trim() || null,
                             } as Resident
                             setLocalNewResidents((prev) => [...prev, pending])
                             setWiResidentId(pending.id)
@@ -1420,6 +1460,8 @@ export function LogClient({
                             setWiCreateOpen(false)
                             setWiCreateName('')
                             setWiCreateRoom('')
+                            setWiCreateEmail('')
+                            setWiCreatePhone('')
                             toast('New resident will be added with the walk-in', 'info')
                             return
                           }
@@ -1432,6 +1474,10 @@ export function LogClient({
                               body: JSON.stringify({
                                 name: wiCreateName.trim(),
                                 roomNumber: wiCreateRoom.trim() || undefined,
+                                // P54 — family contact; admins keep the explicit
+                                // Send Link button (no auto-invite on this path).
+                                poaEmail: wiCreateEmail.trim() || undefined,
+                                poaPhone: wiCreatePhone.trim() || undefined,
                               } satisfies ResidentCreateInput),
                             })
                             const json = await res.json()
@@ -1451,6 +1497,8 @@ export function LogClient({
                             setWiCreateOpen(false)
                             setWiCreateName('')
                             setWiCreateRoom('')
+                            setWiCreateEmail('')
+                            setWiCreatePhone('')
                           } catch {
                             // Phase 18 — offline: select a local pending resident;
                             // the queued walk-in POST carries newResident and the
@@ -1459,6 +1507,8 @@ export function LogClient({
                               id: `offline-new-${Date.now()}`,
                               name: wiCreateName.trim(),
                               roomNumber: wiCreateRoom.trim() || null,
+                              poaEmail: wiCreateEmail.trim() || null,
+                              poaPhone: wiCreatePhone.trim() || null,
                             } as Resident
                             setLocalNewResidents((prev) => [...prev, pending])
                             setWiResidentId(pending.id)
@@ -1467,6 +1517,8 @@ export function LogClient({
                             setWiCreateOpen(false)
                             setWiCreateName('')
                             setWiCreateRoom('')
+                            setWiCreateEmail('')
+                            setWiCreatePhone('')
                             toast("Offline — the resident will be created when the walk-in syncs", 'info')
                           } finally {
                             setWiCreating(false)

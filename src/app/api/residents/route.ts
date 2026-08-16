@@ -122,12 +122,23 @@ export async function POST(request: NextRequest) {
       facilityId = facilityUser!.facilityId
     }
 
-    const { name, roomNumber, phone } = parsed.data
+    const { name, roomNumber, phone, poaEmail, poaPhone } = parsed.data
     const portalToken = crypto.randomBytes(8).toString('hex')
 
     const [created] = await db
       .insert(residents)
-      .values({ facilityId, name, roomNumber: roomNumber ?? null, phone: phone ?? null, portalToken, isDemo: isTutorialRequest(request) })
+      .values({
+        facilityId,
+        name,
+        roomNumber: roomNumber ?? null,
+        phone: phone ?? null,
+        // P54 — walk-in quick-create family contact (poaEmail is the portal
+        // login identity; makes future signups tier-1 email matches).
+        poaEmail: poaEmail?.toLowerCase() ?? null,
+        poaPhone: poaPhone ?? null,
+        portalToken,
+        isDemo: isTutorialRequest(request),
+      })
       .returning()
 
     return Response.json({ data: created }, { status: 201 })

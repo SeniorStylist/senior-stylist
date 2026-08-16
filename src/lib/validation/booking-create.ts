@@ -20,6 +20,10 @@ export const bookingCreateSchema = z.object({
     .object({
       name: z.string().min(1).max(200),
       roomNumber: z.string().max(50).optional(),
+      // P54 — walk-in quick-create captures family contact info at the chair.
+      // An email triggers the automatic "finish your account" invite.
+      email: z.string().email().max(320).optional(),
+      phone: z.string().max(30).optional(),
     })
     .optional(),
   stylistId: z.string().uuid().optional(),

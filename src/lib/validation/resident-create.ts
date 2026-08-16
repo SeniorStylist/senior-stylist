@@ -13,6 +13,9 @@ export const residentCreateSchema = z.object({
   name: z.string().min(1).max(200),
   roomNumber: z.string().max(50).optional(),
   phone: z.string().max(50).optional(),
+  // P54 — walk-in quick-create captures the family contact at the chair.
+  poaEmail: z.string().email().max(320).optional(),
+  poaPhone: z.string().max(30).optional(),
 })
 
 export type ResidentCreateInput = z.input<typeof residentCreateSchema>

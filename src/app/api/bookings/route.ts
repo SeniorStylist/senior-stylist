@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { randomBytes } from 'node:crypto'
 import { db } from '@/db'
 import {
   bookings,
@@ -172,9 +173,14 @@ export async function POST(request: NextRequest) {
     // duplicated (a queued write can replay after the same resident was
     // created online).
     let resident
+    // P54 — set ONLY on the freshly-created branch: the dedup branch never
+    // re-sends, so a queued offline replay can't double-invite.
+    let inviteNewResidentEmail: string | null = null
     if (parsed.data.newResident) {
       const newName = parsed.data.newResident.name.trim()
       const newRoom = parsed.data.newResident.roomNumber?.trim() || null
+      const newEmail = parsed.data.newResident.email?.trim().toLowerCase() || null
+      const newPhone = parsed.data.newResident.phone?.trim() || null
       const roster = await db.query.residents.findMany({
         where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
         columns: { id: true, name: true, roomNumber: true },
@@ -187,11 +193,23 @@ export async function POST(request: NextRequest) {
       if (existing) {
         residentId = existing.id
       } else {
+        // P54 — walk-in quick-create captures family contact info; portalToken
+        // parity with the signup claim-create branch (booking-confirmation
+        // emails gate on it).
         const [created] = await db
           .insert(residents)
-          .values({ facilityId, name: newName, roomNumber: newRoom, isDemo })
+          .values({
+            facilityId,
+            name: newName,
+            roomNumber: newRoom,
+            poaEmail: newEmail,
+            poaPhone: newPhone,
+            ...(newEmail || newPhone ? { portalToken: randomBytes(8).toString('hex') } : {}),
+            isDemo,
+          })
           .returning()
         residentId = created.id
+        if (newEmail && !isDemo) inviteNewResidentEmail = newEmail
       }
       resident = await db.query.residents.findFirst({
         where: and(eq(residents.id, residentId!), eq(residents.facilityId, facilityId)),
@@ -579,6 +597,30 @@ export async function POST(request: NextRequest) {
         bookedBy: 'staff',
       })
       sendEmail({ to: poaEmail, subject: `Appointment booked for ${data.resident.name}`, html: poaHtml }).catch(console.error)
+      }
+    }
+
+    // P54 — walk-in quick-create with an email: the family gets an automatic
+    // "finish your account" invite (portal magic link). AWAITED but non-fatal —
+    // the booking is already saved; a mail failure must not fail the create.
+    // Only fires on the freshly-created branch (dedup/replay never re-sends).
+    if (inviteNewResidentEmail && facilityRow?.facilityCode) {
+      try {
+        const { createMagicLink } = await import('@/lib/portal-auth')
+        const { buildPortalMagicLinkEmailHtml } = await import('@/lib/email')
+        const link = await createMagicLink(inviteNewResidentEmail, residentId, facilityRow.facilityCode)
+        await sendEmail({
+          to: inviteNewResidentEmail,
+          subject: `Finish setting up your ${facilityRow.name} salon account`,
+          html: buildPortalMagicLinkEmailHtml({
+            residentNames: [data?.resident?.name ?? parsed.data.newResident?.name ?? 'your resident'],
+            facilityName: facilityRow.name,
+            link,
+            expiresInHours: 72,
+          }),
+        })
+      } catch (err) {
+        console.error('[bookings POST] walk-in finish-account invite failed:', err)
       }
     }
 
