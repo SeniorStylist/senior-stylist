@@ -779,6 +779,7 @@ export function DashboardClient({
                 onSchedule={handleScheduleSignupEntry}
                 facilityTimezone={facility.timezone}
                 viewAsAdmin={false}
+                paymentFlags={paymentFlags}
               />
             </div>
           )}
@@ -1229,6 +1230,7 @@ export function DashboardClient({
             onSchedule={handleScheduleSignupEntry}
             facilityTimezone={facility.timezone}
             viewAsAdmin={false}
+            paymentFlags={paymentFlags}
           />
         )}
 

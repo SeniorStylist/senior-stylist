@@ -5,6 +5,7 @@ import { Calendar, ChevronDown, ClipboardList, GripVertical } from 'lucide-react
 import type { SignupSheetEntryWithRelations } from '@/types'
 import { cn } from '@/lib/utils'
 import { formatDateChip } from '@/lib/format'
+import { PaymentCoveredChip } from '@/components/residents/payment-covered-chip'
 
 interface StylistPendingEntriesProps {
   entries: SignupSheetEntryWithRelations[]
@@ -12,10 +13,12 @@ interface StylistPendingEntriesProps {
   facilityTimezone: string
   /** When true, render the assigned-stylist name (admin/facility_staff cross-stylist view). */
   viewAsAdmin?: boolean
+  /** P55 — P51 coverage map so the stylist sees payment-is-handled at a glance. */
+  paymentFlags?: Record<string, { card: boolean; credit: boolean }>
 }
 
 export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEntriesProps>(
-  function StylistPendingEntries({ entries, onSchedule, facilityTimezone, viewAsAdmin = false }, ref) {
+  function StylistPendingEntries({ entries, onSchedule, facilityTimezone, viewAsAdmin = false, paymentFlags = {} }, ref) {
     const [expanded, setExpanded] = useState(true)
 
     return (
@@ -73,6 +76,7 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-stone-900 leading-snug">
                         {entry.residentName}
+                        {entry.residentId && <PaymentCoveredChip flags={paymentFlags[entry.residentId]} className="ml-2" />}
                         {entry.roomNumber && (
                           <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>
                         )}

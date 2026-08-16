@@ -4,7 +4,7 @@ import { signupSheetEntries, residents, services, stylistFacilityAssignments } f
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { or, isNull } from 'drizzle-orm'
-import { eq, and, asc, count, inArray } from 'drizzle-orm'
+import { eq, and, asc, count, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
@@ -243,10 +243,17 @@ export async function GET(request: NextRequest) {
       return Response.json({ data: { count: Number(row?.n ?? 0) } })
     }
 
+    // P55 — day first, then time (owner ask: "in order of the day and time").
+    // The old requestedTime-only sort put a 9am request three weeks out above
+    // 2pm tomorrow in the stylist's allDates panel.
     const data = await db.query.signupSheetEntries.findMany({
       where: and(...conditions),
       with: { resident: true, service: true, assignedStylist: true },
-      orderBy: [asc(signupSheetEntries.requestedTime), asc(signupSheetEntries.createdAt)],
+      orderBy: [
+        sql`COALESCE(${signupSheetEntries.preferredDate}, ${signupSheetEntries.requestedDate}) ASC`,
+        sql`${signupSheetEntries.requestedTime} ASC NULLS LAST`,
+        asc(signupSheetEntries.createdAt),
+      ],
     })
 
     return Response.json({ data })
