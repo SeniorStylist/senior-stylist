@@ -34,7 +34,8 @@ export default async function FamilyLoginPage({
       {errorMessage && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{errorMessage}</div>
       )}
-      <LoginClient facilityCode={decoded} lang={lang} />
+      {/* P55 — the "Text me a code" tab renders only when Twilio is live */}
+      <LoginClient facilityCode={decoded} lang={lang} smsLoginEnabled={process.env.TWILIO_ENABLED === 'true'} />
       <FamilyModeEscape />
     </div>
   )

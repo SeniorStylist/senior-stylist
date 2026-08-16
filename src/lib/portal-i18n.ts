@@ -327,6 +327,14 @@ export const PORTAL_STRINGS = {
   // P55 — the username is email OR phone
   'login.identifier': { en: 'Email or phone number', es: 'Correo o número de teléfono' },
   'login.identifierPlaceholder': { en: 'you@example.com or (555) 123-4567', es: 'usted@ejemplo.com o (555) 123-4567' },
+  // P55 — SMS-code login tab (renders only when Twilio is live)
+  'login.tabCode': { en: 'Text me a code', es: 'Envíenme un código' },
+  'login.identifierPhone': { en: 'Phone number', es: 'Número de teléfono' },
+  'login.codeSend': { en: 'Text me a code', es: 'Enviarme un código' },
+  'login.codeSent': { en: "If that number is on file, we've texted a code.", es: 'Si ese número está registrado, le enviamos un código.' },
+  'login.codeLabel': { en: '6-digit code', es: 'Código de 6 dígitos' },
+  'login.codeVerify': { en: 'Sign in', es: 'Iniciar sesión' },
+  'login.codeResend': { en: 'Send a new code', es: 'Enviar otro código' },
   'login.signIn': { en: 'Sign in', es: 'Iniciar sesión' },
   'login.signingIn': { en: 'Signing in…', es: 'Iniciando sesión…' },
   'login.forgot': {

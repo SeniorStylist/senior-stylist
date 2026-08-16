@@ -21,6 +21,8 @@ type Bucket =
   | 'portalRequestLink'
   | 'portalLogin'
   | 'portalSetPassword'
+  | 'portalRequestCode'
+  | 'portalVerifyCode'
   | 'portalRequestBooking'
   | 'portalStatement'
   | 'portalCheckout'
@@ -75,6 +77,10 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   portalRequestLink: { tokens: 5, window: '1 h' },
   portalLogin: { tokens: 10, window: '1 h' },
   portalSetPassword: { tokens: 5, window: '1 h' },
+  // P55 — SMS-code login: tight caps (each request costs an SMS; codes are
+  // brute-forceable only through verify, which is separately capped)
+  portalRequestCode: { tokens: 3, window: '1 h' },
+  portalVerifyCode: { tokens: 10, window: '1 h' },
   portalRequestBooking: { tokens: 5, window: '1 h' },
   portalStatement: { tokens: 20, window: '1 h' },
   portalCheckout: { tokens: 10, window: '1 h' },

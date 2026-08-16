@@ -9,12 +9,14 @@ import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 interface Props {
   facilityCode: string
   lang: PortalLang
+  /** P55 — server-computed (TWILIO_ENABLED): shows the "Text me a code" tab. */
+  smsLoginEnabled?: boolean
 }
 
-export function LoginClient({ facilityCode, lang }: Props) {
+export function LoginClient({ facilityCode, lang, smsLoginEnabled = false }: Props) {
   const router = useRouter()
   const t = usePortalT(lang)
-  const [tab, setTab] = useState<'link' | 'password'>('link')
+  const [tab, setTab] = useState<'link' | 'password' | 'code'>('link')
   const [email, setEmail] = useState('')
   // P55 — the password tab signs in with email OR phone (separate state so the
   // magic-link tab stays a strict email field).
@@ -23,6 +25,10 @@ export function LoginClient({ facilityCode, lang }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [linkSent, setLinkSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // P55 — SMS-code login state
+  const [codePhone, setCodePhone] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
+  const [code, setCode] = useState('')
 
   const onRequestLink = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,6 +77,54 @@ export function LoginClient({ facilityCode, lang }: Props) {
     }
   }
 
+  // P55 — SMS-code login (dormant until Twilio; the tab only renders when on)
+  const onRequestCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/portal/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: codePhone.trim(), facilityCode }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error ?? t('common.error'))
+        return
+      }
+      setCodeSent(true)
+    } catch {
+      setError(t('common.networkError'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const onVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/portal/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: codePhone.trim(), code: code.trim(), facilityCode }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(j.error ?? t('login.invalidCreds'))
+        return
+      }
+      router.push(`/family/${encodeURIComponent(facilityCode)}`)
+      router.refresh()
+    } catch {
+      setError(t('common.networkError'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (linkSent) {
     return (
       <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6 text-center">
@@ -100,7 +154,7 @@ export function LoginClient({ facilityCode, lang }: Props) {
   return (
     <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] overflow-hidden">
       <div className="flex border-b border-stone-100 px-2">
-        {(['link', 'password'] as const).map((tabKey) => (
+        {([...(['link', 'password'] as const), ...(smsLoginEnabled ? (['code'] as const) : [])]).map((tabKey) => (
           <button
             key={tabKey}
             type="button"
@@ -113,13 +167,65 @@ export function LoginClient({ facilityCode, lang }: Props) {
               tab === tabKey ? 'text-[#8B2E4A] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-[#8B2E4A]' : 'text-stone-500 hover:text-stone-800',
             )}
           >
-            {tabKey === 'link' ? t('login.tabLink') : t('login.tabPassword')}
+            {tabKey === 'link' ? t('login.tabLink') : tabKey === 'password' ? t('login.tabPassword') : t('login.tabCode')}
           </button>
         ))}
       </div>
 
       <div className="p-5">
-        {tab === 'link' ? (
+        {tab === 'code' ? (
+          <form onSubmit={codeSent ? onVerifyCode : onRequestCode} className="flex flex-col gap-3">
+            <label htmlFor="login-code-phone" className="text-xs font-semibold text-stone-600">
+              {t('login.identifierPhone')}
+            </label>
+            <input
+              id="login-code-phone"
+              type="tel"
+              autoComplete="tel"
+              required
+              autoFocus
+              value={codePhone}
+              onChange={(e) => { setCodePhone(e.target.value); setCodeSent(false); setCode('') }}
+              placeholder="(555) 123-4567"
+              className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+            />
+            {codeSent && (
+              <>
+                <p className="text-xs text-emerald-700">{t('login.codeSent')}</p>
+                <label htmlFor="login-code" className="text-xs font-semibold text-stone-600 mt-1">{t('login.codeLabel')}</label>
+                <input
+                  id="login-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="rounded-xl border border-stone-200 px-4 py-2.5 text-lg tracking-[0.3em] text-center focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
+                />
+              </>
+            )}
+            {error && <div role="alert" className="text-xs text-red-600">{error}</div>}
+            <button
+              type="submit"
+              disabled={submitting || codePhone.replace(/\D/g, '').length < 7 || (codeSent && code.length !== 6)}
+              className="bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+            >
+              {submitting
+                ? t('login.sending')
+                : codeSent
+                  ? t('login.codeVerify')
+                  : t('login.codeSend')}
+            </button>
+            {codeSent && (
+              <button type="button" onClick={() => { setCodeSent(false); setCode('') }} className="text-xs font-semibold text-[#8B2E4A] hover:underline">
+                {t('login.codeResend')}
+              </button>
+            )}
+          </form>
+        ) : tab === 'link' ? (
           <form onSubmit={onRequestLink} className="flex flex-col gap-3">
             <label htmlFor="login-link-email" className="text-xs font-semibold text-stone-600">{t('login.email')}</label>
             <input

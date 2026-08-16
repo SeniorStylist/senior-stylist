@@ -927,6 +927,22 @@ export const portalMagicLinks = pgTable('portal_magic_links', {
   tokenUniq: unique('portal_magic_links_token_key').on(t.token),
 }))
 
+// P55 — SMS login codes (drizzle/0042, bootstrapped by portal-identity-ddl.ts).
+// Dormant until Twilio: 6-digit codes, sha256-hashed, 10-min expiry, ≤5
+// attempts, single-use. Verify = a VERIFIED entry (session + held-password
+// activation).
+export const portalLoginCodes = pgTable('portal_login_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  portalAccountId: uuid('portal_account_id')
+    .references(() => portalAccounts.id, { onDelete: 'cascade' })
+    .notNull(),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  attempts: integer('attempts').default(0).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 export const portalSessions = pgTable('portal_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   portalAccountId: uuid('portal_account_id')
