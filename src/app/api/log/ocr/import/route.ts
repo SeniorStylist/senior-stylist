@@ -3,7 +3,7 @@ import { getUserFacility, canScanLogs } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { db } from '@/db'
 import { residents, services, bookings, stylists, stylistFacilityAssignments, franchiseFacilities, importBatches, facilities } from '@/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, sql, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateStylistCode } from '@/lib/stylist-code'
 import { splitStylistCell } from '@/lib/service-log-import'
@@ -145,6 +145,15 @@ export async function POST(request: Request) {
     let createdServices = 0
     let createdStylists = 0
     let createdBookings = 0
+    // P55 — unpaid imported bookings, grouped after the tx into per-resident
+    // card-on-file charge candidates for the modal's confirmation step.
+    const unpaidImports: Array<{
+      bookingId: string
+      residentId: string
+      amountCents: number
+      serviceNames: string[]
+      date: string
+    }> = []
 
     // Franchise for any stylists we create (mirrors POST /api/stylists so an
     // import-created stylist is a first-class member of the franchise pool).
@@ -464,26 +473,40 @@ export async function POST(request: Request) {
           const totalDurationMinutes = allServiceIds.length * 30
           const endTime = new Date(startTime.getTime() + totalDurationMinutes * 60 * 1000)
 
-          await tx.insert(bookings).values({
-            facilityId,
-            residentId,
-            stylistId: sheetStylistId,
-            serviceId: primary.id,
-            serviceIds: allServiceIds,
-            serviceNames: allServiceNames,
-            totalDurationMinutes,
-            startTime,
-            endTime,
-            priceCents: entry.priceCents ?? null,
-            tipCents: entry.tipCents ?? null,
-            notes: entry.notes ?? null,
-            status: 'completed',
-            paymentStatus: entry.paymentStatus ?? 'unpaid',
-            paymentMethod: entry.paymentMethod ?? null,
-            mailSubject: sheet.mailSubject?.trim() || null,
-            source: 'historical_import',
-            importBatchId: importBatchId ?? undefined,
-          })
+          const [insertedBooking] = await tx
+            .insert(bookings)
+            .values({
+              facilityId,
+              residentId,
+              stylistId: sheetStylistId,
+              serviceId: primary.id,
+              serviceIds: allServiceIds,
+              serviceNames: allServiceNames,
+              totalDurationMinutes,
+              startTime,
+              endTime,
+              priceCents: entry.priceCents ?? null,
+              tipCents: entry.tipCents ?? null,
+              notes: entry.notes ?? null,
+              status: 'completed',
+              paymentStatus: entry.paymentStatus ?? 'unpaid',
+              paymentMethod: entry.paymentMethod ?? null,
+              mailSubject: sheet.mailSubject?.trim() || null,
+              source: 'historical_import',
+              importBatchId: importBatchId ?? undefined,
+            })
+            .returning({ id: bookings.id })
+          // P55 — track unpaid imports for the card-on-file charge confirmation
+          // (only combos that DIDN'T already say cash/check/card/ach qualify).
+          if ((entry.paymentStatus ?? 'unpaid') === 'unpaid' && insertedBooking) {
+            unpaidImports.push({
+              bookingId: insertedBooking.id,
+              residentId,
+              amountCents: entry.priceCents ?? 0,
+              serviceNames: allServiceNames,
+              date: sheet.date,
+            })
+          }
           createdBookings++
           entryIndex++
         }
@@ -495,10 +518,60 @@ export async function POST(request: Request) {
       }
     })
 
+    // P55 — card-on-file charge candidates for the modal's confirmation step
+    // (owner decision: scanned sheets charge too, but ONLY behind a human
+    // confirm — fuzzy matching must never charge the wrong Smith). Candidates
+    // = autopay-opted-in residents with an active saved card whose imported
+    // bookings stayed unpaid. Best-effort: a failure here never breaks the
+    // import itself.
+    let chargeCandidates: Array<{
+      residentId: string
+      residentName: string
+      totalCents: number
+      bookings: Array<{ bookingId: string; serviceNames: string[]; date: string; amountCents: number }>
+    }> = []
+    try {
+      const candidateResidentIds = Array.from(new Set(unpaidImports.map((b) => b.residentId)))
+      if (candidateResidentIds.length > 0) {
+        const { ensurePaymentsSchema } = await import('@/lib/payments-ddl')
+        await ensurePaymentsSchema()
+        const { paymentMethods } = await import('@/db/schema')
+        const covered = await db
+          .selectDistinct({ id: residents.id, name: residents.name })
+          .from(residents)
+          .innerJoin(
+            paymentMethods,
+            and(eq(paymentMethods.residentId, residents.id), eq(paymentMethods.active, true)),
+          )
+          .where(
+            and(
+              inArray(residents.id, candidateResidentIds),
+              eq(residents.active, true),
+              eq(residents.isDemo, false),
+              eq(residents.autopayEnabled, true), // owner decision: autopay opt-in only
+            ),
+          )
+        chargeCandidates = covered.map((r) => {
+          const rows = unpaidImports.filter((b) => b.residentId === r.id)
+          return {
+            residentId: r.id,
+            residentName: r.name,
+            // price_cents only — never add tip_cents (revenue guard)
+            totalCents: rows.reduce((s, b) => s + b.amountCents, 0),
+            bookings: rows.map(({ bookingId, serviceNames, date, amountCents }) => ({ bookingId, serviceNames, date, amountCents })),
+          }
+        }).filter((c) => c.totalCents > 0)
+      }
+    } catch (err) {
+      console.error('[ocr import] charge-candidate computation failed (import unaffected):', err)
+      chargeCandidates = []
+    }
+
     return Response.json({
       data: {
         created: { residents: createdResidents, services: createdServices, stylists: createdStylists, bookings: createdBookings },
         importBatchId,
+        chargeCandidates,
       },
     })
   } catch (err) {

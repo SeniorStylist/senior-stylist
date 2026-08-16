@@ -721,6 +721,10 @@ export function LogClient({
         return
       }
       await navigateDate(date) // drop the rolled-back bookings from view
+      // P55 — undo soft-deletes bookings but NEVER reverses card charges; any
+      // card already charged from this scan must be refunded from the
+      // resident's ledger (billing roles).
+      toast('Heads up: any card already charged from this scan is NOT refunded by undo — use the resident’s ledger to refund.', 'info')
       if (Array.isArray(j.data?.sheets) && j.data.sheets.length > 0) {
         setOcrSeedSheets(j.data.sheets)
         setOcrSeedFacilityId(typeof j.data?.facilityId === 'string' ? j.data.facilityId : null)

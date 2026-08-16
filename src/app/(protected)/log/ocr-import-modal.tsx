@@ -99,7 +99,16 @@ type SheetState = {
   entries: EntryState[]
 }
 
-type Step = 'upload' | 'review' | 'confirm'
+// P55 — 'charge': post-import card-on-file confirmation (never auto-charged;
+// a human checks the rows and presses the button — fuzzy-match safety).
+type Step = 'upload' | 'review' | 'confirm' | 'charge'
+
+interface ChargeCandidate {
+  residentId: string
+  residentName: string
+  totalCents: number
+  bookings: Array<{ bookingId: string; serviceNames: string[]; date: string; amountCents: number }>
+}
 
 interface OcrImportModalProps {
   open: boolean
@@ -385,6 +394,11 @@ export function OcrImportModal({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [tipIndex, setTipIndex] = useState(0)
   const [tipVisible, setTipVisible] = useState(true)
+  // P55 — post-import card-on-file confirmation step
+  const [chargeCandidates, setChargeCandidates] = useState<ChargeCandidate[]>([])
+  const [chargeBatchId, setChargeBatchId] = useState<string | null>(null)
+  const [chargeChecked, setChargeChecked] = useState<Set<string>>(new Set())
+  const [charging, setCharging] = useState(false)
 
   useEffect(() => {
     if (!scanning) return
@@ -411,6 +425,10 @@ export function OcrImportModal({
     setActiveTab(0)
     setImporting(false)
     setImportError(null)
+    setChargeCandidates([])
+    setChargeBatchId(null)
+    setChargeChecked(new Set())
+    setCharging(false)
     // Restore the facility target to the pinned facility. This runs on BOTH exit
     // paths (successful import AND manual close) — leaving the previous selection
     // behind silently sent the next scan to the wrong facility (the Glen Meadow →
@@ -793,17 +811,68 @@ export function OcrImportModal({
         setImportError(apiFailureMessage(res, json, 'Import failed'))
         return
       }
-      const data = json.data as { created: { bookings: number } }
+      const data = json.data as {
+        created: { bookings: number }
+        importBatchId?: string | null
+        chargeCandidates?: ChargeCandidate[]
+      }
       const n = data.created.bookings
+      toast(`${n} booking${n !== 1 ? 's' : ''} imported`, 'success')
+      // P55 — card-on-file confirmation step: when the import found autopay
+      // residents with saved cards, stay open and ask before charging. The
+      // log behind the modal still refreshes (onImported) either way.
+      if (data.chargeCandidates && data.chargeCandidates.length > 0 && data.importBatchId) {
+        setChargeCandidates(data.chargeCandidates)
+        setChargeBatchId(data.importBatchId)
+        setChargeChecked(new Set(data.chargeCandidates.map((c) => c.residentId)))
+        setStep('charge')
+        onImported()
+        return
+      }
       reset()
       onClose()
       onImported()
-      toast(`${n} booking${n !== 1 ? 's' : ''} imported`, 'success')
     } catch (err) {
       console.error('[handleImport] failed:', err)
       setImportError('Upload failed — check your connection and try again.')
     } finally {
       setImporting(false)
+    }
+  }
+
+  // P55 — run the confirmed card-on-file charges. The server re-derives the
+  // booking set + amounts from the batch; only the checked resident ids ride.
+  const handleChargeCof = async () => {
+    if (!chargeBatchId || chargeChecked.size === 0) return
+    setCharging(true)
+    try {
+      const res = await fetch('/api/log/charge-cof', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importBatchId: chargeBatchId, residentIds: Array.from(chargeChecked) }),
+      })
+      const json = await readJsonSafe(res)
+      if (!res.ok) {
+        toast(apiFailureMessage(res, json, 'Charges failed'), 'error')
+        return
+      }
+      const payload = json as { data?: { results?: Array<{ residentId: string; ok: boolean; collectedCents?: number; reason?: string }> } }
+      const results = payload.data?.results ?? []
+      const okCount = results.filter((r) => r.ok).length
+      const failCount = results.length - okCount
+      const collected = results.reduce((s, r) => s + (r.collectedCents ?? 0), 0)
+      if (okCount > 0) toast(`Charged ${okCount} card${okCount !== 1 ? 's' : ''} — ${formatCents(collected)}`, 'success')
+      if (failCount > 0) {
+        toast(`${failCount} charge${failCount !== 1 ? 's' : ''} didn't go through — a payment link was sent to the family`, 'error')
+      }
+      reset()
+      onClose()
+      onImported()
+    } catch (err) {
+      console.error('[handleChargeCof] failed:', err)
+      toast('Network error — the charges were not run. You can re-scan or use Collect now from the resident page.', 'error')
+    } finally {
+      setCharging(false)
     }
   }
 
@@ -824,7 +893,7 @@ export function OcrImportModal({
         >
           <div>
             <h2 className="text-base font-semibold text-stone-900">
-              {step === 'upload' ? 'Scan Log Sheets' : step === 'review' ? 'Review Entries' : 'Confirm Import'}
+              {step === 'upload' ? 'Scan Log Sheets' : step === 'review' ? 'Review Entries' : step === 'charge' ? 'Charge Cards on File' : 'Confirm Import'}
             </h2>
             <p className="text-xs text-stone-500 mt-0.5">
               {step === 'upload'
@@ -1636,6 +1705,57 @@ export function OcrImportModal({
               {importError && <p className="text-xs text-red-600">{importError}</p>}
             </div>
           )}
+
+          {/* P55 — post-import card-on-file charge confirmation */}
+          {step === 'charge' && (
+            <div className="px-5 py-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-800">Charge cards on file</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  These residents have automatic payment on with a saved card. Their scanned
+                  services are unpaid — confirm who to charge now.
+                </p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800">
+                Double-check the names before charging — scanned sheets can mis-read similar names.
+              </div>
+              <div className="space-y-2">
+                {chargeCandidates.map((c) => {
+                  const checked = chargeChecked.has(c.residentId)
+                  return (
+                    <label
+                      key={c.residentId}
+                      className="flex items-start gap-3 rounded-xl border border-stone-200 bg-white p-3 cursor-pointer hover:bg-stone-50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setChargeChecked((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(c.residentId)) next.delete(c.residentId)
+                            else next.add(c.residentId)
+                            return next
+                          })
+                        }
+                        className="mt-0.5 accent-[#8B2E4A] w-4 h-4"
+                      />
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-stone-900">{c.residentName}</span>
+                          <span className="text-sm font-semibold text-stone-900 tabular-nums">{formatCents(c.totalCents)}</span>
+                        </span>
+                        <span className="block text-[11.5px] text-stone-500 mt-0.5">
+                          {c.bookings.length} service{c.bookings.length !== 1 ? 's' : ''} ·{' '}
+                          {c.bookings.map((b) => b.serviceNames.join(' + ')).join(' · ')}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -1716,6 +1836,33 @@ export function OcrImportModal({
                   </>
                 ) : (
                   'Import All'
+                )}
+              </button>
+            </>
+          )}
+          {step === 'charge' && (
+            <>
+              <button
+                onClick={() => { reset(); onClose() }}
+                disabled={charging}
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors disabled:opacity-40"
+              >
+                Skip — don&apos;t charge now
+              </button>
+              <button
+                onClick={handleChargeCof}
+                disabled={charging || chargeChecked.size === 0}
+                className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-[#8B2E4A] text-white text-sm font-semibold hover:bg-[#72253C] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {charging ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Charging…
+                  </>
+                ) : (
+                  `Charge ${chargeChecked.size} card${chargeChecked.size !== 1 ? 's' : ''} — ${formatCents(
+                    chargeCandidates.filter((c) => chargeChecked.has(c.residentId)).reduce((s, c) => s + c.totalCents, 0),
+                  )}`
                 )}
               </button>
             </>
