@@ -46,6 +46,9 @@ interface BookingModalProps {
   // scheduled in the same transaction.
   prefillResidentId?: string | null
   prefillServiceId?: string | null
+  // P54 — multi-service sign-up entries: EVERY requested service prefills a
+  // row (includes the primary; wins over prefillServiceId when set).
+  prefillServiceIds?: string[] | null
   // P53 — family/staff notes from a sign-up sheet entry (seeded into the notes
   // field so "Mom likes it short" survives conversion; server also falls back)
   prefillNotes?: string | null
@@ -100,6 +103,7 @@ export function BookingModal({
   serviceCategoryOrder,
   prefillResidentId = null,
   prefillServiceId = null,
+  prefillServiceIds = null,
   prefillNotes = null,
   defaultStylistId = null,
   signupSheetEntryId = null,
@@ -216,8 +220,10 @@ export function BookingModal({
       return idsChanged || addonsChanged || notesChanged || timeChanged || tipChanged
     }
     const residentTouched = !!selectedResidentId && selectedResidentId !== (prefillResidentId ?? '')
+    // P54 — multi-service prefill seeds N rows; only rows beyond it count as work.
+    const prefilledCount = prefillServiceIds?.length ?? (prefillServiceId ? 1 : 0)
     const serviceTouched =
-      selectedServiceIds.filter(Boolean).length > ((prefillServiceId ? 1 : 0) + (residentTouched ? 1 : 0))
+      selectedServiceIds.filter(Boolean).length > (prefilledCount + (residentTouched ? 1 : 0))
     // the most-used auto-preselect from a touched resident doesn't count as extra work
     return residentTouched || serviceTouched || notes.trim() !== '' || selectedAddonServiceIds.length > 0
   })()
@@ -268,7 +274,14 @@ export function BookingModal({
       setResidentSearch(preResident?.name ?? '')
       // Default to one empty service row so the dropdown is visible immediately
       // (and so guided tours can target it). Empty ids are filtered before submit.
-      setSelectedServiceIds(prefillServiceId ? [prefillServiceId] : [''])
+      // P54 — a multi-service sign-up entry prefills EVERY requested service.
+      setSelectedServiceIds(
+        prefillServiceIds && prefillServiceIds.length > 0
+          ? prefillServiceIds
+          : prefillServiceId
+            ? [prefillServiceId]
+            : [''],
+      )
       setSelectedAddonServiceIds([])
       setStartTime(defaultStart ? formatDateTimeLocal(defaultStart, facilityTimezone) : '')
       setNotes(prefillNotes ?? '')

@@ -1066,6 +1066,12 @@ export const signupSheetEntries = pgTable('signup_sheet_entries', {
   roomNumber: text('room_number'),
   serviceId: uuid('service_id').references(() => services.id),
   serviceName: text('service_name').notNull(),
+  // P54 — multi-service (drizzle/0039): serviceIds INCLUDES the primary
+  // (mirrors bookings.serviceIds); serviceNames is the denormalized display
+  // copy. serviceId/serviceName stay = the FIRST service; null arrays fall
+  // back to [serviceId].
+  serviceIds: jsonb('service_ids').$type<string[]>(),
+  serviceNames: jsonb('service_names').$type<string[]>(),
   // 'HH:MM' string (24-hour); null = no time preference. Tz-agnostic — actual booking time
   // is set at scheduling time using the facility's tz.
   requestedTime: text('requested_time'),

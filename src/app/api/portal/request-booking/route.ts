@@ -118,6 +118,11 @@ export async function POST(request: NextRequest) {
           roomNumber: residentDetail?.roomNumber ?? null,
           serviceId: orderedSvcs[0].id,
           serviceName: orderedSvcs[0].name,
+          // P54 — real multi-service arrays (includes the primary). The
+          // "Also requested:" notes-append above STAYS for readability +
+          // stale clients that haven't picked up the array rendering.
+          serviceIds: orderedSvcs.map((s) => s.id),
+          serviceNames: orderedSvcs.map((s) => s.name),
           requestedDate: todayInTz(facility?.timezone ?? 'America/New_York'),
           preferredDate: preferredDateFrom ?? null,
           preferredDateTo: preferredDateTo ?? null,

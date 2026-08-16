@@ -4,7 +4,7 @@ import { signupSheetEntries, residents, services, stylistFacilityAssignments } f
 import { getUserFacility, isAdminOrAbove, isFacilityStaff } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { or, isNull } from 'drizzle-orm'
-import { eq, and, asc, count } from 'drizzle-orm'
+import { eq, and, asc, count, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
@@ -22,6 +22,9 @@ const createSchema = z.object({
   roomNumber: z.string().max(50).nullable().optional(),
   serviceId: z.string().uuid().nullable(),
   serviceName: z.string().min(1).max(200),
+  // P54 — multi-service: includes the primary. When present, serviceId/
+  // serviceName are derived server-side from the FIRST entry.
+  serviceIds: z.array(z.string().uuid()).min(1).max(6).optional(),
   requestedTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
   requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
@@ -81,12 +84,35 @@ export async function POST(request: NextRequest) {
       if (!roomNumber && resident.roomNumber) roomNumber = resident.roomNumber
     }
 
-    if (parsed.data.serviceId) {
+    // P54 — multi-service: validate EVERY id against the facility in one query
+    // and derive names from the DB (never trust client-supplied names for the
+    // array). Order is preserved; the first entry becomes serviceId/serviceName.
+    let serviceIds: string[] | null = null
+    let serviceNames: string[] | null = null
+    let primaryServiceId = parsed.data.serviceId
+    let primaryServiceName = parsed.data.serviceName
+    if (parsed.data.serviceIds && parsed.data.serviceIds.length > 0) {
+      const uniqueIds = Array.from(new Set(parsed.data.serviceIds))
+      const rows = await db.query.services.findMany({
+        where: and(inArray(services.id, uniqueIds), eq(services.facilityId, facilityId)),
+        columns: { id: true, name: true },
+      })
+      const byId = new Map(rows.map((r) => [r.id, r.name]))
+      if (uniqueIds.some((id) => !byId.has(id))) {
+        return Response.json({ error: 'Service not found' }, { status: 404 })
+      }
+      serviceIds = uniqueIds
+      serviceNames = uniqueIds.map((id) => byId.get(id)!)
+      primaryServiceId = uniqueIds[0]
+      primaryServiceName = serviceNames[0]
+    } else if (parsed.data.serviceId) {
       const service = await db.query.services.findFirst({
         where: and(eq(services.id, parsed.data.serviceId), eq(services.facilityId, facilityId)),
-        columns: { id: true },
+        columns: { id: true, name: true },
       })
       if (!service) return Response.json({ error: 'Service not found' }, { status: 404 })
+      serviceIds = [service.id]
+      serviceNames = [service.name]
     }
 
     if (parsed.data.assignedToStylistId) {
@@ -115,8 +141,10 @@ export async function POST(request: NextRequest) {
         residentId: parsed.data.residentId,
         residentName: parsed.data.residentName,
         roomNumber,
-        serviceId: parsed.data.serviceId,
-        serviceName: parsed.data.serviceName,
+        serviceId: primaryServiceId,
+        serviceName: primaryServiceName,
+        serviceIds,
+        serviceNames,
         requestedTime: parsed.data.requestedTime ?? null,
         requestedDate: parsed.data.requestedDate,
         preferredDate: parsed.data.preferredDate ?? null,

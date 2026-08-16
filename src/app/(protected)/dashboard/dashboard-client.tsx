@@ -194,6 +194,8 @@ export function DashboardClient({
   const [schedulingEntryId, setSchedulingEntryId] = useState<string | null>(null)
   const [prefillResidentId, setPrefillResidentId] = useState<string | null>(null)
   const [prefillServiceId, setPrefillServiceId] = useState<string | null>(null)
+  // P54 — multi-service sign-up entries prefill EVERY requested service.
+  const [prefillServiceIds, setPrefillServiceIds] = useState<string[] | null>(null)
   // P53 — family/staff notes carried from a sign-up entry into the convert modal
   const [prefillNotes, setPrefillNotes] = useState<string | null>(null)
   // Phase 15 F4 — cancellation waitlist state
@@ -371,6 +373,7 @@ export function DashboardClient({
     setModalEnd(null)
     setPrefillResidentId(entry.residentId)
     setPrefillServiceId(entry.serviceId)
+    setPrefillServiceIds(entry.serviceIds ?? null) // P54 multi-service
     setPrefillNotes(entry.notes ?? null)
     setSchedulingEntryId(entry.id)
     if (entry.resident && !residents.some((r) => r.id === entry.resident!.id)) {
@@ -403,6 +406,7 @@ export function DashboardClient({
     setModalEnd(null)
     setPrefillResidentId(entry.residentId)
     setPrefillServiceId(entry.serviceId)
+    setPrefillServiceIds(entry.serviceIds ?? null) // P54 multi-service
     setPrefillNotes(entry.notes ?? null)
     setSchedulingEntryId(entry.id)
     // Make sure the resident is in the local list (panel may have created one inline)
@@ -620,6 +624,7 @@ export function DashboardClient({
     setModalEnd(null)
     setPrefillResidentId(null)
     setPrefillServiceId(null)
+    setPrefillServiceIds(null)
     setPrefillNotes(null)
     setSchedulingEntryId(null)
     setWaitlistEntryIdForBooking(null)
@@ -926,6 +931,7 @@ export function DashboardClient({
           serviceCategoryOrder={facility.serviceCategoryOrder}
           prefillResidentId={prefillResidentId}
           prefillServiceId={prefillServiceId}
+          prefillServiceIds={prefillServiceIds}
           prefillNotes={prefillNotes}
           defaultStylistId={userRole === 'stylist' ? profileStylistId : null}
           signupSheetEntryId={schedulingEntryId}
@@ -1419,6 +1425,7 @@ export function DashboardClient({
         serviceCategoryOrder={facility.serviceCategoryOrder}
         prefillResidentId={prefillResidentId}
         prefillServiceId={prefillServiceId}
+        prefillServiceIds={prefillServiceIds}
         prefillNotes={prefillNotes}
         defaultStylistId={userRole === 'stylist' ? profileStylistId : null}
         signupSheetEntryId={schedulingEntryId}

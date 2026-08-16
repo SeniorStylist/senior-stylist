@@ -258,6 +258,9 @@ export interface SignupSheetEntry {
   roomNumber: string | null
   serviceId: string | null
   serviceName: string
+  /** P54 — multi-service (includes the primary); null on pre-P54 rows → fall back to [serviceId]/[serviceName]. */
+  serviceIds?: string[] | null
+  serviceNames?: string[] | null
   requestedTime: string | null
   requestedDate: string
   preferredDate: string | null

@@ -60,10 +60,11 @@ export function SignupSheetPanel({
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
+  // P54 — extra service rows (multi-service request; primary stays the typeahead)
+  const [extraServiceIds, setExtraServiceIds] = useState<string[]>([])
 
   const [requestedTime, setRequestedTime] = useState('')
   const [preferredDate, setPreferredDate] = useState('')
-  const [assignedStylistId, setAssignedStylistId] = useState('')
   const [notes, setNotes] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
@@ -105,9 +106,9 @@ export function SignupSheetPanel({
     setServiceSearch('')
     setSelectedServiceId('')
     setServiceDropdownOpen(false)
+    setExtraServiceIds([])
     setRequestedTime('')
     setPreferredDate('')
-    setAssignedStylistId('')
     setNotes('')
   }, [open])
 
@@ -222,6 +223,8 @@ export function SignupSheetPanel({
     setSubmitting(true)
     try {
       const roomNumber = roomOverride.trim() || resident.roomNumber || undefined
+      // P54 — multi-service: primary + any extra rows (deduped, order kept).
+      const allServiceIds = [service.id, ...extraServiceIds.filter((id) => id && id !== service.id)]
       const body = {
         // An offline-created pending resident has no server id yet — send the
         // name only (the schema takes residentId: null + residentName).
@@ -230,11 +233,13 @@ export function SignupSheetPanel({
         roomNumber,
         serviceId: service.id,
         serviceName: service.name,
+        serviceIds: allServiceIds,
         requestedTime: requestedTime || null,
         requestedDate: todayDate,
         preferredDate: preferredDate || null,
         notes: notes.trim() || null,
-        assignedToStylistId: assignedStylistId || null,
+        // P54 — the stylist dropdown is GONE (owner decision): preferred DAY
+        // drives auto-assignment server-side; staff never hand-pick.
       }
       // P28 — queued offline on network failure (F6 pattern)
       const res = await queueableFetch('Sign-up entry', '/api/signup-sheet', {
@@ -249,16 +254,18 @@ export function SignupSheetPanel({
           roomNumber: roomNumber ?? null,
           serviceId: body.serviceId,
           serviceName: body.serviceName,
+          serviceIds: body.serviceIds,
+          serviceNames: allServiceIds.map((id) => activeServices.find((s) => s.id === id)?.name ?? '').filter(Boolean),
           requestedTime: body.requestedTime,
           requestedDate: body.requestedDate,
           preferredDate: body.preferredDate,
           notes: body.notes,
-          assignedToStylistId: body.assignedToStylistId,
+          assignedToStylistId: null,
           status: 'pending',
         } as (typeof entries)[number]])
         setResidentSearch(''); setSelectedResidentId(''); setRoomOverride('')
-        setServiceSearch(''); setSelectedServiceId('')
-        setRequestedTime(''); setPreferredDate(''); setAssignedStylistId(''); setNotes('')
+        setServiceSearch(''); setSelectedServiceId(''); setExtraServiceIds([])
+        setRequestedTime(''); setPreferredDate(''); setNotes('')
         toast('Saved offline — will sync when you\'re back online', 'success')
         return
       }
@@ -274,9 +281,9 @@ export function SignupSheetPanel({
       setRoomOverride('')
       setServiceSearch('')
       setSelectedServiceId('')
+      setExtraServiceIds([])
       setRequestedTime('')
       setPreferredDate('')
-      setAssignedStylistId('')
       setNotes('')
       toast.success('Added to sign-up sheet')
     } catch (e) {
@@ -399,8 +406,8 @@ export function SignupSheetPanel({
                 onClick={() => {
                   // Actually discard — clear the form so it doesn't reappear on reopen
                   setResidentSearch(''); setSelectedResidentId(''); setRoomOverride('')
-                  setServiceSearch(''); setSelectedServiceId('')
-                  setRequestedTime(''); setPreferredDate(''); setAssignedStylistId(''); setNotes('')
+                  setServiceSearch(''); setSelectedServiceId(''); setExtraServiceIds([])
+                  setRequestedTime(''); setPreferredDate(''); setNotes('')
                   setCreateResidentOpen(false); setCreateResidentName(''); setCreateResidentRoom('')
                   setConfirmDiscard(false)
                   onClose()
@@ -606,6 +613,43 @@ export function SignupSheetPanel({
               )}
             </div>
 
+            {/* P54 — extra services (multi-service request; plain selects) */}
+            {selectedServiceId && extraServiceIds.map((id, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <select
+                  value={id}
+                  onChange={(e) =>
+                    setExtraServiceIds((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                  }
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+                >
+                  <option value="">Select another service…</option>
+                  {activeServices
+                    .filter((s) => s.id !== selectedServiceId && (s.id === id || !extraServiceIds.includes(s.id)))
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  aria-label="Remove service"
+                  onClick={() => setExtraServiceIds((prev) => prev.filter((_, j) => j !== i))}
+                  className="w-9 h-9 shrink-0 rounded-xl border border-stone-200 text-stone-400 hover:text-red-600 hover:border-red-200 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {selectedServiceId && extraServiceIds.length < 5 && (
+              <button
+                type="button"
+                onClick={() => setExtraServiceIds((prev) => [...prev, ''])}
+                className="self-start text-xs font-semibold text-[#8B2E4A] hover:underline -mt-1"
+              >
+                ＋ Add another service
+              </button>
+            )}
+
             {/* Preferred date (Phase 12S — drives auto-assignment) */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Preferred date (optional)</label>
@@ -619,30 +663,17 @@ export function SignupSheetPanel({
               />
             </div>
 
-            {/* Time + Stylist */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Preferred time</label>
-                <input
-                  type="time"
-                  value={requestedTime}
-                  onChange={(e) => setRequestedTime(e.target.value)}
-                  className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Stylist</label>
-                <select
-                  value={assignedStylistId}
-                  onChange={(e) => setAssignedStylistId(e.target.value)}
-                  className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
-                >
-                  <option value="">Unassigned</option>
-                  {stylists.filter((s) => s.active).map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Preferred time — P54: the stylist dropdown is GONE (owner
+                decision: the preferred DAY drives auto-assignment; staff never
+                hand-pick a stylist here). */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Preferred time</label>
+              <input
+                type="time"
+                value={requestedTime}
+                onChange={(e) => setRequestedTime(e.target.value)}
+                className="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-[#8B2E4A] focus:ring-2 focus:ring-[#8B2E4A]/20"
+              />
             </div>
 
             {/* Notes (Phase 12S — textarea with placeholder copy) */}
@@ -712,7 +743,7 @@ export function SignupSheetPanel({
                               {entry.roomNumber && <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>}
                             </p>
                             <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">
-                              {entry.serviceName}
+                              {(entry.serviceNames ?? [entry.serviceName]).join(' · ')}
                               {entry.requestedTime && <span className="text-stone-500 ml-2">@ {formatHm(entry.requestedTime)}</span>}
                             </p>
                             {entry.notes && <p className="text-[11.5px] text-stone-500 mt-1">{entry.notes}</p>}
@@ -824,7 +855,7 @@ function AdminPendingSection({ facilityTimezone, onSchedule }: {
                       <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>
                     )}
                   </p>
-                  <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">{entry.serviceName}</p>
+                  <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">{(entry.serviceNames ?? [entry.serviceName]).join(' · ')}</p>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     {/* P50 — requests filed by the family themselves */}
                     {entry.source === 'portal' && (

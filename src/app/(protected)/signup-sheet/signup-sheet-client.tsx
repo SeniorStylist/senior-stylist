@@ -32,7 +32,9 @@ function formatDateChip(dateStr: string, tz: string) {
   }
 }
 
-export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, stylists, role, paymentFlags = {}, scheduleLocked = false }: Props) {
+// P54 — `stylists` prop kept in Props (SSR still passes it) but no longer
+// destructured: the assign-to-stylist dropdown is gone (day-based auto-assign).
+export function SignupSheetPageClient({ facilityId, facilityTimezone, residents, services, role, paymentFlags = {}, scheduleLocked = false }: Props) {
   const router = useRouter()
   const { toast } = useToast()
 
@@ -95,9 +97,10 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
+  // P54 — extra service rows (multi-service request)
+  const [extraServiceIds, setExtraServiceIds] = useState<string[]>([])
 
   const [preferredDate, setPreferredDate] = useState('')
-  const [assignedStylistId, setAssignedStylistId] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -195,8 +198,8 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
     setServiceSearch('')
     setSelectedServiceId('')
     setServiceDropdownOpen(false)
+    setExtraServiceIds([])
     setPreferredDate('')
-    setAssignedStylistId('')
     setNotes('')
   }
 
@@ -204,6 +207,10 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
     if (!selectedResidentId && !residentSearch.trim()) return
     setSubmitting(true)
     try {
+      // P54 — multi-service: primary + extra rows (deduped, order kept).
+      const allServiceIds = selectedServiceId
+        ? [selectedServiceId, ...extraServiceIds.filter((id) => id && id !== selectedServiceId)]
+        : []
       const body = {
         facilityId,
         // Schema takes nullable (NOT optional) ids — `undefined` gets dropped
@@ -213,8 +220,10 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
         roomNumber: selectedResident?.roomNumber ?? null,
         serviceId: selectedServiceId || null,
         serviceName: (selectedService?.name ?? serviceSearch.trim()) || '',
+        ...(allServiceIds.length > 0 ? { serviceIds: allServiceIds } : {}),
         preferredDate: preferredDate || null,
-        assignedToStylistId: assignedStylistId || null,
+        // P54 — the stylist dropdown is GONE (owner decision): the preferred
+        // DAY drives auto-assignment server-side.
         notes: notes.trim() || null,
         requestedDate: new Date().toISOString().slice(0, 10),
       }
@@ -231,11 +240,15 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
           roomNumber: body.roomNumber,
           serviceId: body.serviceId,
           serviceName: body.serviceName,
+          serviceIds: allServiceIds.length > 0 ? allServiceIds : null,
+          serviceNames: allServiceIds.length > 0
+            ? allServiceIds.map((id) => activeServices.find((s) => s.id === id)?.name ?? '').filter(Boolean)
+            : null,
           requestedTime: null,
           requestedDate: body.requestedDate,
           preferredDate: body.preferredDate,
           notes: body.notes,
-          assignedToStylistId: body.assignedToStylistId,
+          assignedToStylistId: null,
           status: 'pending',
         } as (typeof entries)[number], ...prev])
         toast.success("Saved offline — will sync when you're back online")
@@ -307,7 +320,7 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
                     )}
                     {entry.residentId && <PaymentCoveredChip flags={paymentFlags[entry.residentId]} />}
                   </div>
-                  <p className="text-[12.5px] text-stone-600 mt-0.5">{entry.serviceName}</p>
+                  <p className="text-[12.5px] text-stone-600 mt-0.5">{(entry.serviceNames ?? [entry.serviceName]).join(' · ')}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
                     {/* P53 — portal provenance + date RANGE (were panel-only:
                         staff triaging on this page couldn't tell a family
@@ -535,6 +548,41 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
           )}
         </div>
 
+        {/* P54 — extra services (multi-service request; plain selects) */}
+        {selectedServiceId && extraServiceIds.map((id, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select
+              value={id}
+              onChange={(e) => setExtraServiceIds((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
+              className="flex-1 px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] transition-all"
+            >
+              <option value="">Select another service…</option>
+              {activeServices
+                .filter((s) => s.id !== selectedServiceId && (s.id === id || !extraServiceIds.includes(s.id)))
+                .map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+            </select>
+            <button
+              type="button"
+              aria-label="Remove service"
+              onClick={() => setExtraServiceIds((prev) => prev.filter((_, j) => j !== i))}
+              className="w-9 h-9 shrink-0 rounded-xl border border-stone-200 text-stone-400 hover:text-red-600 hover:border-red-200 transition-colors"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {selectedServiceId && extraServiceIds.length < 5 && (
+          <button
+            type="button"
+            onClick={() => setExtraServiceIds((prev) => [...prev, ''])}
+            className="self-start text-xs font-semibold text-[#8B2E4A] hover:underline"
+          >
+            ＋ Add another service
+          </button>
+        )}
+
         {/* Preferred Date */}
         <div>
           <label className="block text-xs font-semibold text-stone-600 mb-1.5">Preferred Date</label>
@@ -560,22 +608,8 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
           />
         </div>
 
-        {/* Stylist Override */}
-        {stylists.length > 0 && (
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Assign to Stylist (optional)</label>
-            <select
-              value={assignedStylistId}
-              onChange={(e) => setAssignedStylistId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] transition-all"
-            >
-              <option value="">Auto-assign</option>
-              {stylists.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* P54 — the stylist dropdown is GONE (owner decision): the preferred
+            DAY drives auto-assignment; staff never hand-pick a stylist here. */}
 
         <div>
           <button

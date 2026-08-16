@@ -78,7 +78,7 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
                         )}
                       </p>
                       <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">
-                        {entry.serviceName}
+                        {(entry.serviceNames ?? [entry.serviceName]).join(' · ')}
                         {entry.requestedTime && (
                           <span className="text-stone-500 ml-2">@ {formatHm(entry.requestedTime)}</span>
                         )}
