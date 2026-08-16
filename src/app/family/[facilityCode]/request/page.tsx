@@ -77,17 +77,12 @@ export default async function RequestServicePage({
         lang={lang}
         residentId={selected.residentId}
         residentName={selected.residentName}
+        // P54 — owner decision: NO prices on the family request page. The
+        // payload is name-only (pricingType stays server-side for the addon
+        // filter above; never send pricing fields to this client).
         groups={groups.map(([cat, items]) => ({
           category: cat,
-          services: items.map((s) => ({
-            id: s.id,
-            name: s.name,
-            priceCents: s.priceCents,
-            pricingType: s.pricingType,
-            addonAmountCents: s.addonAmountCents,
-            pricingTiers: s.pricingTiers,
-            pricingOptions: s.pricingOptions,
-          })),
+          services: items.map((s) => ({ id: s.id, name: s.name })),
         }))}
       />
     </div>

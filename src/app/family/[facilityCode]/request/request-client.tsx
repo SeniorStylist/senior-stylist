@@ -3,19 +3,15 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { formatPricingLabel } from '@/lib/pricing'
-import type { PricingTier, PricingOption } from '@/types'
 import { cn } from '@/lib/utils'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 
+// P54 — owner decision (Fitzgerald meeting): NO prices on the family request
+// page. The payload is name-only; pricing stays server-side (staff surfaces
+// and the daily log keep amounts).
 interface ClientService {
   id: string
   name: string
-  priceCents: number
-  pricingType: string
-  addonAmountCents: number | null
-  pricingTiers: PricingTier[] | null
-  pricingOptions: PricingOption[] | null
 }
 
 interface Props {
@@ -211,7 +207,6 @@ export function RequestClient({ facilityCode, lang, residentId, residentName, gr
                         </span>
                         <span className="text-sm font-medium text-stone-800 truncate">{s.name}</span>
                       </span>
-                      <span className="text-xs font-semibold text-stone-500 shrink-0">{formatPricingLabel(s)}</span>
                     </button>
                   )
                 })}
