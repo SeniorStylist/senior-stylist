@@ -872,7 +872,11 @@ export const residentPreferences = pgTable('resident_preferences', {
 
 export const portalAccounts = pgTable('portal_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull(),
+  // P55 — NULLABLE since drizzle/0041: the login identity is email OR phone
+  // ("the username will either be the email or the phone number"). App-level
+  // invariant: every insert sets at least one of email/phone. Phone uniqueness
+  // is a digits-normalized expression index (portal_accounts_phone_digits_uniq).
+  email: text('email'),
   passwordHash: text('password_hash'),
   // Phase 14A: profile info captured at self-signup
   fullName: text('full_name'),
@@ -997,10 +1001,16 @@ export const portalClaimRequests = pgTable('portal_claim_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id').notNull().references(() => facilities.id, { onDelete: 'cascade' }),
   facilityCode: text('facility_code').notNull(),
-  email: text('email').notNull(),
+  // P55 — nullable since drizzle/0041 (phone-only signups)
+  email: text('email'),
   fullName: text('full_name').notNull(),
   phone: text('phone'),
   dateOfBirth: date('date_of_birth'),
+  // P55 — the wizard-collected password for MATCHED signups is HELD here and
+  // applied to the account only after a VERIFIED entry (magic-link or SMS
+  // code), then nulled — typed knowledge of a poaEmail/poaPhone must never
+  // grant immediate access to an existing resident's account (anti-takeover).
+  passwordHash: text('password_hash'),
   // P50 — the wizard asks WHO the resident is (drizzle/0032, self-bootstrapped
   // by portal-claims-ddl.ts). relationship: 'self'|'spouse'|'child'|'poa'|'other'
   residentName: text('resident_name'),

@@ -111,20 +111,24 @@ export async function PATCH(
         .where(eq(portalClaimRequests.id, id))
 
       // P50 — the applicant hears back instead of a black hole. Internal
-      // admin `notes` are deliberately NOT included.
-      const rejFacility = await db.query.facilities.findFirst({
-        where: eq(facilities.id, claim.facilityId),
-        columns: { name: true },
-      })
-      sendEmail({
-        to: claim.email,
-        subject: `About your Family Portal request — ${rejFacility?.name ?? 'Senior Stylist'}`,
-        html: buildClaimRejectedEmailHtml({
-          fullName: claim.fullName,
-          facilityName: rejFacility?.name ?? 'the facility',
-          residentName: claim.residentName ?? null,
-        }),
-      }).catch(() => {})
+      // admin `notes` are deliberately NOT included. P55 — phone-only claims
+      // have no email to write to (SMS notice arrives with the Twilio rollout).
+      if (claim.email) {
+        const claimEmail = claim.email
+        const rejFacility = await db.query.facilities.findFirst({
+          where: eq(facilities.id, claim.facilityId),
+          columns: { name: true },
+        })
+        sendEmail({
+          to: claimEmail,
+          subject: `About your Family Portal request — ${rejFacility?.name ?? 'Senior Stylist'}`,
+          html: buildClaimRejectedEmailHtml({
+            fullName: claim.fullName,
+            facilityName: rejFacility?.name ?? 'the facility',
+            residentName: claim.residentName ?? null,
+          }),
+        }).catch(() => {})
+      }
 
       return Response.json({ data: { status: 'rejected' } })
     }
@@ -199,9 +203,20 @@ export async function PATCH(
       return Response.json({ error: 'Facility has no facility code' }, { status: 400 })
     }
 
+    // P55 — phone-only claims are only ever auto_approved/auto_created (the
+    // signup route handles them end to end); the legacy approve flow is
+    // email-driven (account upsert + magic link) and must not run without one.
+    const claimEmail = claim.email
+    if (!claimEmail) {
+      return Response.json(
+        { error: 'This family signed up by phone — their account was handled at signup. Use Keep or Merge.' },
+        { status: 422 },
+      )
+    }
+
     // Upsert portal account
     const existing = await db.query.portalAccounts.findFirst({
-      where: eq(portalAccounts.email, claim.email),
+      where: eq(portalAccounts.email, claimEmail),
       columns: { id: true, fullName: true, phone: true, dateOfBirth: true },
     })
 
@@ -221,7 +236,7 @@ export async function PATCH(
     } else {
       const [created] = await db.insert(portalAccounts)
         .values({
-          email: claim.email,
+          email: claimEmail,
           fullName: claim.fullName,
           phone: claim.phone,
           dateOfBirth: claim.dateOfBirth ?? null,
@@ -250,9 +265,9 @@ export async function PATCH(
     issueWelcomeCoupon(claim.facilityId, portalAccountId, resident.id).catch(() => {})
 
     // Send magic link — AWAITED (user-initiated "send" path)
-    const magicLink = await createMagicLink(claim.email, resident.id, facility.facilityCode)
+    const magicLink = await createMagicLink(claimEmail, resident.id, facility.facilityCode)
     await sendEmail({
-      to: claim.email,
+      to: claimEmail,
       subject: `Welcome to the ${facility.name} Family Portal`,
       html: buildPortalMagicLinkEmailHtml({
         residentNames: [resident.name],

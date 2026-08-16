@@ -111,9 +111,10 @@ export async function POST(request: NextRequest) {
         facilityId: facility.id,
         facilityCode: facility.facilityCode,
         portalAccountId: session.portalAccountId,
-        gifterName: gifterName || session.email,
+        // P55 — phone-only accounts have no email to fall back on
+        gifterName: gifterName || session.email || 'A family member',
       },
-      customer_email: session.email,
+      customer_email: session.email ?? undefined,
     })
 
     // P53 — never echo the on-file spelling back to the gifter: masked initials

@@ -25,7 +25,8 @@ export type PortalResident = {
 
 export type PortalSession = {
   portalAccountId: string
-  email: string
+  /** P55 — NULL for phone-only accounts (login identity is email OR phone). */
+  email: string | null
   residents: PortalResident[]
 }
 
@@ -127,6 +128,9 @@ export async function verifyMagicLink(
     }
   }
   await linkResidentsForEmail(portalAccountId, link.email)
+  // P55 — a verified email entry activates any password the family set in the
+  // signup wizard (held on the claim row for matched signups — anti-takeover).
+  await applyHeldClaimPassword(portalAccountId)
   return {
     portalAccountId,
     residentId: link.residentId,
@@ -243,6 +247,65 @@ export async function findAccountByEmail(email: string) {
     where: eq(portalAccounts.email, lowered),
     columns: { id: true, email: true, passwordHash: true },
   })
+}
+
+/**
+ * P55 — the login identity is email OR phone ("the username will either be
+ * the email or the phone number"). '@' → email lookup; otherwise digits-only
+ * phone lookup against the same normalization the unique index uses.
+ */
+export async function findAccountByIdentifier(identifier: string) {
+  const trimmed = identifier.trim()
+  if (trimmed.includes('@')) return findAccountByEmail(trimmed)
+  const { normalizePhoneDigits } = await import('@/lib/phone')
+  const digits = normalizePhoneDigits(trimmed)
+  if (digits.length < 7) return undefined
+  return db.query.portalAccounts.findFirst({
+    where: sql`regexp_replace(COALESCE(${portalAccounts.phone}, ''), '\\D', '', 'g') = ${digits}`,
+    columns: { id: true, email: true, passwordHash: true },
+  })
+}
+
+/**
+ * P55 — apply a HELD signup password after a VERIFIED entry (magic-link or
+ * SMS-code). The wizard collects a password from everyone, but for MATCHED
+ * signups it's parked on the claim row until the person proves possession of
+ * the email/phone — typed knowledge of a poaEmail must never grant immediate
+ * account access (anti-takeover rule). Only applies when the account has no
+ * password yet; the claim's copy is nulled either way. Best-effort.
+ */
+export async function applyHeldClaimPassword(portalAccountId: string): Promise<void> {
+  try {
+    const { portalClaimRequests } = await import('@/db/schema')
+    const account = await db.query.portalAccounts.findFirst({
+      where: eq(portalAccounts.id, portalAccountId),
+      columns: { id: true, email: true, phone: true, passwordHash: true },
+    })
+    if (!account) return
+
+    // Newest claim carrying a held password for this identity (email or phone).
+    const identityMatch = account.email
+      ? eq(portalClaimRequests.email, account.email)
+      : account.phone
+        ? sql`regexp_replace(COALESCE(${portalClaimRequests.phone}, ''), '\\D', '', 'g') = regexp_replace(${account.phone}, '\\D', '', 'g')`
+        : null
+    if (!identityMatch) return
+
+    const claim = await db.query.portalClaimRequests.findFirst({
+      where: and(identityMatch, sql`${portalClaimRequests.passwordHash} IS NOT NULL`),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      columns: { id: true, passwordHash: true },
+    })
+    if (!claim?.passwordHash) return
+
+    if (!account.passwordHash) {
+      await db.update(portalAccounts).set({ passwordHash: claim.passwordHash }).where(eq(portalAccounts.id, account.id))
+    }
+    // Consumed either way — a held hash must not linger on the claim row.
+    await db.update(portalClaimRequests).set({ passwordHash: null }).where(eq(portalClaimRequests.id, claim.id))
+  } catch (err) {
+    console.error('[portal-auth] applyHeldClaimPassword failed (non-fatal):', err)
+  }
 }
 
 export async function accountHasResidentAtFacilityCode(portalAccountId: string, facilityCode: string): Promise<boolean> {

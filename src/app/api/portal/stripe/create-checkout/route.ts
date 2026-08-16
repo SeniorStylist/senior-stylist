@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         facilityCode: facility.facilityCode,
         portalAccountId: session.portalAccountId,
       },
-      customer_email: session.email,
+      customer_email: session.email ?? undefined, // P55 — phone-only accounts
     })
 
     return Response.json({ data: { checkoutUrl: checkoutSession.url } })

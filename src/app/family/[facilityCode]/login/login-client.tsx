@@ -16,6 +16,9 @@ export function LoginClient({ facilityCode, lang }: Props) {
   const t = usePortalT(lang)
   const [tab, setTab] = useState<'link' | 'password'>('link')
   const [email, setEmail] = useState('')
+  // P55 — the password tab signs in with email OR phone (separate state so the
+  // magic-link tab stays a strict email field).
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [linkSent, setLinkSent] = useState(false)
@@ -52,7 +55,7 @@ export function LoginClient({ facilityCode, lang }: Props) {
       const res = await fetch('/api/portal/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password, facilityCode }),
+        body: JSON.stringify({ identifier: identifier.trim(), password, facilityCode }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -141,15 +144,16 @@ export function LoginClient({ facilityCode, lang }: Props) {
           </form>
         ) : (
           <form onSubmit={onPasswordLogin} className="flex flex-col gap-3">
-            <label htmlFor="login-pw-email" className="text-xs font-semibold text-stone-600">{t('login.email')}</label>
+            <label htmlFor="login-pw-identifier" className="text-xs font-semibold text-stone-600">{t('login.identifier')}</label>
             <input
-              id="login-pw-email"
-              type="email"
+              id="login-pw-identifier"
+              type="text"
+              autoComplete="username"
               required
               autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder={t('login.identifierPlaceholder')}
               className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20"
             />
             <label htmlFor="login-password" className="text-xs font-semibold text-stone-600 mt-1">{t('login.password')}</label>
@@ -166,7 +170,7 @@ export function LoginClient({ facilityCode, lang }: Props) {
             {error && <div role="alert" className="text-xs text-red-600">{error}</div>}
             <button
               type="submit"
-              disabled={submitting || !email.trim() || password.length < 8}
+              disabled={submitting || !identifier.trim() || password.length < 8}
               className="bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed mt-1"
             >
               {submitting ? t('login.signingIn') : t('login.signIn')}

@@ -173,18 +173,22 @@ export async function POST(request: NextRequest) {
     ).catch(() => {})
 
     // Family confirmation — the requester's own email (P50: the requester is
-    // often NOT the poaEmail on file).
-    sendEmail({
-      to: session.email,
-      subject: `Request received — ${residentRow.residentName} at ${facility?.name ?? residentRow.facilityName}`,
-      html: buildRequestReceivedEmailHtml({
-        residentName: residentRow.residentName,
-        facilityName: facility?.name ?? residentRow.facilityName,
-        serviceNames: orderedSvcs.map((s) => s.name),
-        preferredDateFrom: preferredDateFrom ?? null,
-        preferredDateTo: preferredDateTo ?? null,
-      }),
-    }).catch(() => {})
+    // often NOT the poaEmail on file). P55 — phone-only accounts have none;
+    // SMS confirmation arrives via the family-confirmation path when the
+    // request is scheduled.
+    if (session.email) {
+      sendEmail({
+        to: session.email,
+        subject: `Request received — ${residentRow.residentName} at ${facility?.name ?? residentRow.facilityName}`,
+        html: buildRequestReceivedEmailHtml({
+          residentName: residentRow.residentName,
+          facilityName: facility?.name ?? residentRow.facilityName,
+          serviceNames: orderedSvcs.map((s) => s.name),
+          preferredDateFrom: preferredDateFrom ?? null,
+          preferredDateTo: preferredDateTo ?? null,
+        }),
+      }).catch(() => {})
+    }
 
     revalidateTag('signup-sheet', {})
     return Response.json({ data: { entryId } })

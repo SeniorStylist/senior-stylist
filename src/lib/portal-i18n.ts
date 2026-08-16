@@ -324,6 +324,9 @@ export const PORTAL_STRINGS = {
   'login.sendLink': { en: 'Send sign-in link', es: 'Enviar enlace de acceso' },
   'login.sending': { en: 'Sending…', es: 'Enviando…' },
   'login.password': { en: 'Password', es: 'Contraseña' },
+  // P55 — the username is email OR phone
+  'login.identifier': { en: 'Email or phone number', es: 'Correo o número de teléfono' },
+  'login.identifierPlaceholder': { en: 'you@example.com or (555) 123-4567', es: 'usted@ejemplo.com o (555) 123-4567' },
   'login.signIn': { en: 'Sign in', es: 'Iniciar sesión' },
   'login.signingIn': { en: 'Signing in…', es: 'Iniciando sesión…' },
   'login.forgot': {
@@ -337,7 +340,7 @@ export const PORTAL_STRINGS = {
   },
   'login.linkExpiry': { en: 'Link expires in 72 hours.', es: 'El enlace vence en 72 horas.' },
   'login.sendAnother': { en: 'Send another link', es: 'Enviar otro enlace' },
-  'login.invalidCreds': { en: 'Invalid email or password', es: 'Correo o contraseña incorrectos' },
+  'login.invalidCreds': { en: 'Invalid email/phone or password', es: 'Correo/teléfono o contraseña incorrectos' },
   'login.newHere': { en: 'New here?', es: '¿Primera vez aquí?' },
   'login.createAccount': { en: 'Create an account', es: 'Crear una cuenta' },
 

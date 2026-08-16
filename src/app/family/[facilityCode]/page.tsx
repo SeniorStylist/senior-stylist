@@ -80,7 +80,8 @@ export default async function FamilyHomePage({
     rows.forEach((r) => stylistMap.set(r.id, r.name))
   }
 
-  const greeting = session.email.split('@')[0]
+  // P55 — phone-only accounts have no email; fall back to the resident's name
+  const greeting = session.email?.split('@')[0] ?? selected.residentName.split(' ')[0]
   const outstanding = residentRow?.qbOutstandingBalanceCents ?? 0
 
   return (
