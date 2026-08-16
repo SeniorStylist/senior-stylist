@@ -9,10 +9,17 @@
 import { db } from '@/db'
 import { portalAccountResidents, portalAccounts, residentPreferences, residents } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { normalizePhoneDigits } from '@/lib/phone'
 
 export interface FamilyRecipients {
   /** Deduped, lowercase: residents.poaEmail ∪ linked portal accounts' emails. */
   emails: string[]
+  /**
+   * P55 — deduped on digits: residents.poaPhone ∪ linked portal accounts'
+   * phones (the mirror of the emails union — a phone-only signup's number
+   * lives on the account, not always on the resident).
+   */
+  phones: string[]
   /** resident_preferences.email_reminders — null row = true (opt-out model). */
   emailReminders: boolean
   /** resident_preferences.sms_reminders — null row = true. */
@@ -34,7 +41,7 @@ export async function getFamilyRecipients(residentId: string): Promise<FamilyRec
       columns: { name: true, poaEmail: true, poaPhone: true, poaNotificationsEnabled: true },
     }),
     db
-      .select({ email: portalAccounts.email })
+      .select({ email: portalAccounts.email, phone: portalAccounts.phone })
       .from(portalAccountResidents)
       .innerJoin(portalAccounts, eq(portalAccounts.id, portalAccountResidents.portalAccountId))
       .where(eq(portalAccountResidents.residentId, residentId)),
@@ -49,8 +56,19 @@ export async function getFamilyRecipients(residentId: string): Promise<FamilyRec
   if (resident.poaEmail) emails.add(resident.poaEmail.toLowerCase())
   for (const l of links) if (l.email) emails.add(l.email.toLowerCase())
 
+  // P55 — phones union, deduped on digits (raw strings preserved for sendSms).
+  const phones: string[] = []
+  const phoneKeys = new Set<string>()
+  for (const raw of [resident.poaPhone, ...links.map((l) => l.phone)]) {
+    const digits = normalizePhoneDigits(raw)
+    if (digits.length < 7 || phoneKeys.has(digits)) continue
+    phoneKeys.add(digits)
+    phones.push(raw as string)
+  }
+
   return {
     emails: [...emails],
+    phones,
     emailReminders: prefs?.emailReminders !== false,
     smsReminders: prefs?.smsReminders !== false,
     poaNotificationsEnabled: resident.poaNotificationsEnabled !== false,

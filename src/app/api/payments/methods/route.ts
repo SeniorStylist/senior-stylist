@@ -104,31 +104,39 @@ export async function POST(request: NextRequest) {
     // not fail the vault. Not gated on the email-reminders preference.
     const actor = auth.actor
     void (async () => {
-      const [{ sendEmail, buildCardAddedEmailHtml }, { getFamilyRecipients }] = await Promise.all([
-        import('@/lib/email'),
-        import('@/lib/portal-recipients'),
-      ])
+      const [{ sendEmail, buildCardAddedEmailHtml }, { sendSms, buildCardAddedSms }, { getFamilyRecipients }] =
+        await Promise.all([import('@/lib/email'), import('@/lib/sms'), import('@/lib/portal-recipients')])
       const [recipients, facility] = await Promise.all([
         getFamilyRecipients(actor.residentId),
         db.query.facilities.findFirst({ where: (f, { eq: eqOp }) => eqOp(f.id, actor.facilityId), columns: { name: true } }),
       ])
-      if (!recipients || recipients.emails.length === 0) return
-      const cardLabel = saved?.brand ? `${saved.brand.toUpperCase()} ••${saved.last4 ?? ''}` : 'a card'
-      const html = buildCardAddedEmailHtml({
-        residentName: actor.residentName,
-        facilityName: facility?.name ?? 'Senior Stylist',
-        cardLabel,
-        addedVia: actor.via === 'portal' || actor.via === 'signup' ? 'portal' : 'staff',
-      })
-      await Promise.all(
-        recipients.emails.map((to) =>
-          sendEmail({
-            to,
-            subject: `Card saved for ${actor.residentName} — ${facility?.name ?? 'Senior Stylist'}`,
-            html,
-          }).catch(() => false),
-        ),
-      )
+      if (!recipients) return
+      const facilityName = facility?.name ?? 'Senior Stylist'
+      if (recipients.emails.length > 0) {
+        const cardLabel = saved?.brand ? `${saved.brand.toUpperCase()} ••${saved.last4 ?? ''}` : 'a card'
+        const html = buildCardAddedEmailHtml({
+          residentName: actor.residentName,
+          facilityName,
+          cardLabel,
+          addedVia: actor.via === 'portal' || actor.via === 'signup' ? 'portal' : 'staff',
+        })
+        await Promise.all(
+          recipients.emails.map((to) =>
+            sendEmail({
+              to,
+              subject: `Card saved for ${actor.residentName} — ${facilityName}`,
+              html,
+            }).catch(() => false),
+          ),
+        )
+      } else if (recipients.phones.length > 0) {
+        // P55 — phone-only families still get the "wasn't you?" notice, by
+        // text (dormant no-op until Twilio is live).
+        const smsBody = buildCardAddedSms({ residentName: actor.residentName, facilityName })
+        for (const phone of recipients.phones) {
+          sendSms(phone, smsBody).catch(() => {})
+        }
+      }
     })().catch((err) => console.error('[payments.methods] card-added notice failed:', err))
 
     return Response.json({ data: { card: saved, autopayEnabled } })

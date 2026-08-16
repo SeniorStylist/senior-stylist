@@ -73,6 +73,32 @@ export function buildSignupWelcomeSms(data: { facilityName: string; residentName
   )
 }
 
+// P55 — "you're scheduled" text, the SMS mirror of buildBookingConfirmationEmailHtml.
+// Sent by family-confirmation.ts to every family phone when sms_reminders is on.
+export function buildBookingConfirmationSms(data: {
+  residentName: string
+  serviceName: string
+  stylistName: string
+  dateStr: string
+  timeStr: string
+  facilityName: string
+}): string {
+  return (
+    `Good news — ${data.residentName}'s ${data.serviceName} with ${data.stylistName} ` +
+    `is set for ${data.dateStr} at ${data.timeStr}. -${data.facilityName}`
+  )
+}
+
+// P55 — card-saved security notice for phone-only families (email version:
+// buildCardAddedEmailHtml). Never pref-gated at the call site — it's a
+// "wasn't you?" notice, not marketing.
+export function buildCardAddedSms(data: { residentName: string; facilityName: string }): string {
+  return (
+    `A payment card was saved for ${data.residentName}'s salon account at ${data.facilityName}. ` +
+    `If this wasn't you, call the salon.`
+  )
+}
+
 // Payments (COF) — failover pay-link SMS. The link is a portal magic-link.
 export function buildPaymentRequestSms(data: {
   facilityName: string

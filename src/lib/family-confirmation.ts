@@ -7,6 +7,7 @@ import { db } from '@/db'
 import { bookings, facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { sendEmail, buildBookingConfirmationEmailHtml } from '@/lib/email'
+import { sendSms, buildBookingConfirmationSms } from '@/lib/sms'
 import { getFamilyRecipients } from '@/lib/portal-recipients'
 import { formatDateInTz, formatTimeInTz } from '@/lib/time'
 import { formatMoney } from '@/lib/format'
@@ -25,10 +26,13 @@ export async function sendFamilyBookingConfirmation(bookingId: string): Promise<
     if (!booking || booking.isDemo || !booking.residentId) return
 
     const recipients = await getFamilyRecipients(booking.residentId)
-    // Honor BOTH gates: the staff-side master switch and the family's own
-    // email-reminders checkbox (which finally has a reader — P50).
-    if (!recipients || recipients.emails.length === 0) return
-    if (!recipients.poaNotificationsEnabled || !recipients.emailReminders) return
+    // Staff-side master switch gates everything; the family's per-channel
+    // prefs (email_reminders / sms_reminders) gate each channel below — P55
+    // sends BOTH channels when both contacts exist and both prefs are on.
+    if (!recipients || !recipients.poaNotificationsEnabled) return
+    const sendEmails = recipients.emails.length > 0 && recipients.emailReminders
+    const sendTexts = recipients.phones.length > 0 && recipients.smsReminders
+    if (!sendEmails && !sendTexts) return
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, booking.facilityId),
@@ -40,30 +44,46 @@ export async function sendFamilyBookingConfirmation(bookingId: string): Promise<
       : 'https://portal.seniorstylist.com'
 
     const priceCents = booking.priceCents ?? booking.service?.priceCents ?? 0
-    const html = buildBookingConfirmationEmailHtml({
-      residentName: booking.resident?.name ?? recipients.residentName,
-      serviceName: booking.service?.name ?? booking.rawServiceName ?? 'Salon visit',
-      stylistName: booking.stylist?.name ?? 'Your stylist',
-      dateStr: formatDateInTz(booking.startTime, tz, { weekday: 'long', month: 'long', day: 'numeric' }),
-      timeStr: formatTimeInTz(booking.startTime, tz),
-      priceStr: formatMoney(priceCents),
-      facilityName: facility?.name ?? 'Senior Stylist',
-      portalUrl,
-      bookedBy: 'request',
-    })
+    const residentName = booking.resident?.name ?? recipients.residentName
+    const serviceName = booking.service?.name ?? booking.rawServiceName ?? 'Salon visit'
+    const stylistName = booking.stylist?.name ?? 'Your stylist'
+    const dateStr = formatDateInTz(booking.startTime, tz, { weekday: 'long', month: 'long', day: 'numeric' })
+    const timeStr = formatTimeInTz(booking.startTime, tz)
+    const facilityName = facility?.name ?? 'Senior Stylist'
 
-    await Promise.all(
-      recipients.emails.map((to) =>
-        sendEmail({
-          to,
-          subject: `Appointment scheduled — ${booking.resident?.name ?? recipients.residentName}`,
-          html,
-        }).catch((err) => {
-          console.error('[family-confirmation] send failed:', err)
-          return false
-        }),
-      ),
-    )
+    if (sendEmails) {
+      const html = buildBookingConfirmationEmailHtml({
+        residentName,
+        serviceName,
+        stylistName,
+        dateStr,
+        timeStr,
+        priceStr: formatMoney(priceCents),
+        facilityName,
+        portalUrl,
+        bookedBy: 'request',
+      })
+      await Promise.all(
+        recipients.emails.map((to) =>
+          sendEmail({
+            to,
+            subject: `Appointment scheduled — ${residentName}`,
+            html,
+          }).catch((err) => {
+            console.error('[family-confirmation] send failed:', err)
+            return false
+          }),
+        ),
+      )
+    }
+
+    // P55 — SMS mirror (dormant no-op until TWILIO_ENABLED='true').
+    if (sendTexts) {
+      const smsBody = buildBookingConfirmationSms({ residentName, serviceName, stylistName, dateStr, timeStr, facilityName })
+      for (const phone of recipients.phones) {
+        sendSms(phone, smsBody).catch(() => {})
+      }
+    }
   } catch (err) {
     console.error('[family-confirmation] failed:', err)
   }
