@@ -12,14 +12,19 @@ import { getPlatformStripe, platformPublishableKey, paymentsBlocked } from '@/li
 
 export const dynamic = 'force-dynamic'
 
-const schema = z.object({ residentId: z.string().uuid() })
+const schema = z.object({
+  residentId: z.string().uuid(),
+  // P54 — signup wizard payment step: 30-min single-use token instead of a
+  // session (matched signups are never session-holders until the magic link).
+  signupToken: z.string().min(1).max(200).optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
     const parsed = schema.safeParse(await request.json())
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
 
-    const auth = await authorizeResidentPayment(parsed.data.residentId)
+    const auth = await authorizeResidentPayment(parsed.data.residentId, { signupToken: parsed.data.signupToken })
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
     const rl = await checkRateLimit('paymentSetup', auth.actor.rateKey)

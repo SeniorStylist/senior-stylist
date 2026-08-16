@@ -416,7 +416,21 @@ export const PORTAL_STRINGS = {
   'signup.review.email': { en: 'Email', es: 'Correo' },
   'signup.review.phone': { en: 'Phone', es: 'Teléfono' },
   'signup.review.edit': { en: 'Change', es: 'Cambiar' },
-  'signup.review.submit': { en: 'Create my account', es: 'Crear mi cuenta' },
+  // P54 — with payments configured, review flows into the card page.
+  'signup.review.submit': { en: 'Continue to Payment', es: 'Continuar al pago' },
+  'signup.review.submitNoPay': { en: 'Create my account', es: 'Crear mi cuenta' },
+  // P54 — the card page (card on file is the default; reassurance carries trust)
+  'signup.payment.title': { en: 'Add a payment card', es: 'Agregue una tarjeta de pago' },
+  'signup.payment.reassure': {
+    en: 'Your card is stored securely by Stripe. Nothing is charged until you receive a service.',
+    es: 'Stripe guarda su tarjeta de forma segura. No se cobra nada hasta que reciba un servicio.',
+  },
+  'signup.payment.skipAfterError': { en: 'Continue for now', es: 'Continuar por ahora' },
+  'signup.payment.preview': {
+    en: 'Preview — card entry is skipped in the dry run.',
+    es: 'Vista previa — la tarjeta se omite en la prueba.',
+  },
+  'signup.done.goToAccount': { en: 'Go to my account', es: 'Ir a mi cuenta' },
   'signup.progress': { en: 'Step {step} of {total}', es: 'Paso {step} de {total}' },
   // P52 — "is this them?" match confirmation step
   'signup.match.title': { en: 'We found them — is this right?', es: 'Los encontramos — ¿es correcto?' },

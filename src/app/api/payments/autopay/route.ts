@@ -10,9 +10,10 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db'
-import { residents, paymentMethods, facilities } from '@/db/schema'
+import { residents, paymentMethods } from '@/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { authorizeResidentPayment } from '@/lib/payments/authorize'
+import { notifyAutopayChanged } from '@/lib/payments/autopay-enable'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
 
 export const dynamic = 'force-dynamic'
@@ -142,41 +143,16 @@ export async function POST(request: NextRequest) {
     const flipped =
       body.autopayEnabled !== undefined && before && body.autopayEnabled !== (before.autopayEnabled ?? false)
     if (flipped) {
-      void (async () => {
-        const [{ sendEmail, buildAutopayEnabledEmailHtml }, { getFamilyRecipients }, facility, card] = await Promise.all([
-          import('@/lib/email'),
-          import('@/lib/portal-recipients'),
-          db.query.facilities.findFirst({
-            where: eq(facilities.id, before.facilityId),
-            columns: { name: true },
-          }),
-          db.query.paymentMethods.findFirst({
-            where: and(eq(paymentMethods.residentId, body.residentId), eq(paymentMethods.active, true), eq(paymentMethods.isDefault, true)),
-            columns: { brand: true, last4: true },
-          }),
-        ])
-        // P50 — consent notice goes to the poaEmail AND every linked portal
-        // account (the acting family member is often a different address).
-        // Security notice — NOT gated on the email-reminders preference.
-        const recipients = await getFamilyRecipients(body.residentId)
-        const emails = recipients?.emails?.length ? recipients.emails : before.poaEmail ? [before.poaEmail] : []
-        if (emails.length === 0) return
-        const html = buildAutopayEnabledEmailHtml({
-          residentName: before.name,
-          facilityName: facility?.name ?? 'Senior Stylist',
-          cardLabel: card?.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null,
-          enabled: body.autopayEnabled === true,
-        })
-        await Promise.all(
-          emails.map((to) =>
-            sendEmail({
-              to,
-              subject: `Automatic payment turned ${body.autopayEnabled ? 'on' : 'off'} — ${facility?.name ?? 'Senior Stylist'}`,
-              html,
-            }).catch(() => false),
-          ),
-        )
-      })().catch((err) => console.error('[autopay POST] consent email failed:', err))
+      // P50/P54 — consent notice via the shared helper (poaEmail ∪ linked
+      // portal accounts; NOT gated on email-reminders). The signup wizard's
+      // enable path uses the same function, so the email can never fork.
+      notifyAutopayChanged({
+        residentId: body.residentId,
+        residentName: before.name,
+        poaEmail: before.poaEmail,
+        facilityId: before.facilityId,
+        enabled: body.autopayEnabled === true,
+      })
     }
 
     return Response.json({ data: { ok: true } })

@@ -27,19 +27,32 @@ interface Props {
   residentId: string
   residentName: string
   stripeConfigured: boolean
+  /** P54 — double-ask fix: card already on file (e.g. saved in the signup wizard). */
+  hasCard?: boolean
+  /** P54 — autopay already on (the signup card save auto-enables it). */
+  autopayOn?: boolean
 }
 
-export function WelcomeClient({ facilityCode, lang, residentId, residentName, stripeConfigured }: Props) {
+export function WelcomeClient({ facilityCode, lang, residentId, residentName, stripeConfigured, hasCard = false, autopayOn = false }: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const t = usePortalT(lang)
-  const [step, setStep] = useState<Step>(stripeConfigured ? 'card' : 'rhythm')
+  // P54 — never re-ask for what the signup wizard already collected: a saved
+  // card skips the card step; card + autopay skips straight to the rhythm.
+  const [step, setStep] = useState<Step>(
+    !stripeConfigured || (hasCard && autopayOn) ? 'rhythm' : hasCard ? 'autopay' : 'card',
+  )
   const [cardSaved, setCardSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const completedRef = useRef(false)
 
   const base = `/family/${encodeURIComponent(facilityCode)}`
-  const steps: Step[] = stripeConfigured ? ['card', 'autopay', 'rhythm'] : ['rhythm']
+  const steps: Step[] =
+    !stripeConfigured || (hasCard && autopayOn)
+      ? ['rhythm']
+      : hasCard
+        ? ['autopay', 'rhythm']
+        : ['card', 'autopay', 'rhythm']
   const stepIndex = step === 'done' ? steps.length : steps.indexOf(step)
 
   // Idempotent server-side; the ref just avoids duplicate requests.

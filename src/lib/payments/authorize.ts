@@ -11,6 +11,12 @@
 // booking exists"), and vaulting charges nothing. Consuming routes decide
 // what a stylist actor may do: setup-intent + methods GET/POST yes; methods
 // PATCH (make-default drives autopay) / DELETE and the autopay routes 403.
+//
+// P54 — fourth path: via:'signup'. A MATCHED family signup gets a 30-minute
+// single-use card token (src/lib/signup-card-token.ts) instead of a session —
+// the magic-link email stays the identity verification. Only routes that pass
+// opts.signupToken (setup-intent + methods POST) can ever produce this actor;
+// PATCH/DELETE/autopay never pass it, so token holders can't reach them.
 
 import { db } from '@/db'
 import { residents, stylists, stylistFacilityAssignments } from '@/db/schema'
@@ -19,6 +25,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { getPortalSession } from '@/lib/portal-auth'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
+import { verifySignupCardToken } from '@/lib/signup-card-token'
 
 export interface PaymentActor {
   residentId: string
@@ -26,13 +33,14 @@ export interface PaymentActor {
   residentName: string
   poaEmail: string | null
   stripeCustomerId: string | null
-  via: 'admin' | 'portal' | 'stylist'
+  via: 'admin' | 'portal' | 'stylist' | 'signup'
   actorId: string
   rateKey: string
 }
 
 export async function authorizeResidentPayment(
   residentId: string,
+  opts?: { signupToken?: string },
 ): Promise<{ ok: true; actor: PaymentActor } | { ok: false; status: number; error: string }> {
   const resident = await db.query.residents.findFirst({
     where: eq(residents.id, residentId),
@@ -46,6 +54,19 @@ export async function authorizeResidentPayment(
     residentName: resident.name,
     poaEmail: resident.poaEmail,
     stripeCustomerId: resident.stripeCustomerId,
+  }
+
+  // P54 — signup card-token path (checked first: the wizard caller has no
+  // session of any kind). An invalid/expired/foreign token falls through to
+  // the normal paths so a signed-in caller with a stale token isn't blocked.
+  if (opts?.signupToken) {
+    const v = await verifySignupCardToken(opts.signupToken, residentId)
+    if (v.ok) {
+      return {
+        ok: true,
+        actor: { ...base, via: 'signup', actorId: v.portalAccountId ?? v.tokenId, rateKey: `t:${v.tokenId}` },
+      }
+    }
   }
 
   // Portal POA path

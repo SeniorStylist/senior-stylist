@@ -6,6 +6,9 @@
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { getPortalT } from '@/lib/portal-i18n-server'
 import { platformPublishableKey, platformStripeKey } from '@/lib/payments/stripe-client'
+import { db } from '@/db'
+import { paymentMethods, residents } from '@/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { WelcomeClient } from './welcome-client'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +30,29 @@ export default async function WelcomePage({
   const resident = residentsAtFacility[0]
   const stripeConfigured = !!platformStripeKey() && !!platformPublishableKey()
 
+  // P54 — double-ask fix: a card saved during the signup wizard (which also
+  // enables autopay) must not be re-asked here. Best-effort — a query failure
+  // just falls back to the full flow.
+  let hasCard = false
+  let autopayOn = false
+  try {
+    const [card, res] = await Promise.all([
+      db.query.paymentMethods.findFirst({
+        where: and(eq(paymentMethods.residentId, resident.residentId), eq(paymentMethods.active, true)),
+        columns: { id: true },
+      }),
+      db.query.residents.findFirst({
+        where: eq(residents.id, resident.residentId),
+        columns: { autopayEnabled: true },
+      }),
+    ])
+    hasCard = !!card
+    autopayOn = res?.autopayEnabled ?? false
+  } catch {
+    hasCard = false
+    autopayOn = false
+  }
+
   return (
     <WelcomeClient
       facilityCode={decoded}
@@ -34,6 +60,8 @@ export default async function WelcomePage({
       residentId={resident.residentId}
       residentName={resident.residentName}
       stripeConfigured={stripeConfigured}
+      hasCard={hasCard}
+      autopayOn={autopayOn}
     />
   )
 }

@@ -935,6 +935,28 @@ export const portalSessions = pgTable('portal_sessions', {
   sessionTokenUniq: unique('portal_sessions_session_token_key').on(t.sessionToken),
 }))
 
+// P54 — signup card tokens: 30-min single-use authorization for the wizard's
+// payment step when the signup MATCHED an existing resident (no portal session
+// is minted — the magic link stays the email verification). token_hash is
+// sha256(token); the plaintext only ever lives in the signup POST response.
+// Self-bootstrapped by src/lib/signup-card-token.ts (drizzle/0038).
+export const portalSignupCardTokens = pgTable('portal_signup_card_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: text('token_hash').notNull(),
+  residentId: uuid('resident_id')
+    .references(() => residents.id, { onDelete: 'cascade' })
+    .notNull(),
+  facilityId: uuid('facility_id')
+    .references(() => facilities.id, { onDelete: 'cascade' })
+    .notNull(),
+  portalAccountId: uuid('portal_account_id').references(() => portalAccounts.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  tokenHashUniq: uniqueIndex('portal_signup_card_tokens_hash_uniq').on(t.tokenHash),
+}))
+
 // ─── Phase 14A: Portal Coupons + Self-Signup ─────────────────────────────────
 
 export const portalCoupons = pgTable('portal_coupons', {

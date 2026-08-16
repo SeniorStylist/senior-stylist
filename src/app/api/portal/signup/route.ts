@@ -10,8 +10,10 @@ import {
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { createMagicLink } from '@/lib/portal-auth'
+import { createMagicLink, createPortalSession, setPortalSessionCookie } from '@/lib/portal-auth'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
+import { mintSignupCardToken } from '@/lib/signup-card-token'
+import { platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
 import { randomBytes } from 'node:crypto'
 import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
 import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
@@ -81,6 +83,10 @@ export async function POST(request: NextRequest) {
 
   await ensurePortalClaimsSchema()
 
+  // P54 — the wizard shows a card page after the review step whenever the
+  // platform Stripe keys are configured AND live charging isn't blocked.
+  const paymentsEnabled = !!platformPublishableKey() && !paymentsBlocked()
+
   // P53 — case-insensitive + demo-facility-excluded lookup (shared helper).
   const facility = await db.query.facilities.findFirst({
     where: activeFacilityByCodeWhere(facilityCode),
@@ -132,7 +138,7 @@ export async function POST(request: NextRequest) {
   })
 
   if (emailMatches.length > 0) {
-    if (preview) return Response.json({ status: 'auto_approved', preview: true }) // dry run: no writes
+    if (preview) return Response.json({ status: 'auto_approved', preview: true, paymentsEnabled }) // dry run: no writes
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -146,7 +152,18 @@ export async function POST(request: NextRequest) {
       matchConfidence: 'high',
     })
     await issueWelcomeCoupon(facility.id, portalAccountId, emailMatches[0]?.id ?? null).catch(() => {})
-    return Response.json({ status: 'auto_approved' })
+    // P54 — payment step: matched signups get a 30-min single-use card token
+    // (never a session — the magic link stays the email verification).
+    const primaryResident = emailMatches[0] ?? null
+    const cardToken = paymentsEnabled && primaryResident
+      ? await mintSignupCardToken({ residentId: primaryResident.id, facilityId: facility.id, portalAccountId }).catch(() => null)
+      : null
+    return Response.json({
+      status: 'auto_approved',
+      paymentsEnabled: paymentsEnabled && !!cardToken,
+      residentId: primaryResident?.id ?? null,
+      cardToken,
+    })
   }
 
   // 2. Match against the facility roster. P50 tier order:
@@ -177,7 +194,7 @@ export async function POST(request: NextRequest) {
   // fuzzyScore>=0.8 was defeated by its substring rule (a lone surname
   // contained in the POA name scored 0.85 and instant-approved a stranger).
   if (familyConfirmed && m?.confident && m.resident.poaName && nameAgreement(fullName, m.resident.poaName)) {
-    if (preview) return Response.json({ status: 'auto_approved', preview: true }) // dry run: no writes
+    if (preview) return Response.json({ status: 'auto_approved', preview: true, paymentsEnabled }) // dry run: no writes
     const portalAccountId = await autoApprove({
       email: normalizedEmail,
       fullName,
@@ -192,7 +209,16 @@ export async function POST(request: NextRequest) {
       familyConfirmed: true,
     })
     await issueWelcomeCoupon(facility.id, portalAccountId, m.resident.id).catch(() => {})
-    return Response.json({ status: 'auto_approved' })
+    // P54 — payment step token (see the email-match branch above).
+    const cardToken = paymentsEnabled
+      ? await mintSignupCardToken({ residentId: m.resident.id, facilityId: facility.id, portalAccountId }).catch(() => null)
+      : null
+    return Response.json({
+      status: 'auto_approved',
+      paymentsEnabled: paymentsEnabled && !!cardToken,
+      residentId: m.resident.id,
+      cardToken,
+    })
   }
 
   // Legacy fallback when the resident name matched nothing: the applicant's
@@ -243,7 +269,7 @@ export async function POST(request: NextRequest) {
 
   // P53 dry-run exit: the full match + confidence derivation ran above; stop
   // before ANY write (resident/account/claim/coupon/emails/bells).
-  if (preview) return Response.json({ status: 'created', preview: true })
+  if (preview) return Response.json({ status: 'created', preview: true, paymentsEnabled })
 
   // Idempotency: the submit button disables in flight and a later re-POST hits
   // the top-of-route 409, but a racing double-tap could slip both requests past
@@ -261,7 +287,7 @@ export async function POST(request: NextRequest) {
       ),
     )
     .limit(1)
-  if (linkRecheck.length > 0) return Response.json({ status: 'created' })
+  if (linkRecheck.length > 0) return Response.json({ status: 'created', paymentsEnabled: false })
 
   // Create the resident from what the family told us (same shape as the
   // admin approve-createResident branch): portalToken so booking-confirmation
@@ -338,7 +364,18 @@ export async function POST(request: NextRequest) {
     html: buildPortalMagicLinkEmailHtml({ residentNames: [newResident.name], facilityName: facility.name, link: magicLink, expiresInHours: 72 }),
   })
 
-  return Response.json({ status: 'created' })
+  // P54 — AUTO-CREATED signups get a real portal session so the payment step
+  // (and "Go to my account") work immediately. 7 days, not 30 — this session
+  // was never email-verified, which bounds the blast radius if the admin later
+  // merges the resident away. The magic link above remains the long-term path.
+  try {
+    const sessionToken = await createPortalSession(portalAccountId, 7)
+    await setPortalSessionCookie(sessionToken, 7)
+  } catch (err) {
+    console.error('[portal signup] session mint failed (magic link still works):', err)
+  }
+
+  return Response.json({ status: 'created', paymentsEnabled, residentId: newResident.id })
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

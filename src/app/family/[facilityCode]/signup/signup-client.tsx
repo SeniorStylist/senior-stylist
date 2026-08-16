@@ -19,8 +19,15 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
 import { firstErrorMessage } from '@/lib/first-error'
+
+// Stripe.js stays out of the wizard bundle until the payment step renders.
+const AddCardForm = dynamic(
+  () => import('@/components/payments/add-card-form').then((m) => m.AddCardForm),
+  { ssr: false },
+)
 
 interface Props {
   facilityCode: string
@@ -32,11 +39,18 @@ interface Props {
    * a "nothing was created" note. Client-asserted, server-enforced.
    */
   previewMode?: boolean
+  /**
+   * P54 — platform Stripe configured + not blocked: the review button reads
+   * "Continue to Payment" and a card page follows. Server-computed; the POST
+   * re-derives it, so a stale prop only mislabels the button, never the flow.
+   */
+  paymentsEnabled?: boolean
 }
 
 // P54 — no 'pending' phase anymore: unsure signups auto-create a resident
 // ('created') and the admin keep-or-merges afterward. Every path succeeds.
-type Phase = 'wizard' | 'auto_approved' | 'created'
+// 'payment' is the card page between the wizard and the final screen.
+type Phase = 'wizard' | 'payment' | 'auto_approved' | 'created'
 type Relationship = 'self' | 'spouse' | 'child' | 'poa' | 'other'
 
 // P52 — step IDs replace numeric indices; 'confirm' is present only when the
@@ -54,13 +68,21 @@ type SignupMatchPreview = {
   hasPoa: boolean
 }
 
-export function SignupClient({ facilityCode, facilityName, lang, previewMode = false }: Props) {
+export function SignupClient({ facilityCode, facilityName, lang, previewMode = false, paymentsEnabled = false }: Props) {
   const t = usePortalT(lang)
   const [phase, setPhase] = useState<Phase>('wizard')
   const [stepId, setStepId] = useState<StepId>('who')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [alreadyHasAccess, setAlreadyHasAccess] = useState(false)
+
+  // P54 — payment step state: where to land after the card page, which
+  // resident the card belongs to, and the matched-signup card token (created
+  // signups authorize via the freshly-minted portal session instead).
+  const [afterPayment, setAfterPayment] = useState<'auto_approved' | 'created'>('created')
+  const [cardResidentId, setCardResidentId] = useState<string | null>(null)
+  const [cardToken, setCardToken] = useState<string | null>(null)
+  const [cardSetupFailed, setCardSetupFailed] = useState(false)
 
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [fullName, setFullName] = useState('')
@@ -176,12 +198,74 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
         setError(firstErrorMessage(j) ?? t('common.error'))
         return
       }
-      setPhase(j.status === 'auto_approved' ? 'auto_approved' : 'created')
+      const finalPhase: 'auto_approved' | 'created' = j.status === 'auto_approved' ? 'auto_approved' : 'created'
+      // P54 — the card page. Real runs need a resident + (for matched signups)
+      // the card token; the dry run shows the step's copy with entry skipped.
+      const canTakeCard = previewMode
+        ? j.paymentsEnabled === true
+        : j.paymentsEnabled === true && !!j.residentId && (finalPhase === 'created' || !!j.cardToken)
+      if (canTakeCard) {
+        setAfterPayment(finalPhase)
+        setCardResidentId(j.residentId ?? null)
+        setCardToken(j.cardToken ?? null)
+        setPhase('payment')
+      } else {
+        setPhase(finalPhase)
+      }
     } catch {
       setError(t('common.networkError'))
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const inputCls =
+    'w-full rounded-2xl border border-stone-200 px-4 text-lg min-h-[52px] focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20'
+  const pillCls =
+    'w-full min-h-[52px] rounded-2xl border-2 px-4 text-left text-lg font-medium transition-colors'
+  const primaryBtnCls =
+    'portal-cta-cap w-full min-h-[52px] rounded-2xl bg-[#8B2E4A] text-white font-semibold shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all'
+
+  // P54 — the card page (owner decisions: card on file is the default, no
+  // visible opt-out; the reassurance copy carries the trust). The ONLY way
+  // past without a card is the quiet link that appears if Stripe errors.
+  if (phase === 'payment') {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-6">
+        <h2 className="text-xl font-semibold text-stone-800 text-center">{t('signup.payment.title')}</h2>
+        <p className="text-base text-stone-500 text-center mt-2 mb-5">{t('signup.payment.reassure')}</p>
+        {previewMode ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-center">
+              {t('signup.payment.preview')}
+            </p>
+            <button type="button" onClick={() => setPhase(afterPayment)} className={primaryBtnCls}>
+              {t('signup.nav.next')}
+            </button>
+          </div>
+        ) : cardResidentId ? (
+          <>
+            <AddCardForm
+              residentId={cardResidentId}
+              lang={lang}
+              signupToken={cardToken ?? undefined}
+              enableAutopay
+              onSaved={() => setPhase(afterPayment)}
+              onSetupError={() => setCardSetupFailed(true)}
+            />
+            {cardSetupFailed && (
+              <button
+                type="button"
+                onClick={() => setPhase(afterPayment)}
+                className="mt-4 mx-auto block text-sm text-stone-400 hover:text-stone-600 underline"
+              >
+                {t('signup.payment.skipAfterError')}
+              </button>
+            )}
+          </>
+        ) : null}
+      </div>
+    )
   }
 
   if (phase === 'auto_approved') {
@@ -225,16 +309,18 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
             {t('signup.preview.done')}
           </p>
         )}
+        {/* P54 — created signups hold a real (7-day) session; land them inside. */}
+        {!previewMode && (
+          <Link
+            href={`/family/${encodeURIComponent(facilityCode)}`}
+            className="portal-cta-cap mt-5 flex items-center justify-center w-full min-h-[52px] rounded-2xl bg-[#8B2E4A] text-white font-semibold shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] transition-all"
+          >
+            {t('signup.done.goToAccount')}
+          </Link>
+        )}
       </div>
     )
   }
-
-  const inputCls =
-    'w-full rounded-2xl border border-stone-200 px-4 text-lg min-h-[52px] focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20'
-  const pillCls =
-    'w-full min-h-[52px] rounded-2xl border-2 px-4 text-left text-lg font-medium transition-colors'
-  const primaryBtnCls =
-    'portal-cta-cap w-full min-h-[52px] rounded-2xl bg-[#8B2E4A] text-white font-semibold shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all'
 
   const stepBody = () => {
     switch (stepId) {
@@ -453,8 +539,14 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
                 </div>
               ))}
             </div>
+            {/* P54 — owner-locked: with payments configured the review step
+                flows straight into the card page ("Continue to Payment"). */}
             <button type="button" onClick={handleSubmit} disabled={submitting} className={primaryBtnCls}>
-              {submitting ? t('signup.creating') : t('signup.review.submit')}
+              {submitting
+                ? t('signup.creating')
+                : paymentsEnabled
+                  ? t('signup.review.submit')
+                  : t('signup.review.submitNoPay')}
             </button>
           </div>
         )

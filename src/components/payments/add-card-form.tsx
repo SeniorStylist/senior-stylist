@@ -21,9 +21,15 @@ interface AddCardFormProps {
   lang?: PortalLang
   onSaved?: () => void
   onCancel?: () => void
+  /** P54 — signup wizard: 30-min single-use card token (no session yet). */
+  signupToken?: string
+  /** P54 — auto-enable per-visit autopay after the save (portal/signup only). */
+  enableAutopay?: boolean
+  /** P54 — fired when the SetupIntent fetch fails (wizard shows its quiet skip link). */
+  onSetupError?: () => void
 }
 
-export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddCardFormProps) {
+export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel, signupToken, enableAutopay, onSetupError }: AddCardFormProps) {
   const { toast } = useToast()
   const t = makePortalT(lang)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
@@ -38,7 +44,7 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddC
         const res = await fetch('/api/payments/setup-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ residentId }),
+          body: JSON.stringify({ residentId, ...(signupToken ? { signupToken } : {}) }),
         })
         const json = await res.json()
         if (!res.ok) {
@@ -51,7 +57,10 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddC
         setClientSecret(json.data.clientSecret)
         setStripePromise(getStripePromise(json.data.publishableKey))
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : t('cards.setupFailed'))
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : t('cards.setupFailed'))
+          onSetupError?.()
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -59,7 +68,8 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddC
     return () => {
       cancelled = true
     }
-  }, [residentId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [residentId, signupToken])
 
   if (loading) {
     return <div className="skeleton rounded-2xl h-40 w-full" />
@@ -85,6 +95,8 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddC
       <CardFields
         residentId={residentId}
         lang={lang}
+        signupToken={signupToken}
+        enableAutopay={enableAutopay}
         onSaved={() => {
           toast.success(t('cards.saved'))
           onSaved?.()
@@ -95,7 +107,7 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel }: AddC
   )
 }
 
-function CardFields({ residentId, lang = 'en', onSaved, onCancel }: AddCardFormProps) {
+function CardFields({ residentId, lang = 'en', onSaved, onCancel, signupToken, enableAutopay }: AddCardFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const { toast } = useToast()
@@ -123,7 +135,12 @@ function CardFields({ residentId, lang = 'en', onSaved, onCancel }: AddCardFormP
       const res = await fetch('/api/payments/methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId, setupIntentId: setupIntent.id }),
+        body: JSON.stringify({
+          residentId,
+          setupIntentId: setupIntent.id,
+          ...(signupToken ? { signupToken } : {}),
+          ...(enableAutopay ? { enableAutopay: true } : {}),
+        }),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))

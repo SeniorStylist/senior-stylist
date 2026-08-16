@@ -3,6 +3,7 @@ import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { notFound } from 'next/navigation'
 import { SignupClient } from './signup-client'
 import { getPortalT } from '@/lib/portal-i18n-server'
+import { platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,7 @@ export default async function SignupPage({
         facilityName={facility.name}
         lang={lang}
         previewMode={previewMode}
+        paymentsEnabled={!!platformPublishableKey() && !paymentsBlocked()}
       />
     </div>
   )

@@ -49,6 +49,12 @@ export async function GET(request: NextRequest) {
 const postSchema = z.object({
   residentId: z.string().uuid(),
   setupIntentId: z.string().min(1).max(200),
+  // P54 — signup wizard payment step (see setup-intent route).
+  signupToken: z.string().min(1).max(200).optional(),
+  // P54 — the signup card save auto-enables per-visit autopay (owner decision:
+  // charge after each service). Honored ONLY for portal/signup actors, backed
+  // by the shared family-enable helper (requires-card guard + consent email).
+  enableAutopay: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
     const parsed = postSchema.safeParse(await request.json())
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
 
-    const auth = await authorizeResidentPayment(parsed.data.residentId)
+    const auth = await authorizeResidentPayment(parsed.data.residentId, { signupToken: parsed.data.signupToken })
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
     const rl = await checkRateLimit('paymentSetup', auth.actor.rateKey)
@@ -70,8 +76,28 @@ export async function POST(request: NextRequest) {
     const saved = await saveCardFromSetupIntent(parsed.data.setupIntentId, {
       residentId: auth.actor.residentId,
       facilityId: auth.actor.facilityId,
-      createdBy: auth.actor.via !== 'portal' ? auth.actor.actorId : null,
+      createdBy: auth.actor.via === 'portal' || auth.actor.via === 'signup' ? null : auth.actor.actorId,
     })
+
+    // P54 — signup-card-save auto-enables per-visit autopay; family actors only
+    // (staff/stylist requests never carry the flag through this branch).
+    let autopayEnabled = false
+    if (
+      parsed.data.enableAutopay === true &&
+      (auth.actor.via === 'portal' || auth.actor.via === 'signup')
+    ) {
+      const { enableFamilyAutopay } = await import('@/lib/payments/autopay-enable')
+      const enabled = await enableFamilyAutopay(auth.actor.residentId)
+      autopayEnabled = enabled.ok
+      if (!enabled.ok) console.error('[payments.methods] signup autopay enable failed:', enabled.error)
+    }
+
+    // P54 — the token is single-use: consume on SAVE success (not on
+    // setup-intent create, so a declined first card can retry in-window).
+    if (auth.actor.via === 'signup' && parsed.data.signupToken) {
+      const { consumeSignupCardToken } = await import('@/lib/signup-card-token')
+      await consumeSignupCardToken(parsed.data.signupToken)
+    }
 
     // P50 — card-added security notice to the family (poaEmail ∪ linked portal
     // accounts). Fire-and-forget on purpose: it's a notice; a mail failure must
@@ -92,7 +118,7 @@ export async function POST(request: NextRequest) {
         residentName: actor.residentName,
         facilityName: facility?.name ?? 'Senior Stylist',
         cardLabel,
-        addedVia: actor.via === 'portal' ? 'portal' : 'staff',
+        addedVia: actor.via === 'portal' || actor.via === 'signup' ? 'portal' : 'staff',
       })
       await Promise.all(
         recipients.emails.map((to) =>
@@ -105,7 +131,7 @@ export async function POST(request: NextRequest) {
       )
     })().catch((err) => console.error('[payments.methods] card-added notice failed:', err))
 
-    return Response.json({ data: { card: saved } })
+    return Response.json({ data: { card: saved, autopayEnabled } })
   } catch (err) {
     console.error('POST /api/payments/methods error:', err)
     return Response.json({ error: 'Could not save card' }, { status: 500 })
