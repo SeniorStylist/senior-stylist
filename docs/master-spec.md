@@ -3122,6 +3122,38 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P54 — Fitzgerald launch package: owner-meeting decisions end to end (2026-08-16)
+
+Full contracts in CLAUDE.md's P54 entry; go-live flips in
+docs/new-facility-runbook.md §3b. Migrations drizzle/0037 (claims
+merge_suggestion_resident_id), 0038 (portal_signup_card_tokens), 0039
+(signup_sheet_entries.service_ids/service_names) — all self-bootstrapped.
+
+- **Uniform account model**: unsure signups CREATE the resident immediately
+  (claim status 'auto_created' + merge suggestion); admin keep-or-merge from
+  Settings → Family Portal ("keep" PATCH action; merge = P36 full sweep +
+  cardsLeftBehind warning). No more pending dead-end.
+- **Signup payment step**: review → "Continue to Payment" → Stripe card page;
+  card save auto-enables per-visit autopay (methods POST enableAutopay via
+  src/lib/payments/autopay-enable.ts). Matched signups authorize via 30-min
+  single-use card tokens (via:'signup' in authorizeResidentPayment); created
+  signups get a 7-day portal session.
+- **Money style**: formatMoney(cents) — "110"/"48.50", no "$"; formatDollars/
+  formatCents are aliases. Excel/CSV/QB/Stripe/LLM/audit-stamp/input sites
+  keep raw formats.
+- **Family request page**: name-only service payload (no prices).
+- **Sign-up sheet**: multi-service arrays (serviceIds includes primary,
+  names DB-derived; BookingModal prefillServiceIds); staff stylist dropdown
+  removed (preferred day drives auto-assignment).
+- **Walk-in quick-create**: newResident email/phone → poaEmail/poaPhone +
+  portalToken + automatic "finish your account" magic-link email (fresh
+  branch only; dedup/replay never re-sends). POST /api/residents accepts
+  poaEmail/poaPhone (no auto-invite on the admin path).
+- New route params: POST /api/portal/signup returns {status, paymentsEnabled,
+  residentId?, cardToken?}; payments setup-intent + methods POST accept
+  signupToken; methods POST accepts enableAutopay; claims PATCH gains
+  action:'keep'; signup-sheet POST accepts serviceIds[1..6].
+
 ## P53 — Onboarding-funnel hardening + facility scheduling lockout + dry-run signup (2026-08-13)
 
 Full contracts in CLAUDE.md's P53 entry; ops in docs/new-facility-runbook.md.

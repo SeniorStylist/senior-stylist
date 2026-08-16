@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.6',
+    date: '2026-08-16',
+    title: 'The Fitzgerald Package — Signup to First Charge',
+    items: [
+      'The family signup wizard got its owner-approved polish: your facility\'s name headlines every step, the first question is simply "Account Info", phone is required, and the marketing copy is gone — scan, answer, done',
+      'Signing up now ALWAYS works on the spot: if we can\'t match the name to a resident on file, we create the resident right then and the account is live immediately. The facility sees a "New Family Account to Review" card in Settings — keep it, or one-tap merge it into an existing resident if it\'s a duplicate spelling',
+      'After the review step, families land on a payment page: "Continue to Payment" saves a card (stored securely by Stripe — nothing is charged until a service happens) and automatic per-visit payment turns on. The first-login setup no longer re-asks for a card they already saved',
+      'Money now reads the way the owners asked everywhere: "110" and "48.50" — no dollar signs, no ".00" clutter — across the app, the family portal, emails, and statements (spreadsheet exports unchanged)',
+      'The family request page shows service names only (no prices), and requests can carry SEVERAL services — staff forms got a "＋ Add another service" row, and the stylist\'s Pick-time opens with every requested service already filled in',
+      'The sign-up sheet\'s stylist dropdown is gone: the preferred DAY picks the stylist automatically (whoever is scheduled that day, lightest load first)',
+      'Walk-in quick-create now takes the family\'s email and phone at the chair — with an email, the family automatically gets a "finish setting up your account" link',
+    ],
+  },
+  {
     // R9 shipped as 6.4 first (2026-08-11); P53 renumbered to 6.5 — dates must
     // be STRICTLY increasing or readers of 6.4 never see the unread dot.
     version: '6.5',

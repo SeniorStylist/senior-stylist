@@ -1,4 +1,4 @@
-# New-Facility Onboarding Runbook (P53, 2026-08-13)
+# New-Facility Onboarding Runbook (P53, 2026-08-13; P54 Fitzgerald additions 2026-08-16)
 
 The exact order to bring a new facility live on the QR-to-chair funnel. Written
 for Josh; every item is either a one-time platform step or a per-facility step.
@@ -21,8 +21,11 @@ payments ignore it since P53 (it used to silently break payment recording).
 
 Apply in order: `drizzle/0032`, `0033`, `0034`, `0035`, **`0036`** (new in P53:
 credit-idempotency column/index + the portal_token backfill that turns on POA
-booking-confirmation emails for claim-created residents). All idempotent. The
-app self-bootstraps the columns if you forget, but NOT the backfills.
+booking-confirmation emails for claim-created residents), then the P54 trio
+**`0037`** (signup auto-create merge suggestion), **`0038`** (signup card
+tokens — the wizard's payment step), **`0039`** (multi-service sign-up
+entries). All idempotent. The app self-bootstraps the columns/tables if you
+forget, but NOT the backfills.
 No psql handy? Master Admin → Facilities → "Turn on everywhere" covers 0035's
 signup flip from the UI; the others still need SQL.
 
@@ -45,7 +48,35 @@ master (or a bookkeeper) does 1–4 BEFORE handing over logins:
    edits.
 6. Print the QR posters — Settings → Family Portal or Signage → Family Sign-Up
    — from the PRODUCTION domain (a poster printed from a preview deploy encodes
-   a URL families can't reach). Self-signup is ON by default since P52.
+   a URL families can't reach). Self-signup is ON by default since P52. The
+   poster title is "Create an Account" (owner decision).
+
+## 3b. Fitzgerald of Palisades — charge-after-each-service (P54)
+
+The Fitzgerald model is card-on-file at signup + automatic charge when each
+visit completes. Everything ships enabled EXCEPT one per-facility switch:
+
+1. **Settings → Billing → Automatic payment → mode = "When a visit completes"**
+   (`autopay_mode = on_completion`). This is THE flip that makes
+   charge-after-each-service real — the platform default stays "manual" so
+   other facilities are never surprise-charged.
+2. Everything upstream is automatic once Stripe live keys are set (section 1):
+   the signup wizard ends with "Continue to Payment" → the family saves a card
+   → per-visit autopay turns on for that resident (consent email included).
+   The wizard silently skips the payment step when Stripe isn't configured —
+   by design, so signup never dead-ends on a config gap.
+3. Unsure signups now AUTO-CREATE the resident (no pending queue): watch
+   Settings → Family Portal → "New Family Accounts to Review" during launch
+   week and keep-or-merge each card. Merging moves portal access + billing
+   history; if the toast warns the card couldn't move, ask that family to
+   re-add it from the portal's Billing page.
+4. Walk-ins: tell stylists to collect the family's EMAIL in the walk-in form —
+   it auto-sends the "finish setting up your account" link, which is how
+   chair-side residents enter the funnel without a QR scan.
+
+**Held for the next owners' meeting** (deliberately NOT built): cash policy,
+facility logo upload on the wizard, specialty-based stylist routing,
+on_completion as the new-facility default, Spanish emails.
 
 ## 4. Verify with the dry run (no cleanup needed)
 
