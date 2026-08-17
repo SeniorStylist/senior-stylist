@@ -580,7 +580,11 @@ export async function POST(request: NextRequest) {
         // Family opted out of appointment emails.
       } else {
       const facility = facilityRow
-      const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/${data.resident.portalToken}`
+      // P55 — the legacy /portal/{token} pages+APIs are retired; the email
+      // links to the Salon Account (/family) sign-in instead.
+      const portalUrl = facility?.facilityCode
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/family/${encodeURIComponent(facility.facilityCode)}`
+        : `${process.env.NEXT_PUBLIC_APP_URL}/family`
       const tz = facility?.timezone ?? 'America/New_York'
       const poaDateStr = startTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz })
       const poaTimeStr = startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz })

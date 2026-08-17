@@ -26,7 +26,7 @@ export default async function BillingPage({
   const [residentRow, facilityRow, invoices, creditRows, paymentRows, creditHistoryRows] = await Promise.all([
     db.query.residents.findFirst({
       where: eq(residents.id, selected.residentId),
-      columns: { id: true, name: true, qbOutstandingBalanceCents: true, autopayEnabled: true },
+      columns: { id: true, name: true, qbOutstandingBalanceCents: true, autopayEnabled: true, portalToken: true },
     }),
     db.query.facilities.findFirst({
       where: eq(facilities.id, selected.facilityId),
@@ -133,6 +133,11 @@ export default async function BillingPage({
       giftSuccess={gift === 'success'}
       facilityPhone={facilityRow?.phone ?? null}
       facilityEmail={facilityRow?.contactEmail ?? null}
+      giftLink={
+        residentRow?.portalToken
+          ? `${(process.env.NEXT_PUBLIC_APP_URL || 'https://portal.seniorstylist.com').replace(/\/$/, '')}/gift/${encodeURIComponent(residentRow.portalToken)}`
+          : null
+      }
       invoices={invoices.map((i) => ({
         id: i.id,
         invoiceNum: i.invoiceNum,

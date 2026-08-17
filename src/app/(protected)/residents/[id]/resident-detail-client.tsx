@@ -49,6 +49,9 @@ interface ResidentDetailClientProps {
   role?: string
   facilityTimezone?: string
   facilityCode?: string | null
+  // P55 — narrow prop for the public gift link (portalToken stays OFF the
+  // shared Resident type per its P44 removal)
+  portalGiftToken?: string | null
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -65,7 +68,7 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'No show',
 }
 
-export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin', facilityTimezone = 'America/New_York', facilityCode = null }: ResidentDetailClientProps) {
+export function ResidentDetailClient({ resident: initialResident, bookings, stats, preferredServiceName, facilityServices = [], role = 'admin', facilityTimezone = 'America/New_York', facilityCode = null, portalGiftToken = null }: ResidentDetailClientProps) {
   const router = useRouter()
   const isAdmin = role === 'admin' || role === 'super_admin'
   // R9 (Josh 2026-08-11): bookkeepers get the full resident edit form —
@@ -126,6 +129,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
   const [sendingFamilyInvite, setSendingFamilyInvite] = useState(false)
   const [copyingLink, setCopyingLink] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [giftLinkCopied, setGiftLinkCopied] = useState(false) // P55 — public gift link
 
   const handleSendFamilyInvite = useCallback(async () => {
     if (!resident.poaEmail) return
@@ -586,6 +590,27 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                     {copyingLink ? 'Copying…' : linkCopied ? '✓ Copied!' : 'Copy Link'}
                   </button>
                 </div>
+                {/* P55 — public gift link: relatives chip in without account access */}
+                {portalGiftToken && (
+                  <div className="mt-3 pt-3 border-t border-stone-100">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(`${window.location.origin}/gift/${encodeURIComponent(portalGiftToken)}`)
+                          setGiftLinkCopied(true)
+                          setTimeout(() => setGiftLinkCopied(false), 2500)
+                        } catch { /* clipboard denied */ }
+                      }}
+                      className="text-[11px] font-medium text-[#8B2E4A] hover:underline"
+                    >
+                      {giftLinkCopied ? '✓ Gift link copied' : 'Copy gift link'}
+                    </button>
+                    <p className="text-[10.5px] text-stone-400 mt-0.5">
+                      Any relative can send salon credit through it — they never see the account.
+                    </p>
+                  </div>
+                )}
                 {/* P36 — QR of the facility signup page + link-a-different-email */}
                 <div className="mt-3 pt-3 border-t border-stone-100 space-y-2">
                   <button

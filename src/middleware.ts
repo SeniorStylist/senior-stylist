@@ -13,6 +13,8 @@ export async function middleware(request: NextRequest) {
   const skipSupabase =
     pathname.startsWith('/portal') ||
     pathname.startsWith('/family') ||
+    pathname.startsWith('/gift') || // P55 — public shareable gift link
+    pathname.startsWith('/api/gift') ||
     pathname.startsWith('/api/portal') ||
     pathname.startsWith('/api/cron') ||
     pathname.startsWith('/api/access-requests') || // public — no Supabase auth needed

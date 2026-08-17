@@ -116,6 +116,7 @@ export default async function ResidentDetailPage({
       role={facilityUser.role}
       facilityTimezone={facility?.timezone ?? 'America/New_York'}
       facilityCode={facility?.facilityCode ?? null}
+      portalGiftToken={resident.portalToken ?? null}
     />
   )
   } catch (err) {

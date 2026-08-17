@@ -47,6 +47,8 @@ interface Props {
   facilityEmail: string | null
   invoices: Invoice[]
   history?: HistoryRow[]
+  /** P55 — public shareable gift URL for this resident (null = no token). */
+  giftLink?: string | null
 }
 
 function formatDate(d: string, locale: string) {
@@ -70,6 +72,7 @@ export function BillingClient({
   facilityEmail,
   invoices,
   history = [],
+  giftLink = null,
 }: Props) {
   const router = useRouter()
   const { toast } = useToast()
@@ -112,6 +115,22 @@ export function BillingClient({
     }
   }
   const [showGift, setShowGift] = useState(false)
+  // P55 — shareable gift link (native share sheet when available, else copy)
+  const [giftLinkCopied, setGiftLinkCopied] = useState(false)
+  const onShareGiftLink = async () => {
+    if (!giftLink) return
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: t('gift.title'), url: giftLink })
+        return
+      }
+      await navigator.clipboard.writeText(giftLink)
+      setGiftLinkCopied(true)
+      setTimeout(() => setGiftLinkCopied(false), 2500)
+    } catch {
+      /* user dismissed the share sheet — nothing to do */
+    }
+  }
   const [giftName, setGiftName] = useState('')
   const [giftRoom, setGiftRoom] = useState('')
   const [giftFrom, setGiftFrom] = useState('')
@@ -413,6 +432,16 @@ export function BillingClient({
                 {giftSubmitting ? t('common.loading') : t('billing.sendGiftWithCard')}
               </button>
               <p className="text-[11px] text-stone-400 text-center">{t('billing.giftFootnote')}</p>
+            </div>
+          )}
+          {/* P55 — shareable gift link: any relative can chip in without
+              seeing the account (the link shows first name + masked surname only) */}
+          {giftLink && (
+            <div className="mt-3 pt-3 border-t border-stone-100">
+              <button type="button" onClick={onShareGiftLink} className="text-sm font-semibold text-[#8B2E4A] hover:underline">
+                {giftLinkCopied ? `✓ ${t('gift.shareCopied')}` : t('gift.share')}
+              </button>
+              <p className="text-[11px] text-stone-400 mt-0.5">{t('gift.shareHint')}</p>
             </div>
           )}
         </section>
