@@ -15,7 +15,7 @@ Note: all 8 cron jobs are ALREADY registered in vercel.json and deploy automatic
 | B. Storage bucket (`resident-photos`) | ✅ **DONE** — private bucket created |
 | C. Vercel env vars | ✅ **DONE** — CRON_SECRET, QB_TOKEN_SECRET, Upstash already set; VAPID ×4 completed + redeployed |
 | — Web push | ✅ **LIVE & TESTED** (confirmed on the iOS add-to-home-screen PWA) |
-| D. Supabase Auth | ⚠️ Confirm same-email linking is ON + Magic Link template has `{{ .Token }}` (needed for native login) |
+| D. Supabase Auth | ✅ **DONE** — Magic Link template verified 2026-08-17 (`{{ .Token }}` + `{{ .ConfirmationURL }}`); same-email linking needs no toggle (see D) |
 | E. Stripe live payments | ⏸ **PARKED** — test keys work today; live-mode blocked on boss's live account (steps below) |
 | F. SMS (Twilio) | ⏸ **PARKED** — needs `TWILIO_FROM_NUMBER` + 10DLC reg (~$10–35/mo). Set `TWILIO_ENABLED=false` meanwhile |
 | G. QuickBooks | Creds set; `QB_INVOICE_SYNC_ENABLED` flips true after Intuit prod approval |
@@ -60,12 +60,17 @@ Vercel → Project → Settings → Environment Variables (Production). After ad
 
 ## D. Supabase Auth settings (~5 min)
 
-1. [ ] Authentication → Providers/Settings → enable **"Link accounts with the same email"**
-       (same-email identity linking). Root-cause prevention for the "invited stylist can't log
-       back in" class of bug — Google + magic-link/OTP on one email collapse to one account.
-2. [ ] Authentication → Email Templates → **Magic Link**: the template body must include the
+1. [x] ~~Same-email identity linking~~ — **nothing to toggle** (corrected 2026-08-17: the
+       earlier instruction pointed at a setting that doesn't exist). Supabase links identities
+       sharing a VERIFIED email automatically by default. The dashboard's "Allow manual
+       linking" switch is a DIFFERENT feature (the `linkIdentity()` client API, which the app
+       never calls) — leave it **OFF**. The real duplicate-login safety net is code-side:
+       `healMembershipOnLogin` runs on every sign-in (auth/callback).
+2. [x] Authentication → Email Templates → **Magic Link**: the template body must include the
        6-digit code token **`{{ .Token }}`** (keep the link too if you like). The native app's
-       email-code login reads that code.
+       email-code login reads that code. ✅ Verified 2026-08-17 — code first, `ConfirmationURL`
+       link second (correct order: the typed code survives cross-device opens and Safe-Links
+       prefetch; the link is the desktop convenience).
 3. [ ] OPTIONAL (speed): Authentication → JWT Keys (or "Signing Keys") → if the project is on
        the legacy HS256 shared secret, migrate to **asymmetric signing keys** (ECC). The
        middleware then verifies logins locally with zero network calls per request (Phase 25

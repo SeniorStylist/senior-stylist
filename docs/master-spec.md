@@ -3360,8 +3360,10 @@ into the sign-up-sheet queue → family confirmations. Migrations
 - **Duplicate-login flagging**: Settings → Team shows an amber "Possible
   duplicate" chip when two members share a normalized name or email under
   different userIds (client-side, no new query). Retire path = Disconnect
-  stylist → assign → Remove membership. Root-cause prevention = Supabase
-  same-email identity linking (infra toggle).
+  stylist → assign → Remove membership. Root-cause prevention: none needed —
+  Supabase auto-links verified same-email identities by default (corrected
+  2026-08-17: there is no dashboard toggle for this; "Allow manual linking"
+  is the unrelated linkIdentity() API, kept OFF).
 
 ## P48 — Unlinked-stylist dead end + QuickBooks operations (2026-08-01)
 
