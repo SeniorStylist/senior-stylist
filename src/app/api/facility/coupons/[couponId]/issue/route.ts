@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let accountIds = links.map((l) => l.portalAccountId)
     if (portalAccountId) accountIds = accountIds.filter((id) => id === portalAccountId)
     if (accountIds.length === 0) {
-      return Response.json({ error: 'This resident has no linked family portal account yet' }, { status: 409 })
+      return Response.json({ error: 'This resident has no linked salon account yet' }, { status: 409 })
     }
 
     const maxPer = coupon.maxPerAccount ?? 1

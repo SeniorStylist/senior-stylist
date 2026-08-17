@@ -423,7 +423,7 @@ export async function POST(request: NextRequest) {
     const magicLink = await createMagicLink(normalizedEmail, newResident.id, facility.facilityCode ?? facilityCode)
     await sendEmail({
       to: normalizedEmail,
-      subject: `Welcome to the ${facility.name} Family Portal`,
+      subject: `Welcome to your ${facility.name} salon account`,
       html: buildPortalMagicLinkEmailHtml({ residentNames: [newResident.name], facilityName: facility.name, link: magicLink, expiresInHours: 72 }),
     })
   } else if (phone) {
@@ -592,7 +592,7 @@ async function autoApprove(opts: {
     const magicLink = await createMagicLink(email, matchedResidents[0]?.id ?? null, facilityCode)
     await sendEmail({
       to: email,
-      subject: `Welcome to the ${facilityName} Family Portal`,
+      subject: `Welcome to your ${facilityName} salon account`,
       html: buildPortalMagicLinkEmailHtml({ residentNames, facilityName, link: magicLink, expiresInHours: 72 }),
     })
   } else if (phone) {
@@ -630,7 +630,7 @@ function buildClaimRequestEmailHtml(params: {
       </p>
       <p style="margin:0 0 24px;color:#57534E;font-size:14px;line-height:1.5;">
         If this resident already exists under a different spelling, merge the two in
-        Settings → Family Portal — otherwise keep it and you're done.
+        Settings → Family Accounts — otherwise keep it and you're done.
       </p>
       <p style="margin:0;">
         <a href="${settingsUrl}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;">Review New Account</a>

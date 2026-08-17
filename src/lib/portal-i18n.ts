@@ -158,6 +158,13 @@ export const PORTAL_STRINGS = {
   'billing.paid': { en: 'Paid', es: 'Pagada' },
   'billing.open': { en: 'Open', es: 'Pendiente' },
   'billing.openAmount': { en: '{amount} open', es: '{amount} pendiente' },
+  // P55 — transaction history (payments + gifts + added funds)
+  'billing.history.title': { en: 'Payment history', es: 'Historial de pagos' },
+  'billing.history.payment': { en: 'Payment', es: 'Pago' },
+  'billing.history.paymentVia': { en: 'Payment ({method})', es: 'Pago ({method})' },
+  'billing.history.gift': { en: 'Gift received', es: 'Regalo recibido' },
+  'billing.history.giftFrom': { en: 'Gift from {name}', es: 'Regalo de {name}' },
+  'billing.history.credit': { en: 'Money added', es: 'Fondos agregados' },
   'billing.questions': {
     en: 'Questions about your bill? Contact the facility office',
     es: '¿Preguntas sobre su factura? Comuníquese con la oficina del centro',
@@ -310,7 +317,8 @@ export const PORTAL_STRINGS = {
   },
 
   // ---- login ----
-  'login.title': { en: 'Family Portal', es: 'Portal Familiar' },
+  // P55 — the family-facing product name is "Salon Account" (owner decision)
+  'login.title': { en: 'Salon Account', es: 'Cuenta del salón' },
   'login.subtitle': {
     en: 'Sign in to view appointments, request service, and pay balances.',
     es: 'Inicie sesión para ver citas, solicitar servicios y pagar saldos.',

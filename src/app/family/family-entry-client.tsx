@@ -54,7 +54,7 @@ export function FamilyEntryClient() {
           className="mx-auto"
           style={{ filter: 'brightness(0) invert(1)', objectFit: 'contain', height: 48, width: 'auto' }}
         />
-        <p className="text-white/80 text-sm mt-3">Family Portal</p>
+        <p className="text-white/80 text-sm mt-3">Salon Account</p>
       </header>
 
       <main className="flex-1 flex items-start justify-center px-4 pt-10">

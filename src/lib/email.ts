@@ -439,13 +439,13 @@ export function buildPortalMagicLinkEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    ${emailHeader({ title: 'Your Family Portal', subtitle: facilityName })}
+    ${emailHeader({ title: 'Your Salon Account', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 18px;color:#1C1917;font-size:15px;line-height:1.6;">
         Sign in to view appointments, request services, and manage billing for <strong>${namesLine}</strong>${multiple ? '' : ''}.
       </p>
       <p style="margin:0 0 24px;">
-        <a href="${link}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-size:14px;font-weight:600;">Open Family Portal</a>
+        <a href="${link}" style="display:inline-block;background:#8B2E4A;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-size:14px;font-weight:600;">Open Your Salon Account</a>
       </p>
       <p style="margin:0 0 12px;color:#57534E;font-size:13px;line-height:1.5;">
         This link expires in ${expiresInHours} hours. If you didn't request access, you can safely ignore this email.
@@ -805,13 +805,13 @@ export function buildClaimPendingEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    ${emailHeader({ eyebrow: 'Family Portal', title: 'We received your request', subtitle: facilityName })}
+    ${emailHeader({ eyebrow: 'Salon Account', title: 'We received your request', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
         Hi ${escHtml(fullName)},
       </p>
       <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
-        Thank you for signing up for the ${escHtml(facilityName)} Family Portal. The salon team is reviewing your request — this usually takes about one business day.
+        Thank you for signing up for a ${escHtml(facilityName)} salon account. The salon team is reviewing your request — this usually takes about one business day.
       </p>
       <p style="margin:0;font-size:15px;color:#1C1917;line-height:1.7;">
         Once you're approved, we'll email you a sign-in link. Nothing else to do right now.
@@ -838,7 +838,7 @@ export function buildClaimRejectedEmailHtml(params: {
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#F5F5F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;border:1px solid #E7E5E4;overflow:hidden;">
-    ${emailHeader({ eyebrow: 'Family Portal', title: 'About your request', subtitle: facilityName })}
+    ${emailHeader({ eyebrow: 'Salon Account', title: 'About your request', subtitle: facilityName })}
     <div style="padding:28px 32px;">
       <p style="margin:0 0 16px;font-size:15px;color:#1C1917;line-height:1.7;">
         Hi ${escHtml(fullName)},
@@ -1386,7 +1386,7 @@ export function buildCardAddedEmailHtml(params: {
       <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
         A payment card (<strong>${escHtml(cardLabel)}</strong>) was just saved for
         <strong>${escHtml(residentName)}</strong>'s salon account
-        ${addedVia === 'portal' ? 'through the family portal' : 'by salon staff'}.
+        ${addedVia === 'portal' ? 'through the salon account' : 'by salon staff'}.
       </p>
       <p style="margin:0 0 16px;color:#1C1917;font-size:14px;line-height:1.6;">
         The card is stored securely with Stripe — the salon never sees or keeps the card number.

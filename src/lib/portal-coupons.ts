@@ -64,7 +64,7 @@ export async function issueWelcomeCoupon(
         type: 'welcome',
         discountType,
         discountValue: value,
-        description: 'Welcome discount for new Family Portal members',
+        description: 'Welcome discount for new salon account members',
         maxPerAccount: 1,
         active: true,
       })

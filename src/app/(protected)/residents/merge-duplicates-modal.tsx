@@ -339,7 +339,7 @@ export function MergeDuplicatesModal({
                     const winner = side === 'a' ? pair.a : pair.b
                     const notes: string[] = []
                     if (loser.hasPortalAccount) {
-                      notes.push(`${loser.name}'s family portal account will move to the kept resident.`)
+                      notes.push(`${loser.name}'s salon account (family login) will move to the kept resident.`)
                     }
                     if (loser.hasPoa && !winner.hasPoa) {
                       notes.push(`POA contact info will be inherited from ${loser.name}.`)

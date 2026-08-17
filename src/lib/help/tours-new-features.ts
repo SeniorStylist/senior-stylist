@@ -258,7 +258,7 @@ export const NEW_FEATURE_TOURS: ScriptedTour[] = [
     ],
     learnings: [
       'Camera button on completed daily-log rows',
-      'Shared photos show in the family portal',
+      "Shared photos show in the family's salon account",
       'The gallery remembers each resident\'s look',
     ],
   },

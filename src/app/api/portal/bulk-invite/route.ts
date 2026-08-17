@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         const link = await createMagicLink(r.poa_email, r.id, facility.facilityCode, 72)
         const ok = await sendEmail({
           to: r.poa_email,
-          subject: `Your family portal access for ${r.name} at ${facility.name}`,
+          subject: `Your salon account for ${r.name} at ${facility.name}`,
           html: buildPortalMagicLinkEmailHtml({
             residentNames: [r.name],
             facilityName: facility.name,

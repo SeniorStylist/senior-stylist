@@ -75,7 +75,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         type: 'click',
         selector: '[data-tour="nav-residents"]',
         title: 'Open Residents',
-        description: 'Service history, balances, and family portal access. Click Residents.',
+        description: 'Service history, balances, and salon account access. Click Residents.',
         placement: 'right',
       },
       {
@@ -253,7 +253,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
   },
   {
     id: 'scripted-admin-family-portal',
-    title: 'Family Portal',
+    title: 'Salon Account',
     scenarioSummary: "Send a portal invite to Mrs. Smith's family",
     platform: 'desktop',
     role: 'admin',
@@ -263,13 +263,13 @@ export const ADMIN_TOURS: ScriptedTour[] = [
         selector: '[data-tour="residents-table"]',
         route: '/residents',
         title: 'Open a resident profile',
-        description: "Click any resident's name to open their profile — that's where the Family Portal section lives.",
+        description: "Click any resident's name to open their profile — that's where the Salon Account section lives.",
       },
       {
         type: 'highlight',
         selector: '[data-tour="resident-portal-section"]',
         route: '/residents/{{mrs-smith}}',
-        title: 'Family Portal section',
+        title: 'Salon Account section',
         description: 'Shows the POA contact email and portal status for this resident.',
       },
       {
@@ -282,7 +282,7 @@ export const ADMIN_TOURS: ScriptedTour[] = [
     ],
     learnings: [
       'Opened a resident profile',
-      'Found the Family Portal section',
+      'Found the Salon Account section',
       'Sent a portal invite',
     ],
   },

@@ -19,6 +19,16 @@ interface Invoice {
   status: string
 }
 
+// P55 — merged transaction history row (payments + gifts + added funds)
+interface HistoryRow {
+  id: string
+  date: string
+  amountCents: number
+  kind: 'payment' | 'gift' | 'credit'
+  /** payment: method label; gift: the gifter's name (or null) */
+  label: string | null
+}
+
 interface Props {
   facilityCode: string
   lang: PortalLang
@@ -36,6 +46,7 @@ interface Props {
   facilityPhone: string | null
   facilityEmail: string | null
   invoices: Invoice[]
+  history?: HistoryRow[]
 }
 
 function formatDate(d: string, locale: string) {
@@ -58,6 +69,7 @@ export function BillingClient({
   facilityPhone,
   facilityEmail,
   invoices,
+  history = [],
 }: Props) {
   const router = useRouter()
   const { toast } = useToast()
@@ -457,6 +469,41 @@ export function BillingClient({
           </ul>
         )}
       </section>
+
+      {/* P55 — transaction history: payments, gifts, added funds (newest first) */}
+      {history.length > 0 && (
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-5">
+          <h2 className="text-sm font-semibold text-stone-900 mb-3">{t('billing.history.title')}</h2>
+          <ul className="flex flex-col divide-y divide-stone-100">
+            {history.map((h) => (
+              <li key={h.id} className="py-3 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13.5px] font-semibold text-stone-900">
+                    {h.kind === 'gift'
+                      ? h.label
+                        ? t('billing.history.giftFrom', { name: h.label })
+                        : t('billing.history.gift')
+                      : h.kind === 'credit'
+                      ? t('billing.history.credit')
+                      : h.label
+                      ? t('billing.history.paymentVia', { method: h.label })
+                      : t('billing.history.payment')}
+                  </p>
+                  <p className="text-[12px] text-stone-500 mt-0.5">{formatDate(h.date, locale)}</p>
+                </div>
+                <span
+                  className={cn(
+                    'text-[13.5px] font-semibold tabular-nums shrink-0',
+                    h.kind === 'payment' ? 'text-stone-900' : 'text-emerald-700',
+                  )}
+                >
+                  {h.kind === 'payment' ? '' : '+'}{formatDollars(h.amountCents)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {(facilityPhone || facilityEmail) && (
         <p className="text-xs text-stone-400 text-center">

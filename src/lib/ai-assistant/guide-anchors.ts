@@ -107,7 +107,7 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'settings-nav-team': { route: '/settings', label: 'Team section', kind: 'nav' },
   'settings-nav-billing': { route: '/settings', label: 'Billing & Payments section', kind: 'nav' },
   'settings-nav-notifications': { route: '/settings', label: 'Notifications section', kind: 'nav' },
-  'settings-nav-portal': { route: '/settings', label: 'Family Portal section', kind: 'nav' },
+  'settings-nav-portal': { route: '/settings', label: 'Family Accounts section', kind: 'nav' },
   'settings-working-hours': { route: '/settings', label: 'working hours editor', kind: 'area', requires: ['settings-nav-general'] },
   'settings-invite-form': { route: '/settings', label: 'invite teammate form', kind: 'area', requires: ['settings-nav-team'] },
   'settings-invite-role-select': { route: '/settings', label: 'invite role picker', kind: 'select', requires: ['settings-nav-team'] },

@@ -121,7 +121,7 @@ export async function PATCH(
         })
         sendEmail({
           to: claimEmail,
-          subject: `About your Family Portal request — ${rejFacility?.name ?? 'Senior Stylist'}`,
+          subject: `About your salon account request — ${rejFacility?.name ?? 'Senior Stylist'}`,
           html: buildClaimRejectedEmailHtml({
             fullName: claim.fullName,
             facilityName: rejFacility?.name ?? 'the facility',
@@ -268,7 +268,7 @@ export async function PATCH(
     const magicLink = await createMagicLink(claimEmail, resident.id, facility.facilityCode)
     await sendEmail({
       to: claimEmail,
-      subject: `Welcome to the ${facility.name} Family Portal`,
+      subject: `Welcome to your ${facility.name} salon account`,
       html: buildPortalMagicLinkEmailHtml({
         residentNames: [resident.name],
         facilityName: facility.name,

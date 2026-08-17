@@ -12,7 +12,7 @@ import { LanguageToggle } from '@/components/portal/language-toggle'
 import { getPortalLang } from '@/lib/portal-i18n-server'
 
 export const metadata: Metadata = {
-  title: 'Senior Stylist — Family Portal',
+  title: 'Senior Stylist — Salon Account',
 }
 
 export const dynamic = 'force-dynamic'

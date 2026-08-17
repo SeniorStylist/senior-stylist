@@ -1431,7 +1431,7 @@ const explainFeature: AssistantTool = {
     'Get the detailed built-in guide for a feature or workflow of this app. Use for ANY "how do I / where is / what does X do / explain / walk me through" question — then answer thoroughly from the guide, step by step, tailored to the user. Also use it when the user asks what the app (or you) can do.',
   parameters: {
     type: 'OBJECT',
-    properties: { topic: { type: 'STRING', description: 'What they want explained, e.g. "scan a log sheet", "family portal", "payroll".' } },
+    properties: { topic: { type: 'STRING', description: 'What they want explained, e.g. "scan a log sheet", "salon account", "payroll".' } },
     required: ['topic'],
   },
   kind: 'read',

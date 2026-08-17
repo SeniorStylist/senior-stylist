@@ -89,7 +89,7 @@ const GROUP_LABELS: Record<GroupId, string> = {
 const CATEGORY_META: Record<CategoryId, { label: string; description: string; icon: LucideIcon; group: GroupId }> = {
   general: { label: 'General', description: 'Name, address, hours, and payment type.', icon: Building2, group: 'facility' },
   team: { label: 'Team & Roles', description: 'Invite teammates and manage their access.', icon: Users, group: 'people' },
-  portal: { label: 'Family Portal', description: 'Portal access, self-signup, and coupons.', icon: Heart, group: 'people' },
+  portal: { label: 'Family Accounts', description: 'Salon account access, self-signup, and coupons.', icon: Heart, group: 'people' },
   billing: { label: 'Billing & Payments', description: 'QuickBooks, Stripe, and revenue share.', icon: CreditCard, group: 'financial' },
   integrations: { label: 'Integrations', description: 'Google Calendar and other connections.', icon: Plug, group: 'system' },
   notifications: { label: 'Notifications', description: 'Email alerts and reminder recipients.', icon: Bell, group: 'system' },

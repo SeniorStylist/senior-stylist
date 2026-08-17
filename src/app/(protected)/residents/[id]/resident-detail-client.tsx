@@ -133,7 +133,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
       !(await confirmSend({
         channel: 'email',
         recipient: resident.poaEmail,
-        summary: `Family Portal access link for ${resident.name}`,
+        summary: `Salon account access link for ${resident.name}`,
       }))
     )
       return
@@ -555,7 +555,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
             const inviteCooldown = hoursAgo !== null && hoursAgo < 24
             return (
               <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] p-4" data-tour="resident-portal-section">
-                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Family Portal</p>
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-1">Salon Account</p>
                 <p className="text-xs text-stone-400 mb-3">
                   Send a magic link to the POA email for instant portal access.
                   They can view appointments, request services, and pay their balance.

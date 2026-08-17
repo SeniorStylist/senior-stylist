@@ -38,7 +38,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         status: qbInvoices.status,
       })
       .from(qbInvoices)
-      .where(and(eq(qbInvoices.residentId, residentId)))
+      // is_demo filter — Phase 13 (P55 drive-by: demo invoices leaked into statements)
+      .where(and(eq(qbInvoices.residentId, residentId), eq(qbInvoices.isDemo, false)))
       .orderBy(desc(qbInvoices.invoiceDate))
       .limit(50)
 

@@ -102,7 +102,7 @@ Front desk / admin: open the Sign-Up Sheet from the dashboard (clicking the cale
 
 Stylists: pending requests appear in an amber panel above your calendar, with a badge on the Calendar tab counting them. Tap "Pick time →" to open the booking form pre-filled, choose a slot, and the request becomes a real appointment. On desktop you can also drag a request card straight onto the calendar.
 
-Family-portal requests land in this same queue with a "From family portal" chip (and a preferred date range when the family gave one) — admins and front desk see a count badge on the Sign-Up Sheet item. When a portal request is scheduled, the family automatically gets a confirmation email.
+Family requests land in this same queue with a "From family" chip (and a preferred date range when the family gave one) — admins and front desk see a count badge on the Sign-Up Sheet item. When a portal request is scheduled, the family automatically gets a confirmation email.
 
 The assistant can add requests too: "put Mrs. Horn on the sign-up sheet for a perm next week."`,
   },
@@ -137,7 +137,7 @@ Check-in is a stylist-only action by design — it's an on-site arrival attestat
 
 Adding: tap Add Resident, enter the name (room and phone optional). Residents can also be created inline while booking or adding a walk-in.
 
-The resident's page holds: contact info and POA (family) details, date of birth (drives birthday reminders), care/style notes from the family, their service history and total spent, a style-photo gallery, tip preference, the account ledger (billing roles), and the Family Portal card for connecting relatives.
+The resident's page holds: contact info and POA (family) details, date of birth (drives birthday reminders), care/style notes from the family, their service history and total spent, a style-photo gallery, tip preference, the account ledger (billing roles), and the Salon Account card for connecting relatives.
 
 Duplicates: scanning and imports sometimes create doubles. The "Duplicates" button (admins and bookkeepers) finds likely pairs and merges them — the kept resident inherits EVERYTHING: bookings, billing history, portal access, saved cards, photos. The merge screen shows warnings before anything happens.
 
@@ -149,23 +149,24 @@ Who can edit: admins, front desk, and bookkeepers (bookkeepers gained the full e
   },
   {
     id: 'family-portal',
-    title: 'Family Portal — connecting relatives',
-    keywords: ['family', 'portal', 'poa', 'invite', 'magic link', 'qr', 'coupon', 'signup poster', 'relative', 'daughter', 'son'],
+    title: 'Salon Account — connecting relatives',
+    keywords: ['family', 'portal', 'salon account', 'poa', 'invite', 'magic link', 'qr', 'coupon', 'signup poster', 'relative', 'daughter', 'son'],
     roles: ['admin', 'facility_staff', 'bookkeeper', 'master'],
-    body: `The Family Portal lets a resident's family see appointments, request services, pay balances, and set preferences — no app install, no password required (login is by email link).
+    body: `The Salon Account (the family portal) lets a resident's family see appointments, request services, pay balances, and set preferences — no app install. Families sign in with their email OR phone number plus the password they created at signup, or with an email link; once texting is on, a texted sign-in code works too.
 
 Connecting a family:
-- On the resident's page, the Family Portal card has "Send Link" (emails the POA a sign-in link) and "Copy Link" (share it yourself). Both need the POA email on file.
-- Bulk: Settings → Family Portal shows a Portal Status panel — who's connected, who could be invited — with a one-tap "invite everyone".
-- Self-serve: print the facility's QR poster (Settings → Family Portal) — families scan it and sign up themselves. Self-signup is ON for every facility by default (you can switch an individual facility off in Settings → Family Portal).
+- On the resident's page, the Salon Account card has "Send Link" (emails the POA a sign-in link) and "Copy Link" (share it yourself). Both need the POA email on file.
+- Bulk: Settings → Family Accounts shows a Portal Status panel — who's connected, who could be invited — with a one-tap "invite everyone".
+- Self-serve: print the facility's QR poster (Settings → Family Accounts) — families scan it and sign up themselves. Self-signup is ON for every facility by default (you can switch an individual facility off in Settings → Family Accounts).
+- Signup asks for email and/or phone (at least one — either works as the username) and has the family create a password right in the wizard.
 - When a signup's typed resident name matches someone on file, the family sees an "is this them?" card (on-file name, room, and the family contact's initials) — confirming it plus matching the on-file family-contact name connects them instantly.
-- Every other signup CREATES the resident on the spot (name, room, and family contact from what they typed) and the family's account works immediately — no waiting on approval. You then see a "New Family Accounts to Review" card in Settings → Family Portal: Keep it as a new resident, or one-tap Merge it into an existing resident if it's a duplicate spelling (billing history and portal access follow the merge).
+- Every other signup CREATES the resident on the spot (name, room, and family contact from what they typed) and the family's account works immediately — no waiting on approval. You then see a "New Family Accounts to Review" card in Settings → Family Accounts: Keep it as a new resident, or one-tap Merge it into an existing resident if it's a duplicate spelling (billing history and account access follow the merge).
 - Card during signup: when card payments are configured, the signup wizard ends with a payment page — the family saves a card (stored securely by Stripe) and per-visit automatic payment turns on, so charging after each service just works. A consent email goes out whenever autopay turns on.
 - First sign-in: the email-link login walks new families through a one-time, all-skippable setup — card (skipped if they already saved one during signup), automatic payment, and a visit rhythm (weekly / every 2 weeks / monthly). The rhythm feeds your due-for-visit panel.
 
-What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family portal" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the day log. There's an English/Spanish toggle and a large-print mode.
+What families can do: view upcoming visits and history (with shared style photos), request appointments (these land in the Sign-Up Sheet queue with a "From family" chip — the stylist fits them in and the family gets emails when the request is received and when it's scheduled), pay balances online, save a card, add funds, send a gift to another resident, set tip defaults, and record style/allergy notes that stylists see on the day log. There's an English/Spanish toggle and a large-print mode.
 
-Welcome coupons and per-facility toggles live in Settings → Family Portal.`,
+Welcome coupons and per-facility toggles live in Settings → Family Accounts.`,
   },
   {
     id: 'billing',
@@ -281,7 +282,7 @@ Front desk (facility staff) can manage services too; billing and payroll stay ad
 
 - General: facility name, address, phone, working hours (bounds the calendar's bookable times), timezone.
 - Team: invite teammates by email — pick their role (admin, front desk, bookkeeper, stylist) and the invite email carries a join link. The Sent Invites list shows delivery and open status; "Copy link" is the fallback if an email doesn't arrive. This is also where you link a teammate's login to their stylist record ("Assign stylist").
-- Family Portal: self-signup toggle, QR poster, welcome coupons, portal approval queue, portal coverage panel.
+- Family Accounts: self-signup toggle, QR poster, welcome coupons, account review queue, portal coverage panel.
 - Billing & Payments: revenue-share settings, autopay mode, QuickBooks connection.
 - Notifications: daily digest email and monthly facility report toggles.
 - Advanced: tutorial/demo data cleanup.
@@ -300,7 +301,7 @@ Role visibility: admins see everything; front desk sees General (read-only); boo
 - Front desk (facility staff): scheduling, residents, sign-up sheet, signage; services view-only — no money pages (billing/payroll/analytics).
 - Bookkeeper: billing, payroll, analytics, log scanning and corrections across EVERY facility — and they manage stylists (commissions, compliance, hours), the service catalog, and applicants. Read-only on residents and no scheduling changes (they can add walk-ins and fix imported log data).
 - Stylist: their own world only — their calendar, their day log rows, their earnings, their profile/hours/time off. They can scan their own log sheets and add walk-ins (including brand-new residents).
-- Family (portal): their own resident(s) only, via the Family Portal — no staff app access.
+- Family (portal): their own resident(s) only, via their Salon Account — no staff app access.
 
 Where each role lands at sign-in: master → Master Admin, franchise admin → Franchise dashboard, facility admin → Analytics (reports), bookkeeper → Day Log, front desk and stylists → Calendar. Every page in your sidebar stays one tap away regardless.
 
@@ -347,7 +348,7 @@ Only completed visits export. "Invoice" in the Payment Type column means the vis
 - Imports: the hub for QuickBooks CSVs, service-log history, price sheets, and the facility CSV.
 - Stylist Directory: every stylist across the network, with the applicant pipeline and ZIP-radius search.
 - Feedback: read and REPLY to in-app feedback from any user (they get a notification and email; you can also do this by voice — "any new feedback? reply that it's fixed").
-- Debug: preview the app exactly as a facility admin, front desk, bookkeeper, or a specific real stylist — and open a demo family portal.
+- Debug: preview the app exactly as a facility admin, front desk, bookkeeper, or a specific real stylist — and open a demo family Salon Account.
 
 You can switch the app to any facility (sidebar switcher, or tell the assistant "switch me to Glen Meadow") and then use every normal page — calendar, log, residents, billing — as that facility. The assistant can also act on ANY facility without switching: just name it ("book Mrs. Smith at Symphony Manor…", "how much does F228 owe?").`,
   },
@@ -358,7 +359,7 @@ You can switch the app to any facility (sidebar switcher, or tell the assistant 
     roles: ['admin', 'facility_staff', 'master'],
     body: `The Signage page (sidebar, desktop) makes ready-to-print salon signs: Salon Day, Now Open, Price List, Welcome, Family Sign-Up (a QR poster families scan to create their portal account — the facility needs a facility code for it to appear), and holiday variants (Holiday Hours, Closed, Happy Holidays).
 
-Pick a template, edit the text, watch the live preview, then "Print / Save PDF" — it opens the sign in a print window; use your browser's Save-as-PDF to keep a file. Signs are automatically branded with the facility name. The same family sign-up poster is also printable from Settings → Family Portal.`,
+Pick a template, edit the text, watch the live preview, then "Print / Save PDF" — it opens the sign in a print window; use your browser's Save-as-PDF to keep a file. Signs are automatically branded with the facility name. The same family sign-up poster is also printable from Settings → Family Accounts.`,
   },
   {
     id: 'notifications',

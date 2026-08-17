@@ -332,7 +332,7 @@ export function SignupSheetPageClient({ facilityId, facilityTimezone, residents,
                         request from a staff-entered one) */}
                     {entry.source === 'portal' && (
                       <span className="text-[10.5px] font-semibold bg-[#F9EFF2] text-[#8B2E4A] rounded-full px-2 py-0.5">
-                        From family portal
+                        From family
                       </span>
                     )}
                     {entry.preferredDate && (

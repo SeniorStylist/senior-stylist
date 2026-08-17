@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
       notifyFacilityAdmins(residentRow.facilityId, {
         type: 'portal_request',
         title: 'New appointment request',
-        body: `${residentRow.residentName} — ${orderedSvcs.map((s) => s.name).join(', ')} (from the family portal)`,
+        body: `${residentRow.residentName} — ${orderedSvcs.map((s) => s.name).join(', ')} (from the family)`,
         url: '/signup-sheet',
       }),
     ).catch(() => {})

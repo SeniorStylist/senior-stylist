@@ -171,9 +171,9 @@ export const TUTORIAL_CATALOG: Tutorial[] = [
   { id: 'admin-getting-started', category: 'Getting Started', title: 'Getting Started', blurb: 'Set up your facility, invite your team, and make your first booking.', estMinutes: 4, icon: 'KeyRound', roles: ['admin', 'super_admin'], tourId: 'admin-getting-started' },
   { id: 'admin-facility-setup', category: 'Facility', title: 'Facility Setup', blurb: 'Configure your facility\'s name, hours, time zone, and payment settings.', estMinutes: 3, icon: 'Building2', roles: ['admin', 'super_admin'], tourId: 'admin-facility-setup' },
   { id: 'admin-inviting-staff', category: 'Team', title: 'Inviting Staff', blurb: 'Send invite links to facility staff and bookkeepers.', estMinutes: 2, icon: 'Mail', roles: ['admin', 'super_admin'], tourId: 'admin-inviting-staff' },
-  { id: 'admin-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Add residents, set up family portal access, and track service history.', estMinutes: 3, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'admin-residents' },
+  { id: 'admin-residents', category: 'Residents', title: 'Managing Residents', blurb: 'Add residents, set up salon account access, and track service history.', estMinutes: 3, icon: 'Users', roles: ['admin', 'super_admin'], tourId: 'admin-residents' },
   { id: 'admin-reports', category: 'Reports', title: 'Reports & Analytics', blurb: 'Track revenue, bookings, and stylist performance over time.', estMinutes: 2, icon: 'BarChart3', roles: ['admin', 'super_admin'], tourId: 'admin-reports', platform: 'both' },
-  { id: 'admin-family-portal', category: 'Family Portal', title: 'Family Portal', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
+  { id: 'admin-family-portal', category: 'Salon Account', title: 'Salon Account', blurb: 'Give families a way to request bookings and pay bills online.', estMinutes: 3, icon: 'HeartHandshake', roles: ['admin', 'super_admin'], tourId: 'admin-family-portal' },
   { id: 'admin-compliance', category: 'Compliance', title: 'Compliance Docs', blurb: 'Monitor stylist license and insurance expiry for your facility.', estMinutes: 2, icon: 'ShieldCheck', roles: ['admin', 'super_admin'], tourId: 'admin-compliance', platform: 'desktop', manageOnly: true },
   { id: 'admin-command-palette', category: 'Navigation', title: 'Command Palette', blurb: 'Press CMD+K to instantly search residents, stylists, and pages.', estMinutes: 1, icon: 'Search', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-command-palette', platform: 'desktop' },
   { id: 'admin-peek-drawer', category: 'Navigation', title: 'Quick Profile Peek', blurb: 'Click any resident or stylist name to see their profile without leaving the page.', estMinutes: 1, icon: 'PanelRight', roles: ['admin', 'super_admin', 'bookkeeper'], tourId: 'admin-peek-drawer' },
@@ -492,7 +492,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
       { route: '/dashboard', element: NAV_CALENDAR, isAction: false, title: 'Step 3 — Your Calendar', description: 'Your scheduling hub. Bookings are created here and auto-assigned to stylists by availability.', mobileDescription: 'The Calendar is your scheduling hub for all bookings.' },
       { route: '/log', element: NAV_DAILY_LOG, isAction: false, title: 'Step 4 — The Day Log', description: 'Tracks every appointment, completion, and note. It\'s also where bookkeepers scan checks.', mobileDescription: 'The Day Log tracks appointments, completions, and notes.' },
       { route: '/dashboard', element: '', isAction: false, title: 'Step 5 — Invite Your Team', description: 'Invite facility staff and bookkeepers from Settings → Team. Your Franchise Admin manages stylists.', mobileDescription: 'Invite staff and bookkeepers from Settings → Team. Franchise Admin manages stylists.' },
-      { route: '/dashboard', element: '', isAction: false, title: "You're ready", description: 'That\'s the core workflow. The Help Center covers billing, analytics, and the family portal.', mobileDescription: 'The Help Center covers billing, analytics, and the family portal.' },
+      { route: '/dashboard', element: '', isAction: false, title: "You're ready", description: 'That\'s the core workflow. The Help Center covers billing, analytics, and the family Salon Account.', mobileDescription: 'The Help Center covers billing, analytics, and the family Salon Account.' },
     ],
   },
 
@@ -527,9 +527,9 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     title: 'Managing Residents',
     steps: [
       { route: '/residents', element: '', isAction: false, title: 'Residents overview', description: 'Everyone at your facility. Search by name, filter by room, click to see history and contact info.', mobileDescription: 'Search, filter, and tap any resident to view their history.' },
-      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: false, title: 'Add a resident', description: 'Click + to add one. Name and room required; add a POA email for family portal access.', mobileDescription: 'Tap + to add. Name and room required. Add a POA email for portal access.' },
+      { route: '/residents', element: '[data-tour="residents-new-button"]', isAction: false, title: 'Add a resident', description: 'Click + to add one. Name and room required; add a POA email for salon account access.', mobileDescription: 'Tap + to add. Name and room required. Add a POA email for account access.' },
       { route: '/residents', element: '', isAction: false, title: 'Resident detail', description: 'Click a row for full booking history, balance, service preferences, and tip defaults.', mobileDescription: 'Tap a resident to see booking history, balance, and preferences.' },
-      { route: '/residents', element: '', isAction: false, title: 'Family portal access', description: 'The Family Portal card sends a magic-link invite to the POA to book and pay online.', mobileDescription: 'Send a portal invite so family can book and pay online.' },
+      { route: '/residents', element: '', isAction: false, title: 'Salon account access', description: 'The Salon Account card sends a magic-link invite to the POA to book and pay online.', mobileDescription: 'Send an account invite so family can book and pay online.' },
       { route: '/residents', element: '', isAction: false, title: 'Bulk import', description: 'Use Import to upload residents from a spreadsheet. Download the CSV template first.', mobileDescription: 'Use Import to upload residents from a spreadsheet. Get the template first.' },
     ],
   },
@@ -549,11 +549,11 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
   // 12
   'admin-family-portal': {
     id: 'admin-family-portal',
-    title: 'Family Portal',
+    title: 'Salon Account',
     steps: [
       { route: '/residents', element: '', isAction: false, title: 'What the portal does', description: 'Lets a resident\'s POA log in to request bookings, view history, see their balance, and pay online.', mobileDescription: 'POA contacts can request bookings, view history, and pay online.' },
       { route: '/residents', element: '', isAction: false, title: 'Step 1 — Add a POA email', description: 'Add a POA email on the resident\'s detail page. One POA account can manage multiple residents.', mobileDescription: 'Add a POA email on the resident detail page. One account, many residents.' },
-      { route: '/residents', element: '', isAction: false, title: 'Step 2 — Send the invite', description: 'The Family Portal card\'s Send Link emails a magic link — no password needed on first use.', mobileDescription: 'Tap Send Link on the Family Portal card. POA gets a magic link.' },
+      { route: '/residents', element: '', isAction: false, title: 'Step 2 — Send the invite', description: 'The Salon Account card\'s Send Link emails a magic link — no password needed on first use.', mobileDescription: 'Tap Send Link on the Salon Account card. POA gets a magic link.' },
       { route: '/residents', element: '', isAction: false, title: 'Booking requests', description: 'Portal requests land on your calendar as "Requested". Confirm to move them to Scheduled.', mobileDescription: 'Portal requests appear as "Requested" for you to confirm.' },
       { route: '/residents', element: '', isAction: false, title: 'Online payments', description: 'With Stripe set up in Settings → Billing, families pay online and it shows in Billing automatically.', mobileDescription: 'With Stripe set up, families pay online. It shows in Billing automatically.' },
     ],

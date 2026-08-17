@@ -143,7 +143,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     { role: 'admin', label: 'Facility Admin View', desc: 'Full admin of one facility — residents, billing, settings, reports' },
     { role: 'facility_staff', label: 'Facility Staff View', desc: 'Front desk — scheduling, residents, services, sign-up sheet; no billing/payroll' },
     { role: 'stylist', label: 'Stylist View', desc: 'Calendar + day log only; no residents or billing' },
-    { role: 'portal', label: 'Family Portal (demo)', desc: 'Log in as a fake POA with demo data — no magic link needed' },
+    { role: 'portal', label: 'Salon Account (demo)', desc: 'Log in as a fake POA with demo data — no magic link needed' },
     { role: 'signup', label: 'Family Sign-Up Wizard (dry run)', desc: 'Run the FULL signup wizard — matching, confirm card, and the real confirmation screen — but nothing is created (no accounts, no residents, no emails)' },
   ]
 
