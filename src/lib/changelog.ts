@@ -7,6 +7,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.7',
+    date: '2026-08-17',
+    title: 'Salon Account — Sign In Your Way, Charged on Finalize',
+    items: [
+      'The family portal is now the "Salon Account" — one place for appointments, payments, transaction history, and account info. Families sign in with their EMAIL OR PHONE NUMBER plus a password they create right in the signup wizard (with a strength meter, show/hide, and confirm) — no more waiting on an email link to get started',
+      'Phone-only families are fully supported: sign up with just a phone number, and once texting is on, a texted 6-digit code signs you in and appointment confirmations arrive by text (email families keep email — both when you have both)',
+      'Charging is now automatic at day close: when a stylist finalizes the day log, the saved cards of autopay residents are charged for that day\'s unpaid completed visits — each visit is stamped paid immediately, so an edited and re-finalized day can never double-charge',
+      'Scanned paper log sheets charge too — behind a human check: after importing a sheet, a "Charge cards" screen lists the matched autopay residents and nothing is charged until you review the names and press the button',
+      'New shareable gift link: copy it from the resident\'s page (or "Share a gift link" on the family Billing page) and any relative can send salon credit — they see only the facility name and the resident\'s first name, never the account. Families see gifts land in the new "Payment history" section ("Gift from Michael — 50")',
+      'Request dates now follow the stylist\'s schedule: all three request forms show which days the stylist works and block days nobody is there — and the stylist\'s request queue is ordered by the day (and time) each visit is wanted',
+      'Fixed: real sign-up requests were sometimes auto-assigned to the tutorial\'s "Demo Sarah" and became invisible to every real stylist — assignments now only go to real stylists, and stranded requests were freed back into the queue',
+      'Owner: the mobile Debug sheet gained the "Salon Account (demo)" login, and the signup preview banner now sits below the facility-name headline',
+    ],
+  },
+  {
     version: '6.6',
     date: '2026-08-16',
     title: 'The Fitzgerald Package — Signup to First Charge',

@@ -229,6 +229,37 @@ export function MobileDebugButton({ isMaster, allFacilities, currentFacilityId }
                 ? 'Runs the full signup — matching, confirm card, confirmation screen — but nothing is created and no emails are sent. Use back to return.'
                 : 'Pick a facility with an F-code to run the signup dry run.'}
             </p>
+            {/* P55 — demo Salon Account login on mobile (desktop-Debug-tab
+                parity): seeds demo data + logs in as the fake POA. In-place
+                nav for the same installed-app reason as the dry run above. */}
+            <button
+              type="button"
+              disabled={!selectedFacility?.facilityCode || loading}
+              onClick={async () => {
+                if (!selectedFacility?.facilityCode) return
+                setLoading(true)
+                try {
+                  const res = await fetch('/api/debug/portal-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ facilityId: selectedFacilityId }),
+                  })
+                  if (!res.ok) { setLoading(false); return }
+                  window.location.href = `/family/${encodeURIComponent(selectedFacility.facilityCode)}`
+                } catch {
+                  setLoading(false)
+                }
+              }}
+              className="mt-2.5 w-full py-3 rounded-xl text-sm font-semibold border transition-colors disabled:opacity-50"
+              style={{ backgroundColor: '#F9EFF2', color: '#8B2E4A', borderColor: 'rgba(139,46,74,0.25)' }}
+            >
+              Salon Account (demo)
+            </button>
+            <p className="text-[11px] text-stone-400 mt-1.5">
+              {selectedFacility?.facilityCode
+                ? 'Logs you in as a fake POA with demo data — no magic link needed. Use back to return.'
+                : 'Pick a facility with an F-code to open the demo account.'}
+            </p>
           </div>
         </div>
       </BottomSheet>

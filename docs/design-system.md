@@ -3011,3 +3011,20 @@ The old `--mobile-nav-height` and `--mobile-header-height` are DELETED.
   chips (stone pills, blush hover) shown only when the log is empty; input + Ask
   button in a form (Enter submits); scroll log `max-h-80 overscroll-contain` with
   smooth scroll-to-bottom on new answers; a one-line stone-400 disclaimer footer.
+
+## P55 patterns (2026-08-17)
+
+- **`<PasswordFields>`** (`src/components/portal/password-fields.tsx`) is the canonical
+  password-create pair: password + confirm (18px inputs, `min-h-[52px]`), per-field
+  show/hide eye toggle, 3-segment strength meter (weak amber / medium yellow / strong
+  emerald + label), live "passwords match ✓" line. Reuse it for any future
+  password-set surface — never hand-roll a meter.
+- **Working-day date hint**: date inputs that feed stylist scheduling render a
+  quiet `text-[11px] text-stone-400` "Stylist days: …" line under the field, and an
+  amber `bg-amber-50 border-amber-200` block + disabled submit when an off-day is
+  picked. Empty working-day data = show nothing, block nothing.
+- **Public gift page** (`/gift/[token]`): standalone burgundy-header card layout
+  (family-entry pattern), senior-friendly sizing, THREE preset amount buttons +
+  free-amount input; recipient shown as first name + `maskName`'d surname only.
+- **Family "Payment history" rows**: label + date left, amount right
+  (`tabular-nums`; credits/gifts emerald with a `+` prefix, payments stone-900).

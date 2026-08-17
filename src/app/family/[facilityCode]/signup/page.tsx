@@ -62,11 +62,6 @@ export default async function SignupPage({
 
   return (
     <div className="page-enter flex flex-col gap-4 mt-6">
-      {previewMode && (
-        <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-          {t('signup.preview.banner')}
-        </div>
-      )}
       {/* P54 — owner-locked branding: a persistent facility banner across every
           wizard step (this lives in the RSC above the client, so it never
           changes as the family moves through the questions). The marketing
@@ -82,6 +77,13 @@ export default async function SignupPage({
           {t('signup.title')}
         </h1>
       </header>
+      {/* P55 (Lisa) — the facility name is the headline; the preview notice
+          sits BELOW it, never above. */}
+      {previewMode && (
+        <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+          {t('signup.preview.banner')}
+        </div>
+      )}
       <SignupClient
         facilityCode={facility.facilityCode ?? decoded}
         facilityName={facility.name}

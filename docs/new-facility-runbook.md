@@ -1,4 +1,4 @@
-# New-Facility Onboarding Runbook (P53, 2026-08-13; P54 Fitzgerald additions 2026-08-16)
+# New-Facility Onboarding Runbook (P53, 2026-08-13; P54 Fitzgerald additions 2026-08-16; P55 identity/charging 2026-08-17)
 
 The exact order to bring a new facility live on the QR-to-chair funnel. Written
 for Josh; every item is either a one-time platform step or a per-facility step.
@@ -13,6 +13,7 @@ for Josh; every item is either a one-time platform step or a per-facility step.
 | `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com` | Magic-link emails build from this. (P53 added a production fallback, but set it anyway.) |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | **Without these there is NO rate limiting at all** — the signup matcher becomes guessable without bound. Required before public posters go up. |
 | `RESEND_API_KEY` + verified sender domain | Magic links, confirmations, claim notifications are all email. |
+| `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` + `TWILIO_ENABLED=true` | P55: flipping Twilio on activates THREE dormant features at once — the "Text me a code" sign-in tab, texted appointment confirmations for phone families, and the card-saved security text for phone-only families. Get a number and set all four together. |
 
 **Never set a facility-level Stripe key** in Settings → Billing — portal
 payments ignore it since P53 (it used to silently break payment recording).
@@ -24,8 +25,12 @@ credit-idempotency column/index + the portal_token backfill that turns on POA
 booking-confirmation emails for claim-created residents), then the P54 trio
 **`0037`** (signup auto-create merge suggestion), **`0038`** (signup card
 tokens — the wizard's payment step), **`0039`** (multi-service sign-up
-entries). All idempotent. The app self-bootstraps the columns/tables if you
-forget, but NOT the backfills.
+entries), then the P55 trio **`0040`** (frees real sign-up requests that were
+stranded on the tutorial's "Demo Sarah" — data heal, migration-only),
+**`0041`** (email-or-phone accounts: nullable email, phone-digits unique
+index, held signup passwords), **`0042`** (SMS login codes). All idempotent.
+The app self-bootstraps the columns/tables if you forget, but NOT the
+backfills/heals (0034, 0036, 0040 must be run).
 No psql handy? Master Admin → Facilities → "Turn on everywhere" covers 0035's
 signup flip from the UI; the others still need SQL.
 
@@ -73,6 +78,17 @@ visit completes. Everything ships enabled EXCEPT one per-facility switch:
 4. Walk-ins: tell stylists to collect the family's EMAIL in the walk-in form —
    it auto-sends the "finish setting up your account" link, which is how
    chair-side residents enter the funnel without a QR scan.
+5. **P55 — charging now also fires at day close**: with mode =
+   "When a visit completes", the stylist tapping **Finalize day** charges the
+   saved cards of autopay residents for that day's unpaid completed visits
+   (each visit stamped paid — re-finalizing never double-charges). Scanned
+   paper sheets get a "Charge cards" review screen after import — nothing is
+   charged until a human confirms the names. Autopay stays opt-in per
+   resident (owner decision).
+6. **Gift links**: every resident's page has "Copy gift link" — hand it to any
+   relative and they can send salon credit without seeing the account. The
+   family's Billing page has "Share a gift link" too; gifts appear in their
+   new "Payment history" section.
 
 **Held for the next owners' meeting** (deliberately NOT built): cash policy,
 facility logo upload on the wizard, specialty-based stylist routing,

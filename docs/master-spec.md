@@ -3122,6 +3122,35 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P55 — Email-or-phone identity, charge-on-finalize, Salon Account (2026-08-17)
+
+Second owners' meeting (Josh + Lisa). Migrations `drizzle/0040` (Demo-Sarah assignment heal, migration-only), `0041` (identity), `0042` (SMS login codes); `src/lib/portal-identity-ddl.ts` bootstraps 0041+0042. Changelog 6.7.
+
+**Identity (email OR phone = username)**
+- `portal_accounts.email` nullable; partial unique index on `regexp_replace(phone,'\D','','g')`. Invariant: every account insert sets email OR phone.
+- `src/lib/phone.ts::normalizePhoneDigits` — the one phone normalizer. `portal-auth.ts::findAccountByIdentifier` ('@' → email, else digits). Login POST accepts `identifier` (alias `email`); password tab is one "Email or phone number" field.
+- Wizard: one contact screen (both inputs, ≥1 required) + REQUIRED password step via `src/components/portal/password-fields.tsx` (strength meter / show-hide / confirm). Tier-1-phone match (digits vs `residents.poaPhone`) auto-approves like tier-1 email. Phone-only created signups get the password applied + a 7-day session; welcome SMS replaces the magic link.
+- **Password application rule**: applied immediately ONLY for auto-created residents; matched signups hold the hash on `portal_claim_requests.password_hash`, applied by `applyHeldClaimPassword` at magic-link OR SMS-code verify (only when the account hash is NULL), then nulled. Existing passwords never overwritten.
+
+**SMS (dormant until `TWILIO_ENABLED='true'`)**
+- `POST /api/portal/request-code` (always-`{sent:true}` anti-enumeration; `portalRequestCode` 3/h per-phone + per-IP) and `POST /api/portal/verify-code` (attempts++ before compare, timingSafeEqual, ≤5 tries, single-use, applies held password; `portalVerifyCode` 10/h/IP) over `portal_login_codes`. Login "Text me a code" tab renders only when the server passes `smsLoginEnabled`.
+- `getFamilyRecipients` gained `phones[]`; `family-confirmation.ts` sends both channels (email gated `email_reminders`, SMS `sms_reminders`); card-saved notice falls back to SMS for phone-only families. Builders: `buildSignupWelcomeSms`, `buildBookingConfirmationSms`, `buildCardAddedSms`.
+
+**Charging**
+- `autoCollectOnFinalize(facilityId, stylistId, dateStr)` in `src/lib/payments/triggers.ts` — fire-and-forget from `POST /api/log` + `PUT /api/log/[id]` on finalize; 'on_completion' facilities, autopay residents only. Paid stamp = `bookings.paymentStatus='paid'` in-tx; 10-min `autopayAttemptedAt` cooldown stamped before charging; idempotency keys `finalize:{resident}:{date}:{bookingSetHash}`.
+- `collectForResident` shrink fix: bookingIds re-check narrows to surviving unpaid rows + recomputes the amount (never-overcharge).
+- OCR: import returns `chargeCandidates`; modal `'charge'` step is human-confirmed; `POST /api/log/charge-cof` re-derives the booking set from the batch (auth mirrors import; bucket `paymentCollect`; keys `ocr:{batch}:{resident}:{hash}`).
+
+**Salon Account**
+- Display-only rename ("Salon Account" / "Cuenta del salón"; Settings label "Family Accounts"; chips "From family"). Routes/ids/anchors unchanged.
+- Family Billing "Payment history": `qb_payments` (isDemo=false, amount>0, NO memo — shared-check memos name other residents) + `qb_unapplied_credits` merged date-desc; gifts show "Gift from {name}" parsed from the credit `num`.
+- Public gift link: `/gift/[token]` (portalToken; first name + maskName'd surname only) + `POST /api/gift/[token]/checkout` ($5–$500, platform key, `type:'portal_gift'` → existing webhook; per-token + per-IP `portalCheckout` limits; `/gift` + `/api/gift` in middleware skipSupabase). **`/api/portal/[token]/*` data routes DELETED** (page redirect kept; the last `/portal/{token}` email link now targets `/family/{code}`). Share: family Billing "Share a gift link"; resident-detail "Copy gift link" (`portalGiftToken` narrow prop).
+
+**Scheduling**
+- `resolveAssignedStylist` `opts.demoOnly` — every branch filters `stylists.isDemo`; 0040 heals stranded real entries to unassigned.
+- Working days: `getFacilityWorkingDows` (uncached; empty = no restriction) + pure helpers in `src/lib/working-days.ts`; hints + blocks on all three request forms; 422 mirrors in signup-sheet POST + request-booking (tutorial exempt).
+- Queue order: `COALESCE(preferredDate, requestedDate), requestedTime NULLS LAST, createdAt`; stylist queue rows show `<PaymentCoveredChip>`.
+
 ## P54 — Fitzgerald launch package: owner-meeting decisions end to end (2026-08-16)
 
 Full contracts in CLAUDE.md's P54 entry; go-live flips in
