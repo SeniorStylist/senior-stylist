@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         >
           Privacy Policy
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: April 19, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: August 17, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -67,13 +67,47 @@ export default function PrivacyPage() {
           <li>Schedule and confirm salon appointments for residents.</li>
           <li>Generate payroll reports for stylists based on completed bookings.</li>
           <li>Send booking confirmation emails to residents&apos; authorized representatives.</li>
+          <li>
+            Send text-message updates about salon appointments and accounts to family members who
+            have provided a mobile phone number (see Section 4).
+          </li>
           <li>Track license and insurance compliance deadlines and send expiration alerts.</li>
           <li>Operate, maintain, and improve the platform.</li>
         </ul>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">4. Information Sharing</h2>
+        <h2 className="text-xl font-semibold text-stone-800">4. Text Messages (SMS)</h2>
+        <p className="text-stone-600 leading-relaxed">
+          When a resident&apos;s family member or authorized representative provides a mobile phone
+          number — by entering it themselves on a facility&apos;s Salon Account sign-up page, or by
+          asking salon staff to add it to the resident&apos;s record — they consent to receive
+          transactional text messages about that resident&apos;s salon services. These messages may
+          include:
+        </p>
+        <ul className="list-disc list-inside space-y-1 text-stone-600 leading-relaxed pl-2">
+          <li>Appointment confirmations and day-before reminders.</li>
+          <li>Service receipts and payment requests.</li>
+          <li>Account security notices (for example, when a payment card is saved).</li>
+          <li>One-time sign-in codes for the family&apos;s online Salon Account.</li>
+        </ul>
+        <p className="text-stone-600 leading-relaxed">
+          We never send marketing or promotional text messages. Message frequency varies with salon
+          activity. Message and data rates may apply.
+        </p>
+        <p className="text-stone-600 leading-relaxed">
+          <strong>Opting out:</strong> reply <strong>STOP</strong> to any message to stop receiving
+          texts, or turn off text reminders in your Salon Account settings. Reply{' '}
+          <strong>HELP</strong> for help, or call us at 443-450-3344.
+        </p>
+        <p className="text-stone-600 leading-relaxed">
+          Mobile phone numbers and SMS opt-in data are never shared with or sold to third parties
+          for marketing purposes.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold text-stone-800">5. Information Sharing</h2>
         <p className="text-stone-600 leading-relaxed">
           We do not sell personal data. We share data only as necessary to provide our services:
         </p>
@@ -92,6 +126,10 @@ export default function PrivacyPage() {
             confirmations and compliance alerts.
           </li>
           <li>
+            <strong>Twilio:</strong> our SMS delivery provider, used to deliver appointment and
+            account text messages to family members who have provided a mobile number.
+          </li>
+          <li>
             <strong>Supabase:</strong> our database hosting provider (SOC 2 Type II compliant).
           </li>
           <li>
@@ -101,7 +139,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">5. Data Retention</h2>
+        <h2 className="text-xl font-semibold text-stone-800">6. Data Retention</h2>
         <p className="text-stone-600 leading-relaxed">
           Booking records, resident information, and related operational data are retained for the
           life of the facility&apos;s active subscription, plus 90 days following the termination or
@@ -111,7 +149,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">6. Security</h2>
+        <h2 className="text-xl font-semibold text-stone-800">7. Security</h2>
         <p className="text-stone-600 leading-relaxed">
           We implement industry-standard security measures to protect your data, including:
         </p>
@@ -124,7 +162,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">7. Resident Rights</h2>
+        <h2 className="text-xl font-semibold text-stone-800">8. Resident Rights</h2>
         <p className="text-stone-600 leading-relaxed">
           Residents or their authorized Power of Attorney representatives may request access to,
           correction of, or deletion of their personal information by contacting their facility
@@ -138,7 +176,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">8. Changes to This Policy</h2>
+        <h2 className="text-xl font-semibold text-stone-800">9. Changes to This Policy</h2>
         <p className="text-stone-600 leading-relaxed">
           We may update this Privacy Policy from time to time. We will notify facility administrators
           by email of any material changes at least 30 days before they take effect. Continued use
@@ -147,7 +185,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">9. Contact</h2>
+        <h2 className="text-xl font-semibold text-stone-800">10. Contact</h2>
         <p className="text-stone-600 leading-relaxed">
           For privacy-related questions or requests, please contact us at{' '}
           <a href="mailto:privacy@seniorstylist.com" className="text-[#8B2E4A] hover:underline">

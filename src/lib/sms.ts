@@ -67,9 +67,12 @@ export function buildReceiptSms(data: {
 // P55 — phone-only signup welcome (no email = no magic link; the account works
 // with phone + password, and the salon has their number for confirmations).
 export function buildSignupWelcomeSms(data: { facilityName: string; residentName: string }): string {
+  // P56 — the FIRST message a family ever receives carries the opt-out line
+  // (A2P 10DLC convention; Twilio's account-level STOP handling does the rest).
   return (
     `${data.facilityName}: you're signed up for ${data.residentName}'s salon account. ` +
-    `We'll text you about visits. Sign in any time with your phone number and password.`
+    `We'll text you about visits. Sign in any time with your phone number and password. ` +
+    `Reply STOP to opt out.`
   )
 }
 

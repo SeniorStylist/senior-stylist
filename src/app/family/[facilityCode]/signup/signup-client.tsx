@@ -17,7 +17,7 @@
 //   confident match inserts the 'confirm' ("is this them?") step. The server
 //   re-derives the match on submit — familyConfirmed is only an assertion.
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePortalT, type PortalLang } from '@/lib/portal-i18n'
@@ -60,6 +60,10 @@ type Relationship = 'self' | 'spouse' | 'child' | 'poa' | 'other'
 // least one — owner decision), and 'password' is a required step (username =
 // email or phone, password = the password).
 type StepId = 'who' | 'yourName' | 'resident' | 'confirm' | 'contact' | 'password' | 'review'
+
+// P56 — the full step universe (for history-state validation) + reload blob.
+const ALL_STEPS: readonly StepId[] = ['who', 'yourName', 'resident', 'confirm', 'contact', 'password', 'review']
+const RESUME_TTL_MS = 30 * 60 * 1000
 
 // P53 — no-spaces email gate (the old /.+@.+\..+/ passed "john smith@gmail.com"
 // from a phone-keyboard space, which then 422'd server-side).
@@ -116,18 +120,118 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
     : ['who', 'yourName', 'resident', 'contact', 'password', 'review']
   const stepIndex = Math.max(0, steps.indexOf(stepId))
 
-  const goTo = (id: StepId) => {
+  // P56 (Josh) — the wizard participates in browser history: every forward
+  // move pushes an entry (same URL, state carries the step), the in-app Back
+  // button IS history.back(), and popstate restores the step — so the phone's
+  // back gesture / browser buttons walk the wizard instead of exiting it.
+  const resumeKey = `ss_signup:${facilityCode}`
+  const pushedRef = useRef(0) // wizard entries pushed THIS mount (0 after a fresh restore)
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
+  const matchRef = useRef(match)
+  matchRef.current = match
+  const passwordRef = useRef(password)
+  passwordRef.current = password
+
+  const goForward = (id: StepId) => {
     setError(null)
     setStepId(id)
+    pushedRef.current += 1
+    try { window.history.pushState({ ssStep: id }, '') } catch { /* ignore */ }
   }
-  const next = () => goTo(steps[Math.min(stepIndex + 1, steps.length - 1)])
-  const back = () => goTo(steps[Math.max(stepIndex - 1, 0)])
+  const next = () => goForward(steps[Math.min(stepIndex + 1, steps.length - 1)])
+  const back = () => {
+    setError(null)
+    if (pushedRef.current > 0) {
+      pushedRef.current -= 1
+      window.history.back() // popstate handler restores the previous step
+    } else {
+      // Restored session with no in-tab entries behind us (rare re-entry):
+      // step back in place so Back never throws the family out of the wizard.
+      const prev = steps[Math.max(stepIndex - 1, 0)]
+      setStepId(prev)
+      try { window.history.replaceState({ ssStep: prev }, '') } catch { /* ignore */ }
+    }
+  }
 
   const pickRelationship = (r: Relationship) => {
     setRelationship(r)
-    setError(null)
-    setStepId('yourName')
+    goForward('yourName')
   }
+
+  // P56 — reload survival: restore typed answers (NEVER the password) and the
+  // step, then seed the history entry. Runs after mount (not in initializers)
+  // so SSR/hydration render the default 'who' step identically.
+  useEffect(() => {
+    if (previewMode) return // dry runs leave no residue and never resume
+    let initial: StepId | null = null
+    try {
+      const raw = sessionStorage.getItem(resumeKey)
+      if (raw) {
+        const j = JSON.parse(raw) as Record<string, unknown>
+        if (j && Date.now() - (Number(j.savedAt) || 0) <= RESUME_TTL_MS && typeof j.relationship === 'string') {
+          setRelationship(j.relationship as Relationship)
+          if (typeof j.fullName === 'string') setFullName(j.fullName)
+          if (typeof j.residentName === 'string') setResidentName(j.residentName)
+          if (typeof j.roomNumber === 'string') setRoomNumber(j.roomNumber)
+          if (typeof j.email === 'string') setEmail(j.email)
+          if (typeof j.phone === 'string') setPhone(j.phone)
+          const s = ALL_STEPS.includes(j.step as StepId) ? (j.step as StepId) : 'who'
+          // Clamps: 'confirm' needs the (unrestored) match preview → re-run it
+          // from 'resident'; 'review' needs the password the family must retype.
+          initial = s === 'confirm' ? 'resident' : s === 'review' ? 'password' : s
+        }
+      }
+    } catch { /* ignore */ }
+    if (initial && initial !== 'who') setStepId(initial)
+    try { window.history.replaceState({ ssStep: initial ?? 'who' }, '') } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // P56 — browser back/forward. Entries without our ssStep marker are outside
+  // the wizard — let the browser leave. After submit (phase !== 'wizard') the
+  // leftover wizard entries auto-unwind so one back-press exits cleanly
+  // instead of silently eating N presses.
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const s = (e.state as { ssStep?: string } | null)?.ssStep as StepId | undefined
+      if (!s || !ALL_STEPS.includes(s)) return
+      if (phaseRef.current !== 'wizard') {
+        window.history.back()
+        return
+      }
+      setError(null)
+      const clamped = s === 'confirm' && !matchRef.current
+        ? 'resident'
+        : s === 'review' && passwordRef.current.length < 8
+        ? 'password'
+        : s
+      setStepId(clamped)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // P56 — persist the answers per keystroke/step (tab-scoped sessionStorage,
+  // 30-min TTL, cleared on submit). The password is deliberately NEVER stored.
+  useEffect(() => {
+    if (previewMode || phase !== 'wizard' || !relationship) return
+    try {
+      sessionStorage.setItem(
+        resumeKey,
+        JSON.stringify({
+          step: stepId,
+          relationship,
+          fullName,
+          residentName,
+          roomNumber,
+          email,
+          phone,
+          savedAt: Date.now(),
+        }),
+      )
+    } catch { /* storage full/blocked — resume just won't work */ }
+  }, [previewMode, phase, stepId, relationship, fullName, residentName, roomNumber, email, phone, resumeKey])
 
   // A retype invalidates any previous match — no stale confirm card.
   const onResidentEdit = () => {
@@ -168,7 +272,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
     }
     setMatch(m)
     setFamilyConfirmed(false)
-    setStepId(m ? 'confirm' : 'contact')
+    goForward(m ? 'confirm' : 'contact')
   }
 
   const handleSubmit = async () => {
@@ -211,6 +315,10 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
         return
       }
       const finalPhase: 'auto_approved' | 'created' = j.status === 'auto_approved' ? 'auto_approved' : 'created'
+      // P56 — the signup is done: a reload must not resurrect the wizard.
+      if (!previewMode) {
+        try { sessionStorage.removeItem(resumeKey) } catch { /* ignore */ }
+      }
       setDoneContact(j.contact === 'phone' ? 'phone' : 'email')
       // P54 — the card page. Real runs need a resident + (for matched signups)
       // the card token; the dry run shows the step's copy with entry skipped.
@@ -462,14 +570,14 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
               </div>
               <button
                 type="button"
-                onClick={() => { setFamilyConfirmed(true); goTo('contact') }}
+                onClick={() => { setFamilyConfirmed(true); goForward('contact') }}
                 className={primaryBtnCls}
               >
                 {t('signup.match.yes')}
               </button>
               <button
                 type="button"
-                onClick={() => { setFamilyConfirmed(false); setMatch(null); goTo('contact') }}
+                onClick={() => { setFamilyConfirmed(false); setMatch(null); goForward('contact') }}
                 className="portal-cta-cap w-full min-h-[52px] rounded-2xl border-2 border-stone-200 bg-white text-stone-700 font-semibold hover:bg-stone-50 active:scale-[0.98] transition-all"
               >
                 {t('signup.match.no')}
@@ -524,6 +632,15 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
               {phone.trim() && !phoneOk && (
                 <p className="text-sm text-amber-700">{t('signup.step.contactPhoneInvalid')}</p>
               )}
+              {/* P56 — SMS consent disclosure (A2P 10DLC): must stay visible on
+                  this step and must link a reachable privacy policy. The link
+                  opens a NEW tab — an in-place nav would wipe the wizard. */}
+              <p className="text-sm text-stone-500">
+                {t('signup.step.contactSmsConsent')}{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">
+                  {t('signup.step.privacyLink')}
+                </a>
+              </p>
             </div>
             {!email.trim() && !phone.trim() && (
               <p className="text-sm text-stone-500 text-center">{t('signup.step.contactError')}</p>
@@ -581,7 +698,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
                   </div>
                   <button
                     type="button"
-                    onClick={() => goTo(editStep)}
+                    onClick={() => goForward(editStep)}
                     className="shrink-0 text-base font-semibold text-[#8B2E4A] min-h-[44px] px-2"
                   >
                     {t('signup.review.edit')}
