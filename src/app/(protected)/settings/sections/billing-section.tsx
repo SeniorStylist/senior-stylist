@@ -287,9 +287,15 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
           Sync payroll bills and vendor records directly to your QuickBooks Online account.
         </p>
 
+        {/* P56 (Josh) — Intuit's OAuth flow opens in a NEW tab so the app
+            stays where it was; the callback lands the new tab back on
+            /settings?section=billing&qb=connected with the toast. Safe:
+            OAuth state lives in the oauth_states table, not this tab. */}
         {!hasQuickBooks && (
           <a
             href="/api/quickbooks/connect"
+            target="_blank"
+            rel="noopener noreferrer"
             data-tour="settings-qb-connect-btn"
             className="inline-block px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ backgroundColor: '#8B2E4A' }}

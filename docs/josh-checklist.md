@@ -114,6 +114,13 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
 1. [ ] Intuit Developer → create the production app → `QUICKBOOKS_CLIENT_ID`,
        `QUICKBOOKS_CLIENT_SECRET` in Vercel. (Payroll Bill push + vendor sync work after each
        facility connects via Settings → Integrations → Connect QuickBooks.)
+1b. [ ] **Register the redirect URI** (P56 — this was Lisa's "connection problem" error):
+       Intuit Developer Portal → the app → **Production** section → **Keys & OAuth** →
+       Redirect URIs → add EXACTLY `https://portal.seniorstylist.com/api/quickbooks/callback`
+       (https, no trailing slash, no www — Intuit matches character-for-character). The
+       Development section needs its own entry for sandbox testing if used. Without this,
+       every Connect attempt dies on Intuit's "redirect_uri query parameter value is
+       invalid" page before the consent screen ever shows.
 2. [ ] After Intuit grants PRODUCTION approval for the app: set
        **`QB_INVOICE_SYNC_ENABLED`** = `true` to unlock live invoice pulls ("Sync from QB").
 
