@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.8',
+    date: '2026-08-18',
+    title: 'Smoother Signup, Ready for Texting',
+    items: [
+      'The family sign-up now works like real pages: the phone\'s back gesture and the browser\'s back/forward buttons move between questions instead of leaving the wizard, and a page reload picks up right where the family left off (the password is always retyped — it\'s never saved)',
+      'The sign-up phone field now shows the text-message agreement with a link to our Privacy Policy, and the policy gained a full "Text Messages" section — the paperwork carriers require before our Twilio texting number can go live',
+      'Connect QuickBooks now opens Intuit in a new tab, so you never lose your place in Settings',
+    ],
+  },
+  {
     version: '6.7',
     date: '2026-08-17',
     title: 'Salon Account — Sign In Your Way, Charged on Finalize',
