@@ -476,8 +476,8 @@ export const PORTAL_STRINGS = {
   },
   // P56 — A2P 10DLC consent disclosure (carrier reviewers open this page)
   'signup.step.contactSmsConsent': {
-    en: 'By giving your phone number, you agree to receive text updates about salon appointments and your account. Message and data rates may apply. Reply STOP to opt out.',
-    es: 'Al proporcionar su número de teléfono, acepta recibir mensajes de texto sobre las citas del salón y su cuenta. Pueden aplicarse tarifas de mensajes y datos. Responda STOP para cancelar.',
+    en: 'By giving your phone number, you agree to receive text messages from Senior Stylist about salon appointments and your account. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help.',
+    es: 'Al proporcionar su número de teléfono, acepta recibir mensajes de texto de Senior Stylist sobre las citas del salón y su cuenta. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responda STOP para cancelar o HELP para obtener ayuda.',
   },
   'signup.step.privacyLink': { en: 'Privacy Policy', es: 'Política de Privacidad' },
   // P55 — password created in the wizard (owner decision)

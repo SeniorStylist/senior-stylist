@@ -109,6 +109,26 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
 2. [ ] Set **`TWILIO_ENABLED`** = `true` (exact string). Turns on: receipt texts, family
        appointment-reminder texts (already wired into the nightly cron), payment-request texts.
 
+### F2. A2P 10DLC campaign — WordPress fixes BEFORE (re)submitting (2026-08-18)
+
+Reviewer feedback flagged three blockers on **seniorstylist.com** (WordPress/Elementor). All
+paste-ready copy lives in **`docs/a2p-wordpress-kit.md`** — ~20 min of Elementor work:
+
+1. [ ] Privacy Policy page: replace the "don't sell or share" paragraph with the two blocks in
+       the kit (must contain the literal phrases "mobile information", "SMS consent", and
+       "Text messaging originator opt-in data").
+2. [ ] Footer Quick Links: add a **Privacy Policy** link (campaign form makes you confirm it's
+       linked from the homepage).
+3. [ ] Individual Services Request form: add the SMS disclosure line below the submit button
+       (exact text in the kit), then screenshot the form showing it and upload as proof. On the
+       campaign form: check **Website** as a consent method with the form's URL — do NOT tick
+       "I do not use web/written forms".
+4. [ ] Fix the phone typo on the request page body: (800) 979-7759 → **800.979.3759**
+       (the footer's number is the correct one; 7759 exists nowhere else).
+
+Portal side needs nothing — `/privacy` + the signup consent line carry the reviewer-grade
+language as of 2026-08-18.
+
 ## G. QuickBooks
 
 1. [ ] Intuit Developer → create the production app → `QUICKBOOKS_CLIENT_ID`,
