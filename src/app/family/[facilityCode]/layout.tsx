@@ -10,6 +10,7 @@ import { PortalHeader } from './portal-header'
 import { TextScaleToggle } from '@/components/portal/text-scale-toggle'
 import { LanguageToggle } from '@/components/portal/language-toggle'
 import { getPortalLang } from '@/lib/portal-i18n-server'
+import { makePortalT } from '@/lib/portal-i18n'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist — Salon Account',
@@ -91,6 +92,19 @@ export default async function FamilyPortalLayout({
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 96px)' }}
         >
           {children}
+          {/* P56b — A2P campaign: privacy policy reachable from every family page,
+              login and signup included. New tab so in-place nav never wipes the
+              signup wizard (P56 rule). */}
+          <p className="text-center pt-8">
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-stone-400 hover:underline"
+            >
+              {makePortalT(lang)('footer.privacy')}
+            </a>
+          </p>
         </main>
         {isAuthed && <PortalNav facilityCode={decoded} lang={lang} />}
       </div>

@@ -480,6 +480,8 @@ export const PORTAL_STRINGS = {
     es: 'Al proporcionar su número de teléfono, acepta recibir mensajes de texto de Senior Stylist sobre las citas del salón y su cuenta. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responda STOP para cancelar o HELP para obtener ayuda.',
   },
   'signup.step.privacyLink': { en: 'Privacy Policy', es: 'Política de Privacidad' },
+  // P56b — family-layout footer link (A2P: policy reachable from every family page)
+  'footer.privacy': { en: 'Privacy Policy', es: 'Política de Privacidad' },
   // P55 — password created in the wizard (owner decision)
   'signup.step.password': { en: 'Choose a password', es: 'Elija una contraseña' },
   'signup.step.passwordHint': {

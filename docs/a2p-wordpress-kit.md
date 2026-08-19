@@ -1,75 +1,83 @@
-# A2P 10DLC WordPress Kit — seniorstylist.com (Elementor)
+# A2P Campaign Kit — portal-first (WordPress off the critical path)
 
-Paste-ready fixes for the Twilio A2P 10DLC campaign submission. Three reviewer blockers live on
-the WordPress marketing site (not the portal): thin privacy-policy SMS language, no Privacy
-Policy link in the homepage footer, and a phone-collecting form with no SMS disclosure. Everything
-below is copy-paste ready. (The portal side — `portal.seniorstylist.com/privacy` and the family
-signup consent line — was hardened in the same commit as this file and needs no manual work.)
+The Twilio A2P 10DLC campaign runs entirely off **portal.seniorstylist.com** (Josh's call,
+2026-08-19): the portal hosts the compliant privacy policy, links it from every public entry
+page, and its family signup wizard is the web opt-in form with the SMS disclosure built in.
+WordPress is needed only for two safety/hygiene items below.
 
 **⚠️ Phone number:** the correct number is **800.979.3759** (matches the site footer and every
 indexed listing). The Individual Services Request page body shows **(800) 979-7759 — a typo with
-no corroboration anywhere**. Fix it while you're in Elementor (Step 4).
+no corroboration anywhere**.
 
 ---
 
-## Step 1 — Privacy Policy page: replace the second paragraph
+## Part 1 — Campaign form answers (zero WordPress)
 
-On the WordPress Privacy Policy page, replace the current "we don't sell or share your data"
-paragraph with BOTH blocks below, exactly. Reviewers scan for the literal phrases "mobile
-information," "SMS consent," and "opt-in data."
+| Campaign form field | Answer |
+|---|---|
+| Brand / campaign website | `https://portal.seniorstylist.com` |
+| Privacy policy URL | `https://portal.seniorstylist.com/privacy` |
+| Policy linked from homepage? | Yes — the logged-out homepage is the sign-in page, which carries a Privacy Policy · Terms footer; every family-facing page also links it (as of 2026-08-19) |
+| Opt-in / consent method | **Website** |
+| Opt-in URL | `https://portal.seniorstylist.com/family/<CODE>/signup` — use your most presentable live facility's F-code (e.g. Fitzgerald's once assigned; self-signup is ON by default for every active facility) |
+| "I do not use web/written forms" | Do **NOT** tick — the signup wizard is a web form |
+| Proof screenshot | The signup wizard's contact step, showing the consent line under the phone field: "By giving your phone number, you agree to receive text messages from Senior Stylist about salon appointments and your account. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help." with the Privacy Policy link |
 
-> We do not sell or share your data with third parties. Specifically, no mobile information or
-> SMS consent will be shared with third parties or affiliates for marketing or lead generation
-> purposes. Text messaging originator opt-in data and consent will not be shared with any third
-> parties. Your information will only be used by authorized staff to contact you regarding
-> services you request.
->
-> **SMS Communications.** By providing your phone number to Senior Stylist, you may receive text
-> messages related to appointment scheduling, confirmations, and service coordination. Message
-> frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for
-> assistance.
+The portal privacy policy already carries the reviewer's required language verbatim
+("…no mobile information or SMS consent will be shared with third parties or affiliates for
+marketing or lead generation purposes. Text messaging originator opt-in data and consent will
+not be shared with any third parties…"), the full SMS Communications section (frequency, rates,
+STOP, HELP), the subprocessor list (Twilio, Stripe, Google Gemini, etc.), and the business phone
++ Baltimore address.
 
-If the existing page is too thin to patch, use the complete drop-in policy in the Appendix
-instead.
+## Part 2 — WordPress: still required
 
-## Step 2 — Link Privacy Policy from the homepage footer
+Josh wasn't sure whether people who submit the WordPress **Individual Services Request** form
+ever get texted from the business number. Until that's confirmed as calls-only, treat the form
+as an opt-in surface:
 
-The campaign form makes you tick a box confirming the Privacy Policy URL is linked from your
-homepage. The footer Quick Links currently run Home → Individual Services Request Form with no
-Privacy Policy entry.
+1. **Add this line directly below the form's submit button** (link "Privacy Policy" to
+   `https://portal.seniorstylist.com/privacy` or the WordPress policy page):
 
-In Elementor: edit the footer Quick Links menu → add **Privacy Policy** → point it at the
-WordPress privacy page (patched per Step 1). Alternative if you'd rather maintain ONE policy:
-point it at `https://portal.seniorstylist.com/privacy` — that page carries all the required
-language as of 2026-08-18.
+   > By submitting this form, you agree to receive text messages from Senior Stylist regarding
+   > your appointment request. Message frequency varies. Message and data rates may apply.
+   > Reply STOP to opt out or HELP for help. See our Privacy Policy.
 
-## Step 3 — Individual Services Request form: SMS disclosure + campaign answers
+   If the campaign form allows multiple opt-in URLs, also list
+   `https://seniorstylist.com/individual-services-request/` and screenshot the form showing the
+   disclosure. (If Lisa confirms those submitters are only ever *called*, this form can be left
+   off the campaign — but the disclosure is still good practice.)
 
-The request form collects phone numbers, so it IS a web opt-in form. On the campaign form:
+2. **Fix the phone typo** on `/individual-services-request/`:
+   (800) 979-7759 → **800.979.3759**. Customer-facing — people are dialing a wrong number.
 
-- Do **NOT** tick "I do not use web/written forms."
-- Check **Website** as a consent method, with the URL
-  `https://seniorstylist.com/individual-services-request/`.
-- Add this line directly below the form's submit button (link "Privacy Policy" to the page from
-  Step 2):
+## Part 3 — WordPress: optional hygiene (no longer campaign-blocking)
 
-> By submitting this form, you agree to receive text messages from Senior Stylist regarding your
-> appointment request. Message frequency varies. Message and data rates may apply. Reply STOP to
-> opt out or HELP for help. See our Privacy Policy.
+Whenever you're in Elementor anyway:
 
-- Then screenshot the form **showing that disclosure** and upload the screenshot as proof.
+- **Privacy page**: replace the "don't sell or share" paragraph with the two blocks below —
+  keeps the two policies aligned on the carrier-required sentences:
 
-## Step 4 — Fix the phone typo
+  > We do not sell or share your data with third parties. Specifically, no mobile information or
+  > SMS consent will be shared with third parties or affiliates for marketing or lead generation
+  > purposes. Text messaging originator opt-in data and consent will not be shared with any third
+  > parties. Your information will only be used by authorized staff to contact you regarding
+  > services you request.
+  >
+  > **SMS Communications.** By providing your phone number to Senior Stylist, you may receive
+  > text messages related to appointment scheduling, confirmations, and service coordination.
+  > Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP
+  > for assistance.
 
-On `/individual-services-request/`, change **(800) 979-7759** → **800.979.3759** in the page
-body. (The footer's 800.979.3759 is already correct.)
+- **Footer Quick Links**: add **Privacy Policy** — point it at the WordPress privacy page or at
+  `https://portal.seniorstylist.com/privacy`.
 
 ---
 
-## Appendix — complete drop-in Privacy Policy for seniorstylist.com
+## Appendix — complete drop-in Privacy Policy for seniorstylist.com (optional)
 
-Use this if patching the existing page (Step 1) isn't enough. It is scoped to the marketing site
-and its request form; the portal app has its own policy at `portal.seniorstylist.com/privacy`.
+Use this if the WordPress privacy page is too thin to patch. It is scoped to the marketing site
+and its request form; the portal app keeps its own policy at `portal.seniorstylist.com/privacy`.
 
 ---
 
@@ -121,7 +129,7 @@ privacy@seniorstylist.com · 800.979.3759
 
 ---
 
-*This kit was generated 2026-08-18 alongside the portal privacy-page hardening commit. If the
-campaign reviewer asks for further language changes, update BOTH the WordPress page and
-`src/app/(public)/privacy/page.tsx` so the two policies never diverge on the carrier-required
-sentences.*
+*Updated 2026-08-19 (portal-first restructure; original WordPress-first kit 2026-08-18). If a
+campaign reviewer asks for further language changes, update the portal's
+`src/app/(public)/privacy/page.tsx` (and the WordPress page if it's in the reviewer's path) so
+the policies never diverge on the carrier-required sentences.*

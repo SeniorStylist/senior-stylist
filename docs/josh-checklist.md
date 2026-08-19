@@ -109,25 +109,28 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
 2. [ ] Set **`TWILIO_ENABLED`** = `true` (exact string). Turns on: receipt texts, family
        appointment-reminder texts (already wired into the nightly cron), payment-request texts.
 
-### F2. A2P 10DLC campaign — WordPress fixes BEFORE (re)submitting (2026-08-18)
+### F2. A2P 10DLC campaign — PORTAL-FIRST submission (2026-08-19; supersedes the 2026-08-18 WordPress-first list)
 
-Reviewer feedback flagged three blockers on **seniorstylist.com** (WordPress/Elementor). All
-paste-ready copy lives in **`docs/a2p-wordpress-kit.md`** — ~20 min of Elementor work:
+Josh's call: the campaign runs off **portal.seniorstylist.com** so WordPress stops being a
+blocker. Full form answers + paste copy in **`docs/a2p-wordpress-kit.md`**:
 
-1. [ ] Privacy Policy page: replace the "don't sell or share" paragraph with the two blocks in
-       the kit (must contain the literal phrases "mobile information", "SMS consent", and
-       "Text messaging originator opt-in data").
-2. [ ] Footer Quick Links: add a **Privacy Policy** link (campaign form makes you confirm it's
-       linked from the homepage).
-3. [ ] Individual Services Request form: add the SMS disclosure line below the submit button
-       (exact text in the kit), then screenshot the form showing it and upload as proof. On the
-       campaign form: check **Website** as a consent method with the form's URL — do NOT tick
-       "I do not use web/written forms".
-4. [ ] Fix the phone typo on the request page body: (800) 979-7759 → **800.979.3759**
-       (the footer's number is the correct one; 7759 exists nowhere else).
+1. [ ] Campaign form: website = `https://portal.seniorstylist.com`; privacy policy =
+       `https://portal.seniorstylist.com/privacy`; opt-in method = **Website** with
+       `https://portal.seniorstylist.com/family/<CODE>/signup` (any active facility's F-code);
+       do NOT tick "I do not use web/written forms".
+2. [ ] Screenshot the signup wizard's contact step (consent line under the phone field) and
+       upload as the opt-in proof.
+3. [ ] WordPress — STILL REQUIRED until confirmed the request-form submitters are only ever
+       CALLED (Josh 2026-08-19: "not sure"): add the SMS disclosure line below the Individual
+       Services Request form's submit button (exact text in the kit).
+4. [ ] WordPress — fix the phone typo on the request page body: (800) 979-7759 →
+       **800.979.3759** (customer-facing; the footer's number is correct).
+5. [ ] WordPress — OPTIONAL hygiene (no longer campaign-blocking): patch the privacy page with
+       the kit's two paragraphs + add a footer Privacy Policy link.
 
-Portal side needs nothing — `/privacy` + the signup consent line carry the reviewer-grade
-language as of 2026-08-18.
+Portal side is DONE as of 2026-08-19: `/privacy` carries the reviewer-grade language, the
+signup consent line is the full CTIA formula, and Privacy links exist on `/login`, `/family`,
+and every family page footer.
 
 ## G. QuickBooks
 

@@ -202,6 +202,11 @@ function LoginForm() {
           <p className="text-xs mt-4" style={{ color: 'var(--color-text-muted)' }}>
             Staff sign-in — invitation only
           </p>
+          <p className="text-xs mt-3 text-stone-400">
+            <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+            {' · '}
+            <Link href="/terms" className="hover:underline">Terms</Link>
+          </p>
         </div>
       </div>
     )
@@ -308,6 +313,13 @@ function LoginForm() {
 
         <p className="text-xs mt-6" style={{ color: 'var(--color-text-muted)' }}>
           For authorized facility staff only
+        </p>
+        {/* P56b — A2P campaign: the privacy policy must be linked from the portal's
+            landing page (logged-out "/" redirects here). */}
+        <p className="text-xs mt-3 text-stone-400">
+          <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+          {' · '}
+          <Link href="/terms" className="hover:underline">Terms</Link>
         </p>
       </div>
     </div>
