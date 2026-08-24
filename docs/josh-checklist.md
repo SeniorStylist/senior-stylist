@@ -109,28 +109,37 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
 2. [ ] Set **`TWILIO_ENABLED`** = `true` (exact string). Turns on: receipt texts, family
        appointment-reminder texts (already wired into the nightly cron), payment-request texts.
 
-### F2. A2P 10DLC campaign — PORTAL-FIRST submission (2026-08-19; supersedes the 2026-08-18 WordPress-first list)
+### F2. A2P 10DLC campaigns — Twilio (app) + Zoom (manual staff texts) (2026-08-19)
 
-Josh's call: the campaign runs off **portal.seniorstylist.com** so WordPress stops being a
-blocker. Full form answers + paste copy in **`docs/a2p-wordpress-kit.md`**:
+TWO independent registrations, both citing `https://portal.seniorstylist.com/privacy`.
+Full form answers + paste copy in **`docs/a2p-wordpress-kit.md`**:
 
-1. [ ] Campaign form: website = `https://portal.seniorstylist.com`; privacy policy =
+1. [ ] **Twilio campaign form**: website = `https://portal.seniorstylist.com`; privacy policy =
        `https://portal.seniorstylist.com/privacy`; opt-in method = **Website** with
        `https://portal.seniorstylist.com/family/<CODE>/signup` (any active facility's F-code);
-       do NOT tick "I do not use web/written forms".
-2. [ ] Screenshot the signup wizard's contact step (consent line under the phone field) and
-       upload as the opt-in proof.
-3. [ ] WordPress — STILL REQUIRED until confirmed the request-form submitters are only ever
+       do NOT tick "I do not use web/written forms". Proof = screenshot of the signup wizard's
+       contact step (consent line under the phone field).
+2. [ ] **Zoom campaign form**: use case = operational staff messaging (schedules, log sheets,
+       compliance — not marketing); privacy policy = the portal URL; consent = phone numbers
+       provided during stylist onboarding (documented in `/privacy` §4 "Stylists and staff").
+       Proof = screenshot of §4 (family + staff paragraphs) plus the sharing paragraph.
+3. [ ] **WordPress — footer link (REQUIRED for the Zoom campaign)**: the Zoom brand is
+       registered against seniorstylist.com, so its reviewer checks THAT homepage. Add
+       **Privacy Policy** to the footer Quick Links pointing at
+       `https://portal.seniorstylist.com/privacy` (retires the thin WP policy page).
+4. [ ] WordPress — STILL REQUIRED until confirmed the request-form submitters are only ever
        CALLED (Josh 2026-08-19: "not sure"): add the SMS disclosure line below the Individual
        Services Request form's submit button (exact text in the kit).
-4. [ ] WordPress — fix the phone typo on the request page body: (800) 979-7759 →
+5. [ ] WordPress — fix the phone typo on the request page body: (800) 979-7759 →
        **800.979.3759** (customer-facing; the footer's number is correct).
-5. [ ] WordPress — OPTIONAL hygiene (no longer campaign-blocking): patch the privacy page with
-       the kit's two paragraphs + add a footer Privacy Policy link.
+6. [ ] WordPress — OPTIONAL: patch the WP privacy page with the kit's two paragraphs (out of
+       the reviewer's path once the footer links the portal policy).
+7. [ ] Merge/deploy the `claude/campaign-privacy-sms-compliance-35mru1` branch BEFORE
+       submitting either campaign — reviewers check the LIVE pages.
 
-Portal side is DONE as of 2026-08-19: `/privacy` carries the reviewer-grade language, the
-signup consent line is the full CTIA formula, and Privacy links exist on `/login`, `/family`,
-and every family page footer.
+Portal side is DONE as of 2026-08-19: `/privacy` covers families AND staff messaging with the
+carrier-required language, the signup consent line is the full CTIA formula, and Privacy links
+exist on `/login`, `/family`, and every family page footer.
 
 ## G. QuickBooks
 

@@ -1,9 +1,14 @@
-# A2P Campaign Kit — portal-first (WordPress off the critical path)
+# A2P Campaign Kit — Twilio (app) + Zoom (manual staff texts)
 
-The Twilio A2P 10DLC campaign runs entirely off **portal.seniorstylist.com** (Josh's call,
-2026-08-19): the portal hosts the compliant privacy policy, links it from every public entry
-page, and its family signup wizard is the web opt-in form with the SMS disclosure built in.
-WordPress is needed only for two safety/hygiene items below.
+TWO independent 10DLC registrations, both citing the same portal privacy policy
+(`https://portal.seniorstylist.com/privacy`):
+
+- **Twilio** — the app's automated family messages (receipts, reminders, sign-in codes).
+- **Zoom Phone** — Josh's manual operational texts to stylists (schedules, log sheets, etc.).
+
+They are registered independently; neither covers the other's numbers. The portal policy covers
+BOTH audiences as of 2026-08-19: §4 has the family paragraphs AND a "Stylists and staff"
+operational-messaging paragraph, plus the unqualified never-shared/never-sold sharing language.
 
 **⚠️ Phone number:** the correct number is **800.979.3759** (matches the site footer and every
 indexed listing). The Individual Services Request page body shows **(800) 979-7759 — a typo with
@@ -11,7 +16,7 @@ no corroboration anywhere**.
 
 ---
 
-## Part 1 — Campaign form answers (zero WordPress)
+## Part 1 — Twilio campaign answers (app messages, zero WordPress)
 
 | Campaign form field | Answer |
 |---|---|
@@ -30,11 +35,25 @@ not be shared with any third parties…"), the full SMS Communications section (
 STOP, HELP), the subprocessor list (Twilio, Stripe, Google Gemini, etc.), and the business phone
 + Baltimore address.
 
-## Part 2 — WordPress: still required
+## Part 2 — Zoom campaign answers (manual staff texting)
 
-Josh wasn't sure whether people who submit the WordPress **Individual Services Request** form
-ever get texted from the business number. Until that's confirmed as calls-only, treat the form
-as an opt-in surface:
+| Campaign form field | Answer |
+|---|---|
+| Use case | Operational staff messaging — schedules, route/location assignments, log sheet submissions, license/insurance compliance deadlines. Not marketing. |
+| Privacy policy URL | `https://portal.seniorstylist.com/privacy` |
+| Consent / opt-in method | Mobile numbers are provided by stylists and staff during employment/contractor onboarding; consent is documented in the privacy policy's §4 "Stylists and staff" paragraph (STOP honored). |
+| Proof screenshot | §4 of the portal privacy policy — the "Stylists and staff" paragraph plus the sharing paragraph ("Mobile phone numbers and SMS opt-in data are never shared with or sold to third parties or affiliates…"). |
+| Homepage link | The Zoom brand is registered against **seniorstylist.com**, so its reviewer checks THAT homepage → the WordPress footer link in Part 3 is REQUIRED for this campaign. |
+
+## Part 3 — WordPress: required
+
+**Footer link (required for the Zoom campaign):** in Elementor, add **Privacy Policy** to the
+footer Quick Links menu pointing at `https://portal.seniorstylist.com/privacy`. This also
+retires the thin WordPress policy page — one canonical policy, no divergence.
+
+**Request-form disclosure:** Josh wasn't sure whether people who submit the WordPress
+**Individual Services Request** form ever get texted from the business number. Until that's
+confirmed as calls-only, treat the form as an opt-in surface:
 
 1. **Add this line directly below the form's submit button** (link "Privacy Policy" to
    `https://portal.seniorstylist.com/privacy` or the WordPress policy page):
@@ -51,12 +70,11 @@ as an opt-in surface:
 2. **Fix the phone typo** on `/individual-services-request/`:
    (800) 979-7759 → **800.979.3759**. Customer-facing — people are dialing a wrong number.
 
-## Part 3 — WordPress: optional hygiene (no longer campaign-blocking)
+## Part 4 — WordPress: optional hygiene (no longer campaign-blocking)
 
-Whenever you're in Elementor anyway:
-
-- **Privacy page**: replace the "don't sell or share" paragraph with the two blocks below —
-  keeps the two policies aligned on the carrier-required sentences:
+With the footer now linking the portal policy, the WordPress privacy page is out of the
+reviewer's path. If you keep it anyway, align it — replace the "don't sell or share" paragraph
+with the two blocks below:
 
   > We do not sell or share your data with third parties. Specifically, no mobile information or
   > SMS consent will be shared with third parties or affiliates for marketing or lead generation
@@ -69,8 +87,7 @@ Whenever you're in Elementor anyway:
   > Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP
   > for assistance.
 
-- **Footer Quick Links**: add **Privacy Policy** — point it at the WordPress privacy page or at
-  `https://portal.seniorstylist.com/privacy`.
+(The footer link itself is in Part 3 — required, always pointing at the portal policy.)
 
 ---
 

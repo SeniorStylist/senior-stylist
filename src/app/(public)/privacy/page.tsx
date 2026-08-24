@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         >
           Privacy Policy
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: August 18, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: August 19, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -47,8 +47,9 @@ export default function PrivacyPage() {
             insurance). We do not store credit card numbers or other sensitive payment credentials.
           </li>
           <li>
-            <strong>Stylist information:</strong> names, license numbers, license expiration dates,
-            insurance documentation, availability schedules, and commission rates.
+            <strong>Stylist information:</strong> names, contact information (including mobile
+            phone numbers), license numbers, license expiration dates, insurance documentation,
+            availability schedules, and commission rates.
           </li>
           <li>
             <strong>Facility administrator information:</strong> names and email addresses.
@@ -71,6 +72,10 @@ export default function PrivacyPage() {
             Send text-message updates about salon appointments and accounts to family members who
             have provided a mobile phone number (see Section 4).
           </li>
+          <li>
+            Send operational text messages to stylists and staff about schedules, log sheet
+            submissions, and compliance deadlines (see Section 4).
+          </li>
           <li>Track license and insurance compliance deadlines and send expiration alerts.</li>
           <li>Operate, maintain, and improve the platform.</li>
         </ul>
@@ -92,6 +97,13 @@ export default function PrivacyPage() {
           <li>One-time sign-in codes for the family&apos;s online Salon Account.</li>
         </ul>
         <p className="text-stone-600 leading-relaxed">
+          <strong>Stylists and staff.</strong> Stylists and staff who provide a mobile phone number
+          during onboarding consent to receive operational text messages from Senior Stylist
+          regarding schedules, route and location assignments, log sheet submissions, and license
+          or insurance compliance deadlines. These messages are not marketing. Reply{' '}
+          <strong>STOP</strong> to opt out.
+        </p>
+        <p className="text-stone-600 leading-relaxed">
           We never send marketing or promotional text messages. Message frequency varies with salon
           activity. Message and data rates may apply.
         </p>
@@ -103,9 +115,10 @@ export default function PrivacyPage() {
         <p className="text-stone-600 leading-relaxed">
           We do not sell or share your data with third parties. Specifically, no mobile information
           or SMS consent will be shared with third parties or affiliates for marketing or lead
-          generation purposes. Text messaging originator opt-in data and consent will not be shared
-          with any third parties. Your information will only be used by authorized staff to contact
-          you regarding services you request.
+          generation purposes. Mobile phone numbers and SMS opt-in data are never shared with or
+          sold to third parties or affiliates. Text messaging originator opt-in data and consent
+          will not be shared with any third parties. Your information will only be used by
+          authorized staff to contact you regarding services you request.
         </p>
       </section>
 
