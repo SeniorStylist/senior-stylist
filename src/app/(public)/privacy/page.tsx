@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         >
           Privacy Policy
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: August 19, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: August 24, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -115,8 +115,8 @@ export default function PrivacyPage() {
         <p className="text-stone-600 leading-relaxed">
           We do not sell or share your data with third parties. Specifically, no mobile information
           or SMS consent will be shared with third parties or affiliates for marketing or lead
-          generation purposes. Mobile phone numbers and SMS opt-in data are never shared with or
-          sold to third parties or affiliates. Text messaging originator opt-in data and consent
+          generation purposes. Mobile phone numbers and SMS opt-in data are never shared with,
+          sold to, or rented to third parties or affiliates. Text messaging originator opt-in data and consent
           will not be shared with any third parties. Your information will only be used by
           authorized staff to contact you regarding services you request.
         </p>

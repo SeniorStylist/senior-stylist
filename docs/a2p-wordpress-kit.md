@@ -42,7 +42,8 @@ STOP, HELP), the subprocessor list (Twilio, Stripe, Google Gemini, etc.), and th
 | Use case | Operational staff messaging — schedules, route/location assignments, log sheet submissions, license/insurance compliance deadlines. Not marketing. |
 | Privacy policy URL | `https://portal.seniorstylist.com/privacy` |
 | Consent / opt-in method | Mobile numbers are provided by stylists and staff during employment/contractor onboarding; consent is documented in the privacy policy's §4 "Stylists and staff" paragraph (STOP honored). |
-| Proof screenshot | §4 of the portal privacy policy — the "Stylists and staff" paragraph plus the sharing paragraph ("Mobile phone numbers and SMS opt-in data are never shared with or sold to third parties or affiliates…"). |
+| Proof screenshot | §4 ONLY, one frame — from the "4. Text Messages (SMS)" heading down through the sharing paragraph ("…never shared with, sold to, or rented to third parties or affiliates…"), browser address bar visible, PNG under 10MB. Don't include §5 — its processor list reads as "sharing" to a fast-skimming reviewer. |
+| URL field entry | Always paste WITH the scheme — `https://portal.seniorstylist.com/privacy`, never the bare domain (bare domains often fail the Verify check). |
 | Homepage link | The Zoom brand is registered against **seniorstylist.com**, so its reviewer checks THAT homepage → the WordPress footer link in Part 3 is REQUIRED for this campaign. |
 
 ## Part 3 — WordPress: required
