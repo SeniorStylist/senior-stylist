@@ -3,7 +3,7 @@ import { facilities, oauthStates } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { exchangeQBCode } from '@/lib/quickbooks'
+import { exchangeQBCode, qbRedirectUri } from '@/lib/quickbooks'
 import { encryptToken } from '@/lib/token-crypto'
 
 const STATE_TTL_MS = 10 * 60 * 1000
@@ -35,10 +35,9 @@ export async function GET(request: NextRequest) {
       throw new Error('State expired')
     }
 
-    const tokens = await exchangeQBCode(
-      code,
-      `${origin}/api/quickbooks/callback`,
-    )
+    // Must byte-match the redirect_uri sent on the authorize URL — use the
+    // same canonical qbRedirectUri(), never this request's origin.
+    const tokens = await exchangeQBCode(code, qbRedirectUri())
 
     await db
       .update(facilities)

@@ -153,6 +153,15 @@ exist on `/login`, `/family`, and every family page footer.
        Development section needs its own entry for sandbox testing if used. Without this,
        every Connect attempt dies on Intuit's "redirect_uri query parameter value is
        invalid" page before the consent screen ever shows.
+1c. [ ] (Optional) `QUICKBOOKS_REDIRECT_URI` in Vercel — only needed if the canonical URL
+       ever differs from `NEXT_PUBLIC_APP_URL`. The app now always sends the canonical URI
+       (`{NEXT_PUBLIC_APP_URL}/api/quickbooks/callback`, fallback portal.seniorstylist.com)
+       regardless of which host the admin browsed from, so 1b's single registered entry is
+       enough forever.
+1d. [ ] After a facility connects: Settings → Billing & Payments → QuickBooks →
+       **Test connection**. "✓ Connected to {company}" proves the production keys, the
+       redirect URI, and the token exchange all work end to end. An amber "Connection
+       broken" result means reconnect (the button links straight to it).
 2. [ ] After Intuit grants PRODUCTION approval for the app: set
        **`QB_INVOICE_SYNC_ENABLED`** = `true` to unlock live invoice pulls ("Sync from QB").
 

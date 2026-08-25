@@ -13,6 +13,10 @@ type Bucket =
   | 'payPeriodCreate'
   | 'quickbooksSync'
   | 'qbInvoiceSync'
+  | 'qbStatus'
+  | 'qbCustomerSync'
+  | 'qbInvoicePush'
+  | 'qbPaymentSync'
   | 'qbImport'
   | 'coverage'
   | 'billingImport'
@@ -69,6 +73,10 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   payPeriodCreate: { tokens: 10, window: '1 h' },
   quickbooksSync: { tokens: 15, window: '1 h' },
   qbInvoiceSync: { tokens: 3, window: '1 h' },
+  qbStatus: { tokens: 30, window: '1 h' },
+  qbCustomerSync: { tokens: 5, window: '1 h' },
+  qbInvoicePush: { tokens: 20, window: '1 h' },
+  qbPaymentSync: { tokens: 3, window: '1 h' },
   qbImport: { tokens: 5, window: '1 h' },
   coverage: { tokens: 10, window: '1 h' },
   billingImport: { tokens: 5, window: '1 h' },

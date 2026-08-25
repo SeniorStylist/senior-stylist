@@ -28,6 +28,17 @@ function basicAuthHeader(): string {
   return `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`
 }
 
+// Canonical OAuth redirect URI. NEVER derive this from the incoming request
+// origin — Intuit matches redirect_uri character-for-character against the
+// app's registered list, so a visit from www./vercel.app/preview hosts dies on
+// Intuit's "redirect_uri is invalid" page (Lisa's P56 bug). The same value must
+// be used for BOTH the authorize URL and the token exchange.
+export function qbRedirectUri(): string {
+  if (process.env.QUICKBOOKS_REDIRECT_URI) return process.env.QUICKBOOKS_REDIRECT_URI
+  const base = (process.env.NEXT_PUBLIC_APP_URL || 'https://portal.seniorstylist.com').replace(/\/$/, '')
+  return `${base}/api/quickbooks/callback`
+}
+
 export function getQBAuthUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     client_id: requireEnv('QUICKBOOKS_CLIENT_ID'),
@@ -163,8 +174,26 @@ async function qbFetch<T>(
     })
   }
 
+  // Bounded retry on 429 (any method — Intuit didn't execute it) and 5xx
+  // (GETs only — POSTs like /invoice aren't idempotent). Worst case adds
+  // ~4.5s, safe under the maxDuration budgets of every QB route.
+  const callWithRetry = async (token: string): Promise<Response> => {
+    let res = await doCall(token)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const retryable = res.status === 429 || (res.status >= 500 && method === 'GET')
+      if (!retryable) break
+      const retryAfterHeader = Number(res.headers.get('retry-after'))
+      const backoff = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+        ? Math.min(retryAfterHeader * 1000, 3000)
+        : 500 * 2 ** attempt + Math.random() * 250
+      await new Promise((r) => setTimeout(r, backoff))
+      res = await doCall(token)
+    }
+    return res
+  }
+
   let token = await refreshQBToken(facilityId)
-  let res = await doCall(token)
+  let res = await callWithRetry(token)
   if (res.status === 401) {
     // Force a fresh refresh by clearing the cached access token.
     await db
@@ -172,7 +201,7 @@ async function qbFetch<T>(
       .set({ qbTokenExpiresAt: new Date(0), updatedAt: new Date() })
       .where(eq(facilities.id, facilityId))
     token = await refreshQBToken(facilityId)
-    res = await doCall(token)
+    res = await callWithRetry(token)
   }
   if (!res.ok) {
     const text = await res.text()

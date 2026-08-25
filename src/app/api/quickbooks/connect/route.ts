@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { oauthStates } from '@/db/schema'
 import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
-import { getQBAuthUrl } from '@/lib/quickbooks'
+import { getQBAuthUrl, qbRedirectUri } from '@/lib/quickbooks'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 
@@ -25,9 +25,10 @@ export async function GET(request: NextRequest) {
       facilityId: facilityUser.facilityId,
     })
 
-    const redirectUri = `${request.nextUrl.origin}/api/quickbooks/callback`
+    // Canonical URI (qbRedirectUri) — never the request origin; Intuit
+    // rejects any host not registered verbatim in the app's Redirect URIs.
     const state = Buffer.from(nonce).toString('base64')
-    return NextResponse.redirect(getQBAuthUrl(state, redirectUri))
+    return NextResponse.redirect(getQBAuthUrl(state, qbRedirectUri()))
   } catch (err) {
     console.error('QuickBooks connect error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

@@ -31,6 +31,10 @@ export async function POST(_request: NextRequest) {
         qbRefreshToken: null,
         qbTokenExpiresAt: null,
         qbExpenseAccountId: null,
+        // Reset sync state too — a stale cursor on reconnect silently skips
+        // every invoice changed while disconnected (P48 cursor contract).
+        qbInvoicesSyncCursor: null,
+        qbInvoicesLastSyncedAt: null,
         updatedAt: new Date(),
       })
       .where(eq(facilities.id, facilityUser.facilityId))

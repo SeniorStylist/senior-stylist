@@ -31,6 +31,12 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [qbConfirmDisconnect, setQbConfirmDisconnect] = useState(false)
   const [qbDisconnecting, setQbDisconnecting] = useState(false)
+  const [qbTesting, setQbTesting] = useState(false)
+  const [qbTestResult, setQbTestResult] = useState<
+    | { ok: true; companyName: string | null }
+    | { ok: false; reason: string; message?: string }
+    | null
+  >(null)
 
   const qbInvoicesLastSyncedAt =
     (facility as { qbInvoicesLastSyncedAt?: string | null }).qbInvoicesLastSyncedAt ?? null
@@ -118,6 +124,32 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
     } finally {
       setQbInvoiceSyncing(false)
       setQbInvoiceConfirmFull(false)
+    }
+  }
+
+  async function handleTestConnection() {
+    if (qbTesting) return
+    setQbTesting(true)
+    setQbTestResult(null)
+    try {
+      const res = await fetch('/api/quickbooks/status')
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setQbTestResult({ ok: false, reason: 'error', message: j.error ?? 'Request failed' })
+        return
+      }
+      const d = j.data ?? {}
+      if (d.connected && d.ok) {
+        setQbTestResult({ ok: true, companyName: d.companyName ?? null })
+      } else if (d.connected) {
+        setQbTestResult({ ok: false, reason: d.reason ?? 'error', message: d.message })
+      } else {
+        setQbTestResult({ ok: false, reason: 'not_connected' })
+      }
+    } catch {
+      setQbTestResult({ ok: false, reason: 'error', message: 'Network error' })
+    } finally {
+      setQbTesting(false)
     }
   }
 
@@ -345,7 +377,44 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
               </p>
             </div>
 
+            {qbTestResult && (
+              qbTestResult.ok ? (
+                <div className="px-3 py-2 rounded-xl text-sm font-medium bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  ✓ Connected to {qbTestResult.companyName ?? 'QuickBooks'}
+                </div>
+              ) : (
+                <div className="px-3 py-2 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-800">
+                  <span className="font-semibold">
+                    {qbTestResult.reason === 'reconnect_needed'
+                      ? 'Connection broken — QuickBooks needs to be reconnected.'
+                      : 'Connection test failed.'}
+                  </span>{' '}
+                  {qbTestResult.reason === 'reconnect_needed' ? (
+                    <a
+                      href="/api/quickbooks/connect"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[#8B2E4A] underline"
+                    >
+                      Reconnect QuickBooks
+                    </a>
+                  ) : (
+                    qbTestResult.message && (
+                      <span className="text-amber-700">{qbTestResult.message}</span>
+                    )
+                  )}
+                </div>
+              )
+            )}
+
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleTestConnection}
+                disabled={qbTesting}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
+              >
+                {qbTesting ? 'Testing…' : 'Test connection'}
+              </button>
               <button
                 onClick={handleSyncVendors}
                 disabled={qbSyncing}
