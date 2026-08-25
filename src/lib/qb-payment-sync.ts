@@ -22,6 +22,7 @@ import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
+import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
 
 interface QBPayment {
   Id: string
@@ -139,13 +140,24 @@ export async function syncQBPayments(
     if (r.qbCustomerId) byDisplayName.set(r.qbCustomerId.trim().toLowerCase(), r.id)
   }
   const byNumericId = new Map<string, string>()
+  const linkedIds = new Set<string>()
   const links = await db.query.qbCustomerLinks.findMany({
     where: eq(qbCustomerLinks.facilityId, facilityId),
     columns: { residentId: true, qbCustomerId: true },
   })
   for (const l of links) {
+    linkedIds.add(l.qbCustomerId)
     if (l.residentId) byNumericId.set(l.qbCustomerId, l.residentId)
   }
+
+  // SHARED-REALM GUARD: the realm can hold every facility's customers.
+  // Rows provably belonging to another facility (foreign "FXXX:" prefix /
+  // foreign parent) are skipped entirely — never ingested under this
+  // facility. `null` verdicts (plain names, single-facility realms) keep
+  // the historic behavior and sync normally.
+  const scope = await getFacilityQbScope(facilityId)
+  const isForeign = (ref: { value: string; name?: string } | undefined): boolean =>
+    customerBelongsToFacility(ref, scope, linkedIds) === false
 
   const resolveResident = (ref: { value: string; name?: string } | undefined): string | null => {
     if (!ref) return null
@@ -164,7 +176,6 @@ export async function syncQBPayments(
   const payPull = await pullEntity<QBPayment>(facilityId, 'Payment', cursor, result.errors)
   const cmPull = await pullEntity<QBCreditMemo>(facilityId, 'CreditMemo', cursor, result.errors)
   const fetchFailed = payPull.fetchFailed || cmPull.fetchFailed
-  const capped = payPull.capped || cmPull.capped
   let writeFailures = 0
 
   // ── Payments: multiset dedup against existing rows ────────────────────
@@ -213,6 +224,7 @@ export async function syncQBPayments(
   for (const p of payPull.rows) {
     const amountCents = Math.round((p.TotalAmt ?? 0) * 100)
     if (amountCents <= 0) continue
+    if (isForeign(p.CustomerRef)) continue // another facility's payment
     const residentId = resolveResident(p.CustomerRef)
     const memo = p.PrivateNote?.slice(0, 2000) ?? null
     const qbCustomerName = p.CustomerRef?.name ?? null
@@ -334,6 +346,7 @@ export async function syncQBPayments(
     const unapplied = Math.round((p.UnappliedAmt ?? 0) * 100)
     const total = Math.round((p.TotalAmt ?? 0) * 100)
     if (total <= 0) continue
+    if (isForeign(p.CustomerRef)) continue
     const name = p.CustomerRef?.name
     if (!name) continue
     // Include zero-unapplied rows so a previously-banked credit zeroes out
@@ -351,6 +364,7 @@ export async function syncQBPayments(
   for (const cm of cmPull.rows) {
     const balance = Math.round((cm.Balance ?? 0) * 100)
     const total = Math.round((cm.TotalAmt ?? 0) * 100)
+    if (isForeign(cm.CustomerRef)) continue
     const name = cm.CustomerRef?.name
     if (!name || total <= 0) continue
     credits.push({
@@ -415,17 +429,26 @@ export async function syncQBPayments(
   }
 
   // ── Cursor (P48 contract — only over an ingested window) ─────────────
+  // ONE cursor covers BOTH entities, so it may only advance to the SMALLER of
+  // the two coverages: a fully-pulled entity covers "now", a capped one covers
+  // only its newest ingested LastUpdatedTime. Taking the combined max would
+  // let a small complete CreditMemo pull drag the cursor past thousands of
+  // unfetched payments.
+  const coverageOf = (pull: { rows: Array<{ MetaData?: { LastUpdatedTime?: string } }>; capped: boolean }): string | null => {
+    if (!pull.capped) return new Date().toISOString()
+    return pull.rows.reduce<string | null>((max, row) => {
+      const t = row.MetaData?.LastUpdatedTime
+      return t && (!max || t > max) ? t : max
+    }, null) // null → stay put rather than guess
+  }
   let nextCursor: string | null = null
   if (!fetchFailed && writeFailures === 0) {
-    if (capped) {
-      const newest = [...payPull.rows, ...cmPull.rows].reduce<string | null>((max, row) => {
-        const t = (row as { MetaData?: { LastUpdatedTime?: string } }).MetaData?.LastUpdatedTime
-        return t && (!max || t > max) ? t : max
-      }, null)
-      nextCursor = newest // null → stay put rather than guess
-    } else {
-      nextCursor = new Date().toISOString()
-    }
+    const payCoverage = coverageOf(payPull)
+    const cmCoverage = coverageOf(cmPull)
+    nextCursor =
+      payCoverage && cmCoverage
+        ? (payCoverage < cmCoverage ? payCoverage : cmCoverage)
+        : null
   }
 
   if (nextCursor) {

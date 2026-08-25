@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { qbGet } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
+import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
 
 interface QBInvoice {
   Id: string
@@ -89,18 +90,25 @@ export async function syncQBInvoices(
   // sync). Preferred over display-name/fuzzy matching — exact and rename-proof.
   await ensureQbLinksSchema()
   const residentByNumericId = new Map<string, string>()
+  const linkedIds = new Set<string>()
   try {
     const links = await db.query.qbCustomerLinks.findMany({
       where: eq(qbCustomerLinks.facilityId, facilityId),
       columns: { residentId: true, qbCustomerId: true },
     })
     for (const l of links) {
+      linkedIds.add(l.qbCustomerId)
       if (l.residentId) residentByNumericId.set(l.qbCustomerId, l.residentId)
     }
   } catch (err) {
     // Best-effort — matching falls back to display-name/fuzzy.
     console.error('[qb-invoice-sync] customer links load failed:', err)
   }
+  // SHARED-REALM GUARD: skip invoices provably belonging to another facility
+  // (foreign "FXXX:" customer prefix) — the realm can hold every facility's
+  // customers, and ingesting them here would attribute other facilities'
+  // money to this one. `null` verdicts sync normally.
+  const scope = await getFacilityQbScope(facilityId)
 
   const existingInvoices = await db.query.qbInvoices.findMany({
     where: eq(qbInvoices.facilityId, facilityId),
@@ -152,6 +160,10 @@ export async function syncQBInvoices(
     if (!invoiceNum) {
       result.errors.push(`Invoice ${inv.Id} missing DocNumber and Id — skipped`)
       continue
+    }
+    if (inv.CustomerRef && customerBelongsToFacility(inv.CustomerRef, scope, linkedIds) === false) {
+      result.skipped++
+      continue // another facility's invoice
     }
     const amountCents = Math.round((inv.TotalAmt ?? 0) * 100)
     const openBalanceCents = Math.round((inv.Balance ?? 0) * 100)

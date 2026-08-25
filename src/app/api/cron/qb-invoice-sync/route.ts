@@ -58,7 +58,10 @@ export async function GET(request: NextRequest) {
       .from(quickbooksSyncLog)
       .where(
         and(
-          eq(quickbooksSyncLog.action, 'sync_invoices'),
+          // Both nightly actions count toward the cooldown — a persistently
+          // failing PAYMENT pull must suppress the facility (and its nightly
+          // notifications) exactly like a failing invoice pull.
+          inArray(quickbooksSyncLog.action, ['sync_invoices', 'sync_payments']),
           eq(quickbooksSyncLog.status, 'error'),
           gte(quickbooksSyncLog.createdAt, cooldownStart),
         ),

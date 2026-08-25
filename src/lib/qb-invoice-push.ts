@@ -9,7 +9,7 @@
 import { db } from '@/db'
 import { bookings, facilities, qbInvoices, qbSyncState } from '@/db/schema'
 import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
-import { qbGet, qbPost } from '@/lib/quickbooks'
+import { qbGet, qbPost, qbPostSend } from '@/lib/quickbooks'
 import {
   ensureQBCustomerForResident,
   ensureQBFacilityParent,
@@ -152,7 +152,33 @@ function serviceDate(b: BillableBooking, tz: string): string {
   return `${p.year}-${pad(p.month)}-${pad(p.day)}`
 }
 
+// One push per facility at a time (same-instance double-click / two-operator
+// guard — the billable set is only claimed AFTER each slow QB create, so
+// concurrent runs would double-bill). Cross-instance races are additionally
+// narrowed by the per-group re-check inside the loop.
+const pushInFlight = new Map<string, Promise<unknown>>()
+
 export async function pushQBInvoices(
+  facilityId: string,
+  opts: {
+    month: string
+    mode: 'per_resident' | 'facility'
+    residentId?: string | null
+    send?: boolean
+    email?: string | null
+  },
+): Promise<PushQBInvoicesResult> {
+  if (pushInFlight.has(facilityId)) {
+    throw new Error('A Send via QB run is already in progress for this facility — wait for it to finish')
+  }
+  const run = pushQBInvoicesInner(facilityId, opts).finally(() => {
+    pushInFlight.delete(facilityId)
+  })
+  pushInFlight.set(facilityId, run)
+  return run
+}
+
+async function pushQBInvoicesInner(
   facilityId: string,
   opts: {
     month: string
@@ -247,6 +273,23 @@ export async function pushQBInvoices(
     const residentName = group.rows[0].resident?.name ?? null
     const label = residentName ?? facility.name
     try {
+      // Cross-instance race narrowing: re-check that these bookings are still
+      // uninvoiced right before creating (a concurrent push in another lambda
+      // may have claimed them since the initial select).
+      const stillFree = await db.query.bookings.findMany({
+        where: and(
+          inArray(bookings.id, group.rows.map((b) => b.id)),
+          isNull(bookings.qbInvoiceMatchId),
+          eq(bookings.paymentStatus, 'unpaid'),
+        ),
+        columns: { id: true },
+      })
+      if (stillFree.length === 0) continue
+      if (stillFree.length < group.rows.length) {
+        const freeIds = new Set(stillFree.map((b) => b.id))
+        group.rows = group.rows.filter((b) => freeIds.has(b.id))
+      }
+
       const customerId =
         mode === 'facility' || !group.residentId
           ? await ensureQBFacilityParent(facilityId)
@@ -325,10 +368,11 @@ export async function pushQBInvoices(
           result.skippedNoEmail++
         } else {
           try {
-            await qbPost(
+            // Intuit's send endpoint requires application/octet-stream + empty
+            // body — a JSON body is rejected.
+            await qbPostSend(
               facilityId,
               `/invoice/${inv.Id}/send?sendTo=${encodeURIComponent(to)}&minorversion=65`,
-              {},
             )
             emailed = true
             await db

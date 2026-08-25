@@ -44,7 +44,7 @@ export interface SyncQBCustomersResult {
 }
 
 const PAGE_SIZE = 100
-const CUSTOMER_CAP = 2000
+const CUSTOMER_CAP = 5000
 const CREATE_CAP = 200
 
 function norm(s: string | null | undefined): string {
@@ -63,9 +63,12 @@ function residentDisplayName(name: string, roomNumber: string | null): string {
   return room ? `${base} - ${room}` : base
 }
 
-async function fetchAllQBCustomers(facilityId: string): Promise<QBCustomer[]> {
+async function fetchAllQBCustomers(
+  facilityId: string,
+): Promise<{ customers: QBCustomer[]; capped: boolean }> {
   const all: QBCustomer[] = []
   let startPosition = 1
+  let capped = false
   while (true) {
     const query = `SELECT * FROM Customer WHERE Active = true STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
     const res = await qbGet<QBCustomerQueryResponse>(
@@ -76,9 +79,33 @@ async function fetchAllQBCustomers(facilityId: string): Promise<QBCustomer[]> {
     all.push(...page)
     if (page.length < PAGE_SIZE) break
     startPosition += PAGE_SIZE
-    if (all.length >= CUSTOMER_CAP) break
+    if (all.length >= CUSTOMER_CAP) {
+      // A truncated list means "customer not found" can't be trusted — callers
+      // must NOT create against it (duplicate-name suffix retries would mint
+      // real duplicates in the books).
+      capped = true
+      break
+    }
   }
-  return all
+  return { customers: all, capped }
+}
+
+/** Exact DisplayName lookup — cheap, and immune to the full-list cap. */
+async function findQBCustomerByDisplayName(
+  facilityId: string,
+  displayName: string,
+): Promise<QBCustomer | null> {
+  const escaped = displayName.replace(/'/g, "\\'")
+  const query = `SELECT * FROM Customer WHERE DisplayName = '${escaped}'`
+  try {
+    const res = await qbGet<QBCustomerQueryResponse>(
+      facilityId,
+      `/query?query=${encodeURIComponent(query)}&minorversion=65`,
+    )
+    return res.QueryResponse?.Customer?.[0] ?? null
+  } catch {
+    return null
+  }
 }
 
 async function createQBCustomer(
@@ -179,18 +206,33 @@ export async function ensureQBFacilityParent(facilityId: string): Promise<string
   })
   if (!facility) throw new Error('Facility not found')
 
-  // Look for an existing top-level customer before creating one.
-  const customers = await fetchAllQBCustomers(facilityId)
-  let parent = detectFacilityParent(
-    customers,
-    facility.facilityCode,
-    facility.name,
-    facility.qbCustomerId,
-  )
+  // Parent DisplayName follows the books' F-code convention so sub-customer
+  // FullyQualifiedNames come out as "F177:Smith, Margaret - 12".
+  const displayName = (facility.facilityCode ?? facility.name).replace(/:/g, '').trim()
+
+  // Targeted exact lookups first (cap-immune), then the full-list detection.
+  let parent =
+    (await findQBCustomerByDisplayName(facilityId, displayName)) ??
+    (facility.qbCustomerId && !facility.qbCustomerId.includes(':')
+      ? await findQBCustomerByDisplayName(facilityId, facility.qbCustomerId)
+      : null)
+  if (parent?.ParentRef) parent = null // must be top-level
+
   if (!parent) {
-    // Parent DisplayName follows the books' F-code convention so sub-customer
-    // FullyQualifiedNames come out as "F177:Smith, Margaret - 12".
-    const displayName = (facility.facilityCode ?? facility.name).replace(/:/g, '').trim()
+    const { customers, capped } = await fetchAllQBCustomers(facilityId)
+    parent = detectFacilityParent(
+      customers,
+      facility.facilityCode,
+      facility.name,
+      facility.qbCustomerId,
+    )
+    if (!parent && capped) {
+      throw new Error(
+        'QuickBooks customer list is too large to scan safely — could not confirm the facility parent customer',
+      )
+    }
+  }
+  if (!parent) {
     parent = await createQBCustomer(
       facilityId,
       { DisplayName: displayName, CompanyName: facility.name },
@@ -243,11 +285,19 @@ export async function ensureQBCustomerForResident(
       // fall through to create
     }
   }
+  const desiredName = residentDisplayName(resident.name, resident.roomNumber)
+  if (!customer) {
+    // Exact DisplayName lookup before creating — a same-named sub-customer
+    // already in the books must be LINKED, not duplicated via the 6240
+    // suffix retry. Only accept it when it hangs under OUR parent.
+    const existingByName = await findQBCustomerByDisplayName(facilityId, desiredName)
+    if (existingByName?.ParentRef?.value === parentId) customer = existingByName
+  }
   if (!customer) {
     customer = await createQBCustomer(
       facilityId,
       {
-        DisplayName: residentDisplayName(resident.name, resident.roomNumber),
+        DisplayName: desiredName,
         Job: true,
         ParentRef: { value: parentId },
       },
@@ -323,7 +373,12 @@ export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustome
     existingLinks.filter((l) => l.residentId).map((l) => [l.residentId as string, l]),
   )
 
-  const customers = await fetchAllQBCustomers(facilityId)
+  const { customers, capped } = await fetchAllQBCustomers(facilityId)
+  if (capped) {
+    result.errors.push(
+      `QuickBooks holds more than ${CUSTOMER_CAP} customers — matched what was scanned; nothing was created (a truncated scan can't prove a customer is missing)`,
+    )
+  }
 
   // ── Pass 1: match existing QB customers to residents ──────────────────
   const parent = detectFacilityParent(
@@ -351,15 +406,20 @@ export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustome
 
   for (const c of customers) {
     if (!c.ParentRef) continue // only sub-customers map to residents
+    // SHARED-REALM GUARD: the realm holds every facility's sub-customers.
+    // DisplayName + fuzzy matching are only safe under OUR parent; without a
+    // detected parent, only an exact stored FullyQualifiedName (which embeds
+    // the facility prefix) is unambiguous.
+    const underOurParent = !!parent && c.ParentRef.value === parent.Id
     const dn = norm(c.DisplayName)
     const fqn = norm(c.FullyQualifiedName)
 
     let match =
       byStoredName.get(fqn) ??
-      byStoredName.get(dn) ??
+      (underOurParent ? byStoredName.get(dn) : undefined) ??
       null
     if (match && claimed.has(match.id)) match = null
-    if (!match) {
+    if (!match && underOurParent) {
       const parsed = parseResidentName(c.FullyQualifiedName ?? c.DisplayName ?? '')
       if (parsed) {
         const hit = fuzzyBestMatch(
@@ -418,8 +478,11 @@ export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustome
   if (parent) await upsertParentLink(facilityId, parent)
 
   // ── Pass 2: create missing sub-customers ─────────────────────────────
+  // Skipped entirely when the scan was truncated — "not found in a partial
+  // list" is not "missing", and the duplicate-name retry would mint real
+  // duplicates in the books.
   let parentId = parent?.Id ?? null
-  const unlinked = residentList.filter((r) => !claimed.has(r.id))
+  const unlinked = capped ? [] : residentList.filter((r) => !claimed.has(r.id))
   if (unlinked.length > 0 && !parentId) {
     try {
       parentId = await ensureQBFacilityParent(facilityId)
@@ -479,8 +542,6 @@ export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustome
         result.errors.push(`${r.name}: ${(err as Error).message?.slice(0, 200)}`)
       }
     }
-  } else if (unlinked.length > 0) {
-    result.skipped += unlinked.length
   }
 
   // ── Display-name backfill (batched — max:1 pool) ─────────────────────

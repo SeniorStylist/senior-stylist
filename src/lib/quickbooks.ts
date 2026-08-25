@@ -158,6 +158,7 @@ async function qbFetch<T>(
   method: 'GET' | 'POST',
   path: string,
   body?: unknown,
+  opts?: { octetStream?: boolean },
 ): Promise<T> {
   const realmId = await getRealmId(facilityId)
   const url = `${QB_BASE}/v3/company/${realmId}${path}`
@@ -168,9 +169,15 @@ async function qbFetch<T>(
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        // Intuit's send endpoints (/invoice/{id}/send) require
+        // application/octet-stream with an empty body — a JSON body 400s.
+        ...(opts?.octetStream
+          ? { 'Content-Type': 'application/octet-stream' }
+          : body
+            ? { 'Content-Type': 'application/json' }
+            : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body && !opts?.octetStream ? JSON.stringify(body) : undefined,
     })
   }
 
@@ -220,6 +227,12 @@ export function qbPost<T = unknown>(
   body: unknown,
 ): Promise<T> {
   return qbFetch<T>(facilityId, 'POST', path, body)
+}
+
+/** Empty-body POST with Content-Type: application/octet-stream — the shape
+ *  Intuit's /invoice/{id}/send (and other .../send) endpoints require. */
+export function qbPostSend<T = unknown>(facilityId: string, path: string): Promise<T> {
+  return qbFetch<T>(facilityId, 'POST', path, undefined, { octetStream: true })
 }
 
 export async function revokeQBToken(encryptedRefreshToken: string): Promise<void> {

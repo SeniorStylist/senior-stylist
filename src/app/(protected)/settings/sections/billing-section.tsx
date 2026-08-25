@@ -117,6 +117,8 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
       const bits = [`${matchedExisting} matched`, `${createdInQb} created`, `${skipped} skipped`]
       if (errors.length > 0) bits.push(`${errors.length} error(s)`)
       showQbToast(errors.length > 0 ? 'err' : 'ok', `Customers: ${bits.join(', ')}`)
+    } catch {
+      showQbToast('err', 'Network error — customer sync may not have run')
     } finally {
       setQbCustomerSyncing(false)
     }
