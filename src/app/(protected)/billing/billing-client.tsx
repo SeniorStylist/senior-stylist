@@ -519,6 +519,23 @@ export function BillingClient({
         return
       }
       setQbSyncResult(j.data)
+
+      // Chain the payment/credit pull — best-effort; invoice results stand
+      // either way and the payment route 503s while the flag is off.
+      try {
+        const payRes = await fetch(`/api/quickbooks/sync-payments/${facilityId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullSync }),
+        })
+        const payJson = await payRes.json().catch(() => ({}))
+        if (payRes.ok && payJson.data?.errors?.length > 0) {
+          setQbSyncError(`Payments: ${payJson.data.errors[0]}`)
+        }
+      } catch {
+        // invoice sync already succeeded — ignore payment-chain network noise
+      }
+
       setQbSyncFlash(true)
       setTimeout(() => setQbSyncFlash(false), 3000)
       setRefreshKey((k) => k + 1)

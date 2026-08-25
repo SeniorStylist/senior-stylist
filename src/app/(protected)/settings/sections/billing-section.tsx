@@ -139,7 +139,24 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
       const { created, updated, skipped, errors } = j.data
       const bits = [`${created} created`, `${updated} updated`, `${skipped} unchanged`]
       if (errors.length > 0) bits.push(`${errors.length} error(s)`)
-      showQbToast(errors.length > 0 ? 'err' : 'ok', `Invoices: ${bits.join(', ')}`)
+
+      // Chain the payment/credit pull (best-effort — 503s while the flag is off).
+      let payBit = ''
+      try {
+        const payRes = await fetch(`/api/quickbooks/sync-payments/${facility.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullSync }),
+        })
+        const payJson = await payRes.json().catch(() => ({}))
+        if (payRes.ok && payJson.data) {
+          payBit = ` · Payments: ${payJson.data.created} new, ${payJson.data.creditsUpserted} credits`
+        }
+      } catch {
+        // invoice sync already succeeded — ignore
+      }
+
+      showQbToast(errors.length > 0 ? 'err' : 'ok', `Invoices: ${bits.join(', ')}${payBit}`)
       router.refresh()
     } finally {
       setQbInvoiceSyncing(false)

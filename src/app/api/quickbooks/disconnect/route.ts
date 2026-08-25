@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
+import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
 import { revokeQBToken } from '@/lib/quickbooks'
 import { NextRequest } from 'next/server'
@@ -38,6 +39,18 @@ export async function POST(_request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(facilities.id, facilityUser.facilityId))
+
+    // Clear per-facility QB sync cursors too (qb_customer_links stays — a
+    // reconnect is almost always the same realm and Sync Customers repairs a
+    // realm change). Best-effort: the table may predate migration 0043.
+    try {
+      await ensureQbLinksSchema()
+      await db.execute(
+        sql`UPDATE qb_sync_state SET payments_sync_cursor = NULL, payments_last_synced_at = NULL, updated_at = now() WHERE facility_id = ${facilityUser.facilityId}`,
+      )
+    } catch (err) {
+      console.error('QB sync-state clear failed (non-fatal):', err)
+    }
 
     if (facility?.qbRefreshToken) {
       revokeQBToken(facility.qbRefreshToken).catch((err) =>

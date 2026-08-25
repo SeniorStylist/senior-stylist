@@ -23,14 +23,16 @@ import { and, eq, gte, inArray, isNotNull, notInArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { syncQBInvoices } from '@/lib/qb-invoice-sync'
+import { syncQBPayments } from '@/lib/qb-payment-sync'
 import { notifyManyUsers } from '@/lib/notify'
 import { sendEmail, buildQBSyncFailureEmailHtml } from '@/lib/email'
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
-/** 25 × (paginated Intuit pull + upserts) fits inside maxDuration 300. */
-const MAX_PER_RUN = 25
+/** 20 × (invoice pull + payment/credit pull + upserts) fits inside
+ *  maxDuration 300 — lowered from 25 when the payment pull was chained in. */
+const MAX_PER_RUN = 20
 /** A facility that failed recently is skipped so one dead OAuth connection
  *  can't starve the staleness rotation — and admins aren't re-pinged nightly. */
 const RETRY_COOLDOWN_HOURS = 24
@@ -101,6 +103,26 @@ export async function GET(request: NextRequest) {
         if (out.cursorAdvanced) {
           succeeded++
           logSync(f.id, 'success', `${out.created} created, ${out.updated} updated, ${out.skipped} skipped`, out.errors[0] ?? null)
+
+          // Chain the payment/credit pull AFTER a successful invoice pull so
+          // the 06:00 autopay sweep sees fresh applied-payment data too. Its
+          // own cursorAdvanced contract applies; a payment failure marks the
+          // facility failed (cooldown) but never blocks other facilities.
+          try {
+            const pay = await syncQBPayments(f.id, {})
+            if (pay.cursorAdvanced) {
+              logPaymentSync(f.id, 'success', `${pay.created} created, ${pay.upgraded} upgraded, ${pay.skipped} skipped, ${pay.creditsUpserted} credits`, pay.errors[0] ?? null)
+            } else {
+              const message = pay.errors[0] ?? 'Payment sync made no progress'
+              failures.push({ facilityId: f.id, name: f.name, message })
+              logPaymentSync(f.id, 'error', null, message)
+            }
+          } catch (err) {
+            const message = (err as Error).message?.slice(0, 300) ?? 'Unknown error'
+            console.error(`[cron/qb-invoice-sync] payment sync for ${f.id} threw:`, err)
+            failures.push({ facilityId: f.id, name: f.name, message })
+            logPaymentSync(f.id, 'error', null, message)
+          }
         } else {
           const message = out.errors[0] ?? 'Sync made no progress'
           failures.push({ facilityId: f.id, name: f.name, message })
@@ -191,6 +213,18 @@ function logSync(facilityId: string, status: 'success' | 'error', responseSummar
     .values({
       facilityId,
       action: 'sync_invoices',
+      status,
+      responseSummary,
+      errorMessage: errorMessage?.slice(0, 500) ?? null,
+    })
+    .catch((e) => console.error('[qb-log]', e))
+}
+
+function logPaymentSync(facilityId: string, status: 'success' | 'error', responseSummary: string | null, errorMessage: string | null) {
+  db.insert(quickbooksSyncLog)
+    .values({
+      facilityId,
+      action: 'sync_payments',
       status,
       responseSummary,
       errorMessage: errorMessage?.slice(0, 500) ?? null,
