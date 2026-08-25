@@ -329,7 +329,7 @@ export const BOOKKEEPER_TOURS: ScriptedTour[] = [
         selector: '[data-tour="billing-invoice-list"]',
         route: '/billing',
         title: 'QB invoices in Billing',
-        description: 'Once QuickBooks is connected, invoices sync here automatically — balances stay in sync with QB.',
+        description: 'Once QuickBooks is connected, invoices sync here — pulled nightly when live sync is on, and Send via QB creates them.',
       },
       {
         type: 'highlight',

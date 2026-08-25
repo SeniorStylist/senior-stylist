@@ -7,6 +7,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.9',
+    date: '2026-08-25',
+    title: 'QuickBooks, Connected for Real',
+    items: [
+      'Connecting to QuickBooks now works from any address — the connect button always sends Intuit the one registered web address, so the "Uh oh, there\'s a connection problem" page from connecting via a different link is gone (one Intuit-side registration still required — see the checklist)',
+      'New "Test connection" button in Settings → Billing → QuickBooks: one tap proves the whole connection works ("✓ Connected to {your company}") or tells you it needs a reconnect — with the reconnect link right there',
+      '"Sync Customers" links every resident to their QuickBooks customer and creates any that are missing (as sub-customers under the facility, matching how the books are organized) — after that, invoices and payments match residents exactly instead of guessing by name',
+      '"Send via QB" is live: pick a month and it creates real QuickBooks invoices from that month\'s completed, unpaid appointments — one per resident (or one facility invoice for facility-billed accounts), never double-billing an appointment already invoiced, tips never included — and can have QuickBooks email them',
+      'Payments and credits recorded in QuickBooks now sync back too (with invoice sync, nightly once live sync is on) — payments you already recorded by check-scan or CSV import are recognized, never double-counted',
+      'Sturdier under the hood: QuickBooks calls retry on rate limits, and disconnect/reconnect can no longer silently skip invoices that changed while disconnected',
+    ],
+  },
+  {
     version: '6.8',
     date: '2026-08-18',
     title: 'Smoother Signup, Ready for Texting',

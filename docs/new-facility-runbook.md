@@ -55,6 +55,13 @@ master (or a bookkeeper) does 1–4 BEFORE handing over logins:
    — from the PRODUCTION domain (a poster printed from a preview deploy encodes
    a URL families can't reach). Self-signup is ON by default since P52. The
    poster title is "Create an Account" (owner decision).
+7. **QuickBooks** (if this facility's billing runs through QB): Settings →
+   Billing & Payments → **Connect QuickBooks** (opens Intuit in a new tab) →
+   pick the **Expense Account** (required before payroll can push) → **Test
+   connection** (must show "✓ Connected to {company}") → **Sync Customers**
+   (links residents to QB customers, creates missing sub-customers). After
+   that: payroll pushes as Bills, Send via QB creates invoices, and — once
+   `QB_INVOICE_SYNC_ENABLED` is on — invoices/payments pull nightly.
 
 ## 3b. Fitzgerald of Palisades — charge-after-each-service (P54)
 

@@ -349,7 +349,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
           <HelpTip
             tourId="master-quickbooks-setup"
             label="QuickBooks Online"
-            description="Connect this facility's QuickBooks account. Once connected, payroll syncs as Bills and invoices flow back automatically."
+            description="Connect this facility's QuickBooks account. Once connected: payroll pushes as Bills, residents sync as customers, and Send via QB creates invoices. Nightly invoice + payment pull activates after Intuit production approval."
           />
         </div>
         <p className="text-xs text-stone-500 mb-4">

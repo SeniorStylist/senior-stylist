@@ -1387,8 +1387,8 @@ All wrapped in `db.transaction`. Always returns 200 to Stripe.
 
 **No new env vars.** Reuses `RESEND_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_EMAIL`, `CRON_SECRET`. `PORTAL_SESSION_SECRET` deliberately NOT added — opaque server-side tokens need no signing.
 
-### Phase 11G — QB API Live Sync (PLANNED — Opus)
-Manual sync per facility. Route: `POST /api/quickbooks/sync-invoices/[facilityId]`. First sync backfills `qb_invoice_id` on CSV-imported records. Requires Intuit production approval. Until approved → button hidden.
+### Phase 11G — QB API Live Sync (SUPERSEDED — shipped as Phase 11M, extended by P48 + P57)
+Shipped as Phase 11M (`POST /api/quickbooks/sync-invoices/[facilityId]`, gated by `QB_INVOICE_SYNC_ENABLED` — button shown DISABLED until the flag is on, not hidden). P48 added the nightly cron + master QB dashboard + cursorAdvanced contract; P57 added customer sync, invoice push, and the payment/credit pull. See the P57 section for the current full QB surface.
 
 ### Phase 11H — Revenue Share Integration (PLANNED — Opus)
 New `facilities.rev_share_percentage` integer column. Per-invoice stylist/facility split calculation. New `qb_invoice_id` on `stylist_pay_items` links payroll to invoices. Billing view shows split breakdown. Payroll detail shows corresponding invoices.
@@ -3121,6 +3121,32 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   computeOpenSlots, 6-stylist cap, 3 batched queries). Assistant cancel
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
+
+## P57 — QuickBooks full integration: connection fix + customer/invoice/payment sync (2026-08-25)
+
+Josh: fix Lisa's "redirect_uri is invalid" connect error + "fully flesh out what connecting to QuickBooks does". Migration `drizzle/0043_qb_links.sql` (self-bootstrapped by `src/lib/qb-links-ddl.ts`). Changelog 6.9. Five commits (Stages 0–4).
+
+**Stage 0 — connection + reliability**
+- `qbRedirectUri()` in `src/lib/quickbooks.ts`: `QUICKBOOKS_REDIRECT_URI` env → `NEXT_PUBLIC_APP_URL` → portal fallback; used in BOTH connect + callback (token exchange must byte-match the authorize URI). The request-origin derivation is gone.
+- `qbFetch` retries 429 (any method) / 5xx (GET only), max 2, backoff + Retry-After ≤3s; 401-refresh-once unchanged.
+- `GET /api/quickbooks/status` (bucket `qbStatus` 30/h; master `?facilityId=`): CompanyInfo probe → `{connected,ok,companyName,…}` / `{ok:false,reason:'reconnect_needed'|'error'}`, always HTTP 200. Settings → Billing "Test connection" button renders result inline with a Reconnect link.
+- Disconnect clears `qb_invoices_sync_cursor`/`qb_invoices_last_synced_at` (+ qb_sync_state cursors) — stale-cursor-on-reconnect data loss closed. `qb_customer_links` survives disconnect.
+
+**Stage 1 — customer sync**
+- Tables: `qb_customer_links` (numeric Intuit Customer.Id per resident; NULL resident = facility parent; partial uniques both shapes) + `qb_sync_state` (facility PK: qb_service_item_id, payments cursor). `residents.qb_customer_id` KEEPS display-name semantics; the "FXXX:Name - Room" form is a QB FullyQualifiedName (QB forbids colons in DisplayName; parent DisplayName = F-code, sub = "Last, First - Room").
+- `src/lib/qb-customer-sync.ts::syncQBCustomers` — match-first (exact stored name → fuzzy ≥0.7 claim-once) then create missing sub-customers (dup-DisplayName retry, 200/run cap, link written per-create for crash safety); JIT `ensureQBFacilityParent`/`ensureQBCustomerForResident`.
+- `POST /api/quickbooks/sync-customers/[facilityId]` (canManageQuickBooksBilling + master, bucket `qbCustomerSync` 5/h, sync-log `sync_customers`). Invoice pull matches numeric CustomerRef.value via links first.
+- UI: Settings → Billing "Sync Customers" beside Sync Vendors.
+
+**Stage 2 — invoice push ("Send via QB")**
+- `src/lib/qb-invoice-push.ts::pushQBInvoices(facilityId, {month, mode, residentId?, send, email?})`: billable = completed + **unpaid** + active + !demo + `qb_invoice_match_id IS NULL` in the facility-tz month; amounts price+addons (never tips); modes `per_resident` (IP) / `facility` (RFMS/hybrid); 'Salon Services' QB Item auto-provisioned + cached; pushed invoice upserts local `qb_invoices` on the 3-col dedup key + stamps `bookings.qb_invoice_match_id`; optional `/invoice/{id}/send` email stamps lastSentAt/sentVia. 50 invoices/run cap; balance recompute after.
+- `POST /api/quickbooks/push-invoice` (Zod; manage tier + master; bucket `qbInvoicePush` 20/h; maxDuration 120; sync-log `push_invoice`). `<SendViaQbModal>` (month picker + email checkbox behind useSendConfirm) wired into ip-view + billing toolbar, replacing both disabled stubs.
+
+**Stage 3 — payment/credit pull**
+- `src/lib/qb-payment-sync.ts::syncQBPayments` — Payment + CreditMemo pulls, P48 cursorAdvanced contract on `qb_sync_state.payments_sync_cursor`; multiset pool-and-pop dedup (known qb_payment_id refresh-in-place; CSV/check-scan rows get STAMPED; resident rows upgrade facility-level rows); credits upsert-only, never touching applied_*.
+- `POST /api/quickbooks/sync-payments/[facilityId]` (flag-gated 503 like invoice sync; canAccessBilling; bucket `qbPaymentSync` 3/h). Cron chains payments after each cursor-advancing invoice sync (`sync_payments` log rows; MAX_PER_RUN 25→20). Billing "Sync from QB" + Settings "Sync now" chain payments client-side.
+
+**Flag posture**: reads (invoice/payment pull, cron) gated by `QB_INVOICE_SYNC_ENABLED`; operator writes (customer sync, invoice push, vendor sync, Bill push) ungated. Rate buckets added: qbStatus 30/h, qbCustomerSync 5/h, qbInvoicePush 20/h, qbPaymentSync 3/h.
 
 ## P55 — Email-or-phone identity, charge-on-finalize, Salon Account (2026-08-17)
 

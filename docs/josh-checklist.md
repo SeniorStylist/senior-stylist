@@ -163,7 +163,18 @@ exist on `/login`, `/family`, and every family page footer.
        redirect URI, and the token exchange all work end to end. An amber "Connection
        broken" result means reconnect (the button links straight to it).
 2. [ ] After Intuit grants PRODUCTION approval for the app: set
-       **`QB_INVOICE_SYNC_ENABLED`** = `true` to unlock live invoice pulls ("Sync from QB").
+       **`QB_INVOICE_SYNC_ENABLED`** = `true`. This unlocks the whole live PULL side:
+       "Sync from QB" invoice pulls, the payment/credit pull, and the nightly sync cron
+       for every connected facility. (The WRITE side — payroll Bill push, vendor sync,
+       customer sync, Send via QB invoice creation — works as soon as a facility
+       connects, no flag needed.)
+3. [ ] Apply the QB link-tables migration in prod:
+       `psql "$DIRECT_URL" -f drizzle/0043_qb_links.sql` (self-bootstrapped by the app
+       too, but apply it anyway so the first request doesn't pay the DDL cost).
+4. [ ] Per connected facility, once: Settings → Billing & Payments → QuickBooks →
+       **Sync Customers**. Links residents to their QuickBooks customers (numeric IDs)
+       and creates missing sub-customers under the facility parent — after this,
+       invoice/payment matching is exact instead of name-guessing.
 
 ## H. Native app — FIRST-EVER submission (org accounts, you build on your Mac)
 
