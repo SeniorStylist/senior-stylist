@@ -1,8 +1,9 @@
 import { db } from '@/db'
-import { facilities, residents, qbInvoices } from '@/db/schema'
+import { facilities, residents, qbInvoices, qbCustomerLinks } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { qbGet } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
+import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 
 interface QBInvoice {
   Id: string
@@ -45,7 +46,7 @@ function deriveStatus(amountCents: number, openBalanceCents: number): string {
   return 'open'
 }
 
-function parseResidentName(qbCustomerName: string): string {
+export function parseResidentName(qbCustomerName: string): string {
   const afterColon = qbCustomerName.includes(':')
     ? qbCustomerName.split(':').slice(1).join(':').trim()
     : qbCustomerName.trim()
@@ -82,6 +83,23 @@ export async function syncQBInvoices(
   const residentByQbId = new Map<string, string>()
   for (const r of residentList) {
     if (r.qbCustomerId) residentByQbId.set(r.qbCustomerId, r.id)
+  }
+
+  // Numeric Customer.Id → resident via qb_customer_links (Stage 1 customer
+  // sync). Preferred over display-name/fuzzy matching — exact and rename-proof.
+  await ensureQbLinksSchema()
+  const residentByNumericId = new Map<string, string>()
+  try {
+    const links = await db.query.qbCustomerLinks.findMany({
+      where: eq(qbCustomerLinks.facilityId, facilityId),
+      columns: { residentId: true, qbCustomerId: true },
+    })
+    for (const l of links) {
+      if (l.residentId) residentByNumericId.set(l.qbCustomerId, l.residentId)
+    }
+  } catch (err) {
+    // Best-effort — matching falls back to display-name/fuzzy.
+    console.error('[qb-invoice-sync] customer links load failed:', err)
   }
 
   const existingInvoices = await db.query.qbInvoices.findMany({
@@ -141,7 +159,10 @@ export async function syncQBInvoices(
     const qbCustomerName = inv.CustomerRef?.name ?? ''
 
     let residentId: string | null = null
-    if (qbCustomerName) {
+    if (inv.CustomerRef?.value) {
+      residentId = residentByNumericId.get(inv.CustomerRef.value) ?? null
+    }
+    if (!residentId && qbCustomerName) {
       residentId = residentByQbId.get(qbCustomerName) ?? null
       if (!residentId) {
         const parsedName = parseResidentName(qbCustomerName)

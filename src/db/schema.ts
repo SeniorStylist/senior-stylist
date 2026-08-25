@@ -767,6 +767,44 @@ export const qbUnappliedCredits = pgTable('qb_unapplied_credits', {
     .where(sql`stripe_payment_intent_id IS NOT NULL`),
 }))
 
+// QB API customer links (drizzle/0043, self-bootstrapped by qb-links-ddl.ts).
+// Maps residents — and the facility PARENT customer when residentId IS NULL —
+// to their NUMERIC Intuit Customer.Id. residents.qb_customer_id keeps its
+// display-name meaning ("F177:Smith, Margaret - 12"); numeric ids live ONLY here.
+export const qbCustomerLinks = pgTable('qb_customer_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'cascade' }),
+  qbCustomerId: text('qb_customer_id').notNull(),
+  qbDisplayName: text('qb_display_name'),
+  qbSyncToken: text('qb_sync_token'),
+  qbParentId: text('qb_parent_id'),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  residentUq: uniqueIndex('qb_customer_links_resident_uq')
+    .on(t.facilityId, t.residentId)
+    .where(sql`resident_id IS NOT NULL`),
+  parentUq: uniqueIndex('qb_customer_links_parent_uq')
+    .on(t.facilityId)
+    .where(sql`resident_id IS NULL`),
+  qbIdIdx: index('qb_customer_links_qbid_idx').on(t.facilityId, t.qbCustomerId),
+}))
+
+// Per-facility QB API sync config/cursors (drizzle/0043) — lives here instead
+// of new columns on the hot `facilities` table (P19 rule).
+export const qbSyncState = pgTable('qb_sync_state', {
+  facilityId: uuid('facility_id')
+    .primaryKey()
+    .references(() => facilities.id, { onDelete: 'cascade' }),
+  qbServiceItemId: text('qb_service_item_id'),
+  paymentsSyncCursor: text('payments_sync_cursor'),
+  paymentsLastSyncedAt: timestamp('payments_last_synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   id: uuid('id').primaryKey().defaultRandom(),
   facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),

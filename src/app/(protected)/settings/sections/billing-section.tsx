@@ -28,6 +28,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   const [qbAccountsLoaded, setQbAccountsLoaded] = useState(false)
   const [qbSavingAccount, setQbSavingAccount] = useState(false)
   const [qbSyncing, setQbSyncing] = useState(false)
+  const [qbCustomerSyncing, setQbCustomerSyncing] = useState(false)
   const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [qbConfirmDisconnect, setQbConfirmDisconnect] = useState(false)
   const [qbDisconnecting, setQbDisconnecting] = useState(false)
@@ -99,6 +100,25 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
       showQbToast(errors.length > 0 ? 'err' : 'ok', `Vendors: ${bits.join(', ')}`)
     } finally {
       setQbSyncing(false)
+    }
+  }
+
+  async function handleSyncCustomers() {
+    if (qbCustomerSyncing) return
+    setQbCustomerSyncing(true)
+    try {
+      const res = await fetch(`/api/quickbooks/sync-customers/${facility.id}`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showQbToast('err', j.error ?? 'Customer sync failed')
+        return
+      }
+      const { matchedExisting, createdInQb, skipped, errors } = j.data
+      const bits = [`${matchedExisting} matched`, `${createdInQb} created`, `${skipped} skipped`]
+      if (errors.length > 0) bits.push(`${errors.length} error(s)`)
+      showQbToast(errors.length > 0 ? 'err' : 'ok', `Customers: ${bits.join(', ')}`)
+    } finally {
+      setQbCustomerSyncing(false)
     }
   }
 
@@ -421,6 +441,14 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
                 className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
               >
                 {qbSyncing ? 'Syncing…' : 'Sync Vendors'}
+              </button>
+              <button
+                onClick={handleSyncCustomers}
+                disabled={qbCustomerSyncing}
+                title="Link residents to QuickBooks customers (creates missing sub-customers under this facility)"
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
+              >
+                {qbCustomerSyncing ? 'Syncing…' : 'Sync Customers'}
               </button>
               {!qbConfirmDisconnect ? (
                 <button
