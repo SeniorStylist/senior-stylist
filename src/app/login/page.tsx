@@ -329,9 +329,17 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
+      // P56b — /login's STATIC HTML is this fallback (useSearchParams defers the
+      // form to the client), so the privacy/terms links must live here too or
+      // no-JS crawlers (incl. campaign URL verifiers) never see them.
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
           <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto mb-8" />
+          <p className="text-xs mt-3 text-stone-400">
+            <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+            {' · '}
+            <Link href="/terms" className="hover:underline">Terms</Link>
+          </p>
         </div>
       </div>
     }>

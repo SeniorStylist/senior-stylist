@@ -42,8 +42,14 @@ STOP, HELP), the subprocessor list (Twilio, Stripe, Google Gemini, etc.), and th
 | Use case | Operational staff messaging — schedules, route/location assignments, log sheet submissions, license/insurance compliance deadlines. Not marketing. |
 | Privacy policy URL | `https://portal.seniorstylist.com/privacy` |
 | Consent / opt-in method | Mobile numbers are provided by stylists and staff during employment/contractor onboarding; consent is documented in the privacy policy's §4 "Stylists and staff" paragraph (STOP honored). |
-| Proof screenshot | §4 ONLY, one frame — from the "4. Text Messages (SMS)" heading down through the sharing paragraph ("…never shared with, sold to, or rented to third parties or affiliates…"), browser address bar visible, PNG under 10MB. Don't include §5 — its processor list reads as "sharing" to a fast-skimming reviewer. |
+| Proof screenshot | §4 ONLY, one frame — from the "4. Text Messages (SMS)" heading down through the sharing paragraph ("No mobile information or SMS consent — including mobile phone numbers and SMS opt-in data — will be shared with, sold to, or rented to third parties or affiliates…"), browser address bar visible, PNG under 10MB. Don't include §5 — its processor list reads as "sharing" to a fast-skimming reviewer. |
 | URL field entry | Always paste WITH the scheme — `https://portal.seniorstylist.com/privacy`, never the bare domain (bare domains often fail the Verify check). |
+
+**Known fetch-tool artifact**: automated page-fetchers (including AI assistants browsing the policy)
+often strip the text inside `mailto:`/`tel:` links, so the Contact sections can come back as
+"contact us at . or call ." — the live page really does show privacy@seniorstylist.com,
+800.979.3759, and the Baltimore address; a human reviewer in a browser sees them. Don't "fix"
+this by de-linking the contact info.
 | Homepage link | The Zoom brand is registered against **seniorstylist.com**, so its reviewer checks THAT homepage → the WordPress footer link in Part 3 is REQUIRED for this campaign. |
 
 ## Part 3 — WordPress: required

@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         >
           Privacy Policy
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: August 24, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: August 25, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -85,10 +85,10 @@ export default function PrivacyPage() {
         <h2 className="text-xl font-semibold text-stone-800">4. Text Messages (SMS)</h2>
         <p className="text-stone-600 leading-relaxed">
           By providing your phone number to Senior Stylist — whether a resident&apos;s family member
-          or authorized representative enters it on a facility&apos;s Salon Account sign-up page or a
-          service request form, or asks salon staff to add it to the resident&apos;s record — you
-          consent to receive text messages related to appointment scheduling, confirmations, and
-          service coordination for that resident&apos;s salon services. These messages may include:
+          or authorized representative enters it on a facility&apos;s Salon Account sign-up page, or
+          asks salon staff to add it to the resident&apos;s record — you consent to receive text
+          messages related to appointment scheduling, confirmations, and service coordination for
+          that resident&apos;s salon services. These messages may include:
         </p>
         <ul className="list-disc list-inside space-y-1 text-stone-600 leading-relaxed pl-2">
           <li>Appointment confirmations and day-before reminders.</li>
@@ -113,12 +113,12 @@ export default function PrivacyPage() {
           <strong>HELP</strong> for help, or call us at 443-450-3344.
         </p>
         <p className="text-stone-600 leading-relaxed">
-          We do not sell or share your data with third parties. Specifically, no mobile information
-          or SMS consent will be shared with third parties or affiliates for marketing or lead
-          generation purposes. Mobile phone numbers and SMS opt-in data are never shared with,
-          sold to, or rented to third parties or affiliates. Text messaging originator opt-in data and consent
-          will not be shared with any third parties. Your information will only be used by
-          authorized staff to contact you regarding services you request.
+          We do not sell or share your data with third parties. No mobile information or SMS
+          consent — including mobile phone numbers and SMS opt-in data — will be shared with, sold
+          to, or rented to third parties or affiliates for marketing, promotional, or lead
+          generation purposes. Text messaging originator opt-in data and consent will not be shared
+          with any third parties. Your information will only be used by authorized staff to contact
+          you regarding services you request.
         </p>
       </section>
 
