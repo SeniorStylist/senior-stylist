@@ -104,10 +104,40 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
 
 ## F. Twilio — SMS (when ready)
 
-1. [ ] Twilio account + a phone number →
-       `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (e.g. `+12025551234`).
-2. [ ] Set **`TWILIO_ENABLED`** = `true` (exact string). Turns on: receipt texts, family
-       appointment-reminder texts (already wired into the nightly cron), payment-request texts.
+### F1. Go-live sequence (2026-08-25 — NEW console "Find your number" wizard; ~$19.50 one-time, ~$2.65/mo + ~$0.008/segment)
+
+1. [ ] **Upgrade the account** if it's still a trial (add a payment method) — trials can't
+       complete paid A2P registration and only text verified numbers.
+2. [ ] **Compliance profile** (the amber "Create a compliance profile" banner): legal name
+       EXACTLY as on the EIN CP-575 letter — **"Senior Stylist LLC"**, not "Senior Stylist"
+       (TCR matches IRS records; mismatch = lower trust score/failed vetting), EIN, registered
+       business address, Josh as authorized rep. If the wizard offers a profile/brand started
+       in the OLD console's A2P page, SELECT it — both consoles share TrustHub; never create
+       a duplicate.
+3. [ ] **Number**: capabilities SMS only; Number type **Local** (NOT Toll-Free — different
+       verification path; all the prep is 10DLC); search area code 443 or 410 (matches the
+       support line + Baltimore brand address). ~$1.15/mo. This is `TWILIO_FROM_NUMBER`.
+4. [ ] **Brand** (in "Continue set up"): **Low Volume Standard** ($4.50 one-time — right for
+       <2,000 segments/day; the $44 Standard tier is only for high throughput later).
+5. [ ] **Campaign**: use case **Low Volume Mixed** ($15 one-time vetting + $1.50/mo).
+       Description, opt-in/message-flow text, and 5 sample messages: use the paste blocks in
+       `docs/a2p-wordpress-kit.md` Part 5 (samples come from the REAL `src/lib/sms.ts`
+       templates; links only to our own portal domain — no shorteners). Opt-in proof =
+       signup contact-step screenshot per the kit. Vetting ≈ up to 5 business days.
+6. [ ] **Messaging Service**: purchased number in the campaign's sender pool; Advanced
+       Opt-Out ON; HELP response mentions 443-450-3344 (matches privacy policy §4).
+7. [ ] **Vercel env vars (Production) — ONLY after the campaign is APPROVED and the number
+       attached** (early = messages filtered, error 30034):
+       `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (E.164, e.g.
+       `+14435551234`), **`TWILIO_ENABLED`** = `true` (exact string) → redeploy.
+       Turns on (all pre-wired, dormant): receipt texts, day-before family reminders
+       (nightly cron), payment-request links, signup welcome, booking confirmations,
+       card-saved notices, family SMS-code login.
+8. [ ] **Test** with your own phone as a REAL (non-demo) resident's POA phone at a test
+       facility — demo records deliberately never send. Send a receipt, run a phone-only
+       signup, reply STOP (should stop + confirm), then START to re-subscribe.
+9. [ ] Note: this is entirely separate from the ZOOM Phone 10DLC registration for manual
+       staff texts — both proceed independently; neither covers the other's numbers.
 
 ### F2. A2P 10DLC campaigns — Twilio (app) + Zoom (manual staff texts) (2026-08-19)
 

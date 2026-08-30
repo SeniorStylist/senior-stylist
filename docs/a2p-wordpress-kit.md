@@ -98,6 +98,47 @@ with the two blocks below:
 
 ---
 
+## Part 5 — Get Twilio live (new console, number-first wizard)
+
+Order of operations (fees as of 2026-08: ~$19.50 one-time, ~$2.65/mo fixed + ~$0.008/segment):
+upgrade account if trial → compliance profile → buy Local number (443/410, SMS only) → brand
+**Low Volume Standard** ($4.50) → campaign **Low Volume Mixed** ($15 vetting + $1.50/mo) →
+Messaging Service sender pool + Advanced Opt-Out → wait for approval → Vercel env vars →
+test → done. Full checklist: josh-checklist §F1. Legal name on the compliance profile must be
+EXACTLY the CP-575 name: **Senior Stylist LLC**.
+
+**Campaign description (paste):**
+
+> Senior Stylist provides salon services inside senior living communities. This campaign sends
+> transactional account and appointment messages to residents' family members and authorized
+> representatives who opt in by providing their mobile number: appointment confirmations and
+> day-before reminders, service receipts, payment requests, account security notices, and
+> one-time sign-in codes for their online Salon Account. No marketing or promotional content
+> is sent.
+
+**Opt-in / message flow (paste; swap `<CODE>` for a real facility code):**
+
+> End users opt in by entering their mobile number on their community's Salon Account sign-up
+> page at https://portal.seniorstylist.com/family/<CODE>/signup, where a consent disclosure
+> appears directly beneath the phone field ("By giving your phone number, you agree to receive
+> text messages from Senior Stylist about salon appointments and your account. Message
+> frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for
+> help."), or by asking salon staff in person to add their number to the resident's record.
+> Privacy policy: https://portal.seniorstylist.com/privacy. Opt-out: reply STOP. Help: reply
+> HELP or call 443-450-3344.
+
+**Sample messages (the app's real templates — paste up to 5):**
+
+1. `[Facility Name]: you're signed up for [Resident Name]'s salon account. We'll text you about visits. Sign in any time with your phone number and password. Reply STOP to opt out.`
+2. `Reminder: [Resident Name] has a [Service] appointment tomorrow at [Time] at [Facility Name]. Reply to the facility with any questions. -Senior Stylist`
+3. `Senior Stylist receipt: [Service] with [Stylist Name] on [Date]. Service 45 + Tip 5 = Total 50. Thank you! -[Facility Name]`
+4. `Good news — [Resident Name]'s [Service] with [Stylist Name] is set for [Date] at [Time]. -[Facility Name]`
+5. `[Facility Name]: a balance of 48.50 is due for [Resident Name]'s salon services. Pay securely here: https://portal.seniorstylist.com/family/[code]/login`
+
+(Links in messages go only to our own portal domain — never URL shorteners.)
+
+---
+
 ## Appendix — complete drop-in Privacy Policy for seniorstylist.com (optional)
 
 Use this if the WordPress privacy page is too thin to patch. It is scoped to the marketing site
