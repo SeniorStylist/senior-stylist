@@ -123,6 +123,12 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
        EIN), stop and redo as Low Volume Standard: sole-prop campaigns have tiny throughput
        caps and the name won't match the business.
 5. [ ] **Campaign**: use case **Low Volume Mixed** ($15 one-time vetting + $1.50/mo).
+       GOTCHA (hit 2026-08-25): the wizard lets you into the campaign step while the brand
+       is still PENDING vetting and throws a generic "Error Setting Up A2P Campaign
+       Registration" — nothing is lost. Wait for the brand to show REGISTERED (minutes to a
+       few hours), then resume from Phone Numbers → Active numbers → the 917 number →
+       finish setup. If the brand shows FAILED instead, the reason is usually a legal-name/
+       EIN mismatch — fix and resubmit.
        Description, opt-in/message-flow text, and 5 sample messages: use the paste blocks in
        `docs/a2p-wordpress-kit.md` Part 5 (samples come from the REAL `src/lib/sms.ts`
        templates; links only to our own portal domain — no shorteners). Opt-in proof =
