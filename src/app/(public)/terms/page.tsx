@@ -14,7 +14,7 @@ export default function TermsPage() {
         >
           Terms of Service &amp; EULA
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: April 19, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: August 25, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -112,7 +112,27 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">9. Limitation of Liability</h2>
+        <h2 className="text-xl font-semibold text-stone-800">9. Text Messaging (SMS)</h2>
+        <p className="text-stone-600 leading-relaxed">
+          Where a resident&apos;s family member, authorized representative, or a stylist or staff
+          member opts in to receive text messages (see our{' '}
+          <a href="/privacy" className="text-[#8B2E4A] hover:underline">
+            Privacy Policy
+          </a>
+          ), the following terms apply. Messages are transactional notifications about salon
+          services — appointment confirmations and reminders, service receipts, payment requests,
+          account security notices, one-time sign-in codes, and operational updates for staff. We
+          do not send marketing or promotional text messages. Message frequency varies. Message and
+          data rates may apply. Reply <strong>STOP</strong> to any message to opt out at any time,
+          or <strong>HELP</strong> for help; you can also call 443-450-3344 for assistance. Mobile
+          phone numbers and SMS opt-in data are never shared with, sold to, or rented to third
+          parties or affiliates. Wireless carriers are not liable for delayed or undelivered
+          messages.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold text-stone-800">10. Limitation of Liability</h2>
         <p className="text-stone-600 leading-relaxed">
           To the maximum extent permitted by applicable law, Senior Stylist LLC&apos;s total cumulative
           liability to you for any claims arising out of or related to these Terms or your use of
@@ -124,7 +144,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">10. Termination</h2>
+        <h2 className="text-xl font-semibold text-stone-800">11. Termination</h2>
         <p className="text-stone-600 leading-relaxed">
           Either party may terminate the subscription with 30 days&apos; written notice. Senior Stylist
           LLC may terminate immediately for material breach of these Terms (including non-payment
@@ -134,7 +154,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">11. Governing Law</h2>
+        <h2 className="text-xl font-semibold text-stone-800">12. Governing Law</h2>
         <p className="text-stone-600 leading-relaxed">
           These Terms are governed by and construed in accordance with the laws of the State of
           Maryland, USA, without regard to its conflict of law principles. Any disputes arising under
@@ -144,7 +164,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">12. Contact</h2>
+        <h2 className="text-xl font-semibold text-stone-800">13. Contact</h2>
         <p className="text-stone-600 leading-relaxed">
           For legal inquiries or questions about these Terms, please contact us at{' '}
           <a href="mailto:legal@seniorstylist.com" className="text-[#8B2E4A] hover:underline">
