@@ -101,6 +101,9 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
   const [roomNumber, setRoomNumber] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  // A2P web-opt-in requirement: consent is an ACTIVELY ticked checkbox — never
+  // pre-checked. Required whenever a phone number is entered.
+  const [smsConsent, setSmsConsent] = useState(false)
   // P55 — password created in the wizard (strength meter + confirm + show/hide)
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -176,6 +179,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
           if (typeof j.roomNumber === 'string') setRoomNumber(j.roomNumber)
           if (typeof j.email === 'string') setEmail(j.email)
           if (typeof j.phone === 'string') setPhone(j.phone)
+          if (j.smsConsent === true) setSmsConsent(true)
           const s = ALL_STEPS.includes(j.step as StepId) ? (j.step as StepId) : 'who'
           // Clamps: 'confirm' needs the (unrestored) match preview → re-run it
           // from 'resident'; 'review' needs the password the family must retype.
@@ -227,11 +231,12 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
           roomNumber,
           email,
           phone,
+          smsConsent,
           savedAt: Date.now(),
         }),
       )
     } catch { /* storage full/blocked — resume just won't work */ }
-  }, [previewMode, phase, stepId, relationship, fullName, residentName, roomNumber, email, phone, resumeKey])
+  }, [previewMode, phase, stepId, relationship, fullName, residentName, roomNumber, email, phone, smsConsent, resumeKey])
 
   // A retype invalidates any previous match — no stale confirm card.
   const onResidentEdit = () => {
@@ -590,7 +595,12 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
         // "we need either your phone number or your email… encourage both").
         const emailOk = EMAIL_RE.test(email.trim())
         const phoneOk = phone.replace(/\D/g, '').length >= 7
-        const contactValid = (emailOk || phoneOk) && (!email.trim() || emailOk) && (!phone.trim() || phoneOk)
+        // A2P: a phone number can only proceed with the consent box actively
+        // ticked; email-only signups are unaffected.
+        const contactValid =
+          (emailOk || phoneOk) &&
+          (!email.trim() || emailOk) &&
+          (!phone.trim() || (phoneOk && smsConsent))
         return (
           <StepInput title={t('signup.step.contact')} hint={t('signup.step.contactHint')}>
             <div className="flex flex-col gap-1.5">
@@ -632,15 +642,32 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
               {phone.trim() && !phoneOk && (
                 <p className="text-sm text-amber-700">{t('signup.step.contactPhoneInvalid')}</p>
               )}
-              {/* P56 — SMS consent disclosure (A2P 10DLC): must stay visible on
-                  this step and must link a reachable privacy policy. The link
-                  opens a NEW tab — an in-place nav would wipe the wizard. */}
-              <p className="text-sm text-stone-500">
-                {t('signup.step.contactSmsConsent')}{' '}
-                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">
-                  {t('signup.step.privacyLink')}
-                </a>
-              </p>
+              {/* P56/A2P — SMS consent is an unchecked CHECKBOX the family
+                  actively ticks (carrier requirement — never pre-selected),
+                  with Privacy + Terms links. Links open a NEW tab — an
+                  in-place nav would wipe the wizard. Campaign-load-bearing:
+                  reviewers open this page. */}
+              <label className="flex items-start gap-2.5 text-sm text-stone-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
+                  className="accent-[#8B2E4A] mt-0.5 h-5 w-5 shrink-0"
+                />
+                <span>
+                  {t('signup.step.contactSmsConsent')}{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">
+                    {t('signup.step.privacyLink')}
+                  </a>
+                  {' · '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline">
+                    {t('signup.step.termsLink')}
+                  </a>
+                </span>
+              </label>
+              {phone.trim() && phoneOk && !smsConsent && (
+                <p className="text-sm text-amber-700">{t('signup.step.smsConsentRequired')}</p>
+              )}
             </div>
             {!email.trim() && !phone.trim() && (
               <p className="text-sm text-stone-500 text-center">{t('signup.step.contactError')}</p>

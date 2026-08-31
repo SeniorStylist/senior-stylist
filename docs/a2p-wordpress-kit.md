@@ -119,13 +119,15 @@ EXACTLY the CP-575 name: **Senior Stylist LLC**.
 **Opt-in / message flow (paste; swap `<CODE>` for a real facility code):**
 
 > End users opt in by entering their mobile number on their community's Salon Account sign-up
-> page at https://portal.seniorstylist.com/family/<CODE>/signup, where a consent disclosure
-> appears directly beneath the phone field ("By giving your phone number, you agree to receive
-> text messages from Senior Stylist about salon appointments and your account. Message
-> frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for
-> help."), or by asking salon staff in person to add their number to the resident's record.
-> Privacy policy: https://portal.seniorstylist.com/privacy. Opt-out: reply STOP. Help: reply
-> HELP or call 443-450-3344.
+> page at https://portal.seniorstylist.com/family/<CODE>/signup and actively checking an
+> unchecked consent box beneath the phone field that reads "By giving your phone number, you
+> agree to receive text messages from Senior Stylist about salon appointments and your account.
+> Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for
+> help." with links to the Privacy Policy and Terms. The box is never pre-selected and is
+> required to submit a phone number. Additionally, end users can opt in verbally by asking
+> salon staff in person to add their number to the resident's record. Privacy policy:
+> https://portal.seniorstylist.com/privacy. Terms: https://portal.seniorstylist.com/terms.
+> Opt-out: reply STOP. Help: reply HELP or call 443-450-3344.
 
 **Sample messages (the app's real templates — paste up to 5):**
 
