@@ -106,19 +106,22 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
 
 ### F1. Go-live sequence (2026-08-25 — NEW console "Find your number" wizard; ~$19.50 one-time, ~$2.65/mo + ~$0.008/segment)
 
-1. [ ] **Upgrade the account** if it's still a trial (add a payment method) — trials can't
-       complete paid A2P registration and only text verified numbers.
-2. [ ] **Compliance profile** (the amber "Create a compliance profile" banner): legal name
-       EXACTLY as on the EIN CP-575 letter — **"Senior Stylist LLC"**, not "Senior Stylist"
-       (TCR matches IRS records; mismatch = lower trust score/failed vetting), EIN, registered
-       business address, Josh as authorized rep. If the wizard offers a profile/brand started
-       in the OLD console's A2P page, SELECT it — both consoles share TrustHub; never create
-       a duplicate.
-3. [ ] **Number**: capabilities SMS only; Number type **Local** (NOT Toll-Free — different
-       verification path; all the prep is 10DLC); search area code 443 or 410 (matches the
-       support line + Baltimore brand address). ~$1.15/mo. This is `TWILIO_FROM_NUMBER`.
+1. [x] **Upgrade the account** if it's still a trial (add a payment method) — trials can't
+       complete paid A2P registration and only text verified numbers. ✅ 2026-08-25
+2. [x] **Compliance profile** — done 2026-08-25 (incl. driver's-license identity check for
+       the authorized rep). Legal-name rule for any future edits: EXACTLY the EIN CP-575
+       name, **"Senior Stylist LLC"**.
+3. [x] **Number bought 2026-08-25: `+19174733973`** ((917) 473-3973, NYC zone) — this is the
+       `TWILIO_FROM_NUMBER` value. NOTE: 917 works identically everywhere, but families see a
+       New York number for a Baltimore company; swapping to a 443/410 local number is a
+       2-minute release-and-rebuy BEFORE campaign registration, and an extra re-linking step
+       after. Josh's call.
 4. [ ] **Brand** (in "Continue set up"): **Low Volume Standard** ($4.50 one-time — right for
        <2,000 segments/day; the $44 Standard tier is only for high throughput later).
+       **SANITY CHECK before submitting**: the brand must show "Senior Stylist LLC" + EIN —
+       if the driver's-license step routed to a SOLE PROPRIETOR brand (personal name, no
+       EIN), stop and redo as Low Volume Standard: sole-prop campaigns have tiny throughput
+       caps and the name won't match the business.
 5. [ ] **Campaign**: use case **Low Volume Mixed** ($15 one-time vetting + $1.50/mo).
        Description, opt-in/message-flow text, and 5 sample messages: use the paste blocks in
        `docs/a2p-wordpress-kit.md` Part 5 (samples come from the REAL `src/lib/sms.ts`
