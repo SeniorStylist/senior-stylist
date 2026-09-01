@@ -88,6 +88,12 @@ The whole card-on-file/autopay/Tap-to-Pay stack is built and works in TEST mode 
        `STRIPE_WEBHOOK_SECRET`.
 3. [ ] LAST, when you want real charges: set **`PAYMENTS_LIVE_ENABLED`** = `true`. Until then
        the engine refuses live keys by design.
+4. [ ] **BEFORE flipping live (2026-08-25): decide the refund/cancellation policy** with the
+       boss — card networks expect one displayed where cards are charged (the portal). Once
+       decided, add a short section to `/terms`. This is an OWNER decision — don't let anyone
+       (including Claude) invent the terms. Stripe's live-account website review is covered by
+       the WordPress session list (`docs/a2p-wordpress-kit.md` Part 3) + the portal's existing
+       privacy/terms pages.
 
 **STATUS (2026-07-12):** all 4 keys are set in **TEST** mode and the card-on-file flow works
 today (test card `4242 4242 4242 4242`). Live mode is blocked on the boss creating the
@@ -162,24 +168,19 @@ Full form answers + paste copy in **`docs/a2p-wordpress-kit.md`**:
        compliance — not marketing); privacy policy = the portal URL; consent = phone numbers
        provided during stylist onboarding (documented in `/privacy` §4 "Stylists and staff").
        Proof = screenshot of §4 (family + staff paragraphs) plus the sharing paragraph.
-3. [ ] **WordPress — footer link (REQUIRED for the Zoom campaign)**: the Zoom brand is
-       registered against seniorstylist.com, so its reviewer checks THAT homepage. Add
-       **Privacy Policy** to the footer Quick Links pointing at
-       `https://portal.seniorstylist.com/privacy` (retires the thin WP policy page).
-4. [ ] WordPress — STILL REQUIRED until confirmed the request-form submitters are only ever
-       CALLED (Josh 2026-08-19: "not sure"): add the SMS disclosure line below the Individual
-       Services Request form's submit button (exact text in the kit).
-5. [ ] **WordPress — phone typo is now a BOSS-FLAGGED PRE-ADVERTISING BLOCKER (2026-08-25)**:
-       a social-media agency spotted the two conflicting numbers and the boss wants it
-       confirmed + fixed before any ad spend. Fix: on `/individual-services-request/`, change
-       (800) 979-7759 → **800.979.3759**. Confirmation (30 seconds, beats all web evidence):
-       call both numbers — 800.979.3759 should reach Senior Stylist; (800) 979-7759 will
-       reach a stranger or dead air, meaning request-page callers have been lost for as long
-       as the typo has been up. Repo side verified consistent (portal shows only 800.979.3759
-       + the 443 support line; 7759 appears nowhere in the app). A forward-ready email draft
-       for whoever holds WordPress access is in Josh's Gmail drafts.
-6. [ ] WordPress — OPTIONAL: patch the WP privacy page with the kit's two paragraphs (out of
-       the reviewer's path once the footer links the portal policy).
+3. [ ] **WordPress — ONE editing session covers everything (2026-08-25 consolidation)**: the
+       complete per-service list is **`docs/a2p-wordpress-kit.md` Part 3** — (a) phone typo
+       fix on `/individual-services-request/`: (800) 979-7759 → **800.979.3759**
+       (BOSS-FLAGGED PRE-ADVERTISING BLOCKER; confirm first by calling both — 800.979.3759
+       reaches us, 7759 reaches a stranger; repo side verified consistent, 7759 appears
+       nowhere in the app); (b) footer Quick Links "Privacy Policy" →
+       `https://portal.seniorstylist.com/privacy` (REQUIRED for Zoom — brand registered
+       against seniorstylist.com; helps Stripe underwriting); (c) request-form SMS disclosure
+       below the submit button (Twilio — until submitters confirmed calls-only, Josh: "not
+       sure"); (d) verify pass incl. site-wide "7759" search; (e) OPTIONAL WP privacy-page
+       patch. Email text for whoever holds WordPress access: in the kit + chat (Gmail draft
+       creation was blocked by connector approval — copy from chat). After Part 3,
+       seniorstylist.com needs NOTHING further for Twilio, Zoom, or Stripe.
 7. [ ] Merge/deploy the `claude/campaign-privacy-sms-compliance-35mru1` branch BEFORE
        submitting either campaign — reviewers check the LIVE pages.
 

@@ -45,43 +45,41 @@ STOP, HELP), the subprocessor list (Twilio, Stripe, Google Gemini, etc.), and th
 | Proof screenshot | §4 ONLY, one frame — from the "4. Text Messages (SMS)" heading down through the sharing paragraph ("No mobile information or SMS consent — including mobile phone numbers and SMS opt-in data — will be shared with, sold to, or rented to third parties or affiliates…"), browser address bar visible, PNG under 10MB. Don't include §5 — its processor list reads as "sharing" to a fast-skimming reviewer. |
 | URL field entry | Always paste WITH the scheme — `https://portal.seniorstylist.com/privacy`, never the bare domain (bare domains often fail the Verify check). |
 
+| Homepage link | The Zoom brand is registered against **seniorstylist.com**, so its reviewer checks THAT homepage → the WordPress footer link in Part 3 is REQUIRED for this campaign. |
+
 **Known fetch-tool artifact**: automated page-fetchers (including AI assistants browsing the policy)
 often strip the text inside `mailto:`/`tel:` links, so the Contact sections can come back as
 "contact us at . or call ." — the live page really does show privacy@seniorstylist.com,
 800.979.3759, and the Baltimore address; a human reviewer in a browser sees them. Don't "fix"
 this by de-linking the contact info.
-| Homepage link | The Zoom brand is registered against **seniorstylist.com**, so its reviewer checks THAT homepage → the WordPress footer link in Part 3 is REQUIRED for this campaign. |
 
-## Part 3 — WordPress: required
+## Part 3 — THE WordPress session: complete list (one visit, all services)
 
-**Footer link (required for the Zoom campaign):** in Elementor, add **Privacy Policy** to the
-footer Quick Links menu pointing at `https://portal.seniorstylist.com/privacy`. This also
-retires the thin WordPress policy page — one canonical policy, no divergence.
+Everything the WordPress editor needs to do, tagged by which service it serves. After these,
+NOTHING further is needed on seniorstylist.com for Twilio, Zoom, or Stripe.
 
-**Request-form disclosure:** Josh wasn't sure whether people who submit the WordPress
-**Individual Services Request** form ever get texted from the business number. Until that's
-confirmed as calls-only, treat the form as an opt-in surface:
-
-1. **Add this line directly below the form's submit button** (link "Privacy Policy" to
-   `https://portal.seniorstylist.com/privacy` or the WordPress policy page):
+1. **Phone fix** [business-critical — boss-flagged, blocks advertising; also Stripe: accurate
+   contact info]: on `/individual-services-request/`, change (800) 979-7759 →
+   **800.979.3759**. The footer's number is the correct one; callers from that page have been
+   dialing a wrong number. Confirm first by dialing both.
+2. **Footer Quick Links → "Privacy Policy"** pointing at
+   `https://portal.seniorstylist.com/privacy` [REQUIRED for Zoom — its brand is registered
+   against seniorstylist.com, so that homepage gets checked; also what Stripe underwriting
+   looks for on the business website]. Appearance → Menus, or the Elementor footer template.
+   This retires the thin WP policy page — one canonical policy.
+3. **Request-form SMS disclosure** [Twilio — required until submitters are confirmed
+   calls-only (Josh 2026-08-19: "not sure")]: directly below the Individual Services Request
+   form's submit button, add (link "Privacy Policy" to the portal policy):
 
    > By submitting this form, you agree to receive text messages from Senior Stylist regarding
    > your appointment request. Message frequency varies. Message and data rates may apply.
    > Reply STOP to opt out or HELP for help. See our Privacy Policy.
 
-   If the campaign form allows multiple opt-in URLs, also list
-   `https://seniorstylist.com/individual-services-request/` and screenshot the form showing the
-   disclosure. (If Lisa confirms those submitters are only ever *called*, this form can be left
-   off the campaign — but the disclosure is still good practice.)
-
-2. **Fix the phone typo** on `/individual-services-request/`:
-   (800) 979-7759 → **800.979.3759**. Customer-facing — people are dialing a wrong number.
-
-## Part 4 — WordPress: optional hygiene (no longer campaign-blocking)
-
-With the footer now linking the portal policy, the WordPress privacy page is out of the
-reviewer's path. If you keep it anyway, align it — replace the "don't sell or share" paragraph
-with the two blocks below:
+4. **Verify pass before logging out**: footer link resolves on the homepage; the form shows
+   the disclosure; a site-wide search for "7759" finds nothing (check header/contact/about
+   pages too — the agency only flagged the request page, but the search costs nothing).
+5. OPTIONAL: align the WP privacy page with the two blocks below (out of every reviewer's
+   path once item 2 links the portal policy):
 
   > We do not sell or share your data with third parties. Specifically, no mobile information or
   > SMS consent will be shared with third parties or affiliates for marketing or lead generation
@@ -94,7 +92,19 @@ with the two blocks below:
   > Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP
   > for assistance.
 
-(The footer link itself is in Part 3 — required, always pointing at the portal policy.)
+## Part 4 — Stripe: what it needs and WHERE (mostly not WordPress)
+
+- **WordPress**: nothing beyond Part 3. Stripe reviews the business website listed on the LIVE
+  account profile (still blocked on the boss creating the live account — josh-checklist §E).
+  If that field says seniorstylist.com, underwriting looks for: business name (✓), a clear
+  description of services (✓), contact info (✓ after the phone fix), and a reachable privacy
+  policy (✓ after the footer link).
+- **Portal** (where payments actually happen): /privacy, /terms, and the 443-450-3344 support
+  line already satisfy the point-of-payment requirements — EXCEPT one gap: **no
+  refund/cancellation policy exists anywhere**. Card networks expect one where cards are
+  charged. That's a BUSINESS decision (what IS the policy for a missed/disputed salon visit?)
+  — do NOT invent terms; settle it with the boss and add a short section to /terms before
+  `PAYMENTS_LIVE_ENABLED` flips (tracked in josh-checklist §E).
 
 ---
 
