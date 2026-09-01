@@ -106,38 +106,33 @@ extras skipped — optional add-ons, revisit only if ever needed).
        error on click, and refunds go live ungated. Also verify
        `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com` is set (two checkout routes
        otherwise build vercel.app return URLs).
-4. [ ] **GATE — decide the refund/cancellation policy BEFORE the flip** with the
-       boss — card networks expect one displayed where cards are charged (the portal). Once
-       decided, add a short section to `/terms`. This is an OWNER decision — don't let anyone
-       (including Claude) invent the terms. **The six questions for the boss** (one-word
-       answers suffice; suggested defaults in parens):
-       1. Unhappy with a service — remedy? (redo first; refund or credit on request) +
-          dispute window? (30 days)
-       2. Billing error / duplicate / service never happened? (full refund, always)
-       3. Prepaid salon-account funds — refundable? (either: unused balance refundable on
-          request, OR non-refundable but never expires — pick one)
-       4. Remaining balance when a resident passes away or moves out? (refund unused
-          balance to family/estate — this WILL come up)
-       5. Gift payments — refundable to the sender? (yes until used, no after)
-       6. Cancellation/no-show fee? (system never charges for non-completed visits —
-          confirm "pay only for services performed", or add a fee)
-       Mechanical facts stated regardless: refunds to the original payment method,
-       5–10 business days; requests via 443-450-3344 or the support email. Cost note:
-       Stripe keeps its ~3% processing fee on refunds — credits are cheaper than refunds
-       as a default remedy. Stripe's live-account website review is covered by the
-       WordPress session list (`docs/a2p-wordpress-kit.md` Part 3) + the portal's existing
-       privacy/terms pages.
+4. [x] **GATE CLEARED 2026-09-01 — boss decided the refund/cancellation policy** and it's
+       live as `/terms` **§7 "Salon Payments, Refunds & Cancellations"** (`/terms#refunds`;
+       old §7–§13 renumbered to §8–§14; the SMS section is §10 now). The decisions on
+       record: (1) service concerns — 30-day window, redo first, refund or credit on
+       request; (2) billing errors/duplicates/never-performed — always fully refunded;
+       (3) prepaid salon-account funds — **refundable anytime**; (4) death/move-out —
+       **unused balance refunded to family/estate**; (5) gifts — **refundable to sender
+       until used**; (6) cancellations — **free with ≥24 hours notice**, pay only for
+       services performed (late/no-show "may be subject to a fee" — reserve-right wording,
+       the system never auto-charges non-completed visits). Refunds to original method,
+       5–10 business days, via 443-450-3344. The family layout footer now links
+       "Terms & Refunds" → `/terms#refunds` (en/es) next to Privacy, so the policy is one
+       tap from every page where cards are charged. Changing any of these terms = boss
+       decision. Cost note: Stripe keeps its ~3% fee on refunds — credits are cheaper as
+       a default remedy.
 5. [ ] After the flip: one small real charge (portal balance or at-chair) → confirm the
        `qb_payments` row + Stripe dashboard both show it → refund via the in-app Refund
        button (note: refunds don't auto-reverse invoice applications — pick a resident with
        no open invoices for the test, or fix the invoice by hand after).
 
-**STATUS (2026-09-01):** live account ACTIVE; Apple Pay domain registered; live webhook
-created (3 events) and its live `whsec_` already staged in Vercel. Vercel still holds **TEST**
-API keys. Remaining before real charges: item 1 (grab + hold sk_live/pk_live), item 4 (refund
-policy — the gate), then item 3's single redeploy (4 vars) and item 5's test charge. The
-webhook route returns 200 even on handler errors — after go-live, watch Vercel logs for
-`[stripe webhook …]` lines, not the Stripe delivery dashboard.
+**STATUS (2026-09-01, evening):** ALL GATES CLEARED. Live account ACTIVE; Apple Pay domain
+registered; live webhook created (3 events) with its live `whsec_` already staged in Vercel;
+refund policy live on `/terms#refunds`. Remaining = item 3's single Vercel update (the 4 vars:
+sk_live, pk_live ×2, `PAYMENTS_LIVE_ENABLED=true`) + redeploy + item 5's test charge. FIRST
+verify the LIVE `/terms` page shows "Effective Date: September 1, 2026" (deploy gotcha — a
+green push isn't a live page). The webhook route returns 200 even on handler errors — after
+go-live, watch Vercel logs for `[stripe webhook …]` lines, not the Stripe delivery dashboard.
 
 ### E2. Apple Pay on the web (P36 — 2 minutes, do with the Stripe account)
 1. [x] **DONE 2026-09-01 on the LIVE account** — Settings → Payments → Payment method

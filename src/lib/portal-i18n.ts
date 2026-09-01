@@ -488,6 +488,8 @@ export const PORTAL_STRINGS = {
   },
   // P56b — family-layout footer link (A2P: policy reachable from every family page)
   'footer.privacy': { en: 'Privacy Policy', es: 'Política de Privacidad' },
+  // 2026-09-01 — refund policy (/terms#refunds) reachable wherever cards are charged
+  'footer.terms': { en: 'Terms & Refunds', es: 'Términos y Reembolsos' },
   // P55 — password created in the wizard (owner decision)
   'signup.step.password': { en: 'Choose a password', es: 'Elija una contraseña' },
   'signup.step.passwordHint': {
