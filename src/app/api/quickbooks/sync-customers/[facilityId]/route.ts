@@ -52,7 +52,7 @@ export async function POST(
       return Response.json({ error: 'QuickBooks not connected' }, { status: 412 })
     }
 
-    const result = await syncQBCustomers(facilityId)
+    const result = await syncQBCustomers(facilityId, { createdBy: user.id })
 
     db.insert(quickbooksSyncLog)
       .values({

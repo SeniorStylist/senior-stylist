@@ -9,6 +9,7 @@ import { qbUnappliedCredits } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { applyCreditToInvoices, recomputeFacilityBalances, type CreditAllocation } from '@/lib/unapplied-apply'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     }
 
     await ensureUnappliedSchema()
+    await ensureQbSafetySchema() // recordSitePaid writes inside the tx below
 
     const credit = await db.query.qbUnappliedCredits.findFirst({
       where: eq(qbUnappliedCredits.id, parsed.data.creditId),

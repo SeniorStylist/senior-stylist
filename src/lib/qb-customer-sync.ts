@@ -16,6 +16,7 @@ import { qbGet, qbPost } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
+import { recordSyncRun, type SyncCustomersRunItems } from '@/lib/qb-runs'
 
 interface QBCustomer {
   Id: string
@@ -41,6 +42,8 @@ export interface SyncQBCustomersResult {
   updatedInQb: number
   skipped: number
   errors: string[]
+  /** qb_sync_runs id — undo deactivates the customers this run CREATED. */
+  runId: string | null
 }
 
 const PAGE_SIZE = 100
@@ -341,14 +344,20 @@ export async function ensureQBCustomerForResident(
   return customer.Id
 }
 
-export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustomersResult> {
+export async function syncQBCustomers(
+  facilityId: string,
+  opts: { createdBy?: string | null } = {},
+): Promise<SyncQBCustomersResult> {
   await ensureQbLinksSchema()
+  const startedAt = new Date()
+  const createdLinks: SyncCustomersRunItems['createdLinks'] = []
   const result: SyncQBCustomersResult = {
     matchedExisting: 0,
     createdInQb: 0,
     updatedInQb: 0,
     skipped: 0,
     errors: [],
+    runId: null,
   }
 
   const facility = await db.query.facilities.findFirst({
@@ -534,6 +543,17 @@ export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustome
               updatedAt: new Date(),
             },
           })
+          .returning({ id: qbCustomerLinks.id })
+          .then(([link]) => {
+            if (link?.id) {
+              createdLinks.push({
+                linkId: link.id,
+                qbCustomerId: customer.Id,
+                residentId: r.id,
+                displayName: customer.DisplayName ?? null,
+              })
+            }
+          })
         if (!r.qbCustomerId && customer.FullyQualifiedName) {
           displayNameBackfills.push({ residentId: r.id, displayName: customer.FullyQualifiedName })
         }
@@ -562,6 +582,24 @@ export async function syncQBCustomers(facilityId: string): Promise<SyncQBCustome
   }
 
   result.skipped = residentList.length - result.matchedExisting - result.createdInQb
+
+  // Audit + undo record — undo deactivates ONLY the customers this run created
+  // (matched links are just mappings; nothing to reverse in QB).
+  if (result.matchedExisting + result.createdInQb > 0) {
+    result.runId = await recordSyncRun({
+      facilityId,
+      action: 'sync_customers',
+      startedAt,
+      createdBy: opts.createdBy ?? null,
+      summary: {
+        matchedExisting: result.matchedExisting,
+        createdInQb: result.createdInQb,
+        skipped: result.skipped,
+        errors: result.errors.slice(0, 5),
+      },
+      items: { createdLinks },
+    })
+  }
 
   return result
 }

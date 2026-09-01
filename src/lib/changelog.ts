@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.10',
+    date: '2026-09-01',
+    title: 'QuickBooks Safety Net',
+    items: [
+      'Paid means paid: an invoice a family already paid on the site (card, in-app, family portal, or salon credit) can no longer be re-opened by a QuickBooks sync — so the nightly automatic charge can never bill a card twice for the same visit',
+      'Send via QB now skips residents on card-on-file autopay (they\'re charged on the site, not invoiced through QuickBooks) and tells you how many it skipped',
+      'New Sync history in Settings → Billing & Payments → QuickBooks: every sync and every Send via QB is listed with a one-tap Undo — invoices are voided in QuickBooks (never deleted), anything already paid is left alone, and pulled payments or credits can be rewound',
+    ],
+  },
+  {
     version: '6.9',
     date: '2026-08-25',
     title: 'QuickBooks, Connected for Real',

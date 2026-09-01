@@ -13,6 +13,7 @@ import { facilities, qbInvoices, qbUnappliedCredits, residents } from '@/db/sche
 import { and, asc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { applyCreditToInvoices, recomputeFacilityBalances } from '@/lib/unapplied-apply'
 
 export const dynamic = 'force-dynamic'
@@ -187,6 +188,7 @@ export async function POST(request: Request) {
     }
 
     await ensureUnappliedSchema()
+    await ensureQbSafetySchema() // recordSitePaid writes inside the tx below
 
     const { credits, invoices } = await loadData(parsed.data.facilityId, parsed.data.creditIds)
     const proposals = computeMatches(credits, invoices)

@@ -3122,6 +3122,18 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P58 — QuickBooks safety net: site-paid protection + per-run undo (2026-09-01)
+
+Josh: "make sure nothing can mess anything over and we can revert anything". Migration `drizzle/0044_qb_safety.sql` (self-bootstrapped by `src/lib/qb-safety-ddl.ts`). Changelog 6.10.
+
+**Site-paid protection** (`src/lib/qb-site-payments.ts`): new `qb_invoice_site_payments (invoice_id PK, site_paid_cents)`. `recordSitePaid(tx, invoiceId, cents)` is called at every site-side invoice decrement — `payments/charge.ts` (card + salon credit), `payments/finalize.ts`, `webhooks/stripe` portal balance, `unapplied-apply.ts`. `reapplySitePayments(db, facilityIds)` clamps `local_open = max(0, min(qb_open, qb_amount − site_paid))` after every QB-authoritative overwrite — `qb-invoice-sync.ts` (nightly pull), `qb-import/invoices` (CSV Step 2), `import-billing-history` (legacy) — BEFORE balance recompute. Closes the loop where a site-paid invoice was re-opened by the pull and re-charged by the autopay sweep.
+
+**Invoice push**: residents with `autopayEnabled` + an active `payment_methods` row are excluded (`skippedAutopay` in the result/modal).
+
+**Run ledger + undo**: `qb_sync_runs (id, facility_id, action, started_at, finished_at, created_by, summary jsonb, items jsonb, undone_at, undone_by, undo_summary)`. `src/lib/qb-runs.ts::recordSyncRun` (best-effort) with typed items per action. `src/lib/qb-undo.ts::undoSyncRun`: push_invoice → QB void + local 'void' + bookings unlinked (skips invoices with applied money); sync_customers → deactivate created customers only; sync_payments → delete/un-stamp/revert/restore + cursor; sync_invoices → restore prior balances, delete unreferenced pulled rows, cursor, reapply site payments. LIFO enforced for pulls. Routes: `GET /api/quickbooks/runs` (bucket `qbRuns` 60/h), `POST /api/quickbooks/runs/[runId]/undo` (bucket `qbUndo` 10/h, maxDuration 120, logs `undo_<action>` to quickbooks_sync_log). UI: Settings → Billing → QuickBooks "Sync history" with inline Undo confirm. Pull upsert keeps `status='void'`.
+
+**Deferred**: mirroring site payments into QB as Payment objects (automated write to the books — needs owner sign-off).
+
 ## P57 — QuickBooks full integration: connection fix + customer/invoice/payment sync (2026-08-25)
 
 Josh: fix Lisa's "redirect_uri is invalid" connect error + "fully flesh out what connecting to QuickBooks does". Migration `drizzle/0043_qb_links.sql` (self-bootstrapped by `src/lib/qb-links-ddl.ts`). Changelog 6.9. Five commits (Stages 0–4).

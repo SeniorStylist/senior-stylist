@@ -7,6 +7,7 @@ import { revalidateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { applyCreditToInvoices, recomputeFacilityBalances } from '@/lib/unapplied-apply'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +50,7 @@ export async function POST(
     if (!parsed.success) return Response.json({ error: 'invoiceIds required' }, { status: 422 })
 
     await ensureUnappliedSchema()
+    await ensureQbSafetySchema() // recordSitePaid writes inside the tx below
 
     const credit = await db.query.qbUnappliedCredits.findFirst({
       where: and(

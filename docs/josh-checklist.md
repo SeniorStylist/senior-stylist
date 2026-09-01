@@ -168,9 +168,13 @@ exist on `/login`, `/family`, and every family page footer.
        for every connected facility. (The WRITE side — payroll Bill push, vendor sync,
        customer sync, Send via QB invoice creation — works as soon as a facility
        connects, no flag needed.)
-3. [ ] Apply the QB link-tables migration in prod:
-       `psql "$DIRECT_URL" -f drizzle/0043_qb_links.sql` (self-bootstrapped by the app
-       too, but apply it anyway so the first request doesn't pay the DDL cost).
+3. [x] Apply the QB link-tables migration in prod:
+       `psql "$DIRECT_URL" -f drizzle/0043_qb_links.sql` (applied 2026-09-01 via SQL Editor).
+3b. [ ] Apply the QB safety migration in prod (same way — Supabase SQL Editor):
+       `drizzle/0044_qb_safety.sql` — creates `qb_invoice_site_payments` (site-paid
+       protection so a synced invoice can never re-charge a card) and `qb_sync_runs`
+       (the Undo ledger behind Settings → QuickBooks → Sync history). Self-bootstrapped
+       by the app too, but apply it before connecting a facility.
 4. [ ] Per connected facility, once: Settings → Billing & Payments → QuickBooks →
        **Sync Customers**. Links residents to their QuickBooks customers (numeric IDs)
        and creates missing sub-customers under the facility parent — after this,

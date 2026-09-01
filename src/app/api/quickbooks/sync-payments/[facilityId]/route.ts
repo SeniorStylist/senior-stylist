@@ -62,7 +62,7 @@ export async function POST(
     const body = await req.json().catch(() => ({}))
     const fullSync = body?.fullSync === true
 
-    const result = await syncQBPayments(facilityId, { fullSync })
+    const result = await syncQBPayments(facilityId, { fullSync, createdBy: user.id })
 
     revalidateTag('billing', {})
 

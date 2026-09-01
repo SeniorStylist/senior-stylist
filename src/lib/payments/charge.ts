@@ -21,6 +21,8 @@ import { revalidateTag } from 'next/cache'
 import { calculateRevShare } from '@/lib/rev-share'
 import { formatMoney } from '@/lib/format'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { recordSitePaid } from '@/lib/qb-site-payments'
 import { getPlatformStripe, platformStripeKey, paymentsLiveEnabled } from './stripe-client'
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -104,6 +106,8 @@ async function applyCentsToOpenInvoices(
         updatedAt: now,
       })
       .where(eq(qbInvoices.id, inv.id))
+    // Site-paid protection: the nightly QB pull must never re-open this.
+    await recordSitePaid(tx, inv.id, take)
     remaining -= take
   }
   return cents - remaining
@@ -160,6 +164,7 @@ async function drawSalonCredit(
         .update(qbInvoices)
         .set({ openBalanceCents: newOpen, status: newOpen === 0 ? 'paid' : 'partial', updatedAt: now })
         .where(eq(qbInvoices.id, inv.id))
+      await recordSitePaid(tx, inv.id, take) // site-paid protection
       inv.openBalanceCents = newOpen
       allocations.push({ invoiceId: inv.id, invoiceNum: inv.invoiceNum, invoiceDate: inv.invoiceDate, amountCents: take })
       creditRemaining -= take
@@ -207,6 +212,7 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
   // qb_unapplied_credits (remainder banking in Step 3) — module-guarded no-op.
   const { ensureUnappliedSchema } = await import('@/lib/unapplied-ddl')
   await ensureUnappliedSchema()
+  await ensureQbSafetySchema() // before any tx — recordSitePaid writes inside them
 
   if (!Number.isInteger(opts.amountCents) || opts.amountCents <= 0) {
     return { ok: false, code: 'invalid', reason: 'Nothing to collect', salonCents: 0 }

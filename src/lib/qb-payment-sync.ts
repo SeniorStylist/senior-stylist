@@ -23,6 +23,7 @@ import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
+import { recordSyncRun, type SyncPaymentsRunItems } from '@/lib/qb-runs'
 
 interface QBPayment {
   Id: string
@@ -54,6 +55,8 @@ export interface SyncQBPaymentsResult {
   creditsUpserted: number
   errors: string[]
   cursorAdvanced: boolean
+  /** qb_sync_runs id — undo handle. */
+  runId: string | null
 }
 
 const PAGE_SIZE = 100
@@ -103,11 +106,12 @@ async function pullEntity<T>(
 
 export async function syncQBPayments(
   facilityId: string,
-  options: { fullSync?: boolean } = {},
+  options: { fullSync?: boolean; createdBy?: string | null } = {},
 ): Promise<SyncQBPaymentsResult> {
   await ensureQbLinksSchema()
   await ensureUnappliedSchema()
-  const { fullSync = false } = options
+  const { fullSync = false, createdBy = null } = options
+  const startedAt = new Date()
   const result: SyncQBPaymentsResult = {
     created: 0,
     upgraded: 0,
@@ -116,6 +120,18 @@ export async function syncQBPayments(
     creditsUpserted: 0,
     errors: [],
     cursorAdvanced: false,
+    runId: null,
+  }
+  // Undo data (qb_sync_runs)
+  const undo: SyncPaymentsRunItems = {
+    prevCursor: null,
+    prevLastSyncedAt: null,
+    insertedPaymentIds: [],
+    stamped: [],
+    upgraded: [],
+    refreshed: [],
+    insertedCreditIds: [],
+    updatedCredits: [],
   }
 
   const facility = await db.query.facilities.findFirst({
@@ -126,9 +142,11 @@ export async function syncQBPayments(
 
   const state = await db.query.qbSyncState.findFirst({
     where: eq(qbSyncState.facilityId, facilityId),
-    columns: { paymentsSyncCursor: true },
+    columns: { paymentsSyncCursor: true, paymentsLastSyncedAt: true },
   }).catch(() => null)
   const cursor = fullSync ? null : (state?.paymentsSyncCursor ?? null)
+  undo.prevCursor = state?.paymentsSyncCursor ?? null
+  undo.prevLastSyncedAt = state?.paymentsLastSyncedAt?.toISOString() ?? null
 
   // ── Resident resolution maps ──────────────────────────────────────────
   const residentList = await db.query.residents.findMany({
@@ -243,6 +261,12 @@ export async function syncQBPayments(
           amountCents,
           paymentDate: p.TxnDate,
         })
+        undo.refreshed.push({
+          id: known.id,
+          prevAmountCents: known.amountCents,
+          prevPaymentDate: known.paymentDate,
+          memoWasNull: !known.memo,
+        })
         result.updated++
       } else {
         result.skipped++
@@ -262,6 +286,7 @@ export async function syncQBPayments(
         amountCents: null,
         paymentDate: null,
       })
+      undo.stamped.push({ id: exact.id, memoWasNull: !exact.memo })
       result.skipped++
       continue
     }
@@ -277,6 +302,7 @@ export async function syncQBPayments(
           amountCents: null,
           paymentDate: null,
         })
+        undo.upgraded.push({ id: facLevel.id, memoWasNull: !facLevel.memo })
         result.upgraded++
         continue
       }
@@ -323,7 +349,8 @@ export async function syncQBPayments(
       `)
     }
     for (const ch of chunkArr(toInsert, 100)) {
-      await db.insert(qbPayments).values(ch)
+      const rows = await db.insert(qbPayments).values(ch).returning({ id: qbPayments.id })
+      undo.insertedPaymentIds.push(...rows.map((r) => r.id))
       result.created += ch.length
     }
   } catch (err) {
@@ -395,6 +422,7 @@ export async function syncQBPayments(
         if (existing) {
           if (existing.openBalanceCents !== c.openBalanceCents) {
             creditUpdates.push({ id: existing.id, openBalanceCents: c.openBalanceCents })
+            undo.updatedCredits.push({ id: existing.id, prevOpenBalanceCents: existing.openBalanceCents })
             result.creditsUpserted++
           }
         } else if (c.openBalanceCents > 0) {
@@ -420,7 +448,8 @@ export async function syncQBPayments(
         `)
       }
       for (const ch of chunkArr(creditInserts, 100)) {
-        await db.insert(qbUnappliedCredits).values(ch)
+        const rows = await db.insert(qbUnappliedCredits).values(ch).returning({ id: qbUnappliedCredits.id })
+        undo.insertedCreditIds.push(...rows.map((r) => r.id))
       }
     } catch (err) {
       result.errors.push(`Credit writes failed: ${(err as Error).message?.slice(0, 200)}`)
@@ -462,6 +491,30 @@ export async function syncQBPayments(
     `)
   }
   result.cursorAdvanced = !!nextCursor
+
+  // Audit + undo record (best-effort; never fails the sync).
+  const touched =
+    undo.insertedPaymentIds.length + undo.stamped.length + undo.upgraded.length +
+    undo.refreshed.length + undo.insertedCreditIds.length + undo.updatedCredits.length
+  if (touched > 0 || nextCursor) {
+    result.runId = await recordSyncRun({
+      facilityId,
+      action: 'sync_payments',
+      startedAt,
+      createdBy,
+      summary: {
+        created: result.created,
+        upgraded: result.upgraded,
+        updated: result.updated,
+        skipped: result.skipped,
+        creditsUpserted: result.creditsUpserted,
+        errors: result.errors.slice(0, 5),
+        cursorAdvanced: result.cursorAdvanced,
+        fullSync,
+      },
+      items: undo,
+    })
+  }
 
   return result
 }

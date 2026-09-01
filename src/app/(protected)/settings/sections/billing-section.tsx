@@ -32,6 +32,20 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [qbConfirmDisconnect, setQbConfirmDisconnect] = useState(false)
   const [qbDisconnecting, setQbDisconnecting] = useState(false)
+  // Sync history + undo (qb_sync_runs)
+  type QbRun = {
+    id: string
+    action: string
+    startedAt: string
+    automated: boolean
+    summary: Record<string, unknown>
+    undoneAt: string | null
+    undoSummary: Record<string, unknown> | null
+  }
+  const [qbRuns, setQbRuns] = useState<QbRun[]>([])
+  const [qbRunsLoaded, setQbRunsLoaded] = useState(false)
+  const [qbUndoConfirmId, setQbUndoConfirmId] = useState<string | null>(null)
+  const [qbUndoingId, setQbUndoingId] = useState<string | null>(null)
   const [qbTesting, setQbTesting] = useState(false)
   const [qbTestResult, setQbTestResult] = useState<
     | { ok: true; companyName: string | null }
@@ -192,6 +206,75 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
     }
   }
 
+  async function loadQbRuns() {
+    try {
+      const res = await fetch(`/api/quickbooks/runs?facilityId=${facility.id}`)
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) setQbRuns(j.data?.runs ?? [])
+    } catch {
+      // history is informational — never block the card on it
+    } finally {
+      setQbRunsLoaded(true)
+    }
+  }
+
+  function runLabel(r: QbRun): string {
+    const s = r.summary ?? {}
+    const n = (k: string) => Number(s[k] ?? 0)
+    switch (r.action) {
+      case 'push_invoice':
+        return `Send via QB — ${String(s.month ?? '')}: ${n('invoices')} invoice(s), ${formatMoney(n('totalCents'))}`
+      case 'sync_customers':
+        return `Sync Customers: ${n('matchedExisting')} matched, ${n('createdInQb')} created`
+      case 'sync_payments':
+        return `Payment sync: ${n('created')} new, ${n('upgraded')} upgraded, ${n('creditsUpserted')} credit(s)`
+      case 'sync_invoices':
+        return `Invoice sync: ${n('created')} new, ${n('updated')} updated`
+      default:
+        return r.action
+    }
+  }
+
+  function undoDescription(action: string): string {
+    switch (action) {
+      case 'push_invoice':
+        return 'Voids these invoices in QuickBooks and frees the appointments to be billed again. Invoices that already have a payment applied are left alone.'
+      case 'sync_customers':
+        return 'Deactivates the QuickBooks customers this run created. Matched customers are untouched.'
+      case 'sync_payments':
+        return 'Removes the payments and credits this sync pulled in, un-stamps existing ones, and rewinds the sync so the next run re-covers the same window.'
+      case 'sync_invoices':
+        return 'Restores every invoice balance from before this pull and rewinds the sync. Money collected on the site stays honored.'
+      default:
+        return ''
+    }
+  }
+
+  async function handleUndoRun(id: string) {
+    if (qbUndoingId) return
+    setQbUndoingId(id)
+    try {
+      const res = await fetch(`/api/quickbooks/runs/${id}/undo`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showQbToast('err', j.error ?? 'Undo failed')
+        return
+      }
+      const { reversed, skipped, errors } = j.data
+      const bits = [`${reversed} reversed`]
+      if (skipped > 0) bits.push(`${skipped} skipped`)
+      if (errors.length > 0) bits.push(`${errors.length} error(s): ${errors[0]}`)
+      showQbToast(errors.length > 0 ? 'err' : 'ok', `Undo: ${bits.join(', ')}`)
+      await loadQbRuns()
+      router.refresh()
+    } catch {
+      showQbToast('err', 'Network error — undo may not have run')
+    } finally {
+      setQbUndoingId(null)
+      setQbUndoConfirmId(null)
+    }
+  }
+
   async function handleDisconnectQb() {
     setQbDisconnecting(true)
     try {
@@ -213,6 +296,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   useEffect(() => {
     if (!hasQuickBooks) return
     if (!qbAccountsLoaded) loadQbAccounts()
+    if (!qbRunsLoaded) loadQbRuns()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasQuickBooks])
 
@@ -538,6 +622,97 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+
+            {/* Sync history + per-run undo (qb_sync_runs) */}
+            <div className="border-t border-stone-100 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                  Sync history
+                </h3>
+                <button
+                  type="button"
+                  onClick={loadQbRuns}
+                  className="text-[11px] text-stone-400 hover:text-stone-600"
+                >
+                  Refresh
+                </button>
+              </div>
+              <p className="text-[11.5px] text-stone-400 mb-3">
+                Every QuickBooks operation is recorded here and can be undone — invoices are voided in
+                QuickBooks (never deleted), and anything with a payment already applied is left alone.
+              </p>
+              {!qbRunsLoaded ? (
+                <p className="text-xs text-stone-400">Loading…</p>
+              ) : qbRuns.length === 0 ? (
+                <p className="text-xs text-stone-400">No QuickBooks activity yet.</p>
+              ) : (
+                <ul className="divide-y divide-stone-100 rounded-xl border border-stone-100 overflow-hidden">
+                  {qbRuns.map((r) => {
+                    const when = new Date(r.startedAt).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                    const confirming = qbUndoConfirmId === r.id
+                    const undoing = qbUndoingId === r.id
+                    return (
+                      <li key={r.id} className="px-3 py-2.5 text-xs flex flex-col gap-1.5 bg-white">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-stone-700 font-medium truncate">{runLabel(r)}</div>
+                            <div className="text-stone-400">
+                              {when}
+                              {r.automated ? ' · nightly' : ''}
+                              {r.undoneAt
+                                ? ` · undone ${new Date(r.undoneAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                : ''}
+                            </div>
+                          </div>
+                          {r.undoneAt ? (
+                            <span className="shrink-0 text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-500">
+                              Undone
+                            </span>
+                          ) : confirming ? null : (
+                            <button
+                              type="button"
+                              onClick={() => setQbUndoConfirmId(r.id)}
+                              disabled={!!qbUndoingId}
+                              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] hover:underline disabled:opacity-40"
+                            >
+                              Undo
+                            </button>
+                          )}
+                        </div>
+                        {confirming && (
+                          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 flex flex-col gap-2">
+                            <span className="text-amber-800">{undoDescription(r.action)}</span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleUndoRun(r.id)}
+                                disabled={undoing}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-50"
+                              >
+                                {undoing ? 'Undoing…' : 'Yes, undo this'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQbUndoConfirmId(null)}
+                                disabled={undoing}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+                              >
+                                Keep
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
             </div>
           </div>

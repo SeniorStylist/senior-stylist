@@ -792,6 +792,35 @@ export const qbCustomerLinks = pgTable('qb_customer_links', {
   qbIdIdx: index('qb_customer_links_qbid_idx').on(t.facilityId, t.qbCustomerId),
 }))
 
+// Site-paid protection (drizzle/0044, self-bootstrapped by qb-safety-ddl.ts):
+// cents of each invoice collected ON THE SITE and possibly not yet mirrored in
+// QuickBooks. QB-authoritative overwrites clamp against it — see qb-site-payments.ts.
+export const qbInvoiceSitePayments = pgTable('qb_invoice_site_payments', {
+  invoiceId: uuid('invoice_id')
+    .primaryKey()
+    .references(() => qbInvoices.id, { onDelete: 'cascade' }),
+  sitePaidCents: integer('site_paid_cents').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// Per-run QB audit + undo data (drizzle/0044). `items` carries what qb-undo.ts
+// needs to reverse the run; `undone_at` marks it reversed.
+export const qbSyncRuns = pgTable('qb_sync_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  action: text('action').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }).defaultNow(),
+  createdBy: uuid('created_by'),
+  summary: jsonb('summary').$type<Record<string, unknown>>(),
+  items: jsonb('items').$type<Record<string, unknown>>(),
+  undoneAt: timestamp('undone_at', { withTimezone: true }),
+  undoneBy: uuid('undone_by'),
+  undoSummary: jsonb('undo_summary').$type<Record<string, unknown>>(),
+}, (t) => ({
+  facilityIdx: index('qb_sync_runs_facility_idx').on(t.facilityId, t.startedAt.desc()),
+}))
+
 // Per-facility QB API sync config/cursors (drizzle/0043) — lives here instead
 // of new columns on the hot `facilities` table (P19 rule).
 export const qbSyncState = pgTable('qb_sync_state', {

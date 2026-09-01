@@ -191,6 +191,12 @@ export async function POST(request: Request) {
     }
     // We can't easily distinguish created vs updated from onConflictDoUpdate, use total
     invoicesUpdated = 0 // stats are combined in invoicesCreated for now
+
+    // SITE-PAID PROTECTION (P58): never re-open invoices collected on the site.
+    const { ensureQbSafetySchema } = await import('@/lib/qb-safety-ddl')
+    const { reapplySitePayments } = await import('@/lib/qb-site-payments')
+    await ensureQbSafetySchema()
+    await reapplySitePayments(db, Array.from(new Set(finalRows.map((r) => r.facilityId))))
   }
 
   // ── Transaction List CSV ──────────────────────────────────────────────────

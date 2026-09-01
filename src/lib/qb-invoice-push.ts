@@ -7,9 +7,11 @@
 // a re-push can never double-bill them.
 
 import { db } from '@/db'
-import { bookings, facilities, qbInvoices, qbSyncState } from '@/db/schema'
+import { bookings, facilities, paymentMethods, qbInvoices, qbSyncState, residents } from '@/db/schema'
 import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { qbGet, qbPost, qbPostSend } from '@/lib/quickbooks'
+import { recordSyncRun, type PushInvoiceRunItems } from '@/lib/qb-runs'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import {
   ensureQBCustomerForResident,
   ensureQBFacilityParent,
@@ -40,8 +42,12 @@ export interface PushQBInvoicesResult {
   invoices: PushedInvoice[]
   totalCents: number
   skippedNoEmail: number
+  /** Residents skipped because they are card-on-file autopay (collected on the site, not invoiced). */
+  skippedAutopay: number
   nothingToBill: boolean
   errors: string[]
+  /** qb_sync_runs id — undo handle. */
+  runId: string | null
 }
 
 const INVOICE_CAP_PER_RUN = 50
@@ -166,6 +172,7 @@ export async function pushQBInvoices(
     residentId?: string | null
     send?: boolean
     email?: string | null
+    createdBy?: string | null
   },
 ): Promise<PushQBInvoicesResult> {
   if (pushInFlight.has(facilityId)) {
@@ -186,16 +193,22 @@ async function pushQBInvoicesInner(
     residentId?: string | null
     send?: boolean
     email?: string | null
+    createdBy?: string | null
   },
 ): Promise<PushQBInvoicesResult> {
   await ensureQbLinksSchema()
-  const { month, mode, residentId = null, send = false, email = null } = opts
+  await ensureQbSafetySchema()
+  const { month, mode, residentId = null, send = false, email = null, createdBy = null } = opts
+  const startedAt = new Date()
+  const runItems: PushInvoiceRunItems['invoices'] = []
   const result: PushQBInvoicesResult = {
     invoices: [],
     totalCents: 0,
     skippedNoEmail: 0,
+    skippedAutopay: 0,
     nothingToBill: false,
     errors: [],
+    runId: null,
   }
 
   const facility = await db.query.facilities.findFirst({
@@ -238,7 +251,31 @@ async function pushQBInvoicesInner(
     orderBy: (b, { asc }) => [asc(b.startTime)],
   })) as unknown as BillableBooking[]
 
-  const withAmount = billable.filter((b) => bookingAmountCents(b) > 0)
+  const priced = billable.filter((b) => bookingAmountCents(b) > 0)
+
+  // SAFEGUARD: card-on-file AUTOPAY residents are collected on the site (charge
+  // on finalize / nightly sweep). Creating a QuickBooks invoice for them would
+  // leave an open invoice in the books that the site then pays by card —
+  // inviting a second collection through QB. Skip them and report the count.
+  const autopayRows = await db
+    .select({ id: residents.id })
+    .from(residents)
+    .innerJoin(
+      paymentMethods,
+      and(eq(paymentMethods.residentId, residents.id), eq(paymentMethods.active, true)),
+    )
+    .where(and(eq(residents.facilityId, facilityId), eq(residents.autopayEnabled, true)))
+  const autopayIds = new Set(autopayRows.map((r) => r.id))
+  const skippedAutopayResidents = new Set<string>()
+  const withAmount = priced.filter((b) => {
+    if (autopayIds.has(b.residentId)) {
+      skippedAutopayResidents.add(b.residentId)
+      return false
+    }
+    return true
+  })
+  result.skippedAutopay = skippedAutopayResidents.size
+
   if (withAmount.length === 0) {
     result.nothingToBill = true
     return result
@@ -355,6 +392,14 @@ async function pushQBInvoicesInner(
         .update(bookings)
         .set({ qbInvoiceMatchId: localRow.id, updatedAt: new Date() })
         .where(inArray(bookings.id, group.rows.map((b) => b.id)))
+      runItems.push({
+        qbInvoiceId: inv.Id,
+        localInvoiceId: localRow.id,
+        bookingIds: group.rows.map((b) => b.id),
+        residentId: group.residentId,
+        residentName,
+        amountCents,
+      })
 
       // Optional: QuickBooks emails the invoice.
       let emailed = false
@@ -416,6 +461,26 @@ async function pushQBInvoicesInner(
       WHERE resident_id = residents.id AND status != 'paid'
     ), 0) WHERE facility_id = ${facilityId}
   `)
+
+  // Audit + undo record — "Undo" voids these invoices in QB and re-frees the bookings.
+  if (runItems.length > 0) {
+    result.runId = await recordSyncRun({
+      facilityId,
+      action: 'push_invoice',
+      startedAt,
+      createdBy,
+      summary: {
+        month,
+        mode,
+        invoices: runItems.length,
+        totalCents: result.totalCents,
+        emailed: result.invoices.filter((i) => i.emailed).length,
+        skippedAutopay: result.skippedAutopay,
+        errors: result.errors.slice(0, 5),
+      },
+      items: { month, mode, invoices: runItems },
+    })
+  }
 
   return result
 }

@@ -17,6 +17,8 @@ type Bucket =
   | 'qbCustomerSync'
   | 'qbInvoicePush'
   | 'qbPaymentSync'
+  | 'qbRuns'
+  | 'qbUndo'
   | 'qbImport'
   | 'coverage'
   | 'billingImport'
@@ -77,6 +79,8 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   qbCustomerSync: { tokens: 5, window: '1 h' },
   qbInvoicePush: { tokens: 20, window: '1 h' },
   qbPaymentSync: { tokens: 3, window: '1 h' },
+  qbRuns: { tokens: 60, window: '1 h' },
+  qbUndo: { tokens: 10, window: '1 h' },
   qbImport: { tokens: 5, window: '1 h' },
   coverage: { tokens: 10, window: '1 h' },
   billingImport: { tokens: 5, window: '1 h' },

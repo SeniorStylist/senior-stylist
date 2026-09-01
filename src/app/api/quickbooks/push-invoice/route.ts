@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
       residentId: residentId ?? null,
       send,
       email: email ?? null,
+      createdBy: user.id,
     })
 
     db.insert(quickbooksSyncLog)

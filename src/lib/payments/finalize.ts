@@ -10,10 +10,13 @@ import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { calculateRevShare } from '@/lib/rev-share'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { recordSitePaid } from '@/lib/qb-site-payments'
 import { getPlatformStripe } from './stripe-client'
 
 export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ recorded: boolean }> {
   await ensurePaymentsSchema()
+  await ensureQbSafetySchema() // before the tx — recordSitePaid writes inside it
 
   // Idempotency — already recorded?
   const existing = await db.query.qbPayments.findFirst({
@@ -97,6 +100,7 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
           updatedAt: now,
         })
         .where(eq(qbInvoices.id, inv.id))
+      await recordSitePaid(tx, inv.id, take) // site-paid protection
       remaining -= take
     }
 

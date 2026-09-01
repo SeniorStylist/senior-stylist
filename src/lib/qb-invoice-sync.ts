@@ -5,6 +5,9 @@ import { qbGet } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { reapplySitePayments } from '@/lib/qb-site-payments'
+import { recordSyncRun } from '@/lib/qb-runs'
 
 interface QBInvoice {
   Id: string
@@ -61,21 +64,28 @@ export function parseResidentName(qbCustomerName: string): string {
 
 export async function syncQBInvoices(
   facilityId: string,
-  options: { fullSync?: boolean } = {},
+  options: { fullSync?: boolean; createdBy?: string | null } = {},
 ): Promise<SyncQBInvoicesResult> {
   const result: SyncQBInvoicesResult = { created: 0, updated: 0, skipped: 0, errors: [], cursorAdvanced: false }
   // Per-row upsert failures: they mean the window was NOT fully ingested, so
   // the cursor must not move past it (see the guarded update at the end).
   let writeFailures = 0
-  const { fullSync = false } = options
+  const { fullSync = false, createdBy = null } = options
+  const startedAt = new Date()
+  await ensureQbSafetySchema()
 
   const facility = await db.query.facilities.findFirst({
     where: eq(facilities.id, facilityId),
-    columns: { id: true, qbRealmId: true, qbInvoicesSyncCursor: true },
+    columns: { id: true, qbRealmId: true, qbInvoicesSyncCursor: true, qbInvoicesLastSyncedAt: true },
   })
   if (!facility?.qbRealmId) {
     throw new Error('QuickBooks not connected for this facility')
   }
+  // Undo data (qb_sync_runs): pre-run cursor + every row's prior state.
+  const prevCursor = facility.qbInvoicesSyncCursor ?? null
+  const prevLastSyncedAt = facility.qbInvoicesLastSyncedAt?.toISOString() ?? null
+  const insertedInvoiceIds: string[] = []
+  const updatedPrev: Array<{ id: string; prevOpenBalanceCents: number; prevStatus: string; prevAmountCents: number }> = []
 
   const residentList = await db.query.residents.findMany({
     where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
@@ -112,7 +122,7 @@ export async function syncQBInvoices(
 
   const existingInvoices = await db.query.qbInvoices.findMany({
     where: eq(qbInvoices.facilityId, facilityId),
-    columns: { invoiceNum: true, openBalanceCents: true, status: true, qbInvoiceId: true },
+    columns: { id: true, invoiceNum: true, openBalanceCents: true, status: true, qbInvoiceId: true, amountCents: true },
   })
   const existingByNum = new Map(existingInvoices.map((i) => [i.invoiceNum, i]))
 
@@ -197,7 +207,7 @@ export async function syncQBInvoices(
     }
 
     try {
-      await db
+      const [row] = await db
         .insert(qbInvoices)
         .values({
           facilityId,
@@ -220,19 +230,39 @@ export async function syncQBInvoices(
             dueDate: sql`excluded.due_date`,
             amountCents: sql`excluded.amount_cents`,
             openBalanceCents: sql`excluded.open_balance_cents`,
-            status: sql`excluded.status`,
+            // An invoice voided by a site-side undo stays 'void' (QB reports it
+            // as a $0 paid invoice, which would otherwise relabel it).
+            status: sql`CASE WHEN ${qbInvoices.status} = 'void' THEN 'void' ELSE excluded.status END`,
             qbInvoiceId: sql`excluded.qb_invoice_id`,
             syncedAt: sql`excluded.synced_at`,
             updatedAt: new Date(),
           },
         })
-      if (existing) result.updated++
-      else result.created++
+        .returning({ id: qbInvoices.id })
+      if (existing) {
+        result.updated++
+        updatedPrev.push({
+          id: existing.id,
+          prevOpenBalanceCents: existing.openBalanceCents,
+          prevStatus: existing.status,
+          prevAmountCents: existing.amountCents,
+        })
+      } else {
+        result.created++
+        if (row?.id) insertedInvoiceIds.push(row.id)
+      }
     } catch (err) {
       result.errors.push(`Invoice ${invoiceNum}: ${(err as Error).message?.slice(0, 200)}`)
       writeFailures++
     }
   }
+
+  // SITE-PAID PROTECTION: QB is authoritative for what it knows, but it does not
+  // know about money collected on the site (card/portal/salon credit). Clamp
+  // every site-paid invoice back down BEFORE recomputing balances so the
+  // autopay sweep can never re-charge a family for an invoice they already
+  // paid here. See qb-site-payments.ts.
+  await reapplySitePayments(db, [facilityId])
 
   // Balance recomputes are derived from whatever is now in our DB, so they are
   // always safe to run — even after a partial pull.
@@ -295,6 +325,26 @@ export async function syncQBInvoices(
       .where(eq(facilities.id, facilityId))
   }
   result.cursorAdvanced = !!nextCursor
+
+  // Audit + undo record (best-effort; never fails the sync). Only worth a row
+  // when something actually changed.
+  if (result.created + result.updated > 0 || nextCursor) {
+    await recordSyncRun({
+      facilityId,
+      action: 'sync_invoices',
+      startedAt,
+      createdBy,
+      summary: {
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+        errors: result.errors.slice(0, 5),
+        cursorAdvanced: result.cursorAdvanced,
+        fullSync,
+      },
+      items: { prevCursor, prevLastSyncedAt, insertedInvoiceIds, updated: updatedPrev },
+    })
+  }
 
   return result
 }

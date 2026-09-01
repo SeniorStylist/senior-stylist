@@ -26,8 +26,10 @@ interface PushResult {
   invoices: PushedInvoice[]
   totalCents: number
   skippedNoEmail: number
+  skippedAutopay: number
   nothingToBill: boolean
   errors: string[]
+  runId: string | null
 }
 
 function currentMonth(): string {
@@ -86,7 +88,11 @@ export function SendViaQbModal({
       const data = j.data as PushResult
       setResult(data)
       if (data.nothingToBill) {
-        toast.info('Nothing to bill — no completed, unpaid appointments in that month that aren’t already invoiced.')
+        toast.info(
+          data.skippedAutopay > 0
+            ? `Nothing to bill — the ${data.skippedAutopay} resident(s) with unpaid visits are card-on-file autopay and get charged on the site, not invoiced.`
+            : 'Nothing to bill — no completed, unpaid appointments in that month that aren’t already invoiced.',
+        )
       } else if (data.errors.length > 0) {
         toast.error(
           `${data.invoices.length} invoice(s) created, ${data.errors.length} problem(s): ${data.errors[0]}`,
@@ -170,6 +176,16 @@ export function SendViaQbModal({
                   {e}
                 </div>
               ))}
+              {result.skippedAutopay > 0 && (
+                <div className="text-xs text-stone-500 pt-1">
+                  {result.skippedAutopay} resident(s) skipped — card-on-file autopay, collected on the site instead of invoiced.
+                </div>
+              )}
+              {result.runId && (
+                <div className="text-xs text-stone-400 pt-1">
+                  Made a mistake? This run can be undone from Settings → Billing → QuickBooks → Sync history.
+                </div>
+              )}
             </div>
           )}
 

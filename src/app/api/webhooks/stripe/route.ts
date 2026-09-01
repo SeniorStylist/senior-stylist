@@ -126,6 +126,9 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
   // qb_unapplied_credits (overpayment banking below) — module-guarded no-op after first call.
   const { ensureUnappliedSchema } = await import('@/lib/unapplied-ddl')
   await ensureUnappliedSchema()
+  const { ensureQbSafetySchema } = await import('@/lib/qb-safety-ddl')
+  await ensureQbSafetySchema() // before the tx — recordSitePaid writes inside it
+  const { recordSitePaid } = await import('@/lib/qb-site-payments')
 
   await db.transaction(async (tx) => {
     // Stripe delivers checkout.session.completed at-least-once — stamp the PI on
@@ -165,6 +168,7 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
       const decrement = Math.min(remaining, inv.openBalanceCents)
       const newOpen = inv.openBalanceCents - decrement
       remaining -= decrement
+      await recordSitePaid(tx, inv.id, decrement) // site-paid protection
       if (newOpen === 0) {
         await tx
           .update(qbInvoices)
