@@ -109,8 +109,23 @@ extras skipped — optional add-ons, revisit only if ever needed).
 4. [ ] **GATE — decide the refund/cancellation policy BEFORE the flip** with the
        boss — card networks expect one displayed where cards are charged (the portal). Once
        decided, add a short section to `/terms`. This is an OWNER decision — don't let anyone
-       (including Claude) invent the terms. Stripe's live-account website review is covered by
-       the WordPress session list (`docs/a2p-wordpress-kit.md` Part 3) + the portal's existing
+       (including Claude) invent the terms. **The six questions for the boss** (one-word
+       answers suffice; suggested defaults in parens):
+       1. Unhappy with a service — remedy? (redo first; refund or credit on request) +
+          dispute window? (30 days)
+       2. Billing error / duplicate / service never happened? (full refund, always)
+       3. Prepaid salon-account funds — refundable? (either: unused balance refundable on
+          request, OR non-refundable but never expires — pick one)
+       4. Remaining balance when a resident passes away or moves out? (refund unused
+          balance to family/estate — this WILL come up)
+       5. Gift payments — refundable to the sender? (yes until used, no after)
+       6. Cancellation/no-show fee? (system never charges for non-completed visits —
+          confirm "pay only for services performed", or add a fee)
+       Mechanical facts stated regardless: refunds to the original payment method,
+       5–10 business days; requests via 443-450-3344 or the support email. Cost note:
+       Stripe keeps its ~3% processing fee on refunds — credits are cheaper than refunds
+       as a default remedy. Stripe's live-account website review is covered by the
+       WordPress session list (`docs/a2p-wordpress-kit.md` Part 3) + the portal's existing
        privacy/terms pages.
 5. [ ] After the flip: one small real charge (portal balance or at-chair) → confirm the
        `qb_payments` row + Stripe dashboard both show it → refund via the in-app Refund
