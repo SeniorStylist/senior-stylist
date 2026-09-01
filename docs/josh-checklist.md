@@ -120,9 +120,10 @@ silently (the webhook route returns 200 even on handler errors; watch Vercel log
 `[stripe webhook …]` lines, not the Stripe delivery dashboard).
 
 ### E2. Apple Pay on the web (P36 — 2 minutes, do with the Stripe account)
-1. [ ] Stripe dashboard → Settings → Payment methods → Apple Pay → **Add domain**
-       `portal.seniorstylist.com` (works in test mode too). Google Pay needs no setup.
-       Until this is done the at-chair payment screen shows card-entry only (with
+1. [x] **DONE 2026-09-01 on the LIVE account** — Settings → Payments → Payment method
+       domains shows `portal.seniorstylist.com` Enabled + Apple Pay enabled
+       (auto-verified, no association file needed). Google Pay needs no setup.
+       Until this was done the at-chair payment screen showed card-entry only (with
        the phone camera scan); after it, Apple Pay appears automatically.
 
 ## F. Twilio — SMS (when ready)
