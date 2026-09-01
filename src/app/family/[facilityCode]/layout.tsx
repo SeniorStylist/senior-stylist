@@ -94,15 +94,25 @@ export default async function FamilyPortalLayout({
           {children}
           {/* P56b — A2P campaign: privacy policy reachable from every family page,
               login and signup included. New tab so in-place nav never wipes the
-              signup wizard (P56 rule). */}
-          <p className="text-center pt-8">
+              signup wizard (P56 rule). Terms added 2026-09-01: the refund policy
+              (/terms#refunds) must be reachable wherever cards are charged. */}
+          <p className="text-center pt-8 text-xs text-stone-400">
             <a
               href="/privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-stone-400 hover:underline"
+              className="hover:underline"
             >
               {makePortalT(lang)('footer.privacy')}
+            </a>
+            {' · '}
+            <a
+              href="/terms#refunds"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              {makePortalT(lang)('footer.terms')}
             </a>
           </p>
         </main>

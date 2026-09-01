@@ -480,8 +480,16 @@ export const PORTAL_STRINGS = {
     es: 'Al proporcionar su número de teléfono, acepta recibir mensajes de texto de Senior Stylist sobre las citas del salón y su cuenta. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responda STOP para cancelar o HELP para obtener ayuda.',
   },
   'signup.step.privacyLink': { en: 'Privacy Policy', es: 'Política de Privacidad' },
+  'signup.step.termsLink': { en: 'Terms', es: 'Términos' },
+  // A2P — checkbox must be actively ticked before a phone number can proceed
+  'signup.step.smsConsentRequired': {
+    en: 'Please check the box to receive texts at this number, or clear the phone field to continue with email only.',
+    es: 'Marque la casilla para recibir mensajes de texto en este número, o borre el teléfono para continuar solo con correo electrónico.',
+  },
   // P56b — family-layout footer link (A2P: policy reachable from every family page)
   'footer.privacy': { en: 'Privacy Policy', es: 'Política de Privacidad' },
+  // 2026-09-01 — refund policy (/terms#refunds) reachable wherever cards are charged
+  'footer.terms': { en: 'Terms & Refunds', es: 'Términos y Reembolsos' },
   // P55 — password created in the wizard (owner decision)
   'signup.step.password': { en: 'Choose a password', es: 'Elija una contraseña' },
   'signup.step.passwordHint': {

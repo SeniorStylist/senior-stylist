@@ -14,7 +14,7 @@ export default function TermsPage() {
         >
           Terms of Service &amp; EULA
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: April 19, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: September 1, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -89,8 +89,49 @@ export default function TermsPage() {
         </p>
       </section>
 
+      <section id="refunds" className="space-y-3">
+        <h2 className="text-xl font-semibold text-stone-800">
+          7. Salon Payments, Refunds &amp; Cancellations
+        </h2>
+        <p className="text-stone-600 leading-relaxed">
+          This section applies to salon services paid for by residents and their families —
+          whether by card through the family portal, by a saved card on file, or in person.
+        </p>
+        <ul className="list-disc pl-6 text-stone-600 leading-relaxed space-y-2">
+          <li>
+            <strong>Cancellations.</strong> There is no charge for appointments cancelled at least
+            24 hours in advance. You pay only for services performed; late cancellations or missed
+            appointments may be subject to a fee.
+          </li>
+          <li>
+            <strong>Service concerns.</strong> If you are not satisfied with a service, contact us
+            within 30 days. We will offer to redo the service, or provide a refund or account
+            credit at your request.
+          </li>
+          <li>
+            <strong>Billing errors.</strong> Duplicate charges, billing mistakes, and charges for
+            services that were not performed are always fully refunded.
+          </li>
+          <li>
+            <strong>Prepaid funds.</strong> Unused funds added to a resident&apos;s salon account
+            (including prepaid packages) are refundable at any time upon request. If a resident
+            passes away or moves out of their community, we will refund any unused balance to the
+            family or estate.
+          </li>
+          <li>
+            <strong>Gifts.</strong> Gift payments are refundable to the sender until they are used.
+            Once applied to services, they are treated like any other payment.
+          </li>
+        </ul>
+        <p className="text-stone-600 leading-relaxed">
+          Refunds are issued to the original payment method and typically appear within 5&ndash;10
+          business days. To request a refund or cancel an appointment, call us at 443-450-3344 or
+          contact the salon team at your community.
+        </p>
+      </section>
+
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">7. Data Ownership</h2>
+        <h2 className="text-xl font-semibold text-stone-800">8. Data Ownership</h2>
         <p className="text-stone-600 leading-relaxed">
           You retain ownership of your facility&apos;s resident records, booking history, and other
           operational data you input into the platform (&ldquo;Customer Data&rdquo;). Senior Stylist LLC
@@ -101,7 +142,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">8. Integrations</h2>
+        <h2 className="text-xl font-semibold text-stone-800">9. Integrations</h2>
         <p className="text-stone-600 leading-relaxed">
           The platform offers optional integrations with third-party services, including QuickBooks
           Online and Google Calendar. Your use of these integrations is subject to the respective
@@ -112,7 +153,27 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">9. Limitation of Liability</h2>
+        <h2 className="text-xl font-semibold text-stone-800">10. Text Messaging (SMS)</h2>
+        <p className="text-stone-600 leading-relaxed">
+          Where a resident&apos;s family member, authorized representative, or a stylist or staff
+          member opts in to receive text messages (see our{' '}
+          <a href="/privacy" className="text-[#8B2E4A] hover:underline">
+            Privacy Policy
+          </a>
+          ), the following terms apply. Messages are transactional notifications about salon
+          services — appointment confirmations and reminders, service receipts, payment requests,
+          account security notices, one-time sign-in codes, and operational updates for staff. We
+          do not send marketing or promotional text messages. Message frequency varies. Message and
+          data rates may apply. Reply <strong>STOP</strong> to any message to opt out at any time,
+          or <strong>HELP</strong> for help; you can also call 443-450-3344 for assistance. Mobile
+          phone numbers and SMS opt-in data are never shared with, sold to, or rented to third
+          parties or affiliates. Wireless carriers are not liable for delayed or undelivered
+          messages.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold text-stone-800">11. Limitation of Liability</h2>
         <p className="text-stone-600 leading-relaxed">
           To the maximum extent permitted by applicable law, Senior Stylist LLC&apos;s total cumulative
           liability to you for any claims arising out of or related to these Terms or your use of
@@ -124,7 +185,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">10. Termination</h2>
+        <h2 className="text-xl font-semibold text-stone-800">12. Termination</h2>
         <p className="text-stone-600 leading-relaxed">
           Either party may terminate the subscription with 30 days&apos; written notice. Senior Stylist
           LLC may terminate immediately for material breach of these Terms (including non-payment
@@ -134,7 +195,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">11. Governing Law</h2>
+        <h2 className="text-xl font-semibold text-stone-800">13. Governing Law</h2>
         <p className="text-stone-600 leading-relaxed">
           These Terms are governed by and construed in accordance with the laws of the State of
           Maryland, USA, without regard to its conflict of law principles. Any disputes arising under
@@ -144,7 +205,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-stone-800">12. Contact</h2>
+        <h2 className="text-xl font-semibold text-stone-800">14. Contact</h2>
         <p className="text-stone-600 leading-relaxed">
           For legal inquiries or questions about these Terms, please contact us at{' '}
           <a href="mailto:legal@seniorstylist.com" className="text-[#8B2E4A] hover:underline">
