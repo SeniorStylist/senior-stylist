@@ -79,28 +79,45 @@ Vercel → Project → Settings → Environment Variables (Production). After ad
 ## E. Stripe — live card payments (when you're ready to flip payments on)
 
 The whole card-on-file/autopay/Tap-to-Pay stack is built and works in TEST mode already.
-1. [ ] Stripe dashboard (the PLATFORM Senior Stylist account) → API keys →
-       - `STRIPE_SECRET_KEY` (sk_live_… when going live; sk_test_… works today)
-       - `STRIPE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (same value)
-2. [ ] Developers → Webhooks → Add endpoint `https://portal.seniorstylist.com/api/webhooks/stripe`
-       with events **`setup_intent.succeeded`** and **`payment_intent.succeeded`** (keep any
-       existing `checkout.session.completed` selection) → copy the signing secret →
-       `STRIPE_WEBHOOK_SECRET`.
-3. [ ] LAST, when you want real charges: set **`PAYMENTS_LIVE_ENABLED`** = `true`. Until then
-       the engine refuses live keys by design.
-4. [ ] **BEFORE flipping live (2026-08-25): decide the refund/cancellation policy** with the
+**LIVE ACCOUNT ACTIVATED 2026-09-01** (Stripe onboarding completed; Tax/Radar/Climate
+extras skipped — optional add-ons, revisit only if ever needed).
+1. [ ] Stripe dashboard (the PLATFORM Senior Stylist account, LIVE mode) → API keys →
+       grab `sk_live_…` and `pk_live_…` and HOLD them (don't put in Vercel yet — see the
+       one-redeploy rule below):
+       - `STRIPE_SECRET_KEY` (sk_live_…)
+       - `STRIPE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (same pk_live_ value)
+2. [ ] Developers → Webhooks → Add a **live-mode** endpoint
+       `https://portal.seniorstylist.com/api/webhooks/stripe` with **ALL THREE** events —
+       **`setup_intent.succeeded`**, **`payment_intent.succeeded`**, AND
+       **`checkout.session.completed`** (that third one records EVERY family portal payment —
+       balance, prepay, gift; a fresh live endpoint has no pre-existing selection, so missing
+       it = families charged with nothing recorded). Copy the **live** signing secret and hold
+       it with the keys → it becomes `STRIPE_WEBHOOK_SECRET`. Safe to create the endpoint
+       today; do NOT swap the secret into Vercel early (it would 400 the current test events).
+3. [ ] **ONE-REDEPLOY RULE**: swap ALL FIVE vars in a single Vercel update + one redeploy —
+       the 4 keys/secrets above **plus `PAYMENTS_LIVE_ENABLED` = `true`**. The in-between
+       state (live keys, flag off) is NOISY, not safe-idle: autopay attempts fail loudly
+       (admin "auto-charge failed" alerts + pay-link emails to families whose checkout then
+       503s), the portal keeps showing Pay/Add-card buttons that error on click, and refunds
+       go live ungated. Also verify `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com`
+       is set (two checkout routes otherwise build vercel.app return URLs).
+4. [ ] **GATE — decide the refund/cancellation policy BEFORE the flip** with the
        boss — card networks expect one displayed where cards are charged (the portal). Once
        decided, add a short section to `/terms`. This is an OWNER decision — don't let anyone
        (including Claude) invent the terms. Stripe's live-account website review is covered by
        the WordPress session list (`docs/a2p-wordpress-kit.md` Part 3) + the portal's existing
        privacy/terms pages.
+5. [ ] After the flip: one small real charge (portal balance or at-chair) → confirm the
+       `qb_payments` row + Stripe dashboard both show it → refund via the in-app Refund
+       button (note: refunds don't auto-reverse invoice applications — pick a resident with
+       no open invoices for the test, or fix the invoice by hand after).
 
-**STATUS (2026-07-12):** all 4 keys are set in **TEST** mode and the card-on-file flow works
-today (test card `4242 4242 4242 4242`). Live mode is blocked on the boss creating the
-company's **live Stripe account**. Live-mode hand-off when that exists: swap all 4 keys to the
-live values → create a **live-mode** webhook with those two events and put its **live** signing
-secret in `STRIPE_WEBHOOK_SECRET` (test/live secrets differ — a mismatch fails silently) →
-set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to confirm.
+**STATUS (2026-09-01):** live account is ACTIVE. Vercel still holds **TEST** keys (card-on-file
+works with `4242 4242 4242 4242`). Remaining before real charges: items 1–2 (grab keys, create
+the live webhook — safe today), item 4 (refund policy — the gate), then item 3's single
+redeploy and item 5's test charge. Test/live signing secrets differ — a mismatch fails
+silently (the webhook route returns 200 even on handler errors; watch Vercel logs for
+`[stripe webhook …]` lines, not the Stripe delivery dashboard).
 
 ### E2. Apple Pay on the web (P36 — 2 minutes, do with the Stripe account)
 1. [ ] Stripe dashboard → Settings → Payment methods → Apple Pay → **Add domain**
@@ -122,13 +139,11 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
        New York number for a Baltimore company; swapping to a 443/410 local number is a
        2-minute release-and-rebuy BEFORE campaign registration, and an extra re-linking step
        after. Josh's call.
-4. [ ] **Brand** (in "Continue set up"): **Low Volume Standard** ($4.50 one-time — right for
-       <2,000 segments/day; the $44 Standard tier is only for high throughput later).
-       **SANITY CHECK before submitting**: the brand must show "Senior Stylist LLC" + EIN —
-       if the driver's-license step routed to a SOLE PROPRIETOR brand (personal name, no
-       EIN), stop and redo as Low Volume Standard: sole-prop campaigns have tiny throughput
-       caps and the name won't match the business.
-5. [ ] **Campaign**: use case **Low Volume Mixed** ($15 one-time vetting + $1.50/mo).
+4. [x] **Brand** — REGISTERED (Low Volume Standard, $4.50; confirmed when the campaign
+       step unblocked ~2026-09-01). Legal name "Senior Stylist LLC" + EIN.
+5. [x] **Campaign SUBMITTED 2026-09-01 — vetting pending** (~5 business days). Use case
+       **Low Volume Mixed** ($15 one-time vetting + $1.50/mo). Watch for the approval email /
+       campaign status flipping to VERIFIED in Messaging → Regulatory Compliance.
        GOTCHA (hit 2026-08-25): the wizard lets you into the campaign step while the brand
        is still PENDING vetting and throws a generic "Error Setting Up A2P Campaign
        Registration" — nothing is lost. Wait for the brand to show REGISTERED (minutes to a
@@ -141,16 +156,23 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
        signup contact-step screenshot per the kit. Vetting ≈ up to 5 business days.
 6. [ ] **Messaging Service**: purchased number in the campaign's sender pool; Advanced
        Opt-Out ON; HELP response mentions 443-450-3344 (matches privacy policy §4).
-7. [ ] **Vercel env vars (Production) — ONLY after the campaign is APPROVED and the number
-       attached** (early = messages filtered, error 30034):
-       `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (E.164, e.g.
-       `+14435551234`), **`TWILIO_ENABLED`** = `true` (exact string) → redeploy.
-       Turns on (all pre-wired, dormant): receipt texts, day-before family reminders
-       (nightly cron), payment-request links, signup welcome, booking confirmations,
-       card-saved notices, family SMS-code login.
+7. [ ] **Vercel env vars (Production) — stage 3 NOW, flip 1 on approval.** Safe today
+       (code no-ops until the flag): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+       `TWILIO_FROM_NUMBER` = `+19174733973`. ONLY after the campaign is APPROVED and the
+       number attached (early = messages filtered, error 30034): **`TWILIO_ENABLED`** =
+       `true` (exact string) → redeploy. Turns on SEVEN pre-wired dormant features at once:
+       receipt texts, day-before family reminders (nightly cron — fans out to every
+       opted-in family with a next-day appointment, up to 100/night), payment-request
+       links, signup welcome, booking confirmations, card-saved notices, family SMS-code
+       login ("Text me a code" tab appears automatically). **Flip in the MORNING** so you
+       can test before that night's reminder cron fires.
 8. [ ] **Test** with your own phone as a REAL (non-demo) resident's POA phone at a test
-       facility — demo records deliberately never send. Send a receipt, run a phone-only
-       signup, reply STOP (should stop + confirm), then START to re-subscribe.
+       facility. PRE-FLIGHT before flipping: check no demo resident carries a real-looking
+       `poa_phone` (the manual receipt send, webhook receipt, and card-saved notice have no
+       is_demo guard — they're only safe because demo phones are fake seed data). First
+       test = manual **Send Receipt** (synchronous, returns `smsSent: true/false` on the
+       spot). Then: phone-only signup, reply STOP (should stop + confirm), then START to
+       re-subscribe, and try the login page's "Text me a code" tab.
 9. [ ] Note: this is entirely separate from the ZOOM Phone 10DLC registration for manual
        staff texts — both proceed independently; neither covers the other's numbers.
 

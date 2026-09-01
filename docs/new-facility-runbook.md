@@ -13,7 +13,7 @@ for Josh; every item is either a one-time platform step or a per-facility step.
 | `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com` | Magic-link emails build from this. (P53 added a production fallback, but set it anyway.) |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | **Without these there is NO rate limiting at all** — the signup matcher becomes guessable without bound. Required before public posters go up. |
 | `RESEND_API_KEY` + verified sender domain | Magic links, confirmations, claim notifications are all email. |
-| `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` + `TWILIO_ENABLED=true` | P55: flipping Twilio on activates THREE dormant features at once — the "Text me a code" sign-in tab, texted appointment confirmations for phone families, and the card-saved security text for phone-only families. Get a number and set all four together. |
+| `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` + `TWILIO_ENABLED=true` | Flipping Twilio on activates SEVEN dormant features at once: receipt texts, day-before family reminders (nightly cron, up to 100/night), payment-request links, signup welcome, booking confirmations, card-saved security texts, and the "Text me a code" sign-in tab. The first three vars are safe to stage early (code no-ops without the flag); flip `TWILIO_ENABLED` only after the A2P campaign is APPROVED (early = carrier-filtered, error 30034), in the morning so you can test before the reminder cron fires. Full sequence: josh-checklist §F1. |
 
 **Never set a facility-level Stripe key** in Settings → Billing — portal
 payments ignore it since P53 (it used to silently break payment recording).
