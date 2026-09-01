@@ -12,6 +12,7 @@ import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { qbGet, qbPost, qbPostSend } from '@/lib/quickbooks'
 import { recordSyncRun, type PushInvoiceRunItems } from '@/lib/qb-runs'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { recomputeFacilityBalances } from '@/lib/unapplied-apply'
 import {
   ensureQBCustomerForResident,
   ensureQBFacilityParent,
@@ -447,20 +448,9 @@ async function pushQBInvoicesInner(
     }
   }
 
-  // Fresh open invoices change outstanding balances — recompute (same SQL as
-  // the invoice pull; always derived from local rows, safe after partial runs).
-  await db.execute(sql`
-    UPDATE facilities SET qb_outstanding_balance_cents = COALESCE((
-      SELECT SUM(open_balance_cents) FROM qb_invoices
-      WHERE facility_id = ${facilityId} AND status != 'paid'
-    ), 0) WHERE id = ${facilityId}
-  `)
-  await db.execute(sql`
-    UPDATE residents SET qb_outstanding_balance_cents = COALESCE((
-      SELECT SUM(open_balance_cents) FROM qb_invoices
-      WHERE resident_id = residents.id AND status != 'paid'
-    ), 0) WHERE facility_id = ${facilityId}
-  `)
+  // Fresh open invoices change outstanding balances — recompute with the
+  // shared helper (excludes demo rows, matches every other recompute site).
+  await recomputeFacilityBalances(db, [facilityId])
 
   // Audit + undo record — "Undo" voids these invoices in QB and re-frees the bookings.
   if (runItems.length > 0) {

@@ -41,6 +41,8 @@ export interface SyncQBInvoicesResult {
    * failure reports an error and did NOT.
    */
   cursorAdvanced: boolean
+  /** Non-fatal things a human should look at (e.g. invoices with payments on BOTH sides). */
+  warnings: string[]
 }
 
 function deriveStatus(amountCents: number, openBalanceCents: number): string {
@@ -66,7 +68,7 @@ export async function syncQBInvoices(
   facilityId: string,
   options: { fullSync?: boolean; createdBy?: string | null } = {},
 ): Promise<SyncQBInvoicesResult> {
-  const result: SyncQBInvoicesResult = { created: 0, updated: 0, skipped: 0, errors: [], cursorAdvanced: false }
+  const result: SyncQBInvoicesResult = { created: 0, updated: 0, skipped: 0, errors: [], cursorAdvanced: false, warnings: [] }
   // Per-row upsert failures: they mean the window was NOT fully ingested, so
   // the cursor must not move past it (see the guarded update at the end).
   let writeFailures = 0
@@ -239,7 +241,10 @@ export async function syncQBInvoices(
           },
         })
         .returning({ id: qbInvoices.id })
-      if (existing) {
+      // `existingByNum` is keyed by invoice_num alone while the conflict target is
+      // (num, facility, date) — QB nums recur across years — so classify by the
+      // row the upsert actually touched, never by the lookup.
+      if (existing && row?.id === existing.id) {
         result.updated++
         updatedPrev.push({
           id: existing.id,
@@ -262,7 +267,13 @@ export async function syncQBInvoices(
   // every site-paid invoice back down BEFORE recomputing balances so the
   // autopay sweep can never re-charge a family for an invoice they already
   // paid here. See qb-site-payments.ts.
-  await reapplySitePayments(db, [facilityId])
+  const { ambiguous } = await reapplySitePayments(db, [facilityId])
+  if (ambiguous.length > 0) {
+    const sample = ambiguous.slice(0, 3).map((a) => `#${a.invoiceNum}`).join(', ')
+    result.warnings.push(
+      `${ambiguous.length} invoice(s) have payments recorded on BOTH the site and in QuickBooks (${sample}${ambiguous.length > 3 ? ', …' : ''}) — the site is showing the lower balance; confirm in QuickBooks`,
+    )
+  }
 
   // Balance recomputes are derived from whatever is now in our DB, so they are
   // always safe to run — even after a partial pull.
@@ -339,6 +350,7 @@ export async function syncQBInvoices(
         updated: result.updated,
         skipped: result.skipped,
         errors: result.errors.slice(0, 5),
+        warnings: result.warnings.slice(0, 5),
         cursorAdvanced: result.cursorAdvanced,
         fullSync,
       },

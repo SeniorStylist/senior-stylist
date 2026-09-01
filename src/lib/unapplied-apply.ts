@@ -110,7 +110,7 @@ export async function applyCreditToInvoices(
 }
 
 /** Recompute facility + resident outstanding balances from invoice open balances. */
-export async function recomputeFacilityBalances(tx: Tx, facilityIds: string[]): Promise<void> {
+export async function recomputeFacilityBalances(tx: Tx | typeof db, facilityIds: string[]): Promise<void> {
   for (const fid of Array.from(new Set(facilityIds))) {
     await tx.execute(sql`
       UPDATE facilities f

@@ -105,7 +105,12 @@ export async function GET(request: NextRequest) {
         // failure reports an error and did not.
         if (out.cursorAdvanced) {
           succeeded++
-          logSync(f.id, 'success', `${out.created} created, ${out.updated} updated, ${out.skipped} skipped`, out.errors[0] ?? null)
+          logSync(
+            f.id,
+            'success',
+            `${out.created} created, ${out.updated} updated, ${out.skipped} skipped${out.warnings.length ? ` · ${out.warnings[0]}` : ''}`,
+            out.errors[0] ?? null,
+          )
 
           // Chain the payment/credit pull AFTER a successful invoice pull so
           // the 06:00 autopay sweep sees fresh applied-payment data too. Its

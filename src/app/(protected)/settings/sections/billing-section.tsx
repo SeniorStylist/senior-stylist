@@ -260,11 +260,12 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
         showQbToast('err', j.error ?? 'Undo failed')
         return
       }
-      const { reversed, skipped, errors } = j.data
+      const { reversed, skipped, errors, completed } = j.data
       const bits = [`${reversed} reversed`]
       if (skipped > 0) bits.push(`${skipped} skipped`)
       if (errors.length > 0) bits.push(`${errors.length} error(s): ${errors[0]}`)
-      showQbToast(errors.length > 0 ? 'err' : 'ok', `Undo: ${bits.join(', ')}`)
+      if (!completed) bits.push('not fully undone — fix the cause and press Undo again')
+      showQbToast(completed ? 'ok' : 'err', `Undo: ${bits.join(', ')}`)
       await loadQbRuns()
       router.refresh()
     } catch {
@@ -658,6 +659,8 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
                     })
                     const confirming = qbUndoConfirmId === r.id
                     const undoing = qbUndoingId === r.id
+                    const undoErrors = (r.undoSummary?.errors as string[] | undefined) ?? []
+                    const undoIncomplete = !r.undoneAt && undoErrors.length > 0
                     return (
                       <li key={r.id} className="px-3 py-2.5 text-xs flex flex-col gap-1.5 bg-white">
                         <div className="flex items-start justify-between gap-3">
@@ -670,6 +673,11 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
                                 ? ` · undone ${new Date(r.undoneAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
                                 : ''}
                             </div>
+                            {undoIncomplete && (
+                              <div className="text-amber-700 mt-0.5">
+                                Undo didn’t finish: {undoErrors[0]} — press Undo again to retry.
+                              </div>
+                            )}
                           </div>
                           {r.undoneAt ? (
                             <span className="shrink-0 text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-500">

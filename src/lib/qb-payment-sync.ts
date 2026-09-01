@@ -24,6 +24,7 @@ import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
 import { recordSyncRun, type SyncPaymentsRunItems } from '@/lib/qb-runs'
+import { chunkArr } from '@/lib/imports/qb-csv'
 
 interface QBPayment {
   Id: string
@@ -61,12 +62,6 @@ export interface SyncQBPaymentsResult {
 
 const PAGE_SIZE = 100
 const SAFETY_CAP = 5000
-
-function chunkArr<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
-}
 
 async function pullEntity<T>(
   facilityId: string,

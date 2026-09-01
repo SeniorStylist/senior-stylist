@@ -5,9 +5,10 @@
 // - push_invoice   → VOID the pushed invoices in QuickBooks (void, not delete —
 //                    accountants keep the record) + mark local rows 'void' +
 //                    re-free the bookings. An invoice that already has money
-//                    applied (on the site or in QB) is SKIPPED and reported —
-//                    voiding a paid invoice is a bookkeeping decision, not a
-//                    button.
+//                    applied — on the site OR in QuickBooks (we read the live
+//                    Balance) — is SKIPPED and reported: voiding a paid invoice
+//                    is a bookkeeping decision, not a button. A QuickBooks error
+//                    that is NOT "not found" leaves local state untouched.
 // - sync_customers → deactivate ONLY the customers the run CREATED (matched
 //                    links are pure mappings). QB refuses to deactivate a
 //                    customer with a balance; that's reported, not forced.
@@ -19,6 +20,12 @@
 //                    amount, delete pulled-in rows that nothing references,
 //                    restore the cursor + last-synced. Site-paid clamping is
 //                    re-applied afterwards so later site payments stay honored.
+//
+// Concurrency + retry contract: the run is CLAIMED atomically (undone_at set
+// where it was NULL) before any work, so two concurrent undos can't both run.
+// If the handler finishes with errors the claim is RELEASED (undone_at back to
+// NULL, errors kept in undo_summary) so the operator can retry after fixing
+// the cause — every step is idempotent, so a retry only redoes what's left.
 //
 // Pull undos must go LIFO (newest first) — undoing an older pull under a newer
 // one would restore values the newer pull already superseded.
@@ -37,6 +44,8 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { qbGet, qbPost } from '@/lib/quickbooks'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { loadSitePaidMap, reapplySitePayments } from '@/lib/qb-site-payments'
+import { recomputeFacilityBalances } from '@/lib/unapplied-apply'
+import { chunkArr } from '@/lib/imports/qb-csv'
 import type {
   PushInvoiceRunItems,
   SyncCustomersRunItems,
@@ -50,84 +59,94 @@ export interface UndoResult {
   skipped: number
   errors: string[]
   notes: string[]
+  /** false = finished with errors; the run stays undo-able so it can be retried. */
+  completed: boolean
 }
 
-function chunkArr<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
-}
-
-async function recomputeBalances(facilityId: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE facilities SET qb_outstanding_balance_cents = COALESCE((
-      SELECT SUM(open_balance_cents) FROM qb_invoices
-      WHERE facility_id = ${facilityId} AND status != 'paid'
-    ), 0) WHERE id = ${facilityId}
-  `)
-  await db.execute(sql`
-    UPDATE residents SET qb_outstanding_balance_cents = COALESCE((
-      SELECT SUM(open_balance_cents) FROM qb_invoices
-      WHERE resident_id = residents.id AND status != 'paid'
-    ), 0) WHERE facility_id = ${facilityId}
-  `)
-}
+const QB_NOT_FOUND_RE = /\b404\b|Object Not Found|"code"\s*:\s*"610"|\b610\b/i
 
 export async function undoSyncRun(runId: string, userId: string): Promise<UndoResult> {
   await ensureQbSafetySchema()
   const run = await db.query.qbSyncRuns.findFirst({ where: eq(qbSyncRuns.id, runId) })
   if (!run) throw new Error('Run not found')
-  if (run.undoneAt) throw new Error('This run was already undone')
   const facilityId = run.facilityId
-  const result: UndoResult = { action: run.action, reversed: 0, skipped: 0, errors: [], notes: [] }
-
-  // LIFO guard for pulls.
-  if (run.action === 'sync_invoices' || run.action === 'sync_payments') {
-    const newer = await db.query.qbSyncRuns.findFirst({
-      where: and(
-        eq(qbSyncRuns.facilityId, facilityId),
-        eq(qbSyncRuns.action, run.action),
-        isNull(qbSyncRuns.undoneAt),
-        sql`${qbSyncRuns.startedAt} > ${run.startedAt.toISOString()}::timestamptz`,
-      ),
-      orderBy: desc(qbSyncRuns.startedAt),
-      columns: { id: true, startedAt: true },
-    })
-    if (newer) {
-      throw new Error('A newer sync of the same kind ran after this one — undo that one first (newest to oldest)')
-    }
+  const result: UndoResult = {
+    action: run.action,
+    reversed: 0,
+    skipped: 0,
+    errors: [],
+    notes: [],
+    completed: false,
   }
 
-  switch (run.action) {
-    case 'push_invoice':
-      await undoPushInvoice(facilityId, run.items as unknown as PushInvoiceRunItems, result)
-      break
-    case 'sync_customers':
-      await undoSyncCustomers(facilityId, run.items as unknown as SyncCustomersRunItems, result)
-      break
-    case 'sync_payments':
-      await undoSyncPayments(facilityId, run.items as unknown as SyncPaymentsRunItems, result)
-      break
-    case 'sync_invoices':
-      await undoSyncInvoices(facilityId, run.items as unknown as SyncInvoicesRunItems, result)
-      break
-    default:
-      throw new Error(`Undo is not supported for ${run.action}`)
-  }
-
-  await db
+  // Atomic claim — the only guard that holds under a double-submit.
+  const claimed = await db
     .update(qbSyncRuns)
-    .set({
-      undoneAt: new Date(),
-      undoneBy: userId,
-      undoSummary: {
-        reversed: result.reversed,
-        skipped: result.skipped,
-        errors: result.errors.slice(0, 10),
-        notes: result.notes.slice(0, 10),
-      },
-    })
-    .where(eq(qbSyncRuns.id, runId))
+    .set({ undoneAt: new Date(), undoneBy: userId })
+    .where(and(eq(qbSyncRuns.id, runId), isNull(qbSyncRuns.undoneAt)))
+    .returning({ id: qbSyncRuns.id })
+  if (claimed.length === 0) throw new Error('This run was already undone (or an undo is in progress)')
+
+  const release = async (summary?: Record<string, unknown>) => {
+    await db
+      .update(qbSyncRuns)
+      .set({ undoneAt: null, undoneBy: null, ...(summary ? { undoSummary: summary } : {}) })
+      .where(eq(qbSyncRuns.id, runId))
+  }
+
+  try {
+    // LIFO guard for pulls.
+    if (run.action === 'sync_invoices' || run.action === 'sync_payments') {
+      const newer = await db.query.qbSyncRuns.findFirst({
+        where: and(
+          eq(qbSyncRuns.facilityId, facilityId),
+          eq(qbSyncRuns.action, run.action),
+          isNull(qbSyncRuns.undoneAt),
+          sql`${qbSyncRuns.startedAt} > ${run.startedAt.toISOString()}::timestamptz`,
+        ),
+        orderBy: desc(qbSyncRuns.startedAt),
+        columns: { id: true },
+      })
+      if (newer) {
+        throw new Error('A newer sync of the same kind ran after this one — undo that one first (newest to oldest)')
+      }
+    }
+
+    switch (run.action) {
+      case 'push_invoice':
+        await undoPushInvoice(facilityId, run.items as unknown as PushInvoiceRunItems, result)
+        break
+      case 'sync_customers':
+        await undoSyncCustomers(facilityId, run.items as unknown as SyncCustomersRunItems, result)
+        break
+      case 'sync_payments':
+        await undoSyncPayments(facilityId, run.items as unknown as SyncPaymentsRunItems, result)
+        break
+      case 'sync_invoices':
+        await undoSyncInvoices(facilityId, run.items as unknown as SyncInvoicesRunItems, result)
+        break
+      default:
+        throw new Error(`Undo is not supported for ${run.action}`)
+    }
+  } catch (err) {
+    await release().catch(() => {})
+    throw err
+  }
+
+  const summary = {
+    reversed: result.reversed,
+    skipped: result.skipped,
+    errors: result.errors.slice(0, 10),
+    notes: result.notes.slice(0, 10),
+    at: new Date().toISOString(),
+  }
+  result.completed = result.errors.length === 0
+  if (result.completed) {
+    await db.update(qbSyncRuns).set({ undoSummary: summary }).where(eq(qbSyncRuns.id, runId))
+  } else {
+    // Keep it retryable: release the claim but remember what went wrong.
+    await release(summary)
+  }
 
   return result
 }
@@ -152,30 +171,47 @@ async function undoPushInvoice(
     const label = item.residentName ?? 'facility invoice'
     const local = localById.get(item.localInvoiceId)
     if (local?.status === 'void') {
-      result.skipped++
+      result.skipped++ // already reversed (a retry)
       continue
     }
-    // Money already applied (site or QB) → not a button decision.
+    // Money already applied on the site → not a button decision.
     if ((sitePaid.get(item.localInvoiceId) ?? 0) > 0 || (local && local.openBalanceCents < local.amountCents)) {
       result.skipped++
-      result.notes.push(`${label}: payment already applied — void it manually in QuickBooks if needed`)
+      result.notes.push(`${label}: a payment is already applied on the site — void it manually in QuickBooks if needed`)
       continue
     }
+
+    // Fetch the live QB invoice: SyncToken for the void call, and Balance to
+    // catch payments applied INSIDE QuickBooks that the site can't see while
+    // the invoice pull is flag-gated. Only a definite "not found" falls
+    // through to local cleanup; any other QB error leaves state untouched.
+    let qb: { SyncToken: string; Balance?: number; TotalAmt?: number } | null = null
     try {
-      let syncToken: string | null = null
-      try {
-        const got = await qbGet<{ Invoice: { Id: string; SyncToken: string } }>(
-          facilityId,
-          `/invoice/${item.qbInvoiceId}?minorversion=65`,
-        )
-        syncToken = got.Invoice?.SyncToken ?? null
-      } catch (err) {
-        result.notes.push(`${label}: not found in QuickBooks (already deleted?) — cleaned up locally`)
+      const got = await qbGet<{ Invoice: { Id: string; SyncToken: string; Balance?: number; TotalAmt?: number } }>(
+        facilityId,
+        `/invoice/${item.qbInvoiceId}?minorversion=65`,
+      )
+      qb = got.Invoice ?? null
+    } catch (err) {
+      const msg = (err as Error).message ?? ''
+      if (QB_NOT_FOUND_RE.test(msg)) {
+        result.notes.push(`${label}: no longer exists in QuickBooks — cleaned up locally`)
+      } else {
+        result.errors.push(`${label}: could not reach QuickBooks — ${msg.slice(0, 150)}`)
+        continue
       }
-      if (syncToken !== null) {
+    }
+    if (qb && typeof qb.Balance === 'number' && typeof qb.TotalAmt === 'number' && qb.Balance < qb.TotalAmt) {
+      result.skipped++
+      result.notes.push(`${label}: a payment is applied to it in QuickBooks — void it manually there if needed`)
+      continue
+    }
+
+    try {
+      if (qb) {
         await qbPost(facilityId, '/invoice?operation=void&minorversion=65', {
           Id: item.qbInvoiceId,
-          SyncToken: syncToken,
+          SyncToken: qb.SyncToken,
         })
       }
       await db
@@ -195,7 +231,7 @@ async function undoPushInvoice(
       result.errors.push(`${label}: ${(err as Error).message?.slice(0, 200)}`)
     }
   }
-  await recomputeBalances(facilityId)
+  await recomputeFacilityBalances(db, [facilityId])
 }
 
 // ── sync_customers ───────────────────────────────────────────────────────
@@ -206,7 +242,18 @@ async function undoSyncCustomers(
   result: UndoResult,
 ): Promise<void> {
   const created = items?.createdLinks ?? []
+  if (created.length === 0) return
+  const stillLinked = await db.query.qbCustomerLinks.findMany({
+    where: inArray(qbCustomerLinks.id, created.map((c) => c.linkId)),
+    columns: { id: true },
+  })
+  const liveLinkIds = new Set(stillLinked.map((l) => l.id))
+
   for (const link of created) {
+    if (!liveLinkIds.has(link.linkId)) {
+      result.skipped++ // already reversed (a retry)
+      continue
+    }
     const label = link.displayName ?? link.qbCustomerId
     try {
       const got = await qbGet<{ Customer: { Id: string; SyncToken: string } }>(
@@ -382,7 +429,7 @@ async function undoSyncInvoices(
       .where(eq(facilities.id, facilityId))
 
     await reapplySitePayments(db, [facilityId])
-    await recomputeBalances(facilityId)
+    await recomputeFacilityBalances(db, [facilityId])
   } catch (err) {
     result.errors.push(`Invoice undo stopped: ${(err as Error).message?.slice(0, 200)}`)
   }

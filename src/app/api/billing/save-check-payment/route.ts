@@ -11,6 +11,8 @@ import {
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { calculateRevShare } from '@/lib/rev-share'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { recordSitePaid } from '@/lib/qb-site-payments'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
@@ -253,6 +255,7 @@ export async function POST(request: NextRequest) {
     // Collect residentIds whose balances we'll recompute after the transaction
     const residentsToRecompute = new Set<string>()
 
+    await ensureQbSafetySchema() // before the tx — recordSitePaid writes inside it
     const paymentIds = await db.transaction(async (tx) => {
       const inserted: string[] = []
 
@@ -445,6 +448,18 @@ export async function POST(request: NextRequest) {
         body.matchedInvoiceIds &&
         body.matchedInvoiceIds.length > 0
       ) {
+        // Site-paid protection (P58): record what this check retired so the
+        // nightly QB pull can't re-open these invoices before the bookkeeper
+        // enters the same check in QuickBooks.
+        const matched = await tx
+          .select({ id: qbInvoices.id, openBalanceCents: qbInvoices.openBalanceCents })
+          .from(qbInvoices)
+          .where(
+            and(
+              inArray(qbInvoices.id, body.matchedInvoiceIds),
+              eq(qbInvoices.facilityId, body.facilityId),
+            ),
+          )
         await tx
           .update(qbInvoices)
           .set({ openBalanceCents: 0, status: 'paid' })
@@ -454,6 +469,9 @@ export async function POST(request: NextRequest) {
               eq(qbInvoices.facilityId, body.facilityId),
             ),
           )
+        for (const inv of matched) {
+          await recordSitePaid(tx, inv.id, inv.openBalanceCents)
+        }
       }
 
       // 6. Recompute facility balance from qb_invoices
