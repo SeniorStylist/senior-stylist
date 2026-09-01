@@ -169,8 +169,15 @@ Full form answers + paste copy in **`docs/a2p-wordpress-kit.md`**:
 4. [ ] WordPress — STILL REQUIRED until confirmed the request-form submitters are only ever
        CALLED (Josh 2026-08-19: "not sure"): add the SMS disclosure line below the Individual
        Services Request form's submit button (exact text in the kit).
-5. [ ] WordPress — fix the phone typo on the request page body: (800) 979-7759 →
-       **800.979.3759** (customer-facing; the footer's number is correct).
+5. [ ] **WordPress — phone typo is now a BOSS-FLAGGED PRE-ADVERTISING BLOCKER (2026-08-25)**:
+       a social-media agency spotted the two conflicting numbers and the boss wants it
+       confirmed + fixed before any ad spend. Fix: on `/individual-services-request/`, change
+       (800) 979-7759 → **800.979.3759**. Confirmation (30 seconds, beats all web evidence):
+       call both numbers — 800.979.3759 should reach Senior Stylist; (800) 979-7759 will
+       reach a stranger or dead air, meaning request-page callers have been lost for as long
+       as the typo has been up. Repo side verified consistent (portal shows only 800.979.3759
+       + the 443 support line; 7759 appears nowhere in the app). A forward-ready email draft
+       for whoever holds WordPress access is in Josh's Gmail drafts.
 6. [ ] WordPress — OPTIONAL: patch the WP privacy page with the kit's two paragraphs (out of
        the reviewer's path once the footer links the portal policy).
 7. [ ] Merge/deploy the `claude/campaign-privacy-sms-compliance-35mru1` branch BEFORE
