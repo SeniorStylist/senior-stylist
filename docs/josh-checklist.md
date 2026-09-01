@@ -86,21 +86,26 @@ extras skipped — optional add-ons, revisit only if ever needed).
        one-redeploy rule below):
        - `STRIPE_SECRET_KEY` (sk_live_…)
        - `STRIPE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (same pk_live_ value)
-2. [ ] Developers → Webhooks → Add a **live-mode** endpoint
+2. [x] **DONE 2026-09-01** — live-mode endpoint created at
        `https://portal.seniorstylist.com/api/webhooks/stripe` with **ALL THREE** events —
        **`setup_intent.succeeded`**, **`payment_intent.succeeded`**, AND
        **`checkout.session.completed`** (that third one records EVERY family portal payment —
        balance, prepay, gift; a fresh live endpoint has no pre-existing selection, so missing
-       it = families charged with nothing recorded). Copy the **live** signing secret and hold
-       it with the keys → it becomes `STRIPE_WEBHOOK_SECRET`. Safe to create the endpoint
-       today; do NOT swap the secret into Vercel early (it would 400 the current test events).
-3. [ ] **ONE-REDEPLOY RULE**: swap ALL FIVE vars in a single Vercel update + one redeploy —
-       the 4 keys/secrets above **plus `PAYMENTS_LIVE_ENABLED` = `true`**. The in-between
-       state (live keys, flag off) is NOISY, not safe-idle: autopay attempts fail loudly
-       (admin "auto-charge failed" alerts + pay-link emails to families whose checkout then
-       503s), the portal keeps showing Pay/Add-card buttons that error on click, and refunds
-       go live ungated. Also verify `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com`
-       is set (two checkout routes otherwise build vercel.app return URLs).
+       it = families charged with nothing recorded). **The live `whsec_` is ALREADY in Vercel
+       `STRIPE_WEBHOOK_SECRET`** (Josh staged it early — assessed benign: it only takes effect
+       on the next deploy, and then only breaks TEST-mode webhook recording, which nothing
+       real depends on since real cards decline on test keys. Left in place. Caveat until
+       flip: test-card portal-payment demos won't record in billing.)
+3. [ ] **ONE-REDEPLOY RULE (now 4 vars)**: swap the remaining FOUR vars in a single Vercel
+       update + one redeploy — `STRIPE_SECRET_KEY` (sk_live_), `STRIPE_PUBLISHABLE_KEY` +
+       `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (pk_live_), **plus `PAYMENTS_LIVE_ENABLED` =
+       `true`** (webhook secret already staged). **`sk_live_` is the var that must NEVER go
+       in early** — the in-between state (live secret key, flag off) is NOISY, not safe-idle:
+       autopay attempts fail loudly (admin "auto-charge failed" alerts + pay-link emails to
+       families whose checkout then 503s), the portal keeps showing Pay/Add-card buttons that
+       error on click, and refunds go live ungated. Also verify
+       `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com` is set (two checkout routes
+       otherwise build vercel.app return URLs).
 4. [ ] **GATE — decide the refund/cancellation policy BEFORE the flip** with the
        boss — card networks expect one displayed where cards are charged (the portal). Once
        decided, add a short section to `/terms`. This is an OWNER decision — don't let anyone
@@ -112,12 +117,12 @@ extras skipped — optional add-ons, revisit only if ever needed).
        button (note: refunds don't auto-reverse invoice applications — pick a resident with
        no open invoices for the test, or fix the invoice by hand after).
 
-**STATUS (2026-09-01):** live account is ACTIVE. Vercel still holds **TEST** keys (card-on-file
-works with `4242 4242 4242 4242`). Remaining before real charges: items 1–2 (grab keys, create
-the live webhook — safe today), item 4 (refund policy — the gate), then item 3's single
-redeploy and item 5's test charge. Test/live signing secrets differ — a mismatch fails
-silently (the webhook route returns 200 even on handler errors; watch Vercel logs for
-`[stripe webhook …]` lines, not the Stripe delivery dashboard).
+**STATUS (2026-09-01):** live account ACTIVE; Apple Pay domain registered; live webhook
+created (3 events) and its live `whsec_` already staged in Vercel. Vercel still holds **TEST**
+API keys. Remaining before real charges: item 1 (grab + hold sk_live/pk_live), item 4 (refund
+policy — the gate), then item 3's single redeploy (4 vars) and item 5's test charge. The
+webhook route returns 200 even on handler errors — after go-live, watch Vercel logs for
+`[stripe webhook …]` lines, not the Stripe delivery dashboard.
 
 ### E2. Apple Pay on the web (P36 — 2 minutes, do with the Stripe account)
 1. [x] **DONE 2026-09-01 on the LIVE account** — Settings → Payments → Payment method
