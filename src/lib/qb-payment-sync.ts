@@ -68,6 +68,9 @@ export interface EntityPull<T> {
   rows: T[]
   fetchFailed: boolean
   capped: boolean
+  /** Newest LastUpdatedTime across EVERY fetched row (pre-routing) — a capped
+   *  pull's true coverage, valid even for a facility that owned none of them. */
+  watermark: string | null
 }
 
 /** A realm-wide payment + credit-memo pull several facilities can apply (qb-realm-sync.ts). */
@@ -135,7 +138,11 @@ async function pullEntity<T>(
       break
     }
   }
-  return { rows, fetchFailed, capped }
+  const watermark = (rows as Array<{ MetaData?: { LastUpdatedTime?: string } }>).reduce<string | null>((max, row) => {
+    const t = row.MetaData?.LastUpdatedTime
+    return t && (!max || t > max) ? t : max
+  }, null)
+  return { rows, fetchFailed, capped, watermark }
 }
 
 export async function syncQBPayments(
@@ -524,12 +531,11 @@ export async function syncQBPayments(
   // only its newest ingested LastUpdatedTime. Taking the combined max would
   // let a small complete CreditMemo pull drag the cursor past thousands of
   // unfetched payments.
-  const coverageOf = (pull: { rows: Array<{ MetaData?: { LastUpdatedTime?: string } }>; capped: boolean }): string | null => {
+  const coverageOf = (pull: { capped: boolean; watermark: string | null }): string | null => {
     if (!pull.capped) return new Date().toISOString()
-    return pull.rows.reduce<string | null>((max, row) => {
-      const t = row.MetaData?.LastUpdatedTime
-      return t && (!max || t > max) ? t : max
-    }, null) // null → stay put rather than guess
+    // The pull's watermark covers every fetched row (the whole realm in a
+    // shared pull); null → stay put rather than guess.
+    return pull.watermark
   }
   let nextCursor: string | null = null
   if (!fetchFailed && writeFailures === 0) {

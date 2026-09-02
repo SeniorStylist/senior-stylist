@@ -70,6 +70,11 @@ export interface PrefetchedInvoices {
   fetchFailed: boolean
   capped: boolean
   errors: string[]
+  /** Newest LastUpdatedTime across EVERY fetched row (before per-facility
+   *  routing). A capped pull may advance a facility's cursor to here even when
+   *  none of the fetched rows were its own — everything up to this instant was
+   *  seen. */
+  watermark: string | null
 }
 
 const PAGE_SIZE = 100
@@ -81,7 +86,7 @@ const SAFETY_CAP = 5000
  * Facility-agnostic — the token is the realm's; callers scope the rows.
  */
 export async function fetchQBInvoices(facilityId: string, cursor: string | null): Promise<PrefetchedInvoices> {
-  const out: PrefetchedInvoices = { rows: [], fetchFailed: false, capped: false, errors: [] }
+  const out: PrefetchedInvoices = { rows: [], fetchFailed: false, capped: false, errors: [], watermark: null }
   const whereClause = cursor ? ` WHERE Metadata.LastUpdatedTime > ${qbQuoteLiteral(cursor)}` : ''
   let startPosition = 1
   while (true) {
@@ -105,6 +110,10 @@ export async function fetchQBInvoices(facilityId: string, cursor: string | null)
       break
     }
   }
+  out.watermark = out.rows.reduce<string | null>((max, inv) => {
+    const t = inv.MetaData?.LastUpdatedTime
+    return t && (!max || t > max) ? t : max
+  }, null)
   return out
 }
 
@@ -341,11 +350,9 @@ export async function syncQBInvoices(
   let nextCursor: string | null = null
   if (!fetchFailed && writeFailures === 0) {
     if (capped) {
-      const newest = allInvoices.reduce<string | null>((max, inv) => {
-        const t = inv.MetaData?.LastUpdatedTime
-        return t && (!max || t > max) ? t : max
-      }, null)
-      nextCursor = newest // null → stay put rather than guess
+      // The pull's watermark covers every fetched row (the whole realm in a
+      // shared pull) — safe to advance to even when none were this facility's.
+      nextCursor = pull.watermark // null → stay put rather than guess
     } else {
       nextCursor = new Date().toISOString()
     }

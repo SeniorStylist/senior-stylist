@@ -215,6 +215,10 @@ export async function setCompanyName(realmId: string, companyName: string): Prom
 
 type TokenRow = { access_token: string | null; refresh_token: string | null; token_expires_at: Date | string | null }
 
+/** After a failed refresh, don't hammer Intuit with the same dead token on
+ *  every request — surface the stored error for this long instead. */
+const FAILED_REFRESH_BACKOFF_MS = 60_000
+
 function isFresh(row: TokenRow): boolean {
   if (!row.access_token || !row.token_expires_at) return false
   const t = new Date(row.token_expires_at).getTime()
@@ -241,11 +245,12 @@ export function getAccessToken(realmId: string): Promise<string> {
 
 async function doGetAccessToken(realmId: string): Promise<string> {
   await ensureQbConnectionsSchema()
-  const readRow = async (): Promise<TokenRow & { revoked_at: Date | string | null }> => {
+  type Row = TokenRow & { revoked_at: Date | string | null; last_error: string | null; updated_at: Date | string | null }
+  const readRow = async (): Promise<Row> => {
     const rows = (await db.execute(sql`
-      SELECT access_token, refresh_token, token_expires_at, revoked_at
+      SELECT access_token, refresh_token, token_expires_at, revoked_at, last_error, updated_at
       FROM qb_connections WHERE realm_id = ${realmId}
-    `)) as unknown as Array<TokenRow & { revoked_at: Date | string | null }>
+    `)) as unknown as Row[]
     const row = rows[0]
     if (!row || !row.refresh_token || row.revoked_at) throw new Error('QuickBooks not connected')
     return row
@@ -253,6 +258,10 @@ async function doGetAccessToken(realmId: string): Promise<string> {
 
   const first = await readRow()
   if (isFresh(first)) return decryptToken(first.access_token!)
+  if (first.last_error && first.updated_at && Date.now() - new Date(first.updated_at).getTime() < FAILED_REFRESH_BACKOFF_MS) {
+    // Same wording the status route maps to "reconnect_needed".
+    throw new Error(`QB token refresh failed recently: ${first.last_error}`)
+  }
 
   const deadline = Date.now() + LEASE_WAIT_MS
   while (true) {
@@ -425,11 +434,30 @@ export async function disconnectRealm(realmId: string): Promise<{ detached: numb
     where: eq(qbConnections.realmId, realmId),
     columns: { refreshToken: true },
   })
-  const attached = await db.query.facilities.findMany({
-    where: eq(facilities.qbRealmId, realmId),
-    columns: { id: true },
-  })
-  for (const f of attached) await detachFacility(f.id)
+  // Detach every attached facility in TWO statements (never a per-facility
+  // loop — max:1 pool; a 100-facility realm would be 200 round-trips).
+  const detached = await db
+    .update(facilities)
+    .set({
+      qbRealmId: null,
+      qbAccessToken: null,
+      qbRefreshToken: null,
+      qbTokenExpiresAt: null,
+      qbExpenseAccountId: null,
+      qbInvoicesSyncCursor: null,
+      qbInvoicesLastSyncedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(facilities.qbRealmId, realmId))
+    .returning({ id: facilities.id })
+  if (detached.length > 0) {
+    await db
+      .execute(sql`
+        UPDATE qb_sync_state SET payments_sync_cursor = NULL, payments_last_synced_at = NULL, updated_at = now()
+        WHERE facility_id IN (${sql.join(detached.map((d) => sql`${d.id}::uuid`), sql`, `)})
+      `)
+      .catch(() => {})
+  }
   await db
     .update(qbConnections)
     .set({
@@ -452,7 +480,7 @@ export async function disconnectRealm(realmId: string): Promise<{ detached: numb
       console.error('[qb-connection] revoke failed (non-fatal):', err)
     }
   }
-  return { detached: attached.length }
+  return { detached: detached.length }
 }
 
 /** Facilities attached to a realm (id, name, code) — for the attach UI + realm sync. */
