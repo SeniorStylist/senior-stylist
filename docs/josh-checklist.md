@@ -260,6 +260,13 @@ exist on `/login`, `/family`, and every family page footer.
        protection so a synced invoice can never re-charge a card) and `qb_sync_runs`
        (the Undo ledger behind Settings → QuickBooks → Sync history). Self-bootstrapped
        by the app too, but apply it before connecting a facility.
+3c. [ ] Apply the payment-mirroring migration in prod (Supabase SQL Editor):
+       `drizzle/0045_qb_payment_mirror.sql` — creates `qb_payment_mirror_queue` and adds
+       one column to `qb_sync_state`. This is what makes card payments collected on the
+       site (card on file, in-app, family portal) show up in QuickBooks automatically as
+       payments applied to the same invoices. Self-bootstrapped too; expect
+       "Success. No rows returned". Optional kill switch: `QB_PAYMENT_MIRROR_ENABLED=false`
+       in Vercel pauses the writes (queued payments mirror when it's removed).
 4. [ ] Per connected facility, once: Settings → Billing & Payments → QuickBooks →
        **Sync Customers**. Links residents to their QuickBooks customers (numeric IDs)
        and creates missing sub-customers under the facility parent — after this,

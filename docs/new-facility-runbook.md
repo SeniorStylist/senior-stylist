@@ -60,8 +60,10 @@ master (or a bookkeeper) does 1–4 BEFORE handing over logins:
    pick the **Expense Account** (required before payroll can push) → **Test
    connection** (must show "✓ Connected to {company}") → **Sync Customers**
    (links residents to QB customers, creates missing sub-customers). After
-   that: payroll pushes as Bills, Send via QB creates invoices, and — once
-   `QB_INVOICE_SYNC_ENABLED` is on — invoices/payments pull nightly.
+   that: payroll pushes as Bills, Send via QB creates invoices, card payments
+   collected on the site are recorded in QuickBooks automatically against the
+   same invoices, and — once `QB_INVOICE_SYNC_ENABLED` is on — invoices/payments
+   pull nightly.
 
 ## 3b. Fitzgerald of Palisades — charge-after-each-service (P54)
 

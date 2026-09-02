@@ -23,6 +23,7 @@ import { formatMoney } from '@/lib/format'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { recordSitePaid } from '@/lib/qb-site-payments'
+import { enqueuePaymentMirror, mirrorPaymentSoon, type MirrorAllocation } from '@/lib/qb-payment-mirror'
 import { getPlatformStripe, platformStripeKey, paymentsLiveEnabled } from './stripe-client'
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -73,15 +74,17 @@ export type CollectResult =
     }
   | { ok: false; code: CollectFailureCode; reason: string; salonCents: number }
 
-/** FIFO-apply `cents` of new money to the resident's open invoices (capped at `cents`). */
+/** FIFO-apply `cents` of new money to the resident's open invoices (capped at `cents`).
+ *  Returns the applied total + per-invoice allocations (fed to the QB payment mirror). */
 async function applyCentsToOpenInvoices(
   tx: Tx,
   residentId: string,
   cents: number,
   invoiceIds: string[] | undefined,
   stripePaymentIntentId: string | null,
-): Promise<number> {
-  if (cents <= 0) return 0
+): Promise<{ applied: number; allocations: MirrorAllocation[] }> {
+  const allocations: MirrorAllocation[] = []
+  if (cents <= 0) return { applied: 0, allocations }
   const where = invoiceIds && invoiceIds.length
     ? and(eq(qbInvoices.residentId, residentId), inArray(qbInvoices.id, invoiceIds), gt(qbInvoices.openBalanceCents, 0))
     : and(eq(qbInvoices.residentId, residentId), gt(qbInvoices.openBalanceCents, 0))
@@ -108,9 +111,10 @@ async function applyCentsToOpenInvoices(
       .where(eq(qbInvoices.id, inv.id))
     // Site-paid protection: the nightly QB pull must never re-open this.
     await recordSitePaid(tx, inv.id, take)
+    allocations.push({ invoiceId: inv.id, cents: take })
     remaining -= take
   }
-  return cents - remaining
+  return { applied: cents - remaining, allocations }
 }
 
 /** Draw up to `capCents` of prepaid salon-account credit against open invoices (FIFO). */
@@ -408,7 +412,18 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
         })
         .returning({ id: qbPayments.id })
       paymentId = row.id
-      const applied = await applyCentsToOpenInvoices(tx, resident.id, remaining, opts.invoiceIds, paymentIntentId)
+      const { applied, allocations } = await applyCentsToOpenInvoices(tx, resident.id, remaining, opts.invoiceIds, paymentIntentId)
+      // QB mirror: queue the applied portion so the same payment lands in
+      // QuickBooks against the same invoices (written AFTER this tx commits).
+      await enqueuePaymentMirror(tx, {
+        paymentId: row.id,
+        facilityId: resident.facilityId,
+        residentId: resident.id,
+        amountCents: remaining,
+        allocations,
+        source: opts.recordedVia === 'stylist_collect' ? 'stylist_collect' : opts.recordedVia === 'manual' ? 'manual' : 'auto_charge',
+        stripePaymentIntentId: paymentIntentId,
+      })
       // Safeguard (2026-07-07): never orphan captured money. If part of the charge
       // had no open invoice to land on (e.g. on-completion before the QB invoice
       // exists), bank it as a salon-account credit — future collects draw it FIRST
@@ -435,6 +450,10 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
     // payment exists in Stripe and can be reconciled from the dashboard.
     console.error('[payments.collect] DB write after successful charge failed:', err, { paymentIntentId })
   }
+
+  // Mirror into QuickBooks now (bounded wait; the nightly cron finishes any
+  // row this didn't). Outside the tx — never a network call inside one.
+  if (paymentId) await mirrorPaymentSoon(paymentId)
 
   // Safeguard (2026-07-07): every card-on-file charge sends the payor a receipt —
   // an automatic charge must never be silent. Fire-and-forget.

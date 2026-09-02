@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Paid means paid: an invoice a family already paid on the site (card, in-app, family portal, or salon credit) can no longer be re-opened by a QuickBooks sync — so the nightly automatic charge can never bill a card twice for the same visit',
       'Send via QB now skips residents on card-on-file autopay (they\'re charged on the site, not invoiced through QuickBooks) and tells you how many it skipped',
       'New Sync history in Settings → Billing & Payments → QuickBooks: every sync and every Send via QB is listed with a one-tap Undo — invoices are voided in QuickBooks (never deleted), anything already paid is left alone, and pulled payments or credits can be rewound',
+      'Card payments collected on the site now show up in QuickBooks by themselves: every card-on-file charge, in-app card payment, and family-portal payment is recorded in QuickBooks as a payment applied to the same invoice (never twice — it checks QuickBooks first and caps at what the invoice still owes), and refunding one from the site voids it in QuickBooks too',
     ],
   },
   {

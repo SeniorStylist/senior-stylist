@@ -25,6 +25,7 @@ import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
 import { recordSyncRun, type SyncPaymentsRunItems } from '@/lib/qb-runs'
 import { chunkArr } from '@/lib/imports/qb-csv'
+import { loadMirrorRefs } from '@/lib/qb-payment-mirror'
 
 interface QBPayment {
   Id: string
@@ -205,6 +206,11 @@ export async function syncQBPayments(
     .where(and(eq(qbPayments.facilityId, facilityId), eq(qbPayments.isDemo, false)))
 
   const byQbId = new Map(existingRows.filter((p) => p.qbPaymentId).map((p) => [p.qbPaymentId as string, p]))
+  const rowById = new Map(existingRows.map((p) => [p.id, p]))
+  // Site-originated payments the mirror wrote INTO QuickBooks (PaymentRefNum
+  // = queue ref). If the mirror created the QB payment but didn't finalize
+  // locally (crash), the pull must STAMP the site row, never insert a twin.
+  const mirrorRefs = await loadMirrorRefs(facilityId).catch(() => new Map<string, { paymentId: string; status: string }>())
   // Pool ONLY rows with no qb_payment_id — a row already tied to a different
   // QB payment is a different payment and must never be claimed.
   const pool = new Map<string, { id: string; memo: string | null }[]>()
@@ -266,6 +272,25 @@ export async function syncQBPayments(
       } else {
         result.skipped++
       }
+      continue
+    }
+
+    const mirror = p.PaymentRefNum ? mirrorRefs.get(p.PaymentRefNum) : undefined
+    if (mirror) {
+      const siteRow = rowById.get(mirror.paymentId)
+      if (siteRow && !siteRow.qbPaymentId) {
+        toUpdate.push({
+          id: siteRow.id,
+          residentId: null,
+          qbCustomerId: null,
+          memo: null,
+          qbPaymentId: p.Id,
+          amountCents: null,
+          paymentDate: null,
+        })
+        undo.stamped.push({ id: siteRow.id, memoWasNull: !siteRow.memo })
+      }
+      result.skipped++
       continue
     }
 

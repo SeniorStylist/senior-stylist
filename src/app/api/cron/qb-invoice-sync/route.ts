@@ -24,6 +24,7 @@ import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { syncQBInvoices } from '@/lib/qb-invoice-sync'
 import { syncQBPayments } from '@/lib/qb-payment-sync'
+import { processPaymentMirrorQueue } from '@/lib/qb-payment-mirror'
 import { notifyManyUsers } from '@/lib/notify'
 import { sendEmail, buildQBSyncFailureEmailHtml } from '@/lib/email'
 
@@ -89,9 +90,20 @@ export async function GET(request: NextRequest) {
     let created = 0
     let updated = 0
     let skipped = 0
+    let mirrored = 0
     const failures: { facilityId: string; name: string; message: string }[] = []
 
     for (const f of eligible) {
+      // Finish any site→QB payment mirrors FIRST, so the invoice pull below
+      // sees QuickBooks balances that already include the site's money
+      // (and the site-paid clamp has been released for them). Each mirror
+      // logs its own success/error row; a throw here never blocks the pull.
+      try {
+        const m = await processPaymentMirrorQueue(f.id, 25)
+        mirrored += m.done
+      } catch (err) {
+        console.error(`[cron/qb-invoice-sync] mirror queue for ${f.id} threw:`, err)
+      }
       try {
         // Never fullSync from the cron — it ignores the cursor and pulls up to
         // 5000 invoices per facility. Full re-syncs stay operator-initiated.
@@ -203,6 +215,7 @@ export async function GET(request: NextRequest) {
         created,
         updated,
         skipped,
+        mirrored,
         capped,
         notified,
         emailSent,

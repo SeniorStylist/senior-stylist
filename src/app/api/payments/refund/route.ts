@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     const payment = await db.query.qbPayments.findFirst({
       where: eq(qbPayments.id, parsed.data.paymentId),
-      columns: { id: true, facilityId: true, amountCents: true, stripePaymentIntentId: true, memo: true },
+      columns: { id: true, facilityId: true, amountCents: true, stripePaymentIntentId: true, memo: true, qbPaymentId: true },
     })
     if (!payment) return Response.json({ error: 'Payment not found' }, { status: 404 })
 
@@ -75,12 +75,27 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(qbPayments.id, payment.id))
 
+    // If this payment was mirrored into QuickBooks, void it there too so the
+    // books match (QB re-opens the invoice; the next nightly pull reflects
+    // that on the site). Best-effort — the refund already happened.
+    let qbNote = ''
+    if (payment.qbPaymentId) {
+      const { voidMirroredPayment } = await import('@/lib/qb-payment-mirror')
+      const v = await voidMirroredPayment(payment.facilityId, payment.qbPaymentId)
+      qbNote = v.ok
+        ? ' The matching QuickBooks payment was voided.'
+        : ` Could not void the matching QuickBooks payment (${v.error ?? 'error'}) — void it in QuickBooks by hand.`
+    }
+
     revalidateTag('billing', {})
 
     return Response.json({
       data: {
         refundedCents: originalCents,
-        note: 'Refunded at Stripe and zeroed in the ledger. Invoice balances are NOT reopened automatically — adjust via QB or an account credit if this payment had been applied.',
+        qbVoided: payment.qbPaymentId ? qbNote.includes('was voided') : null,
+        note:
+          'Refunded at Stripe and zeroed in the ledger. Invoice balances are NOT reopened automatically on the site — adjust via QB or an account credit if this payment had been applied.' +
+          qbNote,
       },
     })
   } catch (err) {

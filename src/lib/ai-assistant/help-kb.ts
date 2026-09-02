@@ -180,7 +180,7 @@ The facility card shows invoiced/collected/outstanding for the selected period, 
 - Scan Check: photograph a check or remittance slip; the scanner reads the amount, facility, and per-resident lines, matches them, and records the payment. Unreadable ones are saved for manual resolution, never lost.
 - Scan memos: reads free-text check memos ("Jean Hall $48 Alma Markley $48…") and proposes which residents/visits they pay for — you confirm before anything is applied.
 - Send Statement: emails the facility their statement (with a confirmation prompt so a stray tap never sends).
-- QuickBooks (where connected): Send via QB creates real QuickBooks invoices from a month's completed, unpaid appointments (one per resident, or one facility-level invoice) and can have QuickBooks email them; Sync from QB pulls fresh invoice + payment data (available once live sync is enabled).
+- QuickBooks (where connected): Send via QB creates real QuickBooks invoices from a month's completed, unpaid appointments (one per resident, or one facility-level invoice) and can have QuickBooks email them; Sync from QB pulls fresh invoice + payment data (available once live sync is enabled). Card payments collected on the site (card on file, in-app, family portal) are recorded in QuickBooks automatically as payments applied to the same invoices — never twice, and a refund from the site voids the QuickBooks payment. Checks, salon-credit draws, and credit applications are still entered in QuickBooks by the bookkeeper.
 
 Per-resident detail lives on each resident's page: the account ledger shows invoices, payments, credits, and a running balance, plus available credits you can apply to open invoices.
 

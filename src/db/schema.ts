@@ -830,9 +830,39 @@ export const qbSyncState = pgTable('qb_sync_state', {
   qbServiceItemId: text('qb_service_item_id'),
   paymentsSyncCursor: text('payments_sync_cursor'),
   paymentsLastSyncedAt: timestamp('payments_last_synced_at', { withTimezone: true }),
+  // 0045 — cached "Credit Card" PaymentMethod id used by the payment mirror.
+  qbCardPaymentMethodId: text('qb_card_payment_method_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
+
+// Payment mirroring queue (drizzle/0045, self-bootstrapped by qb-safety-ddl.ts):
+// site-collected card payments waiting to be written into QuickBooks as Payment
+// objects applied to the same invoices — see src/lib/qb-payment-mirror.ts.
+export const qbPaymentMirrorQueue = pgTable('qb_payment_mirror_queue', {
+  paymentId: uuid('payment_id')
+    .primaryKey()
+    .references(() => qbPayments.id, { onDelete: 'cascade' }),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  amountCents: integer('amount_cents').notNull(),
+  allocations: jsonb('allocations').$type<Array<{ invoiceId: string; cents: number }>>().notNull().default([]),
+  ref: text('ref').notNull(),
+  source: text('source'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  skipReason: text('skip_reason'),
+  qbPaymentId: text('qb_payment_id'),
+  mirroredCents: integer('mirrored_cents'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  mirroredAt: timestamp('mirrored_at', { withTimezone: true }),
+}, (t) => ({
+  statusIdx: index('qb_payment_mirror_queue_status_idx').on(t.facilityId, t.status),
+  refUq: uniqueIndex('qb_payment_mirror_queue_ref_uq').on(t.ref),
+}))
 
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -40,6 +40,22 @@ export async function recordSitePaid(exec: Exec, invoiceId: string, cents: numbe
   `)
 }
 
+/**
+ * The site payment for `cents` of an invoice has now been written INTO
+ * QuickBooks (qb-payment-mirror.ts), so QuickBooks knows about that money:
+ * release the same amount from the clamp, otherwise the next QB-authoritative
+ * pull would subtract it twice (QB balance already lower + site_paid) and
+ * under-open the invoice. Never goes below zero.
+ */
+export async function recordSiteMirrored(exec: Exec, invoiceId: string, cents: number): Promise<void> {
+  if (cents <= 0) return
+  await exec.execute(sql`
+    UPDATE qb_invoice_site_payments
+    SET site_paid_cents = GREATEST(0, site_paid_cents - ${cents}), updated_at = now()
+    WHERE invoice_id = ${invoiceId}::uuid
+  `)
+}
+
 export interface AmbiguousInvoice {
   id: string
   invoiceNum: string

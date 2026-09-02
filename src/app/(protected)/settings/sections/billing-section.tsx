@@ -643,6 +643,8 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
               <p className="text-[11.5px] text-stone-400 mb-3">
                 Every QuickBooks operation is recorded here and can be undone — invoices are voided in
                 QuickBooks (never deleted), and anything with a payment already applied is left alone.
+                Card payments collected on the site (card on file, in-app, family portal) are recorded in
+                QuickBooks automatically against the same invoices; a refund voids the QuickBooks payment.
               </p>
               {!qbRunsLoaded ? (
                 <p className="text-xs text-stone-400">Loading…</p>

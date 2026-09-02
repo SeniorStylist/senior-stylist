@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { bookings, qbInvoices, qbPayments, qbUnappliedCredits, residents } from '@/db/schema'
-import { and, asc, eq, gt, like, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, like } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildBookingReceiptHtml } from '@/lib/email'
@@ -129,7 +129,9 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
   const { ensureQbSafetySchema } = await import('@/lib/qb-safety-ddl')
   await ensureQbSafetySchema() // before the tx — recordSitePaid writes inside it
   const { recordSitePaid } = await import('@/lib/qb-site-payments')
+  const { enqueuePaymentMirror, mirrorPaymentSoon } = await import('@/lib/qb-payment-mirror')
 
+  let paymentId: string | null = null
   await db.transaction(async (tx) => {
     // Stripe delivers checkout.session.completed at-least-once — stamp the PI on
     // the payment row and let the unique index reject a duplicate delivery so the
@@ -149,6 +151,8 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
       .onConflictDoNothing()
       .returning({ id: qbPayments.id })
     if (inserted.length === 0) return // duplicate webhook delivery
+    paymentId = inserted[0].id
+    const allocations: Array<{ invoiceId: string; cents: number }> = []
 
     const openInvoices = await tx
       .select({
@@ -169,6 +173,7 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
       const newOpen = inv.openBalanceCents - decrement
       remaining -= decrement
       await recordSitePaid(tx, inv.id, decrement) // site-paid protection
+      allocations.push({ invoiceId: inv.id, cents: decrement })
       if (newOpen === 0) {
         await tx
           .update(qbInvoices)
@@ -187,6 +192,18 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
           .where(eq(qbInvoices.id, inv.id))
       }
     }
+
+    // QB mirror: the applied portion is written into QuickBooks after commit
+    // (the overpayment remainder below stays a site-side credit).
+    await enqueuePaymentMirror(tx, {
+      paymentId: inserted[0].id,
+      facilityId,
+      residentId,
+      amountCents,
+      allocations,
+      source: 'portal_stripe',
+      stripePaymentIntentId,
+    })
 
     // Safeguard (2026-07-07): never orphan money. If the payment exceeded the open
     // balance (double-pay race, stale amount), bank the remainder as an account
@@ -214,6 +231,10 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
     // facility A/R silently overstated by the sum of all portal payments.
     await recomputeFacilityBalances(tx, [facilityId])
   })
+
+  // Mirror into QuickBooks (bounded wait — Stripe allows the webhook seconds,
+  // and the atomic claim + ref adoption make a cut-off lambda safe).
+  if (paymentId) await mirrorPaymentSoon(paymentId)
 
   revalidateTag('billing', {})
   revalidateTag('bookings', {})
