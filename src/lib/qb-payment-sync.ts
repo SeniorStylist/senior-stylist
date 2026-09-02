@@ -17,7 +17,7 @@
 import { db } from '@/db'
 import { qbPayments, qbUnappliedCredits, qbCustomerLinks, qbSyncState, residents, facilities } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
-import { qbGet } from '@/lib/quickbooks'
+import { qbGet, qbQuoteLiteral } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
@@ -27,7 +27,7 @@ import { recordSyncRun, type SyncPaymentsRunItems } from '@/lib/qb-runs'
 import { chunkArr } from '@/lib/imports/qb-csv'
 import { loadMirrorRefs } from '@/lib/qb-payment-mirror'
 
-interface QBPayment {
+export interface QBPayment {
   Id: string
   TxnDate: string
   TotalAmt?: number
@@ -39,7 +39,7 @@ interface QBPayment {
   MetaData?: { LastUpdatedTime: string }
 }
 
-interface QBCreditMemo {
+export interface QBCreditMemo {
   Id: string
   DocNumber?: string
   TxnDate: string
@@ -64,24 +64,62 @@ export interface SyncQBPaymentsResult {
 const PAGE_SIZE = 100
 const SAFETY_CAP = 5000
 
+export interface EntityPull<T> {
+  rows: T[]
+  fetchFailed: boolean
+  capped: boolean
+}
+
+/** A realm-wide payment + credit-memo pull several facilities can apply (qb-realm-sync.ts). */
+export interface PrefetchedPayments {
+  pay: EntityPull<QBPayment>
+  cm: EntityPull<QBCreditMemo>
+  errors: string[]
+}
+
+export async function fetchQBPaymentsAndCredits(
+  facilityId: string,
+  cursor: string | null,
+): Promise<PrefetchedPayments> {
+  const errors: string[] = []
+  const pay = await pullEntity<QBPayment>(facilityId, 'Payment', cursor, errors)
+  const cm = await pullEntity<QBCreditMemo>(facilityId, 'CreditMemo', cursor, errors)
+  return { pay, cm, errors }
+}
+
+/** Keep only rows newer than this facility's own cursor (a shared pull starts at the OLDEST cursor). */
+function afterCursor<T extends { MetaData?: { LastUpdatedTime?: string } }>(pull: EntityPull<T>, cursor: string | null): EntityPull<T> {
+  if (!cursor) return pull
+  const c = Date.parse(cursor)
+  if (!Number.isFinite(c)) return pull
+  return {
+    ...pull,
+    rows: pull.rows.filter((r) => {
+      const t = r.MetaData?.LastUpdatedTime ? Date.parse(r.MetaData.LastUpdatedTime) : NaN
+      return !Number.isFinite(t) || t > c
+    }),
+  }
+}
+
 async function pullEntity<T>(
   facilityId: string,
   entity: 'Payment' | 'CreditMemo',
   cursor: string | null,
   errors: string[],
-): Promise<{ rows: T[]; fetchFailed: boolean; capped: boolean }> {
+): Promise<EntityPull<T>> {
   const whereClause = cursor
-    ? ` WHERE Metadata.LastUpdatedTime > '${cursor.replace(/'/g, "\\'")}'`
+    ? ` WHERE Metadata.LastUpdatedTime > ${qbQuoteLiteral(cursor)}`
     : ''
   const rows: T[] = []
   let startPosition = 1
   let fetchFailed = false
   let capped = false
   while (true) {
-    const query = `SELECT * FROM ${entity}${whereClause} STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
+    // ORDERBY LastUpdatedTime so a capped pull's newest row is a true watermark.
+    const query = `SELECT * FROM ${entity}${whereClause} ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
     let res: { QueryResponse?: Record<string, unknown> }
     try {
-      res = await qbGet(facilityId, `/query?query=${encodeURIComponent(query)}&minorversion=65`)
+      res = await qbGet(facilityId, `/query?query=${encodeURIComponent(query)}`)
     } catch (err) {
       errors.push(`${entity} query failed at ${startPosition}: ${(err as Error).message?.slice(0, 200)}`)
       fetchFailed = true
@@ -102,7 +140,7 @@ async function pullEntity<T>(
 
 export async function syncQBPayments(
   facilityId: string,
-  options: { fullSync?: boolean; createdBy?: string | null } = {},
+  options: { fullSync?: boolean; createdBy?: string | null; prefetched?: PrefetchedPayments } = {},
 ): Promise<SyncQBPaymentsResult> {
   await ensureQbLinksSchema()
   await ensureUnappliedSchema()
@@ -187,8 +225,11 @@ export async function syncQBPayments(
   }
 
   // ── Pull both entities (cursor shared — they advance together) ────────
-  const payPull = await pullEntity<QBPayment>(facilityId, 'Payment', cursor, result.errors)
-  const cmPull = await pullEntity<QBCreditMemo>(facilityId, 'CreditMemo', cursor, result.errors)
+  // A realm pull handed in by qb-realm-sync.ts is filtered to this facility's window.
+  const pre = options.prefetched
+  const payPull = pre ? afterCursor(pre.pay, cursor) : await pullEntity<QBPayment>(facilityId, 'Payment', cursor, result.errors)
+  const cmPull = pre ? afterCursor(pre.cm, cursor) : await pullEntity<QBCreditMemo>(facilityId, 'CreditMemo', cursor, result.errors)
+  if (pre) result.errors.push(...pre.errors)
   const fetchFailed = payPull.fetchFailed || cmPull.fetchFailed
   let writeFailures = 0
 

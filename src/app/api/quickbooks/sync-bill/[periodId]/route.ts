@@ -3,7 +3,8 @@ import { db } from '@/db'
 import { facilities, payPeriods, stylistPayItems, stylists, quickbooksSyncLog } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
-import { qbGet, qbPost } from '@/lib/quickbooks'
+import { qbGet, qbPost, qbRequestId } from '@/lib/quickbooks'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { syncVendorsForFacility } from '../../sync-vendors/route'
 import { revalidateTag } from 'next/cache'
@@ -39,13 +40,9 @@ export async function POST(
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityUser.facilityId),
-      columns: {
-        qbAccessToken: true,
-        qbRealmId: true,
-        qbExpenseAccountId: true,
-      },
+      columns: { qbExpenseAccountId: true },
     })
-    if (!facility?.qbAccessToken || !facility?.qbRealmId) {
+    if (!facility || !(await isFacilityConnected(facilityUser.facilityId))) {
       return Response.json({ error: 'QuickBooks not connected' }, { status: 412 })
     }
     if (!facility.qbExpenseAccountId) {
@@ -109,6 +106,9 @@ export async function POST(
 
     const txnDate = period.endDate
     const note = `Senior Stylist payroll ${period.startDate} – ${period.endDate}`
+    // Per-run stamp for Intuit RequestIds — a dropped connection + retry inside
+    // this run replays the same Bill instead of creating a duplicate.
+    const runStamp = new Date().toISOString()
 
     for (const item of items) {
       if (item.netPayCents <= 0) continue
@@ -190,6 +190,7 @@ export async function POST(
             facilityUser.facilityId,
             '/bill',
             payload,
+            { requestId: qbRequestId('bill', item.id, runStamp) },
           )
           await db
             .update(stylistPayItems)

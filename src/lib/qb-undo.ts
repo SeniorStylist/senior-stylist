@@ -189,7 +189,7 @@ async function undoPushInvoice(
     try {
       const got = await qbGet<{ Invoice: { Id: string; SyncToken: string; Balance?: number; TotalAmt?: number } }>(
         facilityId,
-        `/invoice/${item.qbInvoiceId}?minorversion=65`,
+        `/invoice/${item.qbInvoiceId}?minorversion=75`,
       )
       qb = got.Invoice ?? null
     } catch (err) {
@@ -209,7 +209,7 @@ async function undoPushInvoice(
 
     try {
       if (qb) {
-        await qbPost(facilityId, '/invoice?operation=void&minorversion=65', {
+        await qbPost(facilityId, '/invoice?operation=void&minorversion=75', {
           Id: item.qbInvoiceId,
           SyncToken: qb.SyncToken,
         })
@@ -258,9 +258,9 @@ async function undoSyncCustomers(
     try {
       const got = await qbGet<{ Customer: { Id: string; SyncToken: string } }>(
         facilityId,
-        `/customer/${link.qbCustomerId}?minorversion=65`,
+        `/customer/${link.qbCustomerId}?minorversion=75`,
       )
-      await qbPost(facilityId, '/customer?minorversion=65', {
+      await qbPost(facilityId, '/customer?minorversion=75', {
         Id: link.qbCustomerId,
         SyncToken: got.Customer.SyncToken,
         sparse: true,

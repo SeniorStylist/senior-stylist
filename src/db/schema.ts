@@ -836,6 +836,31 @@ export const qbSyncState = pgTable('qb_sync_state', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
 
+// Realm-level QuickBooks connection (drizzle/0046, self-bootstrapped by
+// qb-connection.ts). Tokens live exactly ONCE per QuickBooks company; facilities
+// attach through facilities.qb_realm_id. Never select the token columns into a
+// client payload (sanitize.ts rule).
+export const qbConnections = pgTable('qb_connections', {
+  realmId: text('realm_id').primaryKey(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  refreshTokenIssuedAt: timestamp('refresh_token_issued_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  companyName: text('company_name'),
+  connectedBy: uuid('connected_by'),
+  connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  refreshLockUntil: timestamp('refresh_lock_until', { withTimezone: true }),
+  invoicesSyncCursor: text('invoices_sync_cursor'),
+  invoicesLastSyncedAt: timestamp('invoices_last_synced_at', { withTimezone: true }),
+  paymentsSyncCursor: text('payments_sync_cursor'),
+  paymentsLastSyncedAt: timestamp('payments_last_synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // Payment mirroring queue (drizzle/0045, self-bootstrapped by qb-safety-ddl.ts):
 // site-collected card payments waiting to be written into QuickBooks as Payment
 // objects applied to the same invoices — see src/lib/qb-payment-mirror.ts.

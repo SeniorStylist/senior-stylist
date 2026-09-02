@@ -10,9 +10,15 @@ import { HelpTip } from '@/components/ui/help-tip'
 interface Props {
   facility: PublicFacility
   qbInvoiceSyncEnabled: boolean
+  /** Who may connect QuickBooks for more than this facility in one authorization. */
+  qbConnectScopes?: { franchise: boolean; all: boolean }
 }
 
-export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
+export function BillingSection({
+  facility,
+  qbInvoiceSyncEnabled,
+  qbConnectScopes = { franchise: false, all: false },
+}: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -279,13 +285,20 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   async function handleDisconnectQb() {
     setQbDisconnecting(true)
     try {
-      const res = await fetch('/api/quickbooks/disconnect', { method: 'POST' })
+      // Detach THIS facility only — the company-wide connection stays live for
+      // every other facility (master disconnects the whole company from
+      // Master Admin → QuickBooks).
+      const res = await fetch('/api/quickbooks/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'detach' }),
+      })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        showQbToast('err', j.error ?? 'Disconnect failed')
+        showQbToast('err', j.error ?? 'Detach failed')
         return
       }
-      showQbToast('ok', 'Disconnected from QuickBooks')
+      showQbToast('ok', 'This facility was detached from QuickBooks')
       router.refresh()
     } finally {
       setQbDisconnecting(false)
@@ -448,16 +461,45 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
             /settings?section=billing&qb=connected with the toast. Safe:
             OAuth state lives in the oauth_states table, not this tab. */}
         {!hasQuickBooks && (
-          <a
-            href="/api/quickbooks/connect"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-tour="settings-qb-connect-btn"
-            className="inline-block px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ backgroundColor: '#8B2E4A' }}
-          >
-            Connect QuickBooks
-          </a>
+          <div className="space-y-2">
+            <a
+              href="/api/quickbooks/connect"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-tour="settings-qb-connect-btn"
+              className="inline-block px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              Connect QuickBooks
+            </a>
+            {(qbConnectScopes.franchise || qbConnectScopes.all) && (
+              <p className="text-[11.5px] text-stone-500">
+                One authorization can cover more than this facility:{' '}
+                {qbConnectScopes.franchise && (
+                  <a
+                    href="/api/quickbooks/connect?scope=franchise"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#8B2E4A] font-semibold hover:underline"
+                  >
+                    connect my whole franchise
+                  </a>
+                )}
+                {qbConnectScopes.franchise && qbConnectScopes.all && ' · '}
+                {qbConnectScopes.all && (
+                  <a
+                    href="/api/quickbooks/connect?scope=all"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#8B2E4A] font-semibold hover:underline"
+                  >
+                    connect every facility
+                  </a>
+                )}
+                . All facilities in the same QuickBooks company share one connection.
+              </p>
+            )}
+          </div>
         )}
 
         {hasQuickBooks && (
@@ -558,15 +600,16 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
                 <button
                   onClick={() => setQbConfirmDisconnect(true)}
                   className="px-4 py-2 rounded-xl text-sm font-semibold border border-red-200 text-red-700 hover:bg-red-50 transition-all"
+                  title="Takes this facility off the shared QuickBooks connection. Other facilities stay connected."
                 >
-                  Disconnect
+                  Detach facility
                 </button>
               ) : (
                 <div
                   className="flex items-center gap-2"
                   onMouseLeave={() => setQbConfirmDisconnect(false)}
                 >
-                  <span className="text-sm text-stone-600">Disconnect?</span>
+                  <span className="text-sm text-stone-600">Detach this facility from QuickBooks?</span>
                   <button
                     onClick={handleDisconnectQb}
                     disabled={qbDisconnecting}

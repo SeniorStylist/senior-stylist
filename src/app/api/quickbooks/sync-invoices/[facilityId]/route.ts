@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { db } from '@/db'
-import { facilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { syncQBInvoices } from '@/lib/qb-invoice-sync'
 import { revalidateTag } from 'next/cache'
@@ -48,11 +46,7 @@ export async function POST(
     const rl = await checkRateLimit('qbInvoiceSync', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
-    const facility = await db.query.facilities.findFirst({
-      where: eq(facilities.id, facilityId),
-      columns: { qbRealmId: true, qbAccessToken: true, qbRefreshToken: true },
-    })
-    if (!facility?.qbRealmId || !facility.qbAccessToken || !facility.qbRefreshToken) {
+    if (!(await isFacilityConnected(facilityId))) {
       return Response.json({ error: 'QuickBooks not connected' }, { status: 412 })
     }
 

@@ -44,12 +44,22 @@ export type PublicFacility = Omit<Facility, 'stripeSecretKey' | 'qbAccessToken' 
   hasQuickBooks: boolean
 }
 
-export function sanitizeFacility(facility: FacilityRow): PublicFacility {
+/**
+ * `hasQuickBooks` now reflects the realm-level connection (qb_connections),
+ * not the legacy per-facility token columns. Server components resolve it
+ * with `isFacilityConnected()` and pass it through `overrides`; without an
+ * override it falls back to the legacy columns (only meaningful before the
+ * 0046 backfill ran).
+ */
+export function sanitizeFacility(
+  facility: FacilityRow,
+  overrides: { hasQuickBooks?: boolean } = {},
+): PublicFacility {
   const { stripeSecretKey, qbAccessToken, qbRefreshToken, ...rest } = facility
   return {
     ...(rest as Omit<Facility, 'stripeSecretKey' | 'qbAccessToken' | 'qbRefreshToken'>),
     hasStripeSecret: !!stripeSecretKey,
-    hasQuickBooks: !!(qbAccessToken && qbRefreshToken),
+    hasQuickBooks: overrides.hasQuickBooks ?? !!(qbAccessToken && qbRefreshToken),
   }
 }
 

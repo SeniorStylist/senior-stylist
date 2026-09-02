@@ -1,7 +1,7 @@
 import { db } from '@/db'
 import { facilities, residents, qbInvoices, qbCustomerLinks } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
-import { qbGet } from '@/lib/quickbooks'
+import { qbGet, qbQuoteLiteral } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
@@ -64,9 +64,64 @@ export function parseResidentName(qbCustomerName: string): string {
   return beforeRoom
 }
 
+/** A realm-wide invoice pull that several facilities can apply (qb-realm-sync.ts). */
+export interface PrefetchedInvoices {
+  rows: QBInvoice[]
+  fetchFailed: boolean
+  capped: boolean
+  errors: string[]
+}
+
+const PAGE_SIZE = 100
+const SAFETY_CAP = 5000
+
+/**
+ * Pull every invoice changed after `cursor` (or everything when null), ordered
+ * by LastUpdatedTime so a capped pull's newest row is a true watermark.
+ * Facility-agnostic — the token is the realm's; callers scope the rows.
+ */
+export async function fetchQBInvoices(facilityId: string, cursor: string | null): Promise<PrefetchedInvoices> {
+  const out: PrefetchedInvoices = { rows: [], fetchFailed: false, capped: false, errors: [] }
+  const whereClause = cursor ? ` WHERE Metadata.LastUpdatedTime > ${qbQuoteLiteral(cursor)}` : ''
+  let startPosition = 1
+  while (true) {
+    const query = `SELECT * FROM Invoice${whereClause} ORDERBY Metadata.LastUpdatedTime ASC STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
+    const path = `/query?query=${encodeURIComponent(query)}`
+    let res: QBQueryResponse
+    try {
+      res = await qbGet<QBQueryResponse>(facilityId, path)
+    } catch (err) {
+      out.errors.push(`Query failed at position ${startPosition}: ${(err as Error).message?.slice(0, 200)}`)
+      out.fetchFailed = true
+      break
+    }
+    const page = res.QueryResponse?.Invoice ?? []
+    out.rows.push(...page)
+    if (page.length < PAGE_SIZE) break
+    startPosition += PAGE_SIZE
+    if (out.rows.length >= SAFETY_CAP) {
+      out.errors.push(`Stopped at ${SAFETY_CAP} invoices — re-sync to continue`)
+      out.capped = true
+      break
+    }
+  }
+  return out
+}
+
+/** Keep only rows newer than this facility's own cursor (a shared pull starts at the OLDEST cursor). */
+function afterCursor<T extends { MetaData?: { LastUpdatedTime?: string } }>(rows: T[], cursor: string | null): T[] {
+  if (!cursor) return rows
+  const c = Date.parse(cursor)
+  if (!Number.isFinite(c)) return rows
+  return rows.filter((r) => {
+    const t = r.MetaData?.LastUpdatedTime ? Date.parse(r.MetaData.LastUpdatedTime) : NaN
+    return !Number.isFinite(t) || t > c
+  })
+}
+
 export async function syncQBInvoices(
   facilityId: string,
-  options: { fullSync?: boolean; createdBy?: string | null } = {},
+  options: { fullSync?: boolean; createdBy?: string | null; prefetched?: PrefetchedInvoices } = {},
 ): Promise<SyncQBInvoicesResult> {
   const result: SyncQBInvoicesResult = { created: 0, updated: 0, skipped: 0, errors: [], cursorAdvanced: false, warnings: [] }
   // Per-row upsert failures: they mean the window was NOT fully ingested, so
@@ -129,43 +184,16 @@ export async function syncQBInvoices(
   const existingByNum = new Map(existingInvoices.map((i) => [i.invoiceNum, i]))
 
   const cursor = fullSync ? null : (facility.qbInvoicesSyncCursor ?? null)
-  const whereClause = cursor
-    ? ` WHERE Metadata.LastUpdatedTime > '${cursor.replace(/'/g, "\\'")}'`
-    : ''
 
-  let startPosition = 1
-  const PAGE_SIZE = 100
-  const SAFETY_CAP = 5000
-  const allInvoices: QBInvoice[] = []
-
-  // P48 — track WHY the loop ended. The cursor may only move forward over a
-  // window we actually ingested; see the guarded update at the end.
-  let fetchFailed = false
-  let capped = false
-
-  while (true) {
-    const query = `SELECT * FROM Invoice${whereClause} STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
-    const path = `/query?query=${encodeURIComponent(query)}&minorversion=65`
-    let res: QBQueryResponse
-    try {
-      res = await qbGet<QBQueryResponse>(facilityId, path)
-    } catch (err) {
-      result.errors.push(
-        `Query failed at position ${startPosition}: ${(err as Error).message?.slice(0, 200)}`,
-      )
-      fetchFailed = true
-      break
-    }
-    const page = res.QueryResponse?.Invoice ?? []
-    allInvoices.push(...page)
-    if (page.length < PAGE_SIZE) break
-    startPosition += PAGE_SIZE
-    if (allInvoices.length >= SAFETY_CAP) {
-      result.errors.push(`Stopped at ${SAFETY_CAP} invoices — re-sync to continue`)
-      capped = true
-      break
-    }
-  }
+  // P48 — track WHY the pull ended. The cursor may only move forward over a
+  // window we actually ingested; see the guarded update at the end. A realm
+  // pull handed in by qb-realm-sync.ts is filtered to this facility's window.
+  const pull = options.prefetched
+    ? { ...options.prefetched, rows: afterCursor(options.prefetched.rows, cursor) }
+    : await fetchQBInvoices(facilityId, cursor)
+  result.errors.push(...pull.errors)
+  const { fetchFailed, capped } = pull
+  const allInvoices = pull.rows
 
   for (const inv of allInvoices) {
     const invoiceNum = inv.DocNumber ?? inv.Id

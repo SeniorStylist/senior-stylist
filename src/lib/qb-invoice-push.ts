@@ -9,7 +9,7 @@
 import { db } from '@/db'
 import { bookings, facilities, paymentMethods, qbInvoices, qbSyncState, residents } from '@/db/schema'
 import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
-import { qbGet, qbPost, qbPostSend } from '@/lib/quickbooks'
+import { qbGet, qbPost, qbPostSend, qbRequestId } from '@/lib/quickbooks'
 import { recordSyncRun, type PushInvoiceRunItems } from '@/lib/qb-runs'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { recomputeFacilityBalances } from '@/lib/unapplied-apply'
@@ -89,7 +89,7 @@ async function ensureQBServiceItem(facilityId: string): Promise<string> {
   )
   const found = await qbGet<{ QueryResponse: { Item?: QBItem[] } }>(
     facilityId,
-    `/query?query=${findQuery}&minorversion=65`,
+    `/query?query=${findQuery}&minorversion=75`,
   )
   itemId = found.QueryResponse?.Item?.[0]?.Id ?? null
 
@@ -100,7 +100,7 @@ async function ensureQBServiceItem(facilityId: string): Promise<string> {
     )
     const accounts = await qbGet<{ QueryResponse: { Account?: QBAccount[] } }>(
       facilityId,
-      `/query?query=${acctQuery}&minorversion=65`,
+      `/query?query=${acctQuery}&minorversion=75`,
     )
     const list = accounts.QueryResponse?.Account ?? []
     const income =
@@ -108,7 +108,7 @@ async function ensureQBServiceItem(facilityId: string): Promise<string> {
     if (!income) {
       throw new Error('No Income account found in QuickBooks — create one first')
     }
-    const created = await qbPost<{ Item: QBItem }>(facilityId, '/item?minorversion=65', {
+    const created = await qbPost<{ Item: QBItem }>(facilityId, '/item?minorversion=75', {
       Name: 'Salon Services',
       Type: 'Service',
       IncomeAccountRef: { value: income.Id },
@@ -344,14 +344,17 @@ async function pushQBInvoicesInner(
         },
       }))
 
+      // Intuit RequestId scoped to THIS run: a dropped connection + retry
+      // replays the same invoice; a later re-push (after an undo) is a new run.
       const created = await qbPost<{ Invoice: QBInvoiceEntity }>(
         facilityId,
-        '/invoice?minorversion=65',
+        '/invoice',
         {
           CustomerRef: { value: customerId },
           Line: lines,
           PrivateNote: `Senior Stylist — ${month} services`,
         },
+        { requestId: qbRequestId('invoice', facilityId, group.residentId ?? 'facility', month, startedAt.toISOString()) },
       )
       const inv = created.Invoice
       const invoiceNum = inv.DocNumber ?? inv.Id
@@ -418,7 +421,7 @@ async function pushQBInvoicesInner(
             // body — a JSON body is rejected.
             await qbPostSend(
               facilityId,
-              `/invoice/${inv.Id}/send?sendTo=${encodeURIComponent(to)}&minorversion=65`,
+              `/invoice/${inv.Id}/send?sendTo=${encodeURIComponent(to)}&minorversion=75`,
             )
             emailed = true
             await db

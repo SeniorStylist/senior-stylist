@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { db } from '@/db'
-import { facilities } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { qbGet } from '@/lib/quickbooks'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
@@ -37,11 +35,7 @@ export async function GET(_request: NextRequest) {
     const rl = await checkRateLimit('quickbooksSync', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
-    const facility = await db.query.facilities.findFirst({
-      where: eq(facilities.id, facilityUser.facilityId),
-      columns: { qbAccessToken: true, qbRealmId: true },
-    })
-    if (!facility?.qbAccessToken || !facility?.qbRealmId) {
+    if (!(await isFacilityConnected(facilityUser.facilityId))) {
       return Response.json({ error: 'QuickBooks not connected' }, { status: 412 })
     }
 
@@ -50,7 +44,7 @@ export async function GET(_request: NextRequest) {
     )
     const data = await qbGet<QBQueryResponse>(
       facilityUser.facilityId,
-      `/query?query=${query}&minorversion=65`,
+      `/query?query=${query}&minorversion=75`,
     )
     const accounts = (data.QueryResponse.Account ?? [])
       .map((a) => ({

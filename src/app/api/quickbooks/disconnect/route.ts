@@ -1,64 +1,65 @@
-import { createClient } from '@/lib/supabase/server'
-import { db } from '@/db'
-import { facilities } from '@/db/schema'
-import { eq, sql } from 'drizzle-orm'
-import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
-import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
-import { revokeQBToken } from '@/lib/quickbooks'
-import { NextRequest } from 'next/server'
+// Two modes:
+//   detach  (default) — take THIS facility off the shared QuickBooks connection;
+//                       the connection stays live for every other facility.
+//   company           — master only: revoke the authorization at Intuit and
+//                       detach every facility in that realm.
 
-export async function POST(_request: NextRequest) {
+import { createClient } from '@/lib/supabase/server'
+import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
+import { detachFacility, disconnectRealm, getFacilityRealm } from '@/lib/qb-connection'
+import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
+import { z } from 'zod'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const schema = z.object({
+  mode: z.enum(['detach', 'company']).default('detach'),
+  facilityId: z.string().regex(UUID_RE).optional(),
+  realmId: z.string().regex(/^\d{1,30}$/).optional(),
+})
+
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canManageQuickBooksBilling(facilityUser.role)) {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    const raw = await request.text()
+    const parsed = schema.safeParse(raw ? JSON.parse(raw) : {})
+    if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
+    const { mode } = parsed.data
+
+    const isMaster =
+      !!process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
+    if (mode === 'company') {
+      if (!isMaster) return Response.json({ error: 'Forbidden' }, { status: 403 })
+      let realmId = parsed.data.realmId ?? null
+      if (!realmId && parsed.data.facilityId) realmId = await getFacilityRealm(parsed.data.facilityId)
+      if (!realmId) return Response.json({ error: 'realmId required' }, { status: 400 })
+      const out = await disconnectRealm(realmId)
+      revalidateTag('facilities', {})
+      revalidateTag('billing', {})
+      return Response.json({ data: { disconnected: true, detached: out.detached } })
     }
 
-    const facility = await db.query.facilities.findFirst({
-      where: eq(facilities.id, facilityUser.facilityId),
-      columns: { qbRefreshToken: true },
-    })
-
-    await db
-      .update(facilities)
-      .set({
-        qbRealmId: null,
-        qbAccessToken: null,
-        qbRefreshToken: null,
-        qbTokenExpiresAt: null,
-        qbExpenseAccountId: null,
-        // Reset sync state too — a stale cursor on reconnect silently skips
-        // every invoice changed while disconnected (P48 cursor contract).
-        qbInvoicesSyncCursor: null,
-        qbInvoicesLastSyncedAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(facilities.id, facilityUser.facilityId))
-
-    // Clear per-facility QB sync cursors too (qb_customer_links stays — a
-    // reconnect is almost always the same realm and Sync Customers repairs a
-    // realm change). Best-effort: the table may predate migration 0043.
-    try {
-      await ensureQbLinksSchema()
-      await db.execute(
-        sql`UPDATE qb_sync_state SET payments_sync_cursor = NULL, payments_last_synced_at = NULL, updated_at = now() WHERE facility_id = ${facilityUser.facilityId}`,
-      )
-    } catch (err) {
-      console.error('QB sync-state clear failed (non-fatal):', err)
+    // detach — the caller's facility (or, for master, any facility by id)
+    let facilityId: string | null = null
+    if (isMaster && parsed.data.facilityId) {
+      facilityId = parsed.data.facilityId
+    } else {
+      const facilityUser = await getUserFacility(user.id)
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!canManageQuickBooksBilling(facilityUser.role) && !isMaster) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      facilityId = facilityUser.facilityId
     }
-
-    if (facility?.qbRefreshToken) {
-      revokeQBToken(facility.qbRefreshToken).catch((err) =>
-        console.error('QB revoke failed (non-fatal):', err),
-      )
-    }
-
-    return Response.json({ data: { disconnected: true } })
+    await detachFacility(facilityId)
+    revalidateTag('facilities', {})
+    revalidateTag('billing', {})
+    return Response.json({ data: { disconnected: true, detached: 1 } })
   } catch (err) {
     console.error('QuickBooks disconnect error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

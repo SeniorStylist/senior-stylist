@@ -13,11 +13,57 @@ interface FacilityRow {
   outstandingCents: number
   bookingsThisMonth: number
   collectedThisMonthCents: number
+  qbConnected?: boolean
 }
 
-export function FranchiseClient({ franchiseName, facilities }: { franchiseName: string | null; facilities: FacilityRow[] }) {
+interface QuickBooksState {
+  /** The QuickBooks company at least one franchise facility is attached to (null = none yet). */
+  realmId: string | null
+  canConnect: boolean
+}
+
+export function FranchiseClient({
+  franchiseName,
+  facilities,
+  quickbooks = { realmId: null, canConnect: false },
+}: {
+  franchiseName: string | null
+  facilities: FacilityRow[]
+  quickbooks?: QuickBooksState
+}) {
   const router = useRouter()
   const [going, setGoing] = useState<string | null>(null)
+  const [attaching, setAttaching] = useState(false)
+  const [qbNotice, setQbNotice] = useState<string | null>(null)
+
+  const qbConnectedCount = facilities.filter((f) => f.qbConnected).length
+  const qbRemaining = facilities.length - qbConnectedCount
+
+  // Attach the rest of the franchise to the company connection that already
+  // exists (no second Intuit authorization needed).
+  const attachRemaining = async () => {
+    if (!quickbooks.realmId || attaching) return
+    setAttaching(true)
+    setQbNotice(null)
+    try {
+      const res = await fetch('/api/quickbooks/attach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ realmId: quickbooks.realmId, scope: 'franchise' }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setQbNotice(j.error ?? 'Could not attach the remaining facilities')
+        return
+      }
+      setQbNotice(`${j.data?.attached ?? 0} facilit${(j.data?.attached ?? 0) === 1 ? 'y' : 'ies'} attached to QuickBooks`)
+      router.refresh()
+    } catch {
+      setQbNotice('Network error — try again')
+    } finally {
+      setAttaching(false)
+    }
+  }
 
   const totalOutstanding = facilities.reduce((s, f) => s + f.outstandingCents, 0)
   const totalCollected = facilities.reduce((s, f) => s + f.collectedThisMonthCents, 0)
@@ -60,6 +106,47 @@ export function FranchiseClient({ franchiseName, facilities }: { franchiseName: 
         <TotalTile label="Appointments this month" value={String(totalBookings)} tone="neutral" />
       </div>
 
+      {/* QuickBooks — one authorization covers the whole franchise */}
+      {quickbooks.canConnect && facilities.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-stone-900">QuickBooks</p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                {qbConnectedCount === 0
+                  ? 'No facility in this franchise is connected yet. One authorization connects all of them.'
+                  : qbRemaining === 0
+                    ? `All ${facilities.length} facilities are connected.`
+                    : `${qbConnectedCount} of ${facilities.length} facilities connected.`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {qbConnectedCount === 0 && (
+                <a
+                  href="/api/quickbooks/connect?scope=franchise&return=franchise"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] rounded-xl px-4 py-2"
+                >
+                  Connect QuickBooks for all {facilities.length}
+                </a>
+              )}
+              {qbConnectedCount > 0 && qbRemaining > 0 && quickbooks.realmId && (
+                <button
+                  type="button"
+                  onClick={attachRemaining}
+                  disabled={attaching}
+                  className="text-xs font-semibold text-white bg-[#8B2E4A] hover:bg-[#72253C] rounded-xl px-4 py-2 disabled:opacity-50"
+                >
+                  {attaching ? 'Attaching…' : `Attach the other ${qbRemaining}`}
+                </button>
+              )}
+            </div>
+          </div>
+          {qbNotice && <p className="text-xs text-stone-600 mt-3">{qbNotice}</p>}
+        </div>
+      )}
+
       {/* Facilities grid */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         {facilities.map((f) => (
@@ -68,6 +155,9 @@ export function FranchiseClient({ franchiseName, facilities }: { franchiseName: 
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-stone-900 leading-snug">{f.name}</p>
                 {f.facilityCode && <p className="text-xs text-stone-400 font-mono mt-0.5">{f.facilityCode}</p>}
+                {f.qbConnected && (
+                  <p className="text-[10.5px] font-semibold text-emerald-700 mt-1">✓ QuickBooks</p>
+                )}
               </div>
               {f.outstandingCents > 0 && (
                 <span className="text-[10.5px] font-semibold bg-amber-50 text-amber-800 rounded-full px-2.5 py-1 shrink-0">

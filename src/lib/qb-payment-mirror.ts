@@ -31,9 +31,10 @@
 //   pending and mirror when re-enabled). Default ON.
 
 import { db } from '@/db'
-import { facilities, qbInvoices, qbPaymentMirrorQueue, qbPayments, qbSyncState, quickbooksSyncLog } from '@/db/schema'
+import { qbInvoices, qbPaymentMirrorQueue, qbPayments, qbSyncState, quickbooksSyncLog } from '@/db/schema'
 import { eq, inArray, sql } from 'drizzle-orm'
-import { qbGet, qbPost } from '@/lib/quickbooks'
+import { qbGet, qbPost, qbQuoteLiteral } from '@/lib/quickbooks'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { recordSiteMirrored } from '@/lib/qb-site-payments'
 
@@ -52,7 +53,7 @@ const MAX_ATTEMPTS = 6
 const STALE_PROCESSING_MINUTES = 10
 /** How long mirrorPaymentSoon waits before handing the row to the cron. */
 const INLINE_WAIT_MS = 8000
-const MINOR = 'minorversion=65'
+const MINOR = 'minorversion=75'
 
 export function paymentMirrorEnabled(): boolean {
   return process.env.QB_PAYMENT_MIRROR_ENABLED !== 'false'
@@ -184,11 +185,7 @@ export async function mirrorQueuedPayment(paymentId: string): Promise<MirrorOutc
   }
 
   try {
-    const facility = await db.query.facilities.findFirst({
-      where: eq(facilities.id, facilityId),
-      columns: { qbRealmId: true, qbRefreshToken: true },
-    })
-    if (!facility?.qbRealmId || !facility.qbRefreshToken) return skip('not_connected')
+    if (!(await isFacilityConnected(facilityId))) return skip('not_connected')
 
     const payment = await db.query.qbPayments.findFirst({
       where: eq(qbPayments.id, paymentId),
@@ -262,7 +259,11 @@ export async function mirrorQueuedPayment(paymentId: string): Promise<MirrorOutc
           LinkedTxn: [{ TxnId: l.qbInvoiceId, TxnType: 'Invoice' }],
         })),
       }
-      const created = await qbPost<{ Payment: QBPaymentObj }>(facilityId, `/payment?${MINOR}`, body)
+      // RequestId = the queue ref: a retried create after a dropped connection
+      // replays Intuit's original response instead of minting a twin.
+      const created = await qbPost<{ Payment: QBPaymentObj }>(facilityId, `/payment?${MINOR}`, body, {
+        requestId: `mirror-${row.ref}`,
+      })
       qbPayment = created.Payment
     }
 
@@ -385,7 +386,7 @@ export async function loadMirrorRefs(
 // ── helpers ──────────────────────────────────────────────────────────────
 
 async function findQBPaymentByRef(facilityId: string, ref: string): Promise<QBPaymentObj | null> {
-  const query = `SELECT * FROM Payment WHERE PaymentRefNum = '${ref.replace(/'/g, "\\'")}'`
+  const query = `SELECT * FROM Payment WHERE PaymentRefNum = ${qbQuoteLiteral(ref)}`
   const res = await qbGet<{ QueryResponse?: { Payment?: QBPaymentObj[] } }>(
     facilityId,
     `/query?query=${encodeURIComponent(query)}&${MINOR}`,

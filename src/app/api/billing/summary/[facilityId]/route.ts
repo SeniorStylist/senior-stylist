@@ -5,6 +5,7 @@ import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { NextRequest } from 'next/server'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -114,12 +115,17 @@ const getBillingSummaryData = unstable_cache(
       } catch { /* table doesn't exist yet */ }
     }
 
+    // Realm-level connection (qb_connections) decides "connected" — the legacy
+    // token columns are stripped and never reach the client.
+    const qbConnected = facility ? await isFacilityConnected(facilityId) : false
     const facilityClean = facility
       ? (() => {
-          const { qbAccessToken, qbRefreshToken, ...rest } = facility
+          const { qbAccessToken: _a, qbRefreshToken: _r, ...rest } = facility
+          void _a
+          void _r
           return {
             ...rest,
-            hasQuickBooks: !!(qbAccessToken && qbRefreshToken),
+            hasQuickBooks: qbConnected,
           }
         })()
       : null

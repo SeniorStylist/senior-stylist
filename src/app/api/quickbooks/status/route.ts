@@ -4,6 +4,7 @@ import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { getUserFacility, canManageQuickBooksBilling } from '@/lib/get-facility-id'
 import { qbGet } from '@/lib/quickbooks'
+import { getConnectionInfo, listRealmFacilities, setCompanyName } from '@/lib/qb-connection'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { NextRequest } from 'next/server'
 
@@ -49,32 +50,29 @@ export async function GET(request: NextRequest) {
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
-      columns: {
-        qbRealmId: true,
-        qbAccessToken: true,
-        qbRefreshToken: true,
-        qbTokenExpiresAt: true,
-        qbInvoicesLastSyncedAt: true,
-      },
+      columns: { qbRealmId: true, qbInvoicesLastSyncedAt: true },
     })
     if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
 
-    if (!facility.qbRealmId || !facility.qbAccessToken || !facility.qbRefreshToken) {
+    const conn = facility.qbRealmId ? await getConnectionInfo(facility.qbRealmId) : null
+    if (!facility.qbRealmId || !conn?.connected) {
       return Response.json({ data: { connected: false } })
     }
 
     try {
-      const info = await qbGet<QBCompanyInfoResponse>(
-        facilityId,
-        `/companyinfo/${facility.qbRealmId}?minorversion=65`,
-      )
+      const info = await qbGet<QBCompanyInfoResponse>(facilityId, `/companyinfo/${facility.qbRealmId}`)
+      const companyName = info.CompanyInfo?.CompanyName ?? null
+      if (companyName && companyName !== conn.companyName) await setCompanyName(facility.qbRealmId, companyName)
+      const attached = await listRealmFacilities(facility.qbRealmId)
       return Response.json({
         data: {
           connected: true,
           ok: true,
-          companyName: info.CompanyInfo?.CompanyName ?? null,
+          companyName,
           realmId: facility.qbRealmId,
-          tokenExpiresAt: facility.qbTokenExpiresAt?.toISOString() ?? null,
+          tokenExpiresAt: conn.tokenExpiresAt,
+          refreshTokenExpiresAt: conn.refreshTokenExpiresAt,
+          attachedFacilities: attached.length,
           lastInvoiceSyncAt: facility.qbInvoicesLastSyncedAt?.toISOString() ?? null,
         },
       })

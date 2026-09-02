@@ -12,7 +12,7 @@
 import { db } from '@/db'
 import { facilities, residents, qbCustomerLinks } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
-import { qbGet, qbPost } from '@/lib/quickbooks'
+import { qbGet, qbPost, qbQuoteLiteral, qbRequestId } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
@@ -76,7 +76,7 @@ async function fetchAllQBCustomers(
     const query = `SELECT * FROM Customer WHERE Active = true STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
     const res = await qbGet<QBCustomerQueryResponse>(
       facilityId,
-      `/query?query=${encodeURIComponent(query)}&minorversion=65`,
+      `/query?query=${encodeURIComponent(query)}&minorversion=75`,
     )
     const page = res.QueryResponse?.Customer ?? []
     all.push(...page)
@@ -98,12 +98,11 @@ async function findQBCustomerByDisplayName(
   facilityId: string,
   displayName: string,
 ): Promise<QBCustomer | null> {
-  const escaped = displayName.replace(/'/g, "\\'")
-  const query = `SELECT * FROM Customer WHERE DisplayName = '${escaped}'`
+  const query = `SELECT * FROM Customer WHERE DisplayName = ${qbQuoteLiteral(displayName)}`
   try {
     const res = await qbGet<QBCustomerQueryResponse>(
       facilityId,
-      `/query?query=${encodeURIComponent(query)}&minorversion=65`,
+      `/query?query=${encodeURIComponent(query)}&minorversion=75`,
     )
     return res.QueryResponse?.Customer?.[0] ?? null
   } catch {
@@ -116,12 +115,11 @@ async function createQBCustomer(
   body: Record<string, unknown>,
   fallbackSuffix: string,
 ): Promise<QBCustomer> {
+  // Intuit RequestId: a dropped connection + retry replays the original
+  // create instead of minting a duplicate customer.
+  const requestId = qbRequestId('customer', facilityId, String(body.DisplayName ?? ''), String(body.ParentRef ? (body.ParentRef as { value: string }).value : ''))
   try {
-    const res = await qbPost<QBCustomerCreateResponse>(
-      facilityId,
-      '/customer?minorversion=65',
-      body,
-    )
+    const res = await qbPost<QBCustomerCreateResponse>(facilityId, '/customer', body, { requestId })
     return res.Customer
   } catch (err) {
     // QB DisplayNames are unique across ALL customers/vendors/employees — a
@@ -129,10 +127,12 @@ async function createQBCustomer(
     // disambiguating suffix.
     const message = (err as Error).message ?? ''
     if (message.includes('6240') || message.toLowerCase().includes('duplicate name')) {
+      const suffixed = `${body.DisplayName} ${fallbackSuffix}`
       const res = await qbPost<QBCustomerCreateResponse>(
         facilityId,
-        '/customer?minorversion=65',
-        { ...body, DisplayName: `${body.DisplayName} ${fallbackSuffix}` },
+        '/customer',
+        { ...body, DisplayName: suffixed },
+        { requestId: qbRequestId('customer', facilityId, suffixed) },
       )
       return res.Customer
     }
@@ -276,12 +276,11 @@ export async function ensureQBCustomerForResident(
   // Try to find the customer in QB before creating (stored display name first).
   let customer: QBCustomer | null = null
   if (resident.qbCustomerId) {
-    const stored = resident.qbCustomerId.replace(/'/g, "\\'")
-    const query = `SELECT * FROM Customer WHERE FullyQualifiedName = '${stored}'`
+    const query = `SELECT * FROM Customer WHERE FullyQualifiedName = ${qbQuoteLiteral(resident.qbCustomerId)}`
     try {
       const res = await qbGet<QBCustomerQueryResponse>(
         facilityId,
-        `/query?query=${encodeURIComponent(query)}&minorversion=65`,
+        `/query?query=${encodeURIComponent(query)}&minorversion=75`,
       )
       customer = res.QueryResponse?.Customer?.[0] ?? null
     } catch {

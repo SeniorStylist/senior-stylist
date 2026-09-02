@@ -1,4 +1,4 @@
-// P48 — nightly QuickBooks invoice pull for every connected facility.
+// P48 — nightly QuickBooks pull for every connected facility.
 //
 // Ships DORMANT: until Intuit grants production approval and
 // QB_INVOICE_SYNC_ENABLED is set to 'true' in Vercel, this returns a 200 no-op
@@ -10,30 +10,28 @@
 // which is the exact column syncQBInvoices recomputes — syncing first means
 // autopay bills fresh balances instead of up-to-24h-stale ones.
 //
-// max:1 pool: the SELECTION is two queries (never a per-facility lookup loop),
-// but the WORK is inherently per-facility — each sync is a paginated HTTP pull
-// from Intuit. That follows the monthly-reports precedent: a hard per-run cap,
-// maxDuration 300, and a try/catch INSIDE the loop so one bad facility can't
-// abort the run. syncQBInvoices holds no db.transaction, so it is safe to call
-// in a loop across multi-second network calls.
+// Realm-level (2026-09-02): facilities are grouped by QuickBooks company and
+// each company is pulled ONCE per entity (qb-realm-sync.ts), then applied per
+// facility — 100 attached facilities cost one pull, not one hundred. The
+// selection is two queries (never a per-facility lookup loop); the per-facility
+// apply is DB-only and cheap. No db.transaction spans a QB call.
 
 import { db } from '@/db'
-import { facilities, facilityUsers, profiles, quickbooksSyncLog } from '@/db/schema'
-import { and, eq, gte, inArray, isNotNull, notInArray, sql } from 'drizzle-orm'
+import { facilityUsers, profiles, quickbooksSyncLog } from '@/db/schema'
+import { and, eq, gte, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { syncQBInvoices } from '@/lib/qb-invoice-sync'
-import { syncQBPayments } from '@/lib/qb-payment-sync'
-import { processPaymentMirrorQueue } from '@/lib/qb-payment-mirror'
+import { ensureQbConnectionsSchema } from '@/lib/qb-connection'
+import { facilitiesByRealm, syncRealm } from '@/lib/qb-realm-sync'
 import { notifyManyUsers } from '@/lib/notify'
 import { sendEmail, buildQBSyncFailureEmailHtml } from '@/lib/email'
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
-/** 20 × (invoice pull + payment/credit pull + upserts) fits inside
- *  maxDuration 300 — lowered from 25 when the payment pull was chained in. */
-const MAX_PER_RUN = 20
+/** Facilities applied per night. The pull is per realm, so this bounds only the
+ *  DB-side apply work (a handful of queries each on the max:1 pool). */
+const MAX_PER_RUN = 120
 /** A facility that failed recently is skipped so one dead OAuth connection
  *  can't starve the staleness rotation — and admins aren't re-pinged nightly. */
 const RETRY_COOLDOWN_HOURS = 24
@@ -52,6 +50,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    await ensureQbConnectionsSchema()
+
     // (1) Facilities whose last nightly attempt failed inside the cooldown.
     const cooldownStart = new Date(Date.now() - RETRY_COOLDOWN_HOURS * 60 * 60 * 1000)
     const recentlyFailed = await db
@@ -69,96 +69,94 @@ export async function GET(request: NextRequest) {
       )
     const suppressed = recentlyFailed.map((r) => r.facilityId).filter((id): id is string => !!id)
 
-    // (2) Eligible facilities, oldest-synced first. Ordering by staleness
-    // self-rotates the cap with no extra cursor column, because the engine
-    // stamps qbInvoicesLastSyncedAt itself on success.
-    const eligible = await db.query.facilities.findMany({
-      where: and(
-        eq(facilities.active, true),
-        eq(facilities.isDemo, false),
-        isNotNull(facilities.qbRealmId),
-        isNotNull(facilities.qbAccessToken),
-        isNotNull(facilities.qbRefreshToken),
-        ...(suppressed.length > 0 ? [notInArray(facilities.id, suppressed)] : []),
-      ),
-      columns: { id: true, name: true, facilityCode: true },
-      orderBy: sql`qb_invoices_last_synced_at ASC NULLS FIRST`,
-      limit: MAX_PER_RUN,
-    })
-
+    // (2) Eligible facilities grouped by realm, oldest-synced first.
+    const byRealm = await facilitiesByRealm(suppressed)
+    let budget = MAX_PER_RUN
+    let eligible = 0
     let succeeded = 0
     let created = 0
     let updated = 0
     let skipped = 0
     let mirrored = 0
+    let unrouted = 0
     const failures: { facilityId: string; name: string; message: string }[] = []
 
-    for (const f of eligible) {
-      // Finish any site→QB payment mirrors FIRST, so the invoice pull below
-      // sees QuickBooks balances that already include the site's money
-      // (and the site-paid clamp has been released for them). Each mirror
-      // logs its own success/error row; a throw here never blocks the pull.
+    for (const [realmId, facs] of byRealm) {
+      if (budget <= 0) break
+      const slice = facs.slice(0, budget)
+      budget -= slice.length
+      eligible += slice.length
+
+      let realmResult
       try {
-        const m = await processPaymentMirrorQueue(f.id, 25)
-        mirrored += m.done
+        realmResult = await syncRealm(realmId, slice.map((f) => f.id))
       } catch (err) {
-        console.error(`[cron/qb-invoice-sync] mirror queue for ${f.id} threw:`, err)
+        // The realm pull itself failed (token dead, Intuit down) — every
+        // facility in it counts as failed for the cooldown + notifications.
+        const message = (err as Error).message?.slice(0, 300) ?? 'Unknown error'
+        console.error(`[cron/qb-invoice-sync] realm ${realmId} threw:`, err)
+        for (const f of slice) {
+          failures.push({ facilityId: f.id, name: f.name, message })
+          logSync(f.id, 'sync_invoices', 'error', null, message)
+        }
+        continue
       }
-      try {
-        // Never fullSync from the cron — it ignores the cursor and pulls up to
-        // 5000 invoices per facility. Full re-syncs stay operator-initiated.
-        const out = await syncQBInvoices(f.id, {})
-        created += out.created
-        updated += out.updated
-        skipped += out.skipped
+      unrouted += realmResult.unroutedInvoices + realmResult.unroutedPayments + realmResult.unroutedCredits
+
+      for (const out of realmResult.facilities) {
+        mirrored += out.mirrored
+        const inv = out.invoices
+        if (out.error && !inv) {
+          failures.push({ facilityId: out.facilityId, name: out.name, message: out.error })
+          logSync(out.facilityId, 'sync_invoices', 'error', null, out.error)
+          continue
+        }
+        if (!inv) continue
+        created += inv.created
+        updated += inv.updated
+        skipped += inv.skipped
 
         // cursorAdvanced (not errors.length) is the real success signal: a
         // safety-cap run reports an error but DID progress, while a token
         // failure reports an error and did not.
-        if (out.cursorAdvanced) {
-          succeeded++
-          logSync(
-            f.id,
-            'success',
-            `${out.created} created, ${out.updated} updated, ${out.skipped} skipped${out.warnings.length ? ` · ${out.warnings[0]}` : ''}`,
-            out.errors[0] ?? null,
-          )
-
-          // Chain the payment/credit pull AFTER a successful invoice pull so
-          // the 06:00 autopay sweep sees fresh applied-payment data too. Its
-          // own cursorAdvanced contract applies; a payment failure marks the
-          // facility failed (cooldown) but never blocks other facilities.
-          try {
-            const pay = await syncQBPayments(f.id, {})
-            if (pay.cursorAdvanced) {
-              logPaymentSync(f.id, 'success', `${pay.created} created, ${pay.upgraded} upgraded, ${pay.skipped} skipped, ${pay.creditsUpserted} credits`, pay.errors[0] ?? null)
-            } else {
-              const message = pay.errors[0] ?? 'Payment sync made no progress'
-              failures.push({ facilityId: f.id, name: f.name, message })
-              logPaymentSync(f.id, 'error', null, message)
-            }
-          } catch (err) {
-            const message = (err as Error).message?.slice(0, 300) ?? 'Unknown error'
-            console.error(`[cron/qb-invoice-sync] payment sync for ${f.id} threw:`, err)
-            failures.push({ facilityId: f.id, name: f.name, message })
-            logPaymentSync(f.id, 'error', null, message)
-          }
-        } else {
-          const message = out.errors[0] ?? 'Sync made no progress'
-          failures.push({ facilityId: f.id, name: f.name, message })
-          logSync(f.id, 'error', null, message)
+        if (!inv.cursorAdvanced) {
+          const message = inv.errors[0] ?? 'Sync made no progress'
+          failures.push({ facilityId: out.facilityId, name: out.name, message })
+          logSync(out.facilityId, 'sync_invoices', 'error', null, message)
+          continue
         }
-      } catch (err) {
-        const message = (err as Error).message?.slice(0, 300) ?? 'Unknown error'
-        console.error(`[cron/qb-invoice-sync] facility ${f.id} threw:`, err)
-        failures.push({ facilityId: f.id, name: f.name, message })
-        logSync(f.id, 'error', null, message)
+        succeeded++
+        logSync(
+          out.facilityId,
+          'sync_invoices',
+          'success',
+          `${inv.created} created, ${inv.updated} updated, ${inv.skipped} skipped${inv.warnings.length ? ` · ${inv.warnings[0]}` : ''}`,
+          inv.errors[0] ?? null,
+        )
+
+        const pay = out.payments
+        if (pay?.cursorAdvanced) {
+          logSync(
+            out.facilityId,
+            'sync_payments',
+            'success',
+            `${pay.created} created, ${pay.upgraded} upgraded, ${pay.skipped} skipped, ${pay.creditsUpserted} credits`,
+            pay.errors[0] ?? null,
+          )
+        } else {
+          const message = out.error ?? pay?.errors[0] ?? 'Payment sync made no progress'
+          failures.push({ facilityId: out.facilityId, name: out.name, message })
+          logSync(out.facilityId, 'sync_payments', 'error', null, message)
+        }
       }
     }
 
-    const capped = eligible.length === MAX_PER_RUN
+    const capped = budget <= 0
     if (capped) {
       console.warn(`[cron/qb-invoice-sync] hit MAX_PER_RUN=${MAX_PER_RUN}; the rest rotate in on the next run`)
+    }
+    if (unrouted > 0) {
+      console.warn(`[cron/qb-invoice-sync] ${unrouted} QuickBooks rows matched no attached facility (multi-facility realm) — skipped`)
     }
 
     // Notify admins of failed facilities — ONE join + ONE batched insert.
@@ -166,7 +164,7 @@ export async function GET(request: NextRequest) {
     // token pings once rather than every night forever.
     let notified = 0
     if (failures.length > 0) {
-      const failedIds = failures.map((f) => f.facilityId)
+      const failedIds = [...new Set(failures.map((f) => f.facilityId))]
       const admins = await db
         .select({ userId: facilityUsers.userId, facilityId: facilityUsers.facilityId })
         .from(facilityUsers)
@@ -207,8 +205,9 @@ export async function GET(request: NextRequest) {
 
     return Response.json({
       data: {
-        eligible: eligible.length,
-        attempted: eligible.length,
+        realms: byRealm.size,
+        eligible,
+        attempted: eligible,
         succeeded,
         failed: failures.length,
         suppressed: suppressed.length,
@@ -216,6 +215,7 @@ export async function GET(request: NextRequest) {
         updated,
         skipped,
         mirrored,
+        unrouted,
         capped,
         notified,
         emailSent,
@@ -229,23 +229,17 @@ export async function GET(request: NextRequest) {
 
 /** Fire-and-forget audit row (never awaited — the repo's qb-log convention).
  *  This is also what the master QB dashboard reads to show "Needs reconnect". */
-function logSync(facilityId: string, status: 'success' | 'error', responseSummary: string | null, errorMessage: string | null) {
+function logSync(
+  facilityId: string,
+  action: 'sync_invoices' | 'sync_payments',
+  status: 'success' | 'error',
+  responseSummary: string | null,
+  errorMessage: string | null,
+) {
   db.insert(quickbooksSyncLog)
     .values({
       facilityId,
-      action: 'sync_invoices',
-      status,
-      responseSummary,
-      errorMessage: errorMessage?.slice(0, 500) ?? null,
-    })
-    .catch((e) => console.error('[qb-log]', e))
-}
-
-function logPaymentSync(facilityId: string, status: 'success' | 'error', responseSummary: string | null, errorMessage: string | null) {
-  db.insert(quickbooksSyncLog)
-    .values({
-      facilityId,
-      action: 'sync_payments',
+      action,
       status,
       responseSummary,
       errorMessage: errorMessage?.slice(0, 500) ?? null,

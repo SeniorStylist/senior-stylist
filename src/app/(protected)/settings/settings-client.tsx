@@ -60,6 +60,8 @@ interface SettingsClientProps {
   pendingRequestsCount: number
   adminEmail: string | null
   qbInvoiceSyncEnabled: boolean
+  /** Who may connect QuickBooks for more than this facility in one authorization. */
+  qbConnectScopes?: { franchise: boolean; all: boolean }
   claimRequests: ClaimRequest[]
   pendingClaimsCount: number
 }
@@ -131,6 +133,7 @@ export function SettingsClient({
   pendingRequestsCount,
   adminEmail,
   qbInvoiceSyncEnabled,
+  qbConnectScopes = { franchise: false, all: false },
   claimRequests,
   pendingClaimsCount,
 }: SettingsClientProps) {
@@ -361,7 +364,11 @@ export function SettingsClient({
             />
           )}
           {activeSection === 'billing' && isAdmin && (
-            <BillingSection facility={facility} qbInvoiceSyncEnabled={qbInvoiceSyncEnabled} />
+            <BillingSection
+              facility={facility}
+              qbInvoiceSyncEnabled={qbInvoiceSyncEnabled}
+              qbConnectScopes={qbConnectScopes}
+            />
           )}
           {activeSection === 'integrations' && isAdmin && (
             <IntegrationsSection facility={facility} />
