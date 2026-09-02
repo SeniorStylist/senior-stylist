@@ -3122,6 +3122,22 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P59 — QuickBooks realm-level connection (2026-09-02)
+
+Josh: "a full facilities qb sync, at least by the franchises". Migration `drizzle/0046_qb_connections.sql` (self-bootstrapped + legacy-token backfill by `src/lib/qb-connection.ts`). Changelog 6.11.
+
+**Table `qb_connections`** `(realm_id text PK, access_token, refresh_token (encrypted), token_expires_at, refresh_token_issued_at, refresh_token_expires_at, company_name, connected_by, connected_at, revoked_at, last_error, refresh_lock_until, invoices_sync_cursor, invoices_last_synced_at, payments_sync_cursor, payments_last_synced_at, created_at, updated_at)`. `facilities.qb_realm_id` = attachment; legacy `facilities.qb_access_token/qb_refresh_token` nulled on attach/detach. Index `facilities_qb_realm_idx (qb_realm_id) WHERE qb_realm_id IS NOT NULL`.
+
+**`src/lib/qb-connection.ts`**: `ensureQbConnectionsSchema` (DDL + backfill), `getConnectionInfo`/`listConnections` (token-free), `isFacilityConnected`, `connectedMap`, `qbConnectedSql`, `saveConnection`, `setCompanyName`, `getAccessToken(realmId)` (DB lease `refresh_lock_until` 45s + 20s wait; persists rotated refresh token + explicit expiry), `markAccessTokenExpired`, `facilityIdsForScope('facility'|'franchise'|'all')`, `attachFacilities` (never steals from another realm), `detachFacility`, `disconnectRealm` (revoke + detach all), `listRealmFacilities`. `src/lib/qb-oauth-http.ts`: `qbRedirectUri`, `getQBAuthUrl`, `exchangeQBCode`, `refreshQBTokens`, `revokeQBRefreshToken`.
+
+**Routes**: `GET /api/quickbooks/connect?scope=&return=` (state = base64url `{n,s,r}`), callback (scope re-validated by role; nonce consumed pre-exchange; attach; company-name probe; lands on settings/franchise/master page with `?qb=connected&attached=N&skipped=M`), `POST /api/quickbooks/disconnect {mode:'detach'|'company', realmId?, facilityId?}`, `POST /api/quickbooks/attach {realmId, scope:'all'|'franchise'|'list', facilityIds?}` (bucket `quickbooksSync`), `GET /api/quickbooks/status` (connection-based; returns `attachedFacilities`, `refreshTokenExpiresAt`). Every QB route/page now checks `isFacilityConnected` (sync-customers/invoices/payments, push-invoice, accounts, sync-vendors, sync-bill, sync-status, billing summary, payroll page, settings page via `sanitizeFacility(f, {hasQuickBooks})`).
+
+**Realm sync** (`src/lib/qb-realm-sync.ts`): `syncRealm(realmId, facilityIds)` — mirror queues → one `fetchQBInvoices` from the oldest cursor → route by `qb_customer_links` / F-code → `syncQBInvoices(fid, {prefetched})` per facility → one `fetchQBPaymentsAndCredits` → `syncQBPayments(fid, {prefetched})` for facilities whose invoice cursor advanced; returns per-facility outcomes + unrouted counts. `facilitiesByRealm(excludeIds)` for the cron. Cron `/api/cron/qb-invoice-sync` iterates realms; `MAX_PER_RUN` 120; response gains `realms`, `unrouted`.
+
+**quickbooks.ts**: `QB_MINOR = 75` auto-append, per-realm in-flight limiter (5), `qbQuoteLiteral`, `qbRequestId`, `qbPost(path, body, {requestId})`; requestid wired on customer create, invoice push (per-run), Bill create (per-run), payment mirror (`mirror-<ref>`). Pulls use `ORDERBY Metadata.LastUpdatedTime ASC`.
+
+**UI**: Master Admin → QuickBooks company card (Connect all / Attach the other N / Reconnect / Disconnect company) + per-row Attach; `/franchise` QuickBooks card; Settings → Billing scoped connect links (`qbConnectScopes` prop) + "Detach facility".
+
 ## P58 — QuickBooks safety net: site-paid protection + per-run undo (2026-09-01)
 
 Josh: "make sure nothing can mess anything over and we can revert anything". Migration `drizzle/0044_qb_safety.sql` (self-bootstrapped by `src/lib/qb-safety-ddl.ts`). Changelog 6.10.

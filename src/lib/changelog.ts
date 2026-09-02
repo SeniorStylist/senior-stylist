@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.11',
+    date: '2026-09-02',
+    title: 'One QuickBooks Connection for Everyone',
+    items: [
+      'Connect QuickBooks once and every facility in the same QuickBooks company is connected — Master Admin → QuickBooks has a "Connect QuickBooks for all facilities" button, franchise owners get "Connect QuickBooks for all N" on their Franchise page, and any facility left out can be attached with one tap (no second Intuit sign-in)',
+      'Detach vs disconnect: a facility can take itself off the shared connection from Settings → Billing without affecting anyone else; only the master can disconnect the whole company',
+      'Nightly QuickBooks sync now pulls each company ONCE and hands every facility its own invoices and payments, instead of every facility re-reading the whole company — the same night covers 100+ facilities',
+      'Sturdier: token refreshes are serialized so two servers can never invalidate each other, every create carries an Intuit request id so a dropped connection never makes a duplicate, and QuickBooks calls are metered against Intuit\'s per-company limit',
+    ],
+  },
+  {
     version: '6.10',
     date: '2026-09-01',
     title: 'QuickBooks Safety Net',

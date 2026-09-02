@@ -267,6 +267,12 @@ exist on `/login`, `/family`, and every family page footer.
        payments applied to the same invoices. Self-bootstrapped too; expect
        "Success. No rows returned". Optional kill switch: `QB_PAYMENT_MIRROR_ENABLED=false`
        in Vercel pauses the writes (queued payments mirror when it's removed).
+3d. [ ] Apply the realm-connection migration in prod (Supabase SQL Editor):
+       `drizzle/0046_qb_connections.sql` — creates `qb_connections` and copies F177's
+       existing tokens into it (self-bootstrapped too). After this, ONE Intuit sign-in
+       covers every facility: Master Admin → QuickBooks → **Attach the other N** (F177's
+       connection already exists, so no second Intuit sign-in is needed), or
+       **Connect QuickBooks for all facilities** if nothing is connected yet.
 4. [ ] Per connected facility, once: Settings → Billing & Payments → QuickBooks →
        **Sync Customers**. Links residents to their QuickBooks customers (numeric IDs)
        and creates missing sub-customers under the facility parent — after this,
