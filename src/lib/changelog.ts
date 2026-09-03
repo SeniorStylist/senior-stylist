@@ -7,6 +7,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.9',
+    date: '2026-09-03',
+    title: 'Opening a New Community, Start to Finish',
+    items: [
+      'Adding a facility is now a guided setup instead of a form: name and code, salon days and hours, the stylists who work there (with their working days), the price list read straight off the community\'s price sheet, and how billing works — ending on a checklist and a printable QR sign-up poster you can hang the same afternoon',
+      'Every new facility gets its own F-code automatically, so its family sign-up poster and signage work from the moment it exists — and the code is suggested but yours to change, with duplicate names and taken codes caught before you can submit',
+      'You can now attach stylists you already have to a facility, several at once, and set the days each of them works right there — instead of one trip to each stylist\'s page. Their working days are what let families pick a day and what routes new requests',
+      'Fixed: creating a facility could leave the corner of the screen showing one community while the page showed another. The facility name, the switcher and the page now always agree, and the switcher lists every active facility — including ones that arrived by import',
+      'Fixed: a stylist added while you were on the Master Admin screen could be saved to no facility at all and then appear nowhere. New stylists now always land at the facility you are looking at',
+      'Fixed: the facility list under the logo could not be scrolled to the bottom on smaller screens, hiding the last facilities and the "add facility" link',
+      'Fixed: the Senior Stylist logo showed as a blank white block in the sidebar, on the family pages, and on the gift link',
+      'Your facility spreadsheet is now an import: upload the CSV and communities that aren\'t in the app yet are created (with family sign-up switched on), while the ones that are get their billing type, revenue share, phone and address refreshed. Column order no longer matters',
+      'Card charges at day close are now guaranteed to run before the page finishes its work, so a charge can no longer be dropped, and receipts go out by text as well as email for families who gave us a phone number',
+      'Saving a card at the chair can now switch on automatic payment, but only when staff confirm the family asked for it — and the family still gets the notice telling them it happened',
+      'Requests from families no longer get parked on one stylist: at a facility where nobody has hours set yet, a request stays unassigned so every stylist can see it',
+      'Families can now see what each past visit cost, with the tip shown separately, and rows in the Day Log say "Card" or "Credit" in words instead of a small symbol',
+      'Owner: Master Admin → Debug gained "Launch rehearsal", which prepares a practice facility and opens the family sign-up dry run — the click-through in docs/fitzgerald-walkthrough.md',
+    ],
+  },
+  {
     version: '6.8',
     date: '2026-08-18',
     title: 'Smoother Signup, Ready for Texting',

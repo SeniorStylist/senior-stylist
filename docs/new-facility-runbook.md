@@ -28,33 +28,66 @@ tokens — the wizard's payment step), **`0039`** (multi-service sign-up
 entries), then the P55 trio **`0040`** (frees real sign-up requests that were
 stranded on the tutorial's "Demo Sarah" — data heal, migration-only),
 **`0041`** (email-or-phone accounts: nullable email, phone-digits unique
-index, held signup passwords), **`0042`** (SMS login codes). All idempotent.
+index, held signup passwords), **`0042`** (SMS login codes), then the P57 pair
+**`0043`** (a unique index on ACTIVE facility codes — **run the pre-check query
+printed at the top of that file first**; if it returns a row, two active
+facilities share a code and must be merged from Master Admin → Merge before the
+index will apply) and **`0044`** (`invites.stylist_id`, so a stylist invite
+links to the right record instead of guessing by name). All idempotent.
 The app self-bootstraps the columns/tables if you forget, but NOT the
 backfills/heals (0034, 0036, 0040 must be run).
 No psql handy? Master Admin → Facilities → "Turn on everywhere" covers 0035's
 signup flip from the UI; the others still need SQL.
 
-## 3. Per new facility — setup ORDER matters (P51 lockdown)
+## 3. Per new facility — the guided setup (P57)
 
-Facility admins cannot create services, stylists, or availability — so the
-master (or a bookkeeper) does 1–4 BEFORE handing over logins:
+Steps 1–4 below used to be four separate screens. Since P57 they are ONE flow:
+**Master Admin → + Create Facility** (or Settings → Advanced → New facility,
+or the sidebar's "+ Add facility" — they all open `/facilities/new`). The old
+inline forms and `/onboarding` are gone.
 
-1. Create the facility with an F-code (`F###`) — signup QR needs the code.
-2. Build the **services catalog** (price-list). Zero services = families cannot
-   request anything (the portal shows "contact the office").
-3. Add the **stylists** (codes kept) and link their logins in Settings → Team.
-4. Enter each stylist's **weekly availability windows** — availability drives
-   request auto-assignment AND slot matching (P53 fixed the timezone bug that
-   made afternoons look unavailable; empty availability still means requests
-   land unassigned and every stylist sees them).
-5. Invite the facility admin + front desk. Their scheduling now works ONLY
+The wizard walks: **Facility** (name; the F-code is suggested and editable, and
+one is minted automatically if you leave it) → **Hours** (salon days and times)
+→ **Stylists** (pick existing ones by name or ST-code, create new ones, or
+upload the stylist sheet — each carries day chips that seed their weekly
+availability) → **Services** (upload the community's price sheet; the scanner
+reads it) → **Billing** (who pays, revenue share, and the autopay rule from 3b)
+→ **Done** (a readiness checklist, **Print QR poster**, and **Enter facility**).
+
+The facility is created when you leave the Hours step; everything after that
+can be skipped and finished later from Settings. Facility admins still cannot
+create services, stylists, or availability (P51 lockdown), so the master or a
+bookkeeper runs this before handing over logins.
+
+**Onboarding many communities at once?** Master Admin → Imports → **Facility
+Sheet Import** takes the spreadsheet export. Communities whose F-code the app
+doesn't know are CREATED (family sign-up on, code minted if the sheet has none);
+known ones get billing type, revenue share, phone and address refreshed. A
+header row is read in any column order.
+
+What the wizard does NOT cover, in order:
+
+1. **Link each stylist's login** in Settings → Team. The wizard attaches
+   stylist RECORDS to the facility; connecting a person's login to their record
+   is still a Team-screen step, and an unlinked stylist sees an amber banner
+   asking an admin to do it.
+2. **Check the weekly availability** the wizard seeded. It gives every stylist
+   you added the salon's own days; adjust anyone who works a different pattern.
+   Availability drives request auto-assignment AND slot matching (P53 fixed the
+   timezone bug that made afternoons look unavailable). Empty availability means
+   requests land unassigned and every stylist sees them — since P57 that is also
+   what happens at a multi-stylist facility, instead of the request being parked
+   on one arbitrary person.
+3. Invite the facility admin + front desk. Their scheduling now works ONLY
    through the Sign-Up Sheet (owner decision 2026-08-13): they log requests,
    the stylist picks the time. They keep calendar view, cancel, and non-time
    edits.
-6. Print the QR posters — Settings → Family Portal or Signage → Family Sign-Up
-   — from the PRODUCTION domain (a poster printed from a preview deploy encodes
-   a URL families can't reach). Self-signup is ON by default since P52. The
-   poster title is "Create an Account" (owner decision).
+4. Print the QR posters. The wizard's Done screen has **Print QR poster**;
+   Settings → Family Portal and Signage → Family Sign-Up have the same one.
+   Since P57 every poster builds its URL from `NEXT_PUBLIC_APP_URL`, so a poster
+   printed from a preview deploy no longer encodes a domain families can't
+   reach. Self-signup is ON by default since P52. The poster title is
+   "Create an Account" (owner decision).
 
 ## 3b. Fitzgerald of Palisades — charge-after-each-service (P54)
 
@@ -96,6 +129,12 @@ on_completion as the new-facility default, Spanish emails.
 
 ## 4. Verify with the dry run (no cleanup needed)
 
+**Walking the whole thing with the owners?** `docs/fitzgerald-walkthrough.md` is
+the click-through script — nine scenarios from creating the facility to the
+family seeing their receipt, each saying what to tap and what you should see.
+Master Admin → Debug → **Launch rehearsal** prepares a practice facility for it
+and opens scenario 2.
+
 Master Admin → Debug → **Family Sign-Up Wizard (dry run)**: runs the whole
 wizard — resident matching, the "is this them?" card, submission, the real
 confirmation screen — and creates NOTHING (no accounts, residents, or emails).
@@ -128,3 +167,29 @@ matching before families ever scan.
 - `resolveAvailableStylists` reads assignment rows only (home-only stylists
   without an assignment row can't be auto-assigned) — data invariant holds
   today; flagging, not changing.
+
+## Repairs
+
+**A stylist exists but appears nowhere** (the Tatyana ST833 case). Before P57 a
+stylist created from the Master Admin screen could be saved with no facility at
+all, so no roster, dropdown or count ever showed them. The cause is fixed; an
+already-broken record is repaired either way:
+
+- *From the app (preferred):* open Stylists at the right facility and add them
+  again by their code. The app answers that the code is already in use, which
+  confirms the record exists — then attach them with the same screen's
+  pick-existing search. The New-Facility wizard's Stylists step does the same.
+- *From SQL:* set the home facility and insert the assignment row the roster
+  surfaces actually read.
+
+```sql
+-- replace both placeholders with the real facility id
+UPDATE stylists SET facility_id = '<F240-facility-id>' WHERE stylist_code = 'ST833';
+INSERT INTO stylist_facility_assignments (stylist_id, facility_id, active)
+SELECT id, '<F240-facility-id>', true FROM stylists WHERE stylist_code = 'ST833'
+ON CONFLICT DO NOTHING;
+```
+
+**Duplicate stylist records** (one person, several ST-codes from separate
+imports) still merge by hand: rename the survivor on `/stylists/[id]`, move any
+assignments, deactivate the rest. There is no automatic stylist merge.

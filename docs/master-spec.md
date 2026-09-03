@@ -3122,6 +3122,41 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
+## P57 — Fitzgerald launch readiness: facility creation rework + end-to-end audit (2026-09-03)
+
+Josh's 2026-08-18 demo to Lisa and Dad broke on step one. Migrations `drizzle/0043` (partial unique index on ACTIVE facility codes — run the inline pre-check first) and `0044` (`invites.stylist_id`, bootstrapped in `invite-ddl.ts`). Changelog 6.9. Walkthrough: `docs/fitzgerald-walkthrough.md`.
+
+**Master scoping (C1)**
+- `getUserFacility` gains a master synthetic row (mirrors the bookkeeper branch): master-by-email + `selected_facility_id` at an active facility → `{role:'admin', rawRole:'admin', facilityId: selected}`. `findMany` gained `orderBy: asc(createdAt)` (`rows[0]` was nondeterministic). Unblocks `/stylists`, `/stylists/directory`, `GET /api/search` for a membership-less master.
+- `(protected)/layout.tsx::fetchMembershipData(userId, isMaster)` lists ALL active non-demo facilities for the master; `isMaster` rides the `getCachedMembershipData` cache key. The `?? allFacilities[0]` fallback re-fetches UNCACHED when the cookie's facility is absent from the cached list.
+- `switchFacility(facilityId, destination?)` — select + HARD navigation; Master Admin "Enter facility" and the wizard's Done screen both use it.
+- Switcher panel is the scroll container (`max-h-[calc(100vh-150px)] flex flex-col`, list `flex-1 min-h-0 overflow-y-auto`); the `<aside>` dropped `overflow-hidden`. Selected row keys on `f.id === activeFacilityId`.
+- `POST /api/stylists` resolves `getUserFacility` for everyone; master is only an authorization bypass. `facilityId = parsed.facilityId ?? facilityUser?.facilityId`. All four create call sites pass an explicit `facilityId`.
+- Logo: the five `filter: brightness(0) invert(1)` sites use `/seniorstylistlogo-white.png` at true aspect; `seniorstylistlogo.jpg` (WebP bytes) renamed `.webp`.
+
+**New-Facility wizard (C2)**
+- `/facilities/new` (`page.tsx` computes `WizardCaps` in ONE `Promise.all`; `src/components/facilities/new-facility-wizard/`). Steps: Facility → Hours → [Stylists] → [Services] → Billing → Done; bracketed steps gated on `isManageTier`. Replaces the master-admin form, Settings → Advanced's form and `/onboarding` (redirect; `onboarding-client.tsx` deleted). Tour anchors `wizard-basics-name` / `wizard-basics-code` / `wizard-footer-next`.
+- `POST /api/facilities` fires exactly once (Hours → Continue); Basics/Hours then render read-only. Zod gained `contactEmail`, `workingHours`, `paymentType`, `revSharePercentage` + `qbRevShareType` (master-only silent drop), `autopayMode`, `autopaySweepCadence`, `allowInactiveNameMatch`. One transaction: name dup → 409 `{conflict:{id,name,facilityCode,active}}`; explicit code clash → 409 `{suggestedCode}`; otherwise `generateFacilityCode(tx)`. Master keeps his membership row; bookkeepers never get one; a franchise admin's facility auto-links to their franchise. Response `201 {…sanitizeFacility, codeWasGenerated}`.
+- `src/lib/facility-code.ts` — `FACILITY_CODE_RE`, `nextFacilityCode`, `generateFacilityCode(tx)` (advisory lock 9192; scans active AND inactive so gaps are never reused). Moved out of `import-multi-log/resolve-facilities/route.ts` (a `route.ts` exporting a non-handler is a build hazard).
+- `src/lib/facility-access.ts::resolveFacilityWrite(user, facilityId, {requireManageTier?})` — the auth for explicit-facilityId writes.
+- `PATCH /api/facilities/[facilityId]` (launch settings) and `GET|POST /api/facilities/[facilityId]/stylists` (bulk-assign + seed availability at the facility's hours; assignments `onConflictDoUpdate(active:true)`; `stylists.facilityId` set only where NULL; availability delete scoped to `(stylistId, facilityId)`).
+- `POST /api/services/bulk` and `POST /api/stylists/import` accept an explicit `facilityId`; the importer also takes `defaultDays`, inserts the missing `stylist_facility_assignments` row per stylist, and derives the franchise from the TARGET facility.
+- Shared: `src/lib/facility-options.ts` (TIMEZONES / PAYMENT_TYPES / AUTOPAY_MODES / DAY_CHIPS), `src/components/facilities/working-hours-editor.tsx` (Settings → General consumes it), `src/lib/signup-poster.ts` (Settings → Family Accounts consumes it).
+
+**Import-first (C3)**
+- `POST /api/super-admin/import-facilities-csv` detects a header row in any column order (legacy fixed positions as fallback) and CREATES facilities for unknown/absent F-codes (`portalSelfSignupEnabled: true`, codes minted under the same advisory lock in one transaction). Response gains `created` + `createdList` + `headerDetected`. Live Google Sheets sync deferred.
+
+**End-to-end flow (C4)**
+- Charge triggers run inside `after()` from `next/server`; GCal syncs stay fire-and-forget. Auto-charge receipts fan out to email ∪ SMS via `getFamilyRecipients`. `POST /api/payments/methods` honors `enableAutopay` for a staff actor only with `consentAttested`, still routed through `enableFamilyAutopay` so the family's consent notice fires. Settings → Billing warns on `autopay_mode = 'manual'` with autopay residents.
+- `resolveAssignedStylist`'s recency fallback assigns only when there is EXACTLY ONE candidate.
+- `healMembershipOnLogin` provisions memberships at every invited facility, not just the first. `invites.stylist_id` makes stylist linking deterministic at redeem.
+- `src/lib/app-url.ts::appUrl()` / `familyPortalUrl()` is the single source for outbound links.
+- Portal: request acknowledgement by SMS as well as email; the request page falls back to all active services when a facility has zero `price_list` rows; the signup payment step requires both Stripe keys; family Appointments show per-visit price and tip; `<PaymentCoveredChip variant="pill">`; the stylist queue shows the unlinked-account banner; the `family-signup` signage template renders disabled with a reason.
+- `src/lib/resident-invite.ts::sendFinishAccountInvite(residentId)` — shared by the booking inline-create path and the admin resident create.
+
+**Rehearsal (C5)**
+- `POST /api/debug/rehearsal` (master-gated) seeds `seedFacilityDemoData` at any selected facility and returns its code; the Debug tab's "Launch rehearsal" card opens `/family/<code>/signup?preview=1`.
+
 ## P55 — Email-or-phone identity, charge-on-finalize, Salon Account (2026-08-17)
 
 Second owners' meeting (Josh + Lisa). Migrations `drizzle/0040` (Demo-Sarah assignment heal, migration-only), `0041` (identity), `0042` (SMS login codes); `src/lib/portal-identity-ddl.ts` bootstraps 0041+0042. Changelog 6.7.
@@ -3177,7 +3212,7 @@ merge_suggestion_resident_id), 0038 (portal_signup_card_tokens), 0039
 - **Walk-in quick-create**: newResident email/phone → poaEmail/poaPhone +
   portalToken + automatic "finish your account" magic-link email (fresh
   branch only; dedup/replay never re-sends). POST /api/residents accepts
-  poaEmail/poaPhone (no auto-invite on the admin path).
+  poaEmail/poaPhone (P57: the admin path auto-invites too, via `sendFinishAccountInvite`).
 - New route params: POST /api/portal/signup returns {status, paymentsEnabled,
   residentId?, cardToken?}; payments setup-intent + methods POST accept
   signupToken; methods POST accepts enableAutopay; claims PATCH gains

@@ -135,6 +135,33 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     }
   }
 
+  // P57 — the Fitzgerald rehearsal launcher (docs/fitzgerald-walkthrough.md).
+  const [rehearsalLoading, setRehearsalLoading] = useState(false)
+  const [rehearsalError, setRehearsalError] = useState<string | null>(null)
+  const handleRehearsal = async () => {
+    if (!selected) return
+    setRehearsalLoading(true)
+    setRehearsalError(null)
+    try {
+      const res = await fetch('/api/debug/rehearsal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facilityId: selected.id }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRehearsalError(typeof j.error === 'string' ? j.error : 'Could not prepare the rehearsal')
+        return
+      }
+      const code = j.data?.facilityCode as string | undefined
+      if (code) window.open(`/family/${encodeURIComponent(code)}/signup?preview=1`, '_blank')
+    } catch {
+      setRehearsalError('Network error — nothing was prepared')
+    } finally {
+      setRehearsalLoading(false)
+    }
+  }
+
   // P51 — ordered bigger → smaller scale (franchise → cross-facility → facility
   // → chair → family), per Josh 2026-08-07.
   const rows: { role: DebugRole | 'portal' | 'signup'; label: string; desc: string }[] = [
@@ -246,6 +273,32 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* P57 — Fitzgerald rehearsal: seed the practice pieces the walkthrough
+          needs at the SELECTED facility, then open the family sign-up dry run
+          (scenario 2 in docs/fitzgerald-walkthrough.md). */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+        <p className="text-sm font-semibold text-stone-900">Launch rehearsal</p>
+        <p className="text-xs text-stone-500 mt-0.5">
+          Prepares the selected facility for a full walkthrough — a demo resident, a demo stylist with Mon–Fri hours, a
+          practice price list and today&rsquo;s booking — then opens the family sign-up dry run. Only practice records are
+          created; real residents, stylists and bookings are untouched. Follow{' '}
+          <span className="font-mono">docs/fitzgerald-walkthrough.md</span> from scenario 2.
+        </p>
+        {rehearsalError && <p className="text-xs text-red-600 mt-2">{rehearsalError}</p>}
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={handleRehearsal}
+            disabled={!selectedId || rehearsalLoading}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#8B2E4A' }}
+            onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#72253C' }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#8B2E4A' }}
+          >
+            {rehearsalLoading ? 'Preparing…' : 'Prepare & start walkthrough'}
+          </button>
+        </div>
       </div>
 
       {/* Franchise demo — one-click sample franchise to preview the dashboard */}
