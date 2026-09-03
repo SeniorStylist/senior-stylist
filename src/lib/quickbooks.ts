@@ -159,7 +159,9 @@ async function qbFetch<T>(
     res = await callWithRetry(token)
   }
   if (!res.ok) {
-    const text = await res.text()
+    // Bounded — several routes echo this message to the operator; an Intuit
+    // HTML error page must not become a 100KB toast/log line.
+    const text = (await res.text()).slice(0, 600)
     throw new Error(`QB ${method} ${path} ${res.status}: ${text}`)
   }
   return (await res.json()) as T

@@ -83,6 +83,24 @@ async function buildRouter(facilityIds: string[]) {
   }
 }
 
+/**
+ * The OLDEST cursor of a set, by real time — never a string sort. Cursors mix
+ * formats (app-stamped `...Z` vs QB watermarks like `2026-09-02T10:11:12-07:00`),
+ * and a lexical min can pick a cursor that is NEWER in real time, which would
+ * skip rows for the facility that actually needed the earlier window.
+ * Any missing/unparseable cursor → null (full window).
+ */
+function oldestCursor(cursors: Array<string | null | undefined>): string | null {
+  let best: { iso: string; ms: number } | null = null
+  for (const c of cursors) {
+    if (!c) return null
+    const ms = Date.parse(c)
+    if (!Number.isFinite(ms)) return null
+    if (!best || ms < best.ms) best = { iso: c, ms }
+  }
+  return best?.iso ?? null
+}
+
 function groupBy<T>(rows: T[], keyOf: (r: T) => string | null): { groups: Map<string, T[]>; unrouted: number } {
   const groups = new Map<string, T[]>()
   let unrouted = 0
@@ -145,9 +163,7 @@ export async function syncRealm(
   const tokenFacility = ids[0]
 
   // (1) Invoices — one pull from the OLDEST cursor (null = full window).
-  const invoiceCursor = facs.some((f) => !f.qbInvoicesSyncCursor)
-    ? null
-    : facs.map((f) => f.qbInvoicesSyncCursor as string).sort()[0]
+  const invoiceCursor = oldestCursor(facs.map((f) => f.qbInvoicesSyncCursor))
   const invPull = await fetchQBInvoices(tokenFacility, invoiceCursor)
   const invRouted = groupBy(invPull.rows, (inv) => route(inv.CustomerRef))
   result.unroutedInvoices = invRouted.unrouted
@@ -165,8 +181,7 @@ export async function syncRealm(
     where: inArray(qbSyncState.facilityId, ids),
     columns: { facilityId: true, paymentsSyncCursor: true },
   })
-  const payCursors = ids.map((id) => states.find((s) => s.facilityId === id)?.paymentsSyncCursor ?? null)
-  const payCursor = payCursors.some((c) => !c) ? null : (payCursors as string[]).sort()[0]
+  const payCursor = oldestCursor(ids.map((id) => states.find((s) => s.facilityId === id)?.paymentsSyncCursor ?? null))
   const payPull = await fetchQBPaymentsAndCredits(tokenFacility, payCursor)
   const payRouted = groupBy(payPull.pay.rows, (p) => route(p.CustomerRef))
   const cmRouted = groupBy(payPull.cm.rows, (c) => route(c.CustomerRef))

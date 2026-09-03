@@ -42,8 +42,6 @@ const getBillingSummaryData = unstable_cache(
           address: true,
           // Phase 12F — facility tz reaches BillingFacility for tz-aware display
           timezone: true,
-          qbAccessToken: true,
-          qbRefreshToken: true,
           qbInvoicesLastSyncedAt: true,
         },
       }),
@@ -116,19 +114,9 @@ const getBillingSummaryData = unstable_cache(
     }
 
     // Realm-level connection (qb_connections) decides "connected" — the legacy
-    // token columns are stripped and never reach the client.
+    // token columns are never selected, so they can't reach the client.
     const qbConnected = facility ? await isFacilityConnected(facilityId) : false
-    const facilityClean = facility
-      ? (() => {
-          const { qbAccessToken: _a, qbRefreshToken: _r, ...rest } = facility
-          void _a
-          void _r
-          return {
-            ...rest,
-            hasQuickBooks: qbConnected,
-          }
-        })()
-      : null
+    const facilityClean = facility ? { ...facility, hasQuickBooks: qbConnected } : null
 
     // Storage path stays server-side — clients get a boolean and fetch a
     // signed URL from /api/billing/check-image/[paymentId] on demand.

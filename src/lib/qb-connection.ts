@@ -277,8 +277,14 @@ async function doGetAccessToken(realmId: string): Promise<string> {
     const cur = claimed[0]
     if (cur) {
       try {
-        // Another worker may have refreshed between our read and the lease.
-        if (isFresh(cur)) return decryptToken(cur.access_token!)
+        // Another worker may have refreshed between our read and the lease —
+        // hand the lease straight back so nobody waits out the 45s.
+        if (isFresh(cur)) {
+          await db
+            .execute(sql`UPDATE qb_connections SET refresh_lock_until = NULL WHERE realm_id = ${realmId}`)
+            .catch(() => {})
+          return decryptToken(cur.access_token!)
+        }
         if (!cur.refresh_token) throw new Error('QuickBooks not connected')
         const oldRefresh = decryptToken(cur.refresh_token)
         const data = await refreshQBTokens(oldRefresh)

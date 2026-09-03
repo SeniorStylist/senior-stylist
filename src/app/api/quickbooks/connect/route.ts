@@ -35,11 +35,12 @@ export async function GET(request: NextRequest) {
     const facilityUser = await getUserFacility(user.id)
     let facilityId: string | null = facilityUser?.facilityId ?? null
 
+    // Master may anchor on any facility (the master QB page passes one) or none.
+    const requested = request.nextUrl.searchParams.get('facilityId')
+    if (isMaster && requested && UUID_RE.test(requested)) facilityId = requested
+
     if (scope === 'all') {
       if (!isMaster) return Response.json({ error: 'Forbidden' }, { status: 403 })
-      // Master may anchor on any facility (the master QB page passes one) or none.
-      const requested = request.nextUrl.searchParams.get('facilityId')
-      if (requested && UUID_RE.test(requested)) facilityId = requested
     } else if (scope === 'franchise') {
       if (!isMaster && !(await isFranchiseAdmin(user.id))) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
