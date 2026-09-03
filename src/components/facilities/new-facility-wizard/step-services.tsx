@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — Step 4 (manage tier only): the price list. Upload the facility's
+// P60 — Step 4 (manage tier only): the price list. Upload the facility's
 // price sheet (PDF/photo/spreadsheet) → the existing parser reads it →
 // preview → POST /api/services/bulk with the explicit facilityId. Rows land
 // as `price_list` so families can request them. Skippable.

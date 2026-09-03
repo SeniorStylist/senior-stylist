@@ -90,7 +90,7 @@ export const facilities = pgTable('facilities', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
-  // P57 — one active facility per code (drizzle/0043). Inactive rows keep
+  // P60 — one active facility per code (drizzle/0047). Inactive rows keep
   // their old code (never reused); the create route's advisory-lock generator
   // + this index together make concurrent creates safe.
   facilityCodeActiveUniq: uniqueIndex('facilities_code_active_uniq')
@@ -436,12 +436,12 @@ export const invites = pgTable('invites', {
   emailFailed: boolean('email_failed').default(false).notNull(),
   viewedAt: timestamp('viewed_at'),
   acceptedAt: timestamp('accepted_at'),
-  // P57 — which stylist directory record this invite was sent for. Redemption
+  // P60 — which stylist directory record this invite was sent for. Redemption
   // links this row deterministically; without it redeem re-derived the stylist
   // by email then FUZZY NAME, which mislinked look-alike names and missed
   // stylists who accepted at a different address than the one on file.
   // Nullable: only the stylist-invite route sets it. Self-bootstrapped by
-  // src/lib/invite-ddl.ts — keep in sync with drizzle/0044_p57_invite_stylist.sql.
+  // src/lib/invite-ddl.ts — keep in sync with drizzle/0048_p60_invite_stylist.sql.
   // onDelete matches the migration + the ddl bootstrap: a hard-deleted stylist
   // (the weekly demo-cleanup cron does exactly that) must null the invite's
   // pointer, not orphan it or block the delete. Without it here, drizzle-kit
@@ -783,6 +783,128 @@ export const qbUnappliedCredits = pgTable('qb_unapplied_credits', {
   stripePiUnique: uniqueIndex('qb_unapplied_credits_stripe_pi_unique')
     .on(t.stripePaymentIntentId)
     .where(sql`stripe_payment_intent_id IS NOT NULL`),
+}))
+
+// QB API customer links (drizzle/0047, self-bootstrapped by qb-links-ddl.ts).
+// Maps residents — and the facility PARENT customer when residentId IS NULL —
+// to their NUMERIC Intuit Customer.Id. residents.qb_customer_id keeps its
+// display-name meaning ("F177:Smith, Margaret - 12"); numeric ids live ONLY here.
+export const qbCustomerLinks = pgTable('qb_customer_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'cascade' }),
+  qbCustomerId: text('qb_customer_id').notNull(),
+  qbDisplayName: text('qb_display_name'),
+  qbSyncToken: text('qb_sync_token'),
+  qbParentId: text('qb_parent_id'),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  residentUq: uniqueIndex('qb_customer_links_resident_uq')
+    .on(t.facilityId, t.residentId)
+    .where(sql`resident_id IS NOT NULL`),
+  parentUq: uniqueIndex('qb_customer_links_parent_uq')
+    .on(t.facilityId)
+    .where(sql`resident_id IS NULL`),
+  qbIdIdx: index('qb_customer_links_qbid_idx').on(t.facilityId, t.qbCustomerId),
+}))
+
+// Site-paid protection (drizzle/0044, self-bootstrapped by qb-safety-ddl.ts):
+// cents of each invoice collected ON THE SITE and possibly not yet mirrored in
+// QuickBooks. QB-authoritative overwrites clamp against it — see qb-site-payments.ts.
+export const qbInvoiceSitePayments = pgTable('qb_invoice_site_payments', {
+  invoiceId: uuid('invoice_id')
+    .primaryKey()
+    .references(() => qbInvoices.id, { onDelete: 'cascade' }),
+  sitePaidCents: integer('site_paid_cents').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// Per-run QB audit + undo data (drizzle/0044). `items` carries what qb-undo.ts
+// needs to reverse the run; `undone_at` marks it reversed.
+export const qbSyncRuns = pgTable('qb_sync_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  action: text('action').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }).defaultNow(),
+  createdBy: uuid('created_by'),
+  summary: jsonb('summary').$type<Record<string, unknown>>(),
+  items: jsonb('items').$type<Record<string, unknown>>(),
+  undoneAt: timestamp('undone_at', { withTimezone: true }),
+  undoneBy: uuid('undone_by'),
+  undoSummary: jsonb('undo_summary').$type<Record<string, unknown>>(),
+}, (t) => ({
+  facilityIdx: index('qb_sync_runs_facility_idx').on(t.facilityId, t.startedAt.desc()),
+}))
+
+// Per-facility QB API sync config/cursors (drizzle/0047) — lives here instead
+// of new columns on the hot `facilities` table (P19 rule).
+export const qbSyncState = pgTable('qb_sync_state', {
+  facilityId: uuid('facility_id')
+    .primaryKey()
+    .references(() => facilities.id, { onDelete: 'cascade' }),
+  qbServiceItemId: text('qb_service_item_id'),
+  paymentsSyncCursor: text('payments_sync_cursor'),
+  paymentsLastSyncedAt: timestamp('payments_last_synced_at', { withTimezone: true }),
+  // 0045 — cached "Credit Card" PaymentMethod id used by the payment mirror.
+  qbCardPaymentMethodId: text('qb_card_payment_method_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// Realm-level QuickBooks connection (drizzle/0046, self-bootstrapped by
+// qb-connection.ts). Tokens live exactly ONCE per QuickBooks company; facilities
+// attach through facilities.qb_realm_id. Never select the token columns into a
+// client payload (sanitize.ts rule).
+export const qbConnections = pgTable('qb_connections', {
+  realmId: text('realm_id').primaryKey(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  refreshTokenIssuedAt: timestamp('refresh_token_issued_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  companyName: text('company_name'),
+  connectedBy: uuid('connected_by'),
+  connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  refreshLockUntil: timestamp('refresh_lock_until', { withTimezone: true }),
+  invoicesSyncCursor: text('invoices_sync_cursor'),
+  invoicesLastSyncedAt: timestamp('invoices_last_synced_at', { withTimezone: true }),
+  paymentsSyncCursor: text('payments_sync_cursor'),
+  paymentsLastSyncedAt: timestamp('payments_last_synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Payment mirroring queue (drizzle/0045, self-bootstrapped by qb-safety-ddl.ts):
+// site-collected card payments waiting to be written into QuickBooks as Payment
+// objects applied to the same invoices — see src/lib/qb-payment-mirror.ts.
+export const qbPaymentMirrorQueue = pgTable('qb_payment_mirror_queue', {
+  paymentId: uuid('payment_id')
+    .primaryKey()
+    .references(() => qbPayments.id, { onDelete: 'cascade' }),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  residentId: uuid('resident_id').references(() => residents.id, { onDelete: 'set null' }),
+  amountCents: integer('amount_cents').notNull(),
+  allocations: jsonb('allocations').$type<Array<{ invoiceId: string; cents: number }>>().notNull().default([]),
+  ref: text('ref').notNull(),
+  source: text('source'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  skipReason: text('skip_reason'),
+  qbPaymentId: text('qb_payment_id'),
+  mirroredCents: integer('mirrored_cents'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  mirroredAt: timestamp('mirrored_at', { withTimezone: true }),
+}, (t) => ({
+  statusIdx: index('qb_payment_mirror_queue_status_idx').on(t.facilityId, t.status),
+  refUq: uniqueIndex('qb_payment_mirror_queue_ref_uq').on(t.ref),
 }))
 
 export const qbUnresolvedPayments = pgTable('qb_unresolved_payments', {

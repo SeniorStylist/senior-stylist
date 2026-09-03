@@ -6,7 +6,7 @@
 // Supabase user id with no membership — and once the invite is `used`, redeem can't
 // re-provision it, so they're stuck on /unauthorized. `healMembershipOnLogin`
 // re-provisions memberships for the current uid from EVERY invite for their
-// email — P57: a second-facility invite used to be invisible because the old
+// email — P60: a second-facility invite used to be invisible because the old
 // version stopped as soon as the uid was a member anywhere.
 
 import { db } from '@/db'
@@ -83,7 +83,7 @@ export async function linkStylistByEmailOrName(
 }
 
 /**
- * P57 — link a profile to the EXACT stylist record an invite was sent for.
+ * P60 — link a profile to the EXACT stylist record an invite was sent for.
  *
  * Why: `invites.stylist_id` now records which directory row the stylist-invite
  * route mailed. Before it existed, redemption re-derived the record by email
@@ -147,7 +147,7 @@ type AuthUserLike = {
  * because Supabase has verified the user's email and an admin previously
  * invited it. Returns a facilityId they now belong to, else null.
  *
- * P57 — this used to bail the moment the uid had a membership ANYWHERE. A
+ * P60 — this used to bail the moment the uid had a membership ANYWHERE. A
  * stylist invited to a second facility (or whose older invite provisioned
  * facility A while the new one is for facility B) could never be provisioned
  * for B: redeem refuses a `used` invite, and heal saw "already a member" and
@@ -266,7 +266,7 @@ export async function healMembershipOnLogin(user: AuthUserLike): Promise<string 
       columns: { stylistId: true },
     })
     if (!profile?.stylistId) {
-      // P57 — prefer the invite that names its stylist record; fall back to
+      // P60 — prefer the invite that names its stylist record; fall back to
       // the email-then-name heuristic only when no invite carries one.
       const named = stylistInvites.find((inv) => inv.stylistId)
       const linked =

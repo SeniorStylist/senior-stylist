@@ -7,7 +7,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '6.9',
+    version: '6.12',
     date: '2026-09-03',
     title: 'Opening a New Community, Start to Finish',
     items: [
@@ -24,6 +24,41 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Requests from families no longer get parked on one stylist: at a facility where nobody has hours set yet, a request stays unassigned so every stylist can see it',
       'Families can now see what each past visit cost, with the tip shown separately, and rows in the Day Log say "Card" or "Credit" in words instead of a small symbol',
       'Owner: Master Admin → Debug gained "Launch rehearsal", which prepares a practice facility and opens the family sign-up dry run — the click-through in docs/fitzgerald-walkthrough.md',
+    ],
+  },
+  {
+    version: '6.11',
+    date: '2026-09-02',
+    title: 'One QuickBooks Connection for Everyone',
+    items: [
+      'Connect QuickBooks once and every facility in the same QuickBooks company is connected — Master Admin → QuickBooks has a "Connect QuickBooks for all facilities" button, franchise owners get "Connect QuickBooks for all N" on their Franchise page, and any facility left out can be attached with one tap (no second Intuit sign-in)',
+      'Detach vs disconnect: a facility can take itself off the shared connection from Settings → Billing without affecting anyone else; only the master can disconnect the whole company',
+      'Nightly QuickBooks sync now pulls each company ONCE and hands every facility its own invoices and payments, instead of every facility re-reading the whole company — the same night covers 100+ facilities',
+      'Sturdier: token refreshes are serialized so two servers can never invalidate each other, every create carries an Intuit request id so a dropped connection never makes a duplicate, and QuickBooks calls are metered against Intuit\'s per-company limit',
+    ],
+  },
+  {
+    version: '6.10',
+    date: '2026-09-01',
+    title: 'QuickBooks Safety Net',
+    items: [
+      'Paid means paid: an invoice a family already paid on the site (card, in-app, family portal, or salon credit) can no longer be re-opened by a QuickBooks sync — so the nightly automatic charge can never bill a card twice for the same visit',
+      'Send via QB now skips residents on card-on-file autopay (they\'re charged on the site, not invoiced through QuickBooks) and tells you how many it skipped',
+      'New Sync history in Settings → Billing & Payments → QuickBooks: every sync and every Send via QB is listed with a one-tap Undo — invoices are voided in QuickBooks (never deleted), anything already paid is left alone, and pulled payments or credits can be rewound',
+      'Card payments collected on the site now show up in QuickBooks by themselves: every card-on-file charge, in-app card payment, and family-portal payment is recorded in QuickBooks as a payment applied to the same invoice (never twice — it checks QuickBooks first and caps at what the invoice still owes), and refunding one from the site voids it in QuickBooks too',
+    ],
+  },
+  {
+    version: '6.9',
+    date: '2026-08-25',
+    title: 'QuickBooks, Connected for Real',
+    items: [
+      'Connecting to QuickBooks now works from any address — the connect button always sends Intuit the one registered web address, so the "Uh oh, there\'s a connection problem" page from connecting via a different link is gone (one Intuit-side registration still required — see the checklist)',
+      'New "Test connection" button in Settings → Billing → QuickBooks: one tap proves the whole connection works ("✓ Connected to {your company}") or tells you it needs a reconnect — with the reconnect link right there',
+      '"Sync Customers" links every resident to their QuickBooks customer and creates any that are missing (as sub-customers under the facility, matching how the books are organized) — after that, invoices and payments match residents exactly instead of guessing by name',
+      '"Send via QB" is live: pick a month and it creates real QuickBooks invoices from that month\'s completed, unpaid appointments — one per resident (or one facility invoice for facility-billed accounts), never double-billing an appointment already invoiced, tips never included — and can have QuickBooks email them',
+      'Payments and credits recorded in QuickBooks now sync back too (with invoice sync, nightly once live sync is on) — payments you already recorded by check-scan or CSV import are recognized, never double-counted',
+      'Sturdier under the hood: QuickBooks calls retry on rate limits, and disconnect/reconnect can no longer silently skip invoices that changed while disconnected',
     ],
   },
   {

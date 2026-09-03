@@ -10,6 +10,7 @@
 import { db } from '@/db'
 import { qbInvoices, qbUnappliedCredits } from '@/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { recordSitePaid } from '@/lib/qb-site-payments'
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -80,6 +81,7 @@ export async function applyCreditToInvoices(
         updatedAt: new Date(),
       })
       .where(eq(qbInvoices.id, inv.id))
+    await recordSitePaid(tx, inv.id, take) // site-paid protection (callers ensureQbSafetySchema before the tx)
     allocations.push({
       invoiceId: inv.id,
       invoiceNum: inv.invoiceNum,
@@ -108,7 +110,7 @@ export async function applyCreditToInvoices(
 }
 
 /** Recompute facility + resident outstanding balances from invoice open balances. */
-export async function recomputeFacilityBalances(tx: Tx, facilityIds: string[]): Promise<void> {
+export async function recomputeFacilityBalances(tx: Tx | typeof db, facilityIds: string[]): Promise<void> {
   for (const fid of Array.from(new Set(facilityIds))) {
     await tx.execute(sql`
       UPDATE facilities f

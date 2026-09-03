@@ -89,7 +89,7 @@ export default async function SignupPage({
         facilityName={facility.name}
         lang={lang}
         previewMode={previewMode}
-        // P57 — BOTH platform keys. Gating on the publishable key alone showed
+        // P60 — BOTH platform keys. Gating on the publishable key alone showed
         // families a card step that could never mint a setup intent (no secret
         // key server-side). Keep identical to the paymentsEnabled expression in
         // /api/portal/signup — that route re-derives the same decision.

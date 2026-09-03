@@ -33,7 +33,7 @@ export default async function RequestServicePage({
       where: eq(facilities.id, selected.facilityId),
       columns: { id: true, serviceCategoryOrder: true },
     }),
-    // P57 — source is selected, NOT filtered in SQL, so the fallback below can
+    // P60 — source is selected, NOT filtered in SQL, so the fallback below can
     // be decided in one query (max:1 pool: never pay for a second round-trip
     // just to count rows). `source` stays server-side — the client payload at
     // the bottom of this file is still {id, name} only.
@@ -67,7 +67,7 @@ export default async function RequestServicePage({
   // Add-ons are never requestable on their own — they ride a real service.
   const bookable = allServices.filter((s) => s.pricingType !== 'addon')
   const priceList = bookable.filter((s) => s.source === 'price_list')
-  // P57 — price_list is the preferred catalog, but since P51 a facility
+  // P60 — price_list is the preferred catalog, but since P51 a facility
   // admin's own service creations land as 'ocr_import'. A facility whose whole
   // catalog was built that way showed families an EMPTY picker with no way to
   // request anything, so fall back to every active service rather than

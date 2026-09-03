@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // P57 — the admin/front-desk walk-in path mailed the family NOTHING, so the
+    // P60 — the admin/front-desk walk-in path mailed the family NOTHING, so the
     // day-log hint "we'll email the family" was a lie here (only the inline
     // bookings-POST create invited them). Same helper, same semantics: AWAITED
     // (an unawaited send is frozen with the lambda) but NON-FATAL — the helper

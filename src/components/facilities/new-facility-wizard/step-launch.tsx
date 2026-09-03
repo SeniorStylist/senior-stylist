@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — Step 5: the money rules. Billing type, rev-share (master), the
+// P60 — Step 5: the money rules. Billing type, rev-share (master), the
 // autopay rule (never promises a charge unless payments are live), sweep
 // cadence, franchise link (master).
 

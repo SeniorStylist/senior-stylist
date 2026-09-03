@@ -609,7 +609,7 @@ export async function POST(request: NextRequest) {
     // "finish your account" invite (portal magic link). AWAITED but non-fatal —
     // the booking is already saved; a mail failure must not fail the create.
     // Only fires on the freshly-created branch (dedup/replay never re-sends).
-    // P57 — shared with the admin /api/residents path via sendFinishAccountInvite.
+    // P60 — shared with the admin /api/residents path via sendFinishAccountInvite.
     // Dynamic import keeps portal-auth off the hot booking path (this branch is rare).
     if (inviteFreshFamily) {
       const { sendFinishAccountInvite } = await import('@/lib/resident-invite')

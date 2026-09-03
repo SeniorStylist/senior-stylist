@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/toast'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
 import { Avatar } from '@/components/ui/avatar'
 import { openPeek } from '@/lib/peek-drawer'
+import { SendViaQbModal } from '@/components/billing/send-via-qb-modal'
 
 type SortKey = 'name' | 'room' | 'lastService' | 'billed' | 'outstanding'
 type SortDir = 'asc' | 'desc'
@@ -41,6 +42,7 @@ export function IPView({
   const { toast } = useToast()
   const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
   const [sendAllLoading, setSendAllLoading] = useState(false)
+  const [qbSendOpen, setQbSendOpen] = useState(false)
   const [rowSending, setRowSending] = useState<Record<string, boolean>>({})
   const [rowWarning, setRowWarning] = useState<{
     residentId: string
@@ -215,6 +217,14 @@ export function IPView({
   return (
     <>
       {sendConfirmDialog}
+      <SendViaQbModal
+        open={qbSendOpen}
+        onClose={() => setQbSendOpen(false)}
+        facilityId={facility.id}
+        mode="per_resident"
+        facilityName={facility.name}
+        onDone={onRefresh}
+      />
       {rowWarning && (
         <SendDedupModal
           lastSentAt={rowWarning.lastSentAt}
@@ -245,10 +255,21 @@ export function IPView({
                   {sendAllLoading ? 'Sending…' : `Send All (${eligibleCount})`}
                 </button>
               ) : null}
-              <DisabledActionButton
-                label="Send via QB"
-                title="Available after QB production approval"
-              />
+              {facility.hasQuickBooks ? (
+                <button
+                  type="button"
+                  onClick={() => setQbSendOpen(true)}
+                  title="Create QuickBooks invoices from this month's completed, unpaid appointments"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200 transition-all duration-150 ease-out active:scale-[0.97]"
+                >
+                  Send via QB
+                </button>
+              ) : (
+                <DisabledActionButton
+                  label="Send via QB"
+                  title="Connect QuickBooks in Settings to create invoices"
+                />
+              )}
             </div>
 
             <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-2.5 border-b border-stone-200 bg-stone-50/60">

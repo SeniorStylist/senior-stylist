@@ -254,7 +254,7 @@ interface SidebarProps {
   role?: string
   debugMode?: boolean
   isFranchiseAdmin?: boolean
-  /** P57 — id of the selected facility; the switcher highlights by id, not name. */
+  /** P60 — id of the selected facility; the switcher highlights by id, not name. */
   activeFacilityId?: string
 }
 
@@ -334,7 +334,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
       {/* Logo / Facility name */}
       <div className="px-5 py-5 border-b border-white/10">
         <Link href="/dashboard" className="block">
-          {/* P57 — pre-baked white wordmark. `brightness(0) invert(1)` on the
+          {/* P60 — pre-baked white wordmark. `brightness(0) invert(1)` on the
               burgundy-on-WHITE source painted a solid white box ("logo not
               loading"), and 160×64 squashed a 1.24:1 mark. */}
           <Image
@@ -385,7 +385,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
               </svg>
             </button>
 
-            {/* P57 — the PANEL is the scroll container, sized against the
+            {/* P60 — the PANEL is the scroll container, sized against the
                 viewport (not just the inner list): with 100+ facilities on a
                 laptop / ≥125% zoom, the old max-h-[60vh] list plus ~240px of
                 anchor offset + chrome overflowed the h-screen aside, whose

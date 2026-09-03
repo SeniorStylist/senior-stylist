@@ -35,7 +35,7 @@ export function generateToken(bytes = 32): string {
   return randomBytes(bytes).toString('hex')
 }
 
-// P57 — appUrl() now comes from src/lib/app-url.ts. The local copy fell back to
+// P60 — appUrl() now comes from src/lib/app-url.ts. The local copy fell back to
 // the DEAD senior-stylist.vercel.app host, so an unset NEXT_PUBLIC_APP_URL
 // mailed families a magic link that resolves nowhere.
 

@@ -6,7 +6,7 @@
 // stylist branch scopes it to residents at facilities where the stylist works.
 // Vaulting charges nothing — the card is stored by Stripe for future COF.
 //
-// P57 — the card can now also carry the family's autopay request. Before this,
+// P60 — the card can now also carry the family's autopay request. Before this,
 // a card saved here NEVER enabled autopay: staff were told "we'll charge it
 // automatically", the switch stayed off, and nothing ever charged.
 

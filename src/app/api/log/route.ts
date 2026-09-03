@@ -10,7 +10,7 @@ import { toClientJson } from '@/lib/sanitize'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 import { logEntryCreateSchema } from '@/lib/validation/log-entry'
 
-// P57 — `after()` charge work counts against this function's duration limit,
+// P60 — `after()` charge work counts against this function's duration limit,
 // so a finalize that charges several autopay residents (one Stripe round-trip
 // each) needs more than the platform's 10s default. Without this a sweep is
 // cut mid-charge; the remainder is idempotent and picked up by the next
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    // P57 — matches the POST below: the legacy read-only role has no business
+    // P60 — matches the POST below: the legacy read-only role has no business
     // enumerating the day's log entries (their ids were the first half of the
     // viewer-triggers-a-charge path closed in PUT /api/log/[id]).
     if (facilityUser.role === 'viewer') return Response.json({ error: 'Forbidden' }, { status: 403 })
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       // P55 — finalize fires the COF sweep: charges autopay residents' completed
       // unpaid bookings for this stylist-day. Idempotent (paid stamp + unpaid
       // re-check + cooldown).
-      // P57 — wrapped in after(): an unawaited promise started as the response is
+      // P60 — wrapped in after(): an unawaited promise started as the response is
       // returned can be killed by the serverless freeze, silently dropping a REAL
       // card charge (the June 2026 unawaited-invite-email bug class). after() keeps
       // the invocation alive until it settles. Errors stay swallowed — a failed
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // P55 — finalize-on-create fires the COF sweep too. P57 — after() for the
+    // P55 — finalize-on-create fires the COF sweep too. P60 — after() for the
     // same reason as above: the money path must survive the response freeze.
     if (finalized && !entryIsDemo) {
       after(async () => {

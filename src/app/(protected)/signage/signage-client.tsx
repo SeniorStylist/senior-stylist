@@ -170,7 +170,7 @@ export function SignageClient({ facilityName, facilityPhone, facilityCode = null
     ;(async () => {
       try {
         const QRCode = (await import('qrcode')).default
-        // P57 — appUrl(), NOT window.location.origin: a poster printed from a
+        // P60 — appUrl(), NOT window.location.origin: a poster printed from a
         // preview deploy encoded a host families can never reach.
         const url = `${appUrl()}/family/${encodeURIComponent(facilityCode)}/signup`
         const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 1, color: { dark: '#1C0A12' } })
@@ -220,7 +220,7 @@ export function SignageClient({ facilityName, facilityPhone, facilityCode = null
     setTimeout(() => w.print(), 450)
   }
 
-  // P57 — the QR poster needs a facility code to build its link. It used to be
+  // P60 — the QR poster needs a facility code to build its link. It used to be
   // FILTERED OUT without one, so the poster looked like it didn't exist and
   // nobody knew a facility code was the missing piece. Disable and explain
   // (P48) instead of hiding.

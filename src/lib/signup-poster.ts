@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — the family sign-up QR poster, lifted out of Settings → Family
+// P60 — the family sign-up QR poster, lifted out of Settings → Family
 // Accounts so the New-Facility wizard's Done screen prints the same poster.
 // Signage print pattern: a self-contained HTML doc, window.open + print; the
 // QR is a data-URL so the page works offline.

@@ -48,7 +48,7 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true, canMan
       const res = await fetch('/api/stylists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // P57 — send the facility explicitly so a master's create lands here,
+        // P60 — send the facility explicitly so a master's create lands here,
         // not as an unassigned pool stylist.
         body: JSON.stringify({ name: name.trim(), color, ...(facilityId ? { facilityId } : {}) }),
       })

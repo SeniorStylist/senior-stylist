@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — Step 3 (manage tier only): staff the facility. Pick EXISTING stylists
+// P60 — Step 3 (manage tier only): staff the facility. Pick EXISTING stylists
 // by name/ST-code, create new ones, or upload the stylist sheet. Every pick
 // carries day chips (default = the facility's days) so availability exists
 // from day one — that's what drives request auto-assignment and the family

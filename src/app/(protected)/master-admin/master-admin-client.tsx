@@ -311,7 +311,7 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     )
   }, [sortedFacilities, facilitySearch])
 
-  // P57 — facility switch = select + HARD reload (facility-switch.ts rule). The
+  // P60 — facility switch = select + HARD reload (facility-switch.ts rule). The
   // old hand-rolled fetch + router.push soft-navigated between two children of
   // the same (protected) layout, so the Sidebar kept its stale facilityName /
   // switcher props (F121) while the page read the new cookie (F240) — the

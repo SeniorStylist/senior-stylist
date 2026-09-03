@@ -10,10 +10,14 @@ import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { calculateRevShare } from '@/lib/rev-share'
 import { ensurePaymentsSchema } from '@/lib/payments-ddl'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { recordSitePaid } from '@/lib/qb-site-payments'
+import { enqueuePaymentMirror, mirrorPaymentSoon, type MirrorAllocation } from '@/lib/qb-payment-mirror'
 import { getPlatformStripe } from './stripe-client'
 
 export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ recorded: boolean }> {
   await ensurePaymentsSchema()
+  await ensureQbSafetySchema() // before the tx — recordSitePaid writes inside it
 
   // Idempotency — already recorded?
   const existing = await db.query.qbPayments.findFirst({
@@ -46,6 +50,7 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
   const split = calculateRevShare(amountCents, facility?.revSharePercentage ?? null, facility?.qbRevShareType ?? null)
 
   let recorded = false
+  let paymentId: string | null = null
   await db.transaction(async (tx) => {
     // Insert-first with conflict detection (unique index on stripe_payment_intent_id):
     // the confirm POST and the webhook backstop can interleave past the SELECT guard
@@ -71,6 +76,8 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
       .returning({ id: qbPayments.id })
     if (inserted.length === 0) return // another path already recorded this PI
     recorded = true
+    paymentId = inserted[0].id
+    const allocations: MirrorAllocation[] = []
 
     // FIFO-apply to open invoices (specific invoiceIds first, else any open).
     // P53 — is_demo filter: real money must never retire seed/demo invoices.
@@ -97,8 +104,20 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
           updatedAt: now,
         })
         .where(eq(qbInvoices.id, inv.id))
+      await recordSitePaid(tx, inv.id, take) // site-paid protection
+      allocations.push({ invoiceId: inv.id, cents: take })
       remaining -= take
     }
+    // QB mirror: the applied portion is written into QuickBooks after commit.
+    await enqueuePaymentMirror(tx, {
+      paymentId: inserted[0].id,
+      facilityId,
+      residentId,
+      amountCents,
+      allocations,
+      source: 'stylist_collect',
+      stripePaymentIntentId: paymentIntentId,
+    })
 
     if (bookingIds.length) {
       await tx
@@ -119,6 +138,9 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
     `)
   })
   if (!recorded) return { recorded: false }
+
+  // Mirror into QuickBooks (bounded wait; cron finishes any straggler).
+  if (paymentId) await mirrorPaymentSoon(paymentId)
 
   // Persist the card if it was saved (setup_future_usage attached it to the customer).
   if (md.savePaymentMethod === '1' && typeof pi.payment_method === 'string' && typeof pi.customer === 'string') {

@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 
-// P57 — `facilityId` is passed explicitly by the page (it already knows it) so
+// P60 — `facilityId` is passed explicitly by the page (it already knows it) so
 // a master's create lands at the facility on screen rather than relying on the
 // route's cookie resolution alone.
 export function AddStylistInline({ facilityId }: { facilityId?: string } = {}) {

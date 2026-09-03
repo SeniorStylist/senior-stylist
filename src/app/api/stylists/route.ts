@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const master = isMasterAdmin(user.email)
-    // P57 — resolve the facility for EVERYONE (the master's selected_facility_id
+    // P60 — resolve the facility for EVERYONE (the master's selected_facility_id
     // cookie now yields a synthetic row via getUserFacility). The old
     // `master ? null : …` short-circuit meant a master adding a stylist "at
     // F240" created it with facility_id NULL and NO assignment row — invisible

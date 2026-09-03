@@ -18,7 +18,7 @@ type Db = typeof defaultDb
  *     facility has EXACTLY ONE active assigned stylist. Two or more → null.
  *  3. No candidates → null.
  *
- * P57 — the fallback used to pick the most-recently-updated stylist. At a
+ * P60 — the fallback used to pick the most-recently-updated stylist. At a
  * facility with several stylists and no availability rows yet (exactly a
  * newly-created facility), that stamped the request onto ONE arbitrary stylist,
  * where it disappeared from every OTHER stylist's queue (which shows own +
@@ -124,7 +124,7 @@ export async function resolveAssignedStylist(
  * exactly one active stylist on its roster — home rows plus active assignment
  * rows, the same union every other roster surface reads (P33). With two or more
  * there is no basis to choose, and a wrong guess hides the request from
- * everyone else (see the P57 note above). LIMIT 2 tells "one" from "many".
+ * everyone else (see the P60 note above). LIMIT 2 tells "one" from "many".
  */
 async function resolveFallback(facilityId: string, dbInstance: Db, demoOnly: boolean): Promise<string | null> {
   // P33 roster rule: home rows PLUS active assignment rows. An assignments-only

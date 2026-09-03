@@ -16,6 +16,7 @@ import { HybridView } from './views/hybrid-view'
 import { CrossFacilityPanel, PanelType } from './components/cross-facility-panel'
 import { ScanCheckModal, ScanResult } from './components/scan-check-modal'
 import { MemoBatchModal } from '@/components/billing/memo-batch-modal'
+import { SendViaQbModal } from '@/components/billing/send-via-qb-modal'
 import { PageHeader } from '@/components/ui/page-header'
 import { isIndividualPayer } from '@/lib/resident-payment-types'
 import { CreditCard } from 'lucide-react'
@@ -338,6 +339,10 @@ export function BillingClient({
   const crossUnappliedCents = crossSummary?.totalUnappliedCents ?? 0
 
   const paymentType = summary?.facility.paymentType ?? null
+  // IP facilities invoice per resident; facility-billed (RFMS/hybrid) get one
+  // facility-level invoice.
+  const qbSendMode: 'per_resident' | 'facility' = paymentType === 'ip' ? 'per_resident' : 'facility'
+  const [qbSendOpen, setQbSendOpen] = useState(false)
   const showRevShareRow =
     paymentType === 'rfms' || paymentType === 'facility' || paymentType === 'hybrid'
 
@@ -514,6 +519,23 @@ export function BillingClient({
         return
       }
       setQbSyncResult(j.data)
+
+      // Chain the payment/credit pull — best-effort; invoice results stand
+      // either way and the payment route 503s while the flag is off.
+      try {
+        const payRes = await fetch(`/api/quickbooks/sync-payments/${facilityId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullSync }),
+        })
+        const payJson = await payRes.json().catch(() => ({}))
+        if (payRes.ok && payJson.data?.errors?.length > 0) {
+          setQbSyncError(`Payments: ${payJson.data.errors[0]}`)
+        }
+      } catch {
+        // invoice sync already succeeded — ignore payment-chain network noise
+      }
+
       setQbSyncFlash(true)
       setTimeout(() => setQbSyncFlash(false), 3000)
       setRefreshKey((k) => k + 1)
@@ -624,6 +646,17 @@ export function BillingClient({
             setShowScanModal(false)
             setScanResolveData(null)
           }}
+        />
+      )}
+
+      {summary?.facility && (
+        <SendViaQbModal
+          open={qbSendOpen}
+          onClose={() => setQbSendOpen(false)}
+          facilityId={summary.facility.id}
+          mode={qbSendMode}
+          facilityName={summary.facility.name}
+          onDone={handleRefresh}
         />
       )}
 
@@ -1109,10 +1142,21 @@ export function BillingClient({
                     title="Awaiting Intuit production approval"
                   />
                 ) : null}
-                <DisabledActionButton
-                  label="Send via QB"
-                  title="Coming soon — available after Intuit approval"
-                />
+                {summary?.facility.hasQuickBooks ? (
+                  <button
+                    type="button"
+                    onClick={() => setQbSendOpen(true)}
+                    title="Create QuickBooks invoices from a month's completed, unpaid appointments"
+                    className={`${btnBase} inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-stone-100 text-stone-700 hover:bg-stone-200`}
+                  >
+                    Send via QB
+                  </button>
+                ) : (
+                  <DisabledActionButton
+                    label="Send via QB"
+                    title="Connect QuickBooks in Settings to create invoices"
+                  />
+                )}
                 </div>
               </div>
             </div>

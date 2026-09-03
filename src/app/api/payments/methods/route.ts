@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
 const postSchema = z.object({
   residentId: z.string().uuid(),
-  // REQUIRED. It was briefly optional in P57 so the chair-side modal could
+  // REQUIRED. It was briefly optional in P60 so the chair-side modal could
   // apply its consent tick in a follow-up call; that turned this route into a
   // standalone autopay-enable verb with no card save — precisely the
   // capability /api/payments/autopay 403s stylists from, and reachable by a
@@ -60,11 +60,11 @@ const postSchema = z.object({
   // P54 — signup wizard payment step (see setup-intent route).
   signupToken: z.string().min(1).max(200).optional(),
   // P54 — the signup card save auto-enables per-visit autopay (owner decision:
-  // charge after each service). Honored for portal/signup actors, and since P57
+  // charge after each service). Honored for portal/signup actors, and since P60
   // for staff/stylists WITH consentAttested — always through the shared
   // family-enable helper (requires-card guard + consent email/SMS).
   enableAutopay: z.boolean().optional(),
-  // P57 — "the family asked us to keep this card on file for automatic
+  // P60 — "the family asked us to keep this card on file for automatic
   // payment". Staff and stylists vault cards at the chair; without an explicit
   // attestation their enableAutopay is dropped, so a card can never start
   // charging on a staff member's say-so alone.
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     })
 
     // P54 — signup-card-save auto-enables per-visit autopay (family actors).
-    // P57 — staff and stylists may enable it too, but ONLY with an explicit
+    // P60 — staff and stylists may enable it too, but ONLY with an explicit
     // attestation that the family asked for it. Before this, a card vaulted at
     // the chair for "automatic payment" left autopay off: the facility believed
     // it was on and nothing ever charged. Unattested flags are dropped silently

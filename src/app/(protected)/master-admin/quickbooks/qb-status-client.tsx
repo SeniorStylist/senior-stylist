@@ -2,13 +2,17 @@
 
 // P48 — network-wide QuickBooks health. Chips follow the master-admin facility
 // card vocabulary so this reads as part of the same system.
+// 2026-09-02 — realm-level connections: the company card at the top connects
+// ONCE for every facility, attaches stragglers, or disconnects the company.
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/toast'
 import { PageHeader } from '@/components/ui/page-header'
 import { Plug } from 'lucide-react'
 import { formatMoney } from '@/lib/format'
+import type { QbConnectionInfo } from '@/lib/qb-connection'
 
 export interface QbFacilityRow {
   id: string
@@ -28,6 +32,11 @@ export interface QbFacilityRow {
   lastImportAt: string | null
   openBalanceCents: number
 }
+
+export type CallbackNotice =
+  | { kind: 'ok'; attached: number; skipped: number }
+  | { kind: 'err'; reason: string }
+  | null
 
 type Health = 'healthy' | 'attention' | 'broken' | 'disconnected'
 
@@ -63,7 +72,7 @@ const CHIP: Record<Health, { label: string; cls: string; title: string }> = {
   disconnected: {
     label: 'Not connected',
     cls: 'bg-stone-100 text-stone-400 border border-stone-200',
-    title: 'This facility has never connected QuickBooks.',
+    title: 'This facility is not attached to a QuickBooks company.',
   },
 }
 
@@ -80,20 +89,39 @@ function ago(iso: string | null): string {
   return `${mins}m ago`
 }
 
+function until(iso: string | null): string {
+  if (!iso) return 'unknown'
+  const days = Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000)
+  if (days < 0) return 'expired'
+  if (days === 0) return 'today'
+  return `in ${days} day${days === 1 ? '' : 's'}`
+}
+
 export function QbStatusClient({
   rows,
+  connections,
   facilityFilter,
   invoiceSyncEnabled,
+  callbackNotice,
 }: {
   rows: QbFacilityRow[]
+  connections: QbConnectionInfo[]
   facilityFilter: string | null
   invoiceSyncEnabled: boolean
+  callbackNotice: CallbackNotice
 }) {
   const { toast } = useToast()
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [onlyProblems, setOnlyProblems] = useState(false)
   const [syncing, setSyncing] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null)
   const [localRows, setLocalRows] = useState(rows)
+
+  const liveConnections = connections.filter((c) => c.connected)
+  const primary = liveConnections[0] ?? null
+  const unattached = useMemo(() => localRows.filter((r) => !r.realmId), [localRows])
 
   const counts = useMemo(() => {
     const c = { healthy: 0, attention: 0, broken: 0, disconnected: 0 }
@@ -140,6 +168,60 @@ export function QbStatusClient({
     }
   }
 
+  async function attach(realmId: string, scope: 'all' | 'list', facilityIds?: string[]) {
+    const key = scope === 'all' ? 'attach-all' : `attach-${facilityIds?.[0] ?? ''}`
+    if (busy) return
+    setBusy(key)
+    try {
+      const res = await fetch('/api/quickbooks/attach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ realmId, scope, facilityIds }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof json.error === 'string' ? json.error : 'Attach failed')
+        return
+      }
+      const d = json.data ?? {}
+      toast.success(
+        `${d.attached ?? 0} attached${d.skipped ? ` · ${d.skipped} skipped (attached to a different QuickBooks company)` : ''}`,
+      )
+      const ids = new Set(scope === 'all' ? unattached.map((r) => r.id) : facilityIds ?? [])
+      setLocalRows((prev) => prev.map((r) => (ids.has(r.id) ? { ...r, realmId, connected: true } : r)))
+      router.refresh()
+    } catch {
+      toast.error('Network error — try again.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function disconnectCompany(realmId: string) {
+    if (busy) return
+    setBusy('disconnect')
+    try {
+      const res = await fetch('/api/quickbooks/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'company', realmId }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof json.error === 'string' ? json.error : 'Disconnect failed')
+        return
+      }
+      toast.success(`QuickBooks disconnected — ${json.data?.detached ?? 0} facilities detached`)
+      setLocalRows((prev) => prev.map((r) => (r.realmId === realmId ? { ...r, realmId: null, connected: false } : r)))
+      router.refresh()
+    } catch {
+      toast.error('Network error — try again.')
+    } finally {
+      setBusy(null)
+      setConfirmDisconnect(null)
+    }
+  }
+
   return (
     <div className="page-enter max-w-6xl mx-auto px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
@@ -154,6 +236,118 @@ export function QbStatusClient({
         >
           ← Master Admin
         </Link>
+      </div>
+
+      {callbackNotice?.kind === 'ok' && (
+        <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <span className="font-semibold">Connected to QuickBooks.</span> {callbackNotice.attached} facilit
+          {callbackNotice.attached === 1 ? 'y' : 'ies'} attached
+          {callbackNotice.skipped > 0
+            ? ` · ${callbackNotice.skipped} skipped because they are attached to a different QuickBooks company`
+            : ''}
+          .
+        </div>
+      )}
+      {callbackNotice?.kind === 'err' && (
+        <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <span className="font-semibold">QuickBooks connection failed:</span> {callbackNotice.reason}
+        </div>
+      )}
+
+      {/* Company connection — one authorization for every facility */}
+      <div className="mb-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-[var(--shadow-sm)]">
+        {primary ? (
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-stone-900">
+                {primary.companyName ?? 'QuickBooks company'}{' '}
+                <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 align-middle ml-1">
+                  Connected
+                </span>
+              </p>
+              <p className="text-[11.5px] text-stone-500 mt-1">
+                Realm <span className="font-mono">{primary.realmId}</span> · connected {ago(primary.connectedAt)} ·{' '}
+                {localRows.filter((r) => r.realmId === primary.realmId).length} of {localRows.length} facilities attached
+                · authorization renews itself; reconnect needed {until(primary.refreshTokenExpiresAt)}
+              </p>
+              {primary.lastError && (
+                <p className="text-[11.5px] text-rose-700 mt-1 line-clamp-2">Last error: {primary.lastError}</p>
+              )}
+              {liveConnections.length > 1 && (
+                <p className="text-[11.5px] text-amber-700 mt-1">
+                  {liveConnections.length} QuickBooks companies are connected — facilities attach to one each.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {unattached.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => attach(primary.realmId, 'all')}
+                  disabled={busy !== null}
+                  className="text-xs font-semibold px-3 py-2 rounded-xl bg-[#8B2E4A] text-white hover:bg-[#72253C] transition-colors disabled:opacity-50"
+                >
+                  {busy === 'attach-all' ? 'Attaching…' : `Attach the other ${unattached.length}`}
+                </button>
+              )}
+              <a
+                href={`/api/quickbooks/connect?scope=all&return=master`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+                title="Re-authorize with Intuit (use after 'Needs reconnect')"
+              >
+                Reconnect
+              </a>
+              {confirmDisconnect === primary.realmId ? (
+                <span className="flex items-center gap-2 text-xs">
+                  <span className="text-stone-600">Disconnect every facility?</span>
+                  <button
+                    type="button"
+                    onClick={() => disconnectCompany(primary.realmId)}
+                    disabled={busy !== null}
+                    className="px-3 py-1.5 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {busy === 'disconnect' ? 'Disconnecting…' : 'Yes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDisconnect(null)}
+                    className="px-3 py-1.5 rounded-lg font-semibold border border-stone-200 text-stone-600 hover:bg-stone-50"
+                  >
+                    No
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDisconnect(primary.realmId)}
+                  className="text-xs font-semibold px-3 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 transition-colors"
+                >
+                  Disconnect company
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-stone-900">No QuickBooks company connected</p>
+              <p className="text-[11.5px] text-stone-500 mt-1">
+                One authorization connects every facility in the network — sign in to Intuit as the admin of the
+                real QuickBooks company.
+              </p>
+            </div>
+            <a
+              href="/api/quickbooks/connect?scope=all&return=master"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold px-4 py-2 rounded-xl bg-[#8B2E4A] text-white hover:bg-[#72253C] transition-colors"
+            >
+              Connect QuickBooks for all facilities
+            </a>
+          </div>
+        )}
       </div>
 
       {!invoiceSyncEnabled && (
@@ -263,6 +457,16 @@ export function QbStatusClient({
                 </dl>
 
                 <div className="flex flex-wrap gap-2">
+                  {!r.realmId && primary && (
+                    <button
+                      type="button"
+                      onClick={() => attach(primary.realmId, 'list', [r.id])}
+                      disabled={busy !== null}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl bg-[#8B2E4A] text-white hover:bg-[#72253C] transition-colors disabled:opacity-50"
+                    >
+                      {busy === `attach-${r.id}` ? 'Attaching…' : 'Attach to QuickBooks'}
+                    </button>
+                  )}
                   {r.connected && invoiceSyncEnabled && (
                     <button
                       type="button"

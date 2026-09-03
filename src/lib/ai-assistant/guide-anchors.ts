@@ -142,7 +142,7 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'stylists-table': { route: '/stylists', label: 'stylist roster', kind: 'area' },
   'master-facility-list': { route: '/master-admin', label: 'facility grid', kind: 'area', desktopOnly: true },
   'master-add-facility-btn': { route: '/master-admin', label: 'Add Facility button', kind: 'button', desktopOnly: true },
-  // P57 — the New-Facility wizard (/facilities/new)
+  // P60 — the New-Facility wizard (/facilities/new)
   'wizard-basics-name': { route: '/facilities/new', label: 'facility name field', kind: 'input' },
   'wizard-basics-code': { route: '/facilities/new', label: 'facility code field', kind: 'input' },
   'wizard-hours': { route: '/facilities/new', label: 'salon days & hours', kind: 'area' },

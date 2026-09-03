@@ -60,7 +60,7 @@ export async function sendPaymentRequest(opts: {
   }
 
   // Magic link requires a POA email (it is the portal identity). Phone-only payors
-  // get the login page instead. P57 — appUrl() is called here, not read once at
+  // get the login page instead. P60 — appUrl() is called here, not read once at
   // module load: a lambda that imported this module before the env var resolved
   // baked the fallback host into every pay link for its whole lifetime.
   const payUrl = resident.poaEmail

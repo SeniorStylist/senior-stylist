@@ -1,4 +1,4 @@
--- P57 — an invite now records WHICH stylist directory record it was sent for.
+-- P60 — an invite now records WHICH stylist directory record it was sent for.
 -- Before this, redemption re-derived the stylist by email and then by fuzzy
 -- name: two stylists with similar names could link to each other's records,
 -- and a stylist who accepted at a different address than the one on file

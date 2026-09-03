@@ -151,7 +151,7 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
 
     const selected = cookieStore.get('selected_facility_id')?.value
 
-    // P57 — deterministic: the fallback row below used to be whatever physical
+    // P60 — deterministic: the fallback row below used to be whatever physical
     // order Postgres returned (no orderBy), so the master's "current facility"
     // could change between requests.
     const rows = await db.query.facilityUsers.findMany({
@@ -175,7 +175,7 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
         if (fac) return normalizeRole({ ...bookkeeperRow, facilityId: selected })
       }
 
-      // P57 — the MASTER gets the same synthetic access to any active facility
+      // P60 — the MASTER gets the same synthetic access to any active facility
       // the cookie points at (verified by email server-side, never the cookie).
       // Before this, a master with no membership row at the selected facility
       // fell through to rows[0] (an arbitrary OTHER facility) or null — which is
@@ -233,7 +233,7 @@ export async function isFranchiseAdmin(userId: string): Promise<boolean> {
     }
 
     const selected = cookieStore.get('selected_facility_id')?.value
-    // P57 — same ordering as getUserFacility above: without it `rows[0]` is
+    // P60 — same ordering as getUserFacility above: without it `rows[0]` is
     // whatever Postgres returns first, so a multi-facility user with no valid
     // cookie could be a franchise admin to this helper and a plain admin to
     // getUserFacility (or the reverse) on different requests.

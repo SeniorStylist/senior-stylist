@@ -1,4 +1,4 @@
-// P57 — launch settings for an EXPLICIT facility (the New-Facility wizard's
+// P60 — launch settings for an EXPLICIT facility (the New-Facility wizard's
 // Launch step). PUT /api/facility is cookie-scoped + bare `role !== 'admin'`,
 // which 400s/403s the master mid-wizard; this resolves the caller's right to
 // the named facility via resolveFacilityWrite instead.

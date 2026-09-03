@@ -21,7 +21,7 @@ interface MobileFacilityHeaderProps {
   allFacilities: FacilityOption[]
   role: string
   debugMode?: boolean
-  /** P57 — id of the selected facility; highlight by id, not name. */
+  /** P60 — id of the selected facility; highlight by id, not name. */
   activeFacilityId?: string
 }
 

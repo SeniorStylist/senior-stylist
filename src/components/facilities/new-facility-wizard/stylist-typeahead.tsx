@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — pick EXISTING stylists by name or ST-code (client-side filter over
+// P60 — pick EXISTING stylists by name or ST-code (client-side filter over
 // the directory the page shipped). The "always create" affordance on
 // /stylists is how duplicate ST-codes got minted; this is its "pick existing"
 // sibling.

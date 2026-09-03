@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — the working-hours control extracted from Settings → General so the
+// P60 — the working-hours control extracted from Settings → General so the
 // New-Facility wizard and Settings share one editor: day chips + start/end.
 // Controlled; the parent owns the value.
 

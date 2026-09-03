@@ -180,7 +180,7 @@ The facility card shows invoiced/collected/outstanding for the selected period, 
 - Scan Check: photograph a check or remittance slip; the scanner reads the amount, facility, and per-resident lines, matches them, and records the payment. Unreadable ones are saved for manual resolution, never lost.
 - Scan memos: reads free-text check memos ("Jean Hall $48 Alma Markley $48…") and proposes which residents/visits they pay for — you confirm before anything is applied.
 - Send Statement: emails the facility their statement (with a confirmation prompt so a stray tap never sends).
-- QuickBooks: sync invoices from QB and send via QB where connected.
+- QuickBooks (where connected): Send via QB creates real QuickBooks invoices from a month's completed, unpaid appointments (one per resident, or one facility-level invoice) and can have QuickBooks email them; Sync from QB pulls fresh invoice + payment data (available once live sync is enabled). Card payments collected on the site (card on file, in-app, family portal) are recorded in QuickBooks automatically as payments applied to the same invoices — never twice, and a refund from the site voids the QuickBooks payment. Checks, salon-credit draws, and credit applications are still entered in QuickBooks by the bookkeeper. The QuickBooks company is connected once for the whole network (Master Admin → QuickBooks, or a franchise owner's Franchise page); a facility that isn't connected yet just gets attached to that connection — no second Intuit sign-in. "Detach facility" in a facility's Settings → Billing takes only that facility off; only the master can disconnect the whole company.
 
 Per-resident detail lives on each resident's page: the account ledger shows invoices, payments, credits, and a running balance, plus available credits you can apply to open invoices.
 
@@ -203,7 +203,7 @@ Each importer shows exactly which QB report to export. Facility rows are matched
 
 Master Admin → QuickBooks (a separate page) shows the whole network at a glance: which facilities are connected, whether each has an expense account set (required before payroll can push), when invoices last synced, when QB CSVs were last imported, and each facility's open balance. Anything needing action is flagged — "Needs reconnect" means that facility's last QuickBooks call failed and the connection has to be re-authorized in its Settings → Billing.
 
-Live invoice pulling (the "Sync from QB" button) stays switched off until Intuit approves the production app; payroll Bill push and vendor sync work as soon as a facility connects. Once it's enabled, invoices also sync automatically every night.`,
+These CSV imports are for facilities not yet connected to QuickBooks and for historical backfills. A CONNECTED facility works over the API instead: payroll Bill push, vendor sync, customer sync (Settings → Billing → Sync Customers links residents to QB customers and creates missing ones), and Send via QB invoice creation all work as soon as it connects; the nightly invoice + payment pull (and the "Sync from QB" button) switches on once Intuit approves the production app. Settings → Billing → Test connection verifies a facility's connection end to end.`,
   },
   {
     id: 'payments-cards',

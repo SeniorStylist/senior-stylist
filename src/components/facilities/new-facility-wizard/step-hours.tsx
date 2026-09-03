@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — Step 2: salon days + hours. These bound the booking modal's time
+// P60 — Step 2: salon days + hours. These bound the booking modal's time
 // slots AND seed each assigned stylist's availability in the next step, so
 // the community has working days the moment it exists.
 

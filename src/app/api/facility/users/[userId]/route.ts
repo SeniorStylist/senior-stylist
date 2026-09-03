@@ -60,7 +60,7 @@ export async function DELETE(
         .set({ stylistId: null, updatedAt: new Date() })
         .where(eq(profiles.id, userId))
 
-      // P57 — DELETE every invite for this email at this facility, not just the
+      // P60 — DELETE every invite for this email at this facility, not just the
       // pending ones. Marking them used left the ACCEPTED row in the table
       // forever, and healMembershipOnLogin re-provisions from used invites (the
       // P48/P49 rule that lets someone whose auth uid changed back in) — so a

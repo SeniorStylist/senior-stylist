@@ -143,7 +143,7 @@ export async function PUT(
     }
 
     // Notify user of approval (fire-and-forget)
-    // P57 — shared appUrl(); the old inline fallback was a dead host.
+    // P60 — shared appUrl(); the old inline fallback was a dead host.
     const appUrl = sharedAppUrl()
     sendEmail({
       to: accessRequest.email,

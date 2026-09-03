@@ -598,7 +598,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                       type="button"
                       onClick={async () => {
                         try {
-                          // P57 — appUrl(), not window.location.origin: a link copied from a
+                          // P60 — appUrl(), not window.location.origin: a link copied from a
                           // preview deploy encodes a domain the family cannot reach.
                           await navigator.clipboard.writeText(`${appUrl()}/gift/${encodeURIComponent(portalGiftToken)}`)
                           setGiftLinkCopied(true)

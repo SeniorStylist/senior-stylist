@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     if (paymentsBlocked()) {
       return Response.json({ error: 'Online payment is not turned on yet — please call the salon.' }, { status: 503 })
     }
-    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
     const appUrl = sharedAppUrl()
 
     const isPrepay = purpose === 'prepay'

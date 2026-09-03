@@ -53,7 +53,7 @@ interface MembershipData {
   allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[]
 }
 
-// P57 — `isMaster` rides the cache key (unstable_cache keys on the serialized
+// P60 — `isMaster` rides the cache key (unstable_cache keys on the serialized
 // args), so the owner's all-facilities list and a normal user's membership
 // list can never share an entry.
 async function fetchMembershipData(userId: string, isMaster = false): Promise<MembershipData> {
@@ -74,7 +74,7 @@ async function fetchMembershipData(userId: string, isMaster = false): Promise<Me
 
   // Bookkeepers have cross-facility access by role — the switcher lists every
   // active facility, not just the ones with explicit facility_users rows.
-  // P57 — the MASTER gets the same complete list (synthetic 'admin' where no
+  // P60 — the MASTER gets the same complete list (synthetic 'admin' where no
   // explicit row exists — the shape GET /api/facilities already returns him).
   // Before this his switcher only listed facilities he had personally created
   // through POST /api/facilities (the one path that grants him a row); imported
@@ -135,7 +135,7 @@ async function fetchLayoutData(userId: string, isMaster = false): Promise<Layout
     membership = await getCachedMembershipData(userId, isMaster)
     // Never trust a cached EMPTY result — a just-redeemed invite must see its
     // new facility immediately even if a stale entry predates the tag bust.
-    // P57 — same for a cached list that doesn't contain the facility the
+    // P60 — same for a cached list that doesn't contain the facility the
     // cookie points at: a just-created facility would otherwise be mislabeled
     // as the OLDEST membership row (allFacilities[0]) while every page, which
     // reads getUserFacility uncached, showed the real one — the "app says

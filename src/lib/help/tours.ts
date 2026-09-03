@@ -758,7 +758,7 @@ export const TOUR_DEFINITIONS: Record<string, TourDefinition> = {
     id: 'master-quickbooks-setup',
     title: 'QuickBooks Setup',
     steps: [
-      { route: '/settings', element: '', isAction: false, title: 'QuickBooks setup', description: 'Connect QuickBooks per facility. Payroll syncs as Bills and invoice data flows back automatically.', mobileDescription: 'Connect per facility. Payroll syncs as Bills, invoices sync back.' },
+      { route: '/settings', element: '', isAction: false, title: 'QuickBooks setup', description: 'Connect QuickBooks per facility. Payroll pushes as Bills, residents sync as customers, and Send via QB creates invoices.', mobileDescription: 'Connect per facility. Payroll, customers, and invoices sync.' },
       { route: '/settings', element: NAV_SETTINGS, isAction: true, title: 'Open Settings', description: 'QuickBooks is configured in each facility\'s Settings.', actionHint: 'Tap Settings to continue.' },
       { route: '/settings?section=billing', element: '[data-tour="settings-quickbooks"]', isAction: false, title: 'QuickBooks section', description: 'In the Billing tab, the QuickBooks section is where you connect and manage the integration.', mobileDescription: 'Find QuickBooks in Settings → Billing tab.' },
       { route: '/settings?section=billing', element: '[data-tour="settings-qb-connect-btn"]', isAction: true, title: 'Connect QuickBooks', description: 'Starts the Intuit OAuth login to authorize access to this facility\'s QuickBooks account.', actionHint: 'Tap Connect QuickBooks — no real connection is made.' },

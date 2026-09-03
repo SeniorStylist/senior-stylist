@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — tiny shared primitives for the New-Facility wizard steps (senior-
+// P60 — tiny shared primitives for the New-Facility wizard steps (senior-
 // friendly sizing: 18px inputs so iOS never zooms, ≥48px targets).
 
 import { cn } from '@/lib/utils'

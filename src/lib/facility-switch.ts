@@ -56,7 +56,7 @@ export function filterFacilitiesForSwitcher<T extends SwitchableFacility>(
  * Never resolves on success (the reload tears the page down); callers should
  * set their own "switching…" state before calling.
  *
- * P57 — optional `destination`: a HARD navigation to that path after the
+ * P60 — optional `destination`: a HARD navigation to that path after the
  * select (master-admin "Enter facility" / the new-facility flow land on
  * /dashboard). Still never a soft router.push — that reuses the (protected)
  * layout segment and leaves the Sidebar's switcher on the OLD facility.

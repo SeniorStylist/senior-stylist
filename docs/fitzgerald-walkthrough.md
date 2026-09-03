@@ -233,7 +233,7 @@ When every box is ticked, the community is live.
 
 | What you see | What it means |
 |---|---|
-| Top-left facility name disagrees with the page | Report it — this was fixed in P57 and must not come back. |
+| Top-left facility name disagrees with the page | Report it — this was fixed in P60 and must not come back. |
 | A stylist you added is nowhere | They were created without a facility. Open Stylists → add them again by code; the app tells you they already exist and attaches them. |
 | Family sign-up says it is unavailable | Self-signup is off for that facility. Master Admin → Facilities → **Turn on everywhere**, or the per-facility switch in Settings → Family Accounts. |
 | Cards save but nothing is ever charged | Billing is on **manually**. Settings → Billing shows an amber notice when this is the case; switch to charge when a visit is completed. |

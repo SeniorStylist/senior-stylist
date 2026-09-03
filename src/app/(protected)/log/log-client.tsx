@@ -1928,7 +1928,7 @@ export function LogClient({
                               {booking.resident.name}
                             </p>
                           </button>
-                          {/* P57 — readable at the chair on a phone: the 12px
+                          {/* P60 — readable at the chair on a phone: the 12px
                               glyph with a hover-only title told a touch user
                               nothing about whether a card is on file. */}
                           <PaymentCoveredChip flags={paymentFlags[booking.resident.id]} variant="pill" />

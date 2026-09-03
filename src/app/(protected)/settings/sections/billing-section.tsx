@@ -11,15 +11,46 @@ interface Props {
   facility: PublicFacility
   qbInvoiceSyncEnabled: boolean
   /**
-   * P57 — how many residents at this facility have automatic payment on.
+   * P60 — how many residents at this facility have automatic payment on.
    * A real prop rather than a cast off the `any`-typed facility payload: the
    * notice below is the only thing that tells a facility its saved cards are
    * never charged, and a silently renamed key would make it vanish.
    */
   autopayResidentCount: number
+  /** Who may connect QuickBooks for more than this facility in one authorization. */
+  qbConnectScopes?: { franchise: boolean; all: boolean }
 }
 
-export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResidentCount }: Props) {
+/**
+ * Turn a failed QuickBooks response into something an operator can act on.
+ * The body is read ONCE as text: a platform timeout or error page is not JSON,
+ * so `res.json()` throws — which is how a real failure used to reach the user
+ * as a bare "Customer sync failed" with no reason at all.
+ */
+async function qbFailure(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => '')
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown }
+    if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.slice(0, 400)
+  } catch {
+    // Not JSON — fall through to the status map below.
+  }
+  if (res.status === 504 || res.status === 408 || res.status === 502) {
+    return `${fallback} — QuickBooks took too long to answer. Anything already synced was saved; run it again to pick up where it stopped.`
+  }
+  if (res.status === 429) return 'Too many QuickBooks requests — wait a few minutes and try again.'
+  if (res.status === 412) return 'QuickBooks isn’t connected for this facility yet.'
+  if (res.status === 403) return 'You don’t have permission to run this for this facility.'
+  if (res.status === 401) return 'Your session expired — reload the page and sign in again.'
+  return `${fallback} (${res.status})`
+}
+
+export function BillingSection({
+  facility,
+  qbInvoiceSyncEnabled,
+  autopayResidentCount,
+  qbConnectScopes = { franchise: false, all: false },
+}: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -35,9 +66,30 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
   const [qbAccountsLoaded, setQbAccountsLoaded] = useState(false)
   const [qbSavingAccount, setQbSavingAccount] = useState(false)
   const [qbSyncing, setQbSyncing] = useState(false)
+  const [qbCustomerSyncing, setQbCustomerSyncing] = useState(false)
   const [qbToast, setQbToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [qbConfirmDisconnect, setQbConfirmDisconnect] = useState(false)
   const [qbDisconnecting, setQbDisconnecting] = useState(false)
+  // Sync history + undo (qb_sync_runs)
+  type QbRun = {
+    id: string
+    action: string
+    startedAt: string
+    automated: boolean
+    summary: Record<string, unknown>
+    undoneAt: string | null
+    undoSummary: Record<string, unknown> | null
+  }
+  const [qbRuns, setQbRuns] = useState<QbRun[]>([])
+  const [qbRunsLoaded, setQbRunsLoaded] = useState(false)
+  const [qbUndoConfirmId, setQbUndoConfirmId] = useState<string | null>(null)
+  const [qbUndoingId, setQbUndoingId] = useState<string | null>(null)
+  const [qbTesting, setQbTesting] = useState(false)
+  const [qbTestResult, setQbTestResult] = useState<
+    | { ok: true; companyName: string | null }
+    | { ok: false; reason: string; message?: string }
+    | null
+  >(null)
 
   const qbInvoicesLastSyncedAt =
     (facility as { qbInvoicesLastSyncedAt?: string | null }).qbInvoicesLastSyncedAt ?? null
@@ -46,7 +98,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
 
   function showQbToast(kind: 'ok' | 'err', text: string) {
     setQbToast({ kind, text })
-    setTimeout(() => setQbToast(null), 4000)
+    setTimeout(() => setQbToast(null), kind === 'err' ? 12000 : 4000)
   }
 
   async function loadQbAccounts() {
@@ -54,8 +106,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
     try {
       const res = await fetch('/api/quickbooks/accounts')
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        showQbToast('err', j.error ?? 'Failed to load accounts')
+        showQbToast('err', await qbFailure(res, 'Failed to load accounts'))
         return
       }
       const j = await res.json()
@@ -74,8 +125,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
         body: JSON.stringify({ qbExpenseAccountId: qbExpenseAccountId || null }),
       })
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        showQbToast('err', j.error ?? 'Save failed')
+        showQbToast('err', await qbFailure(res, 'Save failed'))
         return
       }
       showQbToast('ok', 'Expense account saved')
@@ -89,17 +139,45 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
     setQbSyncing(true)
     try {
       const res = await fetch('/api/quickbooks/sync-vendors', { method: 'POST' })
-      const j = await res.json()
       if (!res.ok) {
-        showQbToast('err', j.error ?? 'Sync failed')
+        showQbToast('err', await qbFailure(res, 'Vendor sync failed'))
         return
       }
+      const j = await res.json()
       const { created, updated, skipped, errors } = j.data
       const bits = [`${created} created`, `${updated} updated`, `${skipped} unchanged`]
       if (errors.length > 0) bits.push(`${errors.length} error(s)`)
       showQbToast(errors.length > 0 ? 'err' : 'ok', `Vendors: ${bits.join(', ')}`)
+    } catch {
+      showQbToast('err', 'Network error — vendor sync may not have run')
     } finally {
       setQbSyncing(false)
+    }
+  }
+
+  async function handleSyncCustomers() {
+    if (qbCustomerSyncing) return
+    setQbCustomerSyncing(true)
+    try {
+      const res = await fetch(`/api/quickbooks/sync-customers/${facility.id}`, { method: 'POST' })
+      if (!res.ok) {
+        showQbToast('err', await qbFailure(res, 'Customer sync failed'))
+        return
+      }
+      const j = await res.json()
+      const { matchedExisting, createdInQb, skipped, errors } = j.data
+      const bits = [`${matchedExisting} matched`, `${createdInQb} created`, `${skipped} skipped`]
+      // Surface the first real reason, not just a count — "0 created" with a
+      // hidden error is what makes a sync look silently broken.
+      const detail = Array.isArray(errors) && errors.length > 0 ? ` — ${String(errors[0])}` : ''
+      showQbToast(
+        errors.length > 0 ? 'err' : 'ok',
+        `Customers: ${bits.join(', ')}${detail}`,
+      )
+    } catch {
+      showQbToast('err', 'Network error — customer sync may not have run')
+    } finally {
+      setQbCustomerSyncing(false)
     }
   }
 
@@ -112,15 +190,32 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fullSync }),
       })
-      const j = await res.json()
       if (!res.ok) {
-        showQbToast('err', j.error ?? 'Invoice sync failed')
+        showQbToast('err', await qbFailure(res, 'Invoice sync failed'))
         return
       }
+      const j = await res.json()
       const { created, updated, skipped, errors } = j.data
       const bits = [`${created} created`, `${updated} updated`, `${skipped} unchanged`]
       if (errors.length > 0) bits.push(`${errors.length} error(s)`)
-      showQbToast(errors.length > 0 ? 'err' : 'ok', `Invoices: ${bits.join(', ')}`)
+
+      // Chain the payment/credit pull (best-effort — 503s while the flag is off).
+      let payBit = ''
+      try {
+        const payRes = await fetch(`/api/quickbooks/sync-payments/${facility.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullSync }),
+        })
+        const payJson = await payRes.json().catch(() => ({}))
+        if (payRes.ok && payJson.data) {
+          payBit = ` · Payments: ${payJson.data.created} new, ${payJson.data.creditsUpserted} credits`
+        }
+      } catch {
+        // invoice sync already succeeded — ignore
+      }
+
+      showQbToast(errors.length > 0 ? 'err' : 'ok', `Invoices: ${bits.join(', ')}${payBit}`)
       router.refresh()
     } finally {
       setQbInvoiceSyncing(false)
@@ -128,16 +223,119 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
     }
   }
 
+  async function handleTestConnection() {
+    if (qbTesting) return
+    setQbTesting(true)
+    setQbTestResult(null)
+    try {
+      const res = await fetch('/api/quickbooks/status')
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setQbTestResult({ ok: false, reason: 'error', message: j.error ?? 'Request failed' })
+        return
+      }
+      const d = j.data ?? {}
+      if (d.connected && d.ok) {
+        setQbTestResult({ ok: true, companyName: d.companyName ?? null })
+      } else if (d.connected) {
+        setQbTestResult({ ok: false, reason: d.reason ?? 'error', message: d.message })
+      } else {
+        setQbTestResult({ ok: false, reason: 'not_connected' })
+      }
+    } catch {
+      setQbTestResult({ ok: false, reason: 'error', message: 'Network error' })
+    } finally {
+      setQbTesting(false)
+    }
+  }
+
+  async function loadQbRuns() {
+    try {
+      const res = await fetch(`/api/quickbooks/runs?facilityId=${facility.id}`)
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) setQbRuns(j.data?.runs ?? [])
+    } catch {
+      // history is informational — never block the card on it
+    } finally {
+      setQbRunsLoaded(true)
+    }
+  }
+
+  function runLabel(r: QbRun): string {
+    const s = r.summary ?? {}
+    const n = (k: string) => Number(s[k] ?? 0)
+    switch (r.action) {
+      case 'push_invoice':
+        return `Send via QB — ${String(s.month ?? '')}: ${n('invoices')} invoice(s), ${formatMoney(n('totalCents'))}`
+      case 'sync_customers':
+        return `Sync Customers: ${n('matchedExisting')} matched, ${n('createdInQb')} created`
+      case 'sync_payments':
+        return `Payment sync: ${n('created')} new, ${n('upgraded')} upgraded, ${n('creditsUpserted')} credit(s)`
+      case 'sync_invoices':
+        return `Invoice sync: ${n('created')} new, ${n('updated')} updated`
+      default:
+        return r.action
+    }
+  }
+
+  function undoDescription(action: string): string {
+    switch (action) {
+      case 'push_invoice':
+        return 'Voids these invoices in QuickBooks and frees the appointments to be billed again. Invoices that already have a payment applied are left alone.'
+      case 'sync_customers':
+        return 'Deactivates the QuickBooks customers this run created. Matched customers are untouched.'
+      case 'sync_payments':
+        return 'Removes the payments and credits this sync pulled in, un-stamps existing ones, and rewinds the sync so the next run re-covers the same window.'
+      case 'sync_invoices':
+        return 'Restores every invoice balance from before this pull and rewinds the sync. Money collected on the site stays honored.'
+      default:
+        return ''
+    }
+  }
+
+  async function handleUndoRun(id: string) {
+    if (qbUndoingId) return
+    setQbUndoingId(id)
+    try {
+      const res = await fetch(`/api/quickbooks/runs/${id}/undo`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showQbToast('err', j.error ?? 'Undo failed')
+        return
+      }
+      const { reversed, skipped, errors, completed } = j.data
+      const bits = [`${reversed} reversed`]
+      if (skipped > 0) bits.push(`${skipped} skipped`)
+      if (errors.length > 0) bits.push(`${errors.length} error(s): ${errors[0]}`)
+      if (!completed) bits.push('not fully undone — fix the cause and press Undo again')
+      showQbToast(completed ? 'ok' : 'err', `Undo: ${bits.join(', ')}`)
+      await loadQbRuns()
+      router.refresh()
+    } catch {
+      showQbToast('err', 'Network error — undo may not have run')
+    } finally {
+      setQbUndoingId(null)
+      setQbUndoConfirmId(null)
+    }
+  }
+
   async function handleDisconnectQb() {
     setQbDisconnecting(true)
     try {
-      const res = await fetch('/api/quickbooks/disconnect', { method: 'POST' })
+      // Detach THIS facility only — the company-wide connection stays live for
+      // every other facility (master disconnects the whole company from
+      // Master Admin → QuickBooks).
+      const res = await fetch('/api/quickbooks/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'detach' }),
+      })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        showQbToast('err', j.error ?? 'Disconnect failed')
+        showQbToast('err', j.error ?? 'Detach failed')
         return
       }
-      showQbToast('ok', 'Disconnected from QuickBooks')
+      showQbToast('ok', 'This facility was detached from QuickBooks')
       router.refresh()
     } finally {
       setQbDisconnecting(false)
@@ -149,6 +347,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
   useEffect(() => {
     if (!hasQuickBooks) return
     if (!qbAccountsLoaded) loadQbAccounts()
+    if (!qbRunsLoaded) loadQbRuns()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasQuickBooks])
 
@@ -202,7 +401,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
   }
 
   // ─── Automatic payment (COF) ──────────────────────────────────────────
-  // P57 — a facility left on 'manual' with autopay residents is the silent
+  // P60 — a facility left on 'manual' with autopay residents is the silent
   // failure: staff keep saving cards "for automatic payment" and nothing ever
   // charges. Read from the SAVED mode (not the select's local state) so the
   // warning only clears once the fix is actually saved.
@@ -299,7 +498,7 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
           <HelpTip
             tourId="master-quickbooks-setup"
             label="QuickBooks Online"
-            description="Connect this facility's QuickBooks account. Once connected, payroll syncs as Bills and invoices flow back automatically."
+            description="Connect this facility's QuickBooks account. Once connected: payroll pushes as Bills, residents sync as customers, and Send via QB creates invoices. Nightly invoice + payment pull activates after Intuit production approval."
           />
         </div>
         <p className="text-xs text-stone-500 mb-4">
@@ -311,16 +510,45 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
             /settings?section=billing&qb=connected with the toast. Safe:
             OAuth state lives in the oauth_states table, not this tab. */}
         {!hasQuickBooks && (
-          <a
-            href="/api/quickbooks/connect"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-tour="settings-qb-connect-btn"
-            className="inline-block px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ backgroundColor: '#8B2E4A' }}
-          >
-            Connect QuickBooks
-          </a>
+          <div className="space-y-2">
+            <a
+              href="/api/quickbooks/connect"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-tour="settings-qb-connect-btn"
+              className="inline-block px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ backgroundColor: '#8B2E4A' }}
+            >
+              Connect QuickBooks
+            </a>
+            {(qbConnectScopes.franchise || qbConnectScopes.all) && (
+              <p className="text-[11.5px] text-stone-500">
+                One authorization can cover more than this facility:{' '}
+                {qbConnectScopes.franchise && (
+                  <a
+                    href="/api/quickbooks/connect?scope=franchise"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#8B2E4A] font-semibold hover:underline"
+                  >
+                    connect my whole franchise
+                  </a>
+                )}
+                {qbConnectScopes.franchise && qbConnectScopes.all && ' · '}
+                {qbConnectScopes.all && (
+                  <a
+                    href="/api/quickbooks/connect?scope=all"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#8B2E4A] font-semibold hover:underline"
+                  >
+                    connect every facility
+                  </a>
+                )}
+                . All facilities in the same QuickBooks company share one connection.
+              </p>
+            )}
+          </div>
         )}
 
         {hasQuickBooks && (
@@ -364,7 +592,44 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
               </p>
             </div>
 
+            {qbTestResult && (
+              qbTestResult.ok ? (
+                <div className="px-3 py-2 rounded-xl text-sm font-medium bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  ✓ Connected to {qbTestResult.companyName ?? 'QuickBooks'}
+                </div>
+              ) : (
+                <div className="px-3 py-2 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-800">
+                  <span className="font-semibold">
+                    {qbTestResult.reason === 'reconnect_needed'
+                      ? 'Connection broken — QuickBooks needs to be reconnected.'
+                      : 'Connection test failed.'}
+                  </span>{' '}
+                  {qbTestResult.reason === 'reconnect_needed' ? (
+                    <a
+                      href="/api/quickbooks/connect"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[#8B2E4A] underline"
+                    >
+                      Reconnect QuickBooks
+                    </a>
+                  ) : (
+                    qbTestResult.message && (
+                      <span className="text-amber-700">{qbTestResult.message}</span>
+                    )
+                  )}
+                </div>
+              )
+            )}
+
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleTestConnection}
+                disabled={qbTesting}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
+              >
+                {qbTesting ? 'Testing…' : 'Test connection'}
+              </button>
               <button
                 onClick={handleSyncVendors}
                 disabled={qbSyncing}
@@ -372,19 +637,28 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
               >
                 {qbSyncing ? 'Syncing…' : 'Sync Vendors'}
               </button>
+              <button
+                onClick={handleSyncCustomers}
+                disabled={qbCustomerSyncing}
+                title="Link residents to QuickBooks customers (creates missing sub-customers under this facility)"
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 transition-all disabled:opacity-50"
+              >
+                {qbCustomerSyncing ? 'Syncing…' : 'Sync Customers'}
+              </button>
               {!qbConfirmDisconnect ? (
                 <button
                   onClick={() => setQbConfirmDisconnect(true)}
                   className="px-4 py-2 rounded-xl text-sm font-semibold border border-red-200 text-red-700 hover:bg-red-50 transition-all"
+                  title="Takes this facility off the shared QuickBooks connection. Other facilities stay connected."
                 >
-                  Disconnect
+                  Detach facility
                 </button>
               ) : (
                 <div
                   className="flex items-center gap-2"
                   onMouseLeave={() => setQbConfirmDisconnect(false)}
                 >
-                  <span className="text-sm text-stone-600">Disconnect?</span>
+                  <span className="text-sm text-stone-600">Detach this facility from QuickBooks?</span>
                   <button
                     onClick={handleDisconnectQb}
                     disabled={qbDisconnecting}
@@ -441,6 +715,106 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResident
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+
+            {/* Sync history + per-run undo (qb_sync_runs) */}
+            <div className="border-t border-stone-100 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+                  Sync history
+                </h3>
+                <button
+                  type="button"
+                  onClick={loadQbRuns}
+                  className="text-[11px] text-stone-400 hover:text-stone-600"
+                >
+                  Refresh
+                </button>
+              </div>
+              <p className="text-[11.5px] text-stone-400 mb-3">
+                Every QuickBooks operation is recorded here and can be undone — invoices are voided in
+                QuickBooks (never deleted), and anything with a payment already applied is left alone.
+                Card payments collected on the site (card on file, in-app, family portal) are recorded in
+                QuickBooks automatically against the same invoices; a refund voids the QuickBooks payment.
+              </p>
+              {!qbRunsLoaded ? (
+                <p className="text-xs text-stone-400">Loading…</p>
+              ) : qbRuns.length === 0 ? (
+                <p className="text-xs text-stone-400">No QuickBooks activity yet.</p>
+              ) : (
+                <ul className="divide-y divide-stone-100 rounded-xl border border-stone-100 overflow-hidden">
+                  {qbRuns.map((r) => {
+                    const when = new Date(r.startedAt).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                    const confirming = qbUndoConfirmId === r.id
+                    const undoing = qbUndoingId === r.id
+                    const undoErrors = (r.undoSummary?.errors as string[] | undefined) ?? []
+                    const undoIncomplete = !r.undoneAt && undoErrors.length > 0
+                    return (
+                      <li key={r.id} className="px-3 py-2.5 text-xs flex flex-col gap-1.5 bg-white">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-stone-700 font-medium truncate">{runLabel(r)}</div>
+                            <div className="text-stone-400">
+                              {when}
+                              {r.automated ? ' · nightly' : ''}
+                              {r.undoneAt
+                                ? ` · undone ${new Date(r.undoneAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                : ''}
+                            </div>
+                            {undoIncomplete && (
+                              <div className="text-amber-700 mt-0.5">
+                                Undo didn’t finish: {undoErrors[0]} — press Undo again to retry.
+                              </div>
+                            )}
+                          </div>
+                          {r.undoneAt ? (
+                            <span className="shrink-0 text-[10.5px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-500">
+                              Undone
+                            </span>
+                          ) : confirming ? null : (
+                            <button
+                              type="button"
+                              onClick={() => setQbUndoConfirmId(r.id)}
+                              disabled={!!qbUndoingId}
+                              className="shrink-0 text-[11px] font-semibold text-[#8B2E4A] hover:underline disabled:opacity-40"
+                            >
+                              Undo
+                            </button>
+                          )}
+                        </div>
+                        {confirming && (
+                          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 flex flex-col gap-2">
+                            <span className="text-amber-800">{undoDescription(r.action)}</span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleUndoRun(r.id)}
+                                disabled={undoing}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#8B2E4A] text-white hover:bg-[#72253C] disabled:opacity-50"
+                              >
+                                {undoing ? 'Undoing…' : 'Yes, undo this'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQbUndoConfirmId(null)}
+                                disabled={undoing}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+                              >
+                                Keep
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
             </div>
           </div>

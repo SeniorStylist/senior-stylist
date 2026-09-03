@@ -1,4 +1,4 @@
--- P57 — facility codes are the family sign-up QR identity; uniqueness used to
+-- P60 — facility codes are the family sign-up QR identity; uniqueness used to
 -- be three separate app-level "active=true" checks with three different
 -- regexes and NO constraint, so two concurrent creates (or a reactivation)
 -- could both hold F240. Partial unique index on the upper-cased code among

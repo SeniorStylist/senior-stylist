@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Notify admin (fire-and-forget)
     const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
     if (adminEmail) {
-      // P57 — shared appUrl(); the old inline fallback was a dead host.
+      // P60 — shared appUrl(); the old inline fallback was a dead host.
       const appUrl = sharedAppUrl()
       sendEmail({
         to: adminEmail,

@@ -84,11 +84,11 @@ export async function GET(request: NextRequest) {
 
   const role = invite.inviteRole || 'stylist'
 
-  // Stylist: auto-link to a stylist record. P57 — the invite now names the
+  // Stylist: auto-link to a stylist record. P60 — the invite now names the
   // record it was sent for, so link that exact row first; the old email-then-
   // fuzzy-name derivation linked look-alike names to each other and missed
   // stylists who accepted at a different address than the one on file. Falls
-  // back to the heuristic for team invites and pre-P57 rows (stylistId null).
+  // back to the heuristic for team invites and pre-P60 rows (stylistId null).
   // Both paths share the never-steal guard (a record another profile already
   // holds is left alone).
   if (role === 'stylist') {

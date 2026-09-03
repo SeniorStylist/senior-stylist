@@ -8,6 +8,8 @@ import { facilities, residents, qbInvoices } from '@/db/schema'
 import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { parseInvoiceListCsv, deriveInvoiceStatus, chunkArr } from '@/lib/imports/qb-csv'
+import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
+import { reapplySitePayments } from '@/lib/qb-site-payments'
 import { revalidateTag } from 'next/cache'
 
 export const maxDuration = 300
@@ -183,6 +185,12 @@ export async function POST(request: Request) {
     }
 
     // Recompute outstanding balances from the now-authoritative open balances
+    // SITE-PAID PROTECTION (P58): the CSV is QB-authoritative but QB doesn't
+    // know about money collected on the site — clamp those invoices back down
+    // before recomputing balances (see src/lib/qb-site-payments.ts).
+    await ensureQbSafetySchema()
+    await reapplySitePayments(db, Array.from(new Set(finalRows.map((r) => r.facilityId))))
+
     await db.execute(sql`
       UPDATE facilities f
       SET qb_outstanding_balance_cents = COALESCE((

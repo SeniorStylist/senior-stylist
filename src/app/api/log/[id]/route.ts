@@ -7,7 +7,7 @@ import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest, after } from 'next/server'
 
-// P57 — `after()` charge work counts against this function's duration limit,
+// P60 — `after()` charge work counts against this function's duration limit,
 // so a finalize that charges several autopay residents (one Stripe round-trip
 // each) needs more than the platform's 10s default. Without this a sweep is
 // cut mid-charge; the remainder is idempotent and picked up by the next
@@ -34,7 +34,7 @@ export async function PUT(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    // P57 — the sibling POST /api/log has blocked `viewer` since the 2026-06-15
+    // P60 — the sibling POST /api/log has blocked `viewer` since the 2026-06-15
     // authorization audit; this route never did. Finalizing is what fires
     // autoCollectOnFinalize, and now that the trigger runs inside after() it is
     // guaranteed to complete — so without this guard a legacy read-only login
@@ -82,7 +82,7 @@ export async function PUT(
     // P55 — finalize fires the COF sweep: charges autopay residents' completed
     // unpaid bookings for this stylist-day. Idempotent (paid stamp + unpaid
     // re-check + cooldown), so re-finalize after an edit never double-charges.
-    // P57 — after() (not a bare unawaited promise): the serverless freeze at
+    // P60 — after() (not a bare unawaited promise): the serverless freeze at
     // response time can kill an in-flight charge, silently dropping real money.
     // Errors stay swallowed so a failed sweep never fails the finalize.
     if (parsed.data.finalized === true && !existing.finalized && !existing.isDemo) {

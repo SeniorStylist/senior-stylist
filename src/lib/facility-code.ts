@@ -30,7 +30,7 @@ export function activeFacilityByCodeWhere(code: string): SQL {
  * Next free F-code = (max F-number across ALL facilities, active or not) + 1.
  * We never reuse a gap left by an inactive facility — if a community returns,
  * its old code is still theirs and won't have been handed out to someone else.
- * (P57 — moved here from the multi-log importer's route file so the create
+ * (P60 — moved here from the multi-log importer's route file so the create
  * path and the importers share one generator.)
  */
 export function nextFacilityCode(codes: (string | null)[]): string {
@@ -43,10 +43,10 @@ export function nextFacilityCode(codes: (string | null)[]): string {
 }
 
 /**
- * P57 — allocate the next facility code inside a transaction. Mirrors
+ * P60 — allocate the next facility code inside a transaction. Mirrors
  * generateStylistCode: an advisory lock (9192 — 9191 is the stylist lock)
  * serializes concurrent creates so two masters can't both be handed F241.
- * The partial unique index (drizzle/0043) is the backstop.
+ * The partial unique index (drizzle/0047) is the backstop.
  */
 export async function generateFacilityCode(tx: DrizzleTx): Promise<string> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(9192)`)

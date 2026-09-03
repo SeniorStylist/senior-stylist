@@ -129,7 +129,7 @@ interface DashboardClientProps {
   checkinTodayBookings?: TodayBooking[]
   // P51 — card-on-file / salon-credit booleans per resident
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
-  // P57 — stylist login with no linked stylist record; the sign-up queue says
+  // P60 — stylist login with no linked stylist record; the sign-up queue says
   // so instead of silently rendering an empty list (P48 disable-and-explain).
   unlinkedStylist?: boolean
   // P55 — days of week a real stylist works here (empty = no data, no restriction)

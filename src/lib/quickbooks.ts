@@ -1,136 +1,82 @@
 import { db } from '@/db'
 import { facilities } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { decryptToken, encryptToken } from '@/lib/token-crypto'
+import { getAccessToken, markAccessTokenExpired } from '@/lib/qb-connection'
+import {
+  exchangeQBCode as exchangeQBCodeHttp,
+  getQBAuthUrl as getQBAuthUrlHttp,
+  qbRedirectUri as qbRedirectUriHttp,
+  revokeQBRefreshToken,
+  type QBTokens as QBTokensHttp,
+} from '@/lib/qb-oauth-http'
+import { decryptToken } from '@/lib/token-crypto'
+import { createHash } from 'crypto'
 
 const QB_BASE = 'https://quickbooks.api.intuit.com'
-const QB_AUTH = 'https://appcenter.intuit.com/connect/oauth2'
-const QB_TOKEN = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
-const QB_REVOKE = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke'
-const SCOPES = 'com.intuit.quickbooks.accounting'
-const REFRESH_SKEW_MS = 5 * 60 * 1000
+/** Intuit deprecated minor versions < 75 (2025-08); 75 is the base now. */
+export const QB_MINOR = 75
+/** Intuit allows 10 concurrent requests per realm per app — ALL facilities
+ *  share one realm, so the cron, mirror worker and operator clicks must
+ *  share one in-flight budget per server instance. */
+const MAX_IN_FLIGHT_PER_REALM = 5
 
-export interface QBTokens {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
+export type QBTokens = QBTokensHttp
+
+/**
+ * Quote a value for the QBO query language. Backslash first, then the
+ * apostrophe (Intuit: escape `'` with `\`); control characters stripped. The
+ * caller must still pass the whole query through encodeURIComponent (which
+ * encodes the backslash as %5C — required, never use encodeURI). An unescaped
+ * quote in a resident name would otherwise widen a WHERE across the shared
+ * realm (query injection).
+ */
+export function qbQuoteLiteral(value: string): string {
+  const cleaned = value.replace(/[\x00-\x1f\x7f]/g, '')
+  return `'${cleaned.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 }
 
-function requireEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`Missing env ${name}`)
-  return v
+/**
+ * Deterministic Intuit RequestId (≤50 chars, unique per realm) from the parts
+ * that identify ONE logical create. Include a per-run component (e.g. the run's
+ * startedAt) when the same logical object may legitimately be created again
+ * later (an invoice re-pushed after an undo) — otherwise Intuit replays the
+ * first response forever.
+ */
+export function qbRequestId(...parts: string[]): string {
+  return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 40)
 }
 
-function basicAuthHeader(): string {
-  const id = requireEnv('QUICKBOOKS_CLIENT_ID')
-  const secret = requireEnv('QUICKBOOKS_CLIENT_SECRET')
-  return `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`
-}
-
-export function getQBAuthUrl(state: string, redirectUri: string): string {
-  const params = new URLSearchParams({
-    client_id: requireEnv('QUICKBOOKS_CLIENT_ID'),
-    response_type: 'code',
-    scope: SCOPES,
-    redirect_uri: redirectUri,
-    state,
-  })
-  return `${QB_AUTH}?${params.toString()}`
-}
-
-export async function exchangeQBCode(
-  code: string,
-  redirectUri: string,
-): Promise<QBTokens> {
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: redirectUri,
-  })
-  const res = await fetch(QB_TOKEN, {
-    method: 'POST',
-    headers: {
-      Authorization: basicAuthHeader(),
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: body.toString(),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`QB token exchange failed: ${res.status} ${text}`)
-  }
-  const data = (await res.json()) as {
-    access_token: string
-    refresh_token: string
-    expires_in: number
-  }
-  return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresIn: data.expires_in,
-  }
-}
-
-// Dedupe concurrent refreshes per facility.
-const refreshInFlight = new Map<string, Promise<string>>()
-
-async function doRefresh(facilityId: string): Promise<string> {
-  const facility = await db.query.facilities.findFirst({
-    where: eq(facilities.id, facilityId),
-  })
-  if (!facility) throw new Error('Facility not found')
-  if (!facility.qbRefreshToken) throw new Error('QuickBooks not connected')
-
-  const expiresAt = facility.qbTokenExpiresAt ? facility.qbTokenExpiresAt.getTime() : 0
-  if (facility.qbAccessToken && expiresAt - REFRESH_SKEW_MS > Date.now()) {
-    return decryptToken(facility.qbAccessToken)
-  }
-
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: decryptToken(facility.qbRefreshToken),
-  })
-  const res = await fetch(QB_TOKEN, {
-    method: 'POST',
-    headers: {
-      Authorization: basicAuthHeader(),
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: body.toString(),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`QB token refresh failed: ${res.status} ${text}`)
-  }
-  const data = (await res.json()) as {
-    access_token: string
-    refresh_token: string
-    expires_in: number
-  }
-  const newExpires = new Date(Date.now() + data.expires_in * 1000)
-  await db
-    .update(facilities)
-    .set({
-      qbAccessToken: encryptToken(data.access_token),
-      qbRefreshToken: encryptToken(data.refresh_token),
-      qbTokenExpiresAt: newExpires,
-      updatedAt: new Date(),
+// Per-realm in-flight limiter (per server instance).
+const inFlightCount = new Map<string, number>()
+const waiters = new Map<string, Array<() => void>>()
+async function acquireSlot(realmId: string): Promise<void> {
+  while ((inFlightCount.get(realmId) ?? 0) >= MAX_IN_FLIGHT_PER_REALM) {
+    await new Promise<void>((resolve) => {
+      const list = waiters.get(realmId) ?? []
+      list.push(resolve)
+      waiters.set(realmId, list)
     })
-    .where(eq(facilities.id, facilityId))
-  return data.access_token
+  }
+  inFlightCount.set(realmId, (inFlightCount.get(realmId) ?? 0) + 1)
 }
+function releaseSlot(realmId: string): void {
+  inFlightCount.set(realmId, Math.max(0, (inFlightCount.get(realmId) ?? 1) - 1))
+  const next = waiters.get(realmId)?.shift()
+  if (next) next()
+}
+export const qbRedirectUri = qbRedirectUriHttp
+export const getQBAuthUrl = getQBAuthUrlHttp
+export const exchangeQBCode = exchangeQBCodeHttp
 
+/**
+ * Access token for the facility's QuickBooks company. Tokens live once per
+ * realm in qb_connections (see qb-connection.ts) — the facility only carries
+ * the attachment (facilities.qb_realm_id). Kept under its historic name so
+ * every call site keeps working.
+ */
 export async function refreshQBToken(facilityId: string): Promise<string> {
-  const existing = refreshInFlight.get(facilityId)
-  if (existing) return existing
-  const p = doRefresh(facilityId).finally(() => {
-    refreshInFlight.delete(facilityId)
-  })
-  refreshInFlight.set(facilityId, p)
-  return p
+  const realmId = await getRealmId(facilityId)
+  return getAccessToken(realmId)
 }
 
 async function getRealmId(facilityId: string): Promise<string> {
@@ -138,7 +84,7 @@ async function getRealmId(facilityId: string): Promise<string> {
     where: eq(facilities.id, facilityId),
     columns: { qbRealmId: true },
   })
-  if (!facility?.qbRealmId) throw new Error('QuickBooks realm missing')
+  if (!facility?.qbRealmId) throw new Error('QuickBooks not connected')
   return facility.qbRealmId
 }
 
@@ -147,35 +93,75 @@ async function qbFetch<T>(
   method: 'GET' | 'POST',
   path: string,
   body?: unknown,
+  opts?: { octetStream?: boolean; requestId?: string },
 ): Promise<T> {
   const realmId = await getRealmId(facilityId)
-  const url = `${QB_BASE}/v3/company/${realmId}${path}`
+  // Auto-append the minor version + optional Intuit RequestId (server-side
+  // idempotency: a retried create with the same id replays the original
+  // response instead of creating a twin).
+  let fullPath = path
+  if (!/[?&]minorversion=/.test(fullPath)) {
+    fullPath += `${fullPath.includes('?') ? '&' : '?'}minorversion=${QB_MINOR}`
+  }
+  if (opts?.requestId) {
+    fullPath += `&requestid=${encodeURIComponent(opts.requestId.slice(0, 50))}`
+  }
+  const url = `${QB_BASE}/v3/company/${realmId}${fullPath}`
 
   const doCall = async (token: string): Promise<Response> => {
-    return fetch(url, {
+    await acquireSlot(realmId)
+    try {
+      return await fetch(url, {
       method,
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        // Intuit's send endpoints (/invoice/{id}/send) require
+        // application/octet-stream with an empty body — a JSON body 400s.
+        ...(opts?.octetStream
+          ? { 'Content-Type': 'application/octet-stream' }
+          : body
+            ? { 'Content-Type': 'application/json' }
+            : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
-    })
+        body: body && !opts?.octetStream ? JSON.stringify(body) : undefined,
+      })
+    } finally {
+      releaseSlot(realmId)
+    }
   }
 
-  let token = await refreshQBToken(facilityId)
-  let res = await doCall(token)
+  // Bounded retry on 429 (any method — Intuit didn't execute it) and 5xx
+  // (GETs, plus POSTs that carry a RequestId — Intuit replays those
+  // idempotently). Worst case adds ~4.5s, safe under every QB route budget.
+  const callWithRetry = async (token: string): Promise<Response> => {
+    let res = await doCall(token)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const retryable =
+        res.status === 429 || (res.status >= 500 && (method === 'GET' || !!opts?.requestId))
+      if (!retryable) break
+      const retryAfterHeader = Number(res.headers.get('retry-after'))
+      const backoff = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+        ? Math.min(retryAfterHeader * 1000, 3000)
+        : 500 * 2 ** attempt + Math.random() * 250
+      await new Promise((r) => setTimeout(r, backoff))
+      res = await doCall(token)
+    }
+    return res
+  }
+
+  let token = await getAccessToken(realmId)
+  let res = await callWithRetry(token)
   if (res.status === 401) {
-    // Force a fresh refresh by clearing the cached access token.
-    await db
-      .update(facilities)
-      .set({ qbTokenExpiresAt: new Date(0), updatedAt: new Date() })
-      .where(eq(facilities.id, facilityId))
-    token = await refreshQBToken(facilityId)
-    res = await doCall(token)
+    // Force a fresh refresh through the realm lease and retry once.
+    await markAccessTokenExpired(realmId)
+    token = await getAccessToken(realmId)
+    res = await callWithRetry(token)
   }
   if (!res.ok) {
-    const text = await res.text()
+    // Bounded — several routes echo this message to the operator; an Intuit
+    // HTML error page must not become a 100KB toast/log line.
+    const text = (await res.text()).slice(0, 600)
     throw new Error(`QB ${method} ${path} ${res.status}: ${text}`)
   }
   return (await res.json()) as T
@@ -189,18 +175,18 @@ export function qbPost<T = unknown>(
   facilityId: string,
   path: string,
   body: unknown,
+  opts?: { requestId?: string },
 ): Promise<T> {
-  return qbFetch<T>(facilityId, 'POST', path, body)
+  return qbFetch<T>(facilityId, 'POST', path, body, opts)
 }
 
+/** Empty-body POST with Content-Type: application/octet-stream — the shape
+ *  Intuit's /invoice/{id}/send (and other .../send) endpoints require. */
+export function qbPostSend<T = unknown>(facilityId: string, path: string): Promise<T> {
+  return qbFetch<T>(facilityId, 'POST', path, undefined, { octetStream: true })
+}
+
+/** Revoke an ENCRYPTED refresh token at Intuit (legacy signature). */
 export async function revokeQBToken(encryptedRefreshToken: string): Promise<void> {
-  await fetch(QB_REVOKE, {
-    method: 'POST',
-    headers: {
-      Authorization: basicAuthHeader(),
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ token: decryptToken(encryptedRefreshToken) }),
-  })
+  await revokeQBRefreshToken(decryptToken(encryptedRefreshToken))
 }

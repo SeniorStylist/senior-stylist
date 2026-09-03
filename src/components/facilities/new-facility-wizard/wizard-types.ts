@@ -1,4 +1,4 @@
-// P57 — types for the New-Facility wizard (/facilities/new).
+// P60 — types for the New-Facility wizard (/facilities/new).
 
 import type { AutopayMode, PaymentType, WorkingHours } from '@/lib/facility-options'
 

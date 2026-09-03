@@ -1,4 +1,4 @@
-// P57 — facility-side staffing. Until now the ONLY way to attach an EXISTING
+// P60 — facility-side staffing. Until now the ONLY way to attach an EXISTING
 // stylist to a facility was a <select> buried on the stylist's own detail
 // page, one stylist at a time — staffing a new facility with five known
 // stylists meant five detail-page trips, and the /stylists "+ Add stylist"

@@ -135,7 +135,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     }
   }
 
-  // P57 — the Fitzgerald rehearsal launcher (docs/fitzgerald-walkthrough.md).
+  // P60 — the Fitzgerald rehearsal launcher (docs/fitzgerald-walkthrough.md).
   const [rehearsalLoading, setRehearsalLoading] = useState(false)
   const [rehearsalError, setRehearsalError] = useState<string | null>(null)
   const handleRehearsal = async () => {
@@ -275,7 +275,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
         ))}
       </div>
 
-      {/* P57 — Fitzgerald rehearsal: seed the practice pieces the walkthrough
+      {/* P60 — Fitzgerald rehearsal: seed the practice pieces the walkthrough
           needs at the SELECTED facility, then open the family sign-up dry run
           (scenario 2 in docs/fitzgerald-walkthrough.md). */}
       <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">

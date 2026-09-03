@@ -432,7 +432,7 @@ export function buildPortalMagicLinkEmailHtml(params: {
   expiresInHours: number
 }): string {
   const { residentNames, facilityName, link, expiresInHours } = params
-  // P57 — escaped: the walk-in create path now mails this with a caller-typed
+  // P60 — escaped: the walk-in create path now mails this with a caller-typed
   // resident name, so raw interpolation would put arbitrary markup in a branded
   // email from our verified sending domain.
   const namesLine =

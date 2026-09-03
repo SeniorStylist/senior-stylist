@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'file is required' }, { status: 400 })
     }
 
-    // P57 — an explicit TARGET facility (the New-Facility wizard's "upload the
+    // P60 — an explicit TARGET facility (the New-Facility wizard's "upload the
     // stylist sheet"): every imported row is assigned there, and rows with no
     // parsed schedule get availability on `defaultDays` (0=Sun…6=Sat) at the
     // facility's hours. Without it, the caller's selected facility as before.
@@ -378,7 +378,7 @@ export async function POST(request: NextRequest) {
 
     let franchise = await getUserFranchise(user.id)
 
-    // P57 — with an explicit target facility, the franchise is THAT facility's
+    // P60 — with an explicit target facility, the franchise is THAT facility's
     // (design risk R7: the "first franchise in the DB" last resort below was
     // flat wrong for a targeted import).
     if (targetFacilityId) {
@@ -469,7 +469,7 @@ export async function POST(request: NextRequest) {
       .select({ id: facilities.id, name: facilities.name, workingHours: facilities.workingHours })
       .from(facilities)
       .where(inArray(facilities.id, allowedFacilityIds))
-    // P57 — seeded availability (defaultDays) runs at the TARGET facility's hours.
+    // P60 — seeded availability (defaultDays) runs at the TARGET facility's hours.
     const targetHours = (() => {
       const wh = targetFacilityId ? facilityRows.find((f) => f.id === targetFacilityId)?.workingHours : null
       return { startTime: wh?.startTime ?? '08:00', endTime: wh?.endTime ?? '18:00' }
@@ -595,7 +595,7 @@ export async function POST(request: NextRequest) {
             const [inserted] = await tx.insert(stylists).values({
               name: row.name ?? row.derivedName ?? '',
               stylistCode: code,
-              // P57 — a targeted import gives code-less/facility-less rows a home
+              // P60 — a targeted import gives code-less/facility-less rows a home
               facilityId: resolvedFacilityId ?? targetFacilityId,
               franchiseId,
               ...sharedFields,
@@ -605,7 +605,7 @@ export async function POST(request: NextRequest) {
             imported++
           }
 
-          // P57 — the ASSIGNMENT row every roster surface reads. This importer
+          // P60 — the ASSIGNMENT row every roster surface reads. This importer
           // never inserted one, so imported stylists were invisible on
           // /stylists and in the daily-log dropdowns until someone re-saved
           // them. Assigned to the sheet's facility column, else the target.
@@ -676,7 +676,7 @@ export async function POST(request: NextRequest) {
             scheduleNotesCount++
           }
 
-          // P57 — no schedule on the sheet but the wizard supplied default
+          // P60 — no schedule on the sheet but the wizard supplied default
           // days: seed availability at the target facility so the new
           // community has working days (request auto-assignment + the
           // family date pickers both read them). onConflictDoNothing keeps

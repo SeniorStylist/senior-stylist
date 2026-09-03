@@ -20,7 +20,7 @@ interface AddCardFormProps {
   residentId: string
   lang?: PortalLang
   /**
-   * Fired after the card is vaulted. P57 — receives the save route's payload so
+   * Fired after the card is vaulted. P60 — receives the save route's payload so
    * a caller that asked for autopay in the SAME request can report whether the
    * server actually turned it on, instead of firing a second POST to find out.
    */
@@ -31,7 +31,7 @@ interface AddCardFormProps {
   /** P54 — auto-enable per-visit autopay after the save (portal/signup only). */
   enableAutopay?: boolean
   /**
-   * P57 — staff attestation that the FAMILY asked for the card to be kept on
+   * P60 — staff attestation that the FAMILY asked for the card to be kept on
    * file for automatic payment. The route honors `enableAutopay` for a
    * stylist/admin actor only when this rides the SAME request; without it the
    * modal had to fire a second POST, which burned two `paymentSetup` tokens

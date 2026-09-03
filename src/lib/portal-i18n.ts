@@ -79,7 +79,7 @@ export const PORTAL_STRINGS = {
   'appts.requestedFor': { en: 'Preferred', es: 'Preferida' },
   'appts.noUpcoming': { en: 'No upcoming appointments.', es: 'No hay citas próximas.' },
   'appts.past6Months': { en: 'Past 6 months', es: 'Últimos 6 meses' },
-  // P57 — labels the per-visit gratuity on the past-visit list. An unlabeled
+  // P60 — labels the per-visit gratuity on the past-visit list. An unlabeled
   // "+ 5" reads as a surcharge, and the settings heading 'Tip Preferences' is
   // wrong as a value label (and wrong to a screen reader).
   'appts.tip': { en: 'Tip', es: 'Propina' },
@@ -480,10 +480,20 @@ export const PORTAL_STRINGS = {
   },
   // P56 — A2P 10DLC consent disclosure (carrier reviewers open this page)
   'signup.step.contactSmsConsent': {
-    en: 'By giving your phone number, you agree to receive text updates about salon appointments and your account. Message and data rates may apply. Reply STOP to opt out.',
-    es: 'Al proporcionar su número de teléfono, acepta recibir mensajes de texto sobre las citas del salón y su cuenta. Pueden aplicarse tarifas de mensajes y datos. Responda STOP para cancelar.',
+    en: 'By giving your phone number, you agree to receive text messages from Senior Stylist about salon appointments and your account. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help.',
+    es: 'Al proporcionar su número de teléfono, acepta recibir mensajes de texto de Senior Stylist sobre las citas del salón y su cuenta. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responda STOP para cancelar o HELP para obtener ayuda.',
   },
   'signup.step.privacyLink': { en: 'Privacy Policy', es: 'Política de Privacidad' },
+  'signup.step.termsLink': { en: 'Terms', es: 'Términos' },
+  // A2P — checkbox must be actively ticked before a phone number can proceed
+  'signup.step.smsConsentRequired': {
+    en: 'Please check the box to receive texts at this number, or clear the phone field to continue with email only.',
+    es: 'Marque la casilla para recibir mensajes de texto en este número, o borre el teléfono para continuar solo con correo electrónico.',
+  },
+  // P56b — family-layout footer link (A2P: policy reachable from every family page)
+  'footer.privacy': { en: 'Privacy Policy', es: 'Política de Privacidad' },
+  // 2026-09-01 — refund policy (/terms#refunds) reachable wherever cards are charged
+  'footer.terms': { en: 'Terms & Refunds', es: 'Términos y Reembolsos' },
   // P55 — password created in the wizard (owner decision)
   'signup.step.password': { en: 'Choose a password', es: 'Elija una contraseña' },
   'signup.step.passwordHint': {

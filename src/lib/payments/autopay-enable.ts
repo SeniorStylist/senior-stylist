@@ -40,7 +40,7 @@ export function notifyAutopayChanged(opts: {
     const emails = recipients?.emails?.length ? recipients.emails : poaEmail ? [poaEmail] : []
     const facilityName = facility?.name ?? 'Senior Stylist'
     const cardLabel = card?.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null
-    // P57 — this notice is the "wasn't you?" safety net that makes a
+    // P60 — this notice is the "wasn't you?" safety net that makes a
     // staff-attested enable acceptable at all, so it must reach a phone-only
     // family too (P55 made phone a first-class portal identity). Email-only
     // meant those families were switched to automatic charging in silence.

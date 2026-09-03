@@ -10,6 +10,7 @@ import { PortalHeader } from './portal-header'
 import { TextScaleToggle } from '@/components/portal/text-scale-toggle'
 import { LanguageToggle } from '@/components/portal/language-toggle'
 import { getPortalLang } from '@/lib/portal-i18n-server'
+import { makePortalT } from '@/lib/portal-i18n'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist — Salon Account',
@@ -50,7 +51,7 @@ export default async function FamilyPortalLayout({
           className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-1.5 relative overflow-hidden"
         >
           <div className="relative z-10 flex items-center gap-2.5 min-w-0">
-            {/* P57 — the pre-baked white wordmark. `brightness(0) invert(1)` on
+            {/* P60 — the pre-baked white wordmark. `brightness(0) invert(1)` on
                 the burgundy-on-WHITE source painted a solid white box (looked
                 like a missing image) and 120×36 squashed a 1.24:1 mark. */}
             <Image
@@ -94,6 +95,29 @@ export default async function FamilyPortalLayout({
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 96px)' }}
         >
           {children}
+          {/* P56b — A2P campaign: privacy policy reachable from every family page,
+              login and signup included. New tab so in-place nav never wipes the
+              signup wizard (P56 rule). Terms added 2026-09-01: the refund policy
+              (/terms#refunds) must be reachable wherever cards are charged. */}
+          <p className="text-center pt-8 text-xs text-stone-400">
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              {makePortalT(lang)('footer.privacy')}
+            </a>
+            {' · '}
+            <a
+              href="/terms#refunds"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              {makePortalT(lang)('footer.terms')}
+            </a>
+          </p>
         </main>
         {isAuthed && <PortalNav facilityCode={decoded} lang={lang} />}
       </div>

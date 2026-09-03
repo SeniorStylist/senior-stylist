@@ -5,6 +5,7 @@ import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { getUserFacility, canAccessBilling } from '@/lib/get-facility-id'
 import { isTutorialModeActive } from '@/lib/help/tutorial-request'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { NextRequest } from 'next/server'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -41,8 +42,6 @@ const getBillingSummaryData = unstable_cache(
           address: true,
           // Phase 12F — facility tz reaches BillingFacility for tz-aware display
           timezone: true,
-          qbAccessToken: true,
-          qbRefreshToken: true,
           qbInvoicesLastSyncedAt: true,
         },
       }),
@@ -114,15 +113,10 @@ const getBillingSummaryData = unstable_cache(
       } catch { /* table doesn't exist yet */ }
     }
 
-    const facilityClean = facility
-      ? (() => {
-          const { qbAccessToken, qbRefreshToken, ...rest } = facility
-          return {
-            ...rest,
-            hasQuickBooks: !!(qbAccessToken && qbRefreshToken),
-          }
-        })()
-      : null
+    // Realm-level connection (qb_connections) decides "connected" — the legacy
+    // token columns are never selected, so they can't reach the client.
+    const qbConnected = facility ? await isFacilityConnected(facilityId) : false
+    const facilityClean = facility ? { ...facility, hasQuickBooks: qbConnected } : null
 
     // Storage path stays server-side — clients get a boolean and fetch a
     // signed URL from /api/billing/check-image/[paymentId] on demand.

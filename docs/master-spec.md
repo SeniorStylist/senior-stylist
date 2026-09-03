@@ -948,7 +948,7 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/portal/set-password` | Authed (Phase 11I), rate-limited `portalSetPassword` | Body `{ password }` (`z.string().min(8).max(200)`). Hashes via PBKDF2-SHA256 210k iterations and writes to `portal_accounts.password_hash`. |
 | `POST /api/portal/request-booking` | Authed (Phase 11I), rate-limited `portalRequestBooking` | Body `{ residentId, serviceIds: string[1..6], preferredDateFrom, preferredDateTo, notes }`. Verifies resident in session + every service in resident's facility + active. Resolves stylist via `resolveAvailableStylists` + `pickStylistWithLeastLoad` (fallback: first active facility stylist). Inserts `bookings` row with `status='requested'`, `requestedByPortal=true`, `portalNotes`, `serviceIds`, `serviceNames`, `totalDurationMinutes`, `priceCents`. Fires admin notification email via `buildPortalRequestEmailHtml`. `revalidateTag('bookings', {})`. |
 | `GET /api/portal/statement/[residentId]` | Authed (Phase 11I), rate-limited `portalStatement` | Verifies resident in session. Reuses `buildResidentStatementHtml`. Returns HTML with `@media print` CSS + `<button onclick="window.print()">`. `Content-Type: text/html`. |
-| `POST /api/portal/stripe/create-checkout` | Authed (Phase 11I), rate-limited `portalCheckout` | Body `{ residentId, amountCents, purpose? }` (50–10_000_000). **`purpose` (2026-06-26)**: `'balance'` (default) → `metadata.type='portal_balance'` (auto-applied FIFO in the webhook); `'prepay'` → `metadata.type='portal_prepay'` (banked as an unapplied account credit, manual attribution). Stripe key = `facility.stripeSecretKey ?? STRIPE_SECRET_KEY`. Returns `{ data: { checkoutUrl } }`. |
+| `POST /api/portal/stripe/create-checkout` | Authed (Phase 11I), rate-limited `portalCheckout` | Body `{ residentId, amountCents, purpose? }` (50–10_000_000). **`purpose` (2026-06-26)**: `'balance'` (default) → `metadata.type='portal_balance'` (auto-applied FIFO in the webhook); `'prepay'` → `metadata.type='portal_prepay'` (banked as an unapplied account credit, manual attribution). Stripe key = **PLATFORM `STRIPE_SECRET_KEY` ONLY since P53** (`facility.stripeSecretKey` is legacy/ignored — a facility-account checkout produced webhook events the platform signing secret 400'd: charged, never recorded). Returns `{ data: { checkoutUrl } }`. |
 | `POST /api/portal/gift/create-checkout` | Authed, rate-limited `portalCheckout` (2026-06-26) | Body `{ facilityCode, recipientName, recipientRoom?, amountCents, gifterName? }`. Resolves the recipient by **fuzzy name (+room) without exposing the facility roster** (lenient with a room filter; on name alone requires `score≥0.85` and a clear gap to the runner-up — else 409). Creates a Checkout session `metadata.type='portal_gift'`, `metadata.residentId`=recipient, `metadata.gifterName`. The webhook banks an unapplied credit on the recipient. |
 | `POST /api/portal/residents/[residentId]/contact` | Portal-session, cross-resident guard, `portalProfileUpdate` (2026-06-26) | Updates resident `phone` + POA `name/phone/address/city`. **`poaEmail` is NOT editable** (login identity). Resident name/room facility-managed. |
 | `GET /api/cron/portal-cleanup` | **Vercel Cron** (Phase 11I, `Bearer CRON_SECRET`) | Daily 04:00 UTC. Deletes `portal_magic_links` rows older than 7 days past expiry; deletes expired `portal_sessions`. `maxDuration=30`. |
@@ -1387,8 +1387,8 @@ All wrapped in `db.transaction`. Always returns 200 to Stripe.
 
 **No new env vars.** Reuses `RESEND_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_EMAIL`, `CRON_SECRET`. `PORTAL_SESSION_SECRET` deliberately NOT added — opaque server-side tokens need no signing.
 
-### Phase 11G — QB API Live Sync (PLANNED — Opus)
-Manual sync per facility. Route: `POST /api/quickbooks/sync-invoices/[facilityId]`. First sync backfills `qb_invoice_id` on CSV-imported records. Requires Intuit production approval. Until approved → button hidden.
+### Phase 11G — QB API Live Sync (SUPERSEDED — shipped as Phase 11M, extended by P48 + P57)
+Shipped as Phase 11M (`POST /api/quickbooks/sync-invoices/[facilityId]`, gated by `QB_INVOICE_SYNC_ENABLED` — button shown DISABLED until the flag is on, not hidden). P48 added the nightly cron + master QB dashboard + cursorAdvanced contract; P57 added customer sync, invoice push, and the payment/credit pull. See the P57 section for the current full QB surface.
 
 ### Phase 11H — Revenue Share Integration (PLANNED — Opus)
 New `facilities.rev_share_percentage` integer column. Per-invoice stylist/facility split calculation. New `qb_invoice_id` on `stylist_pay_items` links payroll to invoices. Billing view shows split breakdown. Payroll detail shows corresponding invoices.
@@ -3122,9 +3122,9 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
   gets a toast Undo; "Meet your AI assistant" tour added.
   37 tools; harness 126 checks.
 
-## P57 — Fitzgerald launch readiness: facility creation rework + end-to-end audit (2026-09-03)
+## P60 — Fitzgerald launch readiness: facility creation rework + end-to-end audit (2026-09-03)
 
-Josh's 2026-08-18 demo to Lisa and Dad broke on step one. Migrations `drizzle/0043` (partial unique index on ACTIVE facility codes — run the inline pre-check first) and `0044` (`invites.stylist_id`, bootstrapped in `invite-ddl.ts`). Changelog 6.9. Walkthrough: `docs/fitzgerald-walkthrough.md`.
+Josh's 2026-08-18 demo to Lisa and Dad broke on step one. Migrations `drizzle/0047` (partial unique index on ACTIVE facility codes — run the inline pre-check first) and `0048` (`invites.stylist_id`, bootstrapped in `invite-ddl.ts`). Changelog 6.12. Walkthrough: `docs/fitzgerald-walkthrough.md`.
 
 **Master scoping (C1)**
 - `getUserFacility` gains a master synthetic row (mirrors the bookkeeper branch): master-by-email + `selected_facility_id` at an active facility → `{role:'admin', rawRole:'admin', facilityId: selected}`. `findMany` gained `orderBy: asc(createdAt)` (`rows[0]` was nondeterministic). Unblocks `/stylists`, `/stylists/directory`, `GET /api/search` for a membership-less master.
@@ -3156,6 +3156,59 @@ Josh's 2026-08-18 demo to Lisa and Dad broke on step one. Migrations `drizzle/00
 
 **Rehearsal (C5)**
 - `POST /api/debug/rehearsal` (master-gated) seeds `seedFacilityDemoData` at any selected facility and returns its code; the Debug tab's "Launch rehearsal" card opens `/family/<code>/signup?preview=1`.
+## P59 — QuickBooks realm-level connection (2026-09-02)
+
+Josh: "a full facilities qb sync, at least by the franchises". Migration `drizzle/0046_qb_connections.sql` (self-bootstrapped + legacy-token backfill by `src/lib/qb-connection.ts`). Changelog 6.11.
+
+**Table `qb_connections`** `(realm_id text PK, access_token, refresh_token (encrypted), token_expires_at, refresh_token_issued_at, refresh_token_expires_at, company_name, connected_by, connected_at, revoked_at, last_error, refresh_lock_until, invoices_sync_cursor, invoices_last_synced_at, payments_sync_cursor, payments_last_synced_at, created_at, updated_at)`. `facilities.qb_realm_id` = attachment; legacy `facilities.qb_access_token/qb_refresh_token` nulled on attach/detach. Index `facilities_qb_realm_idx (qb_realm_id) WHERE qb_realm_id IS NOT NULL`.
+
+**`src/lib/qb-connection.ts`**: `ensureQbConnectionsSchema` (DDL + backfill), `getConnectionInfo`/`listConnections` (token-free), `isFacilityConnected`, `connectedMap`, `qbConnectedSql`, `saveConnection`, `setCompanyName`, `getAccessToken(realmId)` (DB lease `refresh_lock_until` 45s + 20s wait; persists rotated refresh token + explicit expiry), `markAccessTokenExpired`, `facilityIdsForScope('facility'|'franchise'|'all')`, `attachFacilities` (never steals from another realm), `detachFacility`, `disconnectRealm` (revoke + detach all), `listRealmFacilities`. `src/lib/qb-oauth-http.ts`: `qbRedirectUri`, `getQBAuthUrl`, `exchangeQBCode`, `refreshQBTokens`, `revokeQBRefreshToken`.
+
+**Routes**: `GET /api/quickbooks/connect?scope=&return=` (state = base64url `{n,s,r}`), callback (scope re-validated by role; nonce consumed pre-exchange; attach; company-name probe; lands on settings/franchise/master page with `?qb=connected&attached=N&skipped=M`), `POST /api/quickbooks/disconnect {mode:'detach'|'company', realmId?, facilityId?}`, `POST /api/quickbooks/attach {realmId, scope:'all'|'franchise'|'list', facilityIds?}` (bucket `quickbooksSync`), `GET /api/quickbooks/status` (connection-based; returns `attachedFacilities`, `refreshTokenExpiresAt`). Every QB route/page now checks `isFacilityConnected` (sync-customers/invoices/payments, push-invoice, accounts, sync-vendors, sync-bill, sync-status, billing summary, payroll page, settings page via `sanitizeFacility(f, {hasQuickBooks})`).
+
+**Realm sync** (`src/lib/qb-realm-sync.ts`): `syncRealm(realmId, facilityIds)` — mirror queues → one `fetchQBInvoices` from the oldest cursor → route by `qb_customer_links` / F-code → `syncQBInvoices(fid, {prefetched})` per facility → one `fetchQBPaymentsAndCredits` → `syncQBPayments(fid, {prefetched})` for facilities whose invoice cursor advanced; returns per-facility outcomes + unrouted counts. `facilitiesByRealm(excludeIds)` for the cron. Cron `/api/cron/qb-invoice-sync` iterates realms; `MAX_PER_RUN` 120; response gains `realms`, `unrouted`.
+
+**quickbooks.ts**: `QB_MINOR = 75` auto-append, per-realm in-flight limiter (5), `qbQuoteLiteral`, `qbRequestId`, `qbPost(path, body, {requestId})`; requestid wired on customer create, invoice push (per-run), Bill create (per-run), payment mirror (`mirror-<ref>`). Pulls use `ORDERBY Metadata.LastUpdatedTime ASC`.
+
+**UI**: Master Admin → QuickBooks company card (Connect all / Attach the other N / Reconnect / Disconnect company) + per-row Attach; `/franchise` QuickBooks card; Settings → Billing scoped connect links (`qbConnectScopes` prop) + "Detach facility".
+
+## P58 — QuickBooks safety net: site-paid protection + per-run undo (2026-09-01)
+
+Josh: "make sure nothing can mess anything over and we can revert anything". Migration `drizzle/0044_qb_safety.sql` (self-bootstrapped by `src/lib/qb-safety-ddl.ts`). Changelog 6.10.
+
+**Site-paid protection** (`src/lib/qb-site-payments.ts`): new `qb_invoice_site_payments (invoice_id PK, site_paid_cents)`. `recordSitePaid(tx, invoiceId, cents)` is called at every site-side invoice decrement — `payments/charge.ts` (card + salon credit), `payments/finalize.ts`, `webhooks/stripe` portal balance, `unapplied-apply.ts`. `reapplySitePayments(db, facilityIds)` clamps `local_open = max(0, qb_open − site_paid)` (conservative — only lowers; rows where QB ALSO shows a reduction are returned as `ambiguous` → `warnings` on the pull result) after every QB-authoritative overwrite — `qb-invoice-sync.ts` (nightly pull), `qb-import/invoices` (CSV Step 2), `import-billing-history` (legacy) — BEFORE balance recompute. Closes the loop where a site-paid invoice was re-opened by the pull and re-charged by the autopay sweep.
+
+**Invoice push**: residents with `autopayEnabled` + an active `payment_methods` row are excluded (`skippedAutopay` in the result/modal).
+
+**Run ledger + undo**: `qb_sync_runs (id, facility_id, action, started_at, finished_at, created_by, summary jsonb, items jsonb, undone_at, undone_by, undo_summary)`. `src/lib/qb-runs.ts::recordSyncRun` (best-effort) with typed items per action. `src/lib/qb-undo.ts::undoSyncRun`: push_invoice → QB void + local 'void' + bookings unlinked (skips invoices with applied money); sync_customers → deactivate created customers only; sync_payments → delete/un-stamp/revert/restore + cursor; sync_invoices → restore prior balances, delete unreferenced pulled rows, cursor, reapply site payments. LIFO enforced for pulls. Routes: `GET /api/quickbooks/runs` (bucket `qbRuns` 60/h), `POST /api/quickbooks/runs/[runId]/undo` (bucket `qbUndo` 10/h, maxDuration 120, logs `undo_<action>` to quickbooks_sync_log). UI: Settings → Billing → QuickBooks "Sync history" with inline Undo confirm. Pull upsert keeps `status='void'`.
+
+**Payment mirroring (2026-09-02, owner-approved — supersedes the deferral)**: migration `drizzle/0045_qb_payment_mirror.sql` — `qb_payment_mirror_queue (payment_id PK → qb_payments, facility_id, resident_id, amount_cents, allocations jsonb [{invoiceId, cents}], ref UNIQUE, source, stripe_payment_intent_id, status pending|processing|done|skipped|failed, attempts, last_error, skip_reason, qb_payment_id, mirrored_cents, created_at, updated_at, mirrored_at)` + `qb_sync_state.qb_card_payment_method_id`; bootstrapped by `ensureQbSafetySchema()`. `src/lib/qb-payment-mirror.ts`: `enqueuePaymentMirror(tx, …)` (inside the payment tx; charge.ts card portion, finalize.ts, webhook portal balance), `mirrorPaymentSoon(paymentId)` (post-commit, 8s bounded), `mirrorQueuedPayment` (atomic claim → skip not_connected / no_qb_invoice / already_in_qb / already_paid_in_qb → adopt by `PaymentRefNum = SS-<12hex>` → cap lines at live QB Balance → `POST /payment` with LinkedTxn lines + Credit Card PaymentMethodRef → stamp `qb_payments.qb_payment_id` + `recordSiteMirrored` + done), `processPaymentMirrorQueue(facilityId, limit)` (nightly cron, before the invoice pull), `voidMirroredPayment` (refund route), `loadMirrorRefs` (payment pull stamps site-originated QB payments instead of inserting). Env `QB_PAYMENT_MIRROR_ENABLED` (default on; `'false'` pauses). Not mirrored: salon-credit draws, banked remainders, credit applications, scanned checks.
+
+## P57 — QuickBooks full integration: connection fix + customer/invoice/payment sync (2026-08-25)
+
+Josh: fix Lisa's "redirect_uri is invalid" connect error + "fully flesh out what connecting to QuickBooks does". Migration `drizzle/0043_qb_links.sql` (self-bootstrapped by `src/lib/qb-links-ddl.ts`). Changelog 6.9. Five commits (Stages 0–4).
+
+**Stage 0 — connection + reliability**
+- `qbRedirectUri()` in `src/lib/quickbooks.ts`: `QUICKBOOKS_REDIRECT_URI` env → `NEXT_PUBLIC_APP_URL` → portal fallback; used in BOTH connect + callback (token exchange must byte-match the authorize URI). The request-origin derivation is gone.
+- `qbFetch` retries 429 (any method) / 5xx (GET only), max 2, backoff + Retry-After ≤3s; 401-refresh-once unchanged.
+- `GET /api/quickbooks/status` (bucket `qbStatus` 30/h; master `?facilityId=`): CompanyInfo probe → `{connected,ok,companyName,…}` / `{ok:false,reason:'reconnect_needed'|'error'}`, always HTTP 200. Settings → Billing "Test connection" button renders result inline with a Reconnect link.
+- Disconnect clears `qb_invoices_sync_cursor`/`qb_invoices_last_synced_at` (+ qb_sync_state cursors) — stale-cursor-on-reconnect data loss closed. `qb_customer_links` survives disconnect.
+
+**Stage 1 — customer sync**
+- Tables: `qb_customer_links` (numeric Intuit Customer.Id per resident; NULL resident = facility parent; partial uniques both shapes) + `qb_sync_state` (facility PK: qb_service_item_id, payments cursor). `residents.qb_customer_id` KEEPS display-name semantics; the "FXXX:Name - Room" form is a QB FullyQualifiedName (QB forbids colons in DisplayName; parent DisplayName = F-code, sub = "Last, First - Room").
+- `src/lib/qb-customer-sync.ts::syncQBCustomers` — match-first (exact stored name → fuzzy ≥0.7 claim-once) then create missing sub-customers (dup-DisplayName retry, 200/run cap, link written per-create for crash safety); JIT `ensureQBFacilityParent`/`ensureQBCustomerForResident`.
+- `POST /api/quickbooks/sync-customers/[facilityId]` (canManageQuickBooksBilling + master, bucket `qbCustomerSync` 5/h, sync-log `sync_customers`). Invoice pull matches numeric CustomerRef.value via links first.
+- UI: Settings → Billing "Sync Customers" beside Sync Vendors.
+
+**Stage 2 — invoice push ("Send via QB")**
+- `src/lib/qb-invoice-push.ts::pushQBInvoices(facilityId, {month, mode, residentId?, send, email?})`: billable = completed + **unpaid** + active + !demo + `qb_invoice_match_id IS NULL` in the facility-tz month; amounts price+addons (never tips); modes `per_resident` (IP) / `facility` (RFMS/hybrid); 'Salon Services' QB Item auto-provisioned + cached; pushed invoice upserts local `qb_invoices` on the 3-col dedup key + stamps `bookings.qb_invoice_match_id`; optional `/invoice/{id}/send` email stamps lastSentAt/sentVia. 50 invoices/run cap; balance recompute after.
+- `POST /api/quickbooks/push-invoice` (Zod; manage tier + master; bucket `qbInvoicePush` 20/h; maxDuration 120; sync-log `push_invoice`). `<SendViaQbModal>` (month picker + email checkbox behind useSendConfirm) wired into ip-view + billing toolbar, replacing both disabled stubs.
+
+**Stage 3 — payment/credit pull**
+- `src/lib/qb-payment-sync.ts::syncQBPayments` — Payment + CreditMemo pulls, P48 cursorAdvanced contract on `qb_sync_state.payments_sync_cursor`; multiset pool-and-pop dedup (known qb_payment_id refresh-in-place; CSV/check-scan rows get STAMPED; resident rows upgrade facility-level rows); credits upsert-only, never touching applied_*.
+- `POST /api/quickbooks/sync-payments/[facilityId]` (flag-gated 503 like invoice sync; canAccessBilling; bucket `qbPaymentSync` 3/h). Cron chains payments after each cursor-advancing invoice sync (`sync_payments` log rows; MAX_PER_RUN 25→20). Billing "Sync from QB" + Settings "Sync now" chain payments client-side.
+
+**Flag posture**: reads (invoice/payment pull, cron) gated by `QB_INVOICE_SYNC_ENABLED`; operator writes (customer sync, invoice push, vendor sync, Bill push) ungated. Rate buckets added: qbStatus 30/h, qbCustomerSync 5/h, qbInvoicePush 20/h, qbPaymentSync 3/h.
 
 ## P55 — Email-or-phone identity, charge-on-finalize, Salon Account (2026-08-17)
 
@@ -3212,7 +3265,7 @@ merge_suggestion_resident_id), 0038 (portal_signup_card_tokens), 0039
 - **Walk-in quick-create**: newResident email/phone → poaEmail/poaPhone +
   portalToken + automatic "finish your account" magic-link email (fresh
   branch only; dedup/replay never re-sends). POST /api/residents accepts
-  poaEmail/poaPhone (P57: the admin path auto-invites too, via `sendFinishAccountInvite`).
+  poaEmail/poaPhone (P60: the admin path auto-invites too, via `sendFinishAccountInvite`).
 - New route params: POST /api/portal/signup returns {status, paymentsEnabled,
   residentId?, cardToken?}; payments setup-intent + methods POST accept
   signupToken; methods POST accepts enableAutopay; claims PATCH gains

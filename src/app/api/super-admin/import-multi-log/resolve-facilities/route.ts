@@ -35,7 +35,7 @@ interface ExistingInfo {
   bookings: number
 }
 
-// P57 — nextFacilityCode lives in src/lib/facility-code.ts now (shared with
+// P60 — nextFacilityCode lives in src/lib/facility-code.ts now (shared with
 // the create path); a route file exporting a non-handler was also a Next
 // build hazard.
 import { nextFacilityCode } from '@/lib/facility-code'

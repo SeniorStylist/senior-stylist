@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const bulkSchema = z.object({
-  facilityId: z.string().uuid().optional(), // P57 — explicit target (wizard)
+  facilityId: z.string().uuid().optional(), // P60 — explicit target (wizard)
   rows: z.array(
     z.object({
       name: z.string().min(1),
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: `Invalid service data — ${msg}` }, { status: 422 })
     }
 
-    // P57 — an explicit target facility (the New-Facility wizard's Services
+    // P60 — an explicit target facility (the New-Facility wizard's Services
     // step; the master has no cookie-scoped facility row). Otherwise the
     // caller's selected facility as before.
     let facilityId: string

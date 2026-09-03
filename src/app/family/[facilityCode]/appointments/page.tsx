@@ -44,7 +44,7 @@ export default async function AppointmentsPage({
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
-  // P57 — demo rows are matched to the RESIDENT, not filtered outright. A bare
+  // P60 — demo rows are matched to the RESIDENT, not filtered outright. A bare
   // is_demo=false would blank the Debug tab's demo family session (its resident
   // IS a demo record); leaving it off entirely let a real family's list show
   // tutorial visits — and since this list now carries money, priced ones.
@@ -88,7 +88,7 @@ export default async function AppointmentsPage({
         serviceNames: bookings.serviceNames,
         status: bookings.status,
         stylistId: bookings.stylistId,
-        // P57 — what the visit cost. The family could see the service name and
+        // P60 — what the visit cost. The family could see the service name and
         // the date but never the amount, so every "what was I charged for?"
         // question went to the facility instead of being answered here.
         priceCents: bookings.priceCents,

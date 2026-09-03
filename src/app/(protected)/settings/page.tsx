@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents, stylistFacilityAssignments } from '@/db/schema'
 import { eq, and, count, inArray, or } from 'drizzle-orm'
-import { getUserFacility } from '@/lib/get-facility-id'
+import { getUserFacility, isFranchiseAdmin } from '@/lib/get-facility-id'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
 import { SettingsClient } from './settings-client'
@@ -53,7 +54,7 @@ export default async function SettingsPage() {
           }),
         )
       : Promise.resolve([]),
-    // P57 — how many residents here have autopay switched on. Drives the Billing
+    // P60 — how many residents here have autopay switched on. Drives the Billing
     // warning that 'manual' mode means those saved cards never actually charge.
     // ONE aggregate, never a per-resident loop (max:1 pool). Best-effort: a
     // failed count must not take the whole settings page down.
@@ -79,6 +80,12 @@ export default async function SettingsPage() {
   if (!facility) redirect('/dashboard')
 
   const autopayResidentCount = autopayRows[0]?.n ?? 0
+  // Realm-level QuickBooks connection state (qb_connections) + who may connect
+  // more than this one facility in a single authorization.
+  const [qbConnected, franchiseAdmin] = await Promise.all([
+    isFacilityConnected(facilityUser.facilityId).catch(() => false),
+    isFranchiseAdmin(user.id),
+  ])
 
   // Enrich claim requests with resident names (linked + P54 merge suggestion)
   const claimResidentIds = [
@@ -183,8 +190,9 @@ export default async function SettingsPage() {
 
   return (
     <SettingsClient
-      facility={toClientJson(sanitizeFacility(facility))}
+      facility={toClientJson(sanitizeFacility(facility, { hasQuickBooks: qbConnected }))}
       autopayResidentCount={autopayResidentCount}
+      qbConnectScopes={{ franchise: franchiseAdmin || isMaster, all: isMaster }}
       connectedUsers={toClientJson(usersWithStatus)}
       facilityStylists={toClientJson(facilityStylists)}
       currentUserId={user.id}

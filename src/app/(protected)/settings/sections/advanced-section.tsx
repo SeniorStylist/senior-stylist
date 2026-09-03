@@ -102,7 +102,7 @@ export function AdvancedSection({ facility, isMaster = false }: Props) {
         )}
       </div>
 
-      {/* Add Facility — P57: ONE flow, the /facilities/new wizard */}
+      {/* Add Facility — P60: ONE flow, the /facilities/new wizard */}
       <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
         <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
           {isMaster ? 'Facility Management' : 'Add Facility'}

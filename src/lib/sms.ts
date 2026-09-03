@@ -115,7 +115,7 @@ export function buildPaymentRequestSms(data: {
   )
 }
 
-// P57 — automatic-payment consent notice. The mirror of
+// P60 — automatic-payment consent notice. The mirror of
 // buildAutopayEnabledEmailHtml: it is the "wasn't you? call the salon" safety
 // net that makes a staff-attested enable acceptable, so a phone-only family
 // has to get it too.
@@ -138,7 +138,7 @@ export function buildAutopayChangedSms(data: {
   )
 }
 
-// P57 — receipt for a card-on-file charge. Distinct from buildReceiptSms,
+// P60 — receipt for a card-on-file charge. Distinct from buildReceiptSms,
 // which is shaped around one booking ("<service> with <stylist>"): an autopay
 // charge can cover a whole balance, so there is no single service or stylist to
 // name and forcing one through that template read as nonsense ("Salon services
@@ -157,7 +157,7 @@ export function buildAutoChargeReceiptSms(data: {
   )
 }
 
-// P57 — acknowledgement for a visit request submitted from the family portal.
+// P60 — acknowledgement for a visit request submitted from the family portal.
 // The request page previously only emailed, so a phone-only family (P55 made
 // phone a first-class portal identity) got silence after tapping Request.
 export function buildRequestReceivedSms(data: {

@@ -79,35 +79,152 @@ Vercel → Project → Settings → Environment Variables (Production). After ad
 ## E. Stripe — live card payments (when you're ready to flip payments on)
 
 The whole card-on-file/autopay/Tap-to-Pay stack is built and works in TEST mode already.
-1. [ ] Stripe dashboard (the PLATFORM Senior Stylist account) → API keys →
-       - `STRIPE_SECRET_KEY` (sk_live_… when going live; sk_test_… works today)
-       - `STRIPE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (same value)
-2. [ ] Developers → Webhooks → Add endpoint `https://portal.seniorstylist.com/api/webhooks/stripe`
-       with events **`setup_intent.succeeded`** and **`payment_intent.succeeded`** (keep any
-       existing `checkout.session.completed` selection) → copy the signing secret →
-       `STRIPE_WEBHOOK_SECRET`.
-3. [ ] LAST, when you want real charges: set **`PAYMENTS_LIVE_ENABLED`** = `true`. Until then
-       the engine refuses live keys by design.
+**LIVE ACCOUNT ACTIVATED 2026-09-01** (Stripe onboarding completed; Tax/Radar/Climate
+extras skipped — optional add-ons, revisit only if ever needed).
+1. [ ] Stripe dashboard (the PLATFORM Senior Stylist account, LIVE mode) → API keys →
+       grab `sk_live_…` and `pk_live_…` and HOLD them (don't put in Vercel yet — see the
+       one-redeploy rule below):
+       - `STRIPE_SECRET_KEY` (sk_live_…)
+       - `STRIPE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (same pk_live_ value)
+2. [x] **DONE 2026-09-01** — live-mode endpoint created at
+       `https://portal.seniorstylist.com/api/webhooks/stripe` with **ALL THREE** events —
+       **`setup_intent.succeeded`**, **`payment_intent.succeeded`**, AND
+       **`checkout.session.completed`** (that third one records EVERY family portal payment —
+       balance, prepay, gift; a fresh live endpoint has no pre-existing selection, so missing
+       it = families charged with nothing recorded). **The live `whsec_` is ALREADY in Vercel
+       `STRIPE_WEBHOOK_SECRET`** (Josh staged it early — assessed benign: it only takes effect
+       on the next deploy, and then only breaks TEST-mode webhook recording, which nothing
+       real depends on since real cards decline on test keys. Left in place. Caveat until
+       flip: test-card portal-payment demos won't record in billing.)
+3. [ ] **ONE-REDEPLOY RULE (now 4 vars)**: swap the remaining FOUR vars in a single Vercel
+       update + one redeploy — `STRIPE_SECRET_KEY` (sk_live_), `STRIPE_PUBLISHABLE_KEY` +
+       `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (pk_live_), **plus `PAYMENTS_LIVE_ENABLED` =
+       `true`** (webhook secret already staged). **`sk_live_` is the var that must NEVER go
+       in early** — the in-between state (live secret key, flag off) is NOISY, not safe-idle:
+       autopay attempts fail loudly (admin "auto-charge failed" alerts + pay-link emails to
+       families whose checkout then 503s), the portal keeps showing Pay/Add-card buttons that
+       error on click, and refunds go live ungated. Also verify
+       `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com` is set (two checkout routes
+       otherwise build vercel.app return URLs).
+4. [x] **GATE CLEARED 2026-09-01 — boss decided the refund/cancellation policy** and it's
+       live as `/terms` **§7 "Salon Payments, Refunds & Cancellations"** (`/terms#refunds`;
+       old §7–§13 renumbered to §8–§14; the SMS section is §10 now). The decisions on
+       record: (1) service concerns — 30-day window, redo first, refund or credit on
+       request; (2) billing errors/duplicates/never-performed — always fully refunded;
+       (3) prepaid salon-account funds — **refundable anytime**; (4) death/move-out —
+       **unused balance refunded to family/estate**; (5) gifts — **refundable to sender
+       until used**; (6) cancellations — **free with ≥24 hours notice**, pay only for
+       services performed (late/no-show "may be subject to a fee" — reserve-right wording,
+       the system never auto-charges non-completed visits). Refunds to original method,
+       5–10 business days, via 443-450-3344. The family layout footer now links
+       "Terms & Refunds" → `/terms#refunds` (en/es) next to Privacy, so the policy is one
+       tap from every page where cards are charged. Changing any of these terms = boss
+       decision. Cost note: Stripe keeps its ~3% fee on refunds — credits are cheaper as
+       a default remedy.
+5. [ ] After the flip: one small real charge (portal balance or at-chair) → confirm the
+       `qb_payments` row + Stripe dashboard both show it → refund via the in-app Refund
+       button (note: refunds don't auto-reverse invoice applications — pick a resident with
+       no open invoices for the test, or fix the invoice by hand after).
 
-**STATUS (2026-07-12):** all 4 keys are set in **TEST** mode and the card-on-file flow works
-today (test card `4242 4242 4242 4242`). Live mode is blocked on the boss creating the
-company's **live Stripe account**. Live-mode hand-off when that exists: swap all 4 keys to the
-live values → create a **live-mode** webhook with those two events and put its **live** signing
-secret in `STRIPE_WEBHOOK_SECRET` (test/live secrets differ — a mismatch fails silently) →
-set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to confirm.
+**STATUS (2026-09-01, evening):** ALL GATES CLEARED. Live account ACTIVE; Apple Pay domain
+registered; live webhook created (3 events) with its live `whsec_` already staged in Vercel;
+refund policy live on `/terms#refunds`. Remaining = item 3's single Vercel update (the 4 vars:
+sk_live, pk_live ×2, `PAYMENTS_LIVE_ENABLED=true`) + redeploy + item 5's test charge. FIRST
+verify the LIVE `/terms` page shows "Effective Date: September 1, 2026" (deploy gotcha — a
+green push isn't a live page). The webhook route returns 200 even on handler errors — after
+go-live, watch Vercel logs for `[stripe webhook …]` lines, not the Stripe delivery dashboard.
 
 ### E2. Apple Pay on the web (P36 — 2 minutes, do with the Stripe account)
-1. [ ] Stripe dashboard → Settings → Payment methods → Apple Pay → **Add domain**
-       `portal.seniorstylist.com` (works in test mode too). Google Pay needs no setup.
-       Until this is done the at-chair payment screen shows card-entry only (with
+1. [x] **DONE 2026-09-01 on the LIVE account** — Settings → Payments → Payment method
+       domains shows `portal.seniorstylist.com` Enabled + Apple Pay enabled
+       (auto-verified, no association file needed). Google Pay needs no setup.
+       Until this was done the at-chair payment screen showed card-entry only (with
        the phone camera scan); after it, Apple Pay appears automatically.
 
 ## F. Twilio — SMS (when ready)
 
-1. [ ] Twilio account + a phone number →
-       `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (e.g. `+12025551234`).
-2. [ ] Set **`TWILIO_ENABLED`** = `true` (exact string). Turns on: receipt texts, family
-       appointment-reminder texts (already wired into the nightly cron), payment-request texts.
+### F1. Go-live sequence (2026-08-25 — NEW console "Find your number" wizard; ~$19.50 one-time, ~$2.65/mo + ~$0.008/segment)
+
+1. [x] **Upgrade the account** if it's still a trial (add a payment method) — trials can't
+       complete paid A2P registration and only text verified numbers. ✅ 2026-08-25
+2. [x] **Compliance profile** — done 2026-08-25 (incl. driver's-license identity check for
+       the authorized rep). Legal-name rule for any future edits: EXACTLY the EIN CP-575
+       name, **"Senior Stylist LLC"**.
+3. [x] **Number bought 2026-08-25: `+19174733973`** ((917) 473-3973, NYC zone) — this is the
+       `TWILIO_FROM_NUMBER` value. NOTE: 917 works identically everywhere, but families see a
+       New York number for a Baltimore company; swapping to a 443/410 local number is a
+       2-minute release-and-rebuy BEFORE campaign registration, and an extra re-linking step
+       after. Josh's call.
+4. [x] **Brand** — REGISTERED (Low Volume Standard, $4.50; confirmed when the campaign
+       step unblocked ~2026-09-01). Legal name "Senior Stylist LLC" + EIN.
+5. [x] **Campaign SUBMITTED 2026-09-01 — vetting pending** (~5 business days). Use case
+       **Low Volume Mixed** ($15 one-time vetting + $1.50/mo). Watch for the approval email /
+       campaign status flipping to VERIFIED in Messaging → Regulatory Compliance.
+       GOTCHA (hit 2026-08-25): the wizard lets you into the campaign step while the brand
+       is still PENDING vetting and throws a generic "Error Setting Up A2P Campaign
+       Registration" — nothing is lost. Wait for the brand to show REGISTERED (minutes to a
+       few hours), then resume from Phone Numbers → Active numbers → the 917 number →
+       finish setup. If the brand shows FAILED instead, the reason is usually a legal-name/
+       EIN mismatch — fix and resubmit.
+       Description, opt-in/message-flow text, and 5 sample messages: use the paste blocks in
+       `docs/a2p-wordpress-kit.md` Part 5 (samples come from the REAL `src/lib/sms.ts`
+       templates; links only to our own portal domain — no shorteners). Opt-in proof =
+       signup contact-step screenshot per the kit. Vetting ≈ up to 5 business days.
+6. [ ] **Messaging Service**: purchased number in the campaign's sender pool; Advanced
+       Opt-Out ON; HELP response mentions 443-450-3344 (matches privacy policy §4).
+7. [ ] **Vercel env vars (Production) — stage 3 NOW, flip 1 on approval.** Safe today
+       (code no-ops until the flag): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+       `TWILIO_FROM_NUMBER` = `+19174733973`. ONLY after the campaign is APPROVED and the
+       number attached (early = messages filtered, error 30034): **`TWILIO_ENABLED`** =
+       `true` (exact string) → redeploy. Turns on SEVEN pre-wired dormant features at once:
+       receipt texts, day-before family reminders (nightly cron — fans out to every
+       opted-in family with a next-day appointment, up to 100/night), payment-request
+       links, signup welcome, booking confirmations, card-saved notices, family SMS-code
+       login ("Text me a code" tab appears automatically). **Flip in the MORNING** so you
+       can test before that night's reminder cron fires.
+8. [ ] **Test** with your own phone as a REAL (non-demo) resident's POA phone at a test
+       facility. PRE-FLIGHT before flipping: check no demo resident carries a real-looking
+       `poa_phone` (the manual receipt send, webhook receipt, and card-saved notice have no
+       is_demo guard — they're only safe because demo phones are fake seed data). First
+       test = manual **Send Receipt** (synchronous, returns `smsSent: true/false` on the
+       spot). Then: phone-only signup, reply STOP (should stop + confirm), then START to
+       re-subscribe, and try the login page's "Text me a code" tab.
+9. [ ] Note: this is entirely separate from the ZOOM Phone 10DLC registration for manual
+       staff texts — both proceed independently; neither covers the other's numbers.
+
+### F2. A2P 10DLC campaigns — Twilio (app) + Zoom (manual staff texts) (2026-08-19)
+
+TWO independent registrations, both citing `https://portal.seniorstylist.com/privacy`.
+Full form answers + paste copy in **`docs/a2p-wordpress-kit.md`**:
+
+1. [ ] **Twilio campaign form**: website = `https://portal.seniorstylist.com`; privacy policy =
+       `https://portal.seniorstylist.com/privacy`; opt-in method = **Website** with
+       `https://portal.seniorstylist.com/family/<CODE>/signup` (any active facility's F-code);
+       do NOT tick "I do not use web/written forms". Proof = screenshot of the signup wizard's
+       contact step (consent line under the phone field).
+2. [ ] **Zoom campaign form**: use case = operational staff messaging (schedules, log sheets,
+       compliance — not marketing); privacy policy = the portal URL; consent = phone numbers
+       provided during stylist onboarding (documented in `/privacy` §4 "Stylists and staff").
+       Proof = screenshot of §4 (family + staff paragraphs) plus the sharing paragraph.
+3. [ ] **WordPress — ONE editing session covers everything (2026-08-25 consolidation)**: the
+       complete per-service list is **`docs/a2p-wordpress-kit.md` Part 3** — (a) phone typo
+       fix on `/individual-services-request/`: (800) 979-7759 → **800.979.3759**
+       (BOSS-FLAGGED PRE-ADVERTISING BLOCKER; confirm first by calling both — 800.979.3759
+       reaches us, 7759 reaches a stranger; repo side verified consistent, 7759 appears
+       nowhere in the app); (b) footer Quick Links "Privacy Policy" →
+       `https://portal.seniorstylist.com/privacy` (REQUIRED for Zoom — brand registered
+       against seniorstylist.com; helps Stripe underwriting); (c) request-form SMS disclosure
+       below the submit button (Twilio — until submitters confirmed calls-only, Josh: "not
+       sure"); (d) verify pass incl. site-wide "7759" search; (e) OPTIONAL WP privacy-page
+       patch. Email text for whoever holds WordPress access: in the kit + chat (Gmail draft
+       creation was blocked by connector approval — copy from chat). After Part 3,
+       seniorstylist.com needs NOTHING further for Twilio, Zoom, or Stripe.
+7. [ ] Merge/deploy the `claude/campaign-privacy-sms-compliance-35mru1` branch BEFORE
+       submitting either campaign — reviewers check the LIVE pages.
+
+Portal side is DONE as of 2026-08-19: `/privacy` covers families AND staff messaging with the
+carrier-required language, the signup consent line is the full CTIA formula, and Privacy links
+exist on `/login`, `/family`, and every family page footer.
 
 ## G. QuickBooks
 
@@ -121,8 +238,45 @@ set `PAYMENTS_LIVE_ENABLED=true` → redeploy → do one small real charge to co
        Development section needs its own entry for sandbox testing if used. Without this,
        every Connect attempt dies on Intuit's "redirect_uri query parameter value is
        invalid" page before the consent screen ever shows.
+1c. [ ] (Optional) `QUICKBOOKS_REDIRECT_URI` in Vercel — only needed if the canonical URL
+       ever differs from `NEXT_PUBLIC_APP_URL`. The app now always sends the canonical URI
+       (`{NEXT_PUBLIC_APP_URL}/api/quickbooks/callback`, fallback portal.seniorstylist.com)
+       regardless of which host the admin browsed from, so 1b's single registered entry is
+       enough forever.
+1d. [ ] After a facility connects: Settings → Billing & Payments → QuickBooks →
+       **Test connection**. "✓ Connected to {company}" proves the production keys, the
+       redirect URI, and the token exchange all work end to end. An amber "Connection
+       broken" result means reconnect (the button links straight to it).
 2. [ ] After Intuit grants PRODUCTION approval for the app: set
-       **`QB_INVOICE_SYNC_ENABLED`** = `true` to unlock live invoice pulls ("Sync from QB").
+       **`QB_INVOICE_SYNC_ENABLED`** = `true`. This unlocks the whole live PULL side:
+       "Sync from QB" invoice pulls, the payment/credit pull, and the nightly sync cron
+       for every connected facility. (The WRITE side — payroll Bill push, vendor sync,
+       customer sync, Send via QB invoice creation — works as soon as a facility
+       connects, no flag needed.)
+3. [x] Apply the QB link-tables migration in prod:
+       `psql "$DIRECT_URL" -f drizzle/0043_qb_links.sql` (applied 2026-09-01 via SQL Editor).
+3b. [ ] Apply the QB safety migration in prod (same way — Supabase SQL Editor):
+       `drizzle/0044_qb_safety.sql` — creates `qb_invoice_site_payments` (site-paid
+       protection so a synced invoice can never re-charge a card) and `qb_sync_runs`
+       (the Undo ledger behind Settings → QuickBooks → Sync history). Self-bootstrapped
+       by the app too, but apply it before connecting a facility.
+3c. [ ] Apply the payment-mirroring migration in prod (Supabase SQL Editor):
+       `drizzle/0045_qb_payment_mirror.sql` — creates `qb_payment_mirror_queue` and adds
+       one column to `qb_sync_state`. This is what makes card payments collected on the
+       site (card on file, in-app, family portal) show up in QuickBooks automatically as
+       payments applied to the same invoices. Self-bootstrapped too; expect
+       "Success. No rows returned". Optional kill switch: `QB_PAYMENT_MIRROR_ENABLED=false`
+       in Vercel pauses the writes (queued payments mirror when it's removed).
+3d. [ ] Apply the realm-connection migration in prod (Supabase SQL Editor):
+       `drizzle/0046_qb_connections.sql` — creates `qb_connections` and copies F177's
+       existing tokens into it (self-bootstrapped too). After this, ONE Intuit sign-in
+       covers every facility: Master Admin → QuickBooks → **Attach the other N** (F177's
+       connection already exists, so no second Intuit sign-in is needed), or
+       **Connect QuickBooks for all facilities** if nothing is connected yet.
+4. [ ] Per connected facility, once: Settings → Billing & Payments → QuickBooks →
+       **Sync Customers**. Links residents to their QuickBooks customers (numeric IDs)
+       and creates missing sub-customers under the facility parent — after this,
+       invoice/payment matching is exact instead of name-guessing.
 
 ## H. Native app — FIRST-EVER submission (org accounts, you build on your Mac)
 
@@ -203,15 +357,15 @@ Ops to make the QR-to-chair funnel live for a NEW facility:
        spot the chips, and either schedule or cancel them. New requests go to the
        Sign-Up Sheet queue instead, so chips should stop appearing.
 
-## K. P57 — Fitzgerald launch readiness (2026-09-03)
+## K. P60 — Fitzgerald launch readiness (2026-09-03)
 
-1. [ ] **Apply `drizzle/0043` and `drizzle/0044`.** `0043` puts a unique index on
+1. [ ] **Apply `drizzle/0047` and `drizzle/0048`.** `0047` puts a unique index on
        facility codes among ACTIVE facilities — **run the pre-check query printed at
        the top of that file first**; if it returns a row, two live facilities share a
        code and must be merged from Master Admin → Merge before the index applies.
-       `0044` adds `invites.stylist_id` so a stylist invite links to the right record
-       instead of guessing by name. Both idempotent; the app self-bootstraps `0044`'s
-       column, but `0043` is a real index and needs the SQL.
+       `0048` adds `invites.stylist_id` so a stylist invite links to the right record
+       instead of guessing by name. Both idempotent; the app self-bootstraps `0048`'s
+       column, but `0047` is a real index and needs the SQL.
 2. [ ] **Create The Fitzgerald of Palisades with the new guided setup** — Master Admin
        → + Create Facility walks name and code, hours, stylists (with their working
        days), the price list read off the community's price sheet, and billing. Set

@@ -90,6 +90,12 @@ export function FamilyEntryClient() {
           <p className="text-xs text-stone-500 mt-5 text-center">
             Don&apos;t know your code? Ask the front desk at your loved one&apos;s community.
           </p>
+          {/* P56b — A2P campaign: privacy policy reachable from every public entry page */}
+          <p className="text-xs text-stone-400 mt-4 text-center">
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline">
+              Privacy Policy
+            </a>
+          </p>
         </div>
       </main>
     </div>

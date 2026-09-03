@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = email.toLowerCase().trim()
-    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
     const appUrl = sharedAppUrl()
     const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
     const facilityName = facility?.name ?? 'Senior Stylist'

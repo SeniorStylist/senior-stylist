@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — Done: a readiness checklist (truth for stylists via GET
+// P60 — Done: a readiness checklist (truth for stylists via GET
 // /api/facilities/[id]/stylists), the family QR poster, and the two exits —
 // Enter facility (HARD switch) or back where you came from (HARD nav so the
 // layout re-reads the busted `facilities` tag).

@@ -91,7 +91,7 @@ export function TeamSection({
   facilityId,
   facilityName,
 }: Props) {
-  // P57 — shared appUrl(): the local fallback here was the DEAD
+  // P60 — shared appUrl(): the local fallback here was the DEAD
   // senior-stylist.vercel.app host, and a link COPIED from a preview deploy
   // encoded a domain the invitee cannot reach.
   const baseUrl = appUrl()

@@ -1,6 +1,6 @@
 -- Senior Stylist — DB verification report (P29, 2026-07-12)
 -- READ-ONLY. Paste the whole file into the Supabase SQL Editor and Run.
--- Reports OK / MISSING for one representative object per migration (0005→0044)
+-- Reports OK / MISSING for one representative object per migration (0005→0048)
 -- plus the resident-photos storage bucket and RLS coverage.
 -- If anything says MISSING: run scripts/db-catchup.sql, then re-run this.
 
@@ -80,11 +80,15 @@ WITH checks(ord, item, ok) AS (
   (42, '0041 portal_accounts phone-digits unique index',
        EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'portal_accounts_phone_digits_uniq')),
   (43, '0042 portal_login_codes table (SMS sign-in)', to_regclass('public.portal_login_codes') IS NOT NULL),
-  (44, '0043 facilities active-code unique index',
+  (44, '0043 qb_customer_links table (QB customer sync)', to_regclass('public.qb_customer_links') IS NOT NULL),
+  (45, '0044 qb_invoice_site_payments table (site-paid protection)', to_regclass('public.qb_invoice_site_payments') IS NOT NULL),
+  (46, '0045 qb_payment_mirror_queue table', to_regclass('public.qb_payment_mirror_queue') IS NOT NULL),
+  (47, '0046 qb_connections table (realm-level QuickBooks)', to_regclass('public.qb_connections') IS NOT NULL),
+  (48, '0047 facilities active-code unique index',
        EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'facilities_code_active_uniq')),
-  (45, '0044 invites.stylist_id (deterministic stylist linking)',
+  (49, '0048 invites.stylist_id (deterministic stylist linking)',
        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invites' AND column_name = 'stylist_id')),
-  (46, 'storage bucket: resident-photos (private)',
+  (50, 'storage bucket: resident-photos (private)',
        EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'resident-photos' AND public = false))
 )
 SELECT item,
@@ -107,7 +111,7 @@ FROM signup_sheet_entries e
 JOIN stylists s ON s.id = e.assigned_to_stylist_id
 WHERE e.is_demo = false AND s.is_demo = true;
 
--- 0043 pre-check. Must return 0 rows BEFORE the unique index can be created;
+-- 0047 pre-check. Must return 0 rows BEFORE the unique index can be created;
 -- merge any duplicates from Master Admin -> Merge first.
 SELECT upper(facility_code) AS "duplicate ACTIVE facility code (should be empty)", count(*)
 FROM facilities

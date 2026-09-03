@@ -85,7 +85,7 @@ export default async function DashboardPage() {
     facilityUser.role === 'stylist' ? getEffectiveStylistId(user.id) : Promise.resolve(null),
   ])
   const profileStylistId = facilityUser.role === 'stylist' ? effectiveStylistId : null
-  // P57 — a stylist login with no stylist record gets an unassigned-only
+  // P60 — a stylist login with no stylist record gets an unassigned-only
   // sign-up queue that reads 0, which is indistinguishable from "no requests".
   // Same signal the day log uses to explain itself (P48 disable-and-explain).
   const unlinkedStylist = facilityUser.role === 'stylist' && !profileStylistId

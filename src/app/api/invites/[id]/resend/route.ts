@@ -62,7 +62,7 @@ export async function POST(
       where: eq(facilities.id, facilityId),
     })
 
-    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
     const appUrl = sharedAppUrl()
     const facilityName = facility?.name ?? 'Senior Stylist'
     const acceptUrl = `${appUrl}/invite/accept?token=${invite.token}`

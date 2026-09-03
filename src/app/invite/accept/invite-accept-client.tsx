@@ -20,7 +20,7 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
-  // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+  // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
   const appUrl = sharedAppUrl()
   const callbackNext = encodeURIComponent(`/invite/accept?token=${token}`)
 

@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, payPeriods, quickbooksSyncLog } from '@/db/schema'
 import { getUserFacility, canAccessPayrollFu } from '@/lib/get-facility-id'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { sanitizeStylist } from '@/lib/sanitize'
 import { toClientJson } from '@/lib/sanitize'
 import { and, desc, eq } from 'drizzle-orm'
@@ -40,17 +41,17 @@ export default async function PayrollDetailPage({
   const { items: _drop, ...period } = row
   void _drop
 
-  const facility = await db.query.facilities.findFirst({
-    where: eq(facilities.id, facilityUser.facilityId),
-    columns: {
-      qbAccessToken: true,
-      qbRefreshToken: true,
-      qbExpenseAccountId: true,
-      qbRevShareType: true,
-      revSharePercentage: true,
-    },
-  })
-  const hasQuickBooks = !!(facility?.qbAccessToken && facility?.qbRefreshToken)
+  const [facility, hasQuickBooks] = await Promise.all([
+    db.query.facilities.findFirst({
+      where: eq(facilities.id, facilityUser.facilityId),
+      columns: {
+        qbExpenseAccountId: true,
+        qbRevShareType: true,
+        revSharePercentage: true,
+      },
+    }),
+    isFacilityConnected(facilityUser.facilityId),
+  ])
   const hasExpenseAccount = !!facility?.qbExpenseAccountId
 
   const syncLog = await db.query.quickbooksSyncLog.findMany({

@@ -25,7 +25,7 @@ export function GeneralSection({ facility, role }: Props) {
   const [phone, setPhone] = useState(facility.phone ?? '')
   const [timezone, setTimezone] = useState(facility.timezone)
   const [paymentType, setPaymentType] = useState(facility.paymentType ?? 'facility')
-  // P57 — one shared editor with the New-Facility wizard
+  // P60 — one shared editor with the New-Facility wizard
   const initialHours: WorkingHours = {
     days: wh?.days ?? DEFAULT_WORKING_HOURS.days,
     startTime: wh?.startTime ?? DEFAULT_WORKING_HOURS.startTime,

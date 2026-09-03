@@ -3,7 +3,7 @@
 // Renders nothing when neither — absence tells the stylist to sort out
 // payment at the chair.
 //
-// P57 — two renderings. 'icon' (the default, so no existing call site changes)
+// P60 — two renderings. 'icon' (the default, so no existing call site changes)
 // is the dense 12px glyph pair; 'pill' is a readable capsule for the surfaces
 // a stylist reads one-handed at the chair, where the glyph + hover-only title
 // told a phone user nothing. Booleans ONLY — amounts stay on billing.

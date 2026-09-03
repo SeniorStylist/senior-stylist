@@ -1,4 +1,4 @@
-// P57 — the ONE authorization for endpoints that take an EXPLICIT facilityId
+// P60 — the ONE authorization for endpoints that take an EXPLICIT facilityId
 // (the New-Facility wizard's writes, facility-side staffing, imports with a
 // target facility). The cookie-scoped `getUserFacility()` path 400s the
 // master when he holds no membership row and can't express "write to THAT

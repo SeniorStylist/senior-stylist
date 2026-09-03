@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — Step 1: the facility itself. Name + (master/bookkeeper) F-code +
+// P60 — Step 1: the facility itself. Name + (master/bookkeeper) F-code +
 // address/phone/contact + timezone. Duplicate-name feedback is zero-network
 // (the page ships the name directory) and the server re-checks in its tx.
 

@@ -7,7 +7,7 @@
 // signup_sheet_entries row (the mature stylist-fits-you-in pipeline: queue,
 // badge, drag-to-calendar, convert), the family's preferred stylist is
 // honored, dates are facility-tz correct, and the family gets a "we got it"
-// email AND text immediately (P57) plus a confirmation when it's scheduled
+// email AND text immediately (P60) plus a confirmation when it's scheduled
 // (P50-C4).
 //
 // Route path is kept — old clients and SW-cached portal pages keep working.
@@ -47,7 +47,7 @@ function todayInTz(tz: string): string {
   }
 }
 
-// P57 — human "when" for the SMS acknowledgement, rendered in the FACILITY
+// P60 — human "when" for the SMS acknowledgement, rendered in the FACILITY
 // timezone. The preferred dates are plain YYYY-MM-DD strings and
 // `new Date('2026-09-08')` is UTC midnight, which formats as the PREVIOUS day
 // anywhere west of UTC — dayRangeInTimezone resolves each date to its
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       .map((id) => svcRows.find((s) => s.id === id))
       .filter((s): s is NonNullable<typeof s> => !!s)
 
-    // P57 — the family's contact set is resolved HERE, in the batch, not later
+    // P60 — the family's contact set is resolved HERE, in the batch, not later
     // on the acknowledgement path: getFamilyRecipients is three lookups and two
     // of them re-read rows this same batch already has, so awaiting it further
     // down added three serialized round-trips through the max:1 pool to the
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Staff email (existing) + in-app bell for admins (P50).
-    // P57 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
+    // P60 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
     // built "/dashboard", an unclickable relative href in the staff email.
     const adminUrl = `${appUrl()}/dashboard`
     const recipients = new Set<string>()
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
       }).catch(() => {})
     }
 
-    // P57 — SMS acknowledgement. The email above is the only ack this route
+    // P60 — SMS acknowledgement. The email above is the only ack this route
     // ever sent, so a phone-only family (P55 made phone a first-class portal
     // identity) tapped Request and got silence until a stylist scheduled it.
     // Gating mirrors family-confirmation.ts: the staff-side master switch

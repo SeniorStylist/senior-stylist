@@ -3,7 +3,7 @@
 // the invites table applies idempotent DDL once per lambda instance. Without
 // this, adding the columns to schema.ts would break every invites query until
 // the migration ran (Drizzle SELECTs all declared columns). Keep in sync with
-// drizzle/0011_invite_tracking.sql + drizzle/0044_p57_invite_stylist.sql.
+// drizzle/0011_invite_tracking.sql + drizzle/0048_p60_invite_stylist.sql.
 
 import { db } from '@/db'
 import { sql } from 'drizzle-orm'

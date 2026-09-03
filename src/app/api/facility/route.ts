@@ -6,6 +6,7 @@ import { eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { sanitizeFacility } from '@/lib/sanitize'
+import { isFacilityConnected } from '@/lib/qb-connection'
 import { revalidateTag } from 'next/cache'
 
 const updateSchema = z.object({
@@ -54,7 +55,9 @@ export async function GET() {
     })
     if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
 
-    return Response.json({ data: sanitizeFacility(facility) })
+    // Realm-level connection decides hasQuickBooks (legacy token columns are null post-0046).
+    const hasQuickBooks = await isFacilityConnected(facility.id).catch(() => false)
+    return Response.json({ data: sanitizeFacility(facility, { hasQuickBooks }) })
   } catch (err) {
     console.error('GET /api/facility error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })
@@ -111,7 +114,8 @@ export async function PUT(request: NextRequest) {
 
     revalidateTag('facilities', {})
 
-    return Response.json({ data: sanitizeFacility(updated) })
+    const hasQuickBooks = await isFacilityConnected(updated.id).catch(() => false)
+    return Response.json({ data: sanitizeFacility(updated, { hasQuickBooks }) })
   } catch (err) {
     console.error('PUT /api/facility error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
     const recipients = admins.map((a) => a.email).filter((e): e is string => !!e)
     const targets = recipients.length > 0 ? recipients : fallback ? [fallback] : []
 
-    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
     const appUrl = sharedAppUrl()
     const html = buildCoverageRequestEmailHtml({
       stylistName: stylist.name,

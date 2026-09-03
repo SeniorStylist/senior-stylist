@@ -284,6 +284,10 @@ export function QbImportClient() {
           Export each report from QuickBooks Online (Reports → search the report name → Export to CSV), then run the
           steps in order. Every importer is safe to re-run — records are matched and updated, never duplicated.
         </p>
+        <p className="text-[11.5px] text-stone-400 -mt-6 mb-8">
+          Facilities connected to QuickBooks sync invoices and payments automatically once live sync is enabled —
+          these CSV importers remain for unconnected facilities and historical backfills.
+        </p>
 
         <div className="space-y-4">
           {IMPORTERS.map((imp) => (

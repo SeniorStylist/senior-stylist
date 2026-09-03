@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const today = todayUTC()
-    // P57 — shared appUrl(); the old inline fallback was a dead host.
+    // P60 — shared appUrl(); the old inline fallback was a dead host.
     const appUrl = sharedAppUrl()
 
     const activeStylists = await db.query.stylists.findMany({

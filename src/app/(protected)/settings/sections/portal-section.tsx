@@ -692,7 +692,7 @@ function PortalStatusCard({ facilityName, facilityCode }: { facilityName: string
     }
   }
 
-  // Printable QR poster — P57: shared with the New-Facility wizard's Done
+  // Printable QR poster — P60: shared with the New-Facility wizard's Done
   // screen (src/lib/signup-poster.ts; production URL from NEXT_PUBLIC_APP_URL).
   const handlePrintPoster = async () => {
     if (!facilityCode) return

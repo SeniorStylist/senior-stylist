@@ -13,7 +13,7 @@ for Josh; every item is either a one-time platform step or a per-facility step.
 | `NEXT_PUBLIC_APP_URL=https://portal.seniorstylist.com` | Magic-link emails build from this. (P53 added a production fallback, but set it anyway.) |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | **Without these there is NO rate limiting at all** — the signup matcher becomes guessable without bound. Required before public posters go up. |
 | `RESEND_API_KEY` + verified sender domain | Magic links, confirmations, claim notifications are all email. |
-| `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` + `TWILIO_ENABLED=true` | P55: flipping Twilio on activates THREE dormant features at once — the "Text me a code" sign-in tab, texted appointment confirmations for phone families, and the card-saved security text for phone-only families. Get a number and set all four together. |
+| `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` + `TWILIO_ENABLED=true` | Flipping Twilio on activates SEVEN dormant features at once: receipt texts, day-before family reminders (nightly cron, up to 100/night), payment-request links, signup welcome, booking confirmations, card-saved security texts, and the "Text me a code" sign-in tab. The first three vars are safe to stage early (code no-ops without the flag); flip `TWILIO_ENABLED` only after the A2P campaign is APPROVED (early = carrier-filtered, error 30034), in the morning so you can test before the reminder cron fires. Full sequence: josh-checklist §F1. |
 
 **Never set a facility-level Stripe key** in Settings → Billing — portal
 payments ignore it since P53 (it used to silently break payment recording).
@@ -28,20 +28,20 @@ tokens — the wizard's payment step), **`0039`** (multi-service sign-up
 entries), then the P55 trio **`0040`** (frees real sign-up requests that were
 stranded on the tutorial's "Demo Sarah" — data heal, migration-only),
 **`0041`** (email-or-phone accounts: nullable email, phone-digits unique
-index, held signup passwords), **`0042`** (SMS login codes), then the P57 pair
-**`0043`** (a unique index on ACTIVE facility codes — **run the pre-check query
+index, held signup passwords), **`0042`** (SMS login codes), then the P60 pair
+**`0047`** (a unique index on ACTIVE facility codes — **run the pre-check query
 printed at the top of that file first**; if it returns a row, two active
 facilities share a code and must be merged from Master Admin → Merge before the
-index will apply) and **`0044`** (`invites.stylist_id`, so a stylist invite
+index will apply) and **`0048`** (`invites.stylist_id`, so a stylist invite
 links to the right record instead of guessing by name). All idempotent.
 The app self-bootstraps the columns/tables if you forget, but NOT the
 backfills/heals (0034, 0036, 0040 must be run).
 No psql handy? Master Admin → Facilities → "Turn on everywhere" covers 0035's
 signup flip from the UI; the others still need SQL.
 
-## 3. Per new facility — the guided setup (P57)
+## 3. Per new facility — the guided setup (P60)
 
-Steps 1–4 below used to be four separate screens. Since P57 they are ONE flow:
+Steps 1–4 below used to be four separate screens. Since P60 they are ONE flow:
 **Master Admin → + Create Facility** (or Settings → Advanced → New facility,
 or the sidebar's "+ Add facility" — they all open `/facilities/new`). The old
 inline forms and `/onboarding` are gone.
@@ -75,7 +75,7 @@ What the wizard does NOT cover, in order:
    you added the salon's own days; adjust anyone who works a different pattern.
    Availability drives request auto-assignment AND slot matching (P53 fixed the
    timezone bug that made afternoons look unavailable). Empty availability means
-   requests land unassigned and every stylist sees them — since P57 that is also
+   requests land unassigned and every stylist sees them — since P60 that is also
    what happens at a multi-stylist facility, instead of the request being parked
    on one arbitrary person.
 3. Invite the facility admin + front desk. Their scheduling now works ONLY
@@ -84,10 +84,22 @@ What the wizard does NOT cover, in order:
    edits.
 4. Print the QR posters. The wizard's Done screen has **Print QR poster**;
    Settings → Family Portal and Signage → Family Sign-Up have the same one.
-   Since P57 every poster builds its URL from `NEXT_PUBLIC_APP_URL`, so a poster
+   Since P60 every poster builds its URL from `NEXT_PUBLIC_APP_URL`, so a poster
    printed from a preview deploy no longer encodes a domain families can't
    reach. Self-signup is ON by default since P52. The poster title is
    "Create an Account" (owner decision).
+5. **QuickBooks**: the company is connected ONCE (Master Admin → QuickBooks).
+   A new facility just needs attaching — Master Admin → QuickBooks → **Attach
+   to QuickBooks** on its card (or "Attach the other N"); a franchise owner can
+   do the same from the Franchise page. Then in the facility's Settings →
+   Billing & Payments → QuickBooks: pick the **Expense Account** (required
+   before payroll can push) → **Test connection** (must show "✓ Connected to
+   {company}") → **Sync Customers** (links residents to QB customers under the
+   F-code parent, creates missing sub-customers). After that: payroll pushes as
+   Bills, Send via QB creates invoices, card payments collected on the site are
+   recorded in QuickBooks automatically against the same invoices, and — with
+   `QB_INVOICE_SYNC_ENABLED` on — invoices/payments pull nightly (one pull per
+   company, routed to every attached facility).
 
 ## 3b. Fitzgerald of Palisades — charge-after-each-service (P54)
 
@@ -170,7 +182,7 @@ matching before families ever scan.
 
 ## Repairs
 
-**A stylist exists but appears nowhere** (the Tatyana ST833 case). Before P57 a
+**A stylist exists but appears nowhere** (the Tatyana ST833 case). Before P60 a
 stylist created from the Master Admin screen could be saved with no facility at
 all, so no roster, dropdown or count ever showed them. The cause is fixed; an
 already-broken record is repaired either way:

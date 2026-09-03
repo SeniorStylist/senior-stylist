@@ -17,7 +17,7 @@ import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { toClientJson } from '@/lib/sanitize'
 import { bookingUpdateSchema } from '@/lib/validation/booking-update'
 
-// P57 — `after()` charge work counts against this function's duration limit,
+// P60 — `after()` charge work counts against this function's duration limit,
 // so a finalize that charges several autopay residents (one Stripe round-trip
 // each) needs more than the platform's 10s default. Without this a sweep is
 // cut mid-charge; the remainder is idempotent and picked up by the next
@@ -529,7 +529,7 @@ export async function PUT(
     // 'on_completion' mode, attempt to charge the resident's card/salon account.
     // Never blocks/fails the response; the helper self-gates on facility mode +
     // resident autopay + demo. Skipped for demo/tutorial bookings.
-    // P57 — after() rather than a bare unawaited promise: on Vercel the lambda can
+    // P60 — after() rather than a bare unawaited promise: on Vercel the lambda can
     // freeze the moment the response is flushed, silently dropping a real card
     // charge (the June 2026 unawaited-invite-email bug class). after() guarantees
     // the callback runs post-response. GCal sync + pushes stay fire-and-forget.

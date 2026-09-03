@@ -16,7 +16,7 @@ interface StylistPendingEntriesProps {
   /** P55 — P51 coverage map so the stylist sees payment-is-handled at a glance. */
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
   /**
-   * P57 — the signed-in stylist's login has no stylist record, so the server
+   * P60 — the signed-in stylist's login has no stylist record, so the server
    * can only return unassigned entries and the count reads 0. Without this the
    * empty queue is indistinguishable from "no requests" (the P48 rule: when a
    * gate removes an ability, disable and EXPLAIN — never render nothing).
@@ -61,7 +61,7 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
 
         {expanded && (
           <div className="mt-3">
-            {/* P57 — an unlinked login only ever sees unassigned entries, so a
+            {/* P60 — an unlinked login only ever sees unassigned entries, so a
                 0 here means "we can't tell which are yours", not "all caught
                 up". Same copy the day log uses — one wording, one fix. */}
             {unlinkedStylist && (
@@ -98,7 +98,7 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-stone-900 leading-snug">
                         {entry.residentName}
-                        {/* P57 — pill, not the 12px glyph: this queue is read
+                        {/* P60 — pill, not the 12px glyph: this queue is read
                             on a phone where a hover title is unreachable. */}
                         {entry.residentId && (
                           <PaymentCoveredChip flags={paymentFlags[entry.residentId]} variant="pill" className="ml-2" />

@@ -1,4 +1,4 @@
-// P57 — the walk-in "finish your account" family invite, extracted from the
+// P60 — the walk-in "finish your account" family invite, extracted from the
 // inline block in POST /api/bookings.
 //
 // THE bug it fixes: there are TWO walk-in create paths. The offline/stylist

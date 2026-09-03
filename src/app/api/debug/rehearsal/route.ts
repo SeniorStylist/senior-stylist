@@ -1,4 +1,4 @@
-// P57-C5 — the launcher behind the Debug tab's "Launch rehearsal" card.
+// P60-C5 — the launcher behind the Debug tab's "Launch rehearsal" card.
 // Lisa asked for a click-through of every scenario before the Fitzgerald
 // launch (docs/fitzgerald-walkthrough.md); this seeds the practice pieces the
 // walkthrough needs at ANY facility the master picks — the existing

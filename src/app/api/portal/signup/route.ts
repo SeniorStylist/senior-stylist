@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
   // P54 — the wizard shows a card page after the review step whenever the
   // platform Stripe keys are configured AND live charging isn't blocked.
-  // P57 — BOTH keys: with only the publishable key set, the wizard offered a
+  // P60 — BOTH keys: with only the publishable key set, the wizard offered a
   // payment step whose setup-intent mint had no secret key to call, so the
   // family hit a dead card form. Must stay identical to the same expression in
   // family/[facilityCode]/signup/page.tsx — the page decides whether to show
@@ -404,7 +404,7 @@ export async function POST(request: NextRequest) {
   // Notify facility admin (fire-and-forget) — reworded for the new model.
   const adminEmail = facility.contactEmail ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL
   if (adminEmail) {
-    // P57 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
+    // P60 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
     // built "/settings?section=portal", an unclickable relative href in the
     // admin's "new family account" email.
     const settingsUrl = `${appUrl()}/settings?section=portal`

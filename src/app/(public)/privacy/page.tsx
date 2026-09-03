@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         >
           Privacy Policy
         </h1>
-        <p className="text-sm text-stone-500">Effective Date: August 17, 2026</p>
+        <p className="text-sm text-stone-500">Effective Date: August 25, 2026</p>
       </div>
 
       <section className="space-y-3">
@@ -47,8 +47,9 @@ export default function PrivacyPage() {
             insurance). We do not store credit card numbers or other sensitive payment credentials.
           </li>
           <li>
-            <strong>Stylist information:</strong> names, license numbers, license expiration dates,
-            insurance documentation, availability schedules, and commission rates.
+            <strong>Stylist information:</strong> names, contact information (including mobile
+            phone numbers), license numbers, license expiration dates, insurance documentation,
+            availability schedules, and commission rates.
           </li>
           <li>
             <strong>Facility administrator information:</strong> names and email addresses.
@@ -71,6 +72,10 @@ export default function PrivacyPage() {
             Send text-message updates about salon appointments and accounts to family members who
             have provided a mobile phone number (see Section 4).
           </li>
+          <li>
+            Send operational text messages to stylists and staff about schedules, log sheet
+            submissions, and compliance deadlines (see Section 4).
+          </li>
           <li>Track license and insurance compliance deadlines and send expiration alerts.</li>
           <li>Operate, maintain, and improve the platform.</li>
         </ul>
@@ -79,11 +84,11 @@ export default function PrivacyPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-stone-800">4. Text Messages (SMS)</h2>
         <p className="text-stone-600 leading-relaxed">
-          When a resident&apos;s family member or authorized representative provides a mobile phone
-          number — by entering it themselves on a facility&apos;s Salon Account sign-up page, or by
-          asking salon staff to add it to the resident&apos;s record — they consent to receive
-          transactional text messages about that resident&apos;s salon services. These messages may
-          include:
+          By providing your phone number to Senior Stylist — whether a resident&apos;s family member
+          or authorized representative enters it on a facility&apos;s Salon Account sign-up page, or
+          asks salon staff to add it to the resident&apos;s record — you consent to receive text
+          messages related to appointment scheduling, confirmations, and service coordination for
+          that resident&apos;s salon services. These messages may include:
         </p>
         <ul className="list-disc list-inside space-y-1 text-stone-600 leading-relaxed pl-2">
           <li>Appointment confirmations and day-before reminders.</li>
@@ -91,6 +96,13 @@ export default function PrivacyPage() {
           <li>Account security notices (for example, when a payment card is saved).</li>
           <li>One-time sign-in codes for the family&apos;s online Salon Account.</li>
         </ul>
+        <p className="text-stone-600 leading-relaxed">
+          <strong>Stylists and staff.</strong> Stylists and staff who provide a mobile phone number
+          during onboarding consent to receive operational text messages from Senior Stylist
+          regarding schedules, route and location assignments, log sheet submissions, and license
+          or insurance compliance deadlines. These messages are not marketing. Reply{' '}
+          <strong>STOP</strong> to opt out.
+        </p>
         <p className="text-stone-600 leading-relaxed">
           We never send marketing or promotional text messages. Message frequency varies with salon
           activity. Message and data rates may apply.
@@ -101,15 +113,22 @@ export default function PrivacyPage() {
           <strong>HELP</strong> for help, or call us at 443-450-3344.
         </p>
         <p className="text-stone-600 leading-relaxed">
-          Mobile phone numbers and SMS opt-in data are never shared with or sold to third parties
-          for marketing purposes.
+          We do not sell or share your data with third parties. No mobile information or SMS
+          consent — including mobile phone numbers and SMS opt-in data — will be shared with, sold
+          to, or rented to third parties or affiliates for marketing, promotional, or lead
+          generation purposes. Text messaging originator opt-in data and consent will not be shared
+          with any third parties. Your information will only be used by authorized staff to contact
+          you regarding services you request.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-stone-800">5. Information Sharing</h2>
         <p className="text-stone-600 leading-relaxed">
-          We do not sell personal data. We share data only as necessary to provide our services:
+          We do not sell or share personal data with third parties for marketing or lead generation
+          purposes, and no mobile information or SMS opt-in consent is ever shared with third
+          parties or affiliates. The service providers below act solely on our behalf to operate
+          the platform and are not permitted to use your information for their own purposes:
         </p>
         <ul className="list-disc list-inside space-y-1 text-stone-600 leading-relaxed pl-2">
           <li>
@@ -128,6 +147,14 @@ export default function PrivacyPage() {
           <li>
             <strong>Twilio:</strong> our SMS delivery provider, used to deliver appointment and
             account text messages to family members who have provided a mobile number.
+          </li>
+          <li>
+            <strong>Stripe:</strong> our payment processor. Card numbers are entered directly into
+            and stored by Stripe — they never touch our servers.
+          </li>
+          <li>
+            <strong>Google (Gemini):</strong> used to read scanned paper log sheets and checks that
+            salon staff upload, so services and payments can be recorded accurately.
           </li>
           <li>
             <strong>Supabase:</strong> our database hosting provider (SOC 2 Type II compliant).
@@ -190,8 +217,19 @@ export default function PrivacyPage() {
           For privacy-related questions or requests, please contact us at{' '}
           <a href="mailto:privacy@seniorstylist.com" className="text-[#8B2E4A] hover:underline">
             privacy@seniorstylist.com
+          </a>{' '}
+          or call{' '}
+          <a href="tel:800-979-3759" className="text-[#8B2E4A] hover:underline">
+            800.979.3759
           </a>
           .
+        </p>
+        <p className="text-stone-600 leading-relaxed">
+          Senior Stylist LLC
+          <br />
+          2833 Smith Ave Ste 152
+          <br />
+          Baltimore, MD 21209
         </p>
       </section>
     </article>

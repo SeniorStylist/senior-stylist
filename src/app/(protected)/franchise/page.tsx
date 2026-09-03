@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { facilities, bookings, qbPayments } from '@/db/schema'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { getUserFranchise, isFranchiseAdmin } from '@/lib/get-facility-id'
+import { connectedMap } from '@/lib/qb-connection'
 import { FranchiseClient } from './franchise-client'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,13 @@ export default async function FranchisePage() {
     const bookingMap = new Map(bookingRows.map((r) => [r.facilityId, Number(r.n)]))
     const payMap = new Map(payRows.map((r) => [r.facilityId, Number(r.c)]))
 
+    // Realm-level QuickBooks state for the franchise card (ONE query).
+    const qbMap = await connectedMap(facs.map((f) => f.id)).catch(() => new Map<string, boolean>())
+    const realmRow = await db.query.facilities.findFirst({
+      where: and(inArray(facilities.id, ids), eq(facilities.active, true), sql`qb_realm_id IS NOT NULL`),
+      columns: { qbRealmId: true },
+    })
+
     const rows = facs
       .map((f) => ({
         id: f.id,
@@ -71,10 +79,17 @@ export default async function FranchisePage() {
         outstandingCents: f.qbOutstandingBalanceCents ?? 0,
         bookingsThisMonth: bookingMap.get(f.id) ?? 0,
         collectedThisMonthCents: payMap.get(f.id) ?? 0,
+        qbConnected: qbMap.get(f.id) === true,
       }))
       .sort((a, b) => a.name.localeCompare(b.name))
 
-    return <FranchiseClient franchiseName={franchise.franchiseName} facilities={rows} />
+    return (
+      <FranchiseClient
+        franchiseName={franchise.franchiseName}
+        facilities={rows}
+        quickbooks={{ realmId: realmRow?.qbRealmId ?? null, canConnect: true }}
+      />
+    )
   } catch (err) {
     console.error('[FranchisePage] error:', err)
     return <FranchiseClient franchiseName={null} facilities={[]} />

@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 
-// P57 — the New-Facility wizard's create contract. Everything a launch-ready
+// P60 — the New-Facility wizard's create contract. Everything a launch-ready
 // facility needs can land in ONE create: basics, hours, billing type, the
 // autopay rule, rev-share (master only). Fields a caller isn't allowed to set
 // are silently dropped (house pattern), never 403'd.
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
-    // P57 — a franchise admin's new facility is auto-linked to their franchise;
+    // P60 — a franchise admin's new facility is auto-linked to their franchise;
     // without it they'd lose franchise scope the moment they switched into it.
     const franchise = isFranchiseAdmin ? await getUserFranchise(user.id) : null
 
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
       // the new facility flows through the role-based cross-facility branches
       // (layout switcher, facilities/select, rosters, ocr import). Inserting an
       // admin membership here would silently escalate them. The master DOES get
-      // a row (owner decision, P57) — his switcher + scoping also work without
+      // a row (owner decision, P60) — his switcher + scoping also work without
       // one via the synthetic master access in getUserFacility.
       if (!isBookkeeper) {
         await tx
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
     if (err instanceof CreateConflict) {
       return Response.json(err.payload, { status: 409 })
     }
-    // Partial unique index (drizzle/0043) backstop for a concurrent code race
+    // Partial unique index (drizzle/0047) backstop for a concurrent code race
     if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23505') {
       return Response.json({ error: 'That facility code was just taken — try again' }, { status: 409 })
     }

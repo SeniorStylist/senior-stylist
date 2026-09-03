@@ -51,7 +51,7 @@ interface ClaimRequest {
 
 interface SettingsClientProps {
   facility: PublicFacility
-  /** P57 — residents with autopay on; drives the "manual mode is idle" notice. */
+  /** P60 — residents with autopay on; drives the "manual mode is idle" notice. */
   autopayResidentCount: number
   connectedUsers: ConnectedUser[]
   facilityStylists: { id: string; name: string }[]
@@ -62,6 +62,8 @@ interface SettingsClientProps {
   pendingRequestsCount: number
   adminEmail: string | null
   qbInvoiceSyncEnabled: boolean
+  /** Who may connect QuickBooks for more than this facility in one authorization. */
+  qbConnectScopes?: { franchise: boolean; all: boolean }
   claimRequests: ClaimRequest[]
   pendingClaimsCount: number
 }
@@ -134,6 +136,7 @@ export function SettingsClient({
   pendingRequestsCount,
   adminEmail,
   qbInvoiceSyncEnabled,
+  qbConnectScopes = { franchise: false, all: false },
   claimRequests,
   pendingClaimsCount,
 }: SettingsClientProps) {
@@ -368,6 +371,7 @@ export function SettingsClient({
               facility={facility}
               qbInvoiceSyncEnabled={qbInvoiceSyncEnabled}
               autopayResidentCount={autopayResidentCount}
+              qbConnectScopes={qbConnectScopes}
             />
           )}
           {activeSection === 'integrations' && isAdmin && (

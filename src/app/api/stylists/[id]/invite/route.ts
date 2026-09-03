@@ -75,7 +75,7 @@ export async function POST(
     if (!facilityId) {
       return Response.json({ error: 'This stylist has no facility to invite into yet.' }, { status: 422 })
     }
-    // P57 — shared appUrl(): the local fallback here was the DEAD
+    // P60 — shared appUrl(): the local fallback here was the DEAD
     // senior-stylist.vercel.app host, so an unset NEXT_PUBLIC_APP_URL mailed
     // stylists an accept link that resolves nowhere.
     const baseUrl = appUrl()
@@ -121,7 +121,7 @@ export async function POST(
         const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         await db
           .update(invites)
-          // P57 — (re)stamp the stylist record so redemption links it
+          // P60 — (re)stamp the stylist record so redemption links it
           // deterministically; also backfills invites created before the column.
           .set({ token: newToken, expiresAt: newExpiresAt, stylistId })
           .where(eq(invites.id, existingInvite.id))
@@ -155,7 +155,7 @@ export async function POST(
         inviteRole: 'stylist',
         token,
         expiresAt,
-        // P57 — redemption links THIS record, instead of re-deriving the
+        // P60 — redemption links THIS record, instead of re-deriving the
         // stylist by email then fuzzy name.
         stylistId,
       })

@@ -40,7 +40,7 @@ export async function sendFamilyBookingConfirmation(bookingId: string): Promise<
       columns: { name: true, timezone: true, facilityCode: true },
     })
     const tz = facility?.timezone ?? 'America/New_York'
-    // P57 — shared appUrl(): the production host used to be hardcoded here, so
+    // P60 — shared appUrl(): the production host used to be hardcoded here, so
     // a self-hosted or preview deploy still pointed families at prod.
     const portalUrl = facility?.facilityCode ? familyPortalUrl(facility.facilityCode) : appUrl()
 

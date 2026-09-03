@@ -1,6 +1,6 @@
 'use client'
 
-// P57 — THE facility-creation flow. Replaces the three inline forms
+// P60 — THE facility-creation flow. Replaces the three inline forms
 // (master-admin, Settings → Advanced, /onboarding) with one full-page wizard:
 //   Facility → Hours → [Stylists] → [Services] → Billing → Done
 // The bracketed steps render for the manage tier only (the page decides).
