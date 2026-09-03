@@ -5,11 +5,14 @@ import Link from 'next/link'
 
 interface ImportResult {
   updated: number
+  created: number
   skipped: number
   namesFilled: number
   emailsFilled: number
   revShareSet: number
   warnings: string[]
+  headerDetected?: boolean
+  createdList?: { facilityCode: string; name: string }[]
 }
 
 type State = 'upload' | 'loading' | 'results'
@@ -99,12 +102,13 @@ export function ImportFacilitiesCSVClient() {
               className="text-2xl font-bold text-stone-900 mb-2"
               style={{ fontFamily: "'DM Serif Display', serif", color: '#8B2E4A' }}
             >
-              Update Facilities from CSV
+              Import Facilities from a Sheet
             </h1>
             <p className="text-sm text-stone-500 mb-8">
-              Import facility data from the master spreadsheet. Matched by F-code (col B). Names and
-              emails fill only when blank. Payment type, rev share, phone, and address are always
-              overwritten when present in the CSV.
+              Upload the facility spreadsheet (export it from Google Sheets or Excel as CSV). Rows are
+              matched by F-code; rows with a new code — or no code at all — are <span className="font-semibold text-stone-700">created</span> with
+              family sign-up switched on. Existing facilities get billing type, rev share, phone and address
+              refreshed; names and emails fill only when blank.
             </p>
 
             {error && (
@@ -123,7 +127,7 @@ export function ImportFacilitiesCSVClient() {
             <div className="mb-8">
               <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Facilities CSV</p>
               <p className="text-xs text-stone-400 mb-3">
-                Expected columns: <span className="font-mono">Name</span>, <span className="font-mono">Contact Email</span>, <span className="font-mono">Payment Type</span>, <span className="font-mono">Rev Share %</span>
+                A header row is read automatically — any order of <span className="font-mono">Code</span>, <span className="font-mono">Name</span>, <span className="font-mono">Address</span>, <span className="font-mono">Phone</span>, <span className="font-mono">Email</span>, <span className="font-mono">Billing</span>, <span className="font-mono">Rev Share %</span>, <span className="font-mono">Timezone</span>. Sheets without a header use the original column layout.
               </p>
               <div
                 onClick={() => fileRef.current?.click()}
@@ -167,11 +171,22 @@ export function ImportFacilitiesCSVClient() {
 
               <div className="space-y-3 mb-6">
                 <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">
+                  <span className="text-sm font-medium text-stone-700">Facilities created</span>
+                  <span className="text-sm font-semibold text-emerald-700">{(result.created ?? 0).toLocaleString()}</span>
+                </div>
+                {result.createdList && result.createdList.length > 0 && (
+                  <ul className="px-4 py-2 text-xs text-stone-500 space-y-0.5">
+                    {result.createdList.map((c) => (
+                      <li key={c.facilityCode}><span className="font-mono text-stone-700">{c.facilityCode}</span> · {c.name}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">
                   <span className="text-sm font-medium text-stone-700">Facilities updated</span>
                   <span className="text-sm font-semibold text-emerald-700">{result.updated.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">
-                  <span className="text-sm font-medium text-stone-700">Rows skipped (no match)</span>
+                  <span className="text-sm font-medium text-stone-700">Rows skipped</span>
                   <span className="text-sm font-semibold text-stone-700">{result.skipped.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3 bg-stone-50 rounded-xl">

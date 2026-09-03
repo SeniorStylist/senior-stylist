@@ -79,6 +79,14 @@ export function StepBasics({
       <StepIntro title="Tell us about the community" blurb="Just the basics — everything else can be set up afterwards." />
       <div className="space-y-5">
         <InlineError message={error} />
+        {caps.isMaster && (
+          <p className="text-sm text-stone-500">
+            Adding many communities at once?{' '}
+            <a href="/master-admin/import-facilities-csv" className="font-semibold text-[#8B2E4A] hover:underline">
+              Import your facility sheet →
+            </a>
+          </p>
+        )}
 
         {conflict && (
           <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-2">
