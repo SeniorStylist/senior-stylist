@@ -159,7 +159,13 @@ export async function POST(request: NextRequest) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const master = isMasterAdmin(user.email)
-    const facilityUser = master ? null : await getUserFacility(user.id)
+    // P57 — resolve the facility for EVERYONE (the master's selected_facility_id
+    // cookie now yields a synthetic row via getUserFacility). The old
+    // `master ? null : …` short-circuit meant a master adding a stylist "at
+    // F240" created it with facility_id NULL and NO assignment row — invisible
+    // on every roster (Tatyana ST833, 2026-08-18 demo). `master` stays the
+    // authorization + scope-check bypass only.
+    const facilityUser = await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     // Round 6 bookkeeper create rides the P51 manage tier (fu-object call).
     if (!master && !canManageStylists(facilityUser)) {
@@ -194,7 +200,9 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      facilityId = master ? null : facilityUser!.facilityId
+      // Master with no selected facility (bare /master-admin) → pool stylist;
+      // master WITH a selected facility → that facility, like everyone else.
+      facilityId = facilityUser?.facilityId ?? null
     }
 
     // If facilityId is set and we don't have a franchiseId, derive from facility

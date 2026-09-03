@@ -55,12 +55,18 @@ export function filterFacilitiesForSwitcher<T extends SwitchableFacility>(
  * ("switching doesn't work"). Same house rule as debug impersonation (Phase 23).
  * Never resolves on success (the reload tears the page down); callers should
  * set their own "switching…" state before calling.
+ *
+ * P57 — optional `destination`: a HARD navigation to that path after the
+ * select (master-admin "Enter facility" / the new-facility flow land on
+ * /dashboard). Still never a soft router.push — that reuses the (protected)
+ * layout segment and leaves the Sidebar's switcher on the OLD facility.
  */
-export async function switchFacility(facilityId: string): Promise<void> {
+export async function switchFacility(facilityId: string, destination?: string): Promise<void> {
   await fetch('/api/facilities/select', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ facilityId }),
   })
-  window.location.reload()
+  if (destination) window.location.assign(destination)
+  else window.location.reload()
 }

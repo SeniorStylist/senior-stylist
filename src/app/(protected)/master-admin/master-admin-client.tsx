@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { switchFacility } from '@/lib/facility-switch'
 import dynamic from 'next/dynamic'
 
 // Phase 25 — reports-tab statically imported recharts (~400KB) into the
@@ -331,14 +332,14 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     )
   }, [sortedFacilities, facilitySearch])
 
+  // P57 — facility switch = select + HARD reload (facility-switch.ts rule). The
+  // old hand-rolled fetch + router.push soft-navigated between two children of
+  // the same (protected) layout, so the Sidebar kept its stale facilityName /
+  // switcher props (F121) while the page read the new cookie (F240) — the
+  // exact "app says Fitzgerald, switcher says F121" demo bug.
   const handleEnterFacility = async (facilityId: string) => {
     setEnteringId(facilityId)
-    await fetch('/api/facilities/select', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ facilityId }),
-    })
-    router.push('/dashboard')
+    await switchFacility(facilityId, '/dashboard')
   }
 
   const handleCreateFacility = async (e: React.FormEvent) => {
@@ -364,11 +365,21 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
         return
       }
       if (!res.ok) {
-        setCreateError('Failed to create facility')
+        const j = await res.json().catch(() => ({}))
+        setCreateError(typeof j.error === 'string' ? j.error : 'Failed to create facility')
         return
       }
+      const created = await res.json().catch(() => ({}))
       setFormData({ name: '', facilityCode: '', address: '', phone: '', timezone: 'America/New_York' })
       setShowCreateForm(false)
+      // P57 — enter the new facility right away (hard switch so the layout's
+      // switcher re-reads the busted 'facilities' tag). Interim behavior until
+      // the C2 wizard's Done screen owns this choice.
+      const newId = created?.data?.id as string | undefined
+      if (newId) {
+        await switchFacility(newId, '/dashboard')
+        return
+      }
       router.refresh()
     } catch {
       setCreateError('Failed to create facility')

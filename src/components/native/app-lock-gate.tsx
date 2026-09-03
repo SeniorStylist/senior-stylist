@@ -70,11 +70,11 @@ export function AppLockGate() {
       style={{ backgroundColor: '#1C0A12' }}
     >
       <Image
-        src="/seniorstylistlogo.jpg"
+        src="/seniorstylistlogo-white.png"
         alt="Senior Stylist"
         width={180}
-        height={72}
-        style={{ filter: 'brightness(0) invert(1)' }}
+        height={145}
+        style={{ height: 72, width: 'auto', objectFit: 'contain' }}
         priority
       />
       <p className="text-sm text-white/70 text-center">

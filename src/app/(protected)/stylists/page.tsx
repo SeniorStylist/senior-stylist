@@ -119,7 +119,7 @@ export default async function StylistsPage() {
             {rosterOnly ? ' · schedules and profiles are managed by your franchise team' : ''}
           </p>
         </div>
-        {canManage && <AddStylistInline />}
+        {canManage && <AddStylistInline facilityId={facilityUser.facilityId} />}
       </div>
 
       {stylistsList.length === 0 ? (

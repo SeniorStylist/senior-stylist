@@ -10,12 +10,14 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         className="px-5 py-3.5 flex items-center"
       >
         <Link href="https://seniorstylist.com" target="_blank" rel="noopener noreferrer">
+          {/* P57 — was `/Seniorstylistlogo.jpg` (capital S → 404 on Linux) with
+              the white-box invert filter; the white PNG is the real asset. */}
           <Image
-            src="/Seniorstylistlogo.jpg"
+            src="/seniorstylistlogo-white.png"
             alt="Senior Stylist"
             width={120}
-            height={36}
-            style={{ filter: 'brightness(0) invert(1)' }}
+            height={97}
+            style={{ height: 36, width: 'auto', objectFit: 'contain' }}
           />
         </Link>
       </header>

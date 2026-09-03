@@ -128,7 +128,7 @@ function LoginForm() {
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
           <div className="mb-8">
-            <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
+            <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
           </div>
 
           {!codeSent ? (
@@ -236,7 +236,7 @@ function LoginForm() {
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
         {/* Logo */}
         <div className="mb-8">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
+          <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
         </div>
 
         {/* Sign in */}
@@ -319,7 +319,7 @@ export default function LoginPage() {
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto mb-8" />
+          <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={160} height={64} className="mx-auto mb-8" />
         </div>
       </div>
     }>

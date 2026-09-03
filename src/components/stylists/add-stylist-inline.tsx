@@ -9,7 +9,10 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 
-export function AddStylistInline() {
+// P57 — `facilityId` is passed explicitly by the page (it already knows it) so
+// a master's create lands at the facility on screen rather than relying on the
+// route's cookie resolution alone.
+export function AddStylistInline({ facilityId }: { facilityId?: string } = {}) {
   const router = useRouter()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
@@ -38,13 +41,16 @@ export function AddStylistInline() {
         body: JSON.stringify({
           name: trimmedName,
           ...(trimmedCode ? { stylistCode: trimmedCode } : {}),
+          ...(facilityId ? { facilityId } : {}),
         }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(
           res.status === 409
-            ? `Code ${trimmedCode} is already in use`
+            ? trimmedCode
+              ? `Code ${trimmedCode} is already in use — that stylist exists; assign them instead of re-creating`
+              : typeof j.error === 'string' ? j.error : 'That stylist already exists'
             : typeof j.error === 'string'
               ? j.error
               : 'Could not add the stylist',

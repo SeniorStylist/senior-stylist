@@ -254,9 +254,11 @@ interface SidebarProps {
   role?: string
   debugMode?: boolean
   isFranchiseAdmin?: boolean
+  /** P57 — id of the selected facility; the switcher highlights by id, not name. */
+  activeFacilityId?: string
 }
 
-export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false, isFranchiseAdmin = false }: SidebarProps) {
+export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false, isFranchiseAdmin = false, activeFacilityId = '' }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -319,7 +321,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
 
   return (
     <aside
-      className="w-[220px] shrink-0 flex flex-col h-screen sticky top-0 relative overflow-hidden"
+      className="w-[220px] shrink-0 flex flex-col h-screen sticky top-0"
       style={{ backgroundColor: 'var(--color-sidebar)' }}
     >
       {/* Radial accent overlay */}
@@ -332,7 +334,16 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
       {/* Logo / Facility name */}
       <div className="px-5 py-5 border-b border-white/10">
         <Link href="/dashboard" className="block">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} style={{ filter: 'brightness(0) invert(1)' }} />
+          {/* P57 — pre-baked white wordmark. `brightness(0) invert(1)` on the
+              burgundy-on-WHITE source painted a solid white box ("logo not
+              loading"), and 160×64 squashed a 1.24:1 mark. */}
+          <Image
+            src="/seniorstylistlogo-white.png"
+            alt="Senior Stylist"
+            width={160}
+            height={129}
+            style={{ height: 56, width: 'auto', objectFit: 'contain' }}
+          />
         </Link>
         {facilityName && !showSwitcher && (
           <div className="flex items-center mt-1 px-1">
@@ -374,12 +385,20 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
               </svg>
             </button>
 
+            {/* P57 — the PANEL is the scroll container, sized against the
+                viewport (not just the inner list): with 100+ facilities on a
+                laptop / ≥125% zoom, the old max-h-[60vh] list plus ~240px of
+                anchor offset + chrome overflowed the h-screen aside, whose
+                overflow-hidden clipped the tail AND the "+ Add facility"
+                footer with no scrollbar that could reveal them. Rows are
+                keyed on facility id (duplicate names highlighted the wrong
+                row across 100+ communities). */}
             {switcherOpen && (
               <div
-                className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50 overflow-hidden"
+                className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50 flex flex-col max-h-[calc(100vh-150px)] overflow-hidden"
                 style={{ backgroundColor: 'var(--color-sidebar)', border: '1px solid rgba(255,255,255,0.12)' }}
               >
-                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
+                <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
                   <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Sort:</span>
                   {(['fid', 'name'] as const).map((opt) => (
                     <button
@@ -396,7 +415,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     </button>
                   ))}
                 </div>
-                <div className="px-2 py-1.5 border-b border-white/10">
+                <div className="shrink-0 px-2 py-1.5 border-b border-white/10">
                   <input
                     type="text"
                     value={facilitySearch}
@@ -406,16 +425,16 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.9)' }}
                   />
                 </div>
-              <div ref={switcherListRef} className="max-h-[60vh] overflow-y-auto">
+              <div ref={switcherListRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                   {filteredSwitcherFacilities.length === 0 ? (
                     <p className="px-3 py-3 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>No facilities found</p>
                   ) : filteredSwitcherFacilities.map((f) => (
                     <button
                       key={f.id}
-                      ref={f.name === facilityName ? selectedFacilityRef : undefined}
+                      ref={f.id === activeFacilityId ? selectedFacilityRef : undefined}
                       onClick={() => handleSelectFacility(f.id)}
                       className="w-full text-left px-3 py-2 text-xs transition-colors"
-                      style={{ color: f.name === facilityName ? '#C4687A' : 'rgba(255,255,255,0.7)' }}
+                      style={{ color: f.id === activeFacilityId ? '#C4687A' : 'rgba(255,255,255,0.7)' }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
@@ -430,7 +449,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                     </button>
                   ))}
                 </div>
-                <div className="border-t border-white/10 px-3 py-2">
+                <div className="shrink-0 border-t border-white/10 px-3 py-2">
                   <Link
                     href="/settings?section=advanced"
                     onClick={() => setSwitcherOpen(false)}

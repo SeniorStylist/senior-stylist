@@ -47,12 +47,12 @@ export function FamilyEntryClient() {
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <header className="px-6 py-8 text-center" style={{ backgroundColor: '#8B2E4A' }}>
         <Image
-          src="/seniorstylistlogo.jpg"
+          src="/seniorstylistlogo-white.png"
           alt="Senior Stylist"
           width={180}
-          height={72}
+          height={145}
           className="mx-auto"
-          style={{ filter: 'brightness(0) invert(1)', objectFit: 'contain', height: 48, width: 'auto' }}
+          style={{ objectFit: 'contain', height: 48, width: 'auto' }}
         />
         <p className="text-white/80 text-sm mt-3">Salon Account</p>
       </header>

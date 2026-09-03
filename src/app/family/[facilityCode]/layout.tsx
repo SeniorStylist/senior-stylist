@@ -50,12 +50,15 @@ export default async function FamilyPortalLayout({
           className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-1.5 relative overflow-hidden"
         >
           <div className="relative z-10 flex items-center gap-2.5 min-w-0">
+            {/* P57 — the pre-baked white wordmark. `brightness(0) invert(1)` on
+                the burgundy-on-WHITE source painted a solid white box (looked
+                like a missing image) and 120×36 squashed a 1.24:1 mark. */}
             <Image
-              src="/seniorstylistlogo.jpg"
+              src="/seniorstylistlogo-white.png"
               alt="Senior Stylist"
               width={120}
-              height={36}
-              style={{ filter: 'brightness(0) invert(1)' }}
+              height={97}
+              style={{ height: 36, width: 'auto', objectFit: 'contain' }}
             />
             <TextScaleToggle />
             <LanguageToggle lang={lang} />

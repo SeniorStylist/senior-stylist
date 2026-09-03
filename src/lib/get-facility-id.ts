@@ -151,10 +151,13 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
 
     const selected = cookieStore.get('selected_facility_id')?.value
 
+    // P57 — deterministic: the fallback row below used to be whatever physical
+    // order Postgres returned (no orderBy), so the master's "current facility"
+    // could change between requests.
     const rows = await db.query.facilityUsers.findMany({
       where: eq(facilityUsers.userId, userId),
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
     })
-    if (rows.length === 0) return null
 
     if (selected) {
       const match = rows.find((r) => r.facilityId === selected)
@@ -171,8 +174,35 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
         })
         if (fac) return normalizeRole({ ...bookkeeperRow, facilityId: selected })
       }
+
+      // P57 — the MASTER gets the same synthetic access to any active facility
+      // the cookie points at (verified by email server-side, never the cookie).
+      // Before this, a master with no membership row at the selected facility
+      // fell through to rows[0] (an arbitrary OTHER facility) or null — which is
+      // how a stylist "added to F240" landed at no facility at all, and why
+      // /stylists and /stylists/directory bounced the owner. Master already
+      // bypasses every role guard by email; this only makes SCOPING follow the
+      // facility he actually selected.
+      if (await isMasterAdmin(userId)) {
+        const fac = await db.query.facilities.findFirst({
+          where: and(eq(facilities.id, selected), eq(facilities.active, true)),
+          columns: { id: true },
+        })
+        if (fac) {
+          return normalizeRole({
+            id: 'master',
+            userId,
+            facilityId: selected,
+            role: 'admin',
+            commissionPercent: null as number | null,
+            createdAt: null as Date | null,
+            updatedAt: null as Date | null,
+          })
+        }
+      }
     }
 
+    if (rows.length === 0) return null
     return normalizeRole(rows[0])
   } catch (err) {
     console.error('[getUserFacility] DB error:', err)

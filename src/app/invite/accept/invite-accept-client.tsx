@@ -94,7 +94,7 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
         {/* Logo */}
         <div className="mb-6">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
+          <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
           <h1
             className="text-2xl font-bold text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}

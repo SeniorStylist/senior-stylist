@@ -21,6 +21,8 @@ interface MobileFacilityHeaderProps {
   allFacilities: FacilityOption[]
   role: string
   debugMode?: boolean
+  /** P57 — id of the selected facility; highlight by id, not name. */
+  activeFacilityId?: string
 }
 
 export function MobileFacilityHeader({
@@ -29,6 +31,7 @@ export function MobileFacilityHeader({
   allFacilities,
   role,
   debugMode = false,
+  activeFacilityId = '',
 }: MobileFacilityHeaderProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -62,7 +65,7 @@ export function MobileFacilityHeader({
       >
         <Link href="/dashboard" data-tour-mobile="mobile-home-logo">
           <Image
-            src="/seniorstylistlogo.jpg"
+            src="/seniorstylistlogo.webp"
             alt="Senior Stylist"
             width={110}
             height={44}
@@ -174,13 +177,13 @@ export function MobileFacilityHeader({
               key={f.id}
               onClick={() => handleSelect(f.id)}
               className="w-full flex items-center gap-2 px-4 py-3 text-left text-sm transition-colors active:bg-stone-100"
-              style={{ color: f.name === facilityName ? '#8B2E4A' : '#1c1917' }}
+              style={{ color: f.id === activeFacilityId ? '#8B2E4A' : '#1c1917' }}
             >
               {f.facilityCode && (
                 <span className="font-mono text-xs text-stone-400 shrink-0 w-12">{f.facilityCode}</span>
               )}
               <span className="flex-1 truncate">{f.name}</span>
-              {f.name === facilityName && (
+              {f.id === activeFacilityId && (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0" style={{ color: '#8B2E4A' }}>
                   <polyline points="20 6 9 17 4 12" />
                 </svg>

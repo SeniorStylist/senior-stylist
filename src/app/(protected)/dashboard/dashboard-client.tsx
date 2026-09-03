@@ -993,6 +993,7 @@ export function DashboardClient({
               onStylistAdded={(s) => setStylists((prev) => [...prev, s])}
               isAdmin={isAdmin}
               canManage={canManageStylists}
+              facilityId={facility.id}
             />
           )}
         </div>

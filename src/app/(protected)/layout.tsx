@@ -53,7 +53,10 @@ interface MembershipData {
   allFacilities: { id: string; name: string; facilityCode: string | null; role: string }[]
 }
 
-async function fetchMembershipData(userId: string): Promise<MembershipData> {
+// P57 — `isMaster` rides the cache key (unstable_cache keys on the serialized
+// args), so the owner's all-facilities list and a normal user's membership
+// list can never share an entry.
+async function fetchMembershipData(userId: string, isMaster = false): Promise<MembershipData> {
   const userFacilities = await db.query.facilityUsers.findMany({
     where: eq(facilityUsers.userId, userId),
     with: { facility: true },
@@ -71,8 +74,13 @@ async function fetchMembershipData(userId: string): Promise<MembershipData> {
 
   // Bookkeepers have cross-facility access by role — the switcher lists every
   // active facility, not just the ones with explicit facility_users rows.
+  // P57 — the MASTER gets the same complete list (synthetic 'admin' where no
+  // explicit row exists — the shape GET /api/facilities already returns him).
+  // Before this his switcher only listed facilities he had personally created
+  // through POST /api/facilities (the one path that grants him a row); imported
+  // facilities were unreachable from the switcher entirely.
   const hasBookkeeperRole = userFacilities.some((fu) => fu.role === 'bookkeeper')
-  if (hasBookkeeperRole) {
+  if (hasBookkeeperRole || isMaster) {
     const explicitRoles = new Map(allFacilities.map((f) => [f.id, f.role]))
     const activeFacilities = await db.query.facilities.findMany({
       where: and(eq(facilities.active, true), eq(facilities.isDemo, false)),
@@ -83,7 +91,7 @@ async function fetchMembershipData(userId: string): Promise<MembershipData> {
       id: f.id,
       name: f.name,
       facilityCode: f.facilityCode ?? null,
-      role: explicitRoles.get(f.id) ?? 'bookkeeper',
+      role: explicitRoles.get(f.id) ?? (isMaster ? 'admin' : 'bookkeeper'),
     }))
   }
 
@@ -111,7 +119,7 @@ const getCachedMembershipData = unstable_cache(fetchMembershipData, ['layout-mem
   tags: ['facilities'],
 })
 
-async function fetchLayoutData(userId: string): Promise<LayoutData> {
+async function fetchLayoutData(userId: string, isMaster = false): Promise<LayoutData> {
   // Phase 18 hotfix — self-heal the facilities.monthly_report_enabled column
   // (drizzle/0024). Full-row facilities selects (this relation include, the
   // dashboard, the day log) throw "column does not exist" when the code
@@ -119,21 +127,30 @@ async function fetchLayoutData(userId: string): Promise<LayoutData> {
   // Module-guarded in monthly-report-ddl.ts — one round-trip per instance.
   await ensureMonthlyReportSchema().catch(() => {})
 
+  const cookieStore = await cookies()
+  const selectedId = cookieStore.get('selected_facility_id')?.value
+
   let membership: MembershipData
   try {
-    membership = await getCachedMembershipData(userId)
+    membership = await getCachedMembershipData(userId, isMaster)
     // Never trust a cached EMPTY result — a just-redeemed invite must see its
     // new facility immediately even if a stale entry predates the tag bust.
-    if (membership.memberships.length === 0) {
-      membership = await fetchMembershipData(userId)
+    // P57 — same for a cached list that doesn't contain the facility the
+    // cookie points at: a just-created facility would otherwise be mislabeled
+    // as the OLDEST membership row (allFacilities[0]) while every page, which
+    // reads getUserFacility uncached, showed the real one — the "app says
+    // Fitzgerald, switcher says F121" demo bug.
+    const stale =
+      membership.memberships.length === 0 ||
+      (selectedId != null && !membership.allFacilities.some((f) => f.id === selectedId))
+    if (stale) {
+      membership = await fetchMembershipData(userId, isMaster)
     }
   } catch {
-    membership = await fetchMembershipData(userId)
+    membership = await fetchMembershipData(userId, isMaster)
   }
   const { memberships, allFacilities } = membership
 
-  const cookieStore = await cookies()
-  const selectedId = cookieStore.get('selected_facility_id')?.value
   const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
   const rawRole = active?.role ?? 'admin'
 
@@ -181,10 +198,12 @@ export default async function ProtectedLayout({
   let activeFacilityId: string = ''
   let changelogLastReadAt: string | null = null
 
+  const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+
   let facilityData: LayoutData | null = null
   try {
     facilityData = await Promise.race([
-      fetchLayoutData(user.id),
+      fetchLayoutData(user.id, isMaster),
       new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), LAYOUT_TIMEOUT_MS)
       ),
@@ -201,8 +220,6 @@ export default async function ProtectedLayout({
     activeFacilityId = facilityData.activeFacilityId
     changelogLastReadAt = facilityData.changelogLastReadAt
   }
-
-  const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
 
   let debugMode = false
   let franchiseAdmin = false
@@ -246,10 +263,10 @@ export default async function ProtectedLayout({
       <AssistantAnnouncementBanner changelogLastReadAt={changelogLastReadAt} />
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} isFranchiseAdmin={franchiseAdmin} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} isFranchiseAdmin={franchiseAdmin} activeFacilityId={activeFacilityId} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} />
+        <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} activeFacilityId={activeFacilityId} />
         <TopBar facilityName={facilityName} facilityCode={facilityCode} role={activeRole} changelogLastReadAt={changelogLastReadAt} />
         <div className="main-content flex-1 min-h-0 overflow-auto">
           <ToastProvider>
