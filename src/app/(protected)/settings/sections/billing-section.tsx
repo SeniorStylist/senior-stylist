@@ -14,6 +14,30 @@ interface Props {
   qbConnectScopes?: { franchise: boolean; all: boolean }
 }
 
+/**
+ * Turn a failed QuickBooks response into something an operator can act on.
+ * The body is read ONCE as text: a platform timeout or error page is not JSON,
+ * so `res.json()` throws — which is how a real failure used to reach the user
+ * as a bare "Customer sync failed" with no reason at all.
+ */
+async function qbFailure(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => '')
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown }
+    if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.slice(0, 400)
+  } catch {
+    // Not JSON — fall through to the status map below.
+  }
+  if (res.status === 504 || res.status === 408 || res.status === 502) {
+    return `${fallback} — QuickBooks took too long to answer. Anything already synced was saved; run it again to pick up where it stopped.`
+  }
+  if (res.status === 429) return 'Too many QuickBooks requests — wait a few minutes and try again.'
+  if (res.status === 412) return 'QuickBooks isn’t connected for this facility yet.'
+  if (res.status === 403) return 'You don’t have permission to run this for this facility.'
+  if (res.status === 401) return 'Your session expired — reload the page and sign in again.'
+  return `${fallback} (${res.status})`
+}
+
 export function BillingSection({
   facility,
   qbInvoiceSyncEnabled,
@@ -66,7 +90,7 @@ export function BillingSection({
 
   function showQbToast(kind: 'ok' | 'err', text: string) {
     setQbToast({ kind, text })
-    setTimeout(() => setQbToast(null), 4000)
+    setTimeout(() => setQbToast(null), kind === 'err' ? 12000 : 4000)
   }
 
   async function loadQbAccounts() {
@@ -74,8 +98,7 @@ export function BillingSection({
     try {
       const res = await fetch('/api/quickbooks/accounts')
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        showQbToast('err', j.error ?? 'Failed to load accounts')
+        showQbToast('err', await qbFailure(res, 'Failed to load accounts'))
         return
       }
       const j = await res.json()
@@ -94,8 +117,7 @@ export function BillingSection({
         body: JSON.stringify({ qbExpenseAccountId: qbExpenseAccountId || null }),
       })
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        showQbToast('err', j.error ?? 'Save failed')
+        showQbToast('err', await qbFailure(res, 'Save failed'))
         return
       }
       showQbToast('ok', 'Expense account saved')
@@ -109,15 +131,17 @@ export function BillingSection({
     setQbSyncing(true)
     try {
       const res = await fetch('/api/quickbooks/sync-vendors', { method: 'POST' })
-      const j = await res.json()
       if (!res.ok) {
-        showQbToast('err', j.error ?? 'Sync failed')
+        showQbToast('err', await qbFailure(res, 'Vendor sync failed'))
         return
       }
+      const j = await res.json()
       const { created, updated, skipped, errors } = j.data
       const bits = [`${created} created`, `${updated} updated`, `${skipped} unchanged`]
       if (errors.length > 0) bits.push(`${errors.length} error(s)`)
       showQbToast(errors.length > 0 ? 'err' : 'ok', `Vendors: ${bits.join(', ')}`)
+    } catch {
+      showQbToast('err', 'Network error — vendor sync may not have run')
     } finally {
       setQbSyncing(false)
     }
@@ -128,15 +152,20 @@ export function BillingSection({
     setQbCustomerSyncing(true)
     try {
       const res = await fetch(`/api/quickbooks/sync-customers/${facility.id}`, { method: 'POST' })
-      const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        showQbToast('err', j.error ?? 'Customer sync failed')
+        showQbToast('err', await qbFailure(res, 'Customer sync failed'))
         return
       }
+      const j = await res.json()
       const { matchedExisting, createdInQb, skipped, errors } = j.data
       const bits = [`${matchedExisting} matched`, `${createdInQb} created`, `${skipped} skipped`]
-      if (errors.length > 0) bits.push(`${errors.length} error(s)`)
-      showQbToast(errors.length > 0 ? 'err' : 'ok', `Customers: ${bits.join(', ')}`)
+      // Surface the first real reason, not just a count — "0 created" with a
+      // hidden error is what makes a sync look silently broken.
+      const detail = Array.isArray(errors) && errors.length > 0 ? ` — ${String(errors[0])}` : ''
+      showQbToast(
+        errors.length > 0 ? 'err' : 'ok',
+        `Customers: ${bits.join(', ')}${detail}`,
+      )
     } catch {
       showQbToast('err', 'Network error — customer sync may not have run')
     } finally {
@@ -153,11 +182,11 @@ export function BillingSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fullSync }),
       })
-      const j = await res.json()
       if (!res.ok) {
-        showQbToast('err', j.error ?? 'Invoice sync failed')
+        showQbToast('err', await qbFailure(res, 'Invoice sync failed'))
         return
       }
+      const j = await res.json()
       const { created, updated, skipped, errors } = j.data
       const bits = [`${created} created`, `${updated} updated`, `${skipped} unchanged`]
       if (errors.length > 0) bits.push(`${errors.length} error(s)`)

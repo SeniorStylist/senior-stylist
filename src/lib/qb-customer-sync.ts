@@ -49,6 +49,9 @@ export interface SyncQBCustomersResult {
 const PAGE_SIZE = 100
 const CUSTOMER_CAP = 5000
 const CREATE_CAP = 200
+/** Stop creating with time to spare inside the route's 300s budget. Links are
+ *  written per-create, so the next run picks up exactly where this one left off. */
+const CREATE_BUDGET_MS = 4 * 60 * 1000
 
 function norm(s: string | null | undefined): string {
   return (s ?? '').trim().toLowerCase()
@@ -91,6 +94,97 @@ async function fetchAllQBCustomers(
     }
   }
   return { customers: all, capped }
+}
+
+/**
+ * ONLY this facility's sub-customers, via the "<parent>:<child>"
+ * FullyQualifiedName convention.
+ *
+ * This is the query the sync should almost always use. Production QuickBooks is
+ * ONE company holding every facility, so scanning all customers to find one
+ * facility's residents is thousands of rows at 100 per page — that is what blew
+ * the route's time budget and surfaced as a bare "Customer sync failed".
+ * Filtering by the parent prefix is a handful of calls, is immune to the
+ * full-list cap, and cannot return another facility's customers.
+ *
+ * Returns null when the query is rejected, so the caller falls back to the
+ * full scan rather than treating "no rows" as "no residents in QuickBooks".
+ */
+async function fetchQBChildCustomers(
+  facilityId: string,
+  parentDisplayName: string,
+): Promise<{ customers: QBCustomer[]; capped: boolean } | null> {
+  const prefix = parentDisplayName.replace(/[%_]/g, '').trim()
+  if (!prefix) return null
+  const all: QBCustomer[] = []
+  let startPosition = 1
+  let capped = false
+  try {
+    while (true) {
+      const query =
+        `SELECT * FROM Customer WHERE Active = true AND FullyQualifiedName LIKE ${qbQuoteLiteral(`${prefix}:%`)}` +
+        ` STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
+      const res = await qbGet<QBCustomerQueryResponse>(
+        facilityId,
+        `/query?query=${encodeURIComponent(query)}`,
+      )
+      const page = res.QueryResponse?.Customer ?? []
+      all.push(...page)
+      if (page.length < PAGE_SIZE) break
+      startPosition += PAGE_SIZE
+      if (all.length >= CUSTOMER_CAP) {
+        capped = true
+        break
+      }
+    }
+  } catch (err) {
+    console.error('[qb-customer-sync] parent-prefix query failed; falling back to a full scan:', err)
+    return null
+  }
+  return { customers: all, capped }
+}
+
+/**
+ * Top-level customer whose DisplayName STARTS with the facility's F-code.
+ * The books name facility customers "F123 - Autumn Lake Crofton" (the CSV
+ * importer's convention), so an exact "F123" lookup misses and would otherwise
+ * force a full-company scan. The code must be a whole token, so F12 can never
+ * match F123.
+ */
+async function findQBParentByCodePrefix(
+  facilityId: string,
+  facilityCode: string,
+): Promise<QBCustomer | null> {
+  const code = facilityCode.replace(/[%_]/g, '').trim()
+  if (!code) return null
+  const query = `SELECT * FROM Customer WHERE Active = true AND DisplayName LIKE ${qbQuoteLiteral(`${code}%`)} MAXRESULTS 20`
+  try {
+    const res = await qbGet<QBCustomerQueryResponse>(
+      facilityId,
+      `/query?query=${encodeURIComponent(query)}`,
+    )
+    const boundary = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+    return (
+      res.QueryResponse?.Customer?.find(
+        (c) => !c.ParentRef && boundary.test((c.DisplayName ?? '').trim()),
+      ) ?? null
+    )
+  } catch {
+    return null
+  }
+}
+
+/** One customer by numeric Intuit id — used to re-read an already-linked parent. */
+async function findQBCustomerById(facilityId: string, id: string): Promise<QBCustomer | null> {
+  try {
+    const res = await qbGet<{ Customer?: QBCustomer }>(
+      facilityId,
+      `/customer/${encodeURIComponent(id)}`,
+    )
+    return res.Customer ?? null
+  } catch {
+    return null
+  }
 }
 
 /** Exact DisplayName lookup — cheap, and immune to the full-list cap. */
@@ -138,6 +232,27 @@ async function createQBCustomer(
     }
     throw err
   }
+}
+
+/**
+ * The facility's parent customer using only cheap, cap-immune queries: the
+ * F-code as an exact DisplayName, then as a name prefix, then the stored
+ * display name. Returns null when none hit — the caller then falls back to
+ * scanning the company (slow on a shared realm, so it is the last resort).
+ */
+async function findParentByTargetedLookups(
+  facilityId: string,
+  facility: { name: string; facilityCode: string | null; qbCustomerId: string | null },
+): Promise<QBCustomer | null> {
+  const displayName = (facility.facilityCode ?? facility.name).replace(/:/g, '').trim()
+  let parent =
+    (await findQBCustomerByDisplayName(facilityId, displayName)) ??
+    (facility.facilityCode ? await findQBParentByCodePrefix(facilityId, facility.facilityCode) : null) ??
+    (facility.qbCustomerId && !facility.qbCustomerId.includes(':')
+      ? await findQBCustomerByDisplayName(facilityId, facility.qbCustomerId)
+      : null)
+  if (parent?.ParentRef) parent = null // the facility customer must be top-level
+  return parent
 }
 
 function detectFacilityParent(
@@ -213,13 +328,8 @@ export async function ensureQBFacilityParent(facilityId: string): Promise<string
   // FullyQualifiedNames come out as "F177:Smith, Margaret - 12".
   const displayName = (facility.facilityCode ?? facility.name).replace(/:/g, '').trim()
 
-  // Targeted exact lookups first (cap-immune), then the full-list detection.
-  let parent =
-    (await findQBCustomerByDisplayName(facilityId, displayName)) ??
-    (facility.qbCustomerId && !facility.qbCustomerId.includes(':')
-      ? await findQBCustomerByDisplayName(facilityId, facility.qbCustomerId)
-      : null)
-  if (parent?.ParentRef) parent = null // must be top-level
+  // Targeted lookups first (cap-immune), then the full-list detection.
+  let parent = await findParentByTargetedLookups(facilityId, facility)
 
   if (!parent) {
     const { customers, capped } = await fetchAllQBCustomers(facilityId)
@@ -381,7 +491,44 @@ export async function syncQBCustomers(
     existingLinks.filter((l) => l.residentId).map((l) => [l.residentId as string, l]),
   )
 
-  const { customers, capped } = await fetchAllQBCustomers(facilityId)
+  // ── Resolve the facility's parent customer with CHEAP targeted lookups ──
+  // (an already-linked id, then the F-code DisplayName, then the stored name).
+  // Only when all of those miss do we fall back to scanning the whole company.
+  const parentDisplayName = (facility.facilityCode ?? facility.name).replace(/:/g, '').trim()
+  const linkedParent = existingLinks.find((l) => !l.residentId)
+  let parent: QBCustomer | null = linkedParent
+    ? await findQBCustomerById(facilityId, linkedParent.qbCustomerId)
+    : null
+  if (!parent) {
+    parent = await findParentByTargetedLookups(facilityId, {
+      name: facility.name,
+      facilityCode: facility.facilityCode,
+      qbCustomerId: facility.qbCustomerId,
+    })
+  }
+
+  // ── Pull the customers to match against ───────────────────────────────
+  // With a known parent that is just its own sub-customers; otherwise the whole
+  // company, which is slow and cap-limited (see fetchQBChildCustomers).
+  let customers: QBCustomer[] = []
+  let capped = false
+  const targeted = parent
+    ? await fetchQBChildCustomers(facilityId, parent.DisplayName ?? parentDisplayName)
+    : null
+  if (targeted) {
+    customers = targeted.customers
+    capped = targeted.capped
+  } else {
+    const full = await fetchAllQBCustomers(facilityId)
+    customers = full.customers
+    capped = full.capped
+    parent ??= detectFacilityParent(
+      customers,
+      facility.facilityCode,
+      facility.name,
+      facility.qbCustomerId,
+    )
+  }
   if (capped) {
     result.errors.push(
       `QuickBooks holds more than ${CUSTOMER_CAP} customers — matched what was scanned; nothing was created (a truncated scan can't prove a customer is missing)`,
@@ -389,12 +536,6 @@ export async function syncQBCustomers(
   }
 
   // ── Pass 1: match existing QB customers to residents ──────────────────
-  const parent = detectFacilityParent(
-    customers,
-    facility.facilityCode,
-    facility.name,
-    facility.qbCustomerId,
-  )
 
   const byStoredName = new Map<string, (typeof residentList)[number]>()
   for (const r of residentList) {
@@ -506,16 +647,31 @@ export async function syncQBCustomers(
         result.errors.push(`Stopped after ${CREATE_CAP} new customers — run Sync Customers again to continue`)
         break
       }
-      try {
-        const customer = await createQBCustomer(
-          facilityId,
-          {
-            DisplayName: residentDisplayName(r.name, r.roomNumber),
-            Job: true,
-            ParentRef: { value: parentId },
-          },
-          `(${r.id.slice(0, 4)})`,
+      // Return partial progress instead of being killed mid-run by the
+      // platform's function timeout (which yields an HTML page, not JSON).
+      if (Date.now() - startedAt.getTime() > CREATE_BUDGET_MS) {
+        result.errors.push(
+          `Stopped after ${creates} new customers to stay inside the time limit — run Sync Customers again to continue`,
         )
+        break
+      }
+      try {
+        const desiredName = residentDisplayName(r.name, r.roomNumber)
+        // LINK-BEFORE-CREATE. Never trust "absent from the fetched list" as
+        // proof a customer doesn't exist: if the customer pull ever comes back
+        // short, creating blindly would mint a duplicate for every resident
+        // (and the 6240 retry would happily suffix them). An exact-name hit
+        // under OUR parent is the same resident — link it.
+        const alreadyInQb = await findQBCustomerByDisplayName(facilityId, desiredName)
+        const customer =
+          alreadyInQb?.ParentRef?.value === parentId
+            ? alreadyInQb
+            : await createQBCustomer(
+                facilityId,
+                { DisplayName: desiredName, Job: true, ParentRef: { value: parentId } },
+                `(${r.id.slice(0, 4)})`,
+              )
+        const wasCreated = customer !== alreadyInQb
         creates++
         // Link immediately after each create (not batched at the end) so a
         // mid-run crash never leaves a created-but-unlinked QB customer that
@@ -544,7 +700,10 @@ export async function syncQBCustomers(
           })
           .returning({ id: qbCustomerLinks.id })
           .then(([link]) => {
-            if (link?.id) {
+            // Undo deactivates the customers a run CREATED — a customer that
+            // was already in the books and merely linked must never be listed
+            // here, or undoing would deactivate the facility's real record.
+            if (link?.id && wasCreated) {
               createdLinks.push({
                 linkId: link.id,
                 qbCustomerId: customer.Id,
@@ -556,7 +715,8 @@ export async function syncQBCustomers(
         if (!r.qbCustomerId && customer.FullyQualifiedName) {
           displayNameBackfills.push({ residentId: r.id, displayName: customer.FullyQualifiedName })
         }
-        result.createdInQb++
+        if (wasCreated) result.createdInQb++
+        else result.matchedExisting++
       } catch (err) {
         result.errors.push(`${r.name}: ${(err as Error).message?.slice(0, 200)}`)
       }

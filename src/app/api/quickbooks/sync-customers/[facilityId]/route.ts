@@ -8,7 +8,11 @@ import { syncQBCustomers } from '@/lib/qb-customer-sync'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
 
-export const maxDuration = 60
+// 300s: a first run on a large facility pages QuickBooks and then creates
+// sub-customers one at a time. The engine self-limits well inside this (see
+// CREATE_BUDGET_MS) so the operator gets partial progress + a "run it again"
+// message rather than a platform timeout page.
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
 // Operator-clicked WRITE to the facility's books — manage tier only, ungated
