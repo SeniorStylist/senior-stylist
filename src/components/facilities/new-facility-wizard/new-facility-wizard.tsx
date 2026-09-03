@@ -105,6 +105,10 @@ export function NewFacilityWizard({ caps }: { caps: WizardCaps }) {
 
   const patch = useCallback((p: Partial<WizardState>) => dispatch({ type: 'patch', patch: p }), [])
   const setError = useCallback((error: string | null) => dispatch({ type: 'error', error }), [])
+  // A step change clears the previous step's error, so anything that sends the
+  // user BACK with a message must dispatch the step first and the message
+  // second — otherwise a code-clash 409 bounced to Basics with no explanation
+  // at all (the conflict card only covers duplicate names).
   const go = (step: StepId) => {
     dispatch({ type: 'step', step })
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
@@ -135,12 +139,12 @@ export function NewFacilityWizard({ caps }: { caps: WizardCaps }) {
       if (res.status === 409) {
         const conflict = j.conflict as WizardState['conflict'] | undefined
         const suggestedCode = typeof j.suggestedCode === 'string' ? j.suggestedCode : null
+        go('basics')
         patch({
           conflict: conflict ?? null,
           suggestedCodeFromServer: suggestedCode,
           error: typeof j.error === 'string' ? j.error : 'That facility already exists',
         })
-        go('basics')
         return false
       }
       if (!res.ok) {

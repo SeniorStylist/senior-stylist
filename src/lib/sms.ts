@@ -115,6 +115,63 @@ export function buildPaymentRequestSms(data: {
   )
 }
 
+// P57 — automatic-payment consent notice. The mirror of
+// buildAutopayEnabledEmailHtml: it is the "wasn't you? call the salon" safety
+// net that makes a staff-attested enable acceptable, so a phone-only family
+// has to get it too.
+export function buildAutopayChangedSms(data: {
+  residentName: string
+  facilityName: string
+  cardLabel: string | null
+  enabled: boolean
+}): string {
+  if (!data.enabled) {
+    return (
+      `${data.facilityName}: automatic payment was turned OFF for ${data.residentName}'s salon account. ` +
+      `If this wasn't you, call the salon.`
+    )
+  }
+  const card = data.cardLabel ? ` to ${data.cardLabel}` : ''
+  return (
+    `${data.facilityName}: automatic payment is now ON for ${data.residentName} — salon balances will be charged${card}, ` +
+    `with a receipt each time. If this wasn't you, call the salon.`
+  )
+}
+
+// P57 — receipt for a card-on-file charge. Distinct from buildReceiptSms,
+// which is shaped around one booking ("<service> with <stylist>"): an autopay
+// charge can cover a whole balance, so there is no single service or stylist to
+// name and forcing one through that template read as nonsense ("Salon services
+// with VISA ••4242").
+export function buildAutoChargeReceiptSms(data: {
+  facilityName: string
+  residentName: string
+  amountCents: number
+  cardLabel: string | null
+  dateLabel: string
+}): string {
+  const card = data.cardLabel ? ` to ${data.cardLabel}` : ''
+  return (
+    `${data.facilityName}: ${formatMoney(data.amountCents)} was charged${card} for ${data.residentName}'s ` +
+    `salon services on ${data.dateLabel}. Questions? Call the salon. -Senior Stylist`
+  )
+}
+
+// P57 — acknowledgement for a visit request submitted from the family portal.
+// The request page previously only emailed, so a phone-only family (P55 made
+// phone a first-class portal identity) got silence after tapping Request.
+export function buildRequestReceivedSms(data: {
+  facilityName: string
+  residentName: string
+  serviceName: string
+  whenLabel: string
+}): string {
+  return (
+    `${data.facilityName}: we got your request for ${data.serviceName} for ${data.residentName} (${data.whenLabel}). ` +
+    `The stylist will confirm the time. -Senior Stylist`
+  )
+}
+
 // Phase 16 G13 — day-before appointment reminder to the resident's POA.
 // Dormant until TWILIO_ENABLED + a from-number exist (sendSms no-ops).
 export function buildAppointmentReminderSms(data: {

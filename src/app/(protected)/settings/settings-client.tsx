@@ -51,6 +51,8 @@ interface ClaimRequest {
 
 interface SettingsClientProps {
   facility: PublicFacility
+  /** P57 — residents with autopay on; drives the "manual mode is idle" notice. */
+  autopayResidentCount: number
   connectedUsers: ConnectedUser[]
   facilityStylists: { id: string; name: string }[]
   currentUserId: string
@@ -122,6 +124,7 @@ const TAB_TO_SECTION: Record<string, CategoryId> = {
 
 export function SettingsClient({
   facility,
+  autopayResidentCount,
   connectedUsers,
   facilityStylists,
   currentUserId,
@@ -361,7 +364,11 @@ export function SettingsClient({
             />
           )}
           {activeSection === 'billing' && isAdmin && (
-            <BillingSection facility={facility} qbInvoiceSyncEnabled={qbInvoiceSyncEnabled} />
+            <BillingSection
+              facility={facility}
+              qbInvoiceSyncEnabled={qbInvoiceSyncEnabled}
+              autopayResidentCount={autopayResidentCount}
+            />
           )}
           {activeSection === 'integrations' && isAdmin && (
             <IntegrationsSection facility={facility} />

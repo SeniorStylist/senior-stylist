@@ -436,6 +436,17 @@ export const invites = pgTable('invites', {
   emailFailed: boolean('email_failed').default(false).notNull(),
   viewedAt: timestamp('viewed_at'),
   acceptedAt: timestamp('accepted_at'),
+  // P57 — which stylist directory record this invite was sent for. Redemption
+  // links this row deterministically; without it redeem re-derived the stylist
+  // by email then FUZZY NAME, which mislinked look-alike names and missed
+  // stylists who accepted at a different address than the one on file.
+  // Nullable: only the stylist-invite route sets it. Self-bootstrapped by
+  // src/lib/invite-ddl.ts — keep in sync with drizzle/0044_p57_invite_stylist.sql.
+  // onDelete matches the migration + the ddl bootstrap: a hard-deleted stylist
+  // (the weekly demo-cleanup cron does exactly that) must null the invite's
+  // pointer, not orphan it or block the delete. Without it here, drizzle-kit
+  // push would silently recreate the constraint as NO ACTION.
+  stylistId: uuid('stylist_id').references(() => stylists.id, { onDelete: 'set null' }),
 })
 
 export const accessRequests = pgTable('access_requests', {

@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server'
 import { sendEmail } from '@/lib/email'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { buildInviteEmailHtml } from '@/app/api/invites/route'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 export async function POST(
   _request: NextRequest,
@@ -61,7 +62,8 @@ export async function POST(
       where: eq(facilities.id, facilityId),
     })
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    const appUrl = sharedAppUrl()
     const facilityName = facility?.name ?? 'Senior Stylist'
     const acceptUrl = `${appUrl}/invite/accept?token=${invite.token}`
 

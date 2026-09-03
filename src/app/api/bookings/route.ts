@@ -26,6 +26,7 @@ import { resolveAvailableStylists, pickStylistWithLeastLoad } from '@/lib/portal
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { bookingCreateSchema } from '@/lib/validation/booking-create'
+import { appUrl } from '@/lib/app-url'
 
 // Phase 25 — schema lives in src/lib/validation/booking-create.ts so client
 // payload builders can type against BookingCreateInput (drift = tsc error).
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
     let resident
     // P54 — set ONLY on the freshly-created branch: the dedup branch never
     // re-sends, so a queued offline replay can't double-invite.
-    let inviteNewResidentEmail: string | null = null
+    let inviteFreshFamily = false
     if (parsed.data.newResident) {
       const newName = parsed.data.newResident.name.trim()
       const newRoom = parsed.data.newResident.roomNumber?.trim() || null
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest) {
           })
           .returning()
         residentId = created.id
-        if (newEmail && !isDemo) inviteNewResidentEmail = newEmail
+        if (newEmail && !isDemo) inviteFreshFamily = true
       }
       resident = await db.query.residents.findFirst({
         where: and(eq(residents.id, residentId!), eq(residents.facilityId, facilityId)),
@@ -555,7 +556,7 @@ export async function POST(request: NextRequest) {
         <tr><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Stylist</td><td style="padding:10px 0;border-bottom:1px solid #F5F5F4;color:#1C1917;font-size:14px;">${stylist.name}</td></tr>
         <tr><td style="padding:10px 0;color:#78716C;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Price</td><td style="padding:10px 0;color:#8B2E4A;font-size:14px;font-weight:700;">${priceStr}</td></tr>
       </table>
-      <p style="margin:24px 0 0;font-size:12px;color:#A8A29E;">Manage appointments at <a href="https://senior-stylist.vercel.app" style="color:#8B2E4A;text-decoration:none;">senior-stylist.vercel.app</a></p>
+      <p style="margin:24px 0 0;font-size:12px;color:#A8A29E;">Manage appointments at <a href="${appUrl()}" style="color:#8B2E4A;text-decoration:none;">${appUrl().replace(/^https?:\/\//, '')}</a></p>
     </div>
   </div>
 </body>
@@ -608,24 +609,13 @@ export async function POST(request: NextRequest) {
     // "finish your account" invite (portal magic link). AWAITED but non-fatal —
     // the booking is already saved; a mail failure must not fail the create.
     // Only fires on the freshly-created branch (dedup/replay never re-sends).
-    if (inviteNewResidentEmail && facilityRow?.facilityCode) {
-      try {
-        const { createMagicLink } = await import('@/lib/portal-auth')
-        const { buildPortalMagicLinkEmailHtml } = await import('@/lib/email')
-        const link = await createMagicLink(inviteNewResidentEmail, residentId, facilityRow.facilityCode)
-        await sendEmail({
-          to: inviteNewResidentEmail,
-          subject: `Finish setting up your ${facilityRow.name} salon account`,
-          html: buildPortalMagicLinkEmailHtml({
-            residentNames: [data?.resident?.name ?? parsed.data.newResident?.name ?? 'your resident'],
-            facilityName: facilityRow.name,
-            link,
-            expiresInHours: 72,
-          }),
-        })
-      } catch (err) {
-        console.error('[bookings POST] walk-in finish-account invite failed:', err)
-      }
+    // P57 — shared with the admin /api/residents path via sendFinishAccountInvite.
+    // Dynamic import keeps portal-auth off the hot booking path (this branch is rare).
+    if (inviteFreshFamily) {
+      const { sendFinishAccountInvite } = await import('@/lib/resident-invite')
+      // Belt-and-braces: the helper never throws, but a 201 must never become
+      // a 500 after the booking row is written (the client would retry).
+      await sendFinishAccountInvite(residentId).catch(() => false)
     }
 
     revalidateTag('bookings', {})

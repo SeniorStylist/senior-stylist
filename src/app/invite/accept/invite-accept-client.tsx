@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 interface Props {
   token: string
@@ -19,7 +20,8 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+  // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+  const appUrl = sharedAppUrl()
   const callbackNext = encodeURIComponent(`/invite/accept?token=${token}`)
 
   const handleMagicLink = async () => {

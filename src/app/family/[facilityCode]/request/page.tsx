@@ -33,6 +33,10 @@ export default async function RequestServicePage({
       where: eq(facilities.id, selected.facilityId),
       columns: { id: true, serviceCategoryOrder: true },
     }),
+    // P57 — source is selected, NOT filtered in SQL, so the fallback below can
+    // be decided in one query (max:1 pool: never pay for a second round-trip
+    // just to count rows). `source` stays server-side — the client payload at
+    // the bottom of this file is still {id, name} only.
     db
       .select({
         id: services.id,
@@ -45,17 +49,33 @@ export default async function RequestServicePage({
         addonAmountCents: services.addonAmountCents,
         pricingTiers: services.pricingTiers,
         pricingOptions: services.pricingOptions,
+        source: services.source,
       })
       .from(services)
-      .where(and(eq(services.facilityId, selected.facilityId), eq(services.active, true), eq(services.source, 'price_list')))
+      .where(
+        and(
+          eq(services.facilityId, selected.facilityId),
+          eq(services.active, true),
+          eq(services.isDemo, false), // is_demo filter — Phase 13
+        ),
+      )
       .orderBy(asc(services.name)),
     // P55 — days a real stylist works here (empty = no restriction)
     getFacilityWorkingDows(selected.facilityId),
   ])
 
+  // Add-ons are never requestable on their own — they ride a real service.
+  const bookable = allServices.filter((s) => s.pricingType !== 'addon')
+  const priceList = bookable.filter((s) => s.source === 'price_list')
+  // P57 — price_list is the preferred catalog, but since P51 a facility
+  // admin's own service creations land as 'ocr_import'. A facility whose whole
+  // catalog was built that way showed families an EMPTY picker with no way to
+  // request anything, so fall back to every active service rather than
+  // dead-end them. Preferred set wins whenever it has anything in it.
+  const requestable = priceList.length > 0 ? priceList : bookable
+
   const grouped = new Map<string, typeof allServices>()
-  for (const s of allServices) {
-    if (s.pricingType === 'addon') continue
+  for (const s of requestable) {
     const cat = s.category ?? 'Other'
     const arr = grouped.get(cat) ?? []
     arr.push(s)

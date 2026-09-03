@@ -104,7 +104,7 @@ function IOS26AddConfirmMockup() {
             </div>
           </div>
           <p className="text-sm font-semibold text-stone-900">Senior Stylist</p>
-          <p className="text-xs text-stone-400 mb-3">senior-stylist.vercel.app</p>
+          <p className="text-xs text-stone-400 mb-3">portal.seniorstylist.com</p>
           {/* Open as Web App toggle — highlighted */}
           <div className="flex items-center justify-between px-1 py-2 rounded-xl border-2" style={{ borderColor: '#8B2E4A', backgroundColor: 'rgba(139,46,74,0.06)' }}>
             <span className="text-xs font-semibold text-stone-700">Open as Web App</span>
@@ -198,7 +198,7 @@ function AddConfirmMockup() {
             </div>
           </div>
           <p className="text-sm font-semibold text-stone-900">Senior Stylist</p>
-          <p className="text-xs text-stone-400">senior-stylist.vercel.app</p>
+          <p className="text-xs text-stone-400">portal.seniorstylist.com</p>
         </div>
         <div className="flex">
           <button className="flex-1 py-3 text-sm text-stone-400 text-center border-r border-stone-100">Cancel</button>

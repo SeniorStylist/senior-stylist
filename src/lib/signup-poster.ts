@@ -5,13 +5,15 @@
 // Signage print pattern: a self-contained HTML doc, window.open + print; the
 // QR is a data-URL so the page works offline.
 //
-// The encoded URL comes from NEXT_PUBLIC_APP_URL (inlined at build), NOT
-// window.location.origin — a poster printed from a preview deploy used to
-// encode a domain families can't reach (the P52 failure mode, one layer up).
+// The encoded URL comes from appUrl() — NEXT_PUBLIC_APP_URL, then the browser
+// origin, then the production host. A poster printed from a preview deploy used
+// to encode a domain families can't reach (the P52 failure mode, one layer up),
+// and the raw-origin fallback here left no production backstop at all.
+
+import { appUrl } from '@/lib/app-url'
 
 export function signupPosterUrl(facilityCode: string): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '')
-  return `${base}/family/${encodeURIComponent(facilityCode)}/signup`
+  return `${appUrl()}/family/${encodeURIComponent(facilityCode)}/signup`
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

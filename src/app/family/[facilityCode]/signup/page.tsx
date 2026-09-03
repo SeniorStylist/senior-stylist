@@ -3,7 +3,7 @@ import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { notFound } from 'next/navigation'
 import { SignupClient } from './signup-client'
 import { getPortalT } from '@/lib/portal-i18n-server'
-import { platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
+import { platformPublishableKey, platformStripeKey, paymentsBlocked } from '@/lib/payments/stripe-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +89,13 @@ export default async function SignupPage({
         facilityName={facility.name}
         lang={lang}
         previewMode={previewMode}
-        paymentsEnabled={!!platformPublishableKey() && !paymentsBlocked()}
+        // P57 — BOTH platform keys. Gating on the publishable key alone showed
+        // families a card step that could never mint a setup intent (no secret
+        // key server-side). Keep identical to the paymentsEnabled expression in
+        // /api/portal/signup — that route re-derives the same decision.
+        paymentsEnabled={
+          !!platformPublishableKey() && !!platformStripeKey() && !paymentsBlocked()
+        }
       />
     </div>
   )

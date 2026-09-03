@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 const schema = z.object({
   residentId: z.string().uuid(),
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
     if (paymentsBlocked()) {
       return Response.json({ error: 'Online payment is not turned on yet — please call the salon.' }, { status: 503 })
     }
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
+    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    const appUrl = sharedAppUrl()
 
     const isPrepay = purpose === 'prepay'
     const checkoutSession = await stripe.checkout.sessions.create({

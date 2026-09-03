@@ -15,10 +15,20 @@ interface StylistPendingEntriesProps {
   viewAsAdmin?: boolean
   /** P55 — P51 coverage map so the stylist sees payment-is-handled at a glance. */
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  /**
+   * P57 — the signed-in stylist's login has no stylist record, so the server
+   * can only return unassigned entries and the count reads 0. Without this the
+   * empty queue is indistinguishable from "no requests" (the P48 rule: when a
+   * gate removes an ability, disable and EXPLAIN — never render nothing).
+   */
+  unlinkedStylist?: boolean
 }
 
 export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEntriesProps>(
-  function StylistPendingEntries({ entries, onSchedule, facilityTimezone, viewAsAdmin = false, paymentFlags = {} }, ref) {
+  function StylistPendingEntries(
+    { entries, onSchedule, facilityTimezone, viewAsAdmin = false, paymentFlags = {}, unlinkedStylist = false },
+    ref,
+  ) {
     const [expanded, setExpanded] = useState(true)
 
     return (
@@ -51,9 +61,21 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
 
         {expanded && (
           <div className="mt-3">
+            {/* P57 — an unlinked login only ever sees unassigned entries, so a
+                0 here means "we can't tell which are yours", not "all caught
+                up". Same copy the day log uses — one wording, one fix. */}
+            {unlinkedStylist && (
+              <p className="text-xs text-amber-800 leading-snug rounded-xl border border-amber-200 bg-amber-100/60 px-3 py-2 mb-2">
+                <span className="font-semibold">Your account isn&apos;t linked to a stylist profile yet.</span>{' '}
+                Ask your admin to link you in Settings → Team — until then this queue can&apos;t show the requests
+                assigned to you.
+              </p>
+            )}
             {entries.length === 0 ? (
               <p className="text-xs text-amber-700/70 text-center py-2">
-                No pending requests — you&apos;re all caught up.
+                {unlinkedStylist
+                  ? 'No unassigned requests right now.'
+                  : 'No pending requests — you’re all caught up.'}
               </p>
             ) : (
               <div className="space-y-2">
@@ -76,7 +98,11 @@ export const StylistPendingEntries = forwardRef<HTMLDivElement, StylistPendingEn
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-stone-900 leading-snug">
                         {entry.residentName}
-                        {entry.residentId && <PaymentCoveredChip flags={paymentFlags[entry.residentId]} className="ml-2" />}
+                        {/* P57 — pill, not the 12px glyph: this queue is read
+                            on a phone where a hover title is unreachable. */}
+                        {entry.residentId && (
+                          <PaymentCoveredChip flags={paymentFlags[entry.residentId]} variant="pill" className="ml-2" />
+                        )}
                         {entry.roomNumber && (
                           <span className="text-stone-400 ml-2 text-xs font-normal">Rm {entry.roomNumber}</span>
                         )}

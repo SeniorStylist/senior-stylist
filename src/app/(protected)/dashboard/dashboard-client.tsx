@@ -129,6 +129,9 @@ interface DashboardClientProps {
   checkinTodayBookings?: TodayBooking[]
   // P51 — card-on-file / salon-credit booleans per resident
   paymentFlags?: Record<string, { card: boolean; credit: boolean }>
+  // P57 — stylist login with no linked stylist record; the sign-up queue says
+  // so instead of silently rendering an empty list (P48 disable-and-explain).
+  unlinkedStylist?: boolean
   // P55 — days of week a real stylist works here (empty = no data, no restriction)
   workingDows?: number[]
   // P51 lockdown — manage tier (master/franchise/bookkeeper): stylist panel
@@ -173,6 +176,7 @@ export function DashboardClient({
   alreadyCheckedIn = false,
   checkinTodayBookings = [],
   paymentFlags = {},
+  unlinkedStylist = false,
   workingDows = [],
   canManageStylists = false,
   scheduleLocked = false,
@@ -783,6 +787,7 @@ export function DashboardClient({
                 facilityTimezone={facility.timezone}
                 viewAsAdmin={false}
                 paymentFlags={paymentFlags}
+                unlinkedStylist={unlinkedStylist}
               />
             </div>
           )}
@@ -1235,6 +1240,7 @@ export function DashboardClient({
             facilityTimezone={facility.timezone}
             viewAsAdmin={false}
             paymentFlags={paymentFlags}
+            unlinkedStylist={unlinkedStylist}
           />
         )}
 

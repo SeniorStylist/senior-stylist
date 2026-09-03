@@ -3,7 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents, stylistFacilityAssignments } from '@/db/schema'
-import { eq, and, inArray, or } from 'drizzle-orm'
+import { eq, and, count, inArray, or } from 'drizzle-orm'
 import { getUserFacility } from '@/lib/get-facility-id'
 import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   if (facilityUser.role === 'stylist' || facilityUser.role === 'viewer') redirect('/dashboard')
 
   try {
-  const [facility, connectedUsers, pendingRequests, rawClaims] = await Promise.all([
+  const [facility, connectedUsers, pendingRequests, rawClaims, autopayRows] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
     }),
@@ -53,9 +53,32 @@ export default async function SettingsPage() {
           }),
         )
       : Promise.resolve([]),
+    // P57 — how many residents here have autopay switched on. Drives the Billing
+    // warning that 'manual' mode means those saved cards never actually charge.
+    // ONE aggregate, never a per-resident loop (max:1 pool). Best-effort: a
+    // failed count must not take the whole settings page down.
+    facilityUser.role === 'admin'
+      ? db
+          .select({ n: count() })
+          .from(residents)
+          .where(
+            and(
+              eq(residents.facilityId, facilityUser.facilityId),
+              eq(residents.autopayEnabled, true),
+              eq(residents.active, true),
+              eq(residents.isDemo, false), // is_demo filter — Phase 13
+            ),
+          )
+          .catch((err) => {
+            console.error('[SettingsPage] autopay resident count failed:', err)
+            return [{ n: 0 }]
+          })
+      : Promise.resolve([{ n: 0 }]),
   ])
 
   if (!facility) redirect('/dashboard')
+
+  const autopayResidentCount = autopayRows[0]?.n ?? 0
 
   // Enrich claim requests with resident names (linked + P54 merge suggestion)
   const claimResidentIds = [
@@ -161,6 +184,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       facility={toClientJson(sanitizeFacility(facility))}
+      autopayResidentCount={autopayResidentCount}
       connectedUsers={toClientJson(usersWithStatus)}
       facilityStylists={toClientJson(facilityStylists)}
       currentUserId={user.id}

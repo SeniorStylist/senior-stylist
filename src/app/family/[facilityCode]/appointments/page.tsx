@@ -1,12 +1,13 @@
 import { db } from '@/db'
-import { bookings, facilities, residentPhotos, signupSheetEntries, stylists } from '@/db/schema'
-import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm'
+import { bookings, facilities, residentPhotos, residents, signupSheetEntries, stylists } from '@/db/schema'
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { createStorageClient, RESIDENT_PHOTOS_BUCKET } from '@/lib/supabase/storage'
 import { ensureResidentPhotosSchema } from '@/lib/resident-photos-ddl'
 import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { getPortalT } from '@/lib/portal-i18n-server'
 import { portalLocale } from '@/lib/portal-i18n'
+import { formatMoney } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,16 @@ export default async function AppointmentsPage({
   const selected =
     residentsAtFacility.find((r) => r.residentId === searchResidentId) ?? residentsAtFacility[0]
 
+  // P57 — demo rows are matched to the RESIDENT, not filtered outright. A bare
+  // is_demo=false would blank the Debug tab's demo family session (its resident
+  // IS a demo record); leaving it off entirely let a real family's list show
+  // tutorial visits — and since this list now carries money, priced ones.
+  // A correlated subquery keeps it to zero extra round-trips.
+  const matchesResidentDemoFlag = eq(
+    bookings.isDemo,
+    sql<boolean>`(select ${residents.isDemo} from ${residents} where ${residents.id} = ${selected.residentId})`,
+  )
+
   const now = new Date()
   const sixMonthsAgo = new Date(now)
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
@@ -63,6 +74,10 @@ export default async function AppointmentsPage({
           eq(bookings.residentId, selected.residentId),
           gte(bookings.startTime, now),
           inArray(bookings.status, ['scheduled', 'requested']),
+          // Same rule as the past list — a rolled-back import must not show up
+          // as a real upcoming visit.
+          eq(bookings.active, true),
+          matchesResidentDemoFlag,
         ),
       )
       .orderBy(asc(bookings.startTime)),
@@ -73,6 +88,12 @@ export default async function AppointmentsPage({
         serviceNames: bookings.serviceNames,
         status: bookings.status,
         stylistId: bookings.stylistId,
+        // P57 — what the visit cost. The family could see the service name and
+        // the date but never the amount, so every "what was I charged for?"
+        // question went to the facility instead of being answered here.
+        priceCents: bookings.priceCents,
+        addonTotalCents: bookings.addonTotalCents,
+        tipCents: bookings.tipCents,
       })
       .from(bookings)
       .where(
@@ -81,6 +102,10 @@ export default async function AppointmentsPage({
           gte(bookings.startTime, sixMonthsAgo),
           lte(bookings.startTime, now),
           eq(bookings.status, 'completed'),
+          // Rolled-back imports (active=false) are not visits the family owes
+          // for — showing them here contradicts the billing page.
+          eq(bookings.active, true),
+          matchesResidentDemoFlag,
         ),
       )
       .orderBy(desc(bookings.startTime)),
@@ -241,12 +266,26 @@ export default async function AppointmentsPage({
               const services = b.serviceNames?.join(', ') ?? t('common.service')
               const stylistName = stylistMap.get(b.stylistId) ?? '—'
               const photos = photosByBooking.get(b.id) ?? []
+              // P54 money style (no "$", 0-or-2 decimals). Tip stays a SEPARATE
+              // figure — it is stylist comp, never part of the service amount.
+              const amountCents = (b.priceCents ?? 0) + (b.addonTotalCents ?? 0)
+              const tip = b.tipCents ?? 0
               return (
                 <li key={b.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale, facilityTz)}</p>
-                      <p className="text-[12px] text-stone-500 mt-0.5">{services} · {stylistName}</p>
+                      <p className="text-[12px] text-stone-500 mt-0.5">
+                        {services} · {stylistName}
+                        {amountCents > 0 && (
+                          <span className="text-stone-700 font-semibold"> · {formatMoney(amountCents)}</span>
+                        )}
+                        {tip > 0 && (
+                          <span className="text-stone-500">
+                            {' '}· {t('appts.tip')} {formatMoney(tip)}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <span className="text-[10.5px] font-semibold rounded-full px-2.5 py-1 bg-emerald-50 text-emerald-700 shrink-0">
                       {t('common.completed')}

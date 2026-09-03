@@ -3,7 +3,7 @@
 // the invites table applies idempotent DDL once per lambda instance. Without
 // this, adding the columns to schema.ts would break every invites query until
 // the migration ran (Drizzle SELECTs all declared columns). Keep in sync with
-// drizzle/0011_invite_tracking.sql.
+// drizzle/0011_invite_tracking.sql + drizzle/0044_p57_invite_stylist.sql.
 
 import { db } from '@/db'
 import { sql } from 'drizzle-orm'
@@ -18,7 +18,8 @@ export async function ensureInviteTrackingSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS last_sent_at timestamp,
         ADD COLUMN IF NOT EXISTS email_failed boolean NOT NULL DEFAULT false,
         ADD COLUMN IF NOT EXISTS viewed_at timestamp,
-        ADD COLUMN IF NOT EXISTS accepted_at timestamp
+        ADD COLUMN IF NOT EXISTS accepted_at timestamp,
+        ADD COLUMN IF NOT EXISTS stylist_id uuid REFERENCES stylists(id) ON DELETE SET NULL
     `)
     ddlEnsured = true
   } catch (err) {

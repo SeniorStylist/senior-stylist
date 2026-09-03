@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { isNativeApp } from '@/lib/detect-device'
 import { haptics } from '@/lib/haptics'
 import { getFamilyMode } from '@/lib/family-mode'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
@@ -40,7 +41,8 @@ function LoginForm() {
     }
   }, [router])
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+  // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+  const appUrl = sharedAppUrl()
   const callbackUrl = redirect
     ? `${appUrl}/auth/callback?next=${encodeURIComponent(redirect)}`
     : `${appUrl}/auth/callback`

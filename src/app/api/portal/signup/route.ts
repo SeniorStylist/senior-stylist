@@ -17,7 +17,8 @@ import { ensurePortalIdentitySchema } from '@/lib/portal-identity-ddl'
 import { sendSms, buildSignupWelcomeSms } from '@/lib/sms'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { mintSignupCardToken } from '@/lib/signup-card-token'
-import { platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
+import { platformPublishableKey, platformStripeKey, paymentsBlocked } from '@/lib/payments/stripe-client'
+import { appUrl } from '@/lib/app-url'
 import { randomBytes } from 'node:crypto'
 import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
 import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
@@ -103,7 +104,13 @@ export async function POST(request: NextRequest) {
 
   // P54 — the wizard shows a card page after the review step whenever the
   // platform Stripe keys are configured AND live charging isn't blocked.
-  const paymentsEnabled = !!platformPublishableKey() && !paymentsBlocked()
+  // P57 — BOTH keys: with only the publishable key set, the wizard offered a
+  // payment step whose setup-intent mint had no secret key to call, so the
+  // family hit a dead card form. Must stay identical to the same expression in
+  // family/[facilityCode]/signup/page.tsx — the page decides whether to show
+  // the step, this route re-derives it.
+  const paymentsEnabled =
+    !!platformPublishableKey() && !!platformStripeKey() && !paymentsBlocked()
 
   // P53 — case-insensitive + demo-facility-excluded lookup (shared helper).
   const facility = await db.query.facilities.findFirst({
@@ -397,7 +404,10 @@ export async function POST(request: NextRequest) {
   // Notify facility admin (fire-and-forget) — reworded for the new model.
   const adminEmail = facility.contactEmail ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL
   if (adminEmail) {
-    const settingsUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/settings?section=portal`
+    // P57 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
+    // built "/settings?section=portal", an unclickable relative href in the
+    // admin's "new family account" email.
+    const settingsUrl = `${appUrl()}/settings?section=portal`
     sendEmail({
       to: adminEmail,
       subject: `New family account — ${facility.name}`,

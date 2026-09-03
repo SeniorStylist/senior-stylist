@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
 import { generateStylistCode } from '@/lib/stylist-code'
 import { revalidateTag } from 'next/cache'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -142,7 +143,8 @@ export async function PUT(
     }
 
     // Notify user of approval (fire-and-forget)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P57 — shared appUrl(); the old inline fallback was a dead host.
+    const appUrl = sharedAppUrl()
     sendEmail({
       to: accessRequest.email,
       subject: "You've been approved — Senior Stylist",

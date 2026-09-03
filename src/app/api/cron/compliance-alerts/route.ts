@@ -10,6 +10,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildComplianceAlertEmailHtml } from '@/lib/email'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const today = todayUTC()
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P57 — shared appUrl(); the old inline fallback was a dead host.
+    const appUrl = sharedAppUrl()
 
     const activeStylists = await db.query.stylists.findMany({
       where: eq(stylists.active, true),

@@ -10,9 +10,16 @@ import { HelpTip } from '@/components/ui/help-tip'
 interface Props {
   facility: PublicFacility
   qbInvoiceSyncEnabled: boolean
+  /**
+   * P57 — how many residents at this facility have automatic payment on.
+   * A real prop rather than a cast off the `any`-typed facility payload: the
+   * notice below is the only thing that tells a facility its saved cards are
+   * never charged, and a silently renamed key would make it vanish.
+   */
+  autopayResidentCount: number
 }
 
-export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
+export function BillingSection({ facility, qbInvoiceSyncEnabled, autopayResidentCount }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -195,6 +202,18 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
   }
 
   // ─── Automatic payment (COF) ──────────────────────────────────────────
+  // P57 — a facility left on 'manual' with autopay residents is the silent
+  // failure: staff keep saving cards "for automatic payment" and nothing ever
+  // charges. Read from the SAVED mode (not the select's local state) so the
+  // warning only clears once the fix is actually saved.
+  const savedAutopayMode = (facility.autopayMode as string | null) ?? 'manual'
+  // The catch-up sweep charges off its own cadence and never reads the mode, so
+  // "manual" alone does NOT mean nothing is charged — claiming it would while a
+  // nightly sweep bills those same cards is worse than saying nothing.
+  const savedAutopayCadence = (facility.autopaySweepCadence as string | null) ?? 'off'
+  const showAutopayIdleWarning =
+    savedAutopayMode === 'manual' && savedAutopayCadence === 'off' && autopayResidentCount > 0
+
   const [autopayMode, setAutopayMode] = useState((facility.autopayMode as string | null) ?? 'manual')
   const [autopayCadence, setAutopayCadence] = useState((facility.autopaySweepCadence as string | null) ?? 'off')
   const [savingAutopay, setSavingAutopay] = useState(false)
@@ -518,6 +537,20 @@ export function BillingSection({ facility, qbInvoiceSyncEnabled }: Props) {
           Controls how Card-On-File residents are charged for services. Per-resident card &amp;
           auto-pay setup lives on each resident&apos;s page.
         </p>
+        {showAutopayIdleWarning && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <p className="font-semibold">
+              {autopayResidentCount} resident{autopayResidentCount === 1 ? ' has' : 's have'} automatic
+              payment turned on, but nothing is being charged.
+            </p>
+            <p className="mt-1 text-xs leading-relaxed">
+              Cards are being saved for {autopayResidentCount === 1 ? 'them' : 'those families'} and left
+              sitting there. In <span className="font-semibold">When to collect</span> below, choose{' '}
+              <span className="font-semibold">Automatically when a service is completed</span> and press
+              Save — otherwise someone has to collect every visit by hand.
+            </p>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">When to collect</span>

@@ -13,6 +13,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { and, asc, eq, lte, gte, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 // 13F: 'pending' awaits admin approval; 'open' = approved, needs a substitute
 const STATUS_VALUES = ['pending', 'open', 'filled', 'cancelled', 'denied'] as const
@@ -242,7 +243,8 @@ export async function POST(request: NextRequest) {
     const recipients = admins.map((a) => a.email).filter((e): e is string => !!e)
     const targets = recipients.length > 0 ? recipients : fallback ? [fallback] : []
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P57 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    const appUrl = sharedAppUrl()
     const html = buildCoverageRequestEmailHtml({
       stylistName: stylist.name,
       startDate: parsed.data.startDate,

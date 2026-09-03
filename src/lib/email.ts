@@ -432,7 +432,11 @@ export function buildPortalMagicLinkEmailHtml(params: {
   expiresInHours: number
 }): string {
   const { residentNames, facilityName, link, expiresInHours } = params
-  const namesLine = residentNames.length > 0 ? residentNames.join(' & ') : 'your loved one'
+  // P57 — escaped: the walk-in create path now mails this with a caller-typed
+  // resident name, so raw interpolation would put arbitrary markup in a branded
+  // email from our verified sending domain.
+  const namesLine =
+    residentNames.length > 0 ? residentNames.map((n) => escHtml(n)).join(' &amp; ') : 'your loved one'
   const multiple = residentNames.length > 1
   return `<!DOCTYPE html>
 <html>

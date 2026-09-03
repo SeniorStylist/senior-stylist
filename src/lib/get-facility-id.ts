@@ -233,7 +233,14 @@ export async function isFranchiseAdmin(userId: string): Promise<boolean> {
     }
 
     const selected = cookieStore.get('selected_facility_id')?.value
-    const rows = await db.query.facilityUsers.findMany({ where: eq(facilityUsers.userId, userId) })
+    // P57 — same ordering as getUserFacility above: without it `rows[0]` is
+    // whatever Postgres returns first, so a multi-facility user with no valid
+    // cookie could be a franchise admin to this helper and a plain admin to
+    // getUserFacility (or the reverse) on different requests.
+    const rows = await db.query.facilityUsers.findMany({
+      where: eq(facilityUsers.userId, userId),
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
+    })
     if (rows.length === 0) return false
     const row = (selected && rows.find((r) => r.facilityId === selected)) || rows[0]
     return row.role === 'super_admin'

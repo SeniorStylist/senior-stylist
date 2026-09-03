@@ -11,6 +11,7 @@ import { sendSms, buildBookingConfirmationSms } from '@/lib/sms'
 import { getFamilyRecipients } from '@/lib/portal-recipients'
 import { formatDateInTz, formatTimeInTz } from '@/lib/time'
 import { formatMoney } from '@/lib/format'
+import { appUrl, familyPortalUrl } from '@/lib/app-url'
 
 export async function sendFamilyBookingConfirmation(bookingId: string): Promise<void> {
   try {
@@ -39,9 +40,9 @@ export async function sendFamilyBookingConfirmation(bookingId: string): Promise<
       columns: { name: true, timezone: true, facilityCode: true },
     })
     const tz = facility?.timezone ?? 'America/New_York'
-    const portalUrl = facility?.facilityCode
-      ? `https://portal.seniorstylist.com/family/${encodeURIComponent(facility.facilityCode)}`
-      : 'https://portal.seniorstylist.com'
+    // P57 — shared appUrl(): the production host used to be hardcoded here, so
+    // a self-hosted or preview deploy still pointed families at prod.
+    const portalUrl = facility?.facilityCode ? familyPortalUrl(facility.facilityCode) : appUrl()
 
     const priceCents = booking.priceCents ?? booking.service?.priceCents ?? 0
     const residentName = booking.resident?.name ?? recipients.residentName
