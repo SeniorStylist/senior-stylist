@@ -6,6 +6,7 @@ import { Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { switchFacility } from '@/lib/facility-switch'
+import { TIMEZONES } from '@/lib/facility-options'
 import dynamic from 'next/dynamic'
 
 // Phase 25 — reports-tab statically imported recharts (~400KB) into the
@@ -66,16 +67,6 @@ interface SuperAdminClientProps {
   /** P27 — true when the ss_tutorial_mode cookie is set (practice data mixed in) */
   tutorialMode?: boolean
 }
-
-const TIMEZONES = [
-  { value: 'America/New_York', label: 'Eastern' },
-  { value: 'America/Chicago', label: 'Central' },
-  { value: 'America/Denver', label: 'Mountain' },
-  { value: 'America/Phoenix', label: 'Arizona' },
-  { value: 'America/Los_Angeles', label: 'Pacific' },
-  { value: 'America/Anchorage', label: 'Alaska' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii' },
-]
 
 const PAYMENT_TYPES = [
   { value: 'facility', label: 'Facility' },
@@ -155,18 +146,6 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
       .then((j) => { if (typeof j.data?.count === 'number') setNewFeedbackCount(j.data.count) })
       .catch(() => {})
   }, [])
-
-  // Create form
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    facilityCode: '',
-    address: '',
-    phone: '',
-    timezone: 'America/New_York',
-  })
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -342,52 +321,6 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
     await switchFacility(facilityId, '/dashboard')
   }
 
-  const handleCreateFacility = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.name.trim()) return
-    const code = formData.facilityCode.trim().toUpperCase()
-    if (code && !/^F\d{2,5}$/.test(code)) {
-      setCreateError('Facility code must look like F240')
-      return
-    }
-    setCreating(true)
-    setCreateError(null)
-    try {
-      const res = await fetch('/api/facilities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Empty code omitted — the schema only accepts F### or absence
-        body: JSON.stringify({ ...formData, facilityCode: code || undefined }),
-      })
-      if (res.status === 409) {
-        const j = await res.json().catch(() => ({}))
-        setCreateError(typeof j.error === 'string' ? j.error : 'A facility with this name already exists')
-        return
-      }
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        setCreateError(typeof j.error === 'string' ? j.error : 'Failed to create facility')
-        return
-      }
-      const created = await res.json().catch(() => ({}))
-      setFormData({ name: '', facilityCode: '', address: '', phone: '', timezone: 'America/New_York' })
-      setShowCreateForm(false)
-      // P57 — enter the new facility right away (hard switch so the layout's
-      // switcher re-reads the busted 'facilities' tag). Interim behavior until
-      // the C2 wizard's Done screen owns this choice.
-      const newId = created?.data?.id as string | undefined
-      if (newId) {
-        await switchFacility(newId, '/dashboard')
-        return
-      }
-      router.refresh()
-    } catch {
-      setCreateError('Failed to create facility')
-    } finally {
-      setCreating(false)
-    }
-  }
-
   const startEdit = (f: FacilityInfo) => {
     setEditingId(f.id)
     setEditData({
@@ -546,14 +479,14 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
             />
             {activeTab === 'facilities' && (
               <button
-                onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}
+                onClick={() => router.push('/facilities/new?returnTo=/master-admin')}
                 data-tour="master-add-facility-btn"
                 className="px-4 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors"
                 style={{ backgroundColor: '#8B2E4A' }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#72253C')}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
               >
-                {showCreateForm ? 'Cancel' : '+ Create Facility'}
+                + Create Facility
               </button>
             )}
             {activeTab === 'franchises' && (
@@ -686,99 +619,6 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
             ))}
           </div>
         </div>
-
-        {/* Create Facility Form */}
-        {showCreateForm && (
-          <form
-            onSubmit={handleCreateFacility}
-            data-tour="master-facility-form"
-            className="bg-white rounded-2xl border border-stone-200 p-6 mb-8 shadow-sm"
-          >
-            <h2
-              className="text-lg font-bold text-stone-900 mb-4"
-              style={{ fontFamily: "'DM Serif Display', serif" }}
-            >
-              New Facility
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">Name *</label>
-                <input
-                  type="text"
-                  required
-                  data-tour="master-facility-form-name"
-                  value={formData.name}
-                  onChange={(e) => { setFormData((d) => ({ ...d, name: e.target.value })); setCreateError(null) }}
-                  className={cn(
-                    'w-full px-3 py-2 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]',
-                    createError ? 'border-red-400' : 'border-stone-200'
-                  )}
-                  placeholder="Sunrise Senior Living"
-                />
-                {createError && (
-                  <p className="text-xs text-red-600 mt-1">{createError}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">Facility Code</label>
-                <input
-                  type="text"
-                  value={formData.facilityCode}
-                  onChange={(e) => { setFormData((d) => ({ ...d, facilityCode: e.target.value })); setCreateError(null) }}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-                  placeholder="F240"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">Address</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData((d) => ({ ...d, address: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-                  placeholder="123 Main St, City, ST"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">Phone</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData((d) => ({ ...d, phone: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">Timezone</label>
-                <select
-                  value={formData.timezone}
-                  onChange={(e) => setFormData((d) => ({ ...d, timezone: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A] bg-white"
-                >
-                  {TIMEZONES.map((tz) => (
-                    <option key={tz.value} value={tz.value}>
-                      {tz.label} ({tz.value})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end">
-              <button
-                type="submit"
-                disabled={creating}
-                data-tour="master-facility-form-submit"
-                className="px-5 py-2.5 rounded-2xl text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: '#8B2E4A' }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0B6163')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#8B2E4A')}
-              >
-                {creating ? 'Creating...' : 'Create Facility'}
-              </button>
-            </div>
-          </form>
-        )}
 
         {/* Pending Access Requests */}
         {activeTab === 'requests' && requestsList.length > 0 && (

@@ -89,7 +89,14 @@ export const facilities = pgTable('facilities', {
   autopayLastSweptAt: timestamp('autopay_last_swept_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}, (t) => ({
+  // P57 — one active facility per code (drizzle/0043). Inactive rows keep
+  // their old code (never reused); the create route's advisory-lock generator
+  // + this index together make concurrent creates safe.
+  facilityCodeActiveUniq: uniqueIndex('facilities_code_active_uniq')
+    .on(sql`upper(${t.facilityCode})`)
+    .where(sql`active = true AND facility_code IS NOT NULL`),
+}))
 
 export const facilityUsers = pgTable(
   'facility_users',

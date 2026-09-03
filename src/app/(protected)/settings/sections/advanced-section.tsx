@@ -5,16 +5,6 @@ import { useRouter } from 'next/navigation'
 import type { PublicFacility } from '@/lib/sanitize'
 import { useToast } from '@/components/ui/toast'
 
-const TIMEZONES = [
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Phoenix',
-  'America/Los_Angeles',
-  'America/Anchorage',
-  'Pacific/Honolulu',
-]
-
 interface Props {
   facility: PublicFacility
   isMaster?: boolean
@@ -43,46 +33,6 @@ export function AdvancedSection({ facility, isMaster = false }: Props) {
       toast.error('Failed to reset tutorial data')
     } finally {
       setDemoResetting(false)
-    }
-  }
-
-  // ─── Add Facility ────────────────────────────────────────────────────
-  const [newName, setNewName] = useState('')
-  const [newAddress, setNewAddress] = useState('')
-  const [newPhone, setNewPhone] = useState('')
-  const [newTimezone, setNewTimezone] = useState('America/New_York')
-  const [creatingFacility, setCreatingFacility] = useState(false)
-  const [createError, setCreateError] = useState('')
-
-  async function handleCreateFacility() {
-    if (!newName.trim()) return
-    setCreatingFacility(true)
-    setCreateError('')
-    try {
-      const res = await fetch('/api/facilities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName.trim(),
-          address: newAddress || undefined,
-          phone: newPhone || undefined,
-          timezone: newTimezone,
-        }),
-      })
-      const j = await res.json()
-      if (!res.ok) {
-        setCreateError(j.error ?? 'Failed to create')
-        return
-      }
-      await fetch('/api/facilities/select', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ facilityId: j.data.id }),
-      })
-      router.push('/dashboard')
-      router.refresh()
-    } finally {
-      setCreatingFacility(false)
     }
   }
 
@@ -152,88 +102,37 @@ export function AdvancedSection({ facility, isMaster = false }: Props) {
         )}
       </div>
 
-      {/* Add Facility — link to Master Admin for master, form for regular admins */}
-      {isMaster ? (
-        <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Facility Management</p>
-          <p className="text-xs text-stone-500 mb-4">
-            Create, edit, and manage all facilities from the Master Admin panel.
-          </p>
+      {/* Add Facility — P57: ONE flow, the /facilities/new wizard */}
+      <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)]">
+        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
+          {isMaster ? 'Facility Management' : 'Add Facility'}
+        </p>
+        <p className="text-xs text-stone-500 mb-4">
+          {isMaster
+            ? 'Create a new community with the guided setup, or manage every facility from Master Admin.'
+            : 'Set up another community you manage — name, hours, and billing in a few guided steps. You\u2019ll be its admin and switched to it when you finish.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => router.push('/master-admin')}
+            onClick={() => router.push('/facilities/new?returnTo=/settings?section=advanced')}
+            data-tour="settings-add-facility"
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ backgroundColor: '#8B2E4A' }}
           >
-            Go to Master Admin →
+            + New facility
           </button>
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-[var(--shadow-sm)] space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-stone-800 mb-1">Add Facility</h3>
-            <p className="text-xs text-stone-500">
-              Create a new facility. You&rsquo;ll be added as admin and switched to it automatically.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Facility Name *</label>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Carriage Hill Bethesda"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Address</label>
-            <input
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              placeholder="123 Main St, City, State"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Phone</label>
-            <input
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-              placeholder="(555) 000-0000"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1.5">Timezone</label>
-            <select
-              value={newTimezone}
-              onChange={(e) => setNewTimezone(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>{tz}</option>
-              ))}
-            </select>
-          </div>
-
-          {createError && <p className="text-red-600 text-xs">{createError}</p>}
-
-          <div>
+          {isMaster && (
             <button
-              onClick={handleCreateFacility}
-              disabled={!newName.trim() || creatingFacility}
-              className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-              style={{ backgroundColor: '#8B2E4A' }}
+              type="button"
+              onClick={() => router.push('/master-admin')}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-stone-700 border border-stone-200 hover:bg-stone-50 transition-colors"
             >
-              {creatingFacility ? 'Creating…' : 'Create Facility'}
+              Go to Master Admin →
             </button>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Danger Zone */}
       <div className="rounded-2xl border border-red-100 bg-red-50/40 p-5 shadow-[var(--shadow-sm)]">

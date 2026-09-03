@@ -451,7 +451,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
                 </div>
                 <div className="shrink-0 border-t border-white/10 px-3 py-2">
                   <Link
-                    href="/settings?section=advanced"
+                    href="/facilities/new?returnTo=/dashboard"
                     onClick={() => setSwitcherOpen(false)}
                     className="text-xs"
                     style={{ color: '#C4687A' }}
@@ -466,7 +466,7 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
         {role === 'admin' && !showSwitcher && allFacilities.length <= 1 && (
           <div className="mt-3">
             <Link
-              href="/settings?section=advanced"
+              href="/facilities/new?returnTo=/dashboard"
               className="text-xs"
               style={{ color: 'rgba(196,104,122,0.6)' }}
             >

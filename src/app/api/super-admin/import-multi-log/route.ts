@@ -19,7 +19,7 @@ import {
   facilityDateAt9amPlusSlot,
   type ServiceMatch,
 } from '@/lib/service-log-import'
-import { nextFacilityCode } from './resolve-facilities/route'
+import { nextFacilityCode } from '@/lib/facility-code'
 
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
