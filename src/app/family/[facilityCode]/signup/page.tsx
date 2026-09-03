@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { SignupClient } from './signup-client'
 import { getPortalT } from '@/lib/portal-i18n-server'
 import { platformPublishableKey, platformStripeKey, paymentsBlocked } from '@/lib/payments/stripe-client'
+import { isMasterSession } from '@/lib/master-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,10 +19,17 @@ export default async function SignupPage({
   const { preview } = await searchParams
   const decoded = decodeURIComponent(facilityCode)
 
-  const facility = await db.query.facilities.findFirst({
+  let facility = await db.query.facilities.findFirst({
     where: activeFacilityByCodeWhere(decoded), // P53 — case-insensitive + demo-excluded
     columns: { id: true, name: true, facilityCode: true, portalSelfSignupEnabled: true },
   })
+  // APLEY — master-only fallback so a demo facility's portal resolves (see the family layout).
+  if (!facility && (await isMasterSession())) {
+    facility = await db.query.facilities.findFirst({
+      where: activeFacilityByCodeWhere(decoded, { allowDemo: true }),
+      columns: { id: true, name: true, facilityCode: true, portalSelfSignupEnabled: true },
+    })
+  }
 
   if (!facility) notFound()
   const { lang, t } = await getPortalT()

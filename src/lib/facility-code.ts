@@ -17,12 +17,19 @@ export const FACILITY_CODE_RE = /^F\d{2,5}$/
  * canonical `facilityCode` (not the typed one) for anything persisted or
  * compared downstream (claims, magic links, requirePortalAuth).
  */
-export function activeFacilityByCodeWhere(code: string): SQL {
+export function activeFacilityByCodeWhere(code: string, opts?: { allowDemo?: boolean }): SQL {
   const normalized = code.trim().toUpperCase()
   return and(
     sql`UPPER(${facilities.facilityCode}) = ${normalized}`,
     eq(facilities.active, true),
-    eq(facilities.isDemo, false),
+    // APLEY — `allowDemo` is the ONLY way a demo facility's family portal can
+    // resolve, and it is passed exclusively for a server-verified master
+    // session (never from a query param or a client-supplied value). Without
+    // it a demo facility has no family portal AT ALL — every one of this
+    // helper's callers gates the portal — so the owner-facing end-to-end demo
+    // could not exist. The public path is unchanged: for anyone who is not the
+    // master, demo facilities stay invisible exactly as P53 intended.
+    ...(opts?.allowDemo ? [] : [eq(facilities.isDemo, false)]),
   )!
 }
 

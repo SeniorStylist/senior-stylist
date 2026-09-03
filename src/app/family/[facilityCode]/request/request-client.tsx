@@ -194,6 +194,7 @@ export function RequestClient({ facilityCode, lang, residentId, residentName, gr
                     <button
                       key={s.id}
                       type="button"
+                      data-tour="request-service-option"
                       disabled={disabled}
                       onClick={() => toggle(s.id)}
                       className={cn(
@@ -327,6 +328,7 @@ export function RequestClient({ facilityCode, lang, residentId, residentName, gr
       {/* Desktop: inline submit at the end of the form */}
       <button
         type="button"
+        data-tour="request-submit"
         onClick={onSubmit}
         disabled={submitting || selected.size === 0 || rangeOffDays}
         className="hidden md:block bg-[#8B2E4A] text-white text-sm font-semibold rounded-xl px-5 py-3 shadow-[0_2px_6px_rgba(139,46,74,0.22)] hover:bg-[#72253C] disabled:opacity-60 disabled:cursor-not-allowed"
@@ -343,6 +345,7 @@ export function RequestClient({ facilityCode, lang, residentId, residentName, gr
       >
         <button
           type="button"
+          data-tour-mobile="request-submit"
           onClick={onSubmit}
           disabled={submitting || selected.size === 0 || rangeOffDays}
           className="w-full flex items-center justify-center gap-2 bg-[#8B2E4A] text-white font-semibold rounded-2xl px-5 py-3.5 shadow-[0_4px_14px_rgba(139,46,74,0.35)] hover:bg-[#72253C] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"

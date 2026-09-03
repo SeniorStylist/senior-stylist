@@ -2339,6 +2339,7 @@ export function LogClient({
                                 <button
                                   onClick={() => updateStatus(booking.id, 'completed')}
                                   disabled={isUpdating}
+                                  data-tour="daily-log-done"
                                   className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-all duration-75 disabled:opacity-40 border border-green-200 active:scale-95 active:bg-green-200"
                                 >
                                   Done

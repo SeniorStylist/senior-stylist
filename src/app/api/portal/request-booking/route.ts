@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     const [facility, residentDetail, prefs, family] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, residentRow.facilityId),
-        columns: { id: true, name: true, contactEmail: true, timezone: true },
+        columns: { id: true, name: true, contactEmail: true, timezone: true, isDemo: true },
       }),
       db.query.residents.findFirst({
         where: eq(residents.id, residentId),
@@ -183,7 +183,12 @@ export async function POST(request: NextRequest) {
           createdByPortalAccountId: session.portalAccountId,
           assignedToStylistId,
           status: 'pending',
-          isDemo: false,
+          // APLEY — inherit the facility's flag instead of pinning `false`. A
+          // request filed at a demo facility is demo data: it must be torn down
+          // with the rest of the demo world, and it must not appear in a real
+          // facility's queue or reporting. For every real facility this is
+          // false, exactly as before.
+          isDemo: facility?.isDemo ?? false,
         })
         .returning({ id: signupSheetEntries.id })
       entryId = created.id

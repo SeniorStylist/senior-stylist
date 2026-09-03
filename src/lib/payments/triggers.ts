@@ -19,6 +19,7 @@ import { ensurePaymentsSchema } from '@/lib/payments-ddl'
 import { dayRangeInTimezone } from '@/lib/time'
 import { collectForResident, type CollectResult } from './charge'
 import { sendPaymentRequest } from './pay-link'
+import { demoChargesAllowed } from './stripe-client'
 
 /**
  * P55 — stable fingerprint of a booking-id set for Stripe idempotency keys.
@@ -47,7 +48,8 @@ export async function autoCollectOnCompletion(bookingId: string): Promise<void> 
         autopayAttemptedAt: true,
       },
     })
-    if (!b || !b.active || b.isDemo || b.paymentStatus === 'paid') return
+    // APLEY — demoChargesAllowed() is true only for an sk_test_ key.
+    if (!b || !b.active || (b.isDemo && !demoChargesAllowed()) || b.paymentStatus === 'paid') return
 
     // Safeguard (2026-07-07): a completion re-fire must not re-charge a booking
     // whose charge was just attempted (e.g. captured at Stripe but the DB write
@@ -109,8 +111,13 @@ export async function autoCollectOnFinalize(facilityId: string, stylistId: strin
       where: eq(facilities.id, facilityId),
       columns: { autopayMode: true, timezone: true, isDemo: true },
     })
-    if (!facility || facility.isDemo || facility.autopayMode !== 'on_completion') return
+    // APLEY — a demo facility can charge ONLY in Stripe test mode.
+    if (!facility || (facility.isDemo && !demoChargesAllowed()) || facility.autopayMode !== 'on_completion') return
 
+    // Match the facility's own flag: a real facility keeps `false` exactly as
+    // before; the demo facility (reachable only under a test key, per the guard
+    // above) sweeps its own demo bookings so the walk's Finalize really charges.
+    const demoScope = facility.isDemo
     const range = dayRangeInTimezone(dateStr, facility.timezone ?? 'America/New_York')
     if (!range) return
 
@@ -127,7 +134,8 @@ export async function autoCollectOnFinalize(facilityId: string, stylistId: strin
         eq(bookings.facilityId, facilityId),
         eq(bookings.stylistId, stylistId),
         eq(bookings.active, true),
-        eq(bookings.isDemo, false),
+        // APLEY — in test mode the sweep also picks up the demo facility's own bookings.
+        eq(bookings.isDemo, demoScope),
         eq(bookings.status, 'completed'),
         eq(bookings.paymentStatus, 'unpaid'),
         gte(bookings.startTime, range.start),
@@ -153,7 +161,7 @@ export async function autoCollectOnFinalize(facilityId: string, stylistId: strin
       where: and(
         inArray(residents.id, Array.from(byResident.keys())),
         eq(residents.active, true),
-        eq(residents.isDemo, false),
+        eq(residents.isDemo, demoScope),
         eq(residents.autopayEnabled, true), // owner decision: autopay opt-in only
       ),
       columns: { id: true },
@@ -199,7 +207,8 @@ export async function collectResidentBalance(
     where: eq(residents.id, residentId),
     columns: { id: true, facilityId: true, autopayEnabled: true, qbOutstandingBalanceCents: true, isDemo: true },
   })
-  if (!resident || resident.isDemo || !resident.autopayEnabled) return { attempted: false }
+  // APLEY — demo residents are chargeable only in Stripe test mode.
+  if (!resident || (resident.isDemo && !demoChargesAllowed()) || !resident.autopayEnabled) return { attempted: false }
   const balance = resident.qbOutstandingBalanceCents ?? 0
   if (balance <= 0) return { attempted: false }
 

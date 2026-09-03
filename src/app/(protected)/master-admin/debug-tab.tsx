@@ -135,6 +135,46 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
     }
   }
 
+  // APLEY — the end-to-end demo: build the world, impersonate the Apley stylist,
+  // then start the guided walk on the family signup page. The tour engine keeps
+  // its place in sessionStorage, so the hard navigation into the portal (a
+  // different layout AND a different identity) does not lose it.
+  const [apleyLoading, setApleyLoading] = useState<'start' | 'reset' | null>(null)
+  const [apleyError, setApleyError] = useState<string | null>(null)
+  const [apleyNote, setApleyNote] = useState<string | null>(null)
+  const runApley = async (action: 'start' | 'reset') => {
+    setApleyLoading(action)
+    setApleyError(null)
+    setApleyNote(null)
+    try {
+      const res = await fetch('/api/debug/apley', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setApleyError(typeof j.error === 'string' ? j.error : 'Could not run the Apley demo')
+        return
+      }
+      if (action === 'reset') {
+        setApleyNote(j.data?.found ? 'Apley removed. Press Start to build it again.' : 'Nothing to remove — Apley was not set up.')
+        // The impersonation cookie was cleared server-side; reload so the app
+        // stops rendering as a stylist at a facility that no longer exists.
+        window.location.href = '/master-admin'
+        return
+      }
+      const card = j.data?.card as { mode: string; note: string } | undefined
+      if (card?.note) setApleyNote(card.note)
+      const { startScriptedTour } = await import('@/lib/help/scripted-tour')
+      await startScriptedTour('scripted-apley-end-to-end')
+    } catch {
+      setApleyError('Network error — nothing was changed')
+    } finally {
+      setApleyLoading(null)
+    }
+  }
+
   // P60 — the Fitzgerald rehearsal launcher (docs/fitzgerald-walkthrough.md).
   const [rehearsalLoading, setRehearsalLoading] = useState(false)
   const [rehearsalError, setRehearsalError] = useState<string | null>(null)
@@ -273,6 +313,39 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* APLEY — the whole journey, end to end, in its own demo facility. */}
+      <div className="bg-white rounded-2xl border-2 border-[#8B2E4A]/20 p-4 shadow-sm">
+        <p className="text-sm font-semibold text-stone-900">Apley — the whole journey</p>
+        <p className="text-xs text-stone-500 mt-0.5">
+          Builds <span className="font-mono">Apley Court</span>, its own demo facility, then walks the entire flow: a
+          family signs up from the QR poster, saves a card, and asks for a visit; the stylist accepts it, does it, and
+          finalizes the day; the card is charged and the family sees what it cost. Every record is real — created by the
+          same code a live community uses — and demo-flagged so Reset removes all of it. With Stripe test keys the charge
+          really happens; nothing here is simulated.
+        </p>
+        {apleyError && <p className="text-xs text-red-600 mt-2">{apleyError}</p>}
+        {apleyNote && <p className="text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 mt-2">{apleyNote}</p>}
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => runApley('start')}
+            disabled={apleyLoading !== null}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#8B2E4A' }}
+            onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#72253C' }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#8B2E4A' }}
+          >
+            {apleyLoading === 'start' ? 'Building…' : 'Start the Apley demo'}
+          </button>
+          <button
+            onClick={() => runApley('reset')}
+            disabled={apleyLoading !== null}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {apleyLoading === 'reset' ? 'Removing…' : 'Reset'}
+          </button>
+        </div>
       </div>
 
       {/* P60 — Fitzgerald rehearsal: seed the practice pieces the walkthrough

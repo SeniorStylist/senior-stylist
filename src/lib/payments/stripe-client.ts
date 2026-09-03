@@ -33,6 +33,27 @@ export function paymentsBlocked(): boolean {
   return (platformStripeKey()?.startsWith('sk_live_') ?? false) && !paymentsLiveEnabled()
 }
 
+/**
+ * APLEY — may a DEMO record be charged?
+ *
+ * The charge engine refuses demo data in five places, which is right: demo
+ * money must never mix with real money. But it also made the owner-facing
+ * end-to-end demo impossible to complete — the whole point of that demo is to
+ * prove the card is really charged and the receipt really arrives.
+ *
+ * The gate is the key itself. This is true ONLY for an `sk_test_` secret key,
+ * so the demo-charge path is UNREACHABLE with a live key by construction —
+ * not by a flag someone could flip, and not by a condition that drifts. In
+ * test mode Stripe moves no money, so the worst case is a test-mode charge
+ * against test-mode data.
+ *
+ * If you are adding a new demo guard to the charge path, use this and say so,
+ * so all of them stay findable as one rule.
+ */
+export function demoChargesAllowed(): boolean {
+  return platformStripeKey()?.startsWith('sk_test_') ?? false
+}
+
 /** The platform publishable key surfaced to the client for Stripe Elements. */
 export function platformPublishableKey(): string | null {
   return (

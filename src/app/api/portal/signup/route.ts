@@ -24,6 +24,7 @@ import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
 import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
 import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
+import { isMasterSession } from '@/lib/master-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,16 +114,33 @@ export async function POST(request: NextRequest) {
     !!platformPublishableKey() && !!platformStripeKey() && !paymentsBlocked()
 
   // P53 — case-insensitive + demo-facility-excluded lookup (shared helper).
-  const facility = await db.query.facilities.findFirst({
+  const signupFacilityColumns = {
+    id: true, name: true, facilityCode: true, contactEmail: true,
+    portalSelfSignupEnabled: true,
+    portalCouponsEnabled: true,
+    portalWelcomeCouponEnabled: true,
+    isDemo: true,
+  } as const
+  let facility = await db.query.facilities.findFirst({
     where: activeFacilityByCodeWhere(facilityCode),
-    columns: {
-      id: true, name: true, facilityCode: true, contactEmail: true,
-      portalSelfSignupEnabled: true,
-      portalCouponsEnabled: true,
-      portalWelcomeCouponEnabled: true,
-    },
+    columns: signupFacilityColumns,
   })
+  // APLEY — master-only fallback so a demo facility's portal resolves (see the family layout).
+  if (!facility && (await isMasterSession())) {
+    facility = await db.query.facilities.findFirst({
+      where: activeFacilityByCodeWhere(facilityCode, { allowDemo: true }),
+      columns: signupFacilityColumns,
+    })
+  }
   if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
+
+  // APLEY — a record created at a DEMO facility is a demo record, and matching
+  // at a demo facility matches demo residents. Before this, both were pinned to
+  // `false`: a signup at a demo facility produced REAL residents and portal
+  // accounts, which then leaked into real reporting and were invisible to any
+  // staff screen reading demo-only. Real facilities are unaffected — `isDemo`
+  // is false for every one of them, so this evaluates exactly as before.
+  const demoScope = facility.isDemo
   // Preview skips the flag 403 so a flag-off facility is still dry-runnable.
   if (!facility.portalSelfSignupEnabled && !preview) {
     return Response.json({ error: 'Self-signup is not available for this facility.' }, { status: 403 })
@@ -178,7 +196,7 @@ export async function POST(request: NextRequest) {
         eq(residents.facilityId, facility.id),
         eq(residents.poaEmail, normalizedEmail),
         eq(residents.active, true),
-        eq(residents.isDemo, false),
+        eq(residents.isDemo, demoScope),
       ),
       columns: { id: true, name: true, roomNumber: true },
     })
@@ -189,7 +207,7 @@ export async function POST(request: NextRequest) {
         eq(residents.facilityId, facility.id),
         sql`regexp_replace(COALESCE(${residents.poaPhone}, ''), '\\D', '', 'g') = ${phoneDigits}`,
         eq(residents.active, true),
-        eq(residents.isDemo, false),
+        eq(residents.isDemo, demoScope),
       ),
       columns: { id: true, name: true, roomNumber: true },
     })
@@ -235,7 +253,7 @@ export async function POST(request: NextRequest) {
     where: and(
       eq(residents.facilityId, facility.id),
       eq(residents.active, true),
-      eq(residents.isDemo, false),
+      eq(residents.isDemo, demoScope),
     ),
     columns: { id: true, name: true, poaName: true, roomNumber: true },
   })
@@ -365,6 +383,7 @@ export async function POST(request: NextRequest) {
       poaEmail: normalizedEmail,
       poaPhone: phone ?? null,
       portalToken: randomBytes(8).toString('hex'),
+      isDemo: demoScope,
     })
     .returning({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
 

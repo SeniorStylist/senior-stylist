@@ -271,7 +271,7 @@ export default async function AppointmentsPage({
               const amountCents = (b.priceCents ?? 0) + (b.addonTotalCents ?? 0)
               const tip = b.tipCents ?? 0
               return (
-                <li key={b.id} className="py-3">
+                <li key={b.id} data-tour="family-past-visit" className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-[13.5px] font-semibold text-stone-900">{formatDateTime(new Date(b.startTime), locale, facilityTz)}</p>

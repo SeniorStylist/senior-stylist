@@ -65,6 +65,7 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
   const { ADMIN_TOURS } = await import('./tours-admin')
   const { BOOKKEEPER_TOURS } = await import('./tours-bookkeeper')
   const { NEW_FEATURE_TOURS } = await import('./tours-new-features')
+  const { APLEY_TOURS } = await import('./tours-apley')
   const allTours = [
     ...STYLIST_MOBILE_TOURS,
     ...STYLIST_DESKTOP_TOURS,
@@ -73,6 +74,7 @@ export async function startScriptedTour(tourId: string, scenarioState: Record<st
     ...ADMIN_TOURS,
     ...BOOKKEEPER_TOURS,
     ...NEW_FEATURE_TOURS,
+    ...APLEY_TOURS,
   ]
   const tour = allTours.find((t) => t.id === tourId)
   if (!tour) {

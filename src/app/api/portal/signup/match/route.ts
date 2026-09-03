@@ -7,6 +7,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { matchResidentForSignup } from '@/lib/signup-match'
 import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { maskName } from '@/lib/name-mask'
+import { isMasterSession } from '@/lib/master-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,10 +35,17 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 422 })
 
   try {
-    const facility = await db.query.facilities.findFirst({
+    let facility = await db.query.facilities.findFirst({
       where: activeFacilityByCodeWhere(parsed.data.facilityCode), // P53 — case-insensitive + demo-excluded
       columns: { id: true, portalSelfSignupEnabled: true },
     })
+  // APLEY — master-only fallback so a demo facility's portal resolves (see the family layout).
+    if (!facility && (await isMasterSession())) {
+      facility = await db.query.facilities.findFirst({
+        where: activeFacilityByCodeWhere(parsed.data.facilityCode, { allowDemo: true }),
+        columns: { id: true, portalSelfSignupEnabled: true },
+      })
+    }
     if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
     if (!facility.portalSelfSignupEnabled) {
       return Response.json({ error: 'Self-signup is not available for this facility.' }, { status: 403 })

@@ -8,6 +8,7 @@ import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { isMasterSession } from '@/lib/master-session'
 
 const schema = z.object({
   email: z.string().email().max(320),
@@ -29,10 +30,17 @@ export async function POST(request: NextRequest) {
     const rl = await checkRateLimit('portalRequestLink', `${ip}:${emailHash}`)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
-    const facility = await db.query.facilities.findFirst({
+    let facility = await db.query.facilities.findFirst({
       where: activeFacilityByCodeWhere(facilityCode), // P53 — case-insensitive + demo-excluded
       columns: { id: true, name: true, facilityCode: true },
     })
+  // APLEY — master-only fallback so a demo facility's portal resolves (see the family layout).
+    if (!facility && (await isMasterSession())) {
+      facility = await db.query.facilities.findFirst({
+        where: activeFacilityByCodeWhere(facilityCode, { allowDemo: true }),
+        columns: { id: true, name: true, facilityCode: true },
+      })
+    }
 
     if (facility) {
       let matchingResidents = await db.query.residents.findMany({
