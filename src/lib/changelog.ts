@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.12',
+    date: '2026-09-04',
+    title: 'See Exactly What Every Sync Did',
+    items: [
+      'Tap any entry in Settings → Billing → QuickBooks → Sync history to see everything it changed, side by side: what happened IN QUICKBOOKS and what happened ON THE SITE — invoice numbers you can search on, resident names and rooms, amounts and dates',
+      'It tells the truth rather than a count: which residents were deliberately not invoiced because a card on file collects them, who QuickBooks actually emailed an invoice to, which residents were matched to an existing customer on a close name match (worth a glance), and which invoices show a payment in BOTH places and need confirming',
+      'The two nightly syncs now say plainly that they change nothing in QuickBooks — they only read from it',
+      'After an undo, entries show what was reversed AND what was deliberately left alone, instead of implying everything was undone',
+      'Fixed: Sync Customers could fail with no reason given on facilities with a large QuickBooks company. It now finds the facility\'s customers directly instead of reading the whole company, and every QuickBooks button explains what went wrong instead of just "failed"',
+    ],
+  },
+  {
     version: '6.11',
     date: '2026-09-02',
     title: 'One QuickBooks Connection for Everyone',

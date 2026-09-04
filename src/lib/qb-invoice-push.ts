@@ -10,7 +10,7 @@ import { db } from '@/db'
 import { bookings, facilities, paymentMethods, qbInvoices, qbSyncState, residents } from '@/db/schema'
 import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { qbGet, qbPost, qbPostSend, qbRequestId } from '@/lib/quickbooks'
-import { recordSyncRun, type PushInvoiceRunItems } from '@/lib/qb-runs'
+import { capLabels, recordSyncRun, type PushInvoiceRunItems } from '@/lib/qb-runs'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { recomputeFacilityBalances } from '@/lib/unapplied-apply'
 import {
@@ -74,13 +74,24 @@ function monthRangeInTimezone(
   return { start: startRange.start, end: endRange.start }
 }
 
-/** QB Item to bill service lines against, provisioned once and cached in qb_sync_state. */
-async function ensureQBServiceItem(facilityId: string): Promise<string> {
+/** Invoice lines recorded per invoice for the history panel. A facility bill
+ *  can carry a whole month, so the cap (and its "+N more") is per invoice. */
+const LINE_LABEL_CAP = 200
+
+/** QB Item to bill service lines against, provisioned once and cached in
+ *  qb_sync_state. Reports whether THIS run created it (and against which
+ *  Income account) — creating an item in the client's books is a real change
+ *  the history must name. */
+async function ensureQBServiceItem(
+  facilityId: string,
+): Promise<{ itemId: string; created: boolean; incomeAccountName: string | null }> {
   const state = await db.query.qbSyncState.findFirst({
     where: eq(qbSyncState.facilityId, facilityId),
     columns: { qbServiceItemId: true },
   })
-  if (state?.qbServiceItemId) return state.qbServiceItemId
+  if (state?.qbServiceItemId) {
+    return { itemId: state.qbServiceItemId, created: false, incomeAccountName: null }
+  }
 
   interface QBItem { Id: string; Name?: string }
   let itemId: string | null = null
@@ -92,6 +103,8 @@ async function ensureQBServiceItem(facilityId: string): Promise<string> {
     `/query?query=${findQuery}&minorversion=75`,
   )
   itemId = found.QueryResponse?.Item?.[0]?.Id ?? null
+  let createdItem = false
+  let incomeAccountName: string | null = null
 
   if (!itemId) {
     interface QBAccount { Id: string; Name?: string }
@@ -114,6 +127,8 @@ async function ensureQBServiceItem(facilityId: string): Promise<string> {
       IncomeAccountRef: { value: income.Id },
     })
     itemId = created.Item.Id
+    createdItem = true
+    incomeAccountName = income.Name ?? null
   }
 
   await db
@@ -123,7 +138,7 @@ async function ensureQBServiceItem(facilityId: string): Promise<string> {
       target: [qbSyncState.facilityId],
       set: { qbServiceItemId: itemId, updatedAt: new Date() },
     })
-  return itemId
+  return { itemId, created: createdItem, incomeAccountName }
 }
 
 type BillableBooking = {
@@ -268,9 +283,25 @@ async function pushQBInvoicesInner(
     .where(and(eq(residents.facilityId, facilityId), eq(residents.autopayEnabled, true)))
   const autopayIds = new Set(autopayRows.map((r) => r.id))
   const skippedAutopayResidents = new Set<string>()
+  // Named, not just counted: "2 residents skipped" with no names is the most
+  // confusing silent omission in the push — a bookkeeper hunting a missing
+  // invoice can't tell it was withheld on purpose.
+  const skippedAutopayByResident = new Map<
+    string,
+    { residentName: string; roomNumber: string | null; bookingCount: number; amountCents: number }
+  >()
   const withAmount = priced.filter((b) => {
     if (autopayIds.has(b.residentId)) {
       skippedAutopayResidents.add(b.residentId)
+      const entry = skippedAutopayByResident.get(b.residentId) ?? {
+        residentName: b.resident?.name ?? 'Unknown resident',
+        roomNumber: null,
+        bookingCount: 0,
+        amountCents: 0,
+      }
+      entry.bookingCount++
+      entry.amountCents += bookingAmountCents(b)
+      skippedAutopayByResident.set(b.residentId, entry)
       return false
     }
     return true
@@ -282,7 +313,14 @@ async function pushQBInvoicesInner(
     return result
   }
 
-  const itemId = await ensureQBServiceItem(facilityId)
+  const item = await ensureQBServiceItem(facilityId)
+  const itemId = item.itemId
+  const serviceItemCreated = item.created
+    ? { name: 'Salon Services', incomeAccountName: item.incomeAccountName }
+    : null
+  // QuickBooks customers this push mints as a side effect. undoPushInvoice
+  // does NOT reverse these, so the panel names them and says so.
+  const createdCustomers: NonNullable<PushInvoiceRunItems['createdCustomers']> = []
 
   // Group into invoices.
   const groups: Array<{ residentId: string | null; rows: BillableBooking[] }> = []
@@ -328,10 +366,18 @@ async function pushQBInvoicesInner(
         group.rows = group.rows.filter((b) => freeIds.has(b.id))
       }
 
-      const customerId =
+      const customer =
         mode === 'facility' || !group.residentId
           ? await ensureQBFacilityParent(facilityId)
           : await ensureQBCustomerForResident(facilityId, group.residentId)
+      const customerId = customer.id
+      if (customer.created) {
+        createdCustomers.push({
+          qbCustomerId: customer.id,
+          displayName: customer.displayName,
+          kind: mode === 'facility' || !group.residentId ? 'facility' : 'resident',
+        })
+      }
 
       const amountCents = group.rows.reduce((sum, b) => sum + bookingAmountCents(b), 0)
       const lines = group.rows.map((b) => ({
@@ -396,14 +442,30 @@ async function pushQBInvoicesInner(
         .update(bookings)
         .set({ qbInvoiceMatchId: localRow.id, updatedAt: new Date() })
         .where(inArray(bookings.id, group.rows.map((b) => b.id)))
-      runItems.push({
+      // The invoice's own lines, capped PER INVOICE (a facility-mode bill can
+      // carry a whole month), so the "+N more" attaches to the right invoice.
+      const lineLabels = capLabels(
+        group.rows.map((b) => ({
+          dateLabel: serviceDate(b, tz),
+          description: bookingDescription(b, tz, mode === 'facility'),
+          amountCents: bookingAmountCents(b),
+        })),
+        LINE_LABEL_CAP,
+      )
+      const runItem: PushInvoiceRunItems['invoices'][number] = {
         qbInvoiceId: inv.Id,
         localInvoiceId: localRow.id,
+        // FROZEN shape — undo re-frees exactly these ids.
         bookingIds: group.rows.map((b) => b.id),
         residentId: group.residentId,
         residentName,
         amountCents,
-      })
+        invoiceNum,
+        invoiceDate,
+        bookings: lineLabels.rows,
+        ...(lineLabels.truncated ? { bookingsTruncated: lineLabels.truncated } : {}),
+      }
+      runItems.push(runItem)
 
       // Optional: QuickBooks emails the invoice.
       let emailed = false
@@ -415,6 +477,8 @@ async function pushQBInvoicesInner(
             : (email ?? group.rows[0].resident?.poaEmail ?? null)
         if (!to) {
           result.skippedNoEmail++
+          runItem.emailed = false
+          runItem.emailedTo = null
         } else {
           try {
             // Intuit's send endpoint requires application/octet-stream + empty
@@ -424,12 +488,18 @@ async function pushQBInvoicesInner(
               `/invoice/${inv.Id}/send?sendTo=${encodeURIComponent(to)}&minorversion=75`,
             )
             emailed = true
+            // Real outbound mail to a family member — record WHO it went to.
+            runItem.emailed = true
+            runItem.emailedTo = to
             await db
               .update(qbInvoices)
               .set({ lastSentAt: new Date(), sentVia: 'quickbooks', updatedAt: new Date() })
               .where(eq(qbInvoices.id, localRow.id))
           } catch (err) {
             emailError = `Invoice created but email failed: ${(err as Error).message?.slice(0, 150)}`
+            runItem.emailed = false
+            runItem.emailedTo = to
+            runItem.emailError = emailError
           }
         }
       }
@@ -455,8 +525,13 @@ async function pushQBInvoicesInner(
   // shared helper (excludes demo rows, matches every other recompute site).
   await recomputeFacilityBalances(db, [facilityId])
 
-  // Audit + undo record — "Undo" voids these invoices in QB and re-frees the bookings.
-  if (runItems.length > 0) {
+  // Audit + undo record — "Undo" voids these invoices in QB and re-frees the
+  // bookings. Recorded even when NO invoice was created: a run that minted
+  // QuickBooks customers and then failed every invoice must still leave a
+  // trace, and history is a log of attempts, not just successes. Undo no-ops
+  // safely on an empty invoice list.
+  const skippedAutopayLabels = capLabels([...skippedAutopayByResident.values()])
+  if (runItems.length > 0 || result.errors.length > 0) {
     result.runId = await recordSyncRun({
       facilityId,
       action: 'push_invoice',
@@ -469,9 +544,18 @@ async function pushQBInvoicesInner(
         totalCents: result.totalCents,
         emailed: result.invoices.filter((i) => i.emailed).length,
         skippedAutopay: result.skippedAutopay,
+        skippedNoEmail: result.skippedNoEmail,
+        scopedResidentName: opts.residentId ? (runItems[0]?.residentName ?? null) : null,
         errors: result.errors.slice(0, 5),
       },
-      items: { month, mode, invoices: runItems },
+      items: {
+        month,
+        mode,
+        invoices: runItems,
+        ...(skippedAutopayLabels.rows.length ? { skippedAutopay: skippedAutopayLabels.rows } : {}),
+        ...(createdCustomers.length ? { createdCustomers } : {}),
+        ...(serviceItemCreated ? { serviceItemCreated } : {}),
+      },
     })
   }
 

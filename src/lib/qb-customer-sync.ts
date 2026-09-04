@@ -16,7 +16,7 @@ import { qbGet, qbPost, qbQuoteLiteral, qbRequestId } from '@/lib/quickbooks'
 import { fuzzyBestMatch } from '@/lib/fuzzy'
 import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
-import { recordSyncRun, type SyncCustomersRunItems } from '@/lib/qb-runs'
+import { capLabels, recordSyncRun, type SyncCustomersRunItems } from '@/lib/qb-runs'
 
 interface QBCustomer {
   Id: string
@@ -306,17 +306,27 @@ async function upsertParentLink(
     })
 }
 
+/** A QuickBooks customer this call resolved, and whether it had to CREATE it —
+ *  creating a customer in the client's books is a real change history must name. */
+export interface EnsuredCustomer {
+  id: string
+  displayName: string
+  created: boolean
+}
+
 /** Numeric QB Customer.Id of the facility's parent customer, creating it if needed. */
-export async function ensureQBFacilityParent(facilityId: string): Promise<string> {
+export async function ensureQBFacilityParent(facilityId: string): Promise<EnsuredCustomer> {
   await ensureQbLinksSchema()
   const existing = await db.query.qbCustomerLinks.findFirst({
     where: and(
       eq(qbCustomerLinks.facilityId, facilityId),
       sql`${qbCustomerLinks.residentId} IS NULL`,
     ),
-    columns: { qbCustomerId: true },
+    columns: { qbCustomerId: true, qbDisplayName: true },
   })
-  if (existing) return existing.qbCustomerId
+  if (existing) {
+    return { id: existing.qbCustomerId, displayName: existing.qbDisplayName ?? '', created: false }
+  }
 
   const facility = await db.query.facilities.findFirst({
     where: eq(facilities.id, facilityId),
@@ -345,15 +355,17 @@ export async function ensureQBFacilityParent(facilityId: string): Promise<string
       )
     }
   }
+  let created = false
   if (!parent) {
     parent = await createQBCustomer(
       facilityId,
       { DisplayName: displayName, CompanyName: facility.name },
       '(SS)',
     )
+    created = true
   }
   await upsertParentLink(facilityId, parent)
-  return parent.Id
+  return { id: parent.Id, displayName: parent.DisplayName ?? displayName, created }
 }
 
 /**
@@ -364,16 +376,18 @@ export async function ensureQBFacilityParent(facilityId: string): Promise<string
 export async function ensureQBCustomerForResident(
   facilityId: string,
   residentId: string,
-): Promise<string> {
+): Promise<EnsuredCustomer> {
   await ensureQbLinksSchema()
   const existing = await db.query.qbCustomerLinks.findFirst({
     where: and(
       eq(qbCustomerLinks.facilityId, facilityId),
       eq(qbCustomerLinks.residentId, residentId),
     ),
-    columns: { qbCustomerId: true },
+    columns: { qbCustomerId: true, qbDisplayName: true },
   })
-  if (existing) return existing.qbCustomerId
+  if (existing) {
+    return { id: existing.qbCustomerId, displayName: existing.qbDisplayName ?? '', created: false }
+  }
 
   const resident = await db.query.residents.findFirst({
     where: and(eq(residents.id, residentId), eq(residents.facilityId, facilityId)),
@@ -381,7 +395,7 @@ export async function ensureQBCustomerForResident(
   })
   if (!resident) throw new Error('Resident not found at this facility')
 
-  const parentId = await ensureQBFacilityParent(facilityId)
+  const parentId = (await ensureQBFacilityParent(facilityId)).id
 
   // Try to find the customer in QB before creating (stored display name first).
   let customer: QBCustomer | null = null
@@ -405,6 +419,7 @@ export async function ensureQBCustomerForResident(
     const existingByName = await findQBCustomerByDisplayName(facilityId, desiredName)
     if (existingByName?.ParentRef?.value === parentId) customer = existingByName
   }
+  let created = false
   if (!customer) {
     customer = await createQBCustomer(
       facilityId,
@@ -415,6 +430,7 @@ export async function ensureQBCustomerForResident(
       },
       `(${residentId.slice(0, 4)})`,
     )
+    created = true
   }
 
   await db
@@ -450,7 +466,7 @@ export async function ensureQBCustomerForResident(
       .where(and(eq(residents.id, residentId), sql`qb_customer_id IS NULL`))
   }
 
-  return customer.Id
+  return { id: customer.Id, displayName: customer.DisplayName ?? desiredName, created }
 }
 
 export async function syncQBCustomers(
@@ -534,6 +550,12 @@ export async function syncQBCustomers(
       `QuickBooks holds more than ${CUSTOMER_CAP} customers — matched what was scanned; nothing was created (a truncated scan can't prove a customer is missing)`,
     )
   }
+  // upsertParentLink RE-POINTS the facility→parent mapping on every run, so a
+  // changed resolution silently moves every future invoice to a different
+  // QuickBooks customer. Record which parent won, and what it replaced.
+  let parentCreated = false
+  let parentDisplayNameResolved = parent?.DisplayName ?? parentDisplayName
+  const prevParentQbId = linkedParent?.qbCustomerId ?? null
 
   // ── Pass 1: match existing QB customers to residents ──────────────────
 
@@ -551,6 +573,7 @@ export async function syncQBCustomers(
     qbParentId: string | null
   }> = []
   const displayNameBackfills: Array<{ residentId: string; displayName: string }> = []
+  const matchedLinks: NonNullable<SyncCustomersRunItems['matchedLinks']> = []
   const fuzzyPool = residentList.filter((r) => !claimed.has(r.id))
 
   for (const c of customers) {
@@ -563,10 +586,15 @@ export async function syncQBCustomers(
     const dn = norm(c.DisplayName)
     const fqn = norm(c.FullyQualifiedName)
 
-    let match =
-      byStoredName.get(fqn) ??
-      (underOurParent ? byStoredName.get(dn) : undefined) ??
-      null
+    // Track WHICH rule bound this resident — 'fuzzy' is the only one that can
+    // be wrong, and a wrong bind silently misroutes that resident's invoices
+    // forever, so the panel flags those for a glance.
+    let matchMethod: 'stored_name' | 'display_name' | 'fuzzy' = 'stored_name'
+    let match = byStoredName.get(fqn) ?? null
+    if (!match && underOurParent) {
+      match = byStoredName.get(dn) ?? null
+      if (match) matchMethod = 'display_name'
+    }
     if (match && claimed.has(match.id)) match = null
     if (!match && underOurParent) {
       const parsed = parseResidentName(c.FullyQualifiedName ?? c.DisplayName ?? '')
@@ -576,12 +604,21 @@ export async function syncQBCustomers(
           parsed,
           0.7,
         )
-        if (hit) match = hit
+        if (hit) {
+          match = hit
+          matchMethod = 'fuzzy'
+        }
       }
     }
     if (!match) continue
 
     claimed.add(match.id)
+    matchedLinks.push({
+      residentName: match.name,
+      roomNumber: match.roomNumber,
+      qbDisplayName: c.DisplayName ?? null,
+      matchMethod,
+    })
     newLinks.push({
       residentId: match.id,
       qbCustomerId: c.Id,
@@ -634,7 +671,10 @@ export async function syncQBCustomers(
   const unlinked = capped ? [] : residentList.filter((r) => !claimed.has(r.id))
   if (unlinked.length > 0 && !parentId) {
     try {
-      parentId = await ensureQBFacilityParent(facilityId)
+      const ensured = await ensureQBFacilityParent(facilityId)
+      parentId = ensured.id
+      parentCreated = parentCreated || ensured.created
+      parentDisplayNameResolved = ensured.displayName || parentDisplayNameResolved
     } catch (err) {
       result.errors.push(`Facility parent customer: ${(err as Error).message?.slice(0, 200)}`)
     }
@@ -743,8 +783,10 @@ export async function syncQBCustomers(
   result.skipped = residentList.length - result.matchedExisting - result.createdInQb
 
   // Audit + undo record — undo deactivates ONLY the customers this run created
-  // (matched links are just mappings; nothing to reverse in QB).
-  if (result.matchedExisting + result.createdInQb > 0) {
+  // (matched links are just mappings; nothing to reverse in QB). matchedLinks
+  // is a SEPARATE display key for exactly that reason.
+  const matched = capLabels(matchedLinks)
+  if (result.matchedExisting + result.createdInQb > 0 || result.errors.length > 0) {
     result.runId = await recordSyncRun({
       facilityId,
       action: 'sync_customers',
@@ -754,9 +796,25 @@ export async function syncQBCustomers(
         matchedExisting: result.matchedExisting,
         createdInQb: result.createdInQb,
         skipped: result.skipped,
+        capped,
         errors: result.errors.slice(0, 5),
       },
-      items: { createdLinks },
+      items: {
+        createdLinks,
+        ...(matched.rows.length ? { matchedLinks: matched.rows } : {}),
+        ...(matched.truncated ? { matchedTruncated: matched.truncated } : {}),
+        ...(parentId
+          ? {
+              parentCustomer: {
+                displayName: parentDisplayNameResolved,
+                created: parentCreated,
+                ...(prevParentQbId && prevParentQbId !== parentId
+                  ? { repointedFrom: prevParentQbId }
+                  : {}),
+              },
+            }
+          : {}),
+      },
     })
   }
 

@@ -7,7 +7,12 @@ import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
 import { ensureQbSafetySchema } from '@/lib/qb-safety-ddl'
 import { reapplySitePayments } from '@/lib/qb-site-payments'
-import { recordSyncRun } from '@/lib/qb-runs'
+import {
+  capLabels,
+  recordSyncRun,
+  type InvoiceLabel,
+  type SyncInvoicesRunItems,
+} from '@/lib/qb-runs'
 
 interface QBInvoice {
   Id: string
@@ -151,15 +156,18 @@ export async function syncQBInvoices(
   const prevCursor = facility.qbInvoicesSyncCursor ?? null
   const prevLastSyncedAt = facility.qbInvoicesLastSyncedAt?.toISOString() ?? null
   const insertedInvoiceIds: string[] = []
-  const updatedPrev: Array<{ id: string; prevOpenBalanceCents: number; prevStatus: string; prevAmountCents: number }> = []
+  const updatedPrev: SyncInvoicesRunItems['updated'] = []
+  const insertedLabels: InvoiceLabel[] = []
 
   const residentList = await db.query.residents.findMany({
     where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
     columns: { id: true, name: true, qbCustomerId: true },
   })
   const residentByQbId = new Map<string, string>()
+  const residentNameById = new Map<string, string>()
   for (const r of residentList) {
     if (r.qbCustomerId) residentByQbId.set(r.qbCustomerId, r.id)
+    residentNameById.set(r.id, r.name)
   }
 
   // Numeric Customer.Id → resident via qb_customer_links (Stage 1 customer
@@ -281,6 +289,15 @@ export async function syncQBInvoices(
       // `existingByNum` is keyed by invoice_num alone while the conflict target is
       // (num, facility, date) — QB nums recur across years — so classify by the
       // row the upsert actually touched, never by the lookup.
+      const label: InvoiceLabel = {
+        invoiceNum,
+        invoiceDate: inv.TxnDate ?? null,
+        amountCents,
+        openBalanceCents,
+        status,
+        residentName: residentId ? (residentNameById.get(residentId) ?? null) : null,
+        roomNumber: null,
+      }
       if (existing && row?.id === existing.id) {
         result.updated++
         updatedPrev.push({
@@ -288,10 +305,20 @@ export async function syncQBInvoices(
           prevOpenBalanceCents: existing.openBalanceCents,
           prevStatus: existing.status,
           prevAmountCents: existing.amountCents,
+          // Both halves of the before→after sentence are snapshotted here:
+          // reading "after" live is wrong for history because a later pull
+          // (or an undo) moves it.
+          label,
+          newOpenBalanceCents: openBalanceCents,
+          newStatus: status,
+          newAmountCents: amountCents,
         })
       } else {
         result.created++
         if (row?.id) insertedInvoiceIds.push(row.id)
+        // Undo DELETES created rows, so this label is the only record that
+        // survives — no join can bring it back afterwards.
+        insertedLabels.push(label)
       }
     } catch (err) {
       result.errors.push(`Invoice ${invoiceNum}: ${(err as Error).message?.slice(0, 200)}`)
@@ -305,6 +332,14 @@ export async function syncQBInvoices(
   // autopay sweep can never re-charge a family for an invoice they already
   // paid here. See qb-site-payments.ts.
   const { ambiguous } = await reapplySitePayments(db, [facilityId])
+  // Recorded (uuid-free) as well as summarised: these are the possible
+  // double-payments — the only rows in a pull that may need a refund.
+  const ambiguousLabels = ambiguous.slice(0, 100).map((a) => ({
+    invoiceNum: a.invoiceNum,
+    residentName: a.residentId ? (residentNameById.get(a.residentId) ?? null) : null,
+    qbOpenCents: a.qbOpenCents,
+    sitePaidCents: a.sitePaidCents,
+  }))
   if (ambiguous.length > 0) {
     const sample = ambiguous.slice(0, 3).map((a) => `#${a.invoiceNum}`).join(', ')
     result.warnings.push(
@@ -374,6 +409,7 @@ export async function syncQBInvoices(
 
   // Audit + undo record (best-effort; never fails the sync). Only worth a row
   // when something actually changed.
+  const insertedCapped = capLabels(insertedLabels)
   if (result.created + result.updated > 0 || nextCursor) {
     await recordSyncRun({
       facilityId,
@@ -388,8 +424,19 @@ export async function syncQBInvoices(
         warnings: result.warnings.slice(0, 5),
         cursorAdvanced: result.cursorAdvanced,
         fullSync,
+        // "Caught up" vs "capped, run it again" are different instructions.
+        capped: pull.capped,
+        fetchFailed: pull.fetchFailed,
       },
-      items: { prevCursor, prevLastSyncedAt, insertedInvoiceIds, updated: updatedPrev },
+      items: {
+        prevCursor,
+        prevLastSyncedAt,
+        insertedInvoiceIds,
+        updated: updatedPrev,
+        ...(insertedCapped.rows.length ? { insertedInvoices: insertedCapped.rows } : {}),
+        ...(insertedCapped.truncated ? { insertedInvoicesTruncated: insertedCapped.truncated } : {}),
+        ...(ambiguousLabels.length ? { ambiguous: ambiguousLabels } : {}),
+      },
     })
   }
 

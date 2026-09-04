@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import { formatMoney } from '@/lib/format'
 import type { PublicFacility } from '@/lib/sanitize'
 import { HelpTip } from '@/components/ui/help-tip'
+import { RunDetailPanel, type RunDetailResponse } from '@/components/quickbooks/run-detail-panel'
+import { expandTransition } from '@/lib/animations'
+import { formatDateInTz, formatTimeInTz } from '@/lib/time'
 
 interface Props {
   facility: PublicFacility
@@ -74,6 +77,12 @@ export function BillingSection({
   }
   const [qbRuns, setQbRuns] = useState<QbRun[]>([])
   const [qbRunsLoaded, setQbRunsLoaded] = useState(false)
+  const [qbRunsError, setQbRunsError] = useState<string | null>(null)
+  // Per-run breakdown, fetched on expand and cached until the row is undone.
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
+  const [runDetails, setRunDetails] = useState<
+    Record<string, { state: 'loading' } | { state: 'ok'; detail: RunDetailResponse } | { state: 'error'; message: string }>
+  >({})
   const [qbUndoConfirmId, setQbUndoConfirmId] = useState<string | null>(null)
   const [qbUndoingId, setQbUndoingId] = useState<string | null>(null)
   const [qbTesting, setQbTesting] = useState(false)
@@ -82,6 +91,9 @@ export function BillingSection({
     | { ok: false; reason: string; message?: string }
     | null
   >(null)
+
+  // Sync history timestamps read in the FACILITY's clock, not the viewer's.
+  const facilityTz = (facility as { timezone?: string | null }).timezone ?? 'America/New_York'
 
   const qbInvoicesLastSyncedAt =
     (facility as { qbInvoicesLastSyncedAt?: string | null }).qbInvoicesLastSyncedAt ?? null
@@ -244,12 +256,44 @@ export function BillingSection({
   async function loadQbRuns() {
     try {
       const res = await fetch(`/api/quickbooks/runs?facilityId=${facility.id}`)
-      const j = await res.json().catch(() => ({}))
-      if (res.ok) setQbRuns(j.data?.runs ?? [])
+      if (!res.ok) {
+        // A failed load must NOT fall through to the "no activity yet" empty
+        // state — that reads as "nothing has ever synced", which is a lie.
+        setQbRunsError(await qbFailure(res, 'Couldn’t load sync history'))
+        return
+      }
+      const j = await res.json()
+      setQbRuns(j.data?.runs ?? [])
+      setQbRunsError(null)
     } catch {
-      // history is informational — never block the card on it
+      setQbRunsError('Couldn’t load sync history — check your connection and refresh.')
     } finally {
       setQbRunsLoaded(true)
+    }
+  }
+
+  async function toggleRunDetail(runId: string) {
+    if (expandedRunId === runId) {
+      setExpandedRunId(null)
+      return
+    }
+    setExpandedRunId(runId)
+    if (runDetails[runId]?.state === 'ok') return
+    setRunDetails((prev) => ({ ...prev, [runId]: { state: 'loading' } }))
+    try {
+      const res = await fetch(`/api/quickbooks/runs/${runId}`)
+      if (!res.ok) {
+        const message = await qbFailure(res, 'Couldn’t load the details')
+        setRunDetails((prev) => ({ ...prev, [runId]: { state: 'error', message } }))
+        return
+      }
+      const j = await res.json()
+      setRunDetails((prev) => ({ ...prev, [runId]: { state: 'ok', detail: j.data } }))
+    } catch {
+      setRunDetails((prev) => ({
+        ...prev,
+        [runId]: { state: 'error', message: 'Network error — try again.' },
+      }))
     }
   }
 
@@ -290,12 +334,20 @@ export function BillingSection({
     setQbUndoingId(id)
     try {
       const res = await fetch(`/api/quickbooks/runs/${id}/undo`, { method: 'POST' })
-      const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        showQbToast('err', j.error ?? 'Undo failed')
+        showQbToast('err', await qbFailure(res, 'Undo failed'))
         return
       }
+      const j = await res.json()
       const { reversed, skipped, errors, completed } = j.data
+      // The cached breakdown describes the PRE-undo state (down to per-row
+      // "voided" flags read live) — drop it so the row can't keep showing it.
+      setRunDetails((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setExpandedRunId((cur) => (cur === id ? null : cur))
       const bits = [`${reversed} reversed`]
       if (skipped > 0) bits.push(`${skipped} skipped`)
       if (errors.length > 0) bits.push(`${errors.length} error(s): ${errors[0]}`)
@@ -715,23 +767,27 @@ export function BillingSection({
               <p className="text-[11.5px] text-stone-400 mb-3">
                 Every QuickBooks operation is recorded here and can be undone — invoices are voided in
                 QuickBooks (never deleted), and anything with a payment already applied is left alone.
-                Card payments collected on the site (card on file, in-app, family portal) are recorded in
-                QuickBooks automatically against the same invoices; a refund voids the QuickBooks payment.
+                Tap any entry to see exactly what it changed — in QuickBooks and here on the site.
+                Card payments collected on the site (card on file, in-app, family portal) are written into
+                QuickBooks automatically against the same invoices, and a refund voids that payment — those
+                happen in the background and aren’t listed here yet.
               </p>
               {!qbRunsLoaded ? (
                 <p className="text-xs text-stone-400">Loading…</p>
+              ) : qbRunsError ? (
+                <p className="text-xs text-amber-700">{qbRunsError}</p>
               ) : qbRuns.length === 0 ? (
                 <p className="text-xs text-stone-400">No QuickBooks activity yet.</p>
               ) : (
                 <ul className="divide-y divide-stone-100 rounded-xl border border-stone-100 overflow-hidden">
                   {qbRuns.map((r) => {
-                    const when = new Date(r.startedAt).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })
+                    // Facility timezone, never the browser's (CLAUDE.md rule) —
+                    // a bookkeeper in another state must read the facility's clock.
+                    const started = new Date(r.startedAt)
+                    const when = `${formatDateInTz(started, facilityTz)}, ${formatTimeInTz(started, facilityTz)}`
                     const confirming = qbUndoConfirmId === r.id
+                    const expanded = expandedRunId === r.id
+                    const detailState = runDetails[r.id]
                     const undoing = qbUndoingId === r.id
                     const undoErrors = (r.undoSummary?.errors as string[] | undefined) ?? []
                     const undoIncomplete = !r.undoneAt && undoErrors.length > 0
@@ -739,13 +795,21 @@ export function BillingSection({
                       <li key={r.id} className="px-3 py-2.5 text-xs flex flex-col gap-1.5 bg-white">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-stone-700 font-medium truncate">{runLabel(r)}</div>
+                            <button
+                              type="button"
+                              onClick={() => toggleRunDetail(r.id)}
+                              aria-expanded={expanded}
+                              className="text-stone-700 font-medium text-left underline decoration-dotted decoration-stone-300 underline-offset-2 hover:decoration-stone-500"
+                            >
+                              {runLabel(r)}
+                              <span className="ml-1.5 text-[10px] text-stone-400">
+                                {expanded ? '▾ hide detail' : '▸ what changed'}
+                              </span>
+                            </button>
                             <div className="text-stone-400">
                               {when}
                               {r.automated ? ' · nightly' : ''}
-                              {r.undoneAt
-                                ? ` · undone ${new Date(r.undoneAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                                : ''}
+                              {r.undoneAt ? ` · undone ${formatDateInTz(new Date(r.undoneAt), facilityTz)}` : ''}
                             </div>
                             {undoIncomplete && (
                               <div className="text-amber-700 mt-0.5">
@@ -791,6 +855,22 @@ export function BillingSection({
                             </div>
                           </div>
                         )}
+                        <div
+                          className={expandTransition}
+                          style={{ maxHeight: expanded ? 4000 : 0, opacity: expanded ? 1 : 0 }}
+                        >
+                          {expanded && (
+                            <div className="pt-2">
+                              {!detailState || detailState.state === 'loading' ? (
+                                <p className="text-[11px] text-stone-400">Loading what changed…</p>
+                              ) : detailState.state === 'error' ? (
+                                <p className="text-[11px] text-amber-700">{detailState.message}</p>
+                              ) : (
+                                <RunDetailPanel detail={detailState.detail} />
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </li>
                     )
                   })}

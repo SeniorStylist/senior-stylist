@@ -162,7 +162,12 @@ async function undoPushInvoice(
   if (invoices.length === 0) return
   const sitePaid = await loadSitePaidMap(facilityId)
   const locals = await db.query.qbInvoices.findMany({
-    where: inArray(qbInvoices.id, invoices.map((i) => i.localInvoiceId)),
+    // Facility-scoped like every neighbouring statement — a corrupted items
+    // blob must not be able to reach another facility's invoice rows.
+    where: and(
+      eq(qbInvoices.facilityId, facilityId),
+      inArray(qbInvoices.id, invoices.map((i) => i.localInvoiceId)),
+    ),
     columns: { id: true, openBalanceCents: true, amountCents: true, status: true },
   })
   const localById = new Map(locals.map((l) => [l.id, l]))
@@ -217,13 +222,17 @@ async function undoPushInvoice(
       await db
         .update(qbInvoices)
         .set({ status: 'void', openBalanceCents: 0, updatedAt: new Date() })
-        .where(eq(qbInvoices.id, item.localInvoiceId))
-      if (item.bookingIds.length > 0) {
+        .where(and(eq(qbInvoices.facilityId, facilityId), eq(qbInvoices.id, item.localInvoiceId)))
+      // Defensive `?? []`: this line runs AFTER the QuickBooks void and the
+      // local status write, so a missing key here would throw mid-reversal and
+      // strand the bookings under a voided invoice — permanently unbillable.
+      const bookingIds = item.bookingIds ?? []
+      if (bookingIds.length > 0) {
         await db
           .update(bookings)
           .set({ qbInvoiceMatchId: null, updatedAt: new Date() })
           .where(
-            and(inArray(bookings.id, item.bookingIds), eq(bookings.qbInvoiceMatchId, item.localInvoiceId)),
+            and(inArray(bookings.id, bookingIds), eq(bookings.qbInvoiceMatchId, item.localInvoiceId)),
           )
       }
       result.reversed++
@@ -352,7 +361,7 @@ async function undoSyncPayments(
       await db.execute(sql`
         UPDATE qb_unapplied_credits c SET open_balance_cents = v.open_balance_cents
         FROM (VALUES ${sql.join(valueRows, sql`, `)}) AS v(id, open_balance_cents)
-        WHERE c.id = v.id
+        WHERE c.id = v.id AND c.facility_id = ${facilityId}::uuid
       `)
       result.reversed += ch.length
     }
