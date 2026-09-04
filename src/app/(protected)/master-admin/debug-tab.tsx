@@ -244,7 +244,7 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
         )}
       </div>
 
-      {/* P61/P62 — the diagnosis, in the app. Open these before guessing. */}
+      {/* P61/P63 — the diagnosis, in the app. Open these before guessing. */}
       <ServerDiagnostics />
       <RecentErrors />
 

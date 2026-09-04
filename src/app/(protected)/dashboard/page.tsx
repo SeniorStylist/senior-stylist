@@ -14,7 +14,7 @@ import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
 
-// P62 — the P22 rule, which this page violated: any page firing a large cold
+// P63 — the P22 rule, which this page violated: any page firing a large cold
 // query burst through the max:1 pool MUST set maxDuration. A cold /dashboard
 // render is ~20 serialized round-trips, and the protected layout's own 8s race
 // is allowed to eat 8 of the platform's default 10 seconds before this page's
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
-      // P62 — this is only ever read for its .length (see pendingAccessRequests
+      // P63 — this is only ever read for its .length (see pendingAccessRequests
       // below), so fetch a count instead of every pending row.
       facilityUser.role === 'admin'
         ? db
@@ -298,7 +298,7 @@ export default async function DashboardPage() {
       getFacilityWorkingDows(facilityUser.facilityId),
     ])
 
-    // P62 — do NOT redirect() in here. Next implements redirect by throwing, and
+    // P63 — do NOT redirect() in here. Next implements redirect by throwing, and
     // the bare `catch (err)` at the bottom of this try swallows NEXT_REDIRECT —
     // the exact anti-pattern this file warns about at the top. Fall through to
     // the page's own diagnostic instead of silently showing the error card.

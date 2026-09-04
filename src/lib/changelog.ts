@@ -9,7 +9,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '6.13',
     date: '2026-09-04',
-    title: 'Every Facility Back in the List — and Pages That Load',
+    title: 'Every Facility Back in the List — Pages That Load, Syncs Explained',
     items: [
       'Fixed: newly created facilities — including The Fitzgerald of Palisades — could be missing from the facility list under the logo. If you own a franchise, the list was quietly being narrowed to that franchise even when you are the owner of the whole network',
       'The facility shown in the corner and the facility shown on the page are now always the same one. They used to be worked out two different ways, which is why the page could say one community while the corner said another',
@@ -23,6 +23,11 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Pages that were being cut off partway through loading now get the time they need. The Calendar, Day Log and Residents pages had no time limit set, so a community with years of imported history could run out of time and show an error',
       'The screen loads with noticeably less work behind it: the facility list is fetched once instead of twice, stops pulling data it never uses, and no longer makes an extra round-trip to check who you are on every page',
       'Owner: Master Admin \u2192 Debug \u2192 "Recent errors" shows what actually failed and at which community, so the reference number on an error card reads as a sentence instead of a number',
+      'Tap any entry in Settings → Billing → QuickBooks → Sync history to see everything it changed, side by side: what happened IN QUICKBOOKS and what happened ON THE SITE — invoice numbers you can search on, resident names and rooms, amounts and dates',
+      'It tells the truth rather than a count: which residents were deliberately not invoiced because a card on file collects them, who QuickBooks actually emailed an invoice to, which residents were matched to an existing customer on a close name match (worth a glance), and which invoices show a payment in BOTH places and need confirming',
+      'The two nightly syncs now say plainly that they change nothing in QuickBooks — they only read from it',
+      'After an undo, entries show what was reversed AND what was deliberately left alone, instead of implying everything was undone',
+      'Fixed: Sync Customers could fail with no reason given on facilities with a large QuickBooks company. It now finds the facility\'s customers directly instead of reading the whole company, and every QuickBooks button explains what went wrong instead of just "failed"',
     ],
   },
   {

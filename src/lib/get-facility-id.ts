@@ -17,7 +17,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 async function isMasterAdmin(userId: string): Promise<boolean> {
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   if (!superAdminEmail) return false
-  // P62 — fast path: the verified session. `getAuthUser()` is React.cache()'d,
+  // P63 — fast path: the verified session. `getAuthUser()` is React.cache()'d,
   // so inside a render (where the layout and the page have already called it)
   // this costs NOTHING, and it removes an HTTPS round-trip to the Supabase admin
   // API from the layout's critical path — which since P61 ran on EVERY render
@@ -37,7 +37,7 @@ async function isMasterAdmin(userId: string): Promise<boolean> {
     )
     const { data, error } = await admin.auth.admin.getUserById(userId)
     if (error || !data?.user) return false
-    // P62 — same trim/lowercase semantics as isMasterEmail; these diverged when
+    // P63 — same trim/lowercase semantics as isMasterEmail; these diverged when
     // only the layout's compare was hardened, which produced intermittent,
     // facility-dependent fallthrough.
     return isMasterEmail(data.user.email)

@@ -18,6 +18,7 @@ type Bucket =
   | 'qbInvoicePush'
   | 'qbPaymentSync'
   | 'qbRuns'
+  | 'qbRunDetail'
   | 'qbUndo'
   | 'qbImport'
   | 'coverage'
@@ -80,6 +81,9 @@ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 
   qbInvoicePush: { tokens: 20, window: '1 h' },
   qbPaymentSync: { tokens: 3, window: '1 h' },
   qbRuns: { tokens: 60, window: '1 h' },
+  // Its own bucket: expanding rows to compare two nights must never eat the
+  // history LIST's budget and turn the card into a false "no activity yet".
+  qbRunDetail: { tokens: 240, window: '1 h' },
   qbUndo: { tokens: 10, window: '1 h' },
   qbImport: { tokens: 5, window: '1 h' },
   coverage: { tokens: 10, window: '1 h' },

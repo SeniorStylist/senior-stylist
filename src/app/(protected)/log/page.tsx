@@ -14,7 +14,7 @@ import { eq, and, gte, lt, asc, or, inArray } from 'drizzle-orm'
 import { LogClient } from './log-client'
 import { safeTimeZone } from '@/lib/time'
 
-// P62 — the P22 rule: any page firing a query burst through the max:1 pool
+// P63 — the P22 rule: any page firing a query burst through the max:1 pool
 // MUST set maxDuration (a cold Day Log render is ~15 serialized round-trips), and the
 // protected layout's 8s race can consume most of the platform's default 10s
 // before this page's own work starts.

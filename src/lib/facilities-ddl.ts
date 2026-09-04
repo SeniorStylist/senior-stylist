@@ -6,7 +6,7 @@ let _ensured = false
 /**
  * Self-heals the `facilities` columns that ship ahead of their migration.
  *
- * P62 renamed this from `ensureMonthlyReportSchema` and folded the timezone
+ * P63 renamed this from `ensureMonthlyReportSchema` and folded the timezone
  * repair in, deliberately as ONE call with two statements: this runs on the
  * protected layout's critical path, first in line on the single pooled
  * connection, so a second DDL round-trip here would make the very contention we
@@ -17,7 +17,7 @@ let _ensured = false
  */
 export async function ensureFacilitiesSchema(): Promise<void> {
   if (_ensured) return
-  // P62 — set BEFORE the await and never un-set on failure. The old version
+  // P63 — set BEFORE the await and never un-set on failure. The old version
   // reset the flag inside .catch(), so a failing instance retried an ACCESS
   // EXCLUSIVE lock on `facilities` on EVERY render — worst under exactly the
   // contention that makes it fail. These statements are idempotent and the

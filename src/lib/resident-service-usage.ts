@@ -23,7 +23,7 @@ const getCachedMostUsedPairs = unstable_cache(
           eq(bookings.facilityId, facilityId),
           ne(bookings.status, 'cancelled'),
           isNotNull(bookings.serviceId),
-          // P62 — this was an unbounded scan of the facility's ENTIRE booking
+          // P63 — this was an unbounded scan of the facility's ENTIRE booking
           // history, and it is the single most data-sensitive query on the
           // dashboard: instant at a new community, and a full partition scan at
           // one fed by the bulk importers — which is exactly why the dashboard

@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 let _ensured = false
 
 /**
- * P62 — self-bootstraps `app_error_events`, the in-app record of server render
+ * P63 — self-bootstraps `app_error_events`, the in-app record of server render
  * errors.
  *
  * Josh's call: he should not have to open Vercel to find out why a page failed.

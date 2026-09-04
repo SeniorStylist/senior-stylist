@@ -7,7 +7,7 @@ import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { eq, and, sql } from 'drizzle-orm'
 import { ResidentsPageClient } from './residents-page-client'
 
-// P62 — the P22 rule: any page firing a query burst through the max:1 pool
+// P63 — the P22 rule: any page firing a query burst through the max:1 pool
 // MUST set maxDuration (its resident aggregate scans the facility's whole booking history), and the
 // protected layout's 8s race can consume most of the platform's default 10s
 // before this page's own work starts.

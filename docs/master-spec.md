@@ -844,7 +844,7 @@ owner check (trimmed, case-insensitive). Every manage-tier guard needs it —
 `isManageTier(fu, isMaster = false)` returns false for the master, whose
 synthetic row is `rawRole: 'admin'`.
 
-### Timezones (P62)
+### Timezones (P63)
 
 `facilities.timezone` had **no migration** until `drizzle/0049` — the Drizzle
 `notNull().default()` was a type-level claim only, and the bulk importers insert
@@ -864,7 +864,7 @@ Three guards, in order of how much they cover:
 A page-level `?? 'America/New_York'` that is not also handed to the client is not
 a fix; that half-guard is what produced the bug.
 
-### Request cost (P62)
+### Request cost (P63)
 
 Every query serializes through the `max: 1` pool, and the protected layout renders
 on every navigation *and* every nav-link prefetch. Budget for the layout: **no

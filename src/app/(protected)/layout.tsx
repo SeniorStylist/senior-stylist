@@ -58,7 +58,7 @@ interface MembershipData {
 // args), so the owner's all-facilities list and a normal user's membership
 // list can never share an entry.
 async function fetchMembershipData(userId: string, isMaster = false): Promise<MembershipData> {
-  // P62 — `with: { facility: true }` was an uncapped SELECT * lateral join
+  // P63 — `with: { facility: true }` was an uncapped SELECT * lateral join
   // pulling all ~40 facility columns per membership row, including
   // stripe_secret_key, qb_access_token and qb_refresh_token — secrets this
   // function never reads and which had no business crossing the wire. Now the
@@ -142,7 +142,7 @@ const getCachedMembershipData = unstable_cache(fetchMembershipData, ['layout-mem
 })
 
 async function fetchLayoutData(userId: string, isMaster = false): Promise<LayoutData> {
-  // Phase 18 hotfix, extended in P62 — self-heal the `facilities` columns that
+  // Phase 18 hotfix, extended in P63 — self-heal the `facilities` columns that
   // ship ahead of their migration (monthly_report_enabled, and the timezone
   // column that has never had one). Full-row facilities selects throw "column
   // does not exist" when code deploys before the migration; this makes deploys
@@ -164,7 +164,7 @@ async function fetchLayoutData(userId: string, isMaster = false): Promise<Layout
     // as the OLDEST membership row (allFacilities[0]) while every page, which
     // reads getUserFacility uncached, showed the real one — the "app says
     // Fitzgerald, switcher says F121" demo bug.
-    // P62 — the emptiness test is meaningless for the OWNER: P60 made his access
+    // P63 — the emptiness test is meaningless for the OWNER: P60 made his access
     // synthetic, so he legitimately needs no membership rows, yet this forced an
     // uncached repeat of BOTH membership queries on every single render. And the
     // second disjunct is now redundant in general — P61 resolves and prepends a
@@ -267,7 +267,7 @@ export default async function ProtectedLayout({
   // Track it so the sidebar can say "couldn't load" and offer a reload.
   let facilityLoadFailed = false
   try {
-    // P62 — the timer is cleared on the happy path; it used to leak an 8s handle
+    // P63 — the timer is cleared on the happy path; it used to leak an 8s handle
     // per layout render, and the layout re-renders on every nav-link prefetch.
     let timer: ReturnType<typeof setTimeout> | undefined
     facilityData = await Promise.race([

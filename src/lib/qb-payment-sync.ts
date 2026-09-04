@@ -23,7 +23,13 @@ import { parseResidentName } from '@/lib/qb-invoice-sync'
 import { ensureQbLinksSchema } from '@/lib/qb-links-ddl'
 import { ensureUnappliedSchema } from '@/lib/unapplied-ddl'
 import { customerBelongsToFacility, getFacilityQbScope } from '@/lib/qb-scope'
-import { recordSyncRun, type SyncPaymentsRunItems } from '@/lib/qb-runs'
+import {
+  capLabels,
+  recordSyncRun,
+  type CreditLabel,
+  type PaymentLabel,
+  type SyncPaymentsRunItems,
+} from '@/lib/qb-runs'
 import { chunkArr } from '@/lib/imports/qb-csv'
 import { loadMirrorRefs } from '@/lib/qb-payment-mirror'
 
@@ -192,11 +198,51 @@ export async function syncQBPayments(
   // ── Resident resolution maps ──────────────────────────────────────────
   const residentList = await db.query.residents.findMany({
     where: and(eq(residents.facilityId, facilityId), eq(residents.active, true)),
-    columns: { id: true, name: true, qbCustomerId: true },
+    columns: { id: true, name: true, roomNumber: true, qbCustomerId: true },
   })
   const byDisplayName = new Map<string, string>()
+  const residentById = new Map<string, { name: string; roomNumber: string | null }>()
   for (const r of residentList) {
     if (r.qbCustomerId) byDisplayName.set(r.qbCustomerId.trim().toLowerCase(), r.id)
+    residentById.set(r.id, { name: r.name, roomNumber: r.roomNumber })
+  }
+
+  const insertedPaymentLabels: PaymentLabel[] = []
+  const insertedCreditLabels: CreditLabel[] = []
+
+  const creditLabel = (c: {
+    txnType: string | null
+    num: string | null
+    txnDate: string | null
+    amountCents: number
+    openBalanceCents: number
+    residentId: string | null
+  }): CreditLabel => ({
+    txnType: c.txnType,
+    num: c.num,
+    txnDate: c.txnDate,
+    amountCents: c.amountCents,
+    openBalanceCents: c.openBalanceCents,
+    residentName: c.residentId ? (residentById.get(c.residentId)?.name ?? null) : null,
+  })
+
+  /** A payment as a bookkeeper reads it. Snapshotted at record time because
+   *  undo DELETES inserted rows and nulls upgraded ones — no later join can
+   *  bring these back. */
+  const paymentLabel = (
+    checkNum: string | null,
+    paymentDate: string | null,
+    amountCents: number,
+    residentId: string | null,
+  ): PaymentLabel => {
+    const r = residentId ? residentById.get(residentId) : undefined
+    return {
+      checkNum,
+      paymentDate,
+      amountCents,
+      residentName: r?.name ?? null,
+      roomNumber: r?.roomNumber ?? null,
+    }
   }
   const byNumericId = new Map<string, string>()
   const linkedIds = new Set<string>()
@@ -249,6 +295,9 @@ export async function syncQBPayments(
       amountCents: qbPayments.amountCents,
       memo: qbPayments.memo,
       qbPaymentId: qbPayments.qbPaymentId,
+      // Same query, two more columns — they let the history name the money
+      // ("check #4471, Aug 14, $48.00") instead of counting anonymous rows.
+      checkNum: qbPayments.checkNum,
     })
     .from(qbPayments)
     .where(and(eq(qbPayments.facilityId, facilityId), eq(qbPayments.isDemo, false)))
@@ -261,13 +310,28 @@ export async function syncQBPayments(
   const mirrorRefs = await loadMirrorRefs(facilityId).catch(() => new Map<string, { paymentId: string; status: string }>())
   // Pool ONLY rows with no qb_payment_id — a row already tied to a different
   // QB payment is a different payment and must never be claimed.
-  const pool = new Map<string, { id: string; memo: string | null }[]>()
+  type PoolRow = {
+    id: string
+    memo: string | null
+    checkNum: string | null
+    paymentDate: string
+    amountCents: number
+    residentId: string | null
+  }
+  const pool = new Map<string, PoolRow[]>()
   const keyOf = (res: string | null, date: string, amt: number) => `${res ?? ''}|${date}|${amt}`
   for (const p of existingRows) {
     if (p.qbPaymentId) continue
     const k = keyOf(p.residentId, p.paymentDate, p.amountCents)
     const list = pool.get(k) ?? []
-    list.push({ id: p.id, memo: p.memo })
+    list.push({
+      id: p.id,
+      memo: p.memo,
+      checkNum: p.checkNum,
+      paymentDate: p.paymentDate,
+      amountCents: p.amountCents,
+      residentId: p.residentId,
+    })
     pool.set(k, list)
   }
   const popFrom = (k: string) => {
@@ -315,6 +379,9 @@ export async function syncQBPayments(
           prevAmountCents: known.amountCents,
           prevPaymentDate: known.paymentDate,
           memoWasNull: !known.memo,
+          label: paymentLabel(known.checkNum ?? null, known.paymentDate, known.amountCents, residentId),
+          newAmountCents: amountCents,
+          newPaymentDate: p.TxnDate,
         })
         result.updated++
       } else {
@@ -336,7 +403,16 @@ export async function syncQBPayments(
           amountCents: null,
           paymentDate: null,
         })
-        undo.stamped.push({ id: siteRow.id, memoWasNull: !siteRow.memo })
+        undo.stamped.push({
+          id: siteRow.id,
+          memoWasNull: !siteRow.memo,
+          label: paymentLabel(
+            siteRow.checkNum ?? null,
+            siteRow.paymentDate,
+            siteRow.amountCents,
+            siteRow.residentId ?? residentId,
+          ),
+        })
       }
       result.skipped++
       continue
@@ -354,7 +430,11 @@ export async function syncQBPayments(
         amountCents: null,
         paymentDate: null,
       })
-      undo.stamped.push({ id: exact.id, memoWasNull: !exact.memo })
+      undo.stamped.push({
+        id: exact.id,
+        memoWasNull: !exact.memo,
+        label: paymentLabel(exact.checkNum ?? null, exact.paymentDate, exact.amountCents, residentId),
+      })
       result.skipped++
       continue
     }
@@ -370,7 +450,19 @@ export async function syncQBPayments(
           amountCents: null,
           paymentDate: null,
         })
-        undo.upgraded.push({ id: facLevel.id, memoWasNull: !facLevel.memo })
+        // The upgrade IS the change — money moving from "the facility paid" to
+        // "Margaret Smith paid". Undo nulls the column, so the name has to be
+        // snapshotted here or it can never be shown again.
+        undo.upgraded.push({
+          id: facLevel.id,
+          memoWasNull: !facLevel.memo,
+          label: paymentLabel(
+            facLevel.checkNum ?? null,
+            facLevel.paymentDate,
+            facLevel.amountCents,
+            residentId,
+          ),
+        })
         result.upgraded++
         continue
       }
@@ -418,7 +510,15 @@ export async function syncQBPayments(
     }
     for (const ch of chunkArr(toInsert, 100)) {
       const rows = await db.insert(qbPayments).values(ch).returning({ id: qbPayments.id })
+      // id array stays a plain string[] — undo chunks it and counts its length.
       undo.insertedPaymentIds.push(...rows.map((r) => r.id))
+      // Separate display array: undo deletes these rows, so this is the only
+      // record of what the money was once it is reversed.
+      insertedPaymentLabels.push(
+        ...ch.map((c) =>
+          paymentLabel(c.checkNum ?? null, c.paymentDate ?? null, c.amountCents ?? 0, c.residentId ?? null),
+        ),
+      )
       result.created += ch.length
     }
   } catch (err) {
@@ -490,7 +590,11 @@ export async function syncQBPayments(
         if (existing) {
           if (existing.openBalanceCents !== c.openBalanceCents) {
             creditUpdates.push({ id: existing.id, openBalanceCents: c.openBalanceCents })
-            undo.updatedCredits.push({ id: existing.id, prevOpenBalanceCents: existing.openBalanceCents })
+            undo.updatedCredits.push({
+              id: existing.id,
+              prevOpenBalanceCents: existing.openBalanceCents,
+              label: creditLabel(c),
+            })
             result.creditsUpserted++
           }
         } else if (c.openBalanceCents > 0) {
@@ -518,6 +622,18 @@ export async function syncQBPayments(
       for (const ch of chunkArr(creditInserts, 100)) {
         const rows = await db.insert(qbUnappliedCredits).values(ch).returning({ id: qbUnappliedCredits.id })
         undo.insertedCreditIds.push(...rows.map((r) => r.id))
+        insertedCreditLabels.push(
+          ...ch.map((c) =>
+            creditLabel({
+              txnType: c.txnType ?? null,
+              num: c.num ?? null,
+              txnDate: c.txnDate ?? null,
+              amountCents: c.amountCents ?? 0,
+              openBalanceCents: c.openBalanceCents ?? 0,
+              residentId: c.residentId ?? null,
+            }),
+          ),
+        )
       }
     } catch (err) {
       result.errors.push(`Credit writes failed: ${(err as Error).message?.slice(0, 200)}`)
@@ -563,6 +679,8 @@ export async function syncQBPayments(
   const touched =
     undo.insertedPaymentIds.length + undo.stamped.length + undo.upgraded.length +
     undo.refreshed.length + undo.insertedCreditIds.length + undo.updatedCredits.length
+  const paymentLabelsCapped = capLabels(insertedPaymentLabels)
+  const creditLabelsCapped = capLabels(insertedCreditLabels)
   if (touched > 0 || nextCursor) {
     result.runId = await recordSyncRun({
       facilityId,
@@ -578,8 +696,20 @@ export async function syncQBPayments(
         errors: result.errors.slice(0, 5),
         cursorAdvanced: result.cursorAdvanced,
         fullSync,
+        capped: payPull.capped || cmPull.capped,
+        fetchFailed,
       },
-      items: undo,
+      items: {
+        ...undo,
+        ...(paymentLabelsCapped.rows.length ? { insertedPayments: paymentLabelsCapped.rows } : {}),
+        ...(paymentLabelsCapped.truncated
+          ? { insertedPaymentsTruncated: paymentLabelsCapped.truncated }
+          : {}),
+        ...(creditLabelsCapped.rows.length ? { insertedCredits: creditLabelsCapped.rows } : {}),
+        ...(creditLabelsCapped.truncated
+          ? { insertedCreditsTruncated: creditLabelsCapped.truncated }
+          : {}),
+      },
     })
   }
 
