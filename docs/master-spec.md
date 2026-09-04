@@ -684,7 +684,7 @@ The codebase does **not** label “Phase 1–12”; the following are **observab
 - **Stylists & services**: CRUD APIs and admin-navigated pages; **commission** on stylists used in reports/stylist detail.
 - **Daily log**: Day-scoped bookings + `log_entries` with notes, finalize, walk-in booking (`/api/log`, `/api/log/[id]`). **Smart OCR import**: `POST /api/log/ocr` accepts multipart `images[]` (multiple files), processes each with Gemini 2.5 Flash (AbortController + `thinkingBudget: 0` + time-remaining-aware per-file budget so a slow sheet yields a per-sheet soft error, never a platform timeout page — 2026-07-30), extracts `{ date, stylistName, entries[] }` per sheet, returns `{ data: { sheets: [...] } }`. `POST /api/log/ocr/import` creates missing residents + services + completed bookings in one `db.transaction()`. UI: `OcrImportModal` 3-step flow (upload thumbnails → review per-sheet with duplicate detection → confirm summary). **pdf.js (round 7)**: worker served same-origin from `public/pdf.worker.min.mjs` via `loadPdfjs()` (`src/lib/uploads/compress-upload.ts`) — never a CDN workerSrc; all pdf.js awaits are `withTimeout`-raced with `pdf.destroy()` on failure so PDF processing can never hang the scan flow. **Upload prep (2026-07-30)**: the client compresses images (longest edge 2000px JPEG 0.8) and rasterizes EVERY PDF page via `src/lib/uploads/compress-upload.ts`, then batches by byte budget (≤3.5MB / ≤3 files per POST) — Vercel rejects request bodies >4.5MB at the platform edge, which was the "Network Error" scan failures. `readJsonSafe` + 413/504-specific messages replace bare `res.json()`; partial batch results are kept and per-sheet errors render in the review step. Stylist resolution on import is network-wide: typed code → global code match (auto-assignment row), exact-name global match when unambiguous, facility-local fuzzy, then create honoring a free typed code ("ST825 - Paula Jones" creates ST825).
 - **Reports**: Monthly aggregates (`/api/reports/monthly`), charts in UI (`recharts`), CSV export (`/api/export/billing` with `?month=`).
-- **Cross-facility reporting (Phase 4)**: Super-admin Reports tab in `/super-admin`. `getSuperAdminFacilities()` helper scopes to master admin (all) or franchise owner (their facilities). Monthly bar chart + per-facility cards. Outstanding balances view with facility-grouped checkboxes and bulk/individual mark-paid. Cross-facility CSV export. Booking mutations (`POST /api/bookings`, `PUT /api/bookings/[id]`, `DELETE /api/bookings/[id]`) call `revalidateTag('bookings', {})` to invalidate the 5-min cache.
+- **Cross-facility reporting (Phase 4)**: Super-admin Reports tab in `/super-admin`. `getSuperAdminFacilities()` helper scopes to master admin (all) or franchise owner (their facilities). Monthly bar chart + per-facility cards. Outstanding balances view with facility-grouped checkboxes and bulk/individual mark-paid. Cross-facility CSV export. Booking mutations (`POST /api/bookings`, `PUT /api/bookings/[id]`, `DELETE /api/bookings/[id]`) call `revalidateTag('bookings', { expire: 0 })` to invalidate the 5-min cache.
 - **Invoices**: Admin API (`/api/reports/invoice`), printable **`/invoice/[facilityId]`** page.
 - **Payments**: Facility `payment_type` includes **`facility`**, **`ip`**, **`rfms`**, **`hybrid`**; Stripe Checkout for portal (`/api/portal/[token]/checkout`), webhook marks bookings paid (`/api/webhooks/stripe`); admin bulk mark-paid (`/api/reports/mark-paid`).
 - **Resident portal**: Token APIs — portal data (`GET /api/portal/[token]`), stylists, services, available times, book, checkout.
@@ -806,7 +806,7 @@ Every input schema includes `.max()` caps to bound payload size: name/residentNa
 
 ## Caching & revalidation
 
-The app uses Next.js `unstable_cache` for expensive read aggregations and `revalidateTag(tag, {})` to invalidate caches on mutation. Tags currently in use:
+The app uses Next.js `unstable_cache` for expensive read aggregations and `revalidateTag(tag, { expire: 0 })` to invalidate caches on mutation. Tags currently in use:
 
 | Tag | Cached queries | Mutation routes that revalidate |
 |---|---|---|
@@ -818,7 +818,46 @@ The app uses Next.js `unstable_cache` for expensive read aggregations and `reval
 
 Caching keys: `unstable_cache` takes a function-arg-based cache key plus a `keyParts: string[]` array. The master-admin facility cache passes `yearMonthKey` (e.g. `'2026-04'`) so the cache rotates when the calendar month flips (`bookingsThisMonth` filter depends on month boundary).
 
-Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Single-arg form is deprecated.
+**The second argument MUST be `{ expire: 0 }` — never a bare `{}` (P61).** The Next 16 types require a `profile` argument, which is why the project originally passed `{}`; but `{}` is truthy and produces `durations = { expire: undefined }`, so the cache handler marks the tag `stale` and never `expired`. `unstable_cache` reads check expiry for a hard miss, so a stale-only tag returns the OLD value and refreshes in the background — every mutation landed one render late. `{ expire: 0 }` sets `expired = now`. Verified against the installed Next 16.2.3 runtime, not the docs.
+
+Two more caches worth knowing about, both tagged `facilities`: `getCachedMembershipData` in `(protected)/layout.tsx` (the facility switcher list, 300s, per-user, `isMaster` in the key) and `getCachedActiveFacilitiesList` in `master-admin/page.tsx`.
+
+
+### Facility resolution (P61)
+
+There is ONE answer to "which facility am I in": `getUserFacility(userId)`. The
+protected layout derives its active facility from it as well, so the sidebar and
+the page cannot disagree — they used to be computed two different ways, and only
+the layout applied a franchise filter, which is how the page could render one
+community while the corner named another. The switcher LIST and the active
+facility are separate questions: the list is what you may switch to,
+`getUserFacility` is where you are. A resolved facility missing from the list is
+fetched and prepended, never silently replaced by the first entry.
+
+The franchise narrowing in the layout is exempt for the master
+(`hasSuperAdminRole && !isMaster`): the owner is never scoped down by a franchise
+membership row, including the `super_admin` rows that
+`/api/debug/setup-demo-franchise` grants on demo facilities.
+
+`isMasterEmail(email)` in `src/lib/get-facility-id.ts` is the shared cheap
+owner check (trimmed, case-insensitive). Every manage-tier guard needs it —
+`isManageTier(fu, isMaster = false)` returns false for the master, whose
+synthetic row is `rawRole: 'admin'`.
+
+### Diagnostics
+
+`GET /api/debug/whoami` (master-gated) reports what the server thinks the session
+is: recognised-as-owner, impersonation cookie, selected facility,
+`getUserFacility` result, membership rows, whether the franchise filter is
+involved, and active-facility count vs expected switcher count. `?facility=` and
+`?stylist=` take a code or name and explain in words why that record is or isn't
+visible. Surfaced as Master Admin → Debug → "What the server sees". It never
+returns the owner env var's value, only whether it is configured and matched.
+
+`GET /api/super-admin/unassigned-stylists` (master-gated) lists active stylists
+with no home facility and no active assignment — the shape that is invisible on
+every roster. One `NOT EXISTS` query; repair goes through
+`POST /api/facilities/[facilityId]/stylists`.
 
 ---
 
@@ -908,7 +947,7 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `DELETE /api/super-admin/facility/[id]` | Super admin only | Hard delete facility (requires no bookings); wrapped in db.transaction() |
 | `GET /api/super-admin/reports/monthly?month=YYYY-MM` | Super admin | Per-facility aggregate for a month: appointmentCount, totalRevenueCents (COALESCE booking/service price), unpaidCount, unpaidRevenueCents. Cached 5 min via `unstable_cache`, tag `bookings`. |
 | `GET /api/super-admin/reports/outstanding` | Super admin | All completed + unpaid bookings across authorized facilities with resident/stylist/service/facilityName. Cached 5 min via `unstable_cache`, tag `bookings`. |
-| `POST /api/super-admin/reports/mark-paid` | Super admin | Mark bookingIds as paid. Verifies every booking belongs to an authorized facility (403 otherwise). Calls `revalidateTag('bookings', {})`. |
+| `POST /api/super-admin/reports/mark-paid` | Super admin | Mark bookingIds as paid. Verifies every booking belongs to an authorized facility (403 otherwise). Calls `revalidateTag('bookings', { expire: 0 })`. |
 | `GET /api/super-admin/export/billing?month=YYYY-MM` | Super admin | Cross-facility CSV export with Facility column prepended; per-facility subtotals; grand total row. Always fresh (`force-dynamic`). |
 | `GET /api/super-admin/merge-candidates` | Super admin email only | Phase 11E. Returns `{ candidates, unpaired, fidFacilityCount }`. Fuzzy-matches every no-FID active facility against every FID active facility via `fuzzyScore` at threshold 0.6; buckets into `high` (score=1.0), `medium` (≥0.8), `low` (≥0.6). Each row carries per-facility resident/booking/stylist counts. |
 | `POST /api/super-admin/merge-facilities` | Super admin email only | Phase 11E. Body: `{ primaryFacilityId, secondaryFacilityId, notes? }`. Wraps entire merge in `db.transaction()` — auto-rolls back on any throw. Migrates all 20 facility_id FK tables, handles 5 unique-constraint conflicts (log_entries, stylist_facility_assignments, stylist_availability, facility_users PK, qb_invoices) by deleting secondary row. Residents with same normalized name + room as a primary resident are soft-deleted and their bookings/invoices/payments/unresolved-payments re-pointed to the primary resident. Field inheritance: copy-if-null for 15 facility columns (address, phone, contactEmail, calendarId, qb*, workingHours, stripe*, revSharePercentage, serviceCategoryOrder). Secondary facility soft-deactivated (`active=false`). Writes one row to `facility_merge_log`. `maxDuration=60`. |
@@ -938,15 +977,15 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `POST /api/quickbooks/disconnect` | **Admin** (Phase 10B) | Clears all QB columns (`qb_realm_id`, tokens, expiry, `qb_expense_account_id`). Fire-and-forget `revokeQBToken()` against Intuit's revoke endpoint. |
 | `GET /api/quickbooks/accounts` | **Admin**, rate-limited `quickbooksSync` | Queries QB for active Expense accounts; returns sorted `{ id, name, accountType, accountSubType }[]` for the Settings picker. `maxDuration=60`. |
 | `POST /api/quickbooks/sync-vendors` | **Admin**, rate-limited `quickbooksSync` | Creates or sparse-updates QB Vendors for every active assigned stylist in the facility. Never fails the whole batch — returns `{ created, updated, skipped, errors: [{ stylistId, message }] }`. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for reuse. `maxDuration=60`. |
-| `POST /api/quickbooks/sync-bill/[periodId]` | **Admin**, rate-limited `quickbooksSync` | Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor mapping. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item + aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', {})`. `maxDuration=60`. |
-| `POST /api/quickbooks/sync-status/[periodId]` | **Admin**, rate-limited `quickbooksSync` | GETs each `/bill/<qbBillId>` for items with a Bill. When every Balance === 0 and status ≠ paid, flips the period to `paid` + `revalidateTag('pay-periods', {})`. Returns `{ items, periodStatus, periodUpdated }`. |
+| `POST /api/quickbooks/sync-bill/[periodId]` | **Admin**, rate-limited `quickbooksSync` | Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor mapping. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item + aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', { expire: 0 })`. `maxDuration=60`. |
+| `POST /api/quickbooks/sync-status/[periodId]` | **Admin**, rate-limited `quickbooksSync` | GETs each `/bill/<qbBillId>` for items with a Bill. When every Balance === 0 and status ≠ paid, flips the period to `paid` + `revalidateTag('pay-periods', { expire: 0 })`. Returns `{ items, periodStatus, periodUpdated }`. |
 | `POST /api/portal/send-invite` | **Admin** (Phase 11I) | Body `{ residentId }`. Verifies resident is in facility + has `poaEmail`. Calls `createMagicLink` and fires `buildPortalMagicLinkEmailHtml` via `sendEmail` (fire-and-forget). Updates `residents.last_portal_invite_sent_at = now()`. |
 | `POST /api/portal/create-magic-link` | **Admin** (Phase 11I refactor) | Body `{ residentId }`. Same guards as send-invite. Returns `{ data: { link } }` — a 72h magic link URL. Does NOT send email, does NOT update `lastPortalInviteSentAt`. Used by the "Copy Link" button on resident detail. Rate-limited under `portalRequestLink` bucket. |
 | `POST /api/portal/request-link` | **Public** (Phase 11I), rate-limited `portalRequestLink` | Body `{ email, facilityCode }`. Always returns `{ data: { sent: true } }` regardless of whether residents exist — never leaks email enumeration. When residents found, builds magic link and fires-and-forgets one email. |
 | `POST /api/portal/login` | **Public** (Phase 11I), rate-limited `portalLogin` | Body `{ email, password, facilityCode }`. Generic `Invalid email or password` on any failure. Sets `__portal_session` cookie (`httpOnly`, `secure`, `sameSite=lax`, `maxAge=30d`). |
 | `POST /api/portal/logout` | Authed (Phase 11I) | Reads cookie → `revokeSession` → clears cookie. |
 | `POST /api/portal/set-password` | Authed (Phase 11I), rate-limited `portalSetPassword` | Body `{ password }` (`z.string().min(8).max(200)`). Hashes via PBKDF2-SHA256 210k iterations and writes to `portal_accounts.password_hash`. |
-| `POST /api/portal/request-booking` | Authed (Phase 11I), rate-limited `portalRequestBooking` | Body `{ residentId, serviceIds: string[1..6], preferredDateFrom, preferredDateTo, notes }`. Verifies resident in session + every service in resident's facility + active. Resolves stylist via `resolveAvailableStylists` + `pickStylistWithLeastLoad` (fallback: first active facility stylist). Inserts `bookings` row with `status='requested'`, `requestedByPortal=true`, `portalNotes`, `serviceIds`, `serviceNames`, `totalDurationMinutes`, `priceCents`. Fires admin notification email via `buildPortalRequestEmailHtml`. `revalidateTag('bookings', {})`. |
+| `POST /api/portal/request-booking` | Authed (Phase 11I), rate-limited `portalRequestBooking` | Body `{ residentId, serviceIds: string[1..6], preferredDateFrom, preferredDateTo, notes }`. Verifies resident in session + every service in resident's facility + active. Resolves stylist via `resolveAvailableStylists` + `pickStylistWithLeastLoad` (fallback: first active facility stylist). Inserts `bookings` row with `status='requested'`, `requestedByPortal=true`, `portalNotes`, `serviceIds`, `serviceNames`, `totalDurationMinutes`, `priceCents`. Fires admin notification email via `buildPortalRequestEmailHtml`. `revalidateTag('bookings', { expire: 0 })`. |
 | `GET /api/portal/statement/[residentId]` | Authed (Phase 11I), rate-limited `portalStatement` | Verifies resident in session. Reuses `buildResidentStatementHtml`. Returns HTML with `@media print` CSS + `<button onclick="window.print()">`. `Content-Type: text/html`. |
 | `POST /api/portal/stripe/create-checkout` | Authed (Phase 11I), rate-limited `portalCheckout` | Body `{ residentId, amountCents, purpose? }` (50–10_000_000). **`purpose` (2026-06-26)**: `'balance'` (default) → `metadata.type='portal_balance'` (auto-applied FIFO in the webhook); `'prepay'` → `metadata.type='portal_prepay'` (banked as an unapplied account credit, manual attribution). Stripe key = **PLATFORM `STRIPE_SECRET_KEY` ONLY since P53** (`facility.stripeSecretKey` is legacy/ignored — a facility-account checkout produced webhook events the platform signing secret 400'd: charged, never recorded). Returns `{ data: { checkoutUrl } }`. |
 | `POST /api/portal/gift/create-checkout` | Authed, rate-limited `portalCheckout` (2026-06-26) | Body `{ facilityCode, recipientName, recipientRoom?, amountCents, gifterName? }`. Resolves the recipient by **fuzzy name (+room) without exposing the facility roster** (lenient with a room filter; on name alone requires `score≥0.85` and a clear gap to the runner-up — else 409). Creates a Checkout session `metadata.type='portal_gift'`, `metadata.residentId`=recipient, `metadata.gifterName`. The webhook banks an unapplied credit on the recipient. |
@@ -960,7 +999,7 @@ Always use the Next.js 16 second-arg signature: `revalidateTag('<tag>', {})`. Si
 | `DELETE /api/help/demo-data` | Authenticated; admin-only (Phase 13-Tutorial) | Soft-deletes (`active=false`) all `is_demo=true` residents, stylists, services, and bookings for the caller's facility. Hard-deletes demo `log_entries` and `stylist_checkins` (no `active` column on those tables). Called from Settings → Advanced "Tutorial Data" card after two-step confirmation. |
 | `POST /api/profile/first-tour-seen` | Authenticated (Phase 13-Tutorial) | Flips `profiles.has_seen_first_tour = true` for the caller. No body required. Returns `{ data: { ok: true } }`. |
 | `POST /api/profile/changelog-seen` | Authenticated (Wave 2) | Stamps `profiles.changelog_last_read_at = now()`. Fired by `<ChangelogWidget>` when the user opens the changelog modal. Returns `{ data: { ok: true } }`. |
-| `POST /api/services/reorder` | **Admin** (Wave 2) | Body: `{ action: 'services', orderedIds: string[] }` OR `{ action: 'categories', orderedCategories: string[] }`. `'services'` updates `sort_order` on each service id in sequence; `'categories'` updates `facilities.serviceCategoryOrder`. Scoped to caller's facility. `revalidateTag('facilities', {})` on category reorder. |
+| `POST /api/services/reorder` | **Admin** (Wave 2) | Body: `{ action: 'services', orderedIds: string[] }` OR `{ action: 'categories', orderedCategories: string[] }`. `'services'` updates `sort_order` on each service id in sequence; `'categories'` updates `facilities.serviceCategoryOrder`. Scoped to caller's facility. `revalidateTag('facilities', { expire: 0 })` on category reorder. |
 | `POST /api/residents/[id]/photo` | **Admin / facility_staff** (Wave 2) | Multipart `file` upload. MIME allowlist: `image/jpeg image/png image/webp`. 5 MB cap. Uploads to private `resident-photos` bucket at `{facilityId}/{residentId}/photo.{ext}` (service-role key). Updates `residents.photo_path`. Returns `{ data: { photoPath } }`. |
 | `DELETE /api/residents/[id]/photo` | **Admin / facility_staff** (Wave 2) | Deletes the storage object and clears `residents.photo_path`. |
 | `POST /api/push/subscribe` | Authenticated (Wave 2) | Body: `{ endpoint, p256dh, auth }`. Upserts a row in `push_subscriptions` (on conflict `(user_id, endpoint)` → no-op). Calls `ensurePushSchema()`. Returns `{ data: { ok: true } }`. |
@@ -1144,7 +1183,7 @@ Three tables: `pay_periods`, `stylist_pay_items`, `pay_deductions` (see DB schem
 - `POST /api/pay-periods/[id]/items/[itemId]/deductions` — inserts deduction + recomputes net pay; rejects when paid
 - `DELETE /api/pay-periods/[id]/items/[itemId]/deductions/[deductionId]` — deletes + recomputes; rejects when paid
 - `GET /api/pay-periods/[id]/export` — rate-limited `payrollExport` (20/hr). CSV with dollar-formatted columns + total row. `maxDuration=60`
-Helper: `src/lib/payroll.ts` (`computeNetPay`, `NetPayInputs`). Net pay = `max(0, base − Σ deductions)`. `paid` locks all item/deduction mutations. Every mutation calls `revalidateTag('pay-periods', {})`.
+Helper: `src/lib/payroll.ts` (`computeNetPay`, `NetPayInputs`). Net pay = `max(0, base − Σ deductions)`. `paid` locks all item/deduction mutations. Every mutation calls `revalidateTag('pay-periods', { expire: 0 })`.
 
 ### Phase 10B — QuickBooks Online Integration (SHIPPED 2026-04-20)
 Per-facility OAuth2 connection, stylists mapped to QB Vendors, pay periods pushed as one QB Bill per stylist, payment status pulled back to auto-flip periods to `paid` when every Bill's `Balance === 0`.
@@ -1163,8 +1202,8 @@ Per-facility OAuth2 connection, stylists mapped to QB Vendors, pay periods pushe
 - `POST /disconnect` — admin-only. Clears all QB columns on the facility. Fire-and-forget revoke against `developer.api.intuit.com/v2/oauth2/tokens/revoke`.
 - `GET /accounts` — admin-only, rate-limited. Lists active Expense accounts for the Settings picker.
 - `POST /sync-vendors` — admin-only, rate-limited, `maxDuration=60`. Creates or sparse-updates QB Vendors for every active assigned stylist; never fails the batch on a per-stylist error. Exports `syncVendorsForFacility(facilityId, filterStylistIds?)` for inline reuse by sync-bill.
-- `POST /sync-bill/[periodId]` — admin-only, rate-limited, `maxDuration=60`. Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item and aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', {})`.
-- `POST /sync-status/[periodId]` — admin-only, rate-limited. GETs each `/bill/<qbBillId>`; when all balances are zero and status ≠ paid, flips period to `paid` + `revalidateTag('pay-periods', {})`.
+- `POST /sync-bill/[periodId]` — admin-only, rate-limited, `maxDuration=60`. Requires `period.status !== 'open'` (412) and `facility.qbExpenseAccountId` (412). Auto-calls `syncVendorsForFacility` for any stylist missing a vendor. Pushes one Bill per stylist with `netPayCents > 0`; sparse-updates existing Bills via GET-for-SyncToken → POST `{Id, SyncToken, sparse: true}`. Writes `qb_bill_id` / `qb_bill_sync_token` per item and aggregate `qb_synced_at` on the period. `revalidateTag('pay-periods', { expire: 0 })`.
+- `POST /sync-status/[periodId]` — admin-only, rate-limited. GETs each `/bill/<qbBillId>`; when all balances are zero and status ≠ paid, flips period to `paid` + `revalidateTag('pay-periods', { expire: 0 })`.
 
 **Rate limit** — `quickbooksSync` bucket 15/hr/user (`src/lib/rate-limit.ts`).
 
@@ -1258,7 +1297,7 @@ End-to-end paper-check intake with Gemini 2.5 Flash OCR + confirmation + unresol
 
 **New routes**:
 - `POST /api/billing/scan-check` — multipart (`image` + `facilityId`). Auth: admin or master, facility ownership enforced. Rate limit `checkScan` 30/hr/user. Validates MIME + ≤10MB, uploads to `check-images/{facilityId}/{timestamp}-{uuid}.{ext}` via service-role, base64-encodes the in-memory buffer and fires Gemini 2.5 Flash via direct fetch (v1beta, `inlineData`+`text`, same pattern as daily-log OCR). Strips markdown fences from the response and parses JSON. Fuzzy-matches facility (exact name → fuzzy score → facility-code from invoiceRef → payer address substring; skip when payer address is `2833 Smith Ave`, our mailing address), residents (scoped to matched facility, `fuzzyBestMatch` + room-number fallback), invoices (exact open-balance match → `high`; partial → `partial`; else `none`). Returns a confidence-annotated `ScanResult`. Unresolvable path returns 200 with `unresolvable: true` + a reason so the UI can offer "Save as Unresolved". `maxDuration=60`, `dynamic='force-dynamic'`.
-- `POST /api/billing/reconcile/[paymentId]` — Phase 11K. Auth `canAccessBilling` (admin/super_admin/bookkeeper) + facility ownership; master-admin bypass via env email. Body: none. Invokes `reconcilePayment(paymentId, facilityId)` from `src/lib/reconciliation.ts`, persists `reconciliation_status/reconciled_at/reconciliation_notes/reconciliation_lines` to the `qb_payments` row, calls `revalidateTag('billing', {})`. Returns `{ status, lines, matchedCount, unmatchedCount, notes }`. Match logic: same-day booking → `high`; ±1 day → `medium`; otherwise `unmatched`. Excludes bookings with `status IN ('cancelled', 'no_show', 'requested')`. Non-remittance payments are auto-marked `'reconciled'` with empty lines. Companion `GET` returns the cached result without re-running.
+- `POST /api/billing/reconcile/[paymentId]` — Phase 11K. Auth `canAccessBilling` (admin/super_admin/bookkeeper) + facility ownership; master-admin bypass via env email. Body: none. Invokes `reconcilePayment(paymentId, facilityId)` from `src/lib/reconciliation.ts`, persists `reconciliation_status/reconciled_at/reconciliation_notes/reconciliation_lines` to the `qb_payments` row, calls `revalidateTag('billing', { expire: 0 })`. Returns `{ status, lines, matchedCount, unmatchedCount, notes }`. Match logic: same-day booking → `high`; ±1 day → `medium`; otherwise `unmatched`. Excludes bookings with `status IN ('cancelled', 'no_show', 'requested')`. Non-remittance payments are auto-marked `'reconciled'` with empty lines. Companion `GET` returns the cached result without re-running.
 - `POST /api/billing/save-check-payment` — admin/master, facility-scoped, Zod-validated with `.max()` caps. Two modes via `mode: 'resolve' | 'save_unresolved'`. Resolve mode runs inside a single `db.transaction()`: (1) per-resident `qb_payments` rows for IP slice; (2) one facility-level row with `resident_breakdown` jsonb for RFMS/hybrid slice; (3) optional cash-also-received row with `payment_method: 'cash'`; (4) exact-match invoice decrement (only when `invoiceMatchConfidence === 'high'` — sets `open_balance_cents=0, status='paid'`); (5) facility + per-resident balance recompute via two correlated `UPDATE…SELECT SUM(open_balance_cents)` subqueries; (6) optional `qbUnresolvedPayments.resolvedAt/resolvedBy` update when `unresolvedId` provided. Save-as-unresolved mode skips all payment writes and inserts a single `qbUnresolvedPayments` row. `maxDuration=60`, `dynamic='force-dynamic'`, no rate limit (admin-gated low-frequency).
 - `GET /api/billing/unresolved-count[?facilityId=]` — admin scoped to own facility; master can omit `facilityId` for total or pass one to scope. Returns `{ data: { count } }`.
 - `GET /api/billing/unresolved[?facilityId=]` — same auth/scoping, returns up to 200 rows with per-row signed URLs for `check_image_url`, ordered `createdAt DESC`. Left-joins `facilities` for name/code.
@@ -1374,7 +1413,7 @@ Real family/POA portal at `/family/[facilityCode]/*` — coexists with legacy `/
 1. Insert `qb_payments(paymentMethod='stripe', stripePaymentIntentId, memo)` for the resident
 2. FIFO-decrement `qb_invoices.openBalanceCents` ordered by invoiceDate ASC, set `status='paid'` + `stripePaidAt` + `stripePaymentIntentId` when zero
 3. Recompute `residents.qbOutstandingBalanceCents`
-4. `revalidateTag('billing', {})` + `revalidateTag('bookings', {})`
+4. `revalidateTag('billing', { expire: 0 })` + `revalidateTag('bookings', { expire: 0 })`
 All wrapped in `db.transaction`. Always returns 200 to Stripe.
 
 **New rate-limit buckets** — `portalRequestLink` 5/hr per `${ip}:${emailHash}`, `portalLogin` 10/hr per IP, `portalSetPassword` 5/hr per accountId, `portalRequestBooking` 5/hr per accountId, `portalStatement` 20/hr per accountId, `portalCheckout` 10/hr per accountId.
@@ -1455,7 +1494,7 @@ Fills in the "Needs Review" placeholder on `/master-admin/imports` with a real r
 
 **New routes** (all master-admin gated via `getSuperAdmin()` helper):
 - `GET /api/super-admin/import-review` — returns all bookings where `needs_review = true AND active = true`, ordered by import batch creation desc then start time. For each booking: top-3 service suggestions per facility (computed server-side via `fuzzyScore(service.name, rawServiceName)`, filtered out `pricingType='addon'`, threshold > 0). Response also includes `facilityServices: Record<facilityId, ServiceOption[]>` (the full per-facility service list, sorted by name) so the linker UI doesn't need a separate master-admin services endpoint.
-- `POST /api/super-admin/import-review/resolve` — Zod discriminated union body `{action: 'link', bookingId, serviceId} | {action: 'create', bookingId, serviceName, priceCents} | {action: 'keep', bookingId}`. `link` verifies serviceId belongs to booking's facility (cross-facility leak guard), updates `bookings.serviceId/serviceIds + needsReview=false`. `create` inserts into `services` (`pricingType='fixed', durationMinutes=30, active=true`) inside a transaction, then links. `keep` only flips `needsReview=false` (booking stays as a permanent historical record with `serviceId=null`). All paths call `revalidateTag('bookings', {})`.
+- `POST /api/super-admin/import-review/resolve` — Zod discriminated union body `{action: 'link', bookingId, serviceId} | {action: 'create', bookingId, serviceName, priceCents} | {action: 'keep', bookingId}`. `link` verifies serviceId belongs to booking's facility (cross-facility leak guard), updates `bookings.serviceId/serviceIds + needsReview=false`. `create` inserts into `services` (`pricingType='fixed', durationMinutes=30, active=true`) inside a transaction, then links. `keep` only flips `needsReview=false` (booking stays as a permanent historical record with `serviceId=null`). All paths call `revalidateTag('bookings', { expire: 0 })`.
 - `DELETE /api/super-admin/import-batches/[batchId]` — transaction: `UPDATE bookings SET active=false WHERE import_batch_id=batchId AND active=true` (returns count) + `UPDATE import_batches SET deleted_at=now()`. Returns `{ok, bookingsDeactivated}`.
 - `DELETE /api/super-admin/import-bookings/[bookingId]` — single-booking soft-delete via `active=false`. Used by the trash button on each review card.
 
@@ -2236,9 +2275,9 @@ Returns `{ created, updated, skipped, errors[] }`.
 - Auth: master admin OR admin/bookkeeper for own facility (`canAccessBilling`)
 - 412 when QB tokens or realm ID are missing
 - Rate limit: `qbInvoiceSync` bucket (3/h/user)
-- Body: `{ fullSync?: boolean }`. On success calls `revalidateTag('billing', {})` and `revalidateTag('facilities', {})`
+- Body: `{ fullSync?: boolean }`. On success calls `revalidateTag('billing', { expire: 0 })` and `revalidateTag('facilities', { expire: 0 })`
 
-**Summary route extension** — `GET /api/billing/summary/[facilityId]` column whitelist gains `qbAccessToken`, `qbRefreshToken`, `qbInvoicesLastSyncedAt`. Tokens read but stripped server-side; the response shape adds `hasQuickBooks: boolean` and `qbInvoicesLastSyncedAt: string | null` to `BillingFacility`. Cached value busts via the existing `revalidateTag('billing', {})` call inside the sync route.
+**Summary route extension** — `GET /api/billing/summary/[facilityId]` column whitelist gains `qbAccessToken`, `qbRefreshToken`, `qbInvoicesLastSyncedAt`. Tokens read but stripped server-side; the response shape adds `hasQuickBooks: boolean` and `qbInvoicesLastSyncedAt: string | null` to `BillingFacility`. Cached value busts via the existing `revalidateTag('billing', { expire: 0 })` call inside the sync route.
 
 **UI**:
 - `billing-client.tsx` — When `summary?.facility.hasQuickBooks && qbInvoiceSyncEnabled`, renders a stone-secondary "Sync from QB" button next to "Send Statement" with refresh icon, animated spinner during sync, 3-second emerald `successFlash` "✓ Synced" on success. Status line below: `Last synced: <date>` or `<X invoices updated>` after a sync, plus a `Full re-sync →` link that opens an inline confirm modal (`bg-black/40 backdrop-blur-sm z-[100]`). Errors surface as red text inline. When QB connected but flag off: shows `<DisabledActionButton title="Awaiting Intuit production approval" />`. Send via QB tooltip updated to "Coming soon — available after Intuit approval".
@@ -2324,7 +2363,7 @@ Drizzle definition mirrors `logEntries` shape and lives in `src/db/schema.ts` be
   - Validate per row: ownership (`stylistId === profile.stylistId`), facility scope, `status ∉ {cancelled, completed}`, `bookingKey === todayKey` in facility tz
   - On any failure: throw `INVALID:<json>` (handled by outer catch → 422 with `invalid: [{id, reason}]`)
   - On all-valid: `UPDATE bookings SET start_time = start_time + shift, end_time = end_time + shift WHERE id = ?` for each
-- After commit: `revalidateTag('bookings', {})`
+- After commit: `revalidateTag('bookings', { expire: 0 })`
 - **No Google Calendar sync** — accepted tradeoff for first ship; can be wired in fire-and-forget later if real-world testing surfaces desync
 - Response: `{ data: { updated: number } }`
 
@@ -2870,7 +2909,7 @@ Three parallel audits (backend hot-path, frontend bundle/render, UX/organization
 - Scripted-tour overlay auto-heal is two-stage: 1.5s (respects fresh resume blob) + 6s definitive
   (ignores blob; clears cookie + blob + reloads when no tour is running).
 - `super-admin/facility/[id]` PUT/DELETE + `super-admin/franchises` POST + `[id]` PUT/DELETE all
-  `revalidateTag('facilities', {})` on success.
+  `revalidateTag('facilities', { expire: 0 })` on success.
 - Facilities empty state: `localFacilities.length===0 && activeFacilities.length>0` (separate
   cache) → "Couldn't load facility details — Refresh"; genuine zero keeps the create CTA.
 

@@ -7,6 +7,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '6.13',
+    date: '2026-09-04',
+    title: 'Every Facility Back in the List',
+    items: [
+      'Fixed: newly created facilities — including The Fitzgerald of Palisades — could be missing from the facility list under the logo. If you own a franchise, the list was quietly being narrowed to that franchise even when you are the owner of the whole network',
+      'The facility shown in the corner and the facility shown on the page are now always the same one. They used to be worked out two different ways, which is why the page could say one community while the corner said another',
+      'Saved changes now show up straight away. Every "refresh this after you change it" instruction in the app was marking data as merely out-of-date rather than expired, so a new facility, a new invoice or a payroll change could still show the previous version for one more page load',
+      'A stylist can no longer be saved without a facility. If one already was, Master Admin → Facilities now lists them and lets you put them where they work in one tap — a stylist saved this way appeared on no roster, in no Day Log and in no facility count, even though adding them looked like it worked',
+      'Adding a stylist whose code is already taken now tells you who has it and offers to assign that person to this facility, instead of telling you to "assign them instead" with no way to do it',
+      'The Apley demo now hands you back your own account when you finish or close it. Before, it left you signed in as the demo stylist for eight hours, which hid the facility list and the stylist pages',
+      'Owner: Master Admin → Debug → "What the server sees" reports who you are recognised as, which facility you resolve to, and what your facility list should contain — and will tell you in plain words why a specific facility or stylist is not showing up',
+      'Owner: restored access to the Stylist Directory, the applicant pipeline, several service actions and stylist working hours, which had quietly closed to the owner account',
+    ],
+  },
+  {
     version: '6.12',
     date: '2026-09-03',
     title: 'Opening a New Community, Start to Finish',
