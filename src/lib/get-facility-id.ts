@@ -32,6 +32,21 @@ async function isMasterAdmin(userId: string): Promise<boolean> {
 }
 
 /**
+ * P61 — the owner-by-email check, previously inlined in ~30 routes and MISSING
+ * from ~13 others, which is how the owner ended up locked out of the Stylist
+ * Directory, the applicants pipeline, several service mutations and (via a P60
+ * regression) every stylist's hours.
+ *
+ * Cheap: no DB, no admin API. `email` must come from the verified Supabase
+ * session, never from client input. When the value gates something a forged
+ * cookie could reach, use the stricter `isMasterAdmin(userId)` above instead.
+ */
+export function isMasterEmail(email: string | null | undefined): boolean {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL?.trim().toLowerCase()
+  return !!su && email?.trim().toLowerCase() === su
+}
+
+/**
  * Normalize 'super_admin' → 'admin' so page guards and API guards
  * work uniformly for franchise owners without touching every call site.
  * The Super Admin page/link is gated by NEXT_PUBLIC_SUPER_ADMIN_EMAIL

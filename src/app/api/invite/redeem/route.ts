@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     .onConflictDoNothing()
   // P31 — bust the cached layout membership list so the new facility appears
   // in the sidebar/switcher immediately.
-  revalidateTag('facilities', {})
+  revalidateTag('facilities', { expire: 0 })
 
   // Mark invite as used + record acceptance (and viewing, if the open-time
   // stamp was missed because the user was already authenticated)

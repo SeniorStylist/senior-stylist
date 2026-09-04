@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest) {
       .where(eq(facilities.id, facilityUser.facilityId))
       .returning()
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     const hasQuickBooks = await isFacilityConnected(updated.id).catch(() => false)
     return Response.json({ data: sanitizeFacility(updated, { hasQuickBooks }) })

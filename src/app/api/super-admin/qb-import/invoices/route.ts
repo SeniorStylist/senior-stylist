@@ -204,7 +204,7 @@ export async function POST(request: Request) {
       ), 0)
     `)
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
 
     const totalOpenCents = finalRows.reduce((s, r) => s + r.openBalanceCents, 0)
 

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { applicants } from '@/db/schema'
-import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
+    if (!isMasterEmail(user.email) && !canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
 
     const franchise = await getUserFranchise(user.id)
     if (!franchise) return Response.json({ error: 'No franchise' }, { status: 400 })
@@ -68,7 +68,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
+    if (!isMasterEmail(user.email) && !canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
 
     const franchise = await getUserFranchise(user.id)
     if (!franchise) return Response.json({ error: 'No franchise' }, { status: 400 })

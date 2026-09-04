@@ -58,7 +58,7 @@ export async function POST(
 
     const result = await syncQBPayments(facilityId, { fullSync, createdBy: user.id })
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

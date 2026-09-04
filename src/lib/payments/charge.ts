@@ -570,6 +570,6 @@ async function recompute(tx: Tx, facilityId: string): Promise<void> {
 }
 
 function bustBilling(): void {
-  revalidateTag('billing', {})
-  revalidateTag('bookings', {})
+  revalidateTag('billing', { expire: 0 })
+  revalidateTag('bookings', { expire: 0 })
 }

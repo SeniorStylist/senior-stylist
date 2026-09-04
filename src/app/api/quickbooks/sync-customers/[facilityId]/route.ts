@@ -64,8 +64,8 @@ export async function POST(
       })
       .catch((e) => console.error('[qb-log]', e))
 
-    revalidateTag('billing', {})
-    revalidateTag('facilities', {})
+    revalidateTag('billing', { expire: 0 })
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

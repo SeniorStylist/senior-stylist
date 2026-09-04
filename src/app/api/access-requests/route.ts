@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    revalidateTag('access-requests', {})
+    revalidateTag('access-requests', { expire: 0 })
 
     return Response.json({ data: { id: created.id } }, { status: 201 })
   } catch (err) {

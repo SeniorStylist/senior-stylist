@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       // A debug role pinned to the facility we just deleted would leave the
       // master impersonating a stylist at a facility that no longer exists.
       cookieStore.delete('__debug_role')
-      revalidateTag('facilities', {})
+      revalidateTag('facilities', { expire: 0 })
       return Response.json({ data: { reset: true, ...result } })
     }
 
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     )
     // The switcher's membership list is cached (P31) — without this the new
     // facility is invisible in the corner until the cache expires.
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     const card = cardMode()
     return Response.json({

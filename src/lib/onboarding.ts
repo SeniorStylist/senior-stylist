@@ -239,7 +239,7 @@ export async function healMembershipOnLogin(user: AuthUserLike): Promise<string 
     .onConflictDoNothing()
   // P31 — bust the cached layout membership list (best-effort: this helper is
   // called from the auth-callback route handler where revalidateTag is valid).
-  try { revalidateTag('facilities', {}) } catch { /* non-request context */ }
+  try { revalidateTag('facilities', { expire: 0 }) } catch { /* non-request context */ }
 
   // Re-check the rows persisted — surface a transient insert failure rather
   // than silently leaving the user on /unauthorized.

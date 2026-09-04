@@ -184,7 +184,7 @@ export async function PUT(
       // components stale after cancelling a series. Push/waitlist fan-out is
       // intentionally skipped for bulk series cancels (one notification per
       // freed slot would spam).
-      revalidateTag('bookings', {})
+      revalidateTag('bookings', { expire: 0 })
       return Response.json({ data: { ...existing, status: 'cancelled' } })
     }
 
@@ -576,7 +576,7 @@ export async function PUT(
       ).catch(() => {})
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: toClientJson(data) })
   } catch (err) {
     console.error('PUT /api/bookings/[id] error:', err)
@@ -669,7 +669,7 @@ export async function DELETE(
       ).catch(() => {})
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: cancelled })
   } catch (err) {
     console.error('DELETE /api/bookings/[id] error:', err)

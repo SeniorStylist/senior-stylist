@@ -41,6 +41,13 @@ export async function PUT(
     }
     // P51 lockdown — commission values are manage-tier; a facility admin's
     // approval still works, but any supplied commissionPercent is ignored.
+    //
+    // P61 note: the guard above requires role 'admin', so a BOOKKEEPER never
+    // reaches this line — approving an access request (which grants a login) is
+    // admin-or-owner only today. That looks deliberate rather than accidental,
+    // so it is left as-is; the manage-tier check below is therefore only ever
+    // satisfied by a franchise admin (normalized to 'admin'). Widening it is an
+    // owner decision, not a bug fix.
     const allowCommission = isSuperAdmin || canManageStylists(facilityUser)
 
     const { id } = await params
@@ -70,7 +77,7 @@ export async function PUT(
         .set({ status: 'denied', updatedAt: new Date() })
         .where(eq(accessRequests.id, id))
 
-      revalidateTag('access-requests', {})
+      revalidateTag('access-requests', { expire: 0 })
 
       return Response.json({ data: { denied: true } })
     }
@@ -111,7 +118,7 @@ export async function PUT(
         })
         .onConflictDoNothing()
       // P31 — bust the cached layout membership list for the approved user
-      revalidateTag('facilities', {})
+      revalidateTag('facilities', { expire: 0 })
     }
 
     // For stylist role: upsert stylist record with commissionPercent (manage-tier only — P51)
@@ -154,7 +161,7 @@ export async function PUT(
       `,
     })
 
-    revalidateTag('access-requests', {})
+    revalidateTag('access-requests', { expire: 0 })
 
     return Response.json({ data: { approved: true } })
   } catch (err) {

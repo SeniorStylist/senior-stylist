@@ -29,11 +29,19 @@ export function sortFacilitiesForSwitcher<T extends SwitchableFacility>(
   list: T[],
   order: FacilitySortOrder,
 ): T[] {
+  // P61 — a code with no digits ('FAPLEY') used to yield parseInt('') === NaN,
+  // and a comparator returning NaN is undefined behaviour: V8 can leave the
+  // array genuinely scrambled, not merely mis-ordered. Digit-less and absent
+  // codes both sort last, then by name so the tail is still readable.
+  const fid = (f: T): number => {
+    const digits = f.facilityCode?.replace(/\D/g, '') ?? ''
+    const n = digits === '' ? NaN : parseInt(digits, 10)
+    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER
+  }
   return [...list].sort((a, b) => {
     if (order === 'name') return (a.name ?? '').localeCompare(b.name ?? '')
-    const numA = parseInt(a.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-    const numB = parseInt(b.facilityCode?.replace(/\D/g, '') ?? '9999', 10)
-    return numA - numB
+    const diff = fid(a) - fid(b)
+    return diff !== 0 ? diff : (a.name ?? '').localeCompare(b.name ?? '')
   })
 }
 
@@ -43,9 +51,15 @@ export function filterFacilitiesForSwitcher<T extends SwitchableFacility>(
 ): T[] {
   const q = query.trim().toLowerCase()
   if (!q) return list
-  return list.filter(
-    (f) => f.name?.toLowerCase().includes(q) || f.facilityCode?.toLowerCase().includes(q),
-  )
+  // P61 — every whitespace-separated token must appear somewhere in the name or
+  // the code. A single-substring test meant "fitzgerald palisades" matched
+  // nothing, which reads as "my facility is gone" rather than "narrow your
+  // search". Order-independent, so "palisades fitzgerald" works too.
+  const terms = q.split(/\s+/).filter(Boolean)
+  return list.filter((f) => {
+    const haystack = `${f.name ?? ''} ${f.facilityCode ?? ''}`.toLowerCase()
+    return terms.every((t) => haystack.includes(t))
+  })
 }
 
 /**

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylists, facilities, stylistAvailability, stylistFacilityAssignments, franchises, franchiseFacilities } from '@/db/schema'
-import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
 import { resolveFacilityWrite } from '@/lib/facility-access'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateStylistCode } from '@/lib/stylist-code'
@@ -327,7 +327,7 @@ export async function POST(request: NextRequest) {
     } else {
       const fu = await getUserFacility(user.id)
       if (!fu) return Response.json({ error: 'No facility' }, { status: 400 })
-      if (!canManageStylists(fu)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
+      if (!isMasterEmail(user.email) && !canManageStylists(fu)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
       facilityUser = { userId: fu.userId, facilityId: fu.facilityId, role: fu.role, rawRole: fu.rawRole, createdAt: fu.createdAt }
     }
 

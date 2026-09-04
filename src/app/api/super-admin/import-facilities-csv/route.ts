@@ -286,7 +286,7 @@ export async function POST(request: Request) {
     })
   }
 
-  revalidateTag('facilities', {})
+  revalidateTag('facilities', { expire: 0 })
 
   return Response.json({
     data: { updated, created, skipped, namesFilled, emailsFilled, revShareSet, warnings, headerDetected, createdList: createdList.slice(0, 50) },

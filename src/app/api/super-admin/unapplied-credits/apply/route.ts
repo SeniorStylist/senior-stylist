@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return Response.json({ error: msg }, { status: 400 })
     }
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
     return Response.json({
       data: {
         appliedCents: result.appliedCents,

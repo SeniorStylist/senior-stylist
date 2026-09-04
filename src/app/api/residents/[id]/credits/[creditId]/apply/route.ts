@@ -83,8 +83,8 @@ export async function POST(
       return Response.json({ error: e instanceof Error ? e.message : 'Apply failed' }, { status: 422 })
     }
 
-    revalidateTag('billing', {})
-    revalidateTag('bookings', {})
+    revalidateTag('billing', { expire: 0 })
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({ data: { appliedCents } })
   } catch (err) {

@@ -618,7 +618,7 @@ export async function POST(request: NextRequest) {
       await sendFinishAccountInvite(residentId).catch(() => false)
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: toClientJson(data) }, { status: 201 })
   } catch (err) {
     console.error('POST /api/bookings error:', err)

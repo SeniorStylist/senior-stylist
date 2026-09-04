@@ -364,8 +364,8 @@ export async function POST(request: Request) {
     })
 
     // Bust billing cache (qb_invoices.matched_booking_id changed) + bookings cache
-    revalidateTag('billing', {})
-    revalidateTag('bookings', {})
+    revalidateTag('billing', { expire: 0 })
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

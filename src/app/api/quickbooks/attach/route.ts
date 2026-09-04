@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await attachFacilities(realmId, targetIds)
-    revalidateTag('facilities', {})
-    revalidateTag('billing', {})
+    revalidateTag('facilities', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
     return Response.json({
       data: {
         attached: result.attached.length,

@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/supabase/server'
+import { getUserFacility } from '@/lib/get-facility-id'
 import { ensureMonthlyReportSchema } from '@/lib/monthly-report-ddl'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
@@ -91,15 +92,29 @@ async function fetchMembershipData(userId: string, isMaster = false): Promise<Me
       id: f.id,
       name: f.name,
       facilityCode: f.facilityCode ?? null,
-      role: explicitRoles.get(f.id) ?? (isMaster ? 'admin' : 'bookkeeper'),
+      // P61 — the OWNER is always 'admin' here. A stray non-admin membership
+      // row (a leftover `stylist` row from a debug session, say) otherwise won
+      // at :154 and became `activeRole`, which hides the facility switcher
+      // entirely (sidebar.tsx gates it on admin|bookkeeper).
+      role: isMaster ? 'admin' : (explicitRoles.get(f.id) ?? 'bookkeeper'),
     }))
   }
 
-  // For super_admin users, restrict facility switcher to their franchise only
+  // For super_admin users, restrict facility switcher to their franchise only.
+  //
+  // P61 — `&& !isMaster` is LOAD-BEARING. This filter runs twelve lines after the
+  // expansion above and used to apply to the owner too, silently undoing it: a
+  // master who holds ANY super_admin row saw only that franchise's facilities,
+  // and a facility he creates is never franchise-linked (api/facilities/route.ts
+  // skips the membership/franchise block for `isMaster`), so it was always
+  // excluded. Worse, one click of the Debug tab's "Set up demo franchise" grants
+  // him super_admin rows on DEMO facilities, which the expansion already
+  // excludes — intersection empty, switcher gone. Never narrow the owner.
   const hasSuperAdminRole = userFacilities.some((fu) => fu.role === 'super_admin')
-  if (hasSuperAdminRole) {
+  if (hasSuperAdminRole && !isMaster) {
     const franchise = await db.query.franchises.findFirst({
       where: eq(franchises.ownerUserId, userId),
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
       with: { franchiseFacilities: true },
     })
     if (franchise) {
@@ -149,20 +164,46 @@ async function fetchLayoutData(userId: string, isMaster = false): Promise<Layout
   } catch {
     membership = await fetchMembershipData(userId, isMaster)
   }
-  const { memberships, allFacilities } = membership
+  let allFacilities = membership.allFacilities
 
-  const active = allFacilities.find((f) => f.id === selectedId) ?? allFacilities[0]
-  const rawRole = active?.role ?? 'admin'
+  // P61 — ONE answer to "which facility am I in".
+  //
+  // Every page resolves its facility through getUserFacility(). The layout used
+  // to compute its OWN answer from a list it had filtered differently, and when
+  // the two disagreed the page rendered "Fitzgerald" while the sidebar said
+  // "F121" — the bug Josh reported twice. The switcher list and the active
+  // facility are now different questions with one shared answer: the list is
+  // what you may switch TO, getUserFacility says where you ARE.
+  //
+  // getUserFacility is React.cache()'d, so on any page that also calls it (most
+  // of them) this is deduped to zero extra work. It also honours the debug
+  // impersonation cookie, so the sidebar now names the impersonated facility
+  // instead of an unrelated one.
+  const fu = await getUserFacility(userId).catch(() => null)
+  const resolvedId = fu?.facilityId ?? selectedId ?? allFacilities[0]?.id ?? null
 
-  // Phase 25 — franchise-admin signal derived from the rows already in hand
-  // (was a second identical facility_users query via isFranchiseAdmin()).
-  // Mirrors isFranchiseAdmin's semantics: RAW role of the selected facility's
-  // row, falling back to the first row. The debug-cookie override is handled
-  // by the caller (master-only branch below).
-  const selectedRaw = selectedId
-    ? memberships.find((fu) => fu.facilityId === selectedId)
-    : undefined
-  const franchiseAdmin = (selectedRaw ?? memberships[0])?.role === 'super_admin'
+  let active = allFacilities.find((f) => f.id === resolvedId)
+  if (!active && resolvedId) {
+    // Resolved to a facility the switcher list doesn't contain — a demo facility
+    // (getUserFacility and /api/facilities/select accept any ACTIVE facility,
+    // while the list excludes demo ones), or one a filter above removed. Name it
+    // correctly regardless: a corner that shows a different facility than the
+    // page is the entire class of bug this replaces.
+    const row = await db.query.facilities.findFirst({
+      where: eq(facilities.id, resolvedId),
+      columns: { id: true, name: true, facilityCode: true },
+    })
+    if (row) {
+      active = { id: row.id, name: row.name, facilityCode: row.facilityCode ?? null, role: fu?.role ?? 'admin' }
+      allFacilities = [active, ...allFacilities]
+    }
+  }
+
+  // Role + franchise signal come from the same resolution, so they can't drift
+  // from the facility they describe. getUserFacility already normalizes
+  // super_admin -> admin and preserves the original as rawRole (P51).
+  const rawRole = fu?.role ?? active?.role ?? 'admin'
+  const franchiseAdmin = fu?.rawRole === 'super_admin'
 
   const profileRow = await db.query.profiles.findFirst({
     where: (p, { eq }) => eq(p.id, userId),
@@ -198,9 +239,17 @@ export default async function ProtectedLayout({
   let activeFacilityId: string = ''
   let changelogLastReadAt: string | null = null
 
-  const isMaster = user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
+  // P61 — trimmed + case-insensitive. This was a bare `===` against the raw env
+  // var, so a stray space or a capital letter in the deployed value silently
+  // demoted the owner to his membership rows. Mirrors isMasterAdmin()'s intent.
+  const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL?.trim().toLowerCase()
+  const isMaster = !!superAdminEmail && user.email?.trim().toLowerCase() === superAdminEmail
 
   let facilityData: LayoutData | null = null
+  // P61 — a failure here used to be indistinguishable from "you have no
+  // facilities": the switcher simply didn't render, with no error and no log.
+  // Track it so the sidebar can say "couldn't load" and offer a reload.
+  let facilityLoadFailed = false
   try {
     facilityData = await Promise.race([
       fetchLayoutData(user.id, isMaster),
@@ -208,8 +257,13 @@ export default async function ProtectedLayout({
         setTimeout(() => resolve(null), LAYOUT_TIMEOUT_MS)
       ),
     ])
-  } catch {
-    // ignore
+    if (!facilityData) {
+      facilityLoadFailed = true
+      console.error(`[layout] facility data timed out after ${LAYOUT_TIMEOUT_MS}ms for user ${user.id}`)
+    }
+  } catch (err) {
+    facilityLoadFailed = true
+    console.error('[layout] facility data failed:', err)
   }
 
   if (facilityData) {
@@ -263,7 +317,7 @@ export default async function ProtectedLayout({
       <AssistantAnnouncementBanner changelogLastReadAt={changelogLastReadAt} />
       <NavigationProgress />
       <div className="hidden md:flex">
-        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} isFranchiseAdmin={franchiseAdmin} activeFacilityId={activeFacilityId} />
+        <Sidebar user={user} facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} isFranchiseAdmin={franchiseAdmin} activeFacilityId={activeFacilityId} facilityLoadFailed={facilityLoadFailed} />
       </div>
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <MobileFacilityHeader facilityName={facilityName} facilityCode={facilityCode} allFacilities={allFacilities} role={activeRole} debugMode={debugMode} activeFacilityId={activeFacilityId} />

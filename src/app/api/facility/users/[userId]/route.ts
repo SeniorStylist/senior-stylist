@@ -74,7 +74,7 @@ export async function DELETE(
     })
 
     // P31 — bust the cached layout membership list for the removed user
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     // Invalidate the removed user's Supabase sessions so they can't continue navigating
     try {

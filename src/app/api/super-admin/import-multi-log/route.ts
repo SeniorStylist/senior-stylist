@@ -360,8 +360,8 @@ export async function POST(request: Request) {
         .where(eq(importBatches.id, batch.id))
     })
 
-    if (result.facilityCreated || result.reusedExisting || result.stylistsCreated > 0) revalidateTag('facilities', {})
-    revalidateTag('bookings', {})
+    if (result.facilityCreated || result.reusedExisting || result.stylistsCreated > 0) revalidateTag('facilities', { expire: 0 })
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

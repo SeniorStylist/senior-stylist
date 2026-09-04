@@ -103,7 +103,7 @@ export async function PUT(request: NextRequest) {
       return rows.length
     })
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({ data: { updated } })
   } catch (err) {

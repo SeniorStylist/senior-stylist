@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
       console.error('[portal/request-booking] SMS acknowledgement failed:', err)
     }
 
-    revalidateTag('signup-sheet', {})
+    revalidateTag('signup-sheet', { expire: 0 })
     return Response.json({ data: { entryId } })
   } catch (err) {
     console.error('POST /api/portal/request-booking error:', err)

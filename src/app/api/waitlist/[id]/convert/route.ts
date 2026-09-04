@@ -211,7 +211,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })()
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
 
     const data = await db.query.bookings.findFirst({
       where: eq(bookings.id, result.id),

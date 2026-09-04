@@ -125,7 +125,7 @@ export async function PUT(
       .where(eq(payPeriods.id, id))
       .returning()
 
-    revalidateTag('pay-periods', {})
+    revalidateTag('pay-periods', { expire: 0 })
 
     if (parsed.data.status === 'paid' && existing.status !== 'paid') {
       void (async () => {

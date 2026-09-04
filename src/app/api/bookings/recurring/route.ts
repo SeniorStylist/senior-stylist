@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
       currentStart = advanceDate(currentStart, recurringRule)
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: { parentId: parent.id, count: count + 1, skipped } })
   } catch (err) {
     console.error('POST /api/bookings/recurring error:', err)

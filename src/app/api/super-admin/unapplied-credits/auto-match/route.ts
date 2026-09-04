@@ -216,7 +216,7 @@ export async function POST(request: Request) {
       await recomputeFacilityBalances(tx, proposals.map((p) => p.facilityId))
     })
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
     return Response.json({
       data: {
         appliedCount: proposals.length,

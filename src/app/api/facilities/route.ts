@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
       return { facility, codeWasGenerated }
     })
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json(
       { data: { ...sanitizeFacility(result.facility), codeWasGenerated: result.codeWasGenerated } },

@@ -287,8 +287,8 @@ export async function POST(request: Request) {
     })
 
     // Bookings + billing rows moved between residents — bust cached reports.
-    revalidateTag('bookings', {})
-    revalidateTag('billing', {})
+    revalidateTag('bookings', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({
       data: {

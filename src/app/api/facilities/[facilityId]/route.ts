@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const [row] = await db.update(facilities).set(set).where(eq(facilities.id, facilityId)).returning()
     if (!row) return Response.json({ error: 'Facility not found' }, { status: 404 })
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
     return Response.json({ data: sanitizeFacility(row) })
   } catch (err) {
     console.error('PATCH /api/facilities/[facilityId] error:', err)

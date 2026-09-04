@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         : ` Could not void the matching QuickBooks payment (${v.error ?? 'error'}) — void it in QuickBooks by hand.`
     }
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({
       data: {

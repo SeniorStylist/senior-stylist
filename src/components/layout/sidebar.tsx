@@ -256,9 +256,12 @@ interface SidebarProps {
   isFranchiseAdmin?: boolean
   /** P60 — id of the selected facility; the switcher highlights by id, not name. */
   activeFacilityId?: string
+  /** P61 — the layout couldn't load facilities (timeout/DB error). Distinguishes
+   *  "we failed" from "you belong to none", which looked identical before. */
+  facilityLoadFailed?: boolean
 }
 
-export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false, isFranchiseAdmin = false, activeFacilityId = '' }: SidebarProps) {
+export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], role = 'admin', debugMode = false, isFranchiseAdmin = false, activeFacilityId = '', facilityLoadFailed = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -363,11 +366,34 @@ export function Sidebar({ user, facilityName, facilityCode, allFacilities = [], 
           </div>
         )}
 
+        {/* P61 — the layout failed to load facilities. Without this the sidebar
+            renders exactly as it does for someone who genuinely belongs to no
+            facility, so a transient timeout read as "all my facilities are
+            gone" — which is how this bug got reported twice. */}
+        {facilityLoadFailed && allFacilities.length === 0 && (
+          <div className="mt-2 px-2.5 py-2 rounded-lg bg-amber-400/15 text-amber-200 text-[11px] leading-snug">
+            Couldn&apos;t load your facilities.
+            <button
+              onClick={() => window.location.reload()}
+              className="block mt-1 font-semibold underline underline-offset-2 hover:text-amber-100"
+            >
+              Reload
+            </button>
+          </div>
+        )}
+
         {/* Facility switcher */}
         {showSwitcher && (
           <div className="relative mt-3">
             <button
-              onClick={() => setSwitcherOpen((o) => !o)}
+              onClick={() =>
+                setSwitcherOpen((o) => {
+                  // P61 — drop a leftover query on close, so reopening never
+                  // shows a filtered list that looks like missing facilities.
+                  if (o) setFacilitySearch('')
+                  return !o
+                })
+              }
               disabled={switching}
               className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}

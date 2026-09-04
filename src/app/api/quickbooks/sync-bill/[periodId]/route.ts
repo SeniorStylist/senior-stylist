@@ -241,7 +241,7 @@ export async function POST(
       })
       .where(eq(payPeriods.id, periodId))
 
-    revalidateTag('pay-periods', {})
+    revalidateTag('pay-periods', { expire: 0 })
 
     return Response.json({ data: { synced, failed, errors } })
   } catch (err) {

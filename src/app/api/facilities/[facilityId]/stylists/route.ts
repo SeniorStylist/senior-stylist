@@ -171,7 +171,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     })
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
     return Response.json({
       data: {
         assigned: ids.length,

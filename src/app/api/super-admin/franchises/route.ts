@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       orderBy: (t, { asc }) => [asc(t.name)],
     })
 
-    revalidateTag('facilities', {}) // P27 — franchise list cache is tagged 'facilities'
+    revalidateTag('facilities', { expire: 0 }) // P27 — franchise list cache is tagged 'facilities'
     return Response.json({ data }, { status: 201 })
   } catch (err) {
     console.error('POST /api/super-admin/franchises error:', err)
