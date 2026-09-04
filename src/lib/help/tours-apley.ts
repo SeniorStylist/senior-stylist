@@ -186,7 +186,7 @@ export const APLEY_TOURS: ScriptedTour[] = [
         selector: '',
         title: 'That was the whole journey',
         description:
-          'A poster, a family, a card, a request, a stylist, a completed visit and a charge — every step through the same code a real community uses. Debug → Apley → Reset removes all of it so you can run it again.',
+          'A poster, a family, a card, a request, a stylist, a completed visit and a charge — every step through the same code a real community uses. Closing this returns you to your own account; Debug → Apley → Reset removes the demo facility so you can run it again.',
         placement: 'center',
       },
     ],

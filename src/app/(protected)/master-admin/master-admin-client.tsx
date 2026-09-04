@@ -19,6 +19,7 @@ const AssistantCard = dynamic(
   { ssr: false, loading: () => <div className="skeleton rounded-2xl h-16" /> }
 )
 import { MergeTab } from './merge-tab'
+import { UnassignedStylists } from '@/components/stylists/unassigned-stylists'
 import { DebugTab } from './debug-tab'
 
 interface FacilityInfo {
@@ -737,6 +738,10 @@ export function MasterAdminClient({ facilities, pendingRequests, activeFacilitie
 
         {activeTab === 'facilities' && (
         <>
+        {/* P61 — stylists that belong to no facility. Renders null when there are
+            none, so it is silent unless something actually went wrong. */}
+        <UnassignedStylists facilities={activeFacilities} />
+
         {/* Delete error banner (appears above grid if delete blocked by bookings) */}
         {deleteError && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">

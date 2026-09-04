@@ -96,8 +96,17 @@ export async function POST(request: NextRequest) {
         facilityId: world.facilityId,
         facilityName: world.facilityName,
         stylistId: world.stylistId,
+        // P61 — lets the Debug badge say "Apley demo" and offer the right exit,
+        // instead of a generic "Debug · Stylist" the owner may not connect to
+        // the demo he just started.
+        demo: 'apley',
       }),
-      { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 },
+      // P61 — two hours, not eight. While this is set the owner has no facility
+      // switcher (it is gated on admin|bookkeeper), so an over-long lease turns
+      // "I finished the demo" into "the app is broken". The walk also clears it
+      // on completion or close now, so this is only a backstop for a tab that
+      // is simply abandoned.
+      { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 2 },
     )
     // The switcher's membership list is cached (P31) — without this the new
     // facility is invisible in the corner until the cache expires.

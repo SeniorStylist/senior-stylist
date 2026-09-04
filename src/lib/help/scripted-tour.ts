@@ -238,8 +238,27 @@ export function isScriptedTourRunning(): boolean {
   return _activeTour !== null && _activeState !== null
 }
 
+// P61 — Apley impersonates the demo stylist for the WHOLE walk (see
+// /api/debug/apley), which is what lets the staff half work without a role
+// switch mid-tour. Ending the walk must therefore end the impersonation too:
+// while that cookie is set the owner IS a stylist at a demo facility, so the
+// facility switcher does not render at all (it is gated on admin|bookkeeper),
+// /stylists bounces, and every master surface disappears. Before this only
+// Debug -> Apley -> Reset cleared it and it lasted eight hours — so finishing
+// the demo left the owner locked out of his own app.
+const APLEY_TOUR_ID = 'scripted-apley-end-to-end'
+function endApleyImpersonation(tourId: string | undefined) {
+  if (tourId !== APLEY_TOUR_ID) return
+  // Clear first, THEN refresh — the layout reads the cookie server-side, so a
+  // refresh that races the clear would re-render the impersonated shell.
+  fetch('/api/debug/reset', { method: 'POST' })
+    .then(() => getTourRouter()?.refresh())
+    .catch(() => {})
+}
+
 export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
   const wasReal = _mode === 'real'
+  const closingTourId = _activeTour?.id
   if (_activeState) {
     trackStep(_activeState.tourId, _activeState.stepIndex, reason)
   }
@@ -255,6 +274,7 @@ export function closeTour(reason: 'abandoned' | 'completed' = 'abandoned') {
   _activeState = null
   _setUiState?.(null)
   _mode = 'tutorial'
+  endApleyImpersonation(closingTourId)
   if (wasReal) {
     // P45 — tell the assistant chat the guided walk ended (restores its bubble).
     window.dispatchEvent(new CustomEvent('guided-walk-done'))
@@ -296,6 +316,7 @@ function completeTour() {
   clearPageCache() // drop any demo-rendered pages cached during the tour
   // Real data returns immediately behind the celebration card (Phase 21 contract).
   getTourRouter()?.refresh()
+  endApleyImpersonation(tourId)
   fetch('/api/profile/complete-tour', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
