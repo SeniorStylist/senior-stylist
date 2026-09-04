@@ -844,6 +844,37 @@ owner check (trimmed, case-insensitive). Every manage-tier guard needs it —
 `isManageTier(fu, isMaster = false)` returns false for the master, whose
 synthetic row is `rawRole: 'admin'`.
 
+### Timezones (P62)
+
+`facilities.timezone` had **no migration** until `drizzle/0049` — the Drizzle
+`notNull().default()` was a type-level claim only, and the bulk importers insert
+facilities with no timezone key. `Intl.DateTimeFormat` throws on null, so an
+imported community could kill a page.
+
+Three guards, in order of how much they cover:
+
+1. **`safeTimeZone(tz)`** (`src/lib/time.ts`) — every helper in `time.ts` and both
+   formatters in `utils.ts` funnel through it. Falls back to `America/New_York`
+   and warns. Bad data now costs a wrong clock, never a dead page.
+2. **`sanitizeFacility` normalizes `timezone`** — the one boundary every facility
+   row crosses to a client, which covers the 25 raw `facility.timezone` reads in
+   `dashboard-client.tsx`.
+3. **`isValidTimeZone`** — a Zod refinement on the routes that accept one.
+
+A page-level `?? 'America/New_York'` that is not also handed to the client is not
+a fix; that half-guard is what produced the bug.
+
+### Request cost (P62)
+
+Every query serializes through the `max: 1` pool, and the protected layout renders
+on every navigation *and* every nav-link prefetch. Budget for the layout: **no
+extra HTTP round-trips, ~3 DB round-trips.** Pages that fire a burst
+(`/dashboard`, `/log`, `/residents`, `/master-admin`) set
+`maxDuration = 60` + `dynamic = 'force-dynamic'`; without it the platform default
+is 10s and the layout's own 8s race can consume most of it. `Promise.race` cancels
+nothing — a lost race keeps holding the connection, so keep the layout cheap
+rather than raising the timeout.
+
 ### Diagnostics
 
 `GET /api/debug/whoami` (master-gated) reports what the server thinks the session
@@ -853,6 +884,14 @@ involved, and active-facility count vs expected switcher count. `?facility=` and
 `?stylist=` take a code or name and explain in words why that record is or isn't
 visible. Surfaced as Master Admin → Debug → "What the server sees". It never
 returns the owner env var's value, only whether it is configured and matched.
+
+`src/instrumentation.ts` implements Next's `onRequestError` and records server
+render errors to `app_error_events` (`drizzle/0050`, self-bootstrapped): digest,
+message, path and the facility from the request cookie. Best-effort and silent on
+failure — if the database is what broke, the write simply doesn't land.
+`GET /api/debug/errors` (master-gated, prunes to 14 days on read) backs Master
+Admin → Debug → "Recent errors", which turns the error card's `ref` — Next's
+error digest — into the actual message.
 
 `GET /api/super-admin/unassigned-stylists` (master-gated) lists active stylists
 with no home facility and no active assignment — the shape that is invisible on

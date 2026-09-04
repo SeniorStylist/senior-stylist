@@ -9,7 +9,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '6.13',
     date: '2026-09-04',
-    title: 'Every Facility Back in the List',
+    title: 'Every Facility Back in the List — and Pages That Load',
     items: [
       'Fixed: newly created facilities — including The Fitzgerald of Palisades — could be missing from the facility list under the logo. If you own a franchise, the list was quietly being narrowed to that franchise even when you are the owner of the whole network',
       'The facility shown in the corner and the facility shown on the page are now always the same one. They used to be worked out two different ways, which is why the page could say one community while the corner said another',
@@ -19,6 +19,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The Apley demo now hands you back your own account when you finish or close it. Before, it left you signed in as the demo stylist for eight hours, which hid the facility list and the stylist pages',
       'Owner: Master Admin → Debug → "What the server sees" reports who you are recognised as, which facility you resolve to, and what your facility list should contain — and will tell you in plain words why a specific facility or stylist is not showing up',
       'Owner: restored access to the Stylist Directory, the applicant pipeline, several service actions and stylist working hours, which had quietly closed to the owner account',
+      'Fixed: some communities showed "Something went wrong" instead of their calendar. Communities added by import never had a time zone recorded, and one missing time zone was enough to stop the whole page drawing — it now falls back to Eastern and keeps working, and the missing ones are filled in',
+      'Pages that were being cut off partway through loading now get the time they need. The Calendar, Day Log and Residents pages had no time limit set, so a community with years of imported history could run out of time and show an error',
+      'The screen loads with noticeably less work behind it: the facility list is fetched once instead of twice, stops pulling data it never uses, and no longer makes an extra round-trip to check who you are on every page',
+      'Owner: Master Admin \u2192 Debug \u2192 "Recent errors" shows what actually failed and at which community, so the reference number on an error card reads as a sentence instead of a number',
     ],
   },
   {
