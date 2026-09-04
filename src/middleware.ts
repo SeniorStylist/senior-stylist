@@ -174,8 +174,8 @@ export async function middleware(request: NextRequest) {
 
         const inviteToken = inviteRows && inviteRows.length > 0 ? (inviteRows[0] as { token: string }).token : null
 
-        // Allow /onboarding and /invite paths through regardless
-        if (pathname.startsWith('/onboarding') || pathname.startsWith('/invite') || pathname.startsWith('/api/invite/redeem')) {
+        // Allow /onboarding, the /facilities/new wizard (P60 first-run create) and /invite paths through regardless
+        if (pathname.startsWith('/onboarding') || pathname.startsWith('/facilities/new') || pathname.startsWith('/api/facilities') || pathname.startsWith('/invite') || pathname.startsWith('/api/invite/redeem')) {
           // allow through
         } else if (inviteToken) {
           // Has a valid invite — send them to complete it

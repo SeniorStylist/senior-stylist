@@ -94,7 +94,7 @@ export async function PUT(
 
     // P27 — bust the master-admin facility caches; without this, an
     // edit/deactivate re-rendered from the stale 300s cache ("did nothing")
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
     return Response.json({ data: updated })
   } catch (err) {
     console.error('PUT /api/super-admin/facility/[id] error:', err)
@@ -126,7 +126,7 @@ export async function DELETE(
       await tx.delete(facilities).where(eq(facilities.id, id))
     })
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
     return Response.json({ data: { deleted: true } })
   } catch (err) {
     if (err instanceof Error && err.message === 'HAS_BOOKINGS') {

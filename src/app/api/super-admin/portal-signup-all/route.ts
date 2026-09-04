@@ -28,7 +28,7 @@ export async function POST() {
       .where(and(eq(facilities.active, true), eq(facilities.portalSelfSignupEnabled, false)))
       .returning({ id: facilities.id })
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json({ data: { enabled: flipped.length } })
   } catch (err) {

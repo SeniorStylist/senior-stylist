@@ -32,6 +32,21 @@ async function isMasterAdmin(userId: string): Promise<boolean> {
 }
 
 /**
+ * P61 — the owner-by-email check, previously inlined in ~30 routes and MISSING
+ * from ~13 others, which is how the owner ended up locked out of the Stylist
+ * Directory, the applicants pipeline, several service mutations and (via a P60
+ * regression) every stylist's hours.
+ *
+ * Cheap: no DB, no admin API. `email` must come from the verified Supabase
+ * session, never from client input. When the value gates something a forged
+ * cookie could reach, use the stricter `isMasterAdmin(userId)` above instead.
+ */
+export function isMasterEmail(email: string | null | undefined): boolean {
+  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL?.trim().toLowerCase()
+  return !!su && email?.trim().toLowerCase() === su
+}
+
+/**
  * Normalize 'super_admin' → 'admin' so page guards and API guards
  * work uniformly for franchise owners without touching every call site.
  * The Super Admin page/link is gated by NEXT_PUBLIC_SUPER_ADMIN_EMAIL
@@ -151,10 +166,13 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
 
     const selected = cookieStore.get('selected_facility_id')?.value
 
+    // P60 — deterministic: the fallback row below used to be whatever physical
+    // order Postgres returned (no orderBy), so the master's "current facility"
+    // could change between requests.
     const rows = await db.query.facilityUsers.findMany({
       where: eq(facilityUsers.userId, userId),
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
     })
-    if (rows.length === 0) return null
 
     if (selected) {
       const match = rows.find((r) => r.facilityId === selected)
@@ -171,8 +189,35 @@ export const getUserFacility = cache(async function getUserFacility(userId: stri
         })
         if (fac) return normalizeRole({ ...bookkeeperRow, facilityId: selected })
       }
+
+      // P60 — the MASTER gets the same synthetic access to any active facility
+      // the cookie points at (verified by email server-side, never the cookie).
+      // Before this, a master with no membership row at the selected facility
+      // fell through to rows[0] (an arbitrary OTHER facility) or null — which is
+      // how a stylist "added to F240" landed at no facility at all, and why
+      // /stylists and /stylists/directory bounced the owner. Master already
+      // bypasses every role guard by email; this only makes SCOPING follow the
+      // facility he actually selected.
+      if (await isMasterAdmin(userId)) {
+        const fac = await db.query.facilities.findFirst({
+          where: and(eq(facilities.id, selected), eq(facilities.active, true)),
+          columns: { id: true },
+        })
+        if (fac) {
+          return normalizeRole({
+            id: 'master',
+            userId,
+            facilityId: selected,
+            role: 'admin',
+            commissionPercent: null as number | null,
+            createdAt: null as Date | null,
+            updatedAt: null as Date | null,
+          })
+        }
+      }
     }
 
+    if (rows.length === 0) return null
     return normalizeRole(rows[0])
   } catch (err) {
     console.error('[getUserFacility] DB error:', err)
@@ -203,7 +248,14 @@ export async function isFranchiseAdmin(userId: string): Promise<boolean> {
     }
 
     const selected = cookieStore.get('selected_facility_id')?.value
-    const rows = await db.query.facilityUsers.findMany({ where: eq(facilityUsers.userId, userId) })
+    // P60 — same ordering as getUserFacility above: without it `rows[0]` is
+    // whatever Postgres returns first, so a multi-facility user with no valid
+    // cookie could be a franchise admin to this helper and a plain admin to
+    // getUserFacility (or the reverse) on different requests.
+    const rows = await db.query.facilityUsers.findMany({
+      where: eq(facilityUsers.userId, userId),
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
+    })
     if (rows.length === 0) return false
     const row = (selected && rows.find((r) => r.facilityId === selected)) || rows[0]
     return row.role === 'super_admin'

@@ -110,8 +110,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    revalidateTag('facilities', {})
-    revalidateTag('billing', {})
+    revalidateTag('facilities', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
     const qs = new URLSearchParams({
       qb: 'connected',
       attached: String(result.attached.length + result.alreadyAttached.length),

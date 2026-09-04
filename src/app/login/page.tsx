@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { isNativeApp } from '@/lib/detect-device'
 import { haptics } from '@/lib/haptics'
 import { getFamilyMode } from '@/lib/family-mode'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 function LoginForm() {
   const [loading, setLoading] = useState(false)
@@ -40,7 +41,8 @@ function LoginForm() {
     }
   }, [router])
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+  // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+  const appUrl = sharedAppUrl()
   const callbackUrl = redirect
     ? `${appUrl}/auth/callback?next=${encodeURIComponent(redirect)}`
     : `${appUrl}/auth/callback`
@@ -128,7 +130,7 @@ function LoginForm() {
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
           <div className="mb-8">
-            <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
+            <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
           </div>
 
           {!codeSent ? (
@@ -241,7 +243,7 @@ function LoginForm() {
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
         {/* Logo */}
         <div className="mb-8">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
+          <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={160} height={64} className="mx-auto" />
         </div>
 
         {/* Sign in */}
@@ -334,7 +336,7 @@ export default function LoginPage() {
       // no-JS crawlers (incl. campaign URL verifiers) never see them.
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={160} height={64} className="mx-auto mb-8" />
+          <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={160} height={64} className="mx-auto mb-8" />
           <p className="text-xs mt-3 text-stone-400">
             <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
             {' · '}

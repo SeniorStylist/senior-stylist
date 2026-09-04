@@ -22,7 +22,7 @@ export interface GuideAnchor {
 export const GUIDE_ROUTES = [
   '/dashboard', '/log', '/residents', '/billing', '/analytics', '/payroll',
   '/settings', '/signup-sheet', '/my-account', '/stylists',
-  '/stylists/directory', '/master-admin', '/help',
+  '/stylists/directory', '/master-admin', '/help', '/facilities/new',
 ] as const
 
 const BOOKING_MODAL_OPENERS = ['dashboard-new-booking-fab', 'calendar-time-grid', 'stylist-pending-convert']
@@ -108,6 +108,8 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'settings-nav-billing': { route: '/settings', label: 'Billing & Payments section', kind: 'nav' },
   'settings-nav-notifications': { route: '/settings', label: 'Notifications section', kind: 'nav' },
   'settings-nav-portal': { route: '/settings', label: 'Family Accounts section', kind: 'nav' },
+  'settings-nav-integrations': { route: '/settings', label: 'Integrations section', kind: 'nav' },
+  'settings-nav-advanced': { route: '/settings', label: 'Advanced section', kind: 'nav' },
   'settings-working-hours': { route: '/settings', label: 'working hours editor', kind: 'area', requires: ['settings-nav-general'] },
   'settings-invite-form': { route: '/settings', label: 'invite teammate form', kind: 'area', requires: ['settings-nav-team'] },
   'settings-invite-role-select': { route: '/settings', label: 'invite role picker', kind: 'select', requires: ['settings-nav-team'] },
@@ -140,6 +142,12 @@ export const GUIDE_ANCHORS: Record<string, GuideAnchor> = {
   'stylists-table': { route: '/stylists', label: 'stylist roster', kind: 'area' },
   'master-facility-list': { route: '/master-admin', label: 'facility grid', kind: 'area', desktopOnly: true },
   'master-add-facility-btn': { route: '/master-admin', label: 'Add Facility button', kind: 'button', desktopOnly: true },
+  // P60 — the New-Facility wizard (/facilities/new)
+  'wizard-basics-name': { route: '/facilities/new', label: 'facility name field', kind: 'input' },
+  'wizard-basics-code': { route: '/facilities/new', label: 'facility code field', kind: 'input' },
+  'wizard-hours': { route: '/facilities/new', label: 'salon days & hours', kind: 'area' },
+  'wizard-footer-next': { route: '/facilities/new', label: 'Continue button', kind: 'button' },
+  'settings-add-facility': { route: '/settings', label: 'New facility button', kind: 'button', requires: ['settings-nav-advanced'] },
   // P48 — network-wide QuickBooks health page
   'master-quickbooks-status': { route: '/master-admin', label: 'QuickBooks status link', kind: 'button', desktopOnly: true },
   'help-home': { route: '/help', label: 'Help Center home', kind: 'area' },

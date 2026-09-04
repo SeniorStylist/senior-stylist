@@ -58,7 +58,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
           .where(and(eq(bookings.importBatchId, id), eq(bookings.active, true)))
         await tx.update(importBatches).set({ deletedAt: sql`now()` }).where(eq(importBatches.id, id))
       })
-      revalidateTag('bookings', {})
+      revalidateTag('bookings', { expire: 0 })
     }
 
     return Response.json({ data: { facilityId: batch.facilityId, sheets: batch.reviewPayload ?? null } })

@@ -160,7 +160,7 @@ export async function POST(request: Request) {
       }
     })
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
     return Response.json({
       data: {
         imported: inserts.length - preservedApplied,

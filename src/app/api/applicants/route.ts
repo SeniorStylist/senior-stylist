@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { applicants } from '@/db/schema'
-import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
 import { and, desc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import type { ApplicantStatus } from '@/types'
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
+    if (!isMasterEmail(user.email) && !canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
 
     const franchise = await getUserFranchise(user.id)
     if (!franchise) return Response.json({ error: 'No franchise' }, { status: 400 })

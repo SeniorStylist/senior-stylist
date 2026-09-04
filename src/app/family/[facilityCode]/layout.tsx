@@ -11,6 +11,9 @@ import { TextScaleToggle } from '@/components/portal/text-scale-toggle'
 import { LanguageToggle } from '@/components/portal/language-toggle'
 import { getPortalLang } from '@/lib/portal-i18n-server'
 import { makePortalT } from '@/lib/portal-i18n'
+import { TourRouterProvider } from '@/components/help/tour-router-provider'
+import { ScriptedTourOverlay } from '@/components/help/scripted-tour/scripted-tour-overlay'
+import { isMasterSession } from '@/lib/master-session'
 
 export const metadata: Metadata = {
   title: 'Senior Stylist — Salon Account',
@@ -31,10 +34,21 @@ export default async function FamilyPortalLayout({
   // remaining case drift. Use the row's canonical code from here down.
   const typed = decodeURIComponent(facilityCode)
 
-  const facility = await db.query.facilities.findFirst({
+  let facility = await db.query.facilities.findFirst({
     where: activeFacilityByCodeWhere(typed),
     columns: { id: true, name: true, facilityCode: true },
   })
+  // APLEY — a demo facility is invisible to this lookup by design (P53), which
+  // means a demo facility has no family portal. Retry with allowDemo ONLY when
+  // the viewer is the verified master, and ONLY after the ordinary lookup has
+  // missed — so an ordinary family visit never pays for the auth round-trip and
+  // the public behaviour is byte-for-byte unchanged.
+  if (!facility && (await isMasterSession())) {
+    facility = await db.query.facilities.findFirst({
+      where: activeFacilityByCodeWhere(typed, { allowDemo: true }),
+      columns: { id: true, name: true, facilityCode: true },
+    })
+  }
   const decoded = facility?.facilityCode ?? typed
 
   const session = await getPortalSession()
@@ -44,6 +58,16 @@ export default async function FamilyPortalLayout({
 
   return (
     <ToastProvider>
+      {/* APLEY — the scripted-tour engine lives outside React, but its overlay
+          and its router handle were mounted ONLY in (protected)/layout.tsx, so
+          a guided walk could not run on a family screen at all: no existing
+          tour had ever left the protected route group. Both components render
+          null until a tour starts and are portaled when they do, so they are
+          inert here for every ordinary family visit. Only one of the two
+          layouts is ever mounted at a time, so the single UI registration in
+          registerScriptedTourUI cannot be contended. */}
+      <TourRouterProvider />
+      <ScriptedTourOverlay />
       {/* lang so screen readers pronounce Spanish copy correctly (a11y) */}
       <div lang={lang} className="min-h-screen flex flex-col" style={{ backgroundColor: '#FDF8F8' }}>
         <header
@@ -51,12 +75,15 @@ export default async function FamilyPortalLayout({
           className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-1.5 relative overflow-hidden"
         >
           <div className="relative z-10 flex items-center gap-2.5 min-w-0">
+            {/* P60 — the pre-baked white wordmark. `brightness(0) invert(1)` on
+                the burgundy-on-WHITE source painted a solid white box (looked
+                like a missing image) and 120×36 squashed a 1.24:1 mark. */}
             <Image
-              src="/seniorstylistlogo.jpg"
+              src="/seniorstylistlogo-white.png"
               alt="Senior Stylist"
               width={120}
-              height={36}
-              style={{ filter: 'brightness(0) invert(1)' }}
+              height={97}
+              style={{ height: 36, width: 'auto', objectFit: 'contain' }}
             />
             <TextScaleToggle />
             <LanguageToggle lang={lang} />

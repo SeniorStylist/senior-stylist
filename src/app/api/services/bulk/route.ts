@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { services, facilities } from '@/db/schema'
-import { getUserFacility, canEditServices } from '@/lib/get-facility-id'
+import { getUserFacility, canEditServices, isMasterEmail } from '@/lib/get-facility-id'
+import { resolveFacilityWrite } from '@/lib/facility-access'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 
 const bulkSchema = z.object({
+  facilityId: z.string().uuid().optional(), // P60 — explicit target (wizard)
   rows: z.array(
     z.object({
       name: z.string().min(1),
@@ -37,16 +39,26 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canEditServices(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
-    const { facilityId } = facilityUser
-
     const body = await request.json()
     const parsed = bulkSchema.safeParse(body)
     if (!parsed.success) {
       const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
       return Response.json({ error: `Invalid service data — ${msg}` }, { status: 422 })
+    }
+
+    // P60 — an explicit target facility (the New-Facility wizard's Services
+    // step; the master has no cookie-scoped facility row). Otherwise the
+    // caller's selected facility as before.
+    let facilityId: string
+    if (parsed.data.facilityId) {
+      const access = await resolveFacilityWrite(user, parsed.data.facilityId, { requireManageTier: true })
+      if (!access.ok) return Response.json({ error: access.error }, { status: access.status })
+      facilityId = access.facilityId
+    } else {
+      const facilityUser = await getUserFacility(user.id)
+      if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!isMasterEmail(user.email) && !canEditServices(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
+      facilityId = facilityUser.facilityId
     }
 
     const values = parsed.data.rows.map((r) => {

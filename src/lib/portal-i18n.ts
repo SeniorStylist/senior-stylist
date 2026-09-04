@@ -79,6 +79,10 @@ export const PORTAL_STRINGS = {
   'appts.requestedFor': { en: 'Preferred', es: 'Preferida' },
   'appts.noUpcoming': { en: 'No upcoming appointments.', es: 'No hay citas próximas.' },
   'appts.past6Months': { en: 'Past 6 months', es: 'Últimos 6 meses' },
+  // P60 — labels the per-visit gratuity on the past-visit list. An unlabeled
+  // "+ 5" reads as a surcharge, and the settings heading 'Tip Preferences' is
+  // wrong as a value label (and wrong to a screen reader).
+  'appts.tip': { en: 'Tip', es: 'Propina' },
   'appts.noPast': { en: 'No completed appointments in the past 6 months.', es: 'No hay citas completadas en los últimos 6 meses.' },
   'appts.stylePhoto': { en: 'Style photo', es: 'Foto del peinado' },
 

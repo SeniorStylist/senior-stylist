@@ -391,8 +391,8 @@ export async function POST(
         .where(eq(qbPayments.id, payment.id))
     })
 
-    revalidateTag('billing', {})
-    revalidateTag('bookings', {})
+    revalidateTag('billing', { expire: 0 })
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({
       data: { applied: lines.filter((l) => l.bookingId).length, breakdown },

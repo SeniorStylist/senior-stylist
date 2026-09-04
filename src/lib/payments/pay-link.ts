@@ -9,8 +9,7 @@ import { eq } from 'drizzle-orm'
 import { createMagicLink } from '@/lib/portal-auth'
 import { sendEmail, buildPaymentRequestEmailHtml } from '@/lib/email'
 import { sendSms, buildPaymentRequestSms } from '@/lib/sms'
-
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://portal.seniorstylist.com').replace(/\/$/, '')
+import { appUrl } from '@/lib/app-url'
 
 export interface PayLinkResult {
   sent: boolean
@@ -61,10 +60,12 @@ export async function sendPaymentRequest(opts: {
   }
 
   // Magic link requires a POA email (it is the portal identity). Phone-only payors
-  // get the login page instead.
+  // get the login page instead. P60 — appUrl() is called here, not read once at
+  // module load: a lambda that imported this module before the env var resolved
+  // baked the fallback host into every pay link for its whole lifetime.
   const payUrl = resident.poaEmail
     ? await createMagicLink(resident.poaEmail, resident.id, facility.facilityCode)
-    : `${APP_URL}/family/${encodeURIComponent(facility.facilityCode)}/login`
+    : `${appUrl()}/family/${encodeURIComponent(facility.facilityCode)}/login`
 
   let emailSent = false
   if (resident.poaEmail) {

@@ -1,16 +1,8 @@
-import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { getUserFacility } from '@/lib/get-facility-id'
-import OnboardingClient from './onboarding-client'
 
-export default async function OnboardingPage() {
-  const user = await getAuthUser()
-
-  if (!user) redirect('/login')
-
-  // If user already has a facility, send them to dashboard
-  const facilityUser = await getUserFacility(user.id)
-  if (facilityUser) redirect('/dashboard')
-
-  return <OnboardingClient />
+// P60 — the first-run facility step now lives in the /facilities/new wizard
+// (ONE creation flow for every role). Kept as a redirect for old bookmarks
+// and the dashboard's "invited user with no facility" branch.
+export default function OnboardingPage() {
+  redirect('/facilities/new?returnTo=/dashboard')
 }

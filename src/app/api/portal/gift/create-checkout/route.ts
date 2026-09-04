@@ -7,6 +7,7 @@ import { getPortalSession } from '@/lib/portal-auth'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { strictNameScore } from '@/lib/signup-match'
 import { maskName } from '@/lib/name-mask'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,7 +86,8 @@ export async function POST(request: NextRequest) {
     if (paymentsBlocked()) {
       return Response.json({ error: 'Online payment is not turned on yet — please call the salon.' }, { status: 503 })
     }
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
+    // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    const appUrl = sharedAppUrl()
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',

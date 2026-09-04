@@ -92,7 +92,7 @@ export async function PUT(
       return { item: finalRow, deductions }
     })
 
-    revalidateTag('pay-periods', {})
+    revalidateTag('pay-periods', { expire: 0 })
 
     return Response.json({ data: updated })
   } catch (err) {

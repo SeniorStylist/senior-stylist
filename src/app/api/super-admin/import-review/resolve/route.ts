@@ -114,7 +114,7 @@ export async function POST(request: Request) {
         .where(inArray(bookings.id, allIds))
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: { ok: true, siblingsResolved: siblingIds.length, siblingIds } })
   } catch (err) {
     console.error('[import-review resolve] error:', err)

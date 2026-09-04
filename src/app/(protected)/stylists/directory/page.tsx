@@ -8,7 +8,7 @@ import {
   stylistFacilityAssignments,
   applicants as applicantsTable,
 } from '@/db/schema'
-import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, getUserFranchise, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
 import { and, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { sanitizeStylists } from '@/lib/sanitize'
 import { DirectoryClient } from './directory-client'
@@ -20,8 +20,11 @@ export default async function StylistDirectoryPage() {
   const facilityUser = await getUserFacility(user.id)
   if (!facilityUser) redirect('/dashboard')
   // P51 lockdown — the directory (commissions, applicants, bulk ops) is
-  // manage-tier; it stays franchise-scoped (the master uses Master Admin).
-  if (!canManageStylists(facilityUser)) redirect('/dashboard')
+  // manage-tier; it stays franchise-scoped.
+  // P61 — the owner bypass was MISSING here, so the master's synthetic 'admin'
+  // row failed isManageTier and he was redirected off his own directory. The
+  // sibling /stylists page has always had it (`isMaster || canManageStylists`).
+  if (!isMasterEmail(user.email) && !canManageStylists(facilityUser)) redirect('/dashboard')
 
   const franchise = await getUserFranchise(user.id)
 

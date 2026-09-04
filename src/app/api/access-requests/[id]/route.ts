@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
 import { generateStylistCode } from '@/lib/stylist-code'
 import { revalidateTag } from 'next/cache'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 const actionSchema = z.object({
   action: z.enum(['approve', 'deny']),
@@ -40,6 +41,13 @@ export async function PUT(
     }
     // P51 lockdown — commission values are manage-tier; a facility admin's
     // approval still works, but any supplied commissionPercent is ignored.
+    //
+    // P61 note: the guard above requires role 'admin', so a BOOKKEEPER never
+    // reaches this line — approving an access request (which grants a login) is
+    // admin-or-owner only today. That looks deliberate rather than accidental,
+    // so it is left as-is; the manage-tier check below is therefore only ever
+    // satisfied by a franchise admin (normalized to 'admin'). Widening it is an
+    // owner decision, not a bug fix.
     const allowCommission = isSuperAdmin || canManageStylists(facilityUser)
 
     const { id } = await params
@@ -69,7 +77,7 @@ export async function PUT(
         .set({ status: 'denied', updatedAt: new Date() })
         .where(eq(accessRequests.id, id))
 
-      revalidateTag('access-requests', {})
+      revalidateTag('access-requests', { expire: 0 })
 
       return Response.json({ data: { denied: true } })
     }
@@ -110,7 +118,7 @@ export async function PUT(
         })
         .onConflictDoNothing()
       // P31 — bust the cached layout membership list for the approved user
-      revalidateTag('facilities', {})
+      revalidateTag('facilities', { expire: 0 })
     }
 
     // For stylist role: upsert stylist record with commissionPercent (manage-tier only — P51)
@@ -142,7 +150,8 @@ export async function PUT(
     }
 
     // Notify user of approval (fire-and-forget)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P60 — shared appUrl(); the old inline fallback was a dead host.
+    const appUrl = sharedAppUrl()
     sendEmail({
       to: accessRequest.email,
       subject: "You've been approved — Senior Stylist",
@@ -152,7 +161,7 @@ export async function PUT(
       `,
     })
 
-    revalidateTag('access-requests', {})
+    revalidateTag('access-requests', { expire: 0 })
 
     return Response.json({ data: { approved: true } })
   } catch (err) {

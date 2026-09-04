@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         .set({ needsReview: false, updatedAt: new Date() })
         .where(and(eq(bookings.needsReview, true), eq(bookings.active, true)))
       const resolved = (result as unknown as { rowCount?: number }).rowCount ?? 0
-      revalidateTag('bookings', {})
+      revalidateTag('bookings', { expire: 0 })
       return Response.json({ data: { resolved } })
     }
 
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         .where(inArray(bookings.id, targetIds))
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: { resolved: targetIds.length } })
   } catch (err) {
     console.error('[bulk-resolve] error:', err)

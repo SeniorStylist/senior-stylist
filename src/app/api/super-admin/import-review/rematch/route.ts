@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       )
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({
       data: {

@@ -1928,7 +1928,10 @@ export function LogClient({
                               {booking.resident.name}
                             </p>
                           </button>
-                          <PaymentCoveredChip flags={paymentFlags[booking.resident.id]} />
+                          {/* P60 — readable at the chair on a phone: the 12px
+                              glyph with a hover-only title told a touch user
+                              nothing about whether a card is on file. */}
+                          <PaymentCoveredChip flags={paymentFlags[booking.resident.id]} variant="pill" />
                           {isCompleted && (
                             <span className="shrink-0 w-4 h-4 rounded-full bg-green-100 flex items-center justify-center" title="Completed">
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3.5">
@@ -2336,6 +2339,7 @@ export function LogClient({
                                 <button
                                   onClick={() => updateStatus(booking.id, 'completed')}
                                   disabled={isUpdating}
+                                  data-tour="daily-log-done"
                                   className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 min-h-[44px] rounded-xl transition-all duration-75 disabled:opacity-40 border border-green-200 active:scale-95 active:bg-green-200"
                                 >
                                   Done

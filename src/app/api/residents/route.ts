@@ -7,6 +7,8 @@ import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 import { residentCreateSchema } from '@/lib/validation/resident-create'
+import { sendFinishAccountInvite } from '@/lib/resident-invite'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 // Phase 25 — schema lives in src/lib/validation/resident-create.ts so client
 // payload builders can type against ResidentCreateInput (drift = tsc error).
@@ -124,6 +126,7 @@ export async function POST(request: NextRequest) {
 
     const { name, roomNumber, phone, poaEmail, poaPhone } = parsed.data
     const portalToken = crypto.randomBytes(8).toString('hex')
+    const isDemo = isTutorialRequest(request)
 
     const [created] = await db
       .insert(residents)
@@ -137,9 +140,28 @@ export async function POST(request: NextRequest) {
         poaEmail: poaEmail?.toLowerCase() ?? null,
         poaPhone: poaPhone ?? null,
         portalToken,
-        isDemo: isTutorialRequest(request),
+        isDemo,
       })
       .returning()
+
+    // P60 — the admin/front-desk walk-in path mailed the family NOTHING, so the
+    // day-log hint "we'll email the family" was a lie here (only the inline
+    // bookings-POST create invited them). Same helper, same semantics: AWAITED
+    // (an unawaited send is frozen with the lambda) but NON-FATAL — the helper
+    // never throws, and the .catch() guarantees a written row still returns 201.
+    // Throttled on the existing portal-link bucket: this route has no rate
+    // limit of its own, and without one it is an unmetered way to send branded
+    // mail from our verified domain to any address a caller types. Over the
+    // limit the resident is still created — only the invite is skipped, and
+    // Send Link on the resident page remains the manual path.
+    if (poaEmail && !isDemo) {
+      const rl = await checkRateLimit('sendPortalLink', user.id)
+      if (rl.ok) {
+        await sendFinishAccountInvite(created.id).catch(() => false)
+      } else {
+        console.warn('[residents.create] finish-account invite skipped — rate limited')
+      }
+    }
 
     return Response.json({ data: created }, { status: 201 })
   } catch (err) {

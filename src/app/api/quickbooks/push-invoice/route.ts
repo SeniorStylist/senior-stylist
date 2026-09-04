@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       })
       .catch((e) => console.error('[qb-log]', e))
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

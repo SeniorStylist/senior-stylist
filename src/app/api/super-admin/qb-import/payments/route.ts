@@ -271,7 +271,7 @@ export async function POST(request: Request) {
       created += ch.length
     }
 
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
 
     const totalReceivedCents = incoming.reduce((s, p) => s + p.amountCents, 0)
 

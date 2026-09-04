@@ -5,7 +5,7 @@ import { getUserFacility, isAdminOrAbove, isFacilityStaff, isFacilityScheduleLoc
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and, lt, gt, or, ne, gte, count, desc, inArray } from 'drizzle-orm'
 import { z } from 'zod'
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { isCalendarConfigured } from '@/lib/google-calendar/client'
 import {
   updateCalendarEvent,
@@ -16,6 +16,13 @@ import { revalidateTag } from 'next/cache'
 import { resolvePrice, validatePricingInput } from '@/lib/pricing'
 import { toClientJson } from '@/lib/sanitize'
 import { bookingUpdateSchema } from '@/lib/validation/booking-update'
+
+// P60 — `after()` charge work counts against this function's duration limit,
+// so a finalize that charges several autopay residents (one Stripe round-trip
+// each) needs more than the platform's 10s default. Without this a sweep is
+// cut mid-charge; the remainder is idempotent and picked up by the next
+// finalize or the nightly sweep, but the family waits a day for its receipt.
+export const maxDuration = 60
 
 // Phase 23 — schema lives in src/lib/validation/booking-update.ts so client
 // payload builders can type against z.input of the SAME schema (drift = tsc
@@ -177,7 +184,7 @@ export async function PUT(
       // components stale after cancelling a series. Push/waitlist fan-out is
       // intentionally skipped for bulk series cancels (one notification per
       // freed slot would spam).
-      revalidateTag('bookings', {})
+      revalidateTag('bookings', { expire: 0 })
       return Response.json({ data: { ...existing, status: 'cancelled' } })
     }
 
@@ -520,12 +527,21 @@ export async function PUT(
 
     // COF auto-collect — when a booking flips to completed and the facility is in
     // 'on_completion' mode, attempt to charge the resident's card/salon account.
-    // Fire-and-forget (never blocks/fails the response); the helper self-gates on
-    // facility mode + resident autopay + demo. Skipped for demo/tutorial bookings.
+    // Never blocks/fails the response; the helper self-gates on facility mode +
+    // resident autopay + demo. Skipped for demo/tutorial bookings.
+    // P60 — after() rather than a bare unawaited promise: on Vercel the lambda can
+    // freeze the moment the response is flushed, silently dropping a real card
+    // charge (the June 2026 unawaited-invite-email bug class). after() guarantees
+    // the callback runs post-response. GCal sync + pushes stay fire-and-forget.
     if (updates.status === 'completed' && existing.status !== 'completed' && !updated.isDemo) {
-      import('@/lib/payments/triggers').then(({ autoCollectOnCompletion }) =>
-        autoCollectOnCompletion(id),
-      ).catch((e) => console.error('[autopay on-completion] failed:', e))
+      after(async () => {
+        try {
+          const { autoCollectOnCompletion } = await import('@/lib/payments/triggers')
+          await autoCollectOnCompletion(id)
+        } catch (e) {
+          console.error('[autopay on-completion] failed:', e)
+        }
+      })
     }
 
     // P50 — a family-requested booking got scheduled: confirm to the family.
@@ -560,7 +576,7 @@ export async function PUT(
       ).catch(() => {})
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: toClientJson(data) })
   } catch (err) {
     console.error('PUT /api/bookings/[id] error:', err)
@@ -653,7 +669,7 @@ export async function DELETE(
       ).catch(() => {})
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: cancelled })
   } catch (err) {
     console.error('DELETE /api/bookings/[id] error:', err)

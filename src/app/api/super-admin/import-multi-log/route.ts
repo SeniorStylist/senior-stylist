@@ -19,7 +19,7 @@ import {
   facilityDateAt9amPlusSlot,
   type ServiceMatch,
 } from '@/lib/service-log-import'
-import { nextFacilityCode } from './resolve-facilities/route'
+import { nextFacilityCode } from '@/lib/facility-code'
 
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
@@ -360,8 +360,8 @@ export async function POST(request: Request) {
         .where(eq(importBatches.id, batch.id))
     })
 
-    if (result.facilityCreated || result.reusedExisting || result.stylistsCreated > 0) revalidateTag('facilities', {})
-    revalidateTag('bookings', {})
+    if (result.facilityCreated || result.reusedExisting || result.stylistsCreated > 0) revalidateTag('facilities', { expire: 0 })
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

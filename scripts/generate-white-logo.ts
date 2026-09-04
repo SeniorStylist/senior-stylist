@@ -1,6 +1,6 @@
 /**
  * Generate `public/seniorstylistlogo-white.png` — a white-on-transparent version
- * of the burgundy-on-white `seniorstylistlogo.jpg`, for use on dark/burgundy
+ * of the burgundy-on-white `seniorstylistlogo.webp`, for use on dark/burgundy
  * backgrounds in EMAIL (where the CSS `filter: brightness(0) invert(1)` trick the
  * app sidebar uses is stripped by mail clients, so the white logo must be a real
  * raster asset).
@@ -10,7 +10,7 @@
  */
 import sharp from 'sharp'
 
-const SRC = 'public/seniorstylistlogo.jpg'
+const SRC = 'public/seniorstylistlogo.webp'
 const OUT = 'public/seniorstylistlogo-white.png'
 
 async function main() {

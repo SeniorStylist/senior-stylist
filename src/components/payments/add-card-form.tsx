@@ -19,17 +19,30 @@ import { makePortalT, type PortalLang } from '@/lib/portal-i18n'
 interface AddCardFormProps {
   residentId: string
   lang?: PortalLang
-  onSaved?: () => void
+  /**
+   * Fired after the card is vaulted. P60 — receives the save route's payload so
+   * a caller that asked for autopay in the SAME request can report whether the
+   * server actually turned it on, instead of firing a second POST to find out.
+   */
+  onSaved?: (result?: { autopayEnabled?: boolean; autopayError?: string; autopayIdle?: boolean }) => void
   onCancel?: () => void
   /** P54 — signup wizard: 30-min single-use card token (no session yet). */
   signupToken?: string
   /** P54 — auto-enable per-visit autopay after the save (portal/signup only). */
   enableAutopay?: boolean
+  /**
+   * P60 — staff attestation that the FAMILY asked for the card to be kept on
+   * file for automatic payment. The route honors `enableAutopay` for a
+   * stylist/admin actor only when this rides the SAME request; without it the
+   * modal had to fire a second POST, which burned two `paymentSetup` tokens
+   * per card and capped a staff member at ~10 attested saves an hour.
+   */
+  consentAttested?: boolean
   /** P54 — fired when the SetupIntent fetch fails (wizard shows its quiet skip link). */
   onSetupError?: () => void
 }
 
-export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel, signupToken, enableAutopay, onSetupError }: AddCardFormProps) {
+export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel, signupToken, enableAutopay, consentAttested, onSetupError }: AddCardFormProps) {
   const { toast } = useToast()
   const t = makePortalT(lang)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
@@ -97,9 +110,10 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel, signup
         lang={lang}
         signupToken={signupToken}
         enableAutopay={enableAutopay}
-        onSaved={() => {
+        consentAttested={consentAttested}
+        onSaved={(result) => {
           toast.success(t('cards.saved'))
-          onSaved?.()
+          onSaved?.(result)
         }}
         onCancel={onCancel}
       />
@@ -107,7 +121,7 @@ export function AddCardForm({ residentId, lang = 'en', onSaved, onCancel, signup
   )
 }
 
-function CardFields({ residentId, lang = 'en', onSaved, onCancel, signupToken, enableAutopay }: AddCardFormProps) {
+function CardFields({ residentId, lang = 'en', onSaved, onCancel, signupToken, enableAutopay, consentAttested }: AddCardFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const { toast } = useToast()
@@ -140,14 +154,15 @@ function CardFields({ residentId, lang = 'en', onSaved, onCancel, signupToken, e
           setupIntentId: setupIntent.id,
           ...(signupToken ? { signupToken } : {}),
           ...(enableAutopay ? { enableAutopay: true } : {}),
+          ...(consentAttested ? { consentAttested: true } : {}),
         }),
       })
+      const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
         toast.error(json.error || t('cards.authorizedNotSaved'))
         return
       }
-      onSaved?.()
+      onSaved?.(json?.data)
     } catch {
       toast.error(t('cards.saveFailed'))
     } finally {

@@ -149,7 +149,7 @@ export async function PUT(
       },
     })
 
-    revalidateTag('facilities', {}) // P27 — franchise list cache is tagged 'facilities'
+    revalidateTag('facilities', { expire: 0 }) // P27 — franchise list cache is tagged 'facilities'
     return Response.json({ data })
   } catch (err) {
     console.error('PUT /api/super-admin/franchises/[id] error:', err)
@@ -194,7 +194,7 @@ export async function DELETE(
       await tx.delete(franchises).where(eq(franchises.id, id))
     })
 
-    revalidateTag('facilities', {}) // P27 — franchise list cache is tagged 'facilities'
+    revalidateTag('facilities', { expire: 0 }) // P27 — franchise list cache is tagged 'facilities'
     return Response.json({ data: { deleted: true } })
   } catch (err) {
     console.error('DELETE /api/super-admin/franchises/[id] error:', err)

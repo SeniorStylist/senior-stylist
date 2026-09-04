@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 interface Props {
   token: string
@@ -19,7 +20,8 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+  // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+  const appUrl = sharedAppUrl()
   const callbackNext = encodeURIComponent(`/invite/accept?token=${token}`)
 
   const handleMagicLink = async () => {
@@ -94,7 +96,7 @@ export function InviteAcceptClient({ token, facilityName, inviteRole, inviteEmai
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-10 w-full max-w-sm text-center">
         {/* Logo */}
         <div className="mb-6">
-          <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
+          <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
           <h1
             className="text-2xl font-bold text-stone-900"
             style={{ fontFamily: "'DM Serif Display', serif" }}

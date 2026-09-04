@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
     return Response.json({ data: { created, skipped } })
   } catch (err) {
     console.error('POST /api/bookings/copy-day error:', err)

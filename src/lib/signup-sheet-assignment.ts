@@ -1,6 +1,6 @@
 import { db as defaultDb } from '@/db'
 import { bookings, stylistAvailability, stylistFacilityAssignments, stylists } from '@/db/schema'
-import { and, count, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, lte, ne, or } from 'drizzle-orm'
 
 type Db = typeof defaultDb
 
@@ -14,9 +14,16 @@ type Db = typeof defaultDb
  *  1. preferredDate present → facility stylists with stylist_availability for that
  *     day-of-week (active=true). If multiple, pick the least-loaded (fewest
  *     non-cancelled bookings on that date). If exactly one, return them.
- *  2. Fallback (no preferredDate OR no day-of-week match) → most-recently-updated
- *     active stylist assigned to the facility.
+ *  2. Fallback (no preferredDate OR no day-of-week match) → assign ONLY when the
+ *     facility has EXACTLY ONE active assigned stylist. Two or more → null.
  *  3. No candidates → null.
+ *
+ * P60 — the fallback used to pick the most-recently-updated stylist. At a
+ * facility with several stylists and no availability rows yet (exactly a
+ * newly-created facility), that stamped the request onto ONE arbitrary stylist,
+ * where it disappeared from every OTHER stylist's queue (which shows own +
+ * unassigned only). Unassigned is the safe state: everyone can see it and claim
+ * it. Only a single-stylist facility has an unambiguous owner to assign.
  *
  * P55 — opts.demoOnly (default false) mirrors resolveAvailableStylists: EVERY
  * branch filters eq(stylists.isDemo, demoOnly). Without it, seeded "Demo Sarah"
@@ -112,21 +119,45 @@ export async function resolveAssignedStylist(
   return resolveFallback(facilityId, dbInstance, demoOnly)
 }
 
+/**
+ * Unambiguous-owner fallback. Returns a stylist ONLY when the facility has
+ * exactly one active stylist on its roster — home rows plus active assignment
+ * rows, the same union every other roster surface reads (P33). With two or more
+ * there is no basis to choose, and a wrong guess hides the request from
+ * everyone else (see the P60 note above). LIMIT 2 tells "one" from "many".
+ */
 async function resolveFallback(facilityId: string, dbInstance: Db, demoOnly: boolean): Promise<string | null> {
-  const fallback = await dbInstance
+  // P33 roster rule: home rows PLUS active assignment rows. An assignments-only
+  // count undercounts the roster — stylists created before round 6 have a home
+  // row and no assignment row — and the count is LOAD-BEARING here: it decides
+  // assign-vs-null, not merely an order. Undercounting to one would stamp the
+  // entry on that one stylist and hide it from the home-row stylist who is
+  // actually working, which is the exact failure this fallback exists to stop.
+  const assigned = await dbInstance
+    .select({ id: stylistFacilityAssignments.stylistId })
+    .from(stylistFacilityAssignments)
+    .where(
+      and(eq(stylistFacilityAssignments.facilityId, facilityId), eq(stylistFacilityAssignments.active, true)),
+    )
+  const assignedIds = assigned.map((r) => r.id)
+
+  const candidates = await dbInstance
     .select({ stylistId: stylists.id })
     .from(stylists)
-    .innerJoin(
-      stylistFacilityAssignments,
+    .where(
       and(
-        eq(stylistFacilityAssignments.stylistId, stylists.id),
-        eq(stylistFacilityAssignments.facilityId, facilityId),
-        eq(stylistFacilityAssignments.active, true),
+        assignedIds.length
+          ? or(eq(stylists.facilityId, facilityId), inArray(stylists.id, assignedIds))
+          : eq(stylists.facilityId, facilityId),
+        eq(stylists.active, true),
+        eq(stylists.status, 'active'),
+        // P55 — every branch filters isDemo: a real entry must never land on Demo Sarah.
+        eq(stylists.isDemo, demoOnly),
       ),
     )
-    .where(and(eq(stylists.active, true), eq(stylists.status, 'active'), eq(stylists.isDemo, demoOnly)))
     .orderBy(desc(stylists.updatedAt))
-    .limit(1)
+    .limit(2)
 
-  return fallback[0]?.stylistId ?? null
+  if (candidates.length !== 1) return null
+  return candidates[0].stylistId
 }

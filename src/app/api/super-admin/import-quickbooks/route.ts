@@ -378,7 +378,7 @@ export async function POST(request: Request) {
       stats.residents.updated += updateChunk.length
     }
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json({ data: { ...stats, warnings } })
   } catch (err) {

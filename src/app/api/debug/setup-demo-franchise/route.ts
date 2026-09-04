@@ -6,6 +6,7 @@ import { db } from '@/db'
 import { facilities, franchises, franchiseFacilities, facilityUsers } from '@/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { seedFacilityDemoData } from '@/lib/help/demo-seeder'
+import { revalidateTag } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,10 @@ export async function POST(request: NextRequest) {
         await db.delete(facilityUsers).where(and(inArray(facilityUsers.facilityId, ids), eq(facilityUsers.userId, user.id)))
         await db.update(facilities).set({ active: false, updatedAt: new Date() }).where(inArray(facilities.id, ids))
       }
+      // P61 — this route creates/deactivates facilities and grants the master
+      // super_admin rows; without busting the tag the layout's cached
+      // membership list keeps the deleted facilities for up to 5 minutes.
+      revalidateTag('facilities', { expire: 0 })
       return Response.json({ data: { ok: true } })
     }
 
@@ -98,6 +103,7 @@ export async function POST(request: NextRequest) {
       { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 },
     )
 
+    revalidateTag('facilities', { expire: 0 })
     return Response.json({ data: { ok: true } })
   } catch (err) {
     console.error('POST /api/debug/setup-demo-franchise error:', err)

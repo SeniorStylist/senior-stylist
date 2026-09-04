@@ -3,7 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const input = path.join(__dirname, '../public/Seniorstylistlogo.jpg')
+const input = path.join(__dirname, '../public/seniorstylistlogo.webp')
 const outDir = path.join(__dirname, '../public')
 
 const BG = { r: 28, g: 10, b: 18, alpha: 1 } // #1C0A12 dark burgundy

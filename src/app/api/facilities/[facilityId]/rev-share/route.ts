@@ -55,7 +55,7 @@ export async function PATCH(
       .set({ qbRevShareType: parsed.data.revShareType })
       .where(eq(facilities.id, facilityId))
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json({ data: { revShareType: parsed.data.revShareType } })
   } catch (err) {

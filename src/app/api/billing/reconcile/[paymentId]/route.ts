@@ -49,7 +49,7 @@ export async function POST(
     if ('error' in auth) return auth.error
 
     const result = await reconcilePayment(paymentId, auth.payment.facilityId)
-    revalidateTag('billing', {})
+    revalidateTag('billing', { expire: 0 })
     return Response.json({ data: result })
   } catch (err) {
     console.error('POST /api/billing/reconcile/[paymentId] error:', err)

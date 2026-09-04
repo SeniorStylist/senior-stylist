@@ -70,8 +70,8 @@ export async function DELETE(
         .where(eq(importBatches.id, batchId))
     })
 
-    revalidateTag('bookings', {})
-    revalidateTag('billing', {})
+    revalidateTag('bookings', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({ data: { ok: true, bookingsDeactivated } })
   } catch (err) {
@@ -267,8 +267,8 @@ export async function PUT(
           .where(eq(importBatches.id, batchId))
       })
 
-      revalidateTag('bookings', {})
-      revalidateTag('billing', {})
+      revalidateTag('bookings', { expire: 0 })
+      revalidateTag('billing', { expire: 0 })
 
       return Response.json({ data: { ok: true, facilityName: target.name } })
     }
@@ -278,7 +278,7 @@ export async function PUT(
         .update(facilities)
         .set({ name: parsed.data.name })
         .where(eq(facilities.id, batch.facilityId))
-      revalidateTag('facilities', {})
+      revalidateTag('facilities', { expire: 0 })
       return Response.json({ data: { ok: true } })
     }
 

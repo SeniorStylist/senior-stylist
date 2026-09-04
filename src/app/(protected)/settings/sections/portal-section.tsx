@@ -7,6 +7,7 @@ import { formatMoney } from '@/lib/format'
 import { firstErrorMessage } from '@/lib/first-error'
 import type { PublicFacility } from '@/lib/sanitize'
 import { CouponManager } from '@/components/settings/coupon-manager'
+import { openSignupPoster } from '@/lib/signup-poster'
 
 interface ClaimRequest {
   id: string
@@ -691,33 +692,15 @@ function PortalStatusCard({ facilityName, facilityCode }: { facilityName: string
     }
   }
 
-  // Printable QR poster — signage print pattern (self-contained HTML doc,
-  // window.open + print; QR is a data-URL so the page works offline).
+  // Printable QR poster — P60: shared with the New-Facility wizard's Done
+  // screen (src/lib/signup-poster.ts; production URL from NEXT_PUBLIC_APP_URL).
   const handlePrintPoster = async () => {
     if (!facilityCode) return
     setPrinting(true)
     try {
-      const QRCode = (await import('qrcode')).default
-      const url = `${window.location.origin}/family/${encodeURIComponent(facilityCode)}/signup`
-      const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 1, color: { dark: '#1C0A12' } })
-      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Salon Account Sign-Up — ${esc(facilityName)}</title>
-<style>@page{margin:0}body{margin:0;font-family:Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#1C0A12}
-h1{font-size:6vh;margin:0 0 1vh;font-weight:normal}h2{font-size:3.2vh;margin:0 0 4vh;color:#8B2E4A;font-weight:normal}
-img{width:38vh;height:38vh}p{font-size:2.4vh;margin:3vh 0 0;max-width:70vw}code{font-size:2vh;color:#57534e}
-.brand{position:absolute;bottom:3vh;font-size:1.8vh;color:#8B2E4A}</style></head><body>
-<h1>${esc(facilityName)}</h1><h2>Salon Account — book visits, see balances, manage payment</h2>
-<img src="${dataUrl}" alt="Sign-up QR code">
-<p>Scan with your phone camera to create your family account, or visit:<br><code>${esc(url)}</code></p>
-<div class="brand">Senior Stylist ♥</div>
-<script>setTimeout(function(){window.print()},450)</script></body></html>`
-      const w = window.open('', '_blank')
-      if (w) {
-        w.document.write(html)
-        w.document.close()
-      }
+      await openSignupPoster({ facilityName, facilityCode })
     } catch {
-      toast.error('Could not build the poster')
+      toast.error('Could not open the poster — allow pop-ups for this site and try again')
     } finally {
       setPrinting(false)
     }

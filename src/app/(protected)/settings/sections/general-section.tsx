@@ -4,16 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PublicFacility } from '@/lib/sanitize'
 import { HelpTip } from '@/components/ui/help-tip'
-
-const TIMEZONES = [
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Phoenix',
-  'America/Los_Angeles',
-  'America/Anchorage',
-  'Pacific/Honolulu',
-]
+import { WorkingHoursEditor, workingHoursValid } from '@/components/facilities/working-hours-editor'
+import { DEFAULT_WORKING_HOURS, TIMEZONES, type WorkingHours } from '@/lib/facility-options'
 
 interface Props {
   facility: PublicFacility
@@ -33,9 +25,13 @@ export function GeneralSection({ facility, role }: Props) {
   const [phone, setPhone] = useState(facility.phone ?? '')
   const [timezone, setTimezone] = useState(facility.timezone)
   const [paymentType, setPaymentType] = useState(facility.paymentType ?? 'facility')
-  const [workingDays, setWorkingDays] = useState<string[]>(wh?.days ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
-  const [workingStart, setWorkingStart] = useState(wh?.startTime ?? '08:00')
-  const [workingEnd, setWorkingEnd] = useState(wh?.endTime ?? '18:00')
+  // P60 — one shared editor with the New-Facility wizard
+  const initialHours: WorkingHours = {
+    days: wh?.days ?? DEFAULT_WORKING_HOURS.days,
+    startTime: wh?.startTime ?? DEFAULT_WORKING_HOURS.startTime,
+    endTime: wh?.endTime ?? DEFAULT_WORKING_HOURS.endTime,
+  }
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(initialHours)
   const [contactEmail, setContactEmail] = useState(initialEmail)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -48,8 +44,7 @@ export function GeneralSection({ facility, role }: Props) {
     timezone !== facility.timezone ||
     paymentType !== (facility.paymentType ?? 'facility') ||
     contactEmail !== initialEmail ||
-    JSON.stringify({ d: workingDays, s: workingStart, e: workingEnd }) !==
-      JSON.stringify({ d: wh?.days ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], s: wh?.startTime ?? '08:00', e: wh?.endTime ?? '18:00' })
+    JSON.stringify(workingHours) !== JSON.stringify(initialHours)
 
   async function handleSave() {
     setSaving(true)
@@ -64,7 +59,7 @@ export function GeneralSection({ facility, role }: Props) {
           phone: phone || undefined,
           timezone,
           paymentType,
-          workingHours: { days: workingDays, startTime: workingStart, endTime: workingEnd },
+          workingHours,
           contactEmail: contactEmail || undefined,
         }),
       })
@@ -167,7 +162,7 @@ export function GeneralSection({ facility, role }: Props) {
             className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
           >
             {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>{tz}</option>
+              <option key={tz.value} value={tz.value}>{tz.label} ({tz.value})</option>
             ))}
           </select>
         </div>
@@ -195,50 +190,7 @@ export function GeneralSection({ facility, role }: Props) {
               description="Pick the days and hours your facility is open. Bookings can only be created within these times."
             />
           </div>
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-1.5">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() =>
-                    setWorkingDays((prev) =>
-                      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-                    )
-                  }
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-75 active:scale-95 ${
-                    workingDays.includes(day)
-                      ? 'bg-[#8B2E4A] text-white'
-                      : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
-                  }`}
-                >
-                  {day}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <label className="block text-xs text-stone-500 mb-1">Start</label>
-                <select
-                  value={workingStart}
-                  onChange={(e) => setWorkingStart(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-                >
-                  {timeOptions()}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-stone-500 mb-1">End</label>
-                <select
-                  value={workingEnd}
-                  onChange={(e) => setWorkingEnd(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B2E4A]/20 focus:border-[#8B2E4A]"
-                >
-                  {timeOptions()}
-                </select>
-              </div>
-            </div>
-          </div>
+          <WorkingHoursEditor value={workingHours} onChange={setWorkingHours} />
         </div>
 
         <div>
@@ -260,7 +212,7 @@ export function GeneralSection({ facility, role }: Props) {
         <div className="pt-2">
           <button
             onClick={handleSave}
-            disabled={!isDirty || saving}
+            disabled={!isDirty || saving || !workingHoursValid(workingHours)}
             data-tour="settings-save-button"
             className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
             style={{ backgroundColor: '#8B2E4A' }}
@@ -280,15 +232,4 @@ function ReadOnlyRow({ label, value }: { label: string; value: React.ReactNode }
       <p className="text-sm text-stone-800">{value}</p>
     </div>
   )
-}
-
-function timeOptions() {
-  return Array.from({ length: 32 }, (_, i) => {
-    const totalMins = 360 + i * 30
-    const h = Math.floor(totalMins / 60)
-    const m = totalMins % 60
-    const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-    const label = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    return <option key={val} value={val}>{label}</option>
-  })
 }

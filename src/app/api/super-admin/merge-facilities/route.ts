@@ -339,7 +339,7 @@ export async function POST(request: Request) {
       }
     })
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

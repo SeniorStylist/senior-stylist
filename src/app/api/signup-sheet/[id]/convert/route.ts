@@ -235,8 +235,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })()
     }
 
-    revalidateTag('signup-sheet', {})
-    revalidateTag('bookings', {})
+    revalidateTag('signup-sheet', { expire: 0 })
+    revalidateTag('bookings', { expire: 0 })
 
     // P50 — the family hears "you're scheduled" the moment the stylist picks
     // a time. Fire-and-forget; self-gates on notification prefs + demo.

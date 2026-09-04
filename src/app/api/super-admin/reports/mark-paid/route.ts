@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       .set({ paymentStatus: 'paid', updatedAt: new Date() })
       .where(inArray(bookings.id, bookingIds))
 
-    revalidateTag('bookings', {})
+    revalidateTag('bookings', { expire: 0 })
 
     return Response.json({ data: { updatedCount: bookingIds.length } })
   } catch (err) {

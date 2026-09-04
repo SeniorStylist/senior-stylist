@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
       return { period, itemCount: values.length }
     })
 
-    revalidateTag('pay-periods', {})
+    revalidateTag('pay-periods', { expire: 0 })
 
     return Response.json({
       data: {

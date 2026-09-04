@@ -35,17 +35,10 @@ interface ExistingInfo {
   bookings: number
 }
 
-// Next free F-code = (max F-number across ALL facilities, active or not) + 1.
-// We never reuse a gap left by an inactive facility — if a community returns,
-// its old code is still theirs and won't have been handed out to someone else.
-export function nextFacilityCode(codes: (string | null)[]): string {
-  let max = 0
-  for (const c of codes) {
-    const m = c?.match(/^F(\d+)$/)
-    if (m) max = Math.max(max, parseInt(m[1], 10))
-  }
-  return `F${max + 1}`
-}
+// P60 — nextFacilityCode lives in src/lib/facility-code.ts now (shared with
+// the create path); a route file exporting a non-handler was also a Next
+// build hazard.
+import { nextFacilityCode } from '@/lib/facility-code'
 
 type ResolutionStatus = 'new' | 'exact' | 'code_name_diff' | 'possible_duplicate'
 

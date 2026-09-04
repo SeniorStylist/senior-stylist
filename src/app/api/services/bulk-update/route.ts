@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { services } from '@/db/schema'
-import { getUserFacility, canEditServices } from '@/lib/get-facility-id'
+import { getUserFacility, canEditServices, isMasterEmail } from '@/lib/get-facility-id'
 import { eq, and, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canEditServices(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
+    if (!isMasterEmail(user.email) && !canEditServices(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
     const { facilityId } = facilityUser
 
     const body = await request.json()

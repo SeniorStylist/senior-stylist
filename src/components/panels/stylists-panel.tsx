@@ -29,7 +29,7 @@ interface StylistsPanelProps {
   canManage?: boolean
 }
 
-export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true, canManage = false }: StylistsPanelProps) {
+export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true, canManage = false, facilityId }: StylistsPanelProps & { facilityId?: string }) {
   const router = useRouter()
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -48,7 +48,9 @@ export function StylistsPanel({ stylists, onStylistAdded, isAdmin = true, canMan
       const res = await fetch('/api/stylists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), color }),
+        // P60 — send the facility explicitly so a master's create lands here,
+        // not as an unassigned pool stylist.
+        body: JSON.stringify({ name: name.trim(), color, ...(facilityId ? { facilityId } : {}) }),
       })
       const json = await res.json()
       if (res.ok) {

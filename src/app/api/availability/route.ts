@@ -1,16 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { stylistAvailability, stylists, stylistFacilityAssignments, profiles, facilities } from '@/db/schema'
-import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
 import { and, asc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 // Master-email bypass — same local pattern as /api/stylists/[id].
-function isMasterAdmin(email: string | null | undefined) {
-  const su = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
-  return !!su && email === su
-}
+
 
 const availabilitySchema = z.object({
   stylistId: z.string().uuid(),
@@ -69,8 +66,15 @@ async function resolveScope(
   requestedFacilityId: string | null,
 ): Promise<{ facilityId: string } | Response> {
   const facilityUser = await getUserFacility(user.id)
-  if (!facilityUser) {
-    if (!isMasterAdmin(user.email)) {
+  // P61 — REGRESSION FIX. This branch used to be `if (!facilityUser)`, so the
+  // master's bypass below only ran when he had no facility row at all. P60 then
+  // gave him a synthetic row whenever a facility is selected, which made this
+  // whole block dead code for him: he fell through to the manage-tier check,
+  // failed it (his synthetic row is rawRole 'admin'), failed the self-only
+  // fallback, and could no longer edit ANY stylist's hours. The owner takes the
+  // master path whether or not he holds a row.
+  if (!facilityUser || isMasterEmail(user.email)) {
+    if (!isMasterEmail(user.email)) {
       return Response.json({ error: 'No facility' }, { status: 400 })
     }
     // Master: derive the facility from the stylist when not specified.

@@ -60,23 +60,21 @@ export async function DELETE(
         .set({ stylistId: null, updatedAt: new Date() })
         .where(eq(profiles.id, userId))
 
-      // Cancel any pending invites for this email at this facility
+      // P60 — DELETE every invite for this email at this facility, not just the
+      // pending ones. Marking them used left the ACCEPTED row in the table
+      // forever, and healMembershipOnLogin re-provisions from used invites (the
+      // P48/P49 rule that lets someone whose auth uid changed back in) — so a
+      // removed member was silently re-added with their original role on their
+      // very next sign-in. Removal has to be durable at the source.
       if (revokedEmail) {
         await tx
-          .update(invites)
-          .set({ used: true })
-          .where(
-            and(
-              eq(invites.email, revokedEmail),
-              eq(invites.facilityId, facilityId),
-              eq(invites.used, false)
-            )
-          )
+          .delete(invites)
+          .where(and(eq(invites.email, revokedEmail), eq(invites.facilityId, facilityId)))
       }
     })
 
     // P31 — bust the cached layout membership list for the removed user
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     // Invalidate the removed user's Supabase sessions so they can't continue navigating
     try {

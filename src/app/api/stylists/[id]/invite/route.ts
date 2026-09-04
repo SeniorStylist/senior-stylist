@@ -5,6 +5,7 @@ import { invites, stylists, profiles, facilityUsers, facilities } from '@/db/sch
 import { and, eq } from 'drizzle-orm'
 import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
+import { appUrl } from '@/lib/app-url'
 import { sendEmail } from '@/lib/email'
 import { buildInviteEmailHtml } from '@/app/api/invites/route'
 import crypto from 'crypto'
@@ -74,7 +75,10 @@ export async function POST(
     if (!facilityId) {
       return Response.json({ error: 'This stylist has no facility to invite into yet.' }, { status: 422 })
     }
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P60 — shared appUrl(): the local fallback here was the DEAD
+    // senior-stylist.vercel.app host, so an unset NEXT_PUBLIC_APP_URL mailed
+    // stylists an accept link that resolves nowhere.
+    const baseUrl = appUrl()
 
     const facility = await db.query.facilities.findFirst({
       where: eq(facilities.id, facilityId),
@@ -117,10 +121,12 @@ export async function POST(
         const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         await db
           .update(invites)
-          .set({ token: newToken, expiresAt: newExpiresAt })
+          // P60 — (re)stamp the stylist record so redemption links it
+          // deterministically; also backfills invites created before the column.
+          .set({ token: newToken, expiresAt: newExpiresAt, stylistId })
           .where(eq(invites.id, existingInvite.id))
 
-        const acceptUrl = `${appUrl}/invite/accept?token=${newToken}`
+        const acceptUrl = `${baseUrl}/invite/accept?token=${newToken}`
         const emailSent = await sendEmail({
           to: normalizedEmail,
           subject: `You're invited to join ${facilityName}`,
@@ -149,10 +155,13 @@ export async function POST(
         inviteRole: 'stylist',
         token,
         expiresAt,
+        // P60 — redemption links THIS record, instead of re-deriving the
+        // stylist by email then fuzzy name.
+        stylistId,
       })
       .returning()
 
-    const acceptUrl = `${appUrl}/invite/accept?token=${token}`
+    const acceptUrl = `${baseUrl}/invite/accept?token=${token}`
     const emailSent = await sendEmail({
       to: normalizedEmail,
       subject: `You're invited to join ${facilityName}`,

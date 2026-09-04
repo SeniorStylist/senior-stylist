@@ -170,7 +170,7 @@ export async function finalizeInAppPayment(paymentIntentId: string): Promise<{ r
     }
   }
 
-  revalidateTag('billing', {})
-  revalidateTag('bookings', {})
+  revalidateTag('billing', { expire: 0 })
+  revalidateTag('bookings', { expire: 0 })
   return { recorded: true }
 }

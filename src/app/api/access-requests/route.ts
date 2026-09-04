@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { sendEmail } from '@/lib/email'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { revalidateTag } from 'next/cache'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -64,7 +65,8 @@ export async function POST(request: NextRequest) {
     // Notify admin (fire-and-forget)
     const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
     if (adminEmail) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+      // P60 — shared appUrl(); the old inline fallback was a dead host.
+      const appUrl = sharedAppUrl()
       sendEmail({
         to: adminEmail,
         subject: 'New access request — Senior Stylist',
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    revalidateTag('access-requests', {})
+    revalidateTag('access-requests', { expire: 0 })
 
     return Response.json({ data: { id: created.id } }, { status: 201 })
   } catch (err) {

@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    revalidateTag('signup-sheet', {})
+    revalidateTag('signup-sheet', { expire: 0 })
 
     const full = await db.query.signupSheetEntries.findFirst({
       where: eq(signupSheetEntries.id, created.id),

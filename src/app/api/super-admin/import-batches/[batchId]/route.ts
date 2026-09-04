@@ -48,8 +48,8 @@ export async function DELETE(
         .where(eq(importBatches.id, batchId))
     })
 
-    revalidateTag('bookings', {})
-    revalidateTag('billing', {})
+    revalidateTag('bookings', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({ data: { ok: true, bookingsDeactivated } })
   } catch (err) {

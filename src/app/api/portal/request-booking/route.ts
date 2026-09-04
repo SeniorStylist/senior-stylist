@@ -7,7 +7,8 @@
 // signup_sheet_entries row (the mature stylist-fits-you-in pipeline: queue,
 // badge, drag-to-calendar, convert), the family's preferred stylist is
 // honored, dates are facility-tz correct, and the family gets a "we got it"
-// email immediately plus a confirmation when it's scheduled (P50-C4).
+// email AND text immediately (P60) plus a confirmation when it's scheduled
+// (P50-C4).
 //
 // Route path is kept — old clients and SW-cached portal pages keep working.
 
@@ -16,10 +17,14 @@ import { facilities, residentPreferences, residents, services, signupSheetEntrie
 import { getPortalSession } from '@/lib/portal-auth'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { buildPortalRequestEmailHtml, buildRequestReceivedEmailHtml, sendEmail } from '@/lib/email'
+import { buildRequestReceivedSms, sendSms } from '@/lib/sms'
+import { getFamilyRecipients } from '@/lib/portal-recipients'
 import { ensureSignupSheetSchema } from '@/lib/signup-sheet-ddl'
 import { resolveAssignedStylist } from '@/lib/signup-sheet-assignment'
 import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 import { formatWorkingDayNames, rangeHasWorkingDow } from '@/lib/working-days'
+import { dayRangeInTimezone, formatDateInTz } from '@/lib/time'
+import { appUrl } from '@/lib/app-url'
 import { and, eq, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { NextRequest } from 'next/server'
@@ -40,6 +45,28 @@ function todayInTz(tz: string): string {
   } catch {
     return new Intl.DateTimeFormat('en-CA').format(new Date())
   }
+}
+
+// P60 — human "when" for the SMS acknowledgement, rendered in the FACILITY
+// timezone. The preferred dates are plain YYYY-MM-DD strings and
+// `new Date('2026-09-08')` is UTC midnight, which formats as the PREVIOUS day
+// anywhere west of UTC — dayRangeInTimezone resolves each date to its
+// facility-local midnight instant first so the family is told the day they
+// actually picked. weekday is explicitly cleared on range ends (Intl treats
+// undefined as absent) so the whole text stays inside one SMS segment, and the
+// range joiner is the ASCII word "to" — an en-dash is outside GSM-7 and would
+// flip the message to UCS-2 (70 chars/segment, so ~3 segments and 3x cost).
+const WHEN_DAY: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
+const WHEN_RANGE_END: Intl.DateTimeFormatOptions = { weekday: undefined, month: 'short', day: 'numeric' }
+
+function formatWhenLabel(from: string | null, to: string | null, tz: string): string {
+  const label = (dateStr: string, opts: Intl.DateTimeFormatOptions): string => {
+    const range = dayRangeInTimezone(dateStr, tz)
+    return range ? formatDateInTz(range.start, tz, opts) : dateStr
+  }
+  if (from && to && to !== from) return `${label(from, WHEN_RANGE_END)} to ${label(to, WHEN_RANGE_END)}`
+  const single = from ?? to
+  return single ? label(single, WHEN_DAY) : 'no date preference'
 }
 
 export async function POST(request: NextRequest) {
@@ -90,10 +117,15 @@ export async function POST(request: NextRequest) {
       .map((id) => svcRows.find((s) => s.id === id))
       .filter((s): s is NonNullable<typeof s> => !!s)
 
-    const [facility, residentDetail, prefs] = await Promise.all([
+    // P60 — the family's contact set is resolved HERE, in the batch, not later
+    // on the acknowledgement path: getFamilyRecipients is three lookups and two
+    // of them re-read rows this same batch already has, so awaiting it further
+    // down added three serialized round-trips through the max:1 pool to the
+    // family's critical path.
+    const [facility, residentDetail, prefs, family] = await Promise.all([
       db.query.facilities.findFirst({
         where: eq(facilities.id, residentRow.facilityId),
-        columns: { id: true, name: true, contactEmail: true, timezone: true },
+        columns: { id: true, name: true, contactEmail: true, timezone: true, isDemo: true },
       }),
       db.query.residents.findFirst({
         where: eq(residents.id, residentId),
@@ -103,6 +135,7 @@ export async function POST(request: NextRequest) {
         where: eq(residentPreferences.residentId, residentId),
         columns: { preferredStylistId: true },
       }).catch(() => null),
+      getFamilyRecipients(residentId).catch(() => null),
     ])
 
     // The family's chosen stylist wins; else date-aware least-loaded; else the
@@ -150,7 +183,12 @@ export async function POST(request: NextRequest) {
           createdByPortalAccountId: session.portalAccountId,
           assignedToStylistId,
           status: 'pending',
-          isDemo: false,
+          // APLEY — inherit the facility's flag instead of pinning `false`. A
+          // request filed at a demo facility is demo data: it must be torn down
+          // with the rest of the demo world, and it must not appear in a real
+          // facility's queue or reporting. For every real facility this is
+          // false, exactly as before.
+          isDemo: facility?.isDemo ?? false,
         })
         .returning({ id: signupSheetEntries.id })
       entryId = created.id
@@ -160,7 +198,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Staff email (existing) + in-app bell for admins (P50).
-    const adminUrl = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/dashboard`
+    // P60 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
+    // built "/dashboard", an unclickable relative href in the staff email.
+    const adminUrl = `${appUrl()}/dashboard`
     const recipients = new Set<string>()
     if (facility?.contactEmail) recipients.add(facility.contactEmail)
     if (process.env.NEXT_PUBLIC_ADMIN_EMAIL) recipients.add(process.env.NEXT_PUBLIC_ADMIN_EMAIL)
@@ -189,16 +229,15 @@ export async function POST(request: NextRequest) {
     ).catch(() => {})
 
     // Family confirmation — the requester's own email (P50: the requester is
-    // often NOT the poaEmail on file). P55 — phone-only accounts have none;
-    // SMS confirmation arrives via the family-confirmation path when the
-    // request is scheduled.
+    // often NOT the poaEmail on file). P55 — phone-only accounts have none.
+    const facilityName = facility?.name ?? residentRow.facilityName
     if (session.email) {
       sendEmail({
         to: session.email,
-        subject: `Request received — ${residentRow.residentName} at ${facility?.name ?? residentRow.facilityName}`,
+        subject: `Request received — ${residentRow.residentName} at ${facilityName}`,
         html: buildRequestReceivedEmailHtml({
           residentName: residentRow.residentName,
-          facilityName: facility?.name ?? residentRow.facilityName,
+          facilityName,
           serviceNames: orderedSvcs.map((s) => s.name),
           preferredDateFrom: preferredDateFrom ?? null,
           preferredDateTo: preferredDateTo ?? null,
@@ -206,7 +245,47 @@ export async function POST(request: NextRequest) {
       }).catch(() => {})
     }
 
-    revalidateTag('signup-sheet', {})
+    // P60 — SMS acknowledgement. The email above is the only ack this route
+    // ever sent, so a phone-only family (P55 made phone a first-class portal
+    // identity) tapped Request and got silence until a stylist scheduled it.
+    // Gating mirrors family-confirmation.ts: the staff-side master switch
+    // first, then the family's own sms_reminders preference. Recipients come
+    // from the union resolver — the requester is often not the poaPhone.
+    try {
+      // `family` (resolved in the batch above) is named apart from the
+      // staff-email `recipients` Set — these are the family's phones, not the
+      // facility's inboxes.
+      if (
+        family &&
+        family.poaNotificationsEnabled &&
+        family.smsReminders &&
+        family.phones.length > 0
+      ) {
+        // One SMS segment beats a full service list on a 6-service request.
+        const serviceLabel =
+          orderedSvcs.length > 1
+            ? `${orderedSvcs[0].name} +${orderedSvcs.length - 1} more`
+            : orderedSvcs[0].name
+        const smsBody = buildRequestReceivedSms({
+          facilityName,
+          residentName: residentRow.residentName,
+          serviceName: serviceLabel,
+          whenLabel: formatWhenLabel(
+            preferredDateFrom ?? null,
+            preferredDateTo ?? null,
+            facility?.timezone ?? 'America/New_York',
+          ),
+        })
+        // Fire-and-forget: sendSms never throws and no-ops without Twilio.
+        for (const phone of family.phones) sendSms(phone, smsBody).catch(() => {})
+      }
+    } catch (err) {
+      // The request itself is already committed — a notification lookup
+      // failure must never turn a saved request into a 500 for the family.
+      console.error('[portal/request-booking] SMS acknowledgement failed:', err)
+    }
+
+    revalidateTag('signup-sheet', { expire: 0 })
     return Response.json({ data: { entryId } })
   } catch (err) {
     console.error('POST /api/portal/request-booking error:', err)

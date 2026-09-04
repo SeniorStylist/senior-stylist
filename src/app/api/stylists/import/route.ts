@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { stylists, facilities, stylistAvailability, franchises, franchiseFacilities } from '@/db/schema'
-import { getUserFacility, getUserFranchise, canManageStylists } from '@/lib/get-facility-id'
+import { stylists, facilities, stylistAvailability, stylistFacilityAssignments, franchises, franchiseFacilities } from '@/db/schema'
+import { getUserFacility, getUserFranchise, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
+import { resolveFacilityWrite } from '@/lib/facility-access'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateStylistCode } from '@/lib/stylist-code'
 import { splitStylistCell } from '@/lib/service-log-import'
@@ -282,10 +283,6 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const facilityUser = await getUserFacility(user.id)
-    if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
-    if (!canManageStylists(facilityUser)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown
-
     const rl = await checkRateLimit('import', user.id)
     if (!rl.ok) return rateLimitResponse(rl.retryAfter)
 
@@ -293,6 +290,45 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file')
     if (!(file instanceof File)) {
       return Response.json({ error: 'file is required' }, { status: 400 })
+    }
+
+    // P60 — an explicit TARGET facility (the New-Facility wizard's "upload the
+    // stylist sheet"): every imported row is assigned there, and rows with no
+    // parsed schedule get availability on `defaultDays` (0=Sun…6=Sat) at the
+    // facility's hours. Without it, the caller's selected facility as before.
+    const targetFacilityId = (() => {
+      const v = formData.get('facilityId')
+      return typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null
+    })()
+    const defaultDays = (() => {
+      const v = formData.get('defaultDays')
+      if (typeof v !== 'string') return null
+      try {
+        const arr = JSON.parse(v)
+        return Array.isArray(arr) && arr.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) && arr.length <= 7
+          ? (arr as number[])
+          : null
+      } catch {
+        return null
+      }
+    })()
+
+    // The scope every query below runs under — a plain object so the synthetic
+    // master row (no facility_users row exists) type-checks alongside real rows.
+    let facilityUser: { userId: string; facilityId: string; role: string; rawRole: string; createdAt: Date | null }
+    if (targetFacilityId) {
+      const access = await resolveFacilityWrite(user, targetFacilityId, { requireManageTier: true })
+      if (!access.ok) return Response.json({ error: access.error }, { status: access.status })
+      // Scope everything below to the TARGET facility (the master has no
+      // cookie-scoped row; a bookkeeper's cookie may point elsewhere).
+      facilityUser = access.fu
+        ? { userId: access.fu.userId, facilityId: targetFacilityId, role: access.fu.role, rawRole: access.fu.rawRole, createdAt: access.fu.createdAt }
+        : { userId: user.id, facilityId: targetFacilityId, role: 'admin', rawRole: 'admin', createdAt: null }
+    } else {
+      const fu = await getUserFacility(user.id)
+      if (!fu) return Response.json({ error: 'No facility' }, { status: 400 })
+      if (!isMasterEmail(user.email) && !canManageStylists(fu)) return Response.json({ error: 'Forbidden' }, { status: 403 }) // P51 lockdown (P61 — owner bypass)
+      facilityUser = { userId: fu.userId, facilityId: fu.facilityId, role: fu.role, rawRole: fu.rawRole, createdAt: fu.createdAt }
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -342,10 +378,35 @@ export async function POST(request: NextRequest) {
 
     let franchise = await getUserFranchise(user.id)
 
+    // P60 — with an explicit target facility, the franchise is THAT facility's
+    // (design risk R7: the "first franchise in the DB" last resort below was
+    // flat wrong for a targeted import).
+    if (targetFacilityId) {
+      const membership = await db
+        .select({ franchiseId: franchiseFacilities.franchiseId, franchiseName: franchises.name })
+        .from(franchiseFacilities)
+        .innerJoin(franchises, eq(franchises.id, franchiseFacilities.franchiseId))
+        .where(eq(franchiseFacilities.facilityId, targetFacilityId))
+        .limit(1)
+      if (membership.length > 0) {
+        const siblingRows = await db
+          .select({ facilityId: franchiseFacilities.facilityId })
+          .from(franchiseFacilities)
+          .where(eq(franchiseFacilities.franchiseId, membership[0].franchiseId))
+        franchise = {
+          franchiseId: membership[0].franchiseId,
+          franchiseName: membership[0].franchiseName,
+          facilityIds: siblingRows.map((r) => r.facilityId),
+        }
+      } else {
+        franchise = null
+      }
+    }
+
     // Fallback for master admin in "Viewing as" mode: getUserFranchise may return null
     // because the super admin email doesn't have a matching facility_users row for every
     // franchise facility. Query franchises directly and use the first one.
-    if (!franchise) {
+    if (!franchise && !targetFacilityId) {
       const isMasterAdmin =
         process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL &&
         user.email === process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
@@ -401,13 +462,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const allowedFacilityIds = franchise?.facilityIds ?? [facilityUser.facilityId]
+    const allowedFacilityIds = [...new Set([...(franchise?.facilityIds ?? []), facilityUser.facilityId])]
     const franchiseId = franchise?.franchiseId ?? null
 
     const facilityRows = await db
-      .select({ id: facilities.id, name: facilities.name })
+      .select({ id: facilities.id, name: facilities.name, workingHours: facilities.workingHours })
       .from(facilities)
       .where(inArray(facilities.id, allowedFacilityIds))
+    // P60 — seeded availability (defaultDays) runs at the TARGET facility's hours.
+    const targetHours = (() => {
+      const wh = targetFacilityId ? facilityRows.find((f) => f.id === targetFacilityId)?.workingHours : null
+      return { startTime: wh?.startTime ?? '08:00', endTime: wh?.endTime ?? '18:00' }
+    })()
 
     const errors: { row: number; message: string }[] = []
     const validRows: { index: number; row: ParsedRow; resolvedFacilityId: string | null }[] = []
@@ -446,6 +512,7 @@ export async function POST(request: NextRequest) {
       let updated = 0
       let availabilityCreated = 0
       let scheduleNotesCount = 0
+      let assigned = 0
 
       for (let vi = 0; vi < validRows.length; vi++) {
         const { index, row, resolvedFacilityId } = validRows[vi]
@@ -528,13 +595,30 @@ export async function POST(request: NextRequest) {
             const [inserted] = await tx.insert(stylists).values({
               name: row.name ?? row.derivedName ?? '',
               stylistCode: code,
-              facilityId: resolvedFacilityId,
+              // P60 — a targeted import gives code-less/facility-less rows a home
+              facilityId: resolvedFacilityId ?? targetFacilityId,
               franchiseId,
               ...sharedFields,
               ...(scheduleNotes !== null ? { scheduleNotes } : {}),
             }).returning({ id: stylists.id })
             stylistId = inserted.id
             imported++
+          }
+
+          // P60 — the ASSIGNMENT row every roster surface reads. This importer
+          // never inserted one, so imported stylists were invisible on
+          // /stylists and in the daily-log dropdowns until someone re-saved
+          // them. Assigned to the sheet's facility column, else the target.
+          const assignTo = resolvedFacilityId ?? targetFacilityId
+          if (assignTo) {
+            await tx
+              .insert(stylistFacilityAssignments)
+              .values({ stylistId, facilityId: assignTo, active: true })
+              .onConflictDoUpdate({
+                target: [stylistFacilityAssignments.stylistId, stylistFacilityAssignments.facilityId],
+                set: { active: true, updatedAt: new Date() },
+              })
+            assigned++
           }
 
           // Create availability rows from Gemini parse
@@ -591,6 +675,28 @@ export async function POST(request: NextRequest) {
           } else if (scheduleNotes) {
             scheduleNotesCount++
           }
+
+          // P60 — no schedule on the sheet but the wizard supplied default
+          // days: seed availability at the target facility so the new
+          // community has working days (request auto-assignment + the
+          // family date pickers both read them). onConflictDoNothing keeps
+          // an existing stylist's real schedule untouched.
+          if (!(parsedSchedule && parsedSchedule.length > 0) && defaultDays && defaultDays.length > 0 && assignTo) {
+            const values = [...new Set(defaultDays)].map((dayOfWeek) => ({
+              stylistId,
+              facilityId: assignTo,
+              dayOfWeek,
+              startTime: targetHours.startTime,
+              endTime: targetHours.endTime,
+              active: true,
+            }))
+            const seeded = await tx
+              .insert(stylistAvailability)
+              .values(values)
+              .onConflictDoNothing()
+              .returning({ id: stylistAvailability.id })
+            availabilityCreated += seeded.length
+          }
         } catch (err) {
           const code = (err as { code?: string } | null)?.code
           if (code === '23505') {
@@ -601,7 +707,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return { imported, updated, availabilityCreated, scheduleNotes: scheduleNotesCount }
+      return { imported, updated, availabilityCreated, scheduleNotes: scheduleNotesCount, assigned }
     })
 
     return Response.json({ data: { ...result, errors } })

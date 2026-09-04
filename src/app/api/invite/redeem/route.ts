@@ -6,7 +6,7 @@ import { invites, facilityUsers, profiles } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { revalidateTag } from 'next/cache'
-import { linkStylistByEmailOrName } from '@/lib/onboarding'
+import { linkStylistByEmailOrName, linkStylistRecordById } from '@/lib/onboarding'
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     .onConflictDoNothing()
   // P31 — bust the cached layout membership list so the new facility appears
   // in the sidebar/switcher immediately.
-  revalidateTag('facilities', {})
+  revalidateTag('facilities', { expire: 0 })
 
   // Mark invite as used + record acceptance (and viewing, if the open-time
   // stamp was missed because the user was already authenticated)
@@ -84,10 +84,28 @@ export async function GET(request: NextRequest) {
 
   const role = invite.inviteRole || 'stylist'
 
-  // Stylist: auto-link to a stylist record — try email first, fall back to name
-  // (shared helper, also used by the heal-on-login path so the logic never drifts).
+  // Stylist: auto-link to a stylist record. P60 — the invite now names the
+  // record it was sent for, so link that exact row first; the old email-then-
+  // fuzzy-name derivation linked look-alike names to each other and missed
+  // stylists who accepted at a different address than the one on file. Falls
+  // back to the heuristic for team invites and pre-P60 rows (stylistId null).
+  // Both paths share the never-steal guard (a record another profile already
+  // holds is left alone).
   if (role === 'stylist') {
-    await linkStylistByEmailOrName(user.id, invite.facilityId, user.email, user.user_metadata?.full_name ?? null)
+    // Only the INVITED identity gets the deterministic link. An accept link can
+    // be forwarded or pasted into a group chat (the documented "Copy link"
+    // fallback when email delivery fails), and handing a specific stylist's
+    // record to whoever opens it would confer their day log and their bookings.
+    // A different redeemer falls back to the email/name heuristic, which is
+    // self-scoping.
+    const invitedSelf = (user.email ?? '').toLowerCase().trim() === invite.email.toLowerCase().trim()
+    const linked =
+      invite.stylistId && invitedSelf
+        ? await linkStylistRecordById(user.id, invite.stylistId, invite.facilityId)
+        : null
+    if (!linked) {
+      await linkStylistByEmailOrName(user.id, invite.facilityId, user.email, user.user_metadata?.full_name ?? null)
+    }
     return NextResponse.redirect(new URL('/my-account?welcome=1', request.url))
   }
 

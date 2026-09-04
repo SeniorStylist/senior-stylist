@@ -39,8 +39,8 @@ export async function POST(request: NextRequest) {
       if (!realmId && parsed.data.facilityId) realmId = await getFacilityRealm(parsed.data.facilityId)
       if (!realmId) return Response.json({ error: 'realmId required' }, { status: 400 })
       const out = await disconnectRealm(realmId)
-      revalidateTag('facilities', {})
-      revalidateTag('billing', {})
+      revalidateTag('facilities', { expire: 0 })
+      revalidateTag('billing', { expire: 0 })
       return Response.json({ data: { disconnected: true, detached: out.detached } })
     }
 
@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
       facilityId = facilityUser.facilityId
     }
     await detachFacility(facilityId)
-    revalidateTag('facilities', {})
-    revalidateTag('billing', {})
+    revalidateTag('facilities', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
     return Response.json({ data: { disconnected: true, detached: 1 } })
   } catch (err) {
     console.error('QuickBooks disconnect error:', err)

@@ -89,7 +89,14 @@ export const facilities = pgTable('facilities', {
   autopayLastSweptAt: timestamp('autopay_last_swept_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}, (t) => ({
+  // P60 — one active facility per code (drizzle/0047). Inactive rows keep
+  // their old code (never reused); the create route's advisory-lock generator
+  // + this index together make concurrent creates safe.
+  facilityCodeActiveUniq: uniqueIndex('facilities_code_active_uniq')
+    .on(sql`upper(${t.facilityCode})`)
+    .where(sql`active = true AND facility_code IS NOT NULL`),
+}))
 
 export const facilityUsers = pgTable(
   'facility_users',
@@ -429,6 +436,17 @@ export const invites = pgTable('invites', {
   emailFailed: boolean('email_failed').default(false).notNull(),
   viewedAt: timestamp('viewed_at'),
   acceptedAt: timestamp('accepted_at'),
+  // P60 — which stylist directory record this invite was sent for. Redemption
+  // links this row deterministically; without it redeem re-derived the stylist
+  // by email then FUZZY NAME, which mislinked look-alike names and missed
+  // stylists who accepted at a different address than the one on file.
+  // Nullable: only the stylist-invite route sets it. Self-bootstrapped by
+  // src/lib/invite-ddl.ts — keep in sync with drizzle/0048_p60_invite_stylist.sql.
+  // onDelete matches the migration + the ddl bootstrap: a hard-deleted stylist
+  // (the weekly demo-cleanup cron does exactly that) must null the invite's
+  // pointer, not orphan it or block the delete. Without it here, drizzle-kit
+  // push would silently recreate the constraint as NO ACTION.
+  stylistId: uuid('stylist_id').references(() => stylists.id, { onDelete: 'set null' }),
 })
 
 export const accessRequests = pgTable('access_requests', {
@@ -767,7 +785,7 @@ export const qbUnappliedCredits = pgTable('qb_unapplied_credits', {
     .where(sql`stripe_payment_intent_id IS NOT NULL`),
 }))
 
-// QB API customer links (drizzle/0043, self-bootstrapped by qb-links-ddl.ts).
+// QB API customer links (drizzle/0047, self-bootstrapped by qb-links-ddl.ts).
 // Maps residents — and the facility PARENT customer when residentId IS NULL —
 // to their NUMERIC Intuit Customer.Id. residents.qb_customer_id keeps its
 // display-name meaning ("F177:Smith, Margaret - 12"); numeric ids live ONLY here.
@@ -821,7 +839,7 @@ export const qbSyncRuns = pgTable('qb_sync_runs', {
   facilityIdx: index('qb_sync_runs_facility_idx').on(t.facilityId, t.startedAt.desc()),
 }))
 
-// Per-facility QB API sync config/cursors (drizzle/0043) — lives here instead
+// Per-facility QB API sync config/cursors (drizzle/0047) — lives here instead
 // of new columns on the hot `facilities` table (P19 rule).
 export const qbSyncState = pgTable('qb_sync_state', {
   facilityId: uuid('facility_id')

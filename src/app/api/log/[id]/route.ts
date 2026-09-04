@@ -5,7 +5,14 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
+
+// P60 — `after()` charge work counts against this function's duration limit,
+// so a finalize that charges several autopay residents (one Stripe round-trip
+// each) needs more than the platform's 10s default. Without this a sweep is
+// cut mid-charge; the remainder is idempotent and picked up by the next
+// finalize or the nightly sweep, but the family waits a day for its receipt.
+export const maxDuration = 60
 
 const updateSchema = z.object({
   notes: z.string().max(2000).optional(),
@@ -27,6 +34,13 @@ export async function PUT(
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // P60 — the sibling POST /api/log has blocked `viewer` since the 2026-06-15
+    // authorization audit; this route never did. Finalizing is what fires
+    // autoCollectOnFinalize, and now that the trigger runs inside after() it is
+    // guaranteed to complete — so without this guard a legacy read-only login
+    // could reliably charge every autopay resident's saved card at an
+    // on_completion facility.
+    if (facilityUser.role === 'viewer') return Response.json({ error: 'Forbidden' }, { status: 403 })
     const { facilityId } = facilityUser
 
     const existing = await db.query.logEntries.findFirst({
@@ -65,14 +79,21 @@ export async function PUT(
       .where(and(eq(logEntries.id, id), eq(logEntries.facilityId, facilityId)))
       .returning()
 
-    // P55 — finalize fires the COF sweep (fire-and-forget): charges autopay
-    // residents' completed unpaid bookings for this stylist-day. Idempotent
-    // (paid stamp + unpaid re-check + cooldown), so re-finalize after an edit
-    // never double-charges.
+    // P55 — finalize fires the COF sweep: charges autopay residents' completed
+    // unpaid bookings for this stylist-day. Idempotent (paid stamp + unpaid
+    // re-check + cooldown), so re-finalize after an edit never double-charges.
+    // P60 — after() (not a bare unawaited promise): the serverless freeze at
+    // response time can kill an in-flight charge, silently dropping real money.
+    // Errors stay swallowed so a failed sweep never fails the finalize.
     if (parsed.data.finalized === true && !existing.finalized && !existing.isDemo) {
-      import('@/lib/payments/triggers')
-        .then(({ autoCollectOnFinalize }) => autoCollectOnFinalize(facilityId, existing.stylistId, existing.date))
-        .catch((err) => console.error('[log PUT] finalize sweep failed:', err))
+      after(async () => {
+        try {
+          const { autoCollectOnFinalize } = await import('@/lib/payments/triggers')
+          await autoCollectOnFinalize(facilityId, existing.stylistId, existing.date)
+        } catch (err) {
+          console.error('[log PUT] finalize sweep failed:', err)
+        }
+      })
     }
 
     return Response.json({ data: updated })

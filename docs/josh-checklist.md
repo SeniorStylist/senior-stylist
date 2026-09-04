@@ -357,6 +357,35 @@ Ops to make the QR-to-chair funnel live for a NEW facility:
        spot the chips, and either schedule or cancel them. New requests go to the
        Sign-Up Sheet queue instead, so chips should stop appearing.
 
+## K. P60 — Fitzgerald launch readiness (2026-09-03)
+
+1. [ ] **Apply `drizzle/0047` and `drizzle/0048`.** `0047` puts a unique index on
+       facility codes among ACTIVE facilities — **run the pre-check query printed at
+       the top of that file first**; if it returns a row, two live facilities share a
+       code and must be merged from Master Admin → Merge before the index applies.
+       `0048` adds `invites.stylist_id` so a stylist invite links to the right record
+       instead of guessing by name. Both idempotent; the app self-bootstraps `0048`'s
+       column, but `0047` is a real index and needs the SQL.
+2. [ ] **Create The Fitzgerald of Palisades with the new guided setup** — Master Admin
+       → + Create Facility walks name and code, hours, stylists (with their working
+       days), the price list read off the community's price sheet, and billing. Set
+       billing to charge **when a visit is completed** on the Billing step. The old
+       inline forms and `/onboarding` no longer exist.
+3. [ ] **Repair Tatyana ST833** if she is still invisible — the cause is fixed, but the
+       existing record may still sit at no facility. Easiest path: open Stylists at
+       Fitzgerald and add her by code; the app confirms she exists and attaches her.
+       The SQL alternative is in `docs/new-facility-runbook.md` → Repairs.
+4. [ ] **Walk `docs/fitzgerald-walkthrough.md` with Lisa and Dad** — nine scenarios from
+       creating the facility to the family seeing their receipt, each saying what to tap
+       and what you should see. Master Admin → Debug → **Launch rehearsal** prepares a
+       practice facility and opens scenario 2. Do it on a practice facility first.
+5. [ ] **Confirm the poster URL.** Print from the Done screen and scan it: it must open
+       `portal.seniorstylist.com`. Posters now build from `NEXT_PUBLIC_APP_URL`, so make
+       sure that variable is set in Vercel (section A) before printing a real batch.
+6. [ ] **Bulk onboarding, if you want it**: Master Admin → Imports → Facility Sheet
+       Import now CREATES the communities the app doesn't know yet, instead of skipping
+       them, and reads your spreadsheet's header row in any column order.
+
 ---
 
 When an item is done, tell Claude which one — each unlocked feature gets verified together.

@@ -236,8 +236,8 @@ async function handlePortalBalance(session: StripeCheckoutSession): Promise<void
   // and the atomic claim + ref adoption make a cut-off lambda safe).
   if (paymentId) await mirrorPaymentSoon(paymentId)
 
-  revalidateTag('billing', {})
-  revalidateTag('bookings', {})
+  revalidateTag('billing', { expire: 0 })
+  revalidateTag('bookings', { expire: 0 })
 }
 
 // Prepayment / gift → bank an unapplied account credit on the TARGET resident
@@ -287,7 +287,7 @@ async function handlePortalCredit(session: StripeCheckoutSession, source: 'Prepa
   })
   if (!creditId) return // duplicate delivery — already banked
 
-  revalidateTag('billing', {})
+  revalidateTag('billing', { expire: 0 })
 }
 
 // Phase 12E — fire-and-forget booking receipt after Stripe card payment.

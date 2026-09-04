@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createStorageClient, COMPLIANCE_BUCKET } from '@/lib/supabase/storage'
 import { db } from '@/db'
 import { complianceDocuments, profiles } from '@/db/schema'
-import { getUserFacility, canManageStylists } from '@/lib/get-facility-id'
+import { getUserFacility, canManageStylists, isMasterEmail } from '@/lib/get-facility-id'
 import { and, desc, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 
@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
     const stylistId = request.nextUrl.searchParams.get('stylistId')
     if (!stylistId) return Response.json({ error: 'stylistId required' }, { status: 422 })
 
-    // P51 lockdown — compliance docs are manage-tier; stylists still read their own
-    if (!canManageStylists(facilityUser)) {
+    // P51 lockdown — compliance docs are manage-tier; stylists still read their own.
+    // P61 — owner bypass, matching the four sibling compliance routes
+    // (upload/verify/unverify/DELETE) which have always carried one.
+    if (!isMasterEmail(user.email) && !canManageStylists(facilityUser)) {
       const profile = await db.query.profiles.findFirst({
         where: eq(profiles.id, user.id),
         columns: { stylistId: true },

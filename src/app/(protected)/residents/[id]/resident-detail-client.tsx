@@ -15,6 +15,7 @@ import { ResidentLedger } from '@/components/residents/resident-ledger'
 import { ResidentPhotoGallery } from '@/components/residents/resident-photo-gallery'
 import { SavedCardsCard } from '@/components/payments/saved-cards-card'
 import { CofPanel } from '@/components/payments/cof-panel'
+import { appUrl } from '@/lib/app-url'
 
 type BookingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -597,7 +598,9 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                       type="button"
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText(`${window.location.origin}/gift/${encodeURIComponent(portalGiftToken)}`)
+                          // P60 — appUrl(), not window.location.origin: a link copied from a
+                          // preview deploy encodes a domain the family cannot reach.
+                          await navigator.clipboard.writeText(`${appUrl()}/gift/${encodeURIComponent(portalGiftToken)}`)
                           setGiftLinkCopied(true)
                           setTimeout(() => setGiftLinkCopied(false), 2500)
                         } catch { /* clipboard denied */ }
@@ -620,7 +623,7 @@ export function ResidentDetailClient({ resident: initialResident, bookings, stat
                       if (!facilityCode) return
                       try {
                         const QRCode = (await import('qrcode')).default
-                        const url = `${window.location.origin}/family/${encodeURIComponent(facilityCode)}/signup`
+                        const url = `${appUrl()}/family/${encodeURIComponent(facilityCode)}/signup`
                         setQrDataUrl(await QRCode.toDataURL(url, { width: 320, margin: 1, color: { dark: '#1C0A12' } }))
                       } catch { /* ignore */ }
                     }}

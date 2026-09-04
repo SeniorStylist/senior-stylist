@@ -38,22 +38,36 @@ export function notifyAutopayChanged(opts: {
     ])
     const recipients = await getFamilyRecipients(residentId)
     const emails = recipients?.emails?.length ? recipients.emails : poaEmail ? [poaEmail] : []
-    if (emails.length === 0) return
-    const html = buildAutopayEnabledEmailHtml({
-      residentName,
-      facilityName: facility?.name ?? 'Senior Stylist',
-      cardLabel: card?.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null,
-      enabled,
-    })
-    await Promise.all(
-      emails.map((to) =>
-        sendEmail({
-          to,
-          subject: `Automatic payment turned ${enabled ? 'on' : 'off'} — ${facility?.name ?? 'Senior Stylist'}`,
-          html,
-        }).catch(() => false),
-      ),
-    )
+    const facilityName = facility?.name ?? 'Senior Stylist'
+    const cardLabel = card?.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null
+    // P60 — this notice is the "wasn't you?" safety net that makes a
+    // staff-attested enable acceptable at all, so it must reach a phone-only
+    // family too (P55 made phone a first-class portal identity). Email-only
+    // meant those families were switched to automatic charging in silence.
+    const phones = recipients?.phones ?? []
+    if (emails.length === 0 && phones.length === 0) return
+    if (emails.length > 0) {
+      const html = buildAutopayEnabledEmailHtml({
+        residentName,
+        facilityName,
+        cardLabel,
+        enabled,
+      })
+      await Promise.all(
+        emails.map((to) =>
+          sendEmail({
+            to,
+            subject: `Automatic payment turned ${enabled ? 'on' : 'off'} — ${facilityName}`,
+            html,
+          }).catch(() => false),
+        ),
+      )
+    }
+    if (phones.length > 0) {
+      const { sendSms, buildAutopayChangedSms } = await import('@/lib/sms')
+      const body = buildAutopayChangedSms({ residentName, facilityName, cardLabel, enabled })
+      for (const phone of phones) sendSms(phone, body).catch(() => {})
+    }
   })().catch((err) => console.error('[autopay-enable] consent email failed:', err))
 }
 

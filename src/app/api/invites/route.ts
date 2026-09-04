@@ -9,6 +9,7 @@ import { sendEmail } from '@/lib/email'
 import { ensureInviteTrackingSchema } from '@/lib/invite-ddl'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
+import { appUrl as sharedAppUrl } from '@/lib/app-url'
 
 // Send the invite email and record the delivery outcome on the invite row.
 // AWAITED on purpose — a fire-and-forget send is dropped when Vercel freezes
@@ -102,7 +103,8 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = email.toLowerCase().trim()
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://senior-stylist.vercel.app'
+    // P60 — shared appUrl(); the inline fallback was the DEAD vercel.app host.
+    const appUrl = sharedAppUrl()
     const facility = await db.query.facilities.findFirst({ where: eq(facilities.id, facilityId) })
     const facilityName = facility?.name ?? 'Senior Stylist'
     const role = inviteRole || 'stylist'

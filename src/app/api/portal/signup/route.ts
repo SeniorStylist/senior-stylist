@@ -17,12 +17,14 @@ import { ensurePortalIdentitySchema } from '@/lib/portal-identity-ddl'
 import { sendSms, buildSignupWelcomeSms } from '@/lib/sms'
 import { issueWelcomeCoupon } from '@/lib/portal-coupons'
 import { mintSignupCardToken } from '@/lib/signup-card-token'
-import { platformPublishableKey, paymentsBlocked } from '@/lib/payments/stripe-client'
+import { platformPublishableKey, platformStripeKey, paymentsBlocked } from '@/lib/payments/stripe-client'
+import { appUrl } from '@/lib/app-url'
 import { randomBytes } from 'node:crypto'
 import { sendEmail, buildPortalMagicLinkEmailHtml } from '@/lib/email'
 import { matchResidentForSignup, strictNameScore, nameAgreement } from '@/lib/signup-match'
 import { activeFacilityByCodeWhere } from '@/lib/facility-code'
 import { ensurePortalClaimsSchema } from '@/lib/portal-claims-ddl'
+import { isMasterSession } from '@/lib/master-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,19 +105,42 @@ export async function POST(request: NextRequest) {
 
   // P54 — the wizard shows a card page after the review step whenever the
   // platform Stripe keys are configured AND live charging isn't blocked.
-  const paymentsEnabled = !!platformPublishableKey() && !paymentsBlocked()
+  // P60 — BOTH keys: with only the publishable key set, the wizard offered a
+  // payment step whose setup-intent mint had no secret key to call, so the
+  // family hit a dead card form. Must stay identical to the same expression in
+  // family/[facilityCode]/signup/page.tsx — the page decides whether to show
+  // the step, this route re-derives it.
+  const paymentsEnabled =
+    !!platformPublishableKey() && !!platformStripeKey() && !paymentsBlocked()
 
   // P53 — case-insensitive + demo-facility-excluded lookup (shared helper).
-  const facility = await db.query.facilities.findFirst({
+  const signupFacilityColumns = {
+    id: true, name: true, facilityCode: true, contactEmail: true,
+    portalSelfSignupEnabled: true,
+    portalCouponsEnabled: true,
+    portalWelcomeCouponEnabled: true,
+    isDemo: true,
+  } as const
+  let facility = await db.query.facilities.findFirst({
     where: activeFacilityByCodeWhere(facilityCode),
-    columns: {
-      id: true, name: true, facilityCode: true, contactEmail: true,
-      portalSelfSignupEnabled: true,
-      portalCouponsEnabled: true,
-      portalWelcomeCouponEnabled: true,
-    },
+    columns: signupFacilityColumns,
   })
+  // APLEY — master-only fallback so a demo facility's portal resolves (see the family layout).
+  if (!facility && (await isMasterSession())) {
+    facility = await db.query.facilities.findFirst({
+      where: activeFacilityByCodeWhere(facilityCode, { allowDemo: true }),
+      columns: signupFacilityColumns,
+    })
+  }
   if (!facility) return Response.json({ error: 'Facility not found' }, { status: 404 })
+
+  // APLEY — a record created at a DEMO facility is a demo record, and matching
+  // at a demo facility matches demo residents. Before this, both were pinned to
+  // `false`: a signup at a demo facility produced REAL residents and portal
+  // accounts, which then leaked into real reporting and were invisible to any
+  // staff screen reading demo-only. Real facilities are unaffected — `isDemo`
+  // is false for every one of them, so this evaluates exactly as before.
+  const demoScope = facility.isDemo
   // Preview skips the flag 403 so a flag-off facility is still dry-runnable.
   if (!facility.portalSelfSignupEnabled && !preview) {
     return Response.json({ error: 'Self-signup is not available for this facility.' }, { status: 403 })
@@ -171,7 +196,7 @@ export async function POST(request: NextRequest) {
         eq(residents.facilityId, facility.id),
         eq(residents.poaEmail, normalizedEmail),
         eq(residents.active, true),
-        eq(residents.isDemo, false),
+        eq(residents.isDemo, demoScope),
       ),
       columns: { id: true, name: true, roomNumber: true },
     })
@@ -182,7 +207,7 @@ export async function POST(request: NextRequest) {
         eq(residents.facilityId, facility.id),
         sql`regexp_replace(COALESCE(${residents.poaPhone}, ''), '\\D', '', 'g') = ${phoneDigits}`,
         eq(residents.active, true),
-        eq(residents.isDemo, false),
+        eq(residents.isDemo, demoScope),
       ),
       columns: { id: true, name: true, roomNumber: true },
     })
@@ -228,7 +253,7 @@ export async function POST(request: NextRequest) {
     where: and(
       eq(residents.facilityId, facility.id),
       eq(residents.active, true),
-      eq(residents.isDemo, false),
+      eq(residents.isDemo, demoScope),
     ),
     columns: { id: true, name: true, poaName: true, roomNumber: true },
   })
@@ -358,6 +383,7 @@ export async function POST(request: NextRequest) {
       poaEmail: normalizedEmail,
       poaPhone: phone ?? null,
       portalToken: randomBytes(8).toString('hex'),
+      isDemo: demoScope,
     })
     .returning({ id: residents.id, name: residents.name, roomNumber: residents.roomNumber })
 
@@ -397,7 +423,10 @@ export async function POST(request: NextRequest) {
   // Notify facility admin (fire-and-forget) — reworded for the new model.
   const adminEmail = facility.contactEmail ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL
   if (adminEmail) {
-    const settingsUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/settings?section=portal`
+    // P60 — appUrl() not a bare env read: with NEXT_PUBLIC_APP_URL unset this
+    // built "/settings?section=portal", an unclickable relative href in the
+    // admin's "new family account" email.
+    const settingsUrl = `${appUrl()}/settings?section=portal`
     sendEmail({
       to: adminEmail,
       subject: `New family account — ${facility.name}`,

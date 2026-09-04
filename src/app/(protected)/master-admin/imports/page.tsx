@@ -73,8 +73,8 @@ const SOURCE_DEFS: { sourceType: string; title: string; description: string; for
   },
   {
     sourceType: 'facility_csv',
-    title: 'Facility Data Import',
-    description: 'Bulk-update facility details, billing types, and contact info.',
+    title: 'Facility Sheet Import',
+    description: 'Upload the facility spreadsheet (CSV export). New F-codes are created as facilities with sign-up on; existing ones get billing type, rev share, phone and address refreshed. Reads a header row in any column order.',
     format: 'CSV',
     href: '/master-admin/import-facilities-csv',
     category: 'Facility Data',

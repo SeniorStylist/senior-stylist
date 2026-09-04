@@ -5,10 +5,17 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
 import { dayRangeInTimezone } from '@/lib/time'
 import { eq, and, gte, lt } from 'drizzle-orm'
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { toClientJson } from '@/lib/sanitize'
 import { isTutorialRequest } from '@/lib/help/tutorial-request'
 import { logEntryCreateSchema } from '@/lib/validation/log-entry'
+
+// P60 — `after()` charge work counts against this function's duration limit,
+// so a finalize that charges several autopay residents (one Stripe round-trip
+// each) needs more than the platform's 10s default. Without this a sweep is
+// cut mid-charge; the remainder is idempotent and picked up by the next
+// finalize or the nightly sweep, but the family waits a day for its receipt.
+export const maxDuration = 60
 
 // Phase 25 — schema lives in src/lib/validation/log-entry.ts so client
 // payload builders can type against LogEntryInput (drift = tsc error).
@@ -24,6 +31,10 @@ export async function GET(request: NextRequest) {
 
     const facilityUser = await getUserFacility(user.id)
     if (!facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
+    // P60 — matches the POST below: the legacy read-only role has no business
+    // enumerating the day's log entries (their ids were the first half of the
+    // viewer-triggers-a-charge path closed in PUT /api/log/[id]).
+    if (facilityUser.role === 'viewer') return Response.json({ error: 'Forbidden' }, { status: 403 })
     const { facilityId } = facilityUser
 
     // P30 full lockdown — stylists read only their own section of the day
@@ -140,13 +151,23 @@ export async function POST(request: NextRequest) {
         .where(eq(logEntries.id, existing.id))
         .returning()
 
-      // P55 — finalize fires the COF sweep (fire-and-forget, like GCal sync):
-      // charges autopay residents' completed unpaid bookings for this
-      // stylist-day. Idempotent (paid stamp + unpaid re-check + cooldown).
+      // P55 — finalize fires the COF sweep: charges autopay residents' completed
+      // unpaid bookings for this stylist-day. Idempotent (paid stamp + unpaid
+      // re-check + cooldown).
+      // P60 — wrapped in after(): an unawaited promise started as the response is
+      // returned can be killed by the serverless freeze, silently dropping a REAL
+      // card charge (the June 2026 unawaited-invite-email bug class). after() keeps
+      // the invocation alive until it settles. Errors stay swallowed — a failed
+      // sweep must never fail the finalize.
       if (finalized && !existing.finalized && !existing.isDemo) {
-        import('@/lib/payments/triggers')
-          .then(({ autoCollectOnFinalize }) => autoCollectOnFinalize(facilityId, stylistId, date))
-          .catch((err) => console.error('[log POST] finalize sweep failed:', err))
+        after(async () => {
+          try {
+            const { autoCollectOnFinalize } = await import('@/lib/payments/triggers')
+            await autoCollectOnFinalize(facilityId, stylistId, date)
+          } catch (err) {
+            console.error('[log POST] finalize sweep failed:', err)
+          }
+        })
       }
 
       return Response.json({ data: updated })
@@ -166,11 +187,17 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // P55 — finalize-on-create fires the COF sweep too (see above).
+    // P55 — finalize-on-create fires the COF sweep too. P60 — after() for the
+    // same reason as above: the money path must survive the response freeze.
     if (finalized && !entryIsDemo) {
-      import('@/lib/payments/triggers')
-        .then(({ autoCollectOnFinalize }) => autoCollectOnFinalize(facilityId, stylistId, date))
-        .catch((err) => console.error('[log POST] finalize sweep failed:', err))
+      after(async () => {
+        try {
+          const { autoCollectOnFinalize } = await import('@/lib/payments/triggers')
+          await autoCollectOnFinalize(facilityId, stylistId, date)
+        } catch (err) {
+          console.error('[log POST] finalize sweep failed:', err)
+        }
+      })
     }
 
     return Response.json({ data: created }, { status: 201 })

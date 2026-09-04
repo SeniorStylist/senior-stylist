@@ -5,6 +5,7 @@ import { Printer } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/components/ui/toast'
 import { isNativeApp } from '@/lib/detect-device'
+import { appUrl } from '@/lib/app-url'
 
 type Category = 'General' | 'Holiday'
 
@@ -169,7 +170,9 @@ export function SignageClient({ facilityName, facilityPhone, facilityCode = null
     ;(async () => {
       try {
         const QRCode = (await import('qrcode')).default
-        const url = `${window.location.origin}/family/${encodeURIComponent(facilityCode)}/signup`
+        // P60 — appUrl(), NOT window.location.origin: a poster printed from a
+        // preview deploy encoded a host families can never reach.
+        const url = `${appUrl()}/family/${encodeURIComponent(facilityCode)}/signup`
         const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 1, color: { dark: '#1C0A12' } })
         if (!cancelled) setQrDataUrl(dataUrl)
       } catch {
@@ -217,9 +220,14 @@ export function SignageClient({ facilityName, facilityPhone, facilityCode = null
     setTimeout(() => w.print(), 450)
   }
 
-  // P51 — the QR poster needs a facility code to build its link; hide the
-  // template for facilities without one.
-  const general = TEMPLATES.filter((t) => t.category === 'General' && (t.id !== 'family-signup' || !!facilityCode))
+  // P60 — the QR poster needs a facility code to build its link. It used to be
+  // FILTERED OUT without one, so the poster looked like it didn't exist and
+  // nobody knew a facility code was the missing piece. Disable and explain
+  // (P48) instead of hiding.
+  const general = TEMPLATES.filter((t) => t.category === 'General')
+  const NEEDS_CODE = 'Set a facility code in Settings → General first'
+  const templateDisabledReason = (t: Template): string | null =>
+    t.id === 'family-signup' && !facilityCode ? NEEDS_CODE : null
   const holiday = TEMPLATES.filter((t) => t.category === 'Holiday')
 
   const inputCls = 'w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#8B2E4A]/50 focus:ring-2 focus:ring-[#8B2E4A]/20'
@@ -246,17 +254,33 @@ export function SignageClient({ facilityName, facilityPhone, facilityCode = null
               <div key={cat} className="mb-3">
                 <p className="text-[11px] text-stone-400 mb-1.5">{cat}</p>
                 <div className="flex flex-wrap gap-2">
-                  {(cat === 'General' ? general : holiday).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => applyTemplate(t)}
-                      className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition-colors ${templateId === t.id ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]' : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'}`}
-                    >
-                      {t.name}
-                    </button>
-                  ))}
+                  {(cat === 'General' ? general : holiday).map((t) => {
+                    const disabledReason = templateDisabledReason(t)
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => applyTemplate(t)}
+                        disabled={!!disabledReason}
+                        title={disabledReason ?? undefined}
+                        className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition-colors ${
+                          disabledReason
+                            ? 'bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed'
+                            : templateId === t.id
+                              ? 'bg-[#8B2E4A] text-white border-[#8B2E4A]'
+                              : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    )
+                  })}
                 </div>
+                {/* The reason is spelled out, not hover-only — this list is
+                    also read on a tablet where there is no hover. */}
+                {cat === 'General' && !facilityCode && (
+                  <p className="text-[11px] text-stone-400 mt-1.5">Family Sign-Up: {NEEDS_CODE}.</p>
+                )}
               </div>
             ))}
           </div>

@@ -65,7 +65,7 @@ export async function DELETE(
       return { item }
     })
 
-    revalidateTag('pay-periods', {})
+    revalidateTag('pay-periods', { expire: 0 })
 
     return Response.json({ data: result })
   } catch (err) {

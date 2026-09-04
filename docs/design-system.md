@@ -34,7 +34,43 @@ Tailwind `stone` scale is used throughout (`stone-50` through `stone-900`). The 
 
 **Full brand migration complete (2026-04-14):** The entire admin app now uses the burgundy palette. `button.tsx`, `input.tsx`, `select.tsx`, `toast.tsx`, booking modal, panels, sidebar active states, and all email templates use `#8B2E4A`. Do NOT add new `#0D7377` teal anywhere — the brand color is burgundy app-wide.
 
-**Logo integration complete (2026-04-14):** Logo image at `/public/Seniorstylistlogo.jpg`. Use `<Image>` from `next/image`. Three placement strategies:
+## Multi-step setup pages (P57)
+
+The New-Facility wizard (`/facilities/new`) is the pattern for any staff flow
+that is too long for a `<Modal>` (which is `md:max-w-md` and a bottom sheet
+below `md`). Rules it establishes:
+
+- **A full page, not a dialog.** `page-enter`, `max-w-3xl mx-auto`, a
+  `<PageHeader>` with the step count as its subtitle, a burgundy progress bar,
+  and — on desktop only — a numbered step rail that ticks each finished step.
+- **Senior-friendly control sizing** (`WIZ_INPUT` in `new-facility-wizard/wizard-ui.tsx`):
+  `min-h-[48px]`, 18px text so iOS never zooms the page on focus, `rounded-2xl`.
+  `<ChoiceCard>` is the big tappable radio used for billing type and the autopay
+  rule — a label, a plain-language blurb, and a real radio dot.
+- **A sticky footer, never a fixed one.** `sticky bottom-0` inside
+  `.main-content` with `paddingBottom: calc(0.75rem + var(--app-safe-bottom))`.
+  A `position: fixed` footer would fight the protected shell.
+- **Irreversible steps become summaries.** Once the facility exists, the steps
+  that created it render as read-only cards, so the create can never fire twice.
+- **A step change clears the step's error**, so any path that sends the user
+  back with a message must dispatch the step first and the message second.
+- **Sub-dialogs stay `<Modal>`** (create-a-stylist, the leave guard) — it is
+  already a bottom sheet on mobile.
+- **The Done screen is a readiness checklist**, not a success toast: one row per
+  thing that had to be true, green when satisfied and amber with the consequence
+  when not ("families can't request visits and there are no working days yet").
+  It never blocks; it explains.
+
+## Status chips that must be readable at arm's length (P57)
+
+`<PaymentCoveredChip>` takes a `variant`: `'icon'` (the dense default, for
+typeaheads) and `'pill'` — a capsule at 11px or larger, emerald **Card** for a
+saved card and sky **Credit** for salon credit, following the badge shape rules
+(`rounded-full px-2.5 py-0.5`). Anything a stylist reads on a phone at the chair
+uses `pill`; hover-only titles are not an affordance on touch. Chips carry
+booleans only — amounts stay on billing surfaces.
+
+**Logo integration complete (2026-04-14; corrected P57 2026-09-03):** The colour wordmark is `/public/seniorstylistlogo.webp` (the file held WebP bytes under a `.jpg` name for months, and the capital-S path 404s on Linux). The white-on-transparent wordmark is `/public/seniorstylistlogo-white.png` — use it on any dark surface. **Never apply `filter: brightness(0) invert(1)` to the colour file:** the source is opaque burgundy-on-white, so the filter paints a solid white rectangle that reads as a missing image (the P57 sidebar / family-header / gift / app-lock bug). Use `<Image>` from `next/image`. Placement strategies:
 - **Sidebar** (`sidebar.tsx`): wrap in `<Link href="/dashboard">` + `bg-white/95 px-2 py-1.5 rounded-xl` white card so gray scissor detail stays visible on dark `#1C0A12` background
 - **Portal header** (`(resident)/layout.tsx`): `style={{ filter: 'brightness(0) invert(1)' }}` on `<Image>` to render all logo colors white on `#8B2E4A` header; wrap in `<a href="https://seniorstylist.com" target="_blank">`
 - **White-background pages** (login, invite-accept, unauthorized): show logo naturally, no filter, no wrapper needed

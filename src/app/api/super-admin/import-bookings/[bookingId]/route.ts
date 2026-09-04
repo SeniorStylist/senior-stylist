@@ -38,8 +38,8 @@ export async function DELETE(
       .set({ active: false, updatedAt: new Date() })
       .where(eq(bookings.id, bookingId))
 
-    revalidateTag('bookings', {})
-    revalidateTag('billing', {})
+    revalidateTag('bookings', { expire: 0 })
+    revalidateTag('billing', { expire: 0 })
 
     return Response.json({ data: { ok: true } })
   } catch (err) {

@@ -159,7 +159,13 @@ export async function POST(request: NextRequest) {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const master = isMasterAdmin(user.email)
-    const facilityUser = master ? null : await getUserFacility(user.id)
+    // P60 — resolve the facility for EVERYONE (the master's selected_facility_id
+    // cookie now yields a synthetic row via getUserFacility). The old
+    // `master ? null : …` short-circuit meant a master adding a stylist "at
+    // F240" created it with facility_id NULL and NO assignment row — invisible
+    // on every roster (Tatyana ST833, 2026-08-18 demo). `master` stays the
+    // authorization + scope-check bypass only.
+    const facilityUser = await getUserFacility(user.id)
     if (!master && !facilityUser) return Response.json({ error: 'No facility' }, { status: 400 })
     // Round 6 bookkeeper create rides the P51 manage tier (fu-object call).
     if (!master && !canManageStylists(facilityUser)) {
@@ -194,7 +200,21 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      facilityId = master ? null : facilityUser!.facilityId
+      facilityId = facilityUser?.facilityId ?? null
+    }
+
+    // P61 — refuse to mint a stylist that belongs nowhere. A facility-less
+    // stylist gets no home row AND no assignment row (the insert below is
+    // guarded on facilityId), so every roster — /stylists, the Day Log picker,
+    // the booking modal, the Master Admin count — reads home-OR-assignment and
+    // finds nothing. The write returns 201, the UI says "added", and the
+    // stylist is invisible everywhere. That is exactly how Tatyana ST833 was
+    // lost. Better a clear error than a silent orphan.
+    if (!facilityId) {
+      return Response.json(
+        { error: 'Pick a facility for this stylist first — choose one in the top-left switcher, then add them again.' },
+        { status: 400 },
+      )
     }
 
     // If facilityId is set and we don't have a franchiseId, derive from facility
@@ -239,14 +259,19 @@ export async function POST(request: NextRequest) {
             : {}),
         })
         .returning()
-      // Roster surfaces read active assignment rows — without this the new
+      // Roster surfaces read ACTIVE assignment rows — without this the new
       // stylist is invisible on /stylists (mirrors the OCR-import create).
-      if (facilityId) {
-        await tx
-          .insert(stylistFacilityAssignments)
-          .values({ stylistId: row.id, facilityId, active: true })
-          .onConflictDoNothing()
-      }
+      // P61 — onConflictDoUpdate, not DoNothing: the unique key is
+      // (stylist_id, facility_id), so a previously-removed stylist already has
+      // a row with active=false and DoNothing left it that way — re-adding them
+      // produced another invisible stylist.
+      await tx
+        .insert(stylistFacilityAssignments)
+        .values({ stylistId: row.id, facilityId, active: true })
+        .onConflictDoUpdate({
+          target: [stylistFacilityAssignments.stylistId, stylistFacilityAssignments.facilityId],
+          set: { active: true },
+        })
       return row
     })
 
@@ -262,7 +287,29 @@ export async function POST(request: NextRequest) {
       'code' in err &&
       (err as { code?: string }).code === '23505'
     ) {
-      return Response.json({ error: 'stylist_code already in use' }, { status: 409 })
+      // P61 — name the stylist who holds the code. "already in use" told the
+      // user to "assign them instead" without saying who, or giving them any
+      // way to do it; the id lets the caller offer a one-click assign.
+      let existing: { id: string; name: string } | null = null
+      try {
+        const code = (await request.clone().json().catch(() => ({})))?.stylistCode
+        if (typeof code === 'string' && code.trim()) {
+          const row = await db.query.stylists.findFirst({
+            where: eq(stylists.stylistCode, code.trim().toUpperCase()),
+            columns: { id: true, name: true },
+          })
+          if (row) existing = { id: row.id, name: row.name }
+        }
+      } catch { /* best effort — the 409 stands either way */ }
+      return Response.json(
+        {
+          error: existing
+            ? `That code already belongs to ${existing.name}.`
+            : 'stylist_code already in use',
+          ...(existing ? { existingStylist: existing } : {}),
+        },
+        { status: 409 },
+      )
     }
     console.error('POST /api/stylists error:', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

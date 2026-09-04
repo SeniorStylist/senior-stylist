@@ -224,7 +224,7 @@ export async function POST(request: Request) {
       stats.facilitiesUpdated += ch.length
     }
 
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     return Response.json({ data: { ...stats, warnings } })
   } catch (err) {

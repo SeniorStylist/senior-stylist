@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { useSendConfirm } from '@/components/ui/send-confirm-dialog'
+import { appUrl } from '@/lib/app-url'
 
 export interface ConnectedUser {
   userId: string
@@ -90,7 +91,10 @@ export function TeamSection({
   facilityId,
   facilityName,
 }: Props) {
-  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://senior-stylist.vercel.app'
+  // P60 — shared appUrl(): the local fallback here was the DEAD
+  // senior-stylist.vercel.app host, and a link COPIED from a preview deploy
+  // encoded a domain the invitee cannot reach.
+  const baseUrl = appUrl()
   const { confirmSend, dialog: sendConfirmDialog } = useSendConfirm()
 
   // Members
@@ -348,7 +352,7 @@ export function TeamSection({
   }
 
   function copyInviteLink(token: string) {
-    const link = `${appUrl}/invite/accept?token=${token}`
+    const link = `${baseUrl}/invite/accept?token=${token}`
     navigator.clipboard.writeText(link)
     setCopiedToken(token)
     setTimeout(() => setCopiedToken(null), 2000)

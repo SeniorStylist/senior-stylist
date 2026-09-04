@@ -489,6 +489,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
           >
             <input
               id="fullName"
+              data-tour="signup-your-name"
               type="text"
               autoFocus
               autoComplete="name"
@@ -514,6 +515,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
             {!isSelf && (
               <input
                 id="residentName"
+                data-tour="signup-resident-name"
                 type="text"
                 autoFocus
                 value={residentName}
@@ -532,6 +534,7 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
               )}
               <input
                 id="roomNumber"
+                data-tour="signup-room"
                 type="text"
                 autoFocus={isSelf}
                 value={roomNumber}
@@ -751,7 +754,10 @@ export function SignupClient({ facilityCode, facilityName, lang, previewMode = f
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] overflow-hidden">
+    <div
+      data-tour="signup-wizard"
+      className="bg-white rounded-2xl border border-stone-100 shadow-[var(--shadow-sm)] overflow-hidden"
+    >
       {/* P54 — the P26 value strip is GONE (owner decision: the page should
           just read facility → Create Account → wizard, no marketing copy). */}
       <div className="p-5 flex flex-col gap-5">

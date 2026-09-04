@@ -11,6 +11,7 @@ import {
 } from '@/db/schema'
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
+import { appUrl } from '@/lib/app-url'
 
 export const PORTAL_SESSION_COOKIE = '__portal_session'
 
@@ -34,12 +35,9 @@ export function generateToken(bytes = 32): string {
   return randomBytes(bytes).toString('hex')
 }
 
-// P53 — function, not module-load const, and with the repo-standard production
-// fallback: an unset NEXT_PUBLIC_APP_URL used to mail families DEAD relative
-// links ("/family/F240/auth/verify?token=…" — unclickable).
-function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || 'https://senior-stylist.vercel.app').replace(/\/$/, '')
-}
+// P60 — appUrl() now comes from src/lib/app-url.ts. The local copy fell back to
+// the DEAD senior-stylist.vercel.app host, so an unset NEXT_PUBLIC_APP_URL
+// mailed families a magic link that resolves nowhere.
 
 export async function createMagicLink(
   email: string,

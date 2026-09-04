@@ -3,7 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilityUsers, accessRequests, stylists, portalClaimRequests, residents, stylistFacilityAssignments } from '@/db/schema'
-import { eq, and, inArray, or } from 'drizzle-orm'
+import { eq, and, count, inArray, or } from 'drizzle-orm'
 import { getUserFacility, isFranchiseAdmin } from '@/lib/get-facility-id'
 import { isFacilityConnected } from '@/lib/qb-connection'
 import { sanitizeFacility, toClientJson } from '@/lib/sanitize'
@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   if (facilityUser.role === 'stylist' || facilityUser.role === 'viewer') redirect('/dashboard')
 
   try {
-  const [facility, connectedUsers, pendingRequests, rawClaims] = await Promise.all([
+  const [facility, connectedUsers, pendingRequests, rawClaims, autopayRows] = await Promise.all([
     db.query.facilities.findFirst({
       where: (t, { eq }) => eq(t.id, facilityUser.facilityId),
     }),
@@ -54,10 +54,32 @@ export default async function SettingsPage() {
           }),
         )
       : Promise.resolve([]),
+    // P60 — how many residents here have autopay switched on. Drives the Billing
+    // warning that 'manual' mode means those saved cards never actually charge.
+    // ONE aggregate, never a per-resident loop (max:1 pool). Best-effort: a
+    // failed count must not take the whole settings page down.
+    facilityUser.role === 'admin'
+      ? db
+          .select({ n: count() })
+          .from(residents)
+          .where(
+            and(
+              eq(residents.facilityId, facilityUser.facilityId),
+              eq(residents.autopayEnabled, true),
+              eq(residents.active, true),
+              eq(residents.isDemo, false), // is_demo filter — Phase 13
+            ),
+          )
+          .catch((err) => {
+            console.error('[SettingsPage] autopay resident count failed:', err)
+            return [{ n: 0 }]
+          })
+      : Promise.resolve([{ n: 0 }]),
   ])
 
   if (!facility) redirect('/dashboard')
 
+  const autopayResidentCount = autopayRows[0]?.n ?? 0
   // Realm-level QuickBooks connection state (qb_connections) + who may connect
   // more than this one facility in a single authorization.
   const [qbConnected, franchiseAdmin] = await Promise.all([
@@ -169,6 +191,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       facility={toClientJson(sanitizeFacility(facility, { hasQuickBooks: qbConnected }))}
+      autopayResidentCount={autopayResidentCount}
       qbConnectScopes={{ franchise: franchiseAdmin || isMaster, all: isMaster }}
       connectedUsers={toClientJson(usersWithStatus)}
       facilityStylists={toClientJson(facilityStylists)}

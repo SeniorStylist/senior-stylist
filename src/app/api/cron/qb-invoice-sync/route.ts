@@ -199,8 +199,8 @@ export async function GET(request: NextRequest) {
     // Once at the end — revalidateTag is process-global, so per-facility calls
     // would just be redundant no-ops.
     if (succeeded > 0) {
-      revalidateTag('billing', {})
-      revalidateTag('facilities', {})
+      revalidateTag('billing', { expire: 0 })
+      revalidateTag('facilities', { expire: 0 })
     }
 
     return Response.json({

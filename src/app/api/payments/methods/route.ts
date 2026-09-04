@@ -1,6 +1,8 @@
 // Saved-card management for a resident (Card-On-File).
 //   GET    ?residentId=…           → list active saved cards (display fields only)
 //   POST   { residentId, setupIntentId } → persist a card after client-side confirm
+//          { residentId, enableAutopay, consentAttested } (no setupIntentId) →
+//          apply an attested autopay consent for a card that is already on file
 //   DELETE { residentId, paymentMethodId } → soft-remove + detach from Stripe
 // Auth: family-portal POA (own resident) OR billing staff. Tokens only — never PAN.
 
@@ -48,20 +50,31 @@ export async function GET(request: NextRequest) {
 
 const postSchema = z.object({
   residentId: z.string().uuid(),
+  // REQUIRED. It was briefly optional in P60 so the chair-side modal could
+  // apply its consent tick in a follow-up call; that turned this route into a
+  // standalone autopay-enable verb with no card save — precisely the
+  // capability /api/payments/autopay 403s stylists from, and reachable by a
+  // signup-card-token holder too. The modal now sends the attestation on the
+  // save request itself, so nothing needs the card-less shape.
   setupIntentId: z.string().min(1).max(200),
   // P54 — signup wizard payment step (see setup-intent route).
   signupToken: z.string().min(1).max(200).optional(),
   // P54 — the signup card save auto-enables per-visit autopay (owner decision:
-  // charge after each service). Honored ONLY for portal/signup actors, backed
-  // by the shared family-enable helper (requires-card guard + consent email).
+  // charge after each service). Honored for portal/signup actors, and since P60
+  // for staff/stylists WITH consentAttested — always through the shared
+  // family-enable helper (requires-card guard + consent email/SMS).
   enableAutopay: z.boolean().optional(),
+  // P60 — "the family asked us to keep this card on file for automatic
+  // payment". Staff and stylists vault cards at the chair; without an explicit
+  // attestation their enableAutopay is dropped, so a card can never start
+  // charging on a staff member's say-so alone.
+  consentAttested: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
   try {
     const parsed = postSchema.safeParse(await request.json())
     if (!parsed.success) return Response.json({ error: 'Invalid input' }, { status: 422 })
-
     const auth = await authorizeResidentPayment(parsed.data.residentId, { signupToken: parsed.data.signupToken })
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
@@ -79,17 +92,54 @@ export async function POST(request: NextRequest) {
       createdBy: auth.actor.via === 'portal' || auth.actor.via === 'signup' ? null : auth.actor.actorId,
     })
 
-    // P54 — signup-card-save auto-enables per-visit autopay; family actors only
-    // (staff/stylist requests never carry the flag through this branch).
+    // P54 — signup-card-save auto-enables per-visit autopay (family actors).
+    // P60 — staff and stylists may enable it too, but ONLY with an explicit
+    // attestation that the family asked for it. Before this, a card vaulted at
+    // the chair for "automatic payment" left autopay off: the facility believed
+    // it was on and nothing ever charged. Unattested flags are dropped silently
+    // (house pattern — never 403 a write the caller may legitimately make).
+    // Either way it runs the SAME enableFamilyAutopay helper, so the family
+    // still gets the "we turned this on" notice — that is the safety net.
+    const familyActor = auth.actor.via === 'portal' || auth.actor.via === 'signup'
+    const attestedStaff =
+      (auth.actor.via === 'admin' || auth.actor.via === 'stylist') && parsed.data.consentAttested === true
     let autopayEnabled = false
-    if (
-      parsed.data.enableAutopay === true &&
-      (auth.actor.via === 'portal' || auth.actor.via === 'signup')
-    ) {
+    let autopayError: string | null = null
+    let autopayIdle = false
+    if (parsed.data.enableAutopay === true && (familyActor || attestedStaff)) {
+      // The family is handing over a card BECAUSE the old one stopped working,
+      // so a chair-side attested save must become the default. saveCardFromSetupIntent
+      // only defaults the FIRST card, so without this the engine kept charging
+      // the dead card — and a stylist cannot fix that (PATCH is 403 for them).
+      if (attestedStaff) {
+        await db.update(paymentMethods).set({ isDefault: false }).where(eq(paymentMethods.residentId, auth.actor.residentId))
+        await db
+          .update(paymentMethods)
+          .set({ isDefault: true })
+          .where(
+            and(
+              eq(paymentMethods.residentId, auth.actor.residentId),
+              eq(paymentMethods.stripePaymentMethodId, saved.stripePaymentMethodId),
+            ),
+          )
+      }
       const { enableFamilyAutopay } = await import('@/lib/payments/autopay-enable')
       const enabled = await enableFamilyAutopay(auth.actor.residentId)
       autopayEnabled = enabled.ok
-      if (!enabled.ok) console.error('[payments.methods] signup autopay enable failed:', enabled.error)
+      if (!enabled.ok) {
+        autopayError = enabled.error
+        console.error('[payments.methods] autopay enable failed:', enabled.error)
+      }
+      // Per-resident autopay is only half the switch: the FACILITY still has to
+      // be set to collect. On 'manual' with the sweep off nothing ever charges,
+      // so the caller is told rather than shown an unqualified "autopay is on".
+      if (autopayEnabled) {
+        const fac = await db.query.facilities.findFirst({
+          where: (f, { eq: eqOp }) => eqOp(f.id, auth.actor.facilityId),
+          columns: { autopayMode: true, autopaySweepCadence: true },
+        })
+        autopayIdle = fac?.autopayMode !== 'on_completion' && (fac?.autopaySweepCadence ?? 'off') === 'off'
+      }
     }
 
     // P54 — the token is single-use: consume on SAVE success (not on
@@ -102,44 +152,49 @@ export async function POST(request: NextRequest) {
     // P50 — card-added security notice to the family (poaEmail ∪ linked portal
     // accounts). Fire-and-forget on purpose: it's a notice; a mail failure must
     // not fail the vault. Not gated on the email-reminders preference.
+    // Skipped when no card was vaulted (the attested autopay-only call) — the
+    // family already got this notice when the card itself was saved.
     const actor = auth.actor
-    void (async () => {
-      const [{ sendEmail, buildCardAddedEmailHtml }, { sendSms, buildCardAddedSms }, { getFamilyRecipients }] =
-        await Promise.all([import('@/lib/email'), import('@/lib/sms'), import('@/lib/portal-recipients')])
-      const [recipients, facility] = await Promise.all([
-        getFamilyRecipients(actor.residentId),
-        db.query.facilities.findFirst({ where: (f, { eq: eqOp }) => eqOp(f.id, actor.facilityId), columns: { name: true } }),
-      ])
-      if (!recipients) return
-      const facilityName = facility?.name ?? 'Senior Stylist'
-      if (recipients.emails.length > 0) {
-        const cardLabel = saved?.brand ? `${saved.brand.toUpperCase()} ••${saved.last4 ?? ''}` : 'a card'
-        const html = buildCardAddedEmailHtml({
-          residentName: actor.residentName,
-          facilityName,
-          cardLabel,
-          addedVia: actor.via === 'portal' || actor.via === 'signup' ? 'portal' : 'staff',
-        })
-        await Promise.all(
-          recipients.emails.map((to) =>
-            sendEmail({
-              to,
-              subject: `Card saved for ${actor.residentName} — ${facilityName}`,
-              html,
-            }).catch(() => false),
-          ),
-        )
-      } else if (recipients.phones.length > 0) {
-        // P55 — phone-only families still get the "wasn't you?" notice, by
-        // text (dormant no-op until Twilio is live).
-        const smsBody = buildCardAddedSms({ residentName: actor.residentName, facilityName })
-        for (const phone of recipients.phones) {
-          sendSms(phone, smsBody).catch(() => {})
+    const savedCard = saved
+    if (savedCard) {
+      void (async () => {
+        const [{ sendEmail, buildCardAddedEmailHtml }, { sendSms, buildCardAddedSms }, { getFamilyRecipients }] =
+          await Promise.all([import('@/lib/email'), import('@/lib/sms'), import('@/lib/portal-recipients')])
+        const [recipients, facility] = await Promise.all([
+          getFamilyRecipients(actor.residentId),
+          db.query.facilities.findFirst({ where: (f, { eq: eqOp }) => eqOp(f.id, actor.facilityId), columns: { name: true } }),
+        ])
+        if (!recipients) return
+        const facilityName = facility?.name ?? 'Senior Stylist'
+        if (recipients.emails.length > 0) {
+          const cardLabel = savedCard.brand ? `${savedCard.brand.toUpperCase()} ••${savedCard.last4 ?? ''}` : 'a card'
+          const html = buildCardAddedEmailHtml({
+            residentName: actor.residentName,
+            facilityName,
+            cardLabel,
+            addedVia: actor.via === 'portal' || actor.via === 'signup' ? 'portal' : 'staff',
+          })
+          await Promise.all(
+            recipients.emails.map((to) =>
+              sendEmail({
+                to,
+                subject: `Card saved for ${actor.residentName} — ${facilityName}`,
+                html,
+              }).catch(() => false),
+            ),
+          )
+        } else if (recipients.phones.length > 0) {
+          // P55 — phone-only families still get the "wasn't you?" notice, by
+          // text (dormant no-op until Twilio is live).
+          const smsBody = buildCardAddedSms({ residentName: actor.residentName, facilityName })
+          for (const phone of recipients.phones) {
+            sendSms(phone, smsBody).catch(() => {})
+          }
         }
-      }
-    })().catch((err) => console.error('[payments.methods] card-added notice failed:', err))
+      })().catch((err) => console.error('[payments.methods] card-added notice failed:', err))
+    }
 
-    return Response.json({ data: { card: saved, autopayEnabled } })
+    return Response.json({ data: { card: saved, autopayEnabled, autopayError, autopayIdle } })
   } catch (err) {
     console.error('POST /api/payments/methods error:', err)
     return Response.json({ error: 'Could not save card' }, { status: 500 })

@@ -103,7 +103,7 @@ export default function UnauthorizedPage() {
           <>
             {/* Icon */}
             <div className="flex justify-center mb-4">
-              <Image src="/seniorstylistlogo.jpg" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
+              <Image src="/seniorstylistlogo.webp" alt="Senior Stylist" width={140} height={56} className="mx-auto mb-2" />
             </div>
 
             <h1 className="text-xl font-normal text-stone-900 text-center mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>

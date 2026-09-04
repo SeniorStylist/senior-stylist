@@ -71,7 +71,7 @@ export async function POST() {
       role: 'admin',
     })
     // P31 — bust the cached layout membership list
-    revalidateTag('facilities', {})
+    revalidateTag('facilities', { expire: 0 })
 
     await db.insert(services).values([
       {

@@ -224,6 +224,10 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
 
   const resident = await db.query.residents.findFirst({
     where: eq(residents.id, opts.residentId),
+    // P60 — the receipt resolves its own recipients via getFamilyRecipients
+    // (poaEmail ∪ linked portal accounts, plus phones). poaEmail is still read
+    // here because it is the audience the receipt narrows BACK to when staff
+    // have switched family contact off.
     columns: { id: true, name: true, facilityId: true, stripeCustomerId: true, autopayMethod: true, qbCustomerId: true, poaEmail: true },
   })
   if (!resident) return { ok: false, code: 'invalid', reason: 'Resident not found', salonCents: 0 }
@@ -456,27 +460,86 @@ export async function collectForResident(opts: CollectOptions): Promise<CollectR
   if (paymentId) await mirrorPaymentSoon(paymentId)
 
   // Safeguard (2026-07-07): every card-on-file charge sends the payor a receipt —
-  // an automatic charge must never be silent. Fire-and-forget.
-  if (resident.poaEmail) {
-    void (async () => {
+  // an automatic charge must never be silent. Fire-and-forget (a notification,
+  // not the user's action — the money is already captured).
+  //
+  // P60 — reach BOTH channels via getFamilyRecipients instead of the single
+  // residents.poaEmail. Two silent-charge holes it closes: a phone-only family
+  // (P55 made phone a first-class portal identity) had no poaEmail at all and
+  // was charged with zero notice, and the QR-onboarded cohort's real address
+  // often lives on the linked portal account rather than on the resident row.
+  // AWAITED, not fire-and-forget. Every caller of collectForResident is itself
+  // awaited inside an `after()` callback, and Next settles that callback's
+  // promise the moment it resolves — a detached receipt promise was reliably
+  // frozen mid-flight, so the card was charged and the family told nothing.
+  // Awaiting cannot affect the charge (the money and every DB write are already
+  // committed above) and cannot delay a user: under after() the response has
+  // already been flushed. Accepted cost: in the nightly sweep this adds
+  // getFamilyRecipients' three lookups per successful charge on the max:1 pool,
+  // so a capped run defers a few residents to the next night — the sweep is
+  // idempotent, so that is delayed mail, never lost mail.
+  await (async () => {
+    const { getFamilyRecipients } = await import('@/lib/portal-recipients')
+    const recipients = await getFamilyRecipients(resident.id)
+    if (!recipients) return
+
+    const cardLabel = card.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null
+    const facilityName = facility?.name ?? 'Senior Stylist'
+    // Facility timezone, never browser/server-local.
+    const dateLabel = new Date().toLocaleDateString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      timeZone: facility?.timezone ?? 'America/New_York',
+    })
+
+    // `poa_notifications_enabled` is the staff switch for "stop contacting this
+    // family" (revoked POA, dispute, an explicit request). A receipt for money
+    // already taken is transactional, so it is never fully silenced — but while
+    // the switch is off it must not REACH FURTHER than it used to, so the
+    // audience narrows back to the resident's own poaEmail and the text is
+    // suppressed entirely. Switch on = the full family fan-out.
+    const emailTargets = recipients.poaNotificationsEnabled
+      ? recipients.emails
+      : recipients.emails.filter((e) => e === resident.poaEmail?.toLowerCase())
+    if (emailTargets.length) {
       const { sendEmail, buildAutoChargeReceiptHtml } = await import('@/lib/email')
-      const cardLabel = card.brand ? `${card.brand.toUpperCase()} ••${card.last4 ?? ''}` : null
-      await sendEmail({
-        to: resident.poaEmail!,
-        subject: `Receipt — ${facility?.name ?? 'Senior Stylist'}`,
-        html: buildAutoChargeReceiptHtml({
-          residentName: resident.name,
-          facilityName: facility?.name ?? 'Senior Stylist',
-          amountCents: remaining,
-          cardLabel,
-          dateLabel: new Date().toLocaleDateString('en-US', {
-            month: 'long', day: 'numeric', year: 'numeric',
-            timeZone: facility?.timezone ?? 'America/New_York',
-          }),
-        }),
+      const html = buildAutoChargeReceiptHtml({
+        residentName: resident.name,
+        facilityName,
+        amountCents: remaining,
+        cardLabel,
+        dateLabel,
       })
-    })().catch((err) => console.error('[payments.collect] receipt send failed:', err))
-  }
+      await Promise.all(
+        emailTargets.map((to) =>
+          sendEmail({ to, subject: `Receipt — ${facilityName}`, html }).catch((err) => {
+            console.error('[payments.collect] receipt email failed:', err)
+            return false
+          }),
+        ),
+      )
+    }
+
+    // SMS mirror — gated exactly like family-confirmation.ts: the staff-side
+    // master switch, then the family's sms_reminders opt-out. sendSms is a
+    // no-op until TWILIO_ENABLED='true', so this ships dormant.
+    // buildAutoChargeReceiptSms, not buildReceiptSms: the latter is shaped
+    // around one booking, and a card-on-file charge can cover a whole balance
+    // with no single service or stylist to name. `remaining` is the whole
+    // amount captured, so tips are never split out here.
+    if (recipients.poaNotificationsEnabled && recipients.smsReminders && recipients.phones.length) {
+      const { sendSms, buildAutoChargeReceiptSms } = await import('@/lib/sms')
+      const body = buildAutoChargeReceiptSms({
+        facilityName,
+        residentName: resident.name,
+        amountCents: remaining,
+        cardLabel,
+        dateLabel,
+      })
+      for (const phone of recipients.phones) {
+        sendSms(phone, body).catch(() => {})
+      }
+    }
+  })().catch((err) => console.error('[payments.collect] receipt send failed:', err))
 
   bustBilling()
   return {
@@ -507,6 +570,6 @@ async function recompute(tx: Tx, facilityId: string): Promise<void> {
 }
 
 function bustBilling(): void {
-  revalidateTag('billing', {})
-  revalidateTag('bookings', {})
+  revalidateTag('billing', { expire: 0 })
+  revalidateTag('bookings', { expire: 0 })
 }
