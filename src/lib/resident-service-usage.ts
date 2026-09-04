@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { bookings } from '@/db/schema'
-import { and, count, eq, isNotNull, ne } from 'drizzle-orm'
+import { and, count, eq, gte, isNotNull, ne } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 
 // P31 — this GROUP BY scans every non-cancelled booking at the facility and
@@ -23,6 +23,15 @@ const getCachedMostUsedPairs = unstable_cache(
           eq(bookings.facilityId, facilityId),
           ne(bookings.status, 'cancelled'),
           isNotNull(bookings.serviceId),
+          // P62 — this was an unbounded scan of the facility's ENTIRE booking
+          // history, and it is the single most data-sensitive query on the
+          // dashboard: instant at a new community, and a full partition scan at
+          // one fed by the bulk importers — which is exactly why the dashboard
+          // failed at "some facilities but not others". A visit from 2019 has no
+          // business voting on which service to preselect today.
+          gte(bookings.startTime, new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)),
+          // …and rolled-back imports (active = false) were being counted.
+          eq(bookings.active, true),
         )
       )
       .groupBy(bookings.residentId, bookings.serviceId)

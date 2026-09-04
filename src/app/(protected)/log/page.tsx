@@ -12,6 +12,14 @@ import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { eq, and, gte, lt, asc, or, inArray } from 'drizzle-orm'
 import { LogClient } from './log-client'
+import { safeTimeZone } from '@/lib/time'
+
+// P62 — the P22 rule: any page firing a query burst through the max:1 pool
+// MUST set maxDuration (a cold Day Log render is ~15 serialized round-trips), and the
+// protected layout's 8s race can consume most of the platform's default 10s
+// before this page's own work starts.
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 export default async function LogPage() {
   const user = await getAuthUser()
@@ -197,7 +205,7 @@ export default async function LogPage() {
       unlinkedStylist={unlinkedStylist}
       userId={user.id}
       serviceCategoryOrder={facility?.serviceCategoryOrder ?? null}
-      facilityTimezone={facility?.timezone ?? 'America/New_York'}
+      facilityTimezone={safeTimeZone(facility?.timezone)}
       facilityId={facilityId}
       facilityName={facility?.name ?? ''}
       role={facilityUser.role}

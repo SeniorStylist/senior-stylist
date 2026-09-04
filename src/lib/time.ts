@@ -16,10 +16,58 @@ export interface LocalParts {
   weekday: string // 'Mon' | 'Tue' | ...
 }
 
+/**
+ * P62 — every helper below funnels its `tz` through this.
+ *
+ * `Intl.DateTimeFormat` THROWS a RangeError on null, '', or a non-IANA name
+ * ("EDT", "Eastern", "America/New York"). `facilities.timezone` is declared
+ * NOT NULL DEFAULT in the Drizzle schema, but no migration has ever created or
+ * altered that column, and the bulk importers insert facilities with no
+ * timezone key at all — so imported communities really can carry NULL. One of
+ * those reaching `getLocalParts` inside a client component's useState
+ * initializer took the whole dashboard down with "Something went wrong".
+ *
+ * A community with bad data should render with a slightly wrong clock, not a
+ * dead page. The warning is how we find the row; the fallback is how the user
+ * still gets their day.
+ */
+const TZ_FALLBACK = 'America/New_York'
+const tzCache = new Map<string, boolean>()
+
+export function safeTimeZone(tz: string | null | undefined): string {
+  if (!tz) return TZ_FALLBACK
+  const cached = tzCache.get(tz)
+  if (cached === true) return tz
+  if (cached === false) return TZ_FALLBACK
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    tzCache.set(tz, true)
+    return tz
+  } catch {
+    tzCache.set(tz, false)
+    console.warn(`[time] invalid facility timezone ${JSON.stringify(tz)} — falling back to ${TZ_FALLBACK}`)
+    return TZ_FALLBACK
+  }
+}
+
+/**
+ * P62 — Zod refinement for any route that accepts a facility timezone. Nothing
+ * validated this before, so `""`, `"EDT"` or `"Eastern"` persisted silently and
+ * then crashed a render. Rejecting at the door is cheaper than degrading later.
+ */
+export function isValidTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function getLocalParts(date: Date | string, tz: string): LocalParts {
   const d = typeof date === 'string' ? new Date(date) : date
   const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
+    timeZone: safeTimeZone(tz),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -45,7 +93,7 @@ export function formatTimeInTz(date: Date | string, tz: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: tz,
+    timeZone: safeTimeZone(tz),
   })
 }
 
@@ -60,7 +108,7 @@ export function formatDateInTz(
     month: 'long',
     day: 'numeric',
     ...opts,
-    timeZone: tz,
+    timeZone: safeTimeZone(tz),
   })
 }
 
@@ -86,7 +134,7 @@ export function dayRangeInTimezone(
   const d = shifted.getUTCDate()
   const candidate = new Date(Date.UTC(y, mo, d, 0, 0, 0))
   const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
+    timeZone: safeTimeZone(timezone),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -117,7 +165,7 @@ export function fromDateTimeLocalInTz(local: string, tz: string): Date {
   let candidate = Date.UTC(y, mo - 1, d, h, mi, 0)
   for (let i = 0; i < 2; i++) {
     const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
+      timeZone: safeTimeZone(tz),
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',

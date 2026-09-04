@@ -1,5 +1,6 @@
 import type { Facility, Stylist } from '@/types'
 import type { stylists as stylistsTable, facilities as facilitiesTable } from '@/db/schema'
+import { safeTimeZone } from '@/lib/time'
 
 type StylistRow = typeof stylistsTable.$inferSelect
 type FacilityRow = typeof facilitiesTable.$inferSelect
@@ -58,6 +59,15 @@ export function sanitizeFacility(
   const { stripeSecretKey, qbAccessToken, qbRefreshToken, ...rest } = facility
   return {
     ...(rest as Omit<Facility, 'stripeSecretKey' | 'qbAccessToken' | 'qbRefreshToken'>),
+    // P62 — normalize the timezone at the ONE boundary every facility row
+    // crosses on its way to a client. Client components read `facility.timezone`
+    // raw (25 sites in dashboard-client alone) and hand it straight to
+    // Intl.DateTimeFormat, which THROWS on null or a non-IANA name — and the
+    // bulk importers create facilities with no timezone at all. That crash
+    // happened during a useState initializer, above any error boundary the
+    // component owns, so it took the whole page down with "Something went
+    // wrong". Fix it here and every downstream reader is safe.
+    timezone: safeTimeZone(rest.timezone),
     hasStripeSecret: !!stripeSecretKey,
     hasQuickBooks: overrides.hasQuickBooks ?? !!(qbAccessToken && qbRefreshToken),
   }

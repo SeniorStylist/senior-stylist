@@ -1,6 +1,6 @@
 import { getAuthUser } from '@/lib/supabase/server'
 import { getUserFacility } from '@/lib/get-facility-id'
-import { ensureMonthlyReportSchema } from '@/lib/monthly-report-ddl'
+import { ensureFacilitiesSchema } from '@/lib/facilities-ddl'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, facilityUsers, franchises } from '@/db/schema'
@@ -58,9 +58,16 @@ interface MembershipData {
 // args), so the owner's all-facilities list and a normal user's membership
 // list can never share an entry.
 async function fetchMembershipData(userId: string, isMaster = false): Promise<MembershipData> {
+  // P62 — `with: { facility: true }` was an uncapped SELECT * lateral join
+  // pulling all ~40 facility columns per membership row, including
+  // stripe_secret_key, qb_access_token and qb_refresh_token — secrets this
+  // function never reads and which had no business crossing the wire. Now the
+  // five columns actually used below. (Skipping the join entirely for the master,
+  // for whom it is dead weight, costs more in type gymnastics than the join is
+  // worth on a handful of his own membership rows.)
   const userFacilities = await db.query.facilityUsers.findMany({
     where: eq(facilityUsers.userId, userId),
-    with: { facility: true },
+    with: { facility: { columns: { id: true, name: true, facilityCode: true, active: true, isDemo: true } } },
     orderBy: (t, { asc }) => [asc(t.createdAt)],
   })
 
@@ -135,12 +142,14 @@ const getCachedMembershipData = unstable_cache(fetchMembershipData, ['layout-mem
 })
 
 async function fetchLayoutData(userId: string, isMaster = false): Promise<LayoutData> {
-  // Phase 18 hotfix — self-heal the facilities.monthly_report_enabled column
-  // (drizzle/0024). Full-row facilities selects (this relation include, the
-  // dashboard, the day log) throw "column does not exist" when the code
-  // deploys before the migration is applied; this makes deploys order-proof.
-  // Module-guarded in monthly-report-ddl.ts — one round-trip per instance.
-  await ensureMonthlyReportSchema().catch(() => {})
+  // Phase 18 hotfix, extended in P62 — self-heal the `facilities` columns that
+  // ship ahead of their migration (monthly_report_enabled, and the timezone
+  // column that has never had one). Full-row facilities selects throw "column
+  // does not exist" when code deploys before the migration; this makes deploys
+  // order-proof. Module-guarded in facilities-ddl.ts — one attempt per instance,
+  // and it no longer re-arms on failure (that turned a struggling instance into
+  // an ACCESS EXCLUSIVE retry on every render).
+  await ensureFacilitiesSchema().catch(() => {})
 
   const cookieStore = await cookies()
   const selectedId = cookieStore.get('selected_facility_id')?.value
@@ -155,9 +164,16 @@ async function fetchLayoutData(userId: string, isMaster = false): Promise<Layout
     // as the OLDEST membership row (allFacilities[0]) while every page, which
     // reads getUserFacility uncached, showed the real one — the "app says
     // Fitzgerald, switcher says F121" demo bug.
+    // P62 — the emptiness test is meaningless for the OWNER: P60 made his access
+    // synthetic, so he legitimately needs no membership rows, yet this forced an
+    // uncached repeat of BOTH membership queries on every single render. And the
+    // second disjunct is now redundant in general — P61 resolves and prepends a
+    // facility the list doesn't contain a few lines below, so re-running the same
+    // query with the same predicates can't help; it only doubled the work for
+    // anyone parked on a demo facility (Apley) or an impersonated one.
     const stale =
-      membership.memberships.length === 0 ||
-      (selectedId != null && !membership.allFacilities.some((f) => f.id === selectedId))
+      (!isMaster && membership.memberships.length === 0) ||
+      (!isMaster && selectedId != null && !membership.allFacilities.some((f) => f.id === selectedId))
     if (stale) {
       membership = await fetchMembershipData(userId, isMaster)
     }
@@ -251,12 +267,15 @@ export default async function ProtectedLayout({
   // Track it so the sidebar can say "couldn't load" and offer a reload.
   let facilityLoadFailed = false
   try {
+    // P62 — the timer is cleared on the happy path; it used to leak an 8s handle
+    // per layout render, and the layout re-renders on every nav-link prefetch.
+    let timer: ReturnType<typeof setTimeout> | undefined
     facilityData = await Promise.race([
       fetchLayoutData(user.id, isMaster),
-      new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), LAYOUT_TIMEOUT_MS)
-      ),
-    ])
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), LAYOUT_TIMEOUT_MS)
+      }),
+    ]).finally(() => { if (timer) clearTimeout(timer) })
     if (!facilityData) {
       facilityLoadFailed = true
       console.error(`[layout] facility data timed out after ${LAYOUT_TIMEOUT_MS}ms for user ${user.id}`)

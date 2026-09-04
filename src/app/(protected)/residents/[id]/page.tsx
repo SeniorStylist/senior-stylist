@@ -6,6 +6,7 @@ import { getUserFacility } from '@/lib/get-facility-id'
 import { toClientJson } from '@/lib/sanitize'
 import { eq, and } from 'drizzle-orm'
 import { ResidentDetailClient } from './resident-detail-client'
+import { safeTimeZone } from '@/lib/time'
 
 export default async function ResidentDetailPage({
   params,
@@ -114,7 +115,7 @@ export default async function ResidentDetailPage({
       preferredServiceName={preferredServiceName}
       facilityServices={toClientJson(facilityServices)}
       role={facilityUser.role}
-      facilityTimezone={facility?.timezone ?? 'America/New_York'}
+      facilityTimezone={safeTimeZone(facility?.timezone)}
       facilityCode={facility?.facilityCode ?? null}
       portalGiftToken={resident.portalToken ?? null}
     />

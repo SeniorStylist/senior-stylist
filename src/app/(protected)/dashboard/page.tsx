@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { facilities, residents, stylists, services, invites, accessRequests, profiles, coverageRequests, stylistFacilityAssignments, stylistAvailability, stylistCheckins, bookings } from '@/db/schema'
-import { eq, and, gte, lt, notInArray, inArray, asc, or } from 'drizzle-orm'
+import { eq, and, gte, lt, notInArray, inArray, asc, or, count } from 'drizzle-orm'
 import { dayRangeInTimezone, getLocalParts } from '@/lib/time'
 import { getUserFacility, canManageStylists, isFacilityScheduleLocked } from '@/lib/get-facility-id'
 import { getEffectiveStylistId } from '@/lib/effective-stylist'
@@ -13,6 +13,15 @@ import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 import { DashboardClient } from './dashboard-client'
 import { DashboardSetup } from './dashboard-setup'
+
+// P62 — the P22 rule, which this page violated: any page firing a large cold
+// query burst through the max:1 pool MUST set maxDuration. A cold /dashboard
+// render is ~20 serialized round-trips, and the protected layout's own 8s race
+// is allowed to eat 8 of the platform's default 10 seconds before this page's
+// work even starts — a near-guaranteed kill on a slow cold render, which is
+// what "Something went wrong, try again" looked like.
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   const user = await getAuthUser()
@@ -159,14 +168,19 @@ export default async function DashboardPage() {
         ),
         orderBy: (t, { asc }) => [asc(t.name)],
       }),
+      // P62 — this is only ever read for its .length (see pendingAccessRequests
+      // below), so fetch a count instead of every pending row.
       facilityUser.role === 'admin'
-        ? db.query.accessRequests.findMany({
-            where: (t) => and(
-              eq(t.facilityId, facilityUser.facilityId),
-              eq(accessRequests.status, 'pending')
-            ),
-          })
-        : Promise.resolve([]),
+        ? db
+            .select({ n: count() })
+            .from(accessRequests)
+            .where(
+              and(
+                eq(accessRequests.facilityId, facilityUser.facilityId),
+                eq(accessRequests.status, 'pending'),
+              ),
+            )
+        : Promise.resolve([{ n: 0 }]),
       facilityUser.role === 'admin'
         ? db.query.coverageRequests.findMany({
             where: and(
@@ -284,7 +298,11 @@ export default async function DashboardPage() {
       getFacilityWorkingDows(facilityUser.facilityId),
     ])
 
-    if (!facility) redirect('/login')
+    // P62 — do NOT redirect() in here. Next implements redirect by throwing, and
+    // the bare `catch (err)` at the bottom of this try swallows NEXT_REDIRECT —
+    // the exact anti-pattern this file warns about at the top. Fall through to
+    // the page's own diagnostic instead of silently showing the error card.
+    if (!facility) throw new Error('Facility not found for the selected facility id')
 
     const residentsWithUsage = residentsList.map((r) => ({
       ...r,
@@ -324,7 +342,7 @@ export default async function DashboardPage() {
           isAdmin={facilityUser.role === 'admin'}
           userRole={facilityUser.role}
           userName={user.user_metadata?.full_name ?? ''}
-          pendingRequestsCount={pendingRequests.length}
+          pendingRequestsCount={Number(pendingRequests[0]?.n ?? 0)}
           profileStylistId={profileStylistId}
           openCoverageRequests={JSON.parse(JSON.stringify(openCoverageRequests))}
           workingToday={JSON.parse(JSON.stringify(working.today))}

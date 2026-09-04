@@ -8,6 +8,7 @@ import { isTutorialModeActive } from '@/lib/help/tutorial-request'
 import { getPaymentCoverageMap } from '@/lib/payment-signals'
 import { getFacilityWorkingDows } from '@/lib/facility-working-days'
 import { SignupSheetPageClient } from './signup-sheet-client'
+import { safeTimeZone } from '@/lib/time'
 
 export default async function SignupSheetPage() {
   const user = await getAuthUser()
@@ -77,7 +78,7 @@ export default async function SignupSheetPage() {
   return (
     <SignupSheetPageClient
       facilityId={facilityUser.facilityId}
-      facilityTimezone={facility.timezone ?? 'America/New_York'}
+      facilityTimezone={safeTimeZone(facility.timezone)}
       residents={JSON.parse(JSON.stringify(residentsList))}
       services={JSON.parse(JSON.stringify(servicesList))}
       stylists={JSON.parse(JSON.stringify(stylistsList))}

@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from 'clsx'
+import { safeTimeZone } from '@/lib/time'
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs)
@@ -19,7 +20,7 @@ export function formatDate(date: Date | string, timezone?: string): string {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
-    ...(timezone ? { timeZone: timezone } : {}),
+    ...(timezone ? { timeZone: safeTimeZone(timezone) } : {}),
   })
 }
 
@@ -28,6 +29,6 @@ export function formatTime(date: Date | string, timezone?: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    ...(timezone ? { timeZone: timezone } : {}),
+    ...(timezone ? { timeZone: safeTimeZone(timezone) } : {}),
   })
 }

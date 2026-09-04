@@ -4,6 +4,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/db'
 import { facilities, facilityUsers, franchiseFacilities, franchises } from '@/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { getAuthUser } from '@/lib/supabase/server'
 
 /**
  * Verifies that `userId` is the master admin (NEXT_PUBLIC_SUPER_ADMIN_EMAIL).
@@ -16,6 +17,18 @@ import { and, eq } from 'drizzle-orm'
 async function isMasterAdmin(userId: string): Promise<boolean> {
   const superAdminEmail = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL
   if (!superAdminEmail) return false
+  // P62 — fast path: the verified session. `getAuthUser()` is React.cache()'d,
+  // so inside a render (where the layout and the page have already called it)
+  // this costs NOTHING, and it removes an HTTPS round-trip to the Supabase admin
+  // API from the layout's critical path — which since P61 ran on EVERY render
+  // for a master whose selected facility has no membership row, i.e. every
+  // imported facility. The session email is server-verified, exactly like the
+  // admin lookup; the id check keeps it honest if a caller ever passes someone
+  // else's userId, in which case we fall through to the authoritative lookup.
+  try {
+    const authed = await getAuthUser()
+    if (authed?.id === userId) return isMasterEmail(authed.email)
+  } catch { /* fall through to the admin lookup */ }
   try {
     const admin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,7 +37,10 @@ async function isMasterAdmin(userId: string): Promise<boolean> {
     )
     const { data, error } = await admin.auth.admin.getUserById(userId)
     if (error || !data?.user) return false
-    return data.user.email === superAdminEmail
+    // P62 — same trim/lowercase semantics as isMasterEmail; these diverged when
+    // only the layout's compare was hardened, which produced intermittent,
+    // facility-dependent fallthrough.
+    return isMasterEmail(data.user.email)
   } catch (err) {
     console.error('[isMasterAdmin] lookup failed:', err)
     return false

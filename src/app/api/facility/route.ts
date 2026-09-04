@@ -8,13 +8,14 @@ import { NextRequest } from 'next/server'
 import { sanitizeFacility } from '@/lib/sanitize'
 import { isFacilityConnected } from '@/lib/qb-connection'
 import { revalidateTag } from 'next/cache'
+import { isValidTimeZone } from '@/lib/time'
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   address: z.string().max(500).optional(),
   phone: z.string().max(50).optional(),
   calendarId: z.string().max(500).optional(),
-  timezone: z.string().max(100).optional(),
+  timezone: z.string().max(100).refine(isValidTimeZone, 'Not a valid timezone (e.g. America/New_York)').optional(),
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
   stripePublishableKey: z.string().max(500).optional(),
   stripeSecretKey: z.string().max(500).optional(),

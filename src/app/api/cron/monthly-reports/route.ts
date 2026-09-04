@@ -13,7 +13,7 @@ import { facilities, residents, qbInvoices, qbPayments } from '@/db/schema'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { sendEmail, buildFacilityStatementHtml } from '@/lib/email'
-import { ensureMonthlyReportSchema } from '@/lib/monthly-report-ddl'
+import { ensureFacilitiesSchema } from '@/lib/facilities-ddl'
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    await ensureMonthlyReportSchema()
+    await ensureFacilitiesSchema()
 
     const optedIn = await db.query.facilities.findMany({
       where: and(

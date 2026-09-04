@@ -5,12 +5,13 @@ import { count, eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
+import { isValidTimeZone } from '@/lib/time'
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
-  timezone: z.string().optional(),
+  timezone: z.string().max(100).refine(isValidTimeZone, 'Not a valid timezone (e.g. America/New_York)').optional(),
   paymentType: z.enum(['facility', 'ip', 'rfms', 'hybrid']).optional(),
   active: z.boolean().optional(),
   contactEmail: z.string().email().optional().nullable(),

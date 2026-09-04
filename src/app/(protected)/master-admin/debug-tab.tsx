@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ServerDiagnostics } from '@/components/debug/server-diagnostics'
+import { RecentErrors } from '@/components/debug/recent-errors'
 
 interface Facility {
   id: string
@@ -243,8 +244,9 @@ export function DebugTab({ facilities, currentFacilityId }: DebugTabProps) {
         )}
       </div>
 
-      {/* P61 — the diagnosis, in the app. Open this before guessing. */}
+      {/* P61/P62 — the diagnosis, in the app. Open these before guessing. */}
       <ServerDiagnostics />
+      <RecentErrors />
 
       <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-stone-800 mb-1">Select Facility</h2>
